@@ -1,9 +1,11 @@
+include env/testing.env
+
 .PHONY: all test build dependencies clean
 
 all: build
 
-test: build
-	forge test -vv
+unit-test: build
+	forge test --fork-url ${AVAX_RPC} -vv
 
 build: dependencies
 	forge build
