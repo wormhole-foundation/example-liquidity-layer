@@ -1,0 +1,21 @@
+[profile.default]
+solc_version = "0.8.19"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+extra_output = ["metadata", "storageLayout", "evm.deployedBytecode.immutableReferences"]
+
+test = "forge-test"
+
+libs = [
+    "lib",
+    "node_modules",
+]
+
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "forge-std/=lib/forge-std/src/",
+    "wormhole-solidity/=modules/wormhole"
+]
+
+# See more config options https://github.com/foundry-rs/foundry/tree/master/config
