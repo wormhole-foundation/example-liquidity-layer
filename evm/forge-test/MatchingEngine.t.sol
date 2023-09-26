@@ -9,7 +9,7 @@ import "forge-std/console.sol";
 import {WormholeCurvePool} from "./CurvePool.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract MothershipTest is Test, WormholeCurvePool {
+contract MatchingEngineTest is Test, WormholeCurvePool {
 	address constant usdc = 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
 	address constant ethUsdc = 0xB24CA28D4e2742907115fECda335b40dbda07a4C;
 	address constant solUsdc = 0x0950Fc1AD509358dAeaD5eB8020a3c7d8b43b9DA;
