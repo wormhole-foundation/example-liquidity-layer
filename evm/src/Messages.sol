@@ -7,7 +7,8 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 library Messages {
 	using BytesParsing for bytes;
 
-	uint8 private constant MARKET_ORDER = 1;
+	uint8 private constant MARKET_ORDER = 0x1;
+	uint8 private constant FILL = 0x10;
 
 	// Custom errors.
 	error InvalidPayloadId(uint8 parsedPayloadId, uint8 expectedPayloadId);
@@ -43,10 +44,10 @@ library Messages {
 		);
 	}
 
-	function decode(
+	function decodeMarketOrder(
 		bytes memory encoded
 	) internal pure returns (MarketOrder memory order) {
-		uint256 offset = checkUint8(encoded, 0, MARKET_ORDER);
+		uint256 offset = checkPayloadId(encoded, 0, MARKET_ORDER);
 
 		// Parse the encoded message.
 		(order.minAmountOut, offset) = encoded.asUint256Unchecked(offset);
@@ -78,15 +79,19 @@ library Messages {
 		}
 	}
 
-	// ------------------------------------------ private --------------------------------------------
+	function decodeFill(
+		bytes memory encoded
+	) internal pure returns (Fill memory fill) {
+		uint256 offset = checkPayloadId(encoded, 0, FILL);
 
-	function encodeBytes(
-		bytes memory payload
-	) private pure returns (bytes memory encoded) {
-		// Casting payload.length to uint32 is safe because you'll be hard-pressed
-		// to allocate 4 GB of EVM memory in a single transaction.
-		encoded = abi.encodePacked(uint32(payload.length), payload);
+		(fill.amount, offset) = encoded.asUint256Unchecked(offset);
+		(fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
+		(fill.redeemerMessage, offset) = decodeBytes(encoded, offset);
+
+		checkLength(encoded, offset);
 	}
+
+	// ------------------------------------------ private --------------------------------------------
 
 	function decodeBytes(
 		bytes memory encoded,
@@ -97,22 +102,29 @@ library Messages {
 		(payload, offset) = encoded.sliceUnchecked(offset, payloadLength);
 	}
 
-	function checkUint8(
+	function encodeBytes(
+		bytes memory payload
+	) private pure returns (bytes memory encoded) {
+		// Casting payload.length to uint32 is safe because you'll be hard-pressed
+		// to allocate 4 GB of EVM memory in a single transaction.
+		encoded = abi.encodePacked(uint32(payload.length), payload);
+	}
+
+	function checkLength(bytes memory encoded, uint256 expected) private pure {
+		if (encoded.length != expected) {
+			revert InvalidPayloadLength(encoded.length, expected);
+		}
+	}
+
+	function checkPayloadId(
 		bytes memory encoded,
 		uint256 startOffset,
 		uint8 expectedPayloadId
 	) private pure returns (uint256 offset) {
 		uint8 parsedPayloadId;
 		(parsedPayloadId, offset) = encoded.asUint8Unchecked(startOffset);
-
 		if (parsedPayloadId != expectedPayloadId) {
 			revert InvalidPayloadId(parsedPayloadId, expectedPayloadId);
-		}
-	}
-
-	function checkLength(bytes memory encoded, uint256 expected) private pure {
-		if (encoded.length != expected) {
-			revert InvalidPayloadLength(encoded.length, expected);
 		}
 	}
 }
