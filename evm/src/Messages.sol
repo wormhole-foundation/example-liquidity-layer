@@ -2,8 +2,16 @@
 
 pragma solidity ^0.8.19;
 
+import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
+
 library Messages {
+	using BytesParsing for bytes;
+
 	uint8 private constant MARKET_ORDER = 1;
+
+	// Custom errors.
+	error InvalidPayloadId(uint8 parsedPayloadId, uint8 expectedPayloadId);
+	error InvalidPayloadLength(uint256 parsedLength, uint256 expectedLength);
 
 	struct MarketOrder {
 		uint256 minAmountOut;
@@ -21,25 +29,90 @@ library Messages {
 	}
 
 	function encode(
-		MarketOrder memory strct
+		MarketOrder memory order
 	) internal pure returns (bytes memory encoded) {
 		encoded = abi.encodePacked(
 			MARKET_ORDER,
-			strct.minAmountOut,
-			strct.targetChain,
-			strct.redeemer,
-			strct.relayerFee,
-			uint8(strct.allowedRelayers.length),
-			abi.encodePacked(strct.allowedRelayers),
-			encodeBytes(strct.redeemerMessage)
+			order.minAmountOut,
+			order.targetChain,
+			order.redeemer,
+			order.relayerFee,
+			uint8(order.allowedRelayers.length),
+			abi.encodePacked(order.allowedRelayers),
+			encodeBytes(order.redeemerMessage)
 		);
 	}
+
+	function decode(
+		bytes memory encoded
+	) internal pure returns (MarketOrder memory order) {
+		uint256 offset = checkUint8(encoded, 0, MARKET_ORDER);
+
+		// Parse the encoded message.
+		(order.minAmountOut, offset) = encoded.asUint256Unchecked(offset);
+		(order.targetChain, offset) = encoded.asUint16Unchecked(offset);
+		(order.redeemer, offset) = encoded.asBytes32Unchecked(offset);
+		(order.relayerFee, offset) = encoded.asUint256Unchecked(offset);
+		(order.allowedRelayers, offset) = decodeAllowedRelayers(
+			encoded,
+			offset
+		);
+		(order.redeemerMessage, offset) = decodeBytes(encoded, offset);
+
+		checkLength(encoded, offset);
+	}
+
+	function decodeAllowedRelayers(
+		bytes memory encoded,
+		uint256 startOffset
+	) internal pure returns (bytes32[] memory allowedRelayers, uint256 offset) {
+		uint8 relayerCount;
+		(relayerCount, offset) = encoded.asUint8Unchecked(startOffset);
+
+		allowedRelayers = new bytes32[](relayerCount);
+		for (uint256 i = 0; i < relayerCount; ) {
+			(allowedRelayers[i], offset) = encoded.asBytes32Unchecked(offset);
+			unchecked {
+				++i;
+			}
+		}
+	}
+
+	// ------------------------------------------ private --------------------------------------------
 
 	function encodeBytes(
 		bytes memory payload
 	) private pure returns (bytes memory encoded) {
-		//casting payload.length to uint32 is safe because you'll be hard-pressed to allocate 4 GB of
-		//  EVM memory in a single transaction
+		// Casting payload.length to uint32 is safe because you'll be hard-pressed
+		// to allocate 4 GB of EVM memory in a single transaction.
 		encoded = abi.encodePacked(uint32(payload.length), payload);
+	}
+
+	function decodeBytes(
+		bytes memory encoded,
+		uint256 startOffset
+	) private pure returns (bytes memory payload, uint256 offset) {
+		uint32 payloadLength;
+		(payloadLength, offset) = encoded.asUint32Unchecked(startOffset);
+		(payload, offset) = encoded.sliceUnchecked(offset, payloadLength);
+	}
+
+	function checkUint8(
+		bytes memory encoded,
+		uint256 startOffset,
+		uint8 expectedPayloadId
+	) private pure returns (uint256 offset) {
+		uint8 parsedPayloadId;
+		(parsedPayloadId, offset) = encoded.asUint8Unchecked(startOffset);
+
+		if (parsedPayloadId != expectedPayloadId) {
+			revert InvalidPayloadId(parsedPayloadId, expectedPayloadId);
+		}
+	}
+
+	function checkLength(bytes memory encoded, uint256 expected) private pure {
+		if (encoded.length != expected) {
+			revert InvalidPayloadLength(encoded.length, expected);
+		}
 	}
 }
