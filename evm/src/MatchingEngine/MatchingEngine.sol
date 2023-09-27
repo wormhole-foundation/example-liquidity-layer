@@ -2,8 +2,16 @@
 
 pragma solidity 0.8.19;
 
-import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
+import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 
 contract MatchingEngine {
-	using BytesParsing for bytes;
+	function executeOrder(bytes calldata vaa) public payable {
+		return;
+	}
+
+	function executeOrder(
+		ICircleIntegration.RedeemParameters calldata params
+	) public payable {
+		return;
+	}
 }
