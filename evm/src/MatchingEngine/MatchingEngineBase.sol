@@ -19,7 +19,7 @@ contract MatchingEngineBase {
 	IWormhole private immutable _wormhole;
 	ITokenBridge private immutable _tokenBridge;
 	ICircleIntegration private immutable _circleIntegration;
-	uint256 private immutable _relayTimeout;
+	uint256 public constant RELAY_TIMEOUT = 900; // seconds
 
 	// Errors.
 	error InvalidRoute();
@@ -30,14 +30,12 @@ contract MatchingEngineBase {
 		address tokenBridge,
 		address circleIntegration,
 		address curve,
-		int8 nativeTokenPoolIndex,
-		uint256 relayTimeout
+		int8 nativeTokenPoolIndex
 	) {
 		_tokenBridge = ITokenBridge(tokenBridge);
 		_circleIntegration = ICircleIntegration(circleIntegration);
 		_chainId = _tokenBridge.chainId();
 		_wormhole = _tokenBridge.wormhole();
-		_relayTimeout = relayTimeout;
 
 		// Set curve pool info in storage.
 		CurvePoolInfo storage info = getCurvePoolInfo();
@@ -153,7 +151,7 @@ contract MatchingEngineBase {
 
 		// Check if the msg.sender is an allowed relayer.
 		bool allowed = false;
-		if (relayerCount == 0 || messageTime + _relayTimeout >= block.timestamp) {
+		if (relayerCount == 0 || messageTime + RELAY_TIMEOUT > block.timestamp) {
 			allowed = true;
 		} else {
 			for (uint256 i = 0; i < relayerCount; ) {
