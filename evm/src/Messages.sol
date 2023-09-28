@@ -9,6 +9,7 @@ library Messages {
 
 	uint8 private constant MARKET_ORDER = 0x1;
 	uint8 private constant FILL = 0x10;
+	uint8 private constant REVERT = 0x20;
 
 	// Custom errors.
 	error InvalidPayloadId(uint8 parsedPayloadId, uint8 expectedPayloadId);
@@ -31,8 +32,12 @@ library Messages {
 		bytes redeemerMessage;
 	}
 
+	enum RevertType {
+		SwapFailed
+	}
+
 	struct OrderRevert {
-		uint8 reason;
+		RevertType reason;
 		bytes32 refundAddress;
 	}
 
@@ -95,6 +100,24 @@ library Messages {
 		(fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
 		(fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
 		(fill.redeemerMessage, offset) = decodeBytes(encoded, offset);
+
+		checkLength(encoded, offset);
+	}
+
+	function encode(OrderRevert memory reverted) internal pure returns (bytes memory encoded) {
+		encoded = abi.encodePacked(REVERT, reverted.reason, reverted.refundAddress);
+	}
+
+	function decodeOrderRevert(
+		bytes memory encoded
+	) internal pure returns (OrderRevert memory reverted) {
+		uint256 offset = checkPayloadId(encoded, 0, REVERT);
+
+		uint8 reason;
+		(reason, offset) = encoded.asUint8Unchecked(offset);
+		reverted.reason = RevertType(reason);
+
+		(reverted.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
 
 		checkLength(encoded, offset);
 	}

@@ -11,16 +11,20 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {Messages} from "../Messages.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../Utils.sol";
-import {getExecutionRoute, Route, getRegisteredOrderRouters, CurvePoolInfo, getCurvePoolInfo} from "./MatchingEngineStorage.sol";
+import {getExecutionRoute, Route, RegisteredOrderRouters, getRegisteredOrderRouters, CurvePoolInfo, getCurvePoolInfo} from "./Storage.sol";
 
 contract MatchingEngineBase {
 	using Messages for *;
 
+	// Immutable state.
 	uint16 private immutable _chainId;
 	IWormhole private immutable _wormhole;
 	ITokenBridge private immutable _tokenBridge;
 	ICircleIntegration private immutable _circleIntegration;
+
+	// Consts.
 	uint256 public constant RELAY_TIMEOUT = 900; // seconds
+	uint32 private constant NONCE = 0;
 
 	// Errors.
 	error InvalidRoute();
@@ -44,14 +48,15 @@ contract MatchingEngineBase {
 		info.nativeTokenIndex = nativeTokenPoolIndex;
 	}
 
-	function executeOrder(bytes calldata vaa) public payable {
+	function executeOrder(bytes calldata vaa) public payable returns (uint64) {
 		// parse and verify the vaa
 		// see if the token is registered
+		return 69;
 	}
 
 	function executeOrder(
 		ICircleIntegration.RedeemParameters calldata redeemParams
-	) public payable {
+	) public payable returns (uint64 sequence) {
 		/**
 		 * Mint tokens to this contract. Serves as a reentrancy protection,
 		 * since the circle integration contract will not allow the wormhole
@@ -60,25 +65,18 @@ contract MatchingEngineBase {
 		ICircleIntegration.DepositWithPayload memory deposit = _circleIntegration
 			.redeemTokensWithPayload(redeemParams);
 
-		// Convert the CCTP `sourceDomain` to Wormhole chain ID.
-		uint16 fromChain = _circleIntegration.getChainIdFromDomain(deposit.sourceDomain);
-		if (deposit.fromAddress != getRegisteredOrderRouters().registered[fromChain]) {
-			revert UnregisteredOrderRouter();
-		}
-
 		// Parse the market order.
 		Messages.MarketOrder memory order = deposit.payload.decodeMarketOrder();
-		address token = fromUniversalAddress(deposit.token);
 
-		// Pay the msg.sender if they're an allowed relayer and the market order
-		// specifies a nonzero relayer fee.
-		uint256 amountIn = _handleRelayerFee(
-			token,
-			redeemParams.encodedWormholeMessage.decodeWormholeTimestamp(),
-			deposit.amount,
-			order.relayerFee,
-			order.allowedRelayers
-		);
+		// Check that the from/to order routers are registered with this contract.
+		RegisteredOrderRouters storage routers = getRegisteredOrderRouters();
+		uint16 fromChain = _circleIntegration.getChainIdFromDomain(deposit.sourceDomain);
+		if (
+			deposit.fromAddress != routers.registered[fromChain] ||
+			routers.registered[order.targetChain] == bytes32(0)
+		) {
+			revert UnregisteredOrderRouter();
+		}
 
 		// Determine if the target route is enabled. This contract should
 		// not receive a circle integration message if the target route is
@@ -88,7 +86,18 @@ contract MatchingEngineBase {
 			revert InvalidRoute();
 		}
 
-		// Execute curve swap. The amountOut will be zero if the
+		// Pay the msg.sender if they're an allowed relayer and the market order
+		// specifies a nonzero relayer fee.
+		address token = fromUniversalAddress(deposit.token);
+		uint256 amountIn = _handleRelayerFee(
+			token,
+			redeemParams.encodedWormholeMessage.decodeWormholeTimestamp(),
+			deposit.amount,
+			order.relayerFee,
+			order.allowedRelayers
+		);
+
+		// Execute curve swap. The `amountOut` will be zero if the
 		// swap fails for any reason.
 		CurvePoolInfo memory curve = getCurvePoolInfo();
 		uint256 amountOut = _handleSwap(
@@ -100,12 +109,37 @@ contract MatchingEngineBase {
 			order.minAmountOut
 		);
 
-		// TODO: see how curve handles failed swap.
+		// If the swap failed, revert the order and refund the redeemer on
+		// the origin chain. Otherwise, bridge the swapped token to the
+		// destination chain.
 		if (amountOut == 0) {
-			_handleFailedSwap();
+			sequence = _handleCCTPOut(
+				token,
+				amountIn, // Send full amount back.
+				fromChain,
+				routers.registered[fromChain],
+				Messages
+					.OrderRevert({
+						reason: Messages.RevertType.SwapFailed,
+						refundAddress: order.refundAddress
+					})
+					.encode()
+			);
+		} else {
+			sequence = _handleBridgeOut(
+				route.target,
+				amountOut,
+				order.targetChain,
+				routers.registered[order.targetChain],
+				Messages
+					.Fill({
+						orderSender: order.sender,
+						redeemer: order.redeemer,
+						redeemerMessage: order.redeemerMessage
+					})
+					.encode()
+			);
 		}
-
-		_handleBridgeOut();
 	}
 
 	function _handleSwap(
@@ -152,7 +186,7 @@ contract MatchingEngineBase {
 
 		// Check if the msg.sender is an allowed relayer.
 		bool allowed = false;
-		if (relayerCount == 0 || messageTime + RELAY_TIMEOUT > block.timestamp) {
+		if (relayerCount == 0 || block.timestamp > messageTime + RELAY_TIMEOUT) {
 			allowed = true;
 		} else {
 			for (uint256 i = 0; i < relayerCount; ) {
@@ -176,20 +210,41 @@ contract MatchingEngineBase {
 		return amountIn - relayerFee;
 	}
 
-	function _handleFailedSwap() internal pure {
-		return;
+	function _handleBridgeOut(
+		address token,
+		uint256 amount,
+		uint16 recipientChain,
+		bytes32 recipient,
+		bytes memory payload
+	) internal returns (uint64 sequence) {
+		SafeERC20.safeApprove(IERC20(token), address(_tokenBridge), amount);
+		sequence = _tokenBridge.transferTokensWithPayload{value: msg.value}(
+			token,
+			amount,
+			recipientChain,
+			recipient,
+			NONCE,
+			payload
+		);
 	}
 
-	function _handleBridgeOut() internal pure returns (uint64 sequence) {
-		// TODO: safe approve the bridge
-		// sequence = _tokenBridge.transferTokensWithPayload(
-		// 	token,
-		// 	amount,
-		// 	recipientChain,
-		// 	recipient,
-		// 	nonce,
-		// 	payload
-		// );
-		return 69;
+	function _handleCCTPOut(
+		address token,
+		uint256 amount,
+		uint16 recipientChain,
+		bytes32 recipient,
+		bytes memory payload
+	) internal returns (uint64 sequence) {
+		SafeERC20.safeApprove(IERC20(token), address(_circleIntegration), amount);
+		sequence = _circleIntegration.transferTokensWithPayload(
+			ICircleIntegration.TransferParameters({
+				token: token,
+				amount: amount,
+				targetChain: recipientChain,
+				mintRecipient: recipient
+			}),
+			NONCE,
+			payload
+		);
 	}
 }
