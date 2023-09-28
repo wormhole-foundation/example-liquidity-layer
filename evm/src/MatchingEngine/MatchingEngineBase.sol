@@ -10,6 +10,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {Messages} from "../Messages.sol";
+import {toUniversalAddress, fromUniversalAddress} from "../Utils.sol";
 import {getExecutionRoute, Route, getRegisteredOrderRouters, CurvePoolInfo, getCurvePoolInfo} from "./MatchingEngineStorage.sol";
 
 contract MatchingEngineBase {
@@ -67,7 +68,7 @@ contract MatchingEngineBase {
 
 		// Parse the market order.
 		Messages.MarketOrder memory order = deposit.payload.decodeMarketOrder();
-		address token = fromWormholeFormat(deposit.token);
+		address token = fromUniversalAddress(deposit.token);
 
 		// Pay the msg.sender if they're an allowed relayer and the market order
 		// specifies a nonzero relayer fee.
@@ -147,7 +148,7 @@ contract MatchingEngineBase {
 		}
 
 		uint256 relayerCount = allowedRelayers.length;
-		bytes32 relayer = toWormholeFormat(msg.sender);
+		bytes32 relayer = toUniversalAddress(msg.sender);
 
 		// Check if the msg.sender is an allowed relayer.
 		bool allowed = false;
@@ -190,13 +191,5 @@ contract MatchingEngineBase {
 		// 	payload
 		// );
 		return 69;
-	}
-
-	function toWormholeFormat(address addr) public pure returns (bytes32 whFormat) {
-		return bytes32(uint256(uint160(addr)));
-	}
-
-	function fromWormholeFormat(bytes32 whFormatAddress) public pure returns (address addr) {
-		return address(uint160(uint256(whFormatAddress)));
 	}
 }
