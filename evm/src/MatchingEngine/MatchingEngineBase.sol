@@ -19,6 +19,7 @@ contract MatchingEngineBase {
 	IWormhole private immutable _wormhole;
 	ITokenBridge private immutable _tokenBridge;
 	ICircleIntegration private immutable _circleIntegration;
+	uint256 private immutable _relayTimeout;
 
 	// Errors.
 	error InvalidRoute();
@@ -29,12 +30,14 @@ contract MatchingEngineBase {
 		address tokenBridge,
 		address circleIntegration,
 		address curve,
-		int8 nativeTokenPoolIndex
+		int8 nativeTokenPoolIndex,
+		uint256 relayTimeout
 	) {
 		_tokenBridge = ITokenBridge(tokenBridge);
 		_circleIntegration = ICircleIntegration(circleIntegration);
 		_chainId = _tokenBridge.chainId();
 		_wormhole = _tokenBridge.wormhole();
+		_relayTimeout = relayTimeout;
 
 		// Set curve pool info in storage.
 		CurvePoolInfo storage info = getCurvePoolInfo();
@@ -72,6 +75,7 @@ contract MatchingEngineBase {
 		// specifies a nonzero relayer fee.
 		uint256 amountIn = _handleRelayerFee(
 			token,
+			redeemParams.encodedWormholeMessage.decodeWormholeTimestamp(),
 			deposit.amount,
 			order.relayerFee,
 			order.allowedRelayers
@@ -135,6 +139,7 @@ contract MatchingEngineBase {
 
 	function _handleRelayerFee(
 		address token,
+		uint256 messageTime,
 		uint256 amountIn,
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
@@ -148,7 +153,7 @@ contract MatchingEngineBase {
 
 		// Check if the msg.sender is an allowed relayer.
 		bool allowed = false;
-		if (relayerCount == 0) {
+		if (relayerCount == 0 || messageTime + _relayTimeout >= block.timestamp) {
 			allowed = true;
 		} else {
 			for (uint256 i = 0; i < relayerCount; ) {

@@ -95,6 +95,13 @@ library Messages {
 		checkLength(encoded, offset);
 	}
 
+	function decodeWormholeTimestamp(bytes memory encoded) internal pure returns (uint256) {
+		// Skip the payload ID and guardian set index.
+		(uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(5);
+		(uint32 timestamp, ) = encoded.asUint32Unchecked(offset + 66 * numSignatures);
+		return uint256(timestamp);
+	}
+
 	// ------------------------------------------ private --------------------------------------------
 
 	function decodeBytes(
