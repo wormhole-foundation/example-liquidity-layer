@@ -8,7 +8,7 @@ import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
 import {TargetInfo, getEndpoints, getRedeemedFills, getTargetInfos} from "./Storage.sol";
 
-abstract contract OrderRouterBase {
+abstract contract Config {
 	IERC20 public immutable orderToken;
 
 	uint16 public immutable matchingEngineChain;

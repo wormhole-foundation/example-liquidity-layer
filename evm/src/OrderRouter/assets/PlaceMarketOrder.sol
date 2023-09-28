@@ -6,13 +6,13 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
-import {Messages} from "../Messages.sol";
-import {toUniversalAddress, fromUniversalAddress} from "../Utils.sol";
+import {Messages} from "../../Messages.sol";
+import {toUniversalAddress, fromUniversalAddress} from "../../Utils.sol";
 
-import {OrderRouterBase} from "./OrderRouterBase.sol";
+import {Config} from "./Config.sol";
 import {TargetInfo, TargetType} from "./Storage.sol";
 
-abstract contract PlaceMarketOrder is OrderRouterBase {
+abstract contract PlaceMarketOrder is Config {
 	using BytesParsing for bytes;
 	using Messages for *;
 
@@ -21,7 +21,6 @@ abstract contract PlaceMarketOrder is OrderRouterBase {
 	error InvalidTargetType(TargetType targetType);
 
 	struct PlaceMarketOrderArgs {
-		uint32 nonce;
 		uint256 amountIn;
 		uint256 minAmountOut;
 		uint16 targetChain;
@@ -101,7 +100,7 @@ abstract contract PlaceMarketOrder is OrderRouterBase {
 						targetChain: matchingEngineChain,
 						mintRecipient: matchingEngineEndpoint
 					}),
-					args.nonce,
+					0, // nonce
 					encodedOrder
 				);
 			} else {
@@ -112,7 +111,7 @@ abstract contract PlaceMarketOrder is OrderRouterBase {
 					args.amountIn,
 					matchingEngineChain,
 					matchingEngineEndpoint,
-					args.nonce,
+					0, // nonce
 					encodedOrder
 				);
 			}
@@ -135,7 +134,7 @@ abstract contract PlaceMarketOrder is OrderRouterBase {
 						targetChain: args.targetChain,
 						mintRecipient: getEndpoint(args.targetChain)
 					}),
-					args.nonce,
+					0, // nonce
 					encodedFill
 				);
 			} else if (canonicalEnabled && targetType == TargetType.Canonical) {
@@ -146,7 +145,7 @@ abstract contract PlaceMarketOrder is OrderRouterBase {
 					args.amountIn,
 					args.targetChain,
 					getEndpoint(args.targetChain),
-					args.nonce,
+					0, // nonce
 					encodedFill
 				);
 			} else {
