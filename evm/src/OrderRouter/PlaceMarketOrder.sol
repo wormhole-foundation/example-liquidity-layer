@@ -114,7 +114,7 @@ contract PlaceMarketOrder is OrderRouterBase {
 			if (cctpEnabled) {
 				SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCircle), args.amountIn);
 
-				wormholeCircle.transferTokensWithPayload(
+				wormholeCircle.transferTokensWithPayload{value: msg.value}(
 					ICircleIntegration.TransferParameters({
 						token: address(orderToken),
 						amount: args.amountIn,
@@ -127,7 +127,7 @@ contract PlaceMarketOrder is OrderRouterBase {
 			} else {
 				SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
 
-				tokenBridge.transferTokensWithPayload(
+				tokenBridge.transferTokensWithPayload{value: msg.value}(
 					address(orderToken),
 					args.amountIn,
 					matchingEngineChain,
@@ -148,7 +148,7 @@ contract PlaceMarketOrder is OrderRouterBase {
 			if (cctpEnabled && targetType == TargetType.Cctp) {
 				SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCircle), args.amountIn);
 
-				wormholeCircle.transferTokensWithPayload(
+				wormholeCircle.transferTokensWithPayload{value: msg.value}(
 					ICircleIntegration.TransferParameters({
 						token: address(orderToken),
 						amount: args.amountIn,
@@ -161,7 +161,7 @@ contract PlaceMarketOrder is OrderRouterBase {
 			} else if (canonicalEnabled && targetType == TargetType.Canonical) {
 				SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
 
-				tokenBridge.transferTokensWithPayload(
+				tokenBridge.transferTokensWithPayload{value: msg.value}(
 					address(orderToken),
 					args.amountIn,
 					args.targetChain,
