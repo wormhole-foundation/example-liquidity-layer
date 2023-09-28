@@ -18,6 +18,7 @@ contract PlaceMarketOrder is OrderRouterBase {
 
 	error InsufficientAmount(uint256 amount, uint256 minimum);
 	error MinAmountOutExceedsLimit(uint256 minAmountOut, uint256 limit);
+	error InvalidTargetType(TargetType targetType);
 
 	struct PlaceMarketOrderArgs {
 		uint32 nonce;
@@ -75,7 +76,6 @@ contract PlaceMarketOrder is OrderRouterBase {
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
 	) internal returns (uint64 sequence) {
-		// TODO: Check amountIn vs minAmountOut. This will be be retrieved from storage.
 		(TargetType targetType, uint256 slippage) = _computeTargetSlippage(
 			args.targetChain,
 			relayerFee
@@ -114,7 +114,7 @@ contract PlaceMarketOrder is OrderRouterBase {
 			if (cctpEnabled) {
 				SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCircle), args.amountIn);
 
-				wormholeCircle.transferTokensWithPayload{value: msg.value}(
+				sequence = wormholeCircle.transferTokensWithPayload{value: msg.value}(
 					ICircleIntegration.TransferParameters({
 						token: address(orderToken),
 						amount: args.amountIn,
@@ -127,7 +127,7 @@ contract PlaceMarketOrder is OrderRouterBase {
 			} else {
 				SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
 
-				tokenBridge.transferTokensWithPayload{value: msg.value}(
+				sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
 					address(orderToken),
 					args.amountIn,
 					matchingEngineChain,
@@ -148,7 +148,7 @@ contract PlaceMarketOrder is OrderRouterBase {
 			if (cctpEnabled && targetType == TargetType.Cctp) {
 				SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCircle), args.amountIn);
 
-				wormholeCircle.transferTokensWithPayload{value: msg.value}(
+				sequence = wormholeCircle.transferTokensWithPayload{value: msg.value}(
 					ICircleIntegration.TransferParameters({
 						token: address(orderToken),
 						amount: args.amountIn,
@@ -161,7 +161,7 @@ contract PlaceMarketOrder is OrderRouterBase {
 			} else if (canonicalEnabled && targetType == TargetType.Canonical) {
 				SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
 
-				tokenBridge.transferTokensWithPayload{value: msg.value}(
+				sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
 					address(orderToken),
 					args.amountIn,
 					args.targetChain,
@@ -169,10 +169,11 @@ contract PlaceMarketOrder is OrderRouterBase {
 					args.nonce,
 					encodedFill
 				);
+			} else {
+				// This should never happen.
+				revert InvalidTargetType(targetType);
 			}
 		}
-
-		sequence = 0;
 	}
 
 	function _computeTargetSlippage(
