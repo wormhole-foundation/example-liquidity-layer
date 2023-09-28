@@ -30,6 +30,7 @@ contract MatchingEngineBase {
 	error InvalidRoute();
 	error UnregisteredOrderRouter();
 	error NotAllowedRelayer();
+	error NotAttested();
 
 	constructor(
 		address tokenBridge,
@@ -48,10 +49,109 @@ contract MatchingEngineBase {
 		info.nativeTokenIndex = nativeTokenPoolIndex;
 	}
 
-	function executeOrder(bytes calldata vaa) public payable returns (uint64) {
-		// parse and verify the vaa
-		// see if the token is registered
-		return 69;
+	function executeOrder(bytes calldata vaa) public payable returns (uint64 sequence) {
+		/**
+		 * Call `completeTransferWithPayload` on the token bridge. This
+		 * method acts as a reentrancy protection since it does not allow
+		 * transfers to be redeemed more than once. Also, parse the
+		 * the transfer payload. 
+		 
+		 * Since this contract will only receive USDC from the order routers, 
+		 * we can trust the amount encoded in the payload (USDC decimals == 6).
+		 */
+		ITokenBridge.TransferWithPayload memory transfer = _tokenBridge.parseTransferWithPayload(
+			_tokenBridge.completeTransferWithPayload(vaa)
+		);
+
+		// Parse the market order.
+		Messages.MarketOrder memory order = transfer.payload.decodeMarketOrder();
+
+		// SECURITY: Verify the to/from order routers.
+		uint16 fromChain = vaa.decodeWormholeEmitterChain();
+		RegisteredOrderRouters storage routers = _verifyMessageRoute(
+			fromChain,
+			transfer.fromAddress,
+			order.targetChain
+		);
+
+		// Fetch the token bridge representation of the bridged token.
+		address token = getLocalTokenAddress(transfer.tokenAddress, transfer.tokenChain);
+
+		// Determine if the `toRoute` is enabled and the `fromRoute`
+		// is configured correctly.
+		Route memory toRoute = getExecutionRoute().routes[order.targetChain];
+		Route memory fromRoute = getExecutionRoute().routes[fromChain];
+		if (toRoute.target == address(0) || fromRoute.target != token) {
+			revert InvalidRoute();
+		}
+
+		// Pay the msg.sender if they're an allowed relayer and the market order
+		// specifies a nonzero relayer fee.
+		uint256 amountIn = _handleRelayerFee(
+			token,
+			vaa.decodeWormholeTimestamp(),
+			transfer.amount,
+			order.relayerFee,
+			order.allowedRelayers
+		);
+
+		// Execute curve swap. The `amountOut` will be zero if the
+		// swap fails for any reason.
+		CurvePoolInfo memory curve = getCurvePoolInfo();
+		uint256 amountOut;
+		if (toRoute.cctp) {
+			amountOut = _handleSwap(
+				token,
+				address(curve.pool),
+				int128(fromRoute.poolIndex),
+				int128(curve.nativeTokenIndex),
+				amountIn,
+				order.minAmountOut
+			);
+		} else {
+			amountOut = _handleSwap(
+				token,
+				address(curve.pool),
+				int128(fromRoute.poolIndex),
+				int128(toRoute.poolIndex),
+				amountIn,
+				order.minAmountOut
+			);
+		}
+
+		// If the swap failed, revert the order and refund the redeemer on
+		// the origin chain. Otherwise, bridge (or CCTP) the swapped token to the
+		// destination chain.
+		if (amountOut == 0) {
+			sequence = _handleBridgeOut(
+				token,
+				amountIn,
+				fromChain,
+				routers.registered[fromChain],
+				Messages
+					.OrderRevert({
+						reason: Messages.RevertType.SwapFailed,
+						refundAddress: order.refundAddress
+					})
+					.encode(),
+				false // Not CCTP
+			);
+		} else {
+			_handleBridgeOut(
+				token,
+				amountOut,
+				order.targetChain,
+				routers.registered[order.targetChain],
+				Messages
+					.Fill({
+						orderSender: order.sender,
+						redeemer: order.redeemer,
+						redeemerMessage: order.redeemerMessage
+					})
+					.encode(),
+				toRoute.cctp
+			);
+		}
 	}
 
 	function executeOrder(
@@ -68,15 +168,13 @@ contract MatchingEngineBase {
 		// Parse the market order.
 		Messages.MarketOrder memory order = deposit.payload.decodeMarketOrder();
 
-		// Check that the from/to order routers are registered with this contract.
-		RegisteredOrderRouters storage routers = getRegisteredOrderRouters();
+		// SECURITY: Verify the to/from order routers.
 		uint16 fromChain = _circleIntegration.getChainIdFromDomain(deposit.sourceDomain);
-		if (
-			deposit.fromAddress != routers.registered[fromChain] ||
-			routers.registered[order.targetChain] == bytes32(0)
-		) {
-			revert UnregisteredOrderRouter();
-		}
+		RegisteredOrderRouters storage routers = _verifyMessageRoute(
+			fromChain,
+			deposit.fromAddress,
+			order.targetChain
+		);
 
 		// Determine if the target route is enabled. This contract should
 		// not receive a circle integration message if the target route is
@@ -113,7 +211,7 @@ contract MatchingEngineBase {
 		// the origin chain. Otherwise, bridge the swapped token to the
 		// destination chain.
 		if (amountOut == 0) {
-			sequence = _handleCCTPOut(
+			sequence = _handleBridgeOut(
 				token,
 				amountIn, // Send full amount back.
 				fromChain,
@@ -123,7 +221,8 @@ contract MatchingEngineBase {
 						reason: Messages.RevertType.SwapFailed,
 						refundAddress: order.refundAddress
 					})
-					.encode()
+					.encode(),
+				true // CCTP
 			);
 		} else {
 			sequence = _handleBridgeOut(
@@ -137,8 +236,23 @@ contract MatchingEngineBase {
 						redeemer: order.redeemer,
 						redeemerMessage: order.redeemerMessage
 					})
-					.encode()
+					.encode(),
+				false // Not CCTP
 			);
+		}
+	}
+
+	function _verifyMessageRoute(
+		uint16 fromChain,
+		bytes32 fromAddress,
+		uint16 targetChain
+	) internal view returns (RegisteredOrderRouters storage routers) {
+		routers = getRegisteredOrderRouters();
+		if (
+			fromAddress != routers.registered[fromChain] ||
+			routers.registered[targetChain] == bytes32(0)
+		) {
+			revert UnregisteredOrderRouter();
 		}
 	}
 
@@ -215,36 +329,49 @@ contract MatchingEngineBase {
 		uint256 amount,
 		uint16 recipientChain,
 		bytes32 recipient,
-		bytes memory payload
+		bytes memory payload,
+		bool isCCTP
 	) internal returns (uint64 sequence) {
-		SafeERC20.safeApprove(IERC20(token), address(_tokenBridge), amount);
-		sequence = _tokenBridge.transferTokensWithPayload{value: msg.value}(
-			token,
-			amount,
-			recipientChain,
-			recipient,
-			NONCE,
-			payload
-		);
+		if (isCCTP) {
+			SafeERC20.safeApprove(IERC20(token), address(_circleIntegration), amount);
+			sequence = _circleIntegration.transferTokensWithPayload{value: msg.value}(
+				ICircleIntegration.TransferParameters({
+					token: token,
+					amount: amount,
+					targetChain: recipientChain,
+					mintRecipient: recipient
+				}),
+				NONCE,
+				payload
+			);
+		} else {
+			SafeERC20.safeApprove(IERC20(token), address(_tokenBridge), amount);
+			sequence = _tokenBridge.transferTokensWithPayload{value: msg.value}(
+				token,
+				amount,
+				recipientChain,
+				recipient,
+				NONCE,
+				payload
+			);
+		}
 	}
 
-	function _handleCCTPOut(
-		address token,
-		uint256 amount,
-		uint16 recipientChain,
-		bytes32 recipient,
-		bytes memory payload
-	) internal returns (uint64 sequence) {
-		SafeERC20.safeApprove(IERC20(token), address(_circleIntegration), amount);
-		sequence = _circleIntegration.transferTokensWithPayload(
-			ICircleIntegration.TransferParameters({
-				token: token,
-				amount: amount,
-				targetChain: recipientChain,
-				mintRecipient: recipient
-			}),
-			NONCE,
-			payload
-		);
+	function getLocalTokenAddress(
+		bytes32 tokenAddress,
+		uint16 tokenChain
+	) internal view returns (address localAddress) {
+		// Fetch the wrapped address from the token bridge if the token
+		// is not from this chain.
+		if (tokenChain != _chainId) {
+			// identify wormhole token bridge wrapper
+			localAddress = _tokenBridge.wrappedAsset(tokenChain, tokenAddress);
+			if (localAddress != address(0)) {
+				revert NotAttested();
+			}
+		} else {
+			// return the encoded address if the token is native to this chain
+			localAddress = fromUniversalAddress(tokenAddress);
+		}
 	}
 }

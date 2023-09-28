@@ -129,6 +129,15 @@ library Messages {
 		return uint256(timestamp);
 	}
 
+	function decodeWormholeEmitterChain(bytes memory encoded) internal pure returns (uint16) {
+		// Skip the payload ID and guardian set index.
+		(uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(5);
+
+		// Add 8 to skip the timestamp and nonce.
+		(uint16 emitterChain, ) = encoded.asUint16Unchecked(offset + 66 * numSignatures + 8);
+		return emitterChain;
+	}
+
 	// ------------------------------------------ private --------------------------------------------
 
 	function decodeBytes(
