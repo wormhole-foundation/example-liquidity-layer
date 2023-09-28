@@ -19,24 +19,31 @@ library Messages {
 		uint16 targetChain;
 		bytes32 redeemer;
 		bytes redeemerMessage;
+		bytes32 sender;
+		bytes32 refundAddress;
 		uint256 relayerFee;
 		bytes32[] allowedRelayers;
 	}
 
 	struct Fill {
-		uint256 amount;
+		bytes32 orderSender;
 		bytes32 redeemer;
 		bytes redeemerMessage;
 	}
 
-	function encode(
-		MarketOrder memory order
-	) internal pure returns (bytes memory encoded) {
+	struct OrderRevert {
+		uint8 reason;
+		bytes32 refundAddress;
+	}
+
+	function encode(MarketOrder memory order) internal pure returns (bytes memory encoded) {
 		encoded = abi.encodePacked(
 			MARKET_ORDER,
 			order.minAmountOut,
 			order.targetChain,
 			order.redeemer,
+			order.sender,
+			order.refundAddress,
 			order.relayerFee,
 			uint8(order.allowedRelayers.length),
 			abi.encodePacked(order.allowedRelayers),
@@ -53,11 +60,10 @@ library Messages {
 		(order.minAmountOut, offset) = encoded.asUint256Unchecked(offset);
 		(order.targetChain, offset) = encoded.asUint16Unchecked(offset);
 		(order.redeemer, offset) = encoded.asBytes32Unchecked(offset);
+		(order.sender, offset) = encoded.asBytes32Unchecked(offset);
+		(order.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
 		(order.relayerFee, offset) = encoded.asUint256Unchecked(offset);
-		(order.allowedRelayers, offset) = decodeAllowedRelayers(
-			encoded,
-			offset
-		);
+		(order.allowedRelayers, offset) = decodeAllowedRelayers(encoded, offset);
 		(order.redeemerMessage, offset) = decodeBytes(encoded, offset);
 
 		checkLength(encoded, offset);
@@ -79,12 +85,10 @@ library Messages {
 		}
 	}
 
-	function decodeFill(
-		bytes memory encoded
-	) internal pure returns (Fill memory fill) {
+	function decodeFill(bytes memory encoded) internal pure returns (Fill memory fill) {
 		uint256 offset = checkPayloadId(encoded, 0, FILL);
 
-		(fill.amount, offset) = encoded.asUint256Unchecked(offset);
+		(fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
 		(fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
 		(fill.redeemerMessage, offset) = decodeBytes(encoded, offset);
 
@@ -102,9 +106,7 @@ library Messages {
 		(payload, offset) = encoded.sliceUnchecked(offset, payloadLength);
 	}
 
-	function encodeBytes(
-		bytes memory payload
-	) private pure returns (bytes memory encoded) {
+	function encodeBytes(bytes memory payload) private pure returns (bytes memory encoded) {
 		// Casting payload.length to uint32 is safe because you'll be hard-pressed
 		// to allocate 4 GB of EVM memory in a single transaction.
 		encoded = abi.encodePacked(uint32(payload.length), payload);
