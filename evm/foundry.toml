@@ -16,7 +16,8 @@ remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "forge-std/=lib/forge-std/src/",
     "wormhole-solidity/=modules/wormhole",
-    "cctp-solidity/=modules/circle"
+    "cctp-solidity/=modules/circle",
+    "curve-solidity/=modules/curve"
 ]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

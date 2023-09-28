@@ -5,6 +5,8 @@ pragma solidity ^0.8.19;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
+import {ICurvePool} from "curve-solidity/ICurvePool.sol";
+
 interface CurveFactory {
 	function deploy_plain_pool(
 		string memory _name,
@@ -17,16 +19,8 @@ interface CurveFactory {
 	) external returns (address);
 }
 
-interface CurvePool {
-	function add_liquidity(
-		uint256[4] memory _amounts,
-		uint256 _min_mint_amount
-	) external returns (uint256);
-}
-
 contract WormholeCurvePool {
-	address constant curveFactoryAddress =
-		0xb17b674D9c5CB2e441F8e196a2f048A81355d031;
+	address constant curveFactoryAddress = 0xb17b674D9c5CB2e441F8e196a2f048A81355d031;
 	address immutable curvePool;
 
 	constructor(address[4] memory coins) {
@@ -50,6 +44,10 @@ contract WormholeCurvePool {
 		uint256[4] memory amounts,
 		uint256 minLPAmount
 	) internal returns (uint256) {
-		return CurvePool(curvePool).add_liquidity(amounts, minLPAmount);
+		return ICurvePool(curvePool).add_liquidity(amounts, minLPAmount);
+	}
+
+	function curveSwap(int128 i, int128 j, uint256 dx, uint256 min_dy) internal returns (uint256) {
+		return ICurvePool(curvePool).exchange(i, j, dx, min_dy);
 	}
 }
