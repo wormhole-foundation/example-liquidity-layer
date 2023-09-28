@@ -12,7 +12,7 @@ import {toUniversalAddress, fromUniversalAddress} from "../Utils.sol";
 import {OrderRouterBase} from "./OrderRouterBase.sol";
 import {TargetInfo, TargetType} from "./Storage.sol";
 
-contract PlaceMarketOrder is OrderRouterBase {
+abstract contract PlaceMarketOrder is OrderRouterBase {
 	using BytesParsing for bytes;
 	using Messages for *;
 
@@ -29,26 +29,6 @@ contract PlaceMarketOrder is OrderRouterBase {
 		bytes redeemerMessage;
 		address refundAddress;
 	}
-
-	constructor(
-		address _token,
-		uint16 _matchingEngineChain,
-		bytes32 _matchingEngineEndpoint,
-		uint16 _canonicalTokenChain,
-		bytes32 _canonicalTokenAddress,
-		address _tokenBridge,
-		address _wormholeCircle
-	)
-		OrderRouterBase(
-			_token,
-			_matchingEngineChain,
-			_matchingEngineEndpoint,
-			_canonicalTokenChain,
-			_canonicalTokenAddress,
-			_tokenBridge,
-			_wormholeCircle
-		)
-	{}
 
 	function placeMarketOrder(
 		PlaceMarketOrderArgs calldata args
