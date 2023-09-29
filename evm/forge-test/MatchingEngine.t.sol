@@ -10,6 +10,8 @@ import {IMatchingEngine} from "../src/interfaces/IMatchingEngine.sol";
 import {WormholeCurvePool} from "./CurvePool.sol";
 import {MatchingEngine} from "../src/MatchingEngine/MatchingEngine.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
+import {toUniversalAddress, fromUniversalAddress} from "../src/Utils.sol";
+import {WormholeSimulator, SigningWormholeSimulator} from "modules/wormhole/WormholeSimulator.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract MatchingEngineTest is Test, WormholeCurvePool {
@@ -18,13 +20,23 @@ contract MatchingEngineTest is Test, WormholeCurvePool {
 	address constant ETH_USDC = 0xB24CA28D4e2742907115fECda335b40dbda07a4C;
 	address constant SOL_USDC = 0x0950Fc1AD509358dAeaD5eB8020a3c7d8b43b9DA;
 	address constant POLY_USDC = 0x543672E9CBEC728CBBa9C3Ccd99ed80aC3607FA8;
-	address constant TOKEN_BRIDGE = 0x0e082F06FF657D94310cB8cE8B0D9a04541d8052;
-	address constant CIRCLE_INTEGRATION = 0x09Fb06A271faFf70A651047395AaEb6265265F13;
 	address[4] poolCoins;
 
 	// Test Variables.
+	bytes32 immutable SUI_ROUTER = toUniversalAddress(makeAddr("suiRouter"));
+	bytes32 immutable ARB_ROUTER = toUniversalAddress(makeAddr("arbRouter"));
+	bytes32 immutable POLY_ROUTER = toUniversalAddress(makeAddr("polyRouter"));
+	uint16 constant SUI_CHAIN = 21;
+	uint16 constant ARB_CHAIN = 23;
+	uint16 constant POLY_CHAIN = 5;
 	uint256 constant INIT_LIQUIDITY = 1000000 * 10 ** 6; // (1MM USDC)
 	IMatchingEngine engine;
+	WormholeSimulator wormholeSimulator;
+
+	// Env variables.
+	address immutable TOKEN_BRIDGE = vm.envAddress("AVAX_TOKEN_BRIDGE_ADDRESS");
+	address immutable CIRCLE_INTEGRATION = vm.envAddress("AVAX_WORMHOLE_CCTP_ADDRESS");
+	uint256 guardianSigner = uint256(vm.envBytes32("TESTING_DEVNET_GUARDIAN"));
 
 	/// @notice We use a constructor here so that the curve pool is
 	/// only deployed once (vs. in a `setUp` function).
@@ -32,7 +44,7 @@ contract MatchingEngineTest is Test, WormholeCurvePool {
 		poolCoins = [USDC, ETH_USDC, SOL_USDC, POLY_USDC];
 	}
 
-	function mintAndProvideLiquidity(uint256 amount) internal {
+	function _mintAndProvideLiquidity(uint256 amount) internal {
 		// Mint tokens and approve them for the curve pool.
 		uint256[4] memory amounts;
 		for (uint256 i = 0; i < poolCoins.length; ++i) {
@@ -47,7 +59,19 @@ contract MatchingEngineTest is Test, WormholeCurvePool {
 		);
 	}
 
-	function deployMatchingEngine() internal {
+	function _setupMatchingEngine() internal {
+		// Set the initial router.
+		engine.registerOrderRouter(SUI_CHAIN, SUI_ROUTER);
+		engine.registerOrderRouter(ARB_CHAIN, ARB_ROUTER);
+		engine.registerOrderRouter(POLY_CHAIN, POLY_ROUTER);
+
+		// Set the initial route.
+		engine.enableExecutionRoute(SUI_CHAIN, ETH_USDC, false, 0);
+		engine.enableExecutionRoute(ARB_CHAIN, USDC, true, 0);
+		engine.enableExecutionRoute(POLY_CHAIN, POLY_USDC, false, 0);
+	}
+
+	function _deployMatchingEngine() internal {
 		// Deploy the matching engine.
 		MatchingEngine proxy = new MatchingEngine(
 			TOKEN_BRIDGE,
@@ -57,15 +81,15 @@ contract MatchingEngineTest is Test, WormholeCurvePool {
 		);
 		engine = IMatchingEngine(address(proxy));
 
-		// Add CCTP and 2 non-CCTP enabled routes.
-		// Add the curve pool information.
-		// Add the order router information.
-		// Add token routes.
+		_setupMatchingEngine();
 	}
 
 	function setUp() public {
-		mintAndProvideLiquidity(INIT_LIQUIDITY);
-		deployMatchingEngine();
+		_mintAndProvideLiquidity(INIT_LIQUIDITY);
+		_deployMatchingEngine();
+
+		// Replace mainnet guardian keys with the devnet key.
+		wormholeSimulator = new SigningWormholeSimulator(engine.getWormhole(), guardianSigner);
 	}
 
 	/**

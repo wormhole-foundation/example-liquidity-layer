@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache 2
 
-pragma solidity 0.8.19;
+pragma solidity ^0.8.0;
 
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
