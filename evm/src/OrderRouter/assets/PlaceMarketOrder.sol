@@ -169,7 +169,7 @@ abstract contract PlaceMarketOrder is State {
 	}
 
 	function _handleBridgeToMatchingEngine(
-		PlaceMarketOrderargs calldata args,
+		PlaceMarketOrderArgs calldata args,
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
 	) internal returns (uint64 sequence) {
