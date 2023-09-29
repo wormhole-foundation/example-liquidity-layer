@@ -6,7 +6,9 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
-import {TargetInfo, getEndpoints, getRedeemedFills, getTargetInfos} from "./Storage.sol";
+import {getEndpoints, getRedeemedFills, getTargetInfos} from "./Storage.sol";
+
+import {TargetInfo} from "../../interfaces/Types.sol";
 
 abstract contract State {
 	IERC20 public immutable orderToken;

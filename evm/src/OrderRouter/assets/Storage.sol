@@ -2,6 +2,8 @@
 
 pragma solidity 0.8.19;
 
+import {TargetInfo, TargetType} from "../../interfaces/Types.sol";
+
 struct RedeemedFills {
 	mapping(bytes32 => bool) redeemedFills;
 }
@@ -13,17 +15,6 @@ function getRedeemedFills() pure returns (RedeemedFills storage state) {
 	assembly ("memory-safe") {
 		state.slot := REDEEMED_FILLS_STORAGE_SLOT
 	}
-}
-
-enum TargetType {
-	Cctp,
-	NonCctp,
-	Canonical
-}
-
-struct TargetInfo {
-	TargetType targetType;
-	uint248 slippage; // TODO: re-evaluate
 }
 
 struct TargetInfos {

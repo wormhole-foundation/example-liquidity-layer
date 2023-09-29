@@ -6,11 +6,14 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
 import {Messages} from "../Messages.sol";
 
+import {Admin} from "./assets/Admin.sol";
 import {PlaceMarketOrder} from "./assets/PlaceMarketOrder.sol";
 import {RedeemFill} from "./assets/RedeemFill.sol";
 import {State} from "./assets/State.sol";
 
-contract OrderRouter is PlaceMarketOrder, RedeemFill {
+import {IOrderRouter} from "../interfaces/IOrderRouter.sol";
+
+contract OrderRouter is IOrderRouter, Admin, PlaceMarketOrder, RedeemFill {
 	using BytesParsing for bytes;
 	using Messages for *;
 

@@ -10,35 +10,24 @@ import {Messages} from "../../Messages.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../../Utils.sol";
 
 import {State} from "./State.sol";
-import {TargetInfo, TargetType} from "./Storage.sol";
 
-abstract contract PlaceMarketOrder is State {
+import "../../interfaces/IPlaceMarketOrder.sol";
+import {TargetInfo} from "../../interfaces/Types.sol";
+
+abstract contract PlaceMarketOrder is IPlaceMarketOrder, State {
 	using BytesParsing for bytes;
 	using Messages for *;
 
-	error InsufficientAmount(uint256 amount, uint256 minimum);
-	error MinAmountOutExceedsLimit(uint256 minAmountOut, uint256 limit);
-	error InvalidTargetType(TargetType targetType);
-
-	struct PlaceMarketOrderArgs {
-		uint256 amountIn;
-		uint256 minAmountOut;
-		uint16 targetChain;
-		bytes32 redeemer;
-		bytes redeemerMessage;
-		address refundAddress;
-	}
-
 	function placeMarketOrder(
 		PlaceMarketOrderArgs calldata args
-	) public payable returns (uint64 sequence) {
+	) external payable returns (uint64 sequence) {
 		sequence = _placeMarketOrder(args, 0, new bytes32[](0));
 	}
 
 	function placeMarketOrder(
 		PlaceMarketOrderArgs calldata args,
 		uint256 relayerFee
-	) public payable returns (uint64 sequence) {
+	) external payable returns (uint64 sequence) {
 		sequence = _placeMarketOrder(args, relayerFee, new bytes32[](0));
 	}
 
@@ -46,7 +35,7 @@ abstract contract PlaceMarketOrder is State {
 		PlaceMarketOrderArgs calldata args,
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
-	) public payable returns (uint64 sequence) {
+	) external payable returns (uint64 sequence) {
 		sequence = _placeMarketOrder(args, relayerFee, allowedRelayers);
 	}
 
@@ -63,12 +52,12 @@ abstract contract PlaceMarketOrder is State {
 		// The amount provided for the order must be more than the fee to execute the order plus
 		// the configured relayer fee.
 		if (args.amountIn < slippage) {
-			revert InsufficientAmount(args.amountIn, slippage);
+			revert ErrInsufficientAmount(args.amountIn, slippage);
 		}
 
 		// The minimum amount out must not exceed the amount in less the fees.
 		if (args.minAmountOut > args.amountIn - slippage) {
-			revert MinAmountOutExceedsLimit(args.minAmountOut, args.amountIn - slippage);
+			revert ErrMinAmountOutExceedsLimit(args.minAmountOut, args.amountIn - slippage);
 		}
 
 		// Transfer the order token to this contract.
@@ -201,6 +190,12 @@ abstract contract PlaceMarketOrder is State {
 		uint256 relayerFee
 	) internal view returns (TargetType targetType, uint256 slippage) {
 		TargetInfo memory info = getTargetInfo(targetChain);
+
+		// Target chain must be registered with the order router.
+		if (info.targetType == TargetType.Unset) {
+			revert ErrTargetChainNotSupported(targetChain);
+		}
+
 		return (info.targetType, uint256(info.slippage) + relayerFee);
 	}
 }
