@@ -32,10 +32,7 @@ struct RegisteredOrderRouters {
 // keccak256("RegisteredOrderRouters") - 1
 bytes32 constant REGISTERED_ORDER_ROUTERS_STORAGE_SLOT = 0xca8563aa1bc6c7c344236139a238fcf417d4ef764fd632968827af37204289eb;
 
-function getRegisteredOrderRouters()
-	pure
-	returns (RegisteredOrderRouters storage state)
-{
+function getRegisteredOrderRouters() pure returns (RegisteredOrderRouters storage state) {
 	assembly ("memory-safe") {
 		state.slot := REGISTERED_ORDER_ROUTERS_STORAGE_SLOT
 	}
@@ -52,5 +49,44 @@ bytes32 constant CURVE_POOL_INFO_STORAGE_SLOT = 0x45c87bd57c20f0faa4795aea8c05a3
 function getCurvePoolInfo() pure returns (CurvePoolInfo storage state) {
 	assembly ("memory-safe") {
 		state.slot := CURVE_POOL_INFO_STORAGE_SLOT
+	}
+}
+
+struct Owner {
+	address owner;
+}
+
+// keccak256("Owner") - 1
+bytes32 constant OWNER_STORAGE_SLOT = 0x929f3fd6848015f83b9210c89f7744e3941acae1195c8bf9f5798c090dc8f496;
+
+function getOwner() pure returns (Owner storage state) {
+	assembly ("memory-safe") {
+		state.slot := OWNER_STORAGE_SLOT
+	}
+}
+
+struct PendingOwner {
+	address pendingOwner;
+}
+
+// keccak256("PendingOwner") - 1
+bytes32 constant PENDING_OWNER_STORAGE_SLOT = 0xfc082288390448db0c2ef4784346b98f672a76b4728a0683ba90c0ca79ea5128;
+
+function getPendingOwner() pure returns (PendingOwner storage state) {
+	assembly ("memory-safe") {
+		state.slot := PENDING_OWNER_STORAGE_SLOT
+	}
+}
+
+struct Paused {
+	bool paused;
+}
+
+// keccak256("Paused") - 1
+bytes32 constant PAUSED_STORAGE_SLOT = 0x0eeb5248cf3d8cd81a5ba6d3cc6e1997df7b174eb894aac081867c1a2bc43c8f;
+
+function getPaused() pure returns (Paused storage state) {
+	assembly ("memory-safe") {
+		state.slot := PAUSED_STORAGE_SLOT
 	}
 }

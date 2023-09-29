@@ -10,10 +10,11 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {Messages} from "../Messages.sol";
+import {MatchingEngineAdmin} from "./MatchingEngineAdmin.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../Utils.sol";
-import {getExecutionRoute, Route, RegisteredOrderRouters, getRegisteredOrderRouters, CurvePoolInfo, getCurvePoolInfo} from "./Storage.sol";
+import {getExecutionRoute, Route, RegisteredOrderRouters, getRegisteredOrderRouters, CurvePoolInfo, getCurvePoolInfo} from "./MatchingEngineStorage.sol";
 
-contract MatchingEngineBase {
+contract MatchingEngineBase is MatchingEngineAdmin {
 	using Messages for *;
 
 	// Immutable state.
@@ -28,6 +29,7 @@ contract MatchingEngineBase {
 
 	// Errors.
 	error InvalidRoute();
+	error InvalidPool();
 	error UnregisteredOrderRouter();
 	error NotAllowedRelayer();
 	error NotAttested();
@@ -49,7 +51,7 @@ contract MatchingEngineBase {
 		info.nativeTokenIndex = nativeTokenPoolIndex;
 	}
 
-	function executeOrder(bytes calldata vaa) public payable returns (uint64 sequence) {
+	function executeOrder(bytes calldata vaa) public payable notPaused returns (uint64 sequence) {
 		/**
 		 * Call `completeTransferWithPayload` on the token bridge. This
 		 * method acts as a reentrancy protection since it does not allow
@@ -156,7 +158,7 @@ contract MatchingEngineBase {
 
 	function executeOrder(
 		ICircleIntegration.RedeemParameters calldata redeemParams
-	) public payable returns (uint64 sequence) {
+	) public payable notPaused returns (uint64 sequence) {
 		/**
 		 * Mint tokens to this contract. Serves as a reentrancy protection,
 		 * since the circle integration contract will not allow the wormhole

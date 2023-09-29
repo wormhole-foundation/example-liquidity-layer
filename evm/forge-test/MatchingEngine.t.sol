@@ -41,7 +41,7 @@ contract MatchingEngineTest is Test, WormholeCurvePool {
 		mintAndProvideLiquidity(5000000 * 10 ** 6);
 	}
 
-	function testDeez() public {
+	function testSwap() public {
 		uint256 amount = 5000;
 		deal(poolCoins[0], address(this), amount);
 		IERC20(poolCoins[0]).approve(curvePool, amount);
