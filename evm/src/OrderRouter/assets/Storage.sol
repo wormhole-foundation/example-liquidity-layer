@@ -16,9 +16,9 @@ function getRedeemedFills() pure returns (RedeemedFills storage state) {
 }
 
 enum TargetType {
-	MatchingEngine,
-	Canonical,
-	Cctp
+	Cctp,
+	NonCctp,
+	Canonical
 }
 
 struct TargetInfo {

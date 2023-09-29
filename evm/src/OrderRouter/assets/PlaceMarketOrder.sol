@@ -9,10 +9,10 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 import {Messages} from "../../Messages.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../../Utils.sol";
 
-import {Config} from "./Config.sol";
+import {State} from "./State.sol";
 import {TargetInfo, TargetType} from "./Storage.sol";
 
-abstract contract PlaceMarketOrder is Config {
+abstract contract PlaceMarketOrder is State {
 	using BytesParsing for bytes;
 	using Messages for *;
 
@@ -76,8 +76,112 @@ abstract contract PlaceMarketOrder is Config {
 
 		// We either need to encode an order message for the matching engine or directly encode
 		// a fill message for the target chain.
-		if (targetType == TargetType.MatchingEngine) {
-			bytes memory encodedOrder = Messages
+		if (cctpEnabled) {
+			if (targetType == TargetType.Cctp) {
+				sequence = _handleCctpToCctp(args);
+			} else {
+				sequence = _handleCctpToMatchingEngine(args, relayerFee, allowedRelayers);
+			}
+		} else if (canonicalEnabled && targetType == TargetType.Canonical) {
+			sequence = _handleCanonicalToCanonical(args);
+		} else {
+			sequence = _handleBridgeToMatchingEngine(args, relayerFee, allowedRelayers);
+		}
+	}
+
+	function _handleCctpToCctp(
+		PlaceMarketOrderArgs calldata args
+	) internal returns (uint64 sequence) {
+		SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCctp), args.amountIn);
+
+		sequence = wormholeCctp.transferTokensWithPayload{value: msg.value}(
+			ICircleIntegration.TransferParameters({
+				token: address(orderToken),
+				amount: args.amountIn,
+				targetChain: args.targetChain,
+				mintRecipient: getEndpoint(args.targetChain)
+			}),
+			0, // nonce
+			Messages
+				.Fill({
+					orderSender: toUniversalAddress(msg.sender),
+					redeemer: args.redeemer,
+					redeemerMessage: args.redeemerMessage
+				})
+				.encode()
+		);
+	}
+
+	function _handleCanonicalToCanonical(
+		PlaceMarketOrderArgs calldata args
+	) internal returns (uint64 sequence) {
+		SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
+
+		sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
+			address(orderToken),
+			args.amountIn,
+			args.targetChain,
+			getEndpoint(args.targetChain),
+			0, // nonce
+			Messages
+				.Fill({
+					orderSender: toUniversalAddress(msg.sender),
+					redeemer: args.redeemer,
+					redeemerMessage: args.redeemerMessage
+				})
+				.encode()
+		);
+	}
+
+	function _handleCctpToMatchingEngine(
+		PlaceMarketOrderArgs calldata args,
+		uint256 relayerFee,
+		bytes32[] memory allowedRelayers
+	) internal returns (uint64 sequence) {
+		SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCctp), args.amountIn);
+
+		if (orderRouterChain == matchingEngineChain) {
+			// TODO: Invoke the matching engine directly.
+			revert("Not implemented");
+		} else {
+			sequence = wormholeCctp.transferTokensWithPayload{value: msg.value}(
+				ICircleIntegration.TransferParameters({
+					token: address(orderToken),
+					amount: args.amountIn,
+					targetChain: matchingEngineChain,
+					mintRecipient: matchingEngineEndpoint
+				}),
+				0, // nonce
+				Messages
+					.MarketOrder({
+						minAmountOut: args.minAmountOut,
+						targetChain: args.targetChain,
+						redeemer: args.redeemer,
+						sender: toUniversalAddress(msg.sender),
+						refundAddress: toUniversalAddress(args.refundAddress),
+						redeemerMessage: args.redeemerMessage,
+						relayerFee: relayerFee,
+						allowedRelayers: allowedRelayers
+					})
+					.encode()
+			);
+		}
+	}
+
+	function _handleBridgeToMatchingEngine(
+		PlaceMarketOrderargs calldata args,
+		uint256 relayerFee,
+		bytes32[] memory allowedRelayers
+	) internal returns (uint64 sequence) {
+		SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
+
+		sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
+			address(orderToken),
+			args.amountIn,
+			matchingEngineChain,
+			matchingEngineEndpoint,
+			0, // nonce
+			Messages
 				.MarketOrder({
 					minAmountOut: args.minAmountOut,
 					targetChain: args.targetChain,
@@ -88,71 +192,8 @@ abstract contract PlaceMarketOrder is Config {
 					relayerFee: relayerFee,
 					allowedRelayers: allowedRelayers
 				})
-				.encode();
-
-			if (cctpEnabled) {
-				SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCircle), args.amountIn);
-
-				sequence = wormholeCircle.transferTokensWithPayload{value: msg.value}(
-					ICircleIntegration.TransferParameters({
-						token: address(orderToken),
-						amount: args.amountIn,
-						targetChain: matchingEngineChain,
-						mintRecipient: matchingEngineEndpoint
-					}),
-					0, // nonce
-					encodedOrder
-				);
-			} else {
-				SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
-
-				sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
-					address(orderToken),
-					args.amountIn,
-					matchingEngineChain,
-					matchingEngineEndpoint,
-					0, // nonce
-					encodedOrder
-				);
-			}
-		} else {
-			bytes memory encodedFill = Messages
-				.Fill({
-					orderSender: toUniversalAddress(msg.sender),
-					redeemer: args.redeemer,
-					redeemerMessage: args.redeemerMessage
-				})
-				.encode();
-
-			if (cctpEnabled && targetType == TargetType.Cctp) {
-				SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCircle), args.amountIn);
-
-				sequence = wormholeCircle.transferTokensWithPayload{value: msg.value}(
-					ICircleIntegration.TransferParameters({
-						token: address(orderToken),
-						amount: args.amountIn,
-						targetChain: args.targetChain,
-						mintRecipient: getEndpoint(args.targetChain)
-					}),
-					0, // nonce
-					encodedFill
-				);
-			} else if (canonicalEnabled && targetType == TargetType.Canonical) {
-				SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
-
-				sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
-					address(orderToken),
-					args.amountIn,
-					args.targetChain,
-					getEndpoint(args.targetChain),
-					0, // nonce
-					encodedFill
-				);
-			} else {
-				// This should never happen.
-				revert InvalidTargetType(targetType);
-			}
-		}
+				.encode()
+		);
 	}
 
 	function _computeTargetSlippage(

@@ -6,9 +6,9 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
 import {Messages} from "../../Messages.sol";
 
-import {Config} from "./Config.sol";
+import {State} from "./State.sol";
 
-abstract contract RedeemFill is Config {
+abstract contract RedeemFill is State {
 	using BytesParsing for bytes;
 	using Messages for *;
 }

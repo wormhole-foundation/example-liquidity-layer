@@ -6,9 +6,9 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
 import {Messages} from "../Messages.sol";
 
-import {Config} from "./assets/Config.sol";
 import {PlaceMarketOrder} from "./assets/PlaceMarketOrder.sol";
 import {RedeemFill} from "./assets/RedeemFill.sol";
+import {State} from "./assets/State.sol";
 
 contract OrderRouter is PlaceMarketOrder, RedeemFill {
 	using BytesParsing for bytes;
@@ -23,7 +23,7 @@ contract OrderRouter is PlaceMarketOrder, RedeemFill {
 		address _tokenBridge,
 		address _wormholeCircle
 	)
-		Config(
+		State(
 			_token,
 			_matchingEngineChain,
 			_matchingEngineEndpoint,

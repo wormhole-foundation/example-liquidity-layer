@@ -8,7 +8,7 @@ import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
 import {TargetInfo, getEndpoints, getRedeemedFills, getTargetInfos} from "./Storage.sol";
 
-abstract contract Config {
+abstract contract State {
 	IERC20 public immutable orderToken;
 
 	uint16 public immutable matchingEngineChain;
@@ -20,8 +20,10 @@ abstract contract Config {
 	ITokenBridge public immutable tokenBridge;
 	bool public immutable canonicalEnabled;
 
-	ICircleIntegration public immutable wormholeCircle;
+	ICircleIntegration public immutable wormholeCctp;
 	bool public immutable cctpEnabled;
+
+	uint16 public immutable orderRouterChain;
 
 	constructor(
 		address _token,
@@ -30,7 +32,7 @@ abstract contract Config {
 		uint16 _canonicalTokenChain,
 		bytes32 _canonicalTokenAddress,
 		address _tokenBridge,
-		address _wormholeCircle
+		address _wormholeCctp
 	) {
 		orderToken = IERC20(_token);
 
@@ -44,8 +46,10 @@ abstract contract Config {
 		canonicalEnabled =
 			_token == tokenBridge.wrappedAsset(_canonicalTokenChain, _canonicalTokenAddress);
 
-		wormholeCircle = ICircleIntegration(_wormholeCircle);
-		cctpEnabled = _wormholeCircle != address(0);
+		wormholeCctp = ICircleIntegration(_wormholeCctp);
+		cctpEnabled = _wormholeCctp != address(0);
+
+		orderRouterChain = tokenBridge.wormhole().chainId();
 	}
 
 	function getEndpoint(uint16 chain) public view returns (bytes32) {
