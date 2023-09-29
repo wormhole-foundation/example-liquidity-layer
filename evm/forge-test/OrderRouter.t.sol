@@ -7,6 +7,7 @@ import "forge-std/StdUtils.sol";
 import "forge-std/console.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
 import {toUniversalAddress} from "../src/Utils.sol";
 
@@ -34,9 +35,8 @@ contract OrderRouterTest is Test {
 	uint256 constant MAX_UINT256 = 2 ** 256 - 1;
 
 	OrderRouter plainRouter;
-
-	// OrderRouter cctpEnabledRouter;
-	// OrderRouter canonicalEnabledRouter;
+	OrderRouter cctpEnabledRouter;
+	OrderRouter canonicalEnabledRouter;
 
 	function setUp() public {
 		plainRouter = new OrderRouter(
@@ -46,10 +46,38 @@ contract OrderRouterTest is Test {
 			CANONICAL_TOKEN_CHAIN,
 			toUniversalAddress(CANONICAL_TOKEN_ADDRESS),
 			TOKEN_BRIDGE_ADDRESS,
+			address(0) // wormholeCctp
+		);
+		assert(!plainRouter.cctpEnabled());
+		assert(!plainRouter.canonicalEnabled());
+
+		cctpEnabledRouter = new OrderRouter(
+			USDC_ADDRESS,
+			MATCHING_ENGINE_CHAIN,
+			toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+			CANONICAL_TOKEN_CHAIN,
+			toUniversalAddress(CANONICAL_TOKEN_ADDRESS),
+			TOKEN_BRIDGE_ADDRESS,
 			WORMHOLE_CCTP_ADDRESS
 		);
+		assert(cctpEnabledRouter.cctpEnabled());
+		assert(!cctpEnabledRouter.canonicalEnabled());
 
-		// TODO
+		address wrappedUsdc = ITokenBridge(TOKEN_BRIDGE_ADDRESS).wrappedAsset(
+			CANONICAL_TOKEN_CHAIN,
+			bytes32(uint256(uint160(CANONICAL_TOKEN_ADDRESS)))
+		);
+		canonicalEnabledRouter = new OrderRouter(
+			wrappedUsdc,
+			MATCHING_ENGINE_CHAIN,
+			toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+			CANONICAL_TOKEN_CHAIN,
+			toUniversalAddress(CANONICAL_TOKEN_ADDRESS),
+			TOKEN_BRIDGE_ADDRESS,
+			address(0)
+		);
+		assert(!canonicalEnabledRouter.cctpEnabled());
+		assert(canonicalEnabledRouter.canonicalEnabled());
 	}
 
 	function testCannotPlaceMarketOrderErrTargetChainNotSupported(
