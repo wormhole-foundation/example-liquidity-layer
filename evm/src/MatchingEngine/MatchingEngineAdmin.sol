@@ -3,7 +3,7 @@
 pragma solidity 0.8.19;
 
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
-import {getOwner, Owner, CurvePoolInfo, Route, getExecutionRoute, getCurvePoolInfo, getRegisteredOrderRouters, getPaused, Paused, getPendingOwner, PendingOwner} from "./MatchingEngineStorage.sol";
+import {getOwnerState, Owner, CurvePoolInfo, Route, getExecutionRouteState, getCurvePoolState, getOrderRoutersState, getPausedState, Paused, getPendingOwnerState, PendingOwner} from "./MatchingEngineStorage.sol";
 
 abstract contract MatchingEngineAdmin {
 	// Errors.
@@ -27,14 +27,14 @@ abstract contract MatchingEngineAdmin {
 		}
 
 		// Update the route.
-		Route storage route = getExecutionRoute().routes[chainId];
+		Route storage route = getExecutionRouteState().routes[chainId];
 		route.target = target;
 		route.cctp = cctp;
 		route.poolIndex = poolIndex;
 	}
 
 	function disableExecutionRoute(uint16 chainId) external onlyOwner {
-		delete getExecutionRoute().routes[chainId];
+		delete getExecutionRouteState().routes[chainId];
 	}
 
 	function registerOrderRouter(uint16 chainId, bytes32 router) external onlyOwner {
@@ -47,7 +47,7 @@ abstract contract MatchingEngineAdmin {
 		}
 
 		// Update the router address.
-		getRegisteredOrderRouters().registered[chainId] = router;
+		getOrderRoutersState().registered[chainId] = router;
 	}
 
 	function updateCurvePool(ICurvePool pool, int8 nativeTokenIndex) external onlyOwner {
@@ -56,13 +56,13 @@ abstract contract MatchingEngineAdmin {
 		}
 
 		// Update the pool address.
-		CurvePoolInfo storage info = getCurvePoolInfo();
+		CurvePoolInfo storage info = getCurvePoolState();
 		info.pool = pool;
 		info.nativeTokenIndex = nativeTokenIndex;
 	}
 
 	function setPause(bool paused) external onlyOwner {
-		getPaused().paused = paused;
+		getPausedState().paused = paused;
 	}
 
 	function submitOwnershipTransferRequest(address newOwner) external onlyOwner {
@@ -70,16 +70,16 @@ abstract contract MatchingEngineAdmin {
 			revert InvalidAddress();
 		}
 
-		getPendingOwner().pendingOwner = newOwner;
+		getPendingOwnerState().pendingOwner = newOwner;
 	}
 
 	function cancelOwnershipTransferRequest() external onlyOwner {
-		getPendingOwner().pendingOwner = address(0);
+		getPendingOwnerState().pendingOwner = address(0);
 	}
 
 	function confirmOwnershipTransferRequest() external {
-		PendingOwner storage pending = getPendingOwner();
-		Owner storage current = getOwner();
+		PendingOwner storage pending = getPendingOwnerState();
+		Owner storage current = getOwnerState();
 
 		// Cache pending owner.
 		address newOwner = pending.pendingOwner;
@@ -99,14 +99,14 @@ abstract contract MatchingEngineAdmin {
 	}
 
 	modifier onlyOwner() {
-		if (getOwner().owner != msg.sender) {
+		if (getOwnerState().owner != msg.sender) {
 			revert NotTheOwner();
 		}
 		_;
 	}
 
 	modifier notPaused() {
-		if (getPaused().paused) {
+		if (getPausedState().paused) {
 			revert ContractPaused();
 		}
 		_;

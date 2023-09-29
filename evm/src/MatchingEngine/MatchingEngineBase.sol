@@ -12,9 +12,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Messages} from "../Messages.sol";
 import {MatchingEngineAdmin} from "./MatchingEngineAdmin.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../Utils.sol";
-import {getExecutionRoute, Route, RegisteredOrderRouters, getRegisteredOrderRouters, CurvePoolInfo, getCurvePoolInfo} from "./MatchingEngineStorage.sol";
+import {getOwnerState, getExecutionRouteState, Route, RegisteredOrderRouters, getOrderRoutersState, CurvePoolInfo, getCurvePoolState, getPendingOwnerState, getOwnerState, getPausedState} from "./MatchingEngineStorage.sol";
 
-contract MatchingEngineBase is MatchingEngineAdmin {
+abstract contract MatchingEngineBase is MatchingEngineAdmin {
 	using Messages for *;
 
 	// Immutable state.
@@ -46,9 +46,12 @@ contract MatchingEngineBase is MatchingEngineAdmin {
 		_wormhole = _tokenBridge.wormhole();
 
 		// Set curve pool info in storage.
-		CurvePoolInfo storage info = getCurvePoolInfo();
+		CurvePoolInfo storage info = getCurvePoolState();
 		info.pool = ICurvePool(curve);
 		info.nativeTokenIndex = nativeTokenPoolIndex;
+
+		// Set the deployer as the owner.
+		getOwnerState().owner = msg.sender;
 	}
 
 	function executeOrder(bytes calldata vaa) public payable notPaused returns (uint64 sequence) {
@@ -81,8 +84,8 @@ contract MatchingEngineBase is MatchingEngineAdmin {
 
 		// Determine if the `toRoute` is enabled and the `fromRoute`
 		// is configured correctly.
-		Route memory toRoute = getExecutionRoute().routes[order.targetChain];
-		Route memory fromRoute = getExecutionRoute().routes[fromChain];
+		Route memory toRoute = getExecutionRouteState().routes[order.targetChain];
+		Route memory fromRoute = getExecutionRouteState().routes[fromChain];
 		if (toRoute.target == address(0) || fromRoute.target != token) {
 			revert InvalidRoute();
 		}
@@ -99,7 +102,7 @@ contract MatchingEngineBase is MatchingEngineAdmin {
 
 		// Execute curve swap. The `amountOut` will be zero if the
 		// swap fails for any reason.
-		CurvePoolInfo memory curve = getCurvePoolInfo();
+		CurvePoolInfo memory curve = getCurvePoolState();
 		uint256 amountOut;
 		if (toRoute.cctp) {
 			amountOut = _handleSwap(
@@ -181,7 +184,7 @@ contract MatchingEngineBase is MatchingEngineAdmin {
 		// Determine if the target route is enabled. This contract should
 		// not receive a circle integration message if the target route is
 		// a CCTP chain.
-		Route memory route = getExecutionRoute().routes[order.targetChain];
+		Route memory route = getExecutionRouteState().routes[order.targetChain];
 		if (route.target == address(0) || route.cctp) {
 			revert InvalidRoute();
 		}
@@ -199,7 +202,7 @@ contract MatchingEngineBase is MatchingEngineAdmin {
 
 		// Execute curve swap. The `amountOut` will be zero if the
 		// swap fails for any reason.
-		CurvePoolInfo memory curve = getCurvePoolInfo();
+		CurvePoolInfo memory curve = getCurvePoolState();
 		uint256 amountOut = _handleSwap(
 			token,
 			address(curve.pool),
@@ -244,12 +247,14 @@ contract MatchingEngineBase is MatchingEngineAdmin {
 		}
 	}
 
+	// ------------------------------------ Internal Functions -------------------------------------
+
 	function _verifyMessageRoute(
 		uint16 fromChain,
 		bytes32 fromAddress,
 		uint16 targetChain
-	) internal view returns (RegisteredOrderRouters storage routers) {
-		routers = getRegisteredOrderRouters();
+	) private view returns (RegisteredOrderRouters storage routers) {
+		routers = getOrderRoutersState();
 		if (
 			fromAddress != routers.registered[fromChain] ||
 			routers.registered[targetChain] == bytes32(0)
@@ -265,7 +270,7 @@ contract MatchingEngineBase is MatchingEngineAdmin {
 		int128 toIndex,
 		uint256 amountIn,
 		uint256 minAmountOut
-	) internal returns (uint256) {
+	) private returns (uint256) {
 		SafeERC20.safeIncreaseAllowance(IERC20(token), swapPool, amountIn);
 
 		// Perform the swap.
@@ -292,7 +297,7 @@ contract MatchingEngineBase is MatchingEngineAdmin {
 		uint256 amountIn,
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
-	) internal returns (uint256) {
+	) private returns (uint256) {
 		if (relayerFee == 0) {
 			return amountIn;
 		}
@@ -333,7 +338,7 @@ contract MatchingEngineBase is MatchingEngineAdmin {
 		bytes32 recipient,
 		bytes memory payload,
 		bool isCCTP
-	) internal returns (uint64 sequence) {
+	) private returns (uint64 sequence) {
 		SafeERC20.safeIncreaseAllowance(
 			IERC20(token),
 			isCCTP ? address(_circleIntegration) : address(_tokenBridge),
@@ -366,7 +371,7 @@ contract MatchingEngineBase is MatchingEngineAdmin {
 	function _getLocalTokenAddress(
 		bytes32 tokenAddress,
 		uint16 tokenChain
-	) internal view returns (address localAddress) {
+	) private view returns (address localAddress) {
 		// Fetch the wrapped address from the token bridge if the token
 		// is not from this chain.
 		if (tokenChain != _chainId) {
@@ -379,5 +384,46 @@ contract MatchingEngineBase is MatchingEngineAdmin {
 			// return the encoded address if the token is native to this chain
 			localAddress = fromUniversalAddress(tokenAddress);
 		}
+	}
+
+	// ------------------------------------ Getter Functions --------------------------------------
+	function getChainId() external view returns (uint16) {
+		return _chainId;
+	}
+
+	function getWormhole() external view returns (IWormhole) {
+		return _wormhole;
+	}
+
+	function getTokenBridge() external view returns (ITokenBridge) {
+		return _tokenBridge;
+	}
+
+	function getCircleIntegration() external view returns (ICircleIntegration) {
+		return _circleIntegration;
+	}
+
+	function getExecutionRoute(uint16 chainId) external view returns (Route memory) {
+		return getExecutionRouteState().routes[chainId];
+	}
+
+	function getOrderRouter(uint16 chainId) external view returns (bytes32) {
+		return getOrderRoutersState().registered[chainId];
+	}
+
+	function getCurvePoolInfo() external pure returns (CurvePoolInfo memory) {
+		return getCurvePoolState();
+	}
+
+	function getOwner() external view returns (address) {
+		return getOwnerState().owner;
+	}
+
+	function getPendingOwner() external view returns (address) {
+		return getPendingOwnerState().pendingOwner;
+	}
+
+	function getPaused() external view returns (bool) {
+		return getPausedState().paused;
 	}
 }
