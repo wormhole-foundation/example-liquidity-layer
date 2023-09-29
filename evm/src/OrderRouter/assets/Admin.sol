@@ -8,11 +8,12 @@ import {State} from "./State.sol";
 import {TargetInfo, getEndpoints, getTargetInfos} from "./Storage.sol";
 
 abstract contract Admin is Ownable {
-	function enableEndpoint(uint16 chain, bytes32 endpointAddress) external onlyOwner {
-		getEndpoints().endpoints[chain] = endpointAddress;
-	}
-
-	function addTargetInfo(uint16 chain, TargetInfo memory targetInfo) external onlyOwner {
-		getTargetInfos().targetInfos[chain] = targetInfo;
+	function addEndpoint(
+		uint16 chain,
+		bytes32 endpoint,
+		TargetInfo memory info
+	) external onlyOwner {
+		getEndpoints().endpoints[chain] = endpoint;
+		getTargetInfos().targetInfos[chain] = info;
 	}
 }
