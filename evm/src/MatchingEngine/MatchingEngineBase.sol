@@ -75,7 +75,7 @@ contract MatchingEngineBase {
 		);
 
 		// Fetch the token bridge representation of the bridged token.
-		address token = getLocalTokenAddress(transfer.tokenAddress, transfer.tokenChain);
+		address token = _getLocalTokenAddress(transfer.tokenAddress, transfer.tokenChain);
 
 		// Determine if the `toRoute` is enabled and the `fromRoute`
 		// is configured correctly.
@@ -264,7 +264,7 @@ contract MatchingEngineBase {
 		uint256 amountIn,
 		uint256 minAmountOut
 	) internal returns (uint256) {
-		SafeERC20.safeApprove(IERC20(token), swapPool, amountIn);
+		SafeERC20.safeIncreaseAllowance(IERC20(token), swapPool, amountIn);
 
 		// Perform the swap.
 		(bool success, bytes memory result) = swapPool.call(
@@ -332,8 +332,13 @@ contract MatchingEngineBase {
 		bytes memory payload,
 		bool isCCTP
 	) internal returns (uint64 sequence) {
+		SafeERC20.safeIncreaseAllowance(
+			IERC20(token),
+			isCCTP ? address(_circleIntegration) : address(_tokenBridge),
+			amount
+		);
+
 		if (isCCTP) {
-			SafeERC20.safeApprove(IERC20(token), address(_circleIntegration), amount);
 			sequence = _circleIntegration.transferTokensWithPayload{value: msg.value}(
 				ICircleIntegration.TransferParameters({
 					token: token,
@@ -345,7 +350,6 @@ contract MatchingEngineBase {
 				payload
 			);
 		} else {
-			SafeERC20.safeApprove(IERC20(token), address(_tokenBridge), amount);
 			sequence = _tokenBridge.transferTokensWithPayload{value: msg.value}(
 				token,
 				amount,
@@ -357,7 +361,7 @@ contract MatchingEngineBase {
 		}
 	}
 
-	function getLocalTokenAddress(
+	function _getLocalTokenAddress(
 		bytes32 tokenAddress,
 		uint16 tokenChain
 	) internal view returns (address localAddress) {
