@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {TargetType} from "./Types.sol";
+import {TokenType} from "./Types.sol";
 
 struct PlaceMarketOrderArgs {
 	uint256 amountIn;

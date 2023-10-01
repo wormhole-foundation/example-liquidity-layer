@@ -44,7 +44,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, State {
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
 	) internal returns (uint64 sequence) {
-		(TargetType targetType, uint256 slippage) = _computeTargetSlippage(
+		(TokenType targetTokenType, uint256 slippage) = _computeTargetSlippage(
 			args.targetChain,
 			relayerFee
 		);
@@ -65,13 +65,13 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, State {
 
 		// We either need to encode an order message for the matching engine or directly encode
 		// a fill message for the target chain.
-		if (cctpEnabled) {
-			if (targetType == TargetType.Cctp) {
+		if (tokenType == TokenType.Cctp) {
+			if (targetTokenType == TokenType.Cctp) {
 				sequence = _handleCctpToCctp(args);
 			} else {
 				sequence = _handleCctpToMatchingEngine(args, relayerFee, allowedRelayers);
 			}
-		} else if (canonicalEnabled && targetType == TargetType.Canonical) {
+		} else if (tokenType == TokenType.Canonical && targetTokenType == TokenType.Canonical) {
 			sequence = _handleCanonicalToCanonical(args);
 		} else {
 			sequence = _handleBridgeToMatchingEngine(args, relayerFee, allowedRelayers);
@@ -188,14 +188,14 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, State {
 	function _computeTargetSlippage(
 		uint16 targetChain,
 		uint256 relayerFee
-	) internal view returns (TargetType targetType, uint256 slippage) {
+	) internal view returns (TokenType targetType, uint256 slippage) {
 		TargetInfo memory info = getTargetInfo(targetChain);
 
 		// Target chain must be registered with the order router.
-		if (info.targetType == TargetType.Unset) {
+		if (info.tokenType == TokenType.Unset) {
 			revert ErrTargetChainNotSupported(targetChain);
 		}
 
-		return (info.targetType, uint256(info.slippage) + relayerFee);
+		return (info.tokenType, uint256(info.slippage) + relayerFee);
 	}
 }

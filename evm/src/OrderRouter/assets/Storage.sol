@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.19;
 
-import {TargetInfo, TargetType} from "../../interfaces/Types.sol";
+import {TargetInfo, TokenType} from "../../interfaces/Types.sol";
 
 struct RedeemedFills {
 	mapping(bytes32 => bool) redeemedFills;

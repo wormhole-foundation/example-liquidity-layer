@@ -34,12 +34,12 @@ contract OrderRouterTest is Test {
 
 	uint256 constant MAX_UINT256 = 2 ** 256 - 1;
 
-	OrderRouter plainRouter;
+	OrderRouter nativeRouter;
 	OrderRouter cctpEnabledRouter;
 	OrderRouter canonicalEnabledRouter;
 
 	function setUp() public {
-		plainRouter = new OrderRouter(
+		nativeRouter = new OrderRouter(
 			USDC_ADDRESS,
 			MATCHING_ENGINE_CHAIN,
 			toUniversalAddress(MATCHING_ENGINE_ADDRESS),
@@ -48,8 +48,7 @@ contract OrderRouterTest is Test {
 			TOKEN_BRIDGE_ADDRESS,
 			address(0) // wormholeCctp
 		);
-		assert(!plainRouter.cctpEnabled());
-		assert(!plainRouter.canonicalEnabled());
+		assert(nativeRouter.tokenType() == TokenType.Native);
 
 		cctpEnabledRouter = new OrderRouter(
 			USDC_ADDRESS,
@@ -60,8 +59,7 @@ contract OrderRouterTest is Test {
 			TOKEN_BRIDGE_ADDRESS,
 			WORMHOLE_CCTP_ADDRESS
 		);
-		assert(cctpEnabledRouter.cctpEnabled());
-		assert(!cctpEnabledRouter.canonicalEnabled());
+		assert(cctpEnabledRouter.tokenType() == TokenType.Cctp);
 
 		address wrappedUsdc = ITokenBridge(TOKEN_BRIDGE_ADDRESS).wrappedAsset(
 			CANONICAL_TOKEN_CHAIN,
@@ -76,15 +74,26 @@ contract OrderRouterTest is Test {
 			TOKEN_BRIDGE_ADDRESS,
 			address(0)
 		);
-		assert(!canonicalEnabledRouter.cctpEnabled());
-		assert(canonicalEnabledRouter.canonicalEnabled());
+		assert(canonicalEnabledRouter.tokenType() == TokenType.Canonical);
+	}
+
+	function testCannotAddEndpointAsRandomCaller(address notOwner) public {
+		vm.assume(notOwner != address(this));
+
+		vm.prank(notOwner);
+		vm.expectRevert("Ownable: caller is not the owner");
+		nativeRouter.addEndpoint(
+			1,
+			TESTING_TARGET_ENDPOINT,
+			TargetInfo({tokenType: TokenType.Native, slippage: TESTING_TARGET_SLIPPAGE})
+		);
 	}
 
 	function testCannotPlaceMarketOrderErrTargetChainNotSupported(
 		uint256 amountIn,
 		uint16 targetChain
 	) public {
-		_dealAndApproveUsdc(plainRouter, amountIn);
+		_dealAndApproveUsdc(nativeRouter, amountIn);
 
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
@@ -96,16 +105,16 @@ contract OrderRouterTest is Test {
 		});
 
 		vm.expectRevert(abi.encodeWithSelector(ErrTargetChainNotSupported.selector, targetChain));
-		plainRouter.placeMarketOrder(args);
+		nativeRouter.placeMarketOrder(args);
 	}
 
 	function testCannotPlaceMarketOrderErrInsufficientAmount(uint256 amountIn) public {
 		vm.assume(amountIn < uint256(TESTING_TARGET_SLIPPAGE));
 
 		uint16 targetChain = 1;
-		_registerTargetChain(plainRouter, targetChain, TargetType.NonCctp);
+		_registerTargetChain(nativeRouter, targetChain, TokenType.Native);
 
-		_dealAndApproveUsdc(plainRouter, amountIn);
+		_dealAndApproveUsdc(nativeRouter, amountIn);
 
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
@@ -123,7 +132,7 @@ contract OrderRouterTest is Test {
 				TESTING_TARGET_SLIPPAGE
 			)
 		);
-		plainRouter.placeMarketOrder(args);
+		nativeRouter.placeMarketOrder(args);
 	}
 
 	function testCannotPlaceMarketOrderErrMinAmountOutExceedsLimit(
@@ -135,9 +144,9 @@ contract OrderRouterTest is Test {
 		vm.assume(excessAmount <= MAX_UINT256 - amountIn + TESTING_TARGET_SLIPPAGE);
 
 		uint16 targetChain = 1;
-		_registerTargetChain(plainRouter, targetChain, TargetType.NonCctp);
+		_registerTargetChain(nativeRouter, targetChain, TokenType.Native);
 
-		_dealAndApproveUsdc(plainRouter, amountIn);
+		_dealAndApproveUsdc(nativeRouter, amountIn);
 
 		uint256 minAmountOut = amountIn - TESTING_TARGET_SLIPPAGE + excessAmount;
 
@@ -157,17 +166,17 @@ contract OrderRouterTest is Test {
 				amountIn - TESTING_TARGET_SLIPPAGE
 			)
 		);
-		plainRouter.placeMarketOrder(args);
+		nativeRouter.placeMarketOrder(args);
 	}
 
-	function testPlaceMarketOrderPlainTargetCctp() public {
+	function testPlaceMarketOrderNativeTargetCctp() public {
 		// TODO: Fix this to fuzz test amount.
 		uint256 amountIn = 12345678;
 
 		uint16 targetChain = 2;
-		_registerTargetChain(plainRouter, targetChain, TargetType.Cctp);
+		_registerTargetChain(nativeRouter, targetChain, TokenType.Cctp);
 
-		_dealAndApproveUsdc(plainRouter, amountIn);
+		_dealAndApproveUsdc(nativeRouter, amountIn);
 
 		uint256 minAmountOut = amountIn - TESTING_TARGET_SLIPPAGE;
 
@@ -180,19 +189,19 @@ contract OrderRouterTest is Test {
 			refundAddress: address(0)
 		});
 
-		plainRouter.placeMarketOrder(args);
+		nativeRouter.placeMarketOrder(args);
 
 		// TODO: check logs for encoded message.
 	}
 
-	function testPlaceMarketOrderPlainTargetNonCctp() public {
+	function testPlaceMarketOrderNativeTargetNonCctp() public {
 		// TODO: Fix this to fuzz test amount.
 		uint256 amountIn = 12345678;
 
 		uint16 targetChain = 1;
-		_registerTargetChain(plainRouter, targetChain, TargetType.NonCctp);
+		_registerTargetChain(nativeRouter, targetChain, TokenType.Native);
 
-		_dealAndApproveUsdc(plainRouter, amountIn);
+		_dealAndApproveUsdc(nativeRouter, amountIn);
 
 		uint256 minAmountOut = amountIn - TESTING_TARGET_SLIPPAGE;
 
@@ -205,19 +214,19 @@ contract OrderRouterTest is Test {
 			refundAddress: address(0)
 		});
 
-		plainRouter.placeMarketOrder(args);
+		nativeRouter.placeMarketOrder(args);
 
 		// TODO: check logs for encoded message.
 	}
 
-	function testPlaceMarketOrderPlainTargetCanonical() public {
+	function testPlaceMarketOrderNativeTargetCanonical() public {
 		// TODO: Fix this to fuzz test amount.
 		uint256 amountIn = 12345678;
 
 		uint16 targetChain = 1;
-		_registerTargetChain(plainRouter, targetChain, TargetType.Canonical);
+		_registerTargetChain(nativeRouter, targetChain, TokenType.Canonical);
 
-		_dealAndApproveUsdc(plainRouter, amountIn);
+		_dealAndApproveUsdc(nativeRouter, amountIn);
 
 		uint256 minAmountOut = amountIn - TESTING_TARGET_SLIPPAGE;
 
@@ -230,7 +239,7 @@ contract OrderRouterTest is Test {
 			refundAddress: address(0)
 		});
 
-		plainRouter.placeMarketOrder(args);
+		nativeRouter.placeMarketOrder(args);
 
 		// TODO: check logs for encoded message.
 	}
@@ -240,15 +249,11 @@ contract OrderRouterTest is Test {
 		IERC20(USDC_ADDRESS).approve(address(router), amount);
 	}
 
-	function _registerTargetChain(
-		OrderRouter router,
-		uint16 chain,
-		TargetType targetType
-	) internal {
+	function _registerTargetChain(OrderRouter router, uint16 chain, TokenType tokenType) internal {
 		router.addEndpoint(
 			chain,
 			TESTING_TARGET_ENDPOINT,
-			TargetInfo({targetType: targetType, slippage: TESTING_TARGET_SLIPPAGE})
+			TargetInfo({tokenType: tokenType, slippage: TESTING_TARGET_SLIPPAGE})
 		);
 	}
 }

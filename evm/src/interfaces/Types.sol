@@ -2,14 +2,14 @@
 
 pragma solidity ^0.8.0;
 
-enum TargetType {
+enum TokenType {
 	Unset,
-	Cctp,
-	NonCctp,
-	Canonical
+	Native,
+	Canonical,
+	Cctp
 }
 
 struct TargetInfo {
-	TargetType targetType;
+	TokenType tokenType;
 	uint248 slippage; // TODO: re-evaluate
 }

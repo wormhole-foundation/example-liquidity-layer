@@ -8,7 +8,7 @@ import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
 import {getEndpoints, getRedeemedFills, getTargetInfos} from "./Storage.sol";
 
-import {TargetInfo} from "../../interfaces/Types.sol";
+import {TargetInfo, TokenType} from "../../interfaces/Types.sol";
 
 abstract contract State {
 	IERC20 public immutable orderToken;
@@ -20,12 +20,11 @@ abstract contract State {
 	bytes32 public immutable canonicalTokenAddress;
 
 	ITokenBridge public immutable tokenBridge;
-	bool public immutable canonicalEnabled;
 
 	ICircleIntegration public immutable wormholeCctp;
-	bool public immutable cctpEnabled;
 
 	uint16 public immutable orderRouterChain;
+	TokenType public immutable tokenType;
 
 	constructor(
 		address _token,
@@ -45,13 +44,19 @@ abstract contract State {
 		canonicalTokenAddress = _canonicalTokenAddress;
 
 		tokenBridge = ITokenBridge(_tokenBridge);
-		canonicalEnabled =
-			_token == tokenBridge.wrappedAsset(_canonicalTokenChain, _canonicalTokenAddress);
-
 		wormholeCctp = ICircleIntegration(_wormholeCctp);
-		cctpEnabled = _wormholeCctp != address(0);
 
 		orderRouterChain = tokenBridge.wormhole().chainId();
+
+		// This needs to be a ternary because immutable variables cannot be assigned in a
+		// conditional.
+		tokenType = _wormholeCctp != address(0)
+			? TokenType.Cctp
+			: (
+				_token == tokenBridge.wrappedAsset(_canonicalTokenChain, _canonicalTokenAddress)
+					? TokenType.Canonical
+					: TokenType.Native
+			);
 	}
 
 	function getEndpoint(uint16 chain) public view returns (bytes32) {
