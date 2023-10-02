@@ -57,6 +57,10 @@ abstract contract Admin {
 	event OwnershipTransfered(address indexed oldOwner, address indexed newOwner);
 	event IsPaused(bool paused);
 
+	constructor() {
+		getOwnerState().owner = msg.sender;
+	}
+
 	function setPause(bool paused) external onlyOwner {
 		emit IsPaused(paused);
 		getPausedState().paused = paused;

@@ -81,7 +81,7 @@ contract OrderRouterTest is Test {
 		vm.assume(notOwner != address(this));
 
 		vm.prank(notOwner);
-		vm.expectRevert("Ownable: caller is not the owner");
+		vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
 		nativeRouter.addEndpoint(
 			1,
 			TESTING_TARGET_ENDPOINT,

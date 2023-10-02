@@ -4,16 +4,17 @@ pragma solidity 0.8.19;
 
 import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
+import {Admin} from "../shared/Admin.sol";
 import {Messages} from "../shared/Messages.sol";
 
-import {Admin} from "./assets/Admin.sol";
+import {OrderRouterAdmin} from "./assets/OrderRouterAdmin.sol";
 import {PlaceMarketOrder} from "./assets/PlaceMarketOrder.sol";
 import {RedeemFill} from "./assets/RedeemFill.sol";
 import {State} from "./assets/State.sol";
 
 import {IOrderRouter} from "../interfaces/IOrderRouter.sol";
 
-contract OrderRouter is IOrderRouter, Admin, PlaceMarketOrder, RedeemFill {
+contract OrderRouter is IOrderRouter, OrderRouterAdmin, PlaceMarketOrder, RedeemFill {
 	using BytesParsing for bytes;
 	using Messages for *;
 
@@ -26,6 +27,7 @@ contract OrderRouter is IOrderRouter, Admin, PlaceMarketOrder, RedeemFill {
 		address _tokenBridge,
 		address _wormholeCircle
 	)
+		Admin()
 		State(
 			_token,
 			_matchingEngineChain,
