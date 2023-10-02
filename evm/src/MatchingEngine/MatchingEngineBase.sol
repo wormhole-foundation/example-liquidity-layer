@@ -50,9 +50,6 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 		CurvePoolInfo storage info = getCurvePoolState();
 		info.pool = ICurvePool(curve);
 		info.nativeTokenIndex = nativeTokenPoolIndex;
-
-		// Set the deployer as the owner.
-		getOwnerState().owner = msg.sender;
 	}
 
 	function executeOrder(bytes calldata vaa) public payable notPaused returns (uint64 sequence) {
@@ -101,29 +98,18 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 			order.allowedRelayers
 		);
 
-		// Execute curve swap. The `amountOut` will be zero if the
-		// swap fails for any reason.
+		// Execute curve swap. The `amountOut` will be zero if the swap fails
+		// for any reason. If the `toRoute` is a CCTP chain, then the `toIndex`
+		// will be the native token index.
 		CurvePoolInfo memory curve = getCurvePoolState();
-		uint256 amountOut;
-		if (toRoute.cctp) {
-			amountOut = _handleSwap(
-				token,
-				address(curve.pool),
-				int128(fromRoute.poolIndex),
-				int128(curve.nativeTokenIndex),
-				amountIn,
-				order.minAmountOut
-			);
-		} else {
-			amountOut = _handleSwap(
-				token,
-				address(curve.pool),
-				int128(fromRoute.poolIndex),
-				int128(toRoute.poolIndex),
-				amountIn,
-				order.minAmountOut
-			);
-		}
+		uint256 amountOut = _handleSwap(
+			token,
+			address(curve.pool),
+			int128(fromRoute.poolIndex),
+			toRoute.cctp ? int128(curve.nativeTokenIndex) : int128(toRoute.poolIndex),
+			amountIn,
+			order.minAmountOut
+		);
 
 		// If the swap failed, revert the order and refund the redeemer on
 		// the origin chain. Otherwise, bridge (or CCTP) the swapped token to the

@@ -5,16 +5,17 @@ pragma solidity ^0.8.19;
 import "forge-std/Test.sol";
 import "forge-std/StdUtils.sol";
 import "forge-std/console.sol";
+import {TestHelpers} from "./helpers/MatchingEngineTestHelpers.sol";
 
 import {IMatchingEngine} from "../src/interfaces/IMatchingEngine.sol";
 import {MatchingEngine} from "../src/MatchingEngine/MatchingEngine.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
 import {WormholePoolTestHelper} from "curve-solidity/WormholeCurvePool.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../src/shared/Utils.sol";
-import {WormholeSimulator, SigningWormholeSimulator} from "modules/wormhole/WormholeSimulator.sol";
+import {SigningWormholeSimulator} from "modules/wormhole/WormholeSimulator.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract MatchingEngineTest is Test, WormholePoolTestHelper {
+contract MatchingEngineTest is Test, TestHelpers, WormholePoolTestHelper {
 	// Pool info.
 	address constant USDC = 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
 	address constant ETH_USDC = 0xB24CA28D4e2742907115fECda335b40dbda07a4C;
@@ -23,15 +24,19 @@ contract MatchingEngineTest is Test, WormholePoolTestHelper {
 	address[4] poolCoins;
 
 	// Test Variables.
+	address immutable TEST_SENDER = makeAddr("testSender");
+	address immutable TEST_REDEEMER = makeAddr("testRedeemer");
+	address immutable TEST_RECIPIENT = makeAddr("testRecipient");
 	bytes32 immutable SUI_ROUTER = toUniversalAddress(makeAddr("suiRouter"));
 	bytes32 immutable ARB_ROUTER = toUniversalAddress(makeAddr("arbRouter"));
 	bytes32 immutable POLY_ROUTER = toUniversalAddress(makeAddr("polyRouter"));
 	uint16 constant SUI_CHAIN = 21;
 	uint16 constant ARB_CHAIN = 23;
 	uint16 constant POLY_CHAIN = 5;
-	uint256 constant INIT_LIQUIDITY = 1000000 * 10 ** 6; // (1MM USDC)
+	uint16 constant AVAX_CHAIN = 6;
+	uint256 constant INIT_LIQUIDITY = 1_000_000 * 10 ** 6; // (1MM USDC)
 	IMatchingEngine engine;
-	WormholeSimulator wormholeSimulator;
+	SigningWormholeSimulator wormholeSimulator;
 
 	// Env variables.
 	address immutable TOKEN_BRIDGE = vm.envAddress("AVAX_TOKEN_BRIDGE_ADDRESS");
@@ -90,6 +95,17 @@ contract MatchingEngineTest is Test, WormholePoolTestHelper {
 
 		// Replace mainnet guardian keys with the devnet key.
 		wormholeSimulator = new SigningWormholeSimulator(engine.getWormhole(), guardianSigner);
+
+		// Setup the TestHelpers contract.
+		_initializeTestHelper(
+			wormholeSimulator,
+			TOKEN_BRIDGE,
+			address(engine),
+			AVAX_CHAIN,
+			TEST_SENDER,
+			TEST_REDEEMER,
+			TEST_RECIPIENT
+		);
 	}
 
 	/**
@@ -383,4 +399,8 @@ contract MatchingEngineTest is Test, WormholePoolTestHelper {
 		vm.expectRevert(abi.encodeWithSignature("NotPendingOwner()"));
 		engine.confirmOwnershipTransferRequest();
 	}
+
+	/**
+	 * Business Logic Tests
+	 */
 }

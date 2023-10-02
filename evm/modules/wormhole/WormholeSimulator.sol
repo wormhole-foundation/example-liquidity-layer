@@ -322,6 +322,10 @@ contract SigningWormholeSimulator is WormholeSimulator {
 		overrideToDevnetGuardian(vm.addr(devnetGuardian));
 	}
 
+	function currentGuardianSetIndex() public view returns (uint32) {
+		return wormhole.getCurrentGuardianSetIndex();
+	}
+
 	function overrideToDevnetGuardian(address devnetGuardian) internal {
 		{
 			// Get slot for Guardian Set at the current index
