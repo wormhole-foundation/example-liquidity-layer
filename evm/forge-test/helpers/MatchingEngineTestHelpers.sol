@@ -11,9 +11,13 @@ import {Messages} from "../../src/shared/Messages.sol";
 contract TestHelpers {
 	using Messages for *;
 
+	// Error.
+	error IndexNotFound();
+
 	// State.
 	SigningWormholeSimulator sim;
 	ITokenBridge bridge;
+	address[4] coins;
 	bytes32 matchingEngine;
 	uint16 matchingEngineChain;
 	address testSender;
@@ -23,6 +27,7 @@ contract TestHelpers {
 	function _initializeTestHelper(
 		SigningWormholeSimulator _sim,
 		address _bridge,
+		address[4] memory _coins,
 		address _matchingEngine,
 		uint16 _matchingEngineChain,
 		address _testSender,
@@ -31,6 +36,7 @@ contract TestHelpers {
 	) internal {
 		sim = _sim;
 		bridge = ITokenBridge(_bridge);
+		coins = _coins;
 		matchingEngine = toUniversalAddress(_matchingEngine);
 		matchingEngineChain = _matchingEngineChain;
 		testSender = _testSender;
@@ -42,10 +48,10 @@ contract TestHelpers {
 		uint16 emitterChainId,
 		bytes32 emitterAddress,
 		bytes memory payload
-	) internal returns (bytes memory) {
+	) internal view returns (bytes memory) {
 		IWormhole.VM memory vaa = IWormhole.VM({
 			version: 1,
-			timestamp: 0,
+			timestamp: 1234567,
 			nonce: 0,
 			emitterChainId: emitterChainId,
 			emitterAddress: emitterAddress,
@@ -68,7 +74,7 @@ contract TestHelpers {
 		bytes32 emitterAddress,
 		uint16 emitterChainId,
 		bytes memory payload
-	) internal returns (bytes memory) {
+	) internal view returns (bytes memory) {
 		ITokenBridge.TransferWithPayload memory transfer = ITokenBridge.TransferWithPayload({
 			payloadID: uint8(3), // payload3 transfer
 			amount: amount,
@@ -85,7 +91,7 @@ contract TestHelpers {
 		return _createSignedVaa(emitterChainId, emitterAddress, transferPayload);
 	}
 
-	function _encodeMarketOrder(
+	function _encodeTestMarketOrder(
 		uint256 minAmountOut,
 		uint16 targetChain,
 		bytes memory payload,

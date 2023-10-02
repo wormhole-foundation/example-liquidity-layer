@@ -47,7 +47,18 @@ contract WormholePoolTestHelper {
 		return ICurvePool(curvePool).add_liquidity(amounts, minLPAmount);
 	}
 
+	function removeCurveLiquidity(
+		uint256 amount,
+		uint256[4] memory minAmounts
+	) internal returns (uint256[4] memory) {
+		return ICurvePool(curvePool).remove_liquidity(amount, minAmounts);
+	}
+
 	function curveSwap(int128 i, int128 j, uint256 dx, uint256 min_dy) internal returns (uint256) {
 		return ICurvePool(curvePool).exchange(i, j, dx, min_dy);
+	}
+
+	function get_amount_out(int128 i, int128 j, uint256 dx) internal view returns (uint256) {
+		return ICurvePool(curvePool).get_dy(i, j, dx);
 	}
 }

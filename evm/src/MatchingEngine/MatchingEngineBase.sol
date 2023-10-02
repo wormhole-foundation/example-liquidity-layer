@@ -402,6 +402,10 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 		return getCurvePoolState();
 	}
 
+	function getCCTPIndex() external view returns (int128) {
+		return int128(getCurvePoolState().nativeTokenIndex);
+	}
+
 	function getOwner() external view returns (address) {
 		return getOwnerState().owner;
 	}

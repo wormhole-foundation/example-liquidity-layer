@@ -60,6 +60,8 @@ interface IMatchingEngine {
 
 	function getCurvePoolInfo() external pure returns (CurvePoolInfo memory);
 
+	function getCCTPIndex() external view returns (int128);
+
 	function getOwner() external view returns (address);
 
 	function getPendingOwner() external view returns (address);
