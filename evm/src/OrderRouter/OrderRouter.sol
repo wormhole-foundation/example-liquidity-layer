@@ -4,7 +4,7 @@ pragma solidity 0.8.19;
 
 import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
-import {Messages} from "../Messages.sol";
+import {Messages} from "../shared/Messages.sol";
 
 import {Admin} from "./assets/Admin.sol";
 import {PlaceMarketOrder} from "./assets/PlaceMarketOrder.sol";

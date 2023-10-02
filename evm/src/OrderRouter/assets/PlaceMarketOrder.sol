@@ -6,8 +6,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
-import {Messages} from "../../Messages.sol";
-import {toUniversalAddress, fromUniversalAddress} from "../../Utils.sol";
+import {Messages} from "../../shared/Messages.sol";
+import {toUniversalAddress, fromUniversalAddress} from "../../shared/Utils.sol";
 
 import {State} from "./State.sol";
 

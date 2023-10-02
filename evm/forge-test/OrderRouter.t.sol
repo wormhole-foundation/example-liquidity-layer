@@ -9,7 +9,7 @@ import "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
-import {toUniversalAddress} from "../src/Utils.sol";
+import {toUniversalAddress} from "../src/shared/Utils.sol";
 
 import "../src/interfaces/IOrderRouter.sol";
 import {OrderRouter} from "../src/OrderRouter/OrderRouter.sol";

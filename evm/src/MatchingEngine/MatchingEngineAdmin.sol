@@ -2,19 +2,13 @@
 
 pragma solidity 0.8.19;
 
+import {Admin} from "../shared/Admin.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
-import {getOwnerState, Owner, CurvePoolInfo, Route, getExecutionRouteState, getCurvePoolState, getOrderRoutersState, getPausedState, Paused, getPendingOwnerState, PendingOwner} from "./MatchingEngineStorage.sol";
+import {CurvePoolInfo, Route, getExecutionRouteState, getCurvePoolState, getOrderRoutersState} from "./MatchingEngineStorage.sol";
 
-abstract contract MatchingEngineAdmin {
+abstract contract MatchingEngineAdmin is Admin {
 	// Errors.
-	error InvalidAddress();
 	error InvalidChainId();
-	error NotTheOwner();
-	error NotPendingOwner();
-	error ContractPaused();
-
-	// Events.
-	event OwnershipTransfered(address indexed oldOwner, address indexed newOwner);
 
 	function enableExecutionRoute(
 		uint16 chainId,
@@ -59,56 +53,5 @@ abstract contract MatchingEngineAdmin {
 		CurvePoolInfo storage info = getCurvePoolState();
 		info.pool = pool;
 		info.nativeTokenIndex = nativeTokenIndex;
-	}
-
-	function setPause(bool paused) external onlyOwner {
-		getPausedState().paused = paused;
-	}
-
-	function submitOwnershipTransferRequest(address newOwner) external onlyOwner {
-		if (newOwner == address(0)) {
-			revert InvalidAddress();
-		}
-
-		getPendingOwnerState().pendingOwner = newOwner;
-	}
-
-	function cancelOwnershipTransferRequest() external onlyOwner {
-		getPendingOwnerState().pendingOwner = address(0);
-	}
-
-	function confirmOwnershipTransferRequest() external {
-		PendingOwner storage pending = getPendingOwnerState();
-		Owner storage current = getOwnerState();
-
-		// Cache pending owner.
-		address newOwner = pending.pendingOwner;
-
-		if (msg.sender != newOwner) {
-			revert NotPendingOwner();
-		}
-
-		// cache currentOwner for Event
-		address currentOwner = current.owner;
-
-		// Set the new owner, and clear the pending owner.
-		current.owner = newOwner;
-		pending.pendingOwner = address(0);
-
-		emit OwnershipTransfered(currentOwner, newOwner);
-	}
-
-	modifier onlyOwner() {
-		if (getOwnerState().owner != msg.sender) {
-			revert NotTheOwner();
-		}
-		_;
-	}
-
-	modifier notPaused() {
-		if (getPausedState().paused) {
-			revert ContractPaused();
-		}
-		_;
 	}
 }

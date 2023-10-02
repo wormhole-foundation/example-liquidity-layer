@@ -9,10 +9,11 @@ import {ICurvePool} from "curve-solidity/ICurvePool.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {Messages} from "../Messages.sol";
+import {Messages} from "../shared/Messages.sol";
 import {MatchingEngineAdmin} from "./MatchingEngineAdmin.sol";
-import {toUniversalAddress, fromUniversalAddress} from "../Utils.sol";
-import {getOwnerState, getExecutionRouteState, Route, RegisteredOrderRouters, getOrderRoutersState, CurvePoolInfo, getCurvePoolState, getPendingOwnerState, getOwnerState, getPausedState} from "./MatchingEngineStorage.sol";
+import {toUniversalAddress, fromUniversalAddress} from "../shared/Utils.sol";
+import {getPendingOwnerState, getOwnerState, getPausedState} from "../shared/Admin.sol";
+import {getExecutionRouteState, Route, RegisteredOrderRouters, getOrderRoutersState, CurvePoolInfo, getCurvePoolState} from "./MatchingEngineStorage.sol";
 
 abstract contract MatchingEngineBase is MatchingEngineAdmin {
 	using Messages for *;

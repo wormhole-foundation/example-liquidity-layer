@@ -7,14 +7,14 @@ import "forge-std/StdUtils.sol";
 import "forge-std/console.sol";
 
 import {IMatchingEngine} from "../src/interfaces/IMatchingEngine.sol";
-import {WormholeCurvePool} from "./CurvePool.sol";
 import {MatchingEngine} from "../src/MatchingEngine/MatchingEngine.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
-import {toUniversalAddress, fromUniversalAddress} from "../src/Utils.sol";
+import {WormholePoolTestHelper} from "curve-solidity/WormholeCurvePool.sol";
+import {toUniversalAddress, fromUniversalAddress} from "../src/shared/Utils.sol";
 import {WormholeSimulator, SigningWormholeSimulator} from "modules/wormhole/WormholeSimulator.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract MatchingEngineTest is Test, WormholeCurvePool {
+contract MatchingEngineTest is Test, WormholePoolTestHelper {
 	// Pool info.
 	address constant USDC = 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
 	address constant ETH_USDC = 0xB24CA28D4e2742907115fECda335b40dbda07a4C;
@@ -40,7 +40,7 @@ contract MatchingEngineTest is Test, WormholeCurvePool {
 
 	/// @notice We use a constructor here so that the curve pool is
 	/// only deployed once (vs. in a `setUp` function).
-	constructor() WormholeCurvePool([USDC, ETH_USDC, SOL_USDC, POLY_USDC]) {
+	constructor() WormholePoolTestHelper([USDC, ETH_USDC, SOL_USDC, POLY_USDC]) {
 		poolCoins = [USDC, ETH_USDC, SOL_USDC, POLY_USDC];
 	}
 
