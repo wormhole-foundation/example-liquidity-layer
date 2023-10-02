@@ -6,6 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
+import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../../shared/Utils.sol";
 
@@ -14,20 +15,20 @@ import {State} from "./State.sol";
 import "../../interfaces/IPlaceMarketOrder.sol";
 import {TargetInfo} from "../../interfaces/Types.sol";
 
-abstract contract PlaceMarketOrder is IPlaceMarketOrder, State {
+abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 	using BytesParsing for bytes;
 	using Messages for *;
 
 	function placeMarketOrder(
 		PlaceMarketOrderArgs calldata args
-	) external payable returns (uint64 sequence) {
+	) external payable notPaused returns (uint64 sequence) {
 		sequence = _placeMarketOrder(args, 0, new bytes32[](0));
 	}
 
 	function placeMarketOrder(
 		PlaceMarketOrderArgs calldata args,
 		uint256 relayerFee
-	) external payable returns (uint64 sequence) {
+	) external payable notPaused returns (uint64 sequence) {
 		sequence = _placeMarketOrder(args, relayerFee, new bytes32[](0));
 	}
 
@@ -35,7 +36,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, State {
 		PlaceMarketOrderArgs calldata args,
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
-	) external payable returns (uint64 sequence) {
+	) external payable notPaused returns (uint64 sequence) {
 		sequence = _placeMarketOrder(args, relayerFee, allowedRelayers);
 	}
 
