@@ -92,12 +92,19 @@ library Messages {
 	}
 
 	function encode(Fill memory fill) internal pure returns (bytes memory encoded) {
-		encoded = abi.encodePacked(FILL, fill.orderSender, fill.redeemer, fill.redeemerMessage);
+		encoded = abi.encodePacked(
+			FILL,
+			fill.sourceChain,
+			fill.orderSender,
+			fill.redeemer,
+			encodeBytes(fill.redeemerMessage)
+		);
 	}
 
 	function decodeFill(bytes memory encoded) internal pure returns (Fill memory fill) {
 		uint256 offset = checkPayloadId(encoded, 0, FILL);
 
+		(fill.sourceChain, offset) = encoded.asUint16Unchecked(offset);
 		(fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
 		(fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
 		(fill.redeemerMessage, offset) = decodeBytes(encoded, offset);

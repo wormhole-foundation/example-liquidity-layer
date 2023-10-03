@@ -441,16 +441,26 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 	 * Business Logic Tests
 	 */
 
-	function testExecuteOrderToCCTP(uint256 amount) public {
+	function testExecuteOrderFromCanonicalToCCTP(
+		uint256 amount,
+		bytes memory redeemerMessage
+	) public {
+		// Before test.
 		uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+		address fromUsdc = WRAPPED_ETH_USDC;
 
-		// Fuzz parameters.
-		amount = bound(amount, RELAYER_FEE + 1, INIT_LIQUIDITY / 2);
-		uint256 minAmountOut = get_amount_out(
-			curvePoolIndex[WRAPPED_ETH_USDC],
+		// Fuzz parameter.
+		amount = bound(amount, RELAYER_FEE + 10, INIT_LIQUIDITY / 2);
+		vm.assume(redeemerMessage.length < type(uint32).max);
+
+		// We will use this amountOut as the minAmountOut for the order,
+		// since there is no competing order flow in this test.
+		uint256 amountOut = get_amount_out(
+			curvePoolIndex[fromUsdc],
 			engine.getCCTPIndex(),
-			amount
+			amount - RELAYER_FEE
 		);
+		require(amountOut > 0, "invalid test");
 
 		// Create a valid transfer from Sui to Arbitrum.
 		bytes memory signedOrder = _craftValidMarketOrder(
@@ -461,13 +471,16 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 			SUI_BRIDGE,
 			SUI_CHAIN,
 			_encodeTestMarketOrder(
-				minAmountOut,
+				amountOut, // Min amount out.
 				ARB_CHAIN,
-				hex"deadbeef",
+				redeemerMessage,
 				RELAYER_FEE,
 				new bytes32[](0)
 			)
 		);
+
+		// Relayer balance before.
+		uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(address(this));
 
 		// Execute the order.
 		vm.recordLogs();
@@ -475,17 +488,92 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 		engine.executeOrder{value: WORMHOLE_FEE}(signedOrder);
 
 		// Fetch wormhole message and sign it.
-		IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(vm.getRecordedLogs()[7]);
+		Vm.Log[] memory entries = vm.getRecordedLogs();
+		IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
 
-		// _assertCircleIntegrationMessage(
-		// 	_vm,
-		// 	amount,
-		// 	toUniversalAddress(NATIVE_ETH_USDC),
-		// 	ARB_ROUTER,
-		// 	ARB_CHAIN,
-		// 	toUniversalAddress(address(engine))
-		// );
+		// Validate test results. The fill should be sent via the circle integration contract.
+		_assertCircleIntegrationMessage(
+			_vm,
+			amountOut,
+			toUniversalAddress(USDC), // CCTP USDC
+			ARB_ROUTER,
+			ARB_CHAIN,
+			toUniversalAddress(address(engine))
+		);
+		_assertFillPayloadCCTP(_vm, SUI_CHAIN, redeemerMessage);
+		assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, RELAYER_FEE);
 
+		// After test.
+		_removeLiquidityAndBurn(lpShares);
+	}
+
+	function testExecuteOrderFromCanonicalToNative(
+		uint256 amount,
+		bytes memory redeemerMessage
+	) public {
+		vm.skip(true);
+
+		// Before test.
+		uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+		address fromUsdc = WRAPPED_ETH_USDC;
+		address toUsdc = WRAPPED_POLY_USDC;
+
+		// Fuzz parameter.
+		amount = bound(amount, RELAYER_FEE + 10, INIT_LIQUIDITY / 2);
+		vm.assume(redeemerMessage.length < type(uint32).max);
+
+		// We will use this amountOut as the minAmountOut for the order,
+		// since there is no competing order flow in this test.
+		uint256 amountOut = get_amount_out(
+			curvePoolIndex[fromUsdc],
+			curvePoolIndex[toUsdc],
+			amount - RELAYER_FEE
+		);
+		require(amountOut > 0, "invalid test");
+
+		// Create a valid transfer from Sui to Polygon.
+		bytes memory signedOrder = _craftValidMarketOrder(
+			amount,
+			toUniversalAddress(NATIVE_ETH_USDC),
+			ETH_CHAIN,
+			SUI_ROUTER,
+			SUI_BRIDGE,
+			SUI_CHAIN,
+			_encodeTestMarketOrder(
+				amountOut, // Min amount out.
+				POLY_CHAIN,
+				redeemerMessage,
+				RELAYER_FEE,
+				new bytes32[](0)
+			)
+		);
+
+		// Relayer balance before.
+		uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(address(this));
+
+		// Execute the order.
+		vm.recordLogs();
+		vm.deal(address(this), WORMHOLE_FEE);
+		engine.executeOrder{value: WORMHOLE_FEE}(signedOrder);
+
+		// Fetch wormhole message and sign it.
+		Vm.Log[] memory entries = vm.getRecordedLogs();
+		IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+
+		// Validate test results. The fill should be sent via the token bridge.
+		_assertTokenBridgeMessage(
+			_vm,
+			amountOut,
+			toUniversalAddress(NATIVE_POLY_USDC),
+			POLY_CHAIN,
+			POLY_ROUTER,
+			POLY_CHAIN,
+			toUniversalAddress(address(engine))
+		);
+		_assertFillPayloadTokenBridge(_vm, SUI_CHAIN, redeemerMessage);
+		assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, RELAYER_FEE);
+
+		// After test.
 		_removeLiquidityAndBurn(lpShares);
 	}
 }

@@ -2,8 +2,6 @@
 
 pragma solidity 0.8.19;
 
-import "forge-std/console.sol";
-
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
@@ -132,7 +130,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 			);
 		} else {
 			_handleBridgeOut(
-				token,
+				toRoute.target,
 				amountOut,
 				order.targetChain,
 				routers.registered[order.targetChain],
@@ -278,7 +276,6 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 		if (success) {
 			return abi.decode(result, (uint256));
 		} else {
-			console.logBytes(result);
 			return 0;
 		}
 	}

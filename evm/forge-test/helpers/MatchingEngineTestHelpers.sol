@@ -159,4 +159,35 @@ contract TestHelpers is Test {
 		assertEq(deposit.fromAddress, fromAddress);
 		assertEq(deposit.mintRecipient, mintRecipient);
 	}
+
+	function _assertFillPayloadCCTP(
+		IWormhole.VM memory vm,
+		uint16 sourceChain,
+		bytes memory redeemerMessage
+	) internal {
+		ICircleIntegration.DepositWithPayload memory deposit = circleIntegration
+			.decodeDepositWithPayload(vm.payload);
+
+		Messages.Fill memory fill = Messages.decodeFill(deposit.payload);
+		assertEq(fill.sourceChain, sourceChain);
+		assertEq(fill.orderSender, toUniversalAddress(testSender));
+		assertEq(fill.redeemer, toUniversalAddress(testRedeemer));
+		assertEq(fill.redeemerMessage, redeemerMessage);
+	}
+
+	function _assertFillPayloadTokenBridge(
+		IWormhole.VM memory vm,
+		uint16 sourceChain,
+		bytes memory redeemerMessage
+	) internal {
+		ITokenBridge.TransferWithPayload memory transfer = bridge.parseTransferWithPayload(
+			vm.payload
+		);
+
+		Messages.Fill memory fill = Messages.decodeFill(transfer.payload);
+		assertEq(fill.sourceChain, sourceChain);
+		assertEq(fill.orderSender, toUniversalAddress(testSender));
+		assertEq(fill.redeemer, toUniversalAddress(testRedeemer));
+		assertEq(fill.redeemerMessage, redeemerMessage);
+	}
 }
