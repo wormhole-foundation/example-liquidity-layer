@@ -125,7 +125,7 @@ contract OrderRouterTest is Test {
 			refundAddress: address(0)
 		});
 
-		vm.expectRevert(abi.encodeWithSelector(ErrTargetChainNotSupported.selector, targetChain));
+		vm.expectRevert(abi.encodeWithSelector(ErrUnsupportedTargetChain.selector, targetChain));
 		nativeRouter.placeMarketOrder(args);
 	}
 
@@ -189,11 +189,43 @@ contract OrderRouterTest is Test {
 		nativeRouter.placeMarketOrder(args);
 	}
 
+	function testCannotPlaceMarketOrderErrTooManyRelayers(uint256 numAllowedRelayers) public {
+		numAllowedRelayers = bound(numAllowedRelayers, 9, 255);
+		uint256 amountIn = 69420;
+		uint256 relayerFee = 69;
+
+		uint16 targetChain = 1;
+		_registerTargetChain(nativeRouter, targetChain, TokenType.Native);
+
+		_dealAndApproveUsdc(nativeRouter, amountIn);
+
+		uint256 minAmountOut = amountIn - TESTING_TARGET_SLIPPAGE - relayerFee;
+
+		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+			amountIn: amountIn,
+			minAmountOut: minAmountOut,
+			targetChain: targetChain,
+			redeemer: bytes32(0),
+			redeemerMessage: bytes("All your base are belong to us."),
+			refundAddress: address(0)
+		});
+
+		vm.expectRevert(
+			abi.encodeWithSelector(
+				ErrTooManyRelayers.selector,
+				numAllowedRelayers,
+				nativeRouter.MAX_NUM_RELAYERS()
+			)
+		);
+		nativeRouter.placeMarketOrder(args, relayerFee, _makeAllowedRelayers(numAllowedRelayers));
+	}
+
 	function testNativeRouterPlaceMarketOrder(uint256 amountIn, uint8 targetTokenTypeInt) public {
 		amountIn = bound(
 			amountIn,
 			TESTING_TARGET_SLIPPAGE,
-			ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS)
+			IERC20(USDC_ADDRESS).totalSupply() -
+				ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS)
 		);
 		// This is a hack because forge tests cannot fuzz test enums yet.
 		vm.assume(
@@ -230,6 +262,121 @@ contract OrderRouterTest is Test {
 
 		// Check that the payload is correct.
 		bytes memory tokenBridgePayload = _placeMarketOrder(nativeRouter, args);
+		_assertTokenBridgeMarketOrder(
+			nativeRouter,
+			6,
+			USDC_ADDRESS,
+			amountIn,
+			tokenBridgePayload,
+			expectedOrder
+		);
+	}
+
+	function testNativeRouterPlaceMarketOrderWithRelayerFee(
+		uint256 relayerFee,
+		uint8 targetTokenTypeInt
+	) public {
+		uint256 amountIn = IERC20(USDC_ADDRESS).totalSupply() -
+			ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS);
+		relayerFee = bound(relayerFee, 1, amountIn - TESTING_TARGET_SLIPPAGE);
+		// This is a hack because forge tests cannot fuzz test enums yet.
+		vm.assume(
+			targetTokenTypeInt == uint8(TokenType.Native) ||
+				targetTokenTypeInt == uint8(TokenType.Canonical) ||
+				targetTokenTypeInt == uint8(TokenType.Cctp)
+		);
+
+		uint16 targetChain = 2;
+		_registerTargetChain(nativeRouter, targetChain, TokenType(targetTokenTypeInt));
+
+		_dealAndApproveUsdc(nativeRouter, amountIn);
+
+		address refundAddress = makeAddr("Where's my money?");
+		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
+			minAmountOut: amountIn - TESTING_TARGET_SLIPPAGE - relayerFee,
+			targetChain: targetChain,
+			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			redeemerMessage: bytes("All your base are belong to us"),
+			sender: toUniversalAddress(address(this)),
+			refundAddress: toUniversalAddress(refundAddress),
+			relayerFee: relayerFee,
+			allowedRelayers: new bytes32[](0)
+		});
+
+		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+			amountIn: amountIn,
+			minAmountOut: expectedOrder.minAmountOut,
+			targetChain: expectedOrder.targetChain,
+			redeemer: expectedOrder.redeemer,
+			redeemerMessage: expectedOrder.redeemerMessage,
+			refundAddress: refundAddress
+		});
+
+		// Check that the payload is correct.
+		bytes memory tokenBridgePayload = _placeMarketOrderWithRelayerFee(
+			nativeRouter,
+			args,
+			expectedOrder.relayerFee,
+			expectedOrder.allowedRelayers
+		);
+		_assertTokenBridgeMarketOrder(
+			nativeRouter,
+			6,
+			USDC_ADDRESS,
+			amountIn,
+			tokenBridgePayload,
+			expectedOrder
+		);
+	}
+
+	function testNativeRouterPlaceMarketOrderWithAllowedRelayers(
+		uint256 numAllowedRelayers,
+		uint8 targetTokenTypeInt
+	) public {
+		numAllowedRelayers = bound(numAllowedRelayers, 0, 8);
+		uint256 amountIn = IERC20(USDC_ADDRESS).totalSupply() -
+			ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS);
+		uint256 relayerFee = amountIn / 2;
+		// This is a hack because forge tests cannot fuzz test enums yet.
+		vm.assume(
+			targetTokenTypeInt == uint8(TokenType.Native) ||
+				targetTokenTypeInt == uint8(TokenType.Canonical) ||
+				targetTokenTypeInt == uint8(TokenType.Cctp)
+		);
+
+		uint16 targetChain = 2;
+		_registerTargetChain(nativeRouter, targetChain, TokenType(targetTokenTypeInt));
+
+		_dealAndApproveUsdc(nativeRouter, amountIn);
+
+		address refundAddress = makeAddr("Where's my money?");
+		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
+			minAmountOut: amountIn - TESTING_TARGET_SLIPPAGE - relayerFee,
+			targetChain: targetChain,
+			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			redeemerMessage: bytes("All your base are belong to us"),
+			sender: toUniversalAddress(address(this)),
+			refundAddress: toUniversalAddress(refundAddress),
+			relayerFee: relayerFee,
+			allowedRelayers: _makeAllowedRelayers(numAllowedRelayers)
+		});
+
+		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+			amountIn: amountIn,
+			minAmountOut: expectedOrder.minAmountOut,
+			targetChain: expectedOrder.targetChain,
+			redeemer: expectedOrder.redeemer,
+			redeemerMessage: expectedOrder.redeemerMessage,
+			refundAddress: refundAddress
+		});
+
+		// Check that the payload is correct.
+		bytes memory tokenBridgePayload = _placeMarketOrderWithRelayerFee(
+			nativeRouter,
+			args,
+			expectedOrder.relayerFee,
+			expectedOrder.allowedRelayers
+		);
 		_assertTokenBridgeMarketOrder(
 			nativeRouter,
 			6,
@@ -559,11 +706,20 @@ contract OrderRouterTest is Test {
 		OrderRouter router,
 		PlaceMarketOrderArgs memory args
 	) internal returns (bytes memory) {
+		return _placeMarketOrderWithRelayerFee(router, args, 0, new bytes32[](0));
+	}
+
+	function _placeMarketOrderWithRelayerFee(
+		OrderRouter router,
+		PlaceMarketOrderArgs memory args,
+		uint256 relayerFee,
+		bytes32[] memory allowedRelayers
+	) internal returns (bytes memory) {
 		// Record logs for placeMarketOrder.
 		vm.recordLogs();
 
 		// Place the order.
-		router.placeMarketOrder(args);
+		router.placeMarketOrder(args, relayerFee, allowedRelayers);
 
 		// Fetch the logs for Wormhole message.
 		Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -630,5 +786,15 @@ contract OrderRouterTest is Test {
 				payload: deposit.payload
 			});
 		assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
+	}
+
+	function _makeAllowedRelayers(
+		uint256 numAllowedRelayers
+	) internal pure returns (bytes32[] memory) {
+		bytes32[] memory allowedRelayers = new bytes32[](numAllowedRelayers);
+		for (uint256 i = 0; i < numAllowedRelayers; ++i) {
+			allowedRelayers[i] = bytes32(i + 1);
+		}
+		return allowedRelayers;
 	}
 }

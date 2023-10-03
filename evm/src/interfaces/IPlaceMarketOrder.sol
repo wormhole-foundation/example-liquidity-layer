@@ -15,7 +15,8 @@ struct PlaceMarketOrderArgs {
 
 error ErrInsufficientAmount(uint256 amount, uint256 minimum);
 error ErrMinAmountOutExceedsLimit(uint256 minAmountOut, uint256 limit);
-error ErrTargetChainNotSupported(uint16 targetChain);
+error ErrUnsupportedTargetChain(uint16 targetChain);
+error ErrTooManyRelayers(uint256 numRelayers, uint256 limit);
 
 interface IPlaceMarketOrder {
 	function placeMarketOrder(

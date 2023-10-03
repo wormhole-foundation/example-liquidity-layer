@@ -19,6 +19,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 	using BytesParsing for bytes;
 	using Messages for *;
 
+	uint256 public constant MAX_NUM_RELAYERS = 8;
+
 	function placeMarketOrder(
 		PlaceMarketOrderArgs calldata args
 	) external payable notPaused returns (uint64 sequence) {
@@ -37,6 +39,9 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
 	) external payable notPaused returns (uint64 sequence) {
+		if (allowedRelayers.length > MAX_NUM_RELAYERS) {
+			revert ErrTooManyRelayers(allowedRelayers.length, MAX_NUM_RELAYERS);
+		}
 		sequence = _placeMarketOrder(args, relayerFee, allowedRelayers);
 	}
 
@@ -189,12 +194,12 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 	function _computeTargetSlippage(
 		uint16 targetChain,
 		uint256 relayerFee
-	) internal view returns (TokenType targetType, uint256 slippage) {
+	) internal view returns (TokenType, uint256) {
 		TargetInfo memory info = getTargetInfo(targetChain);
 
 		// Target chain must be registered with the order router.
 		if (info.tokenType == TokenType.Unset) {
-			revert ErrTargetChainNotSupported(targetChain);
+			revert ErrUnsupportedTargetChain(targetChain);
 		}
 
 		return (info.tokenType, uint256(info.slippage) + relayerFee);
