@@ -2,6 +2,8 @@
 
 pragma solidity 0.8.19;
 
+import "forge-std/console.sol";
+
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
@@ -274,6 +276,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 		if (success) {
 			return abi.decode(result, (uint256));
 		} else {
+			console.logBytes(result);
 			return 0;
 		}
 	}
@@ -364,7 +367,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 		if (tokenChain != _chainId) {
 			// identify wormhole token bridge wrapper
 			localAddress = _tokenBridge.wrappedAsset(tokenChain, tokenAddress);
-			if (localAddress != address(0)) {
+			if (localAddress == address(0)) {
 				revert NotAttested();
 			}
 		} else {

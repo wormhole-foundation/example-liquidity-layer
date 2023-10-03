@@ -2,20 +2,21 @@
 
 pragma solidity ^0.8.19;
 
-import "forge-std/Test.sol";
 import "forge-std/StdUtils.sol";
+import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import {TestHelpers} from "./helpers/MatchingEngineTestHelpers.sol";
 
 import {IMatchingEngine} from "../src/interfaces/IMatchingEngine.sol";
 import {MatchingEngine} from "../src/MatchingEngine/MatchingEngine.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
+import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {WormholePoolTestHelper} from "curve-solidity/WormholeCurvePool.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../src/shared/Utils.sol";
 import {SigningWormholeSimulator} from "modules/wormhole/WormholeSimulator.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract MatchingEngineTest is Test, TestHelpers, WormholePoolTestHelper {
+contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 	// Env variables.
 	address immutable TOKEN_BRIDGE = vm.envAddress("AVAX_TOKEN_BRIDGE_ADDRESS");
 	address immutable CIRCLE_INTEGRATION = vm.envAddress("AVAX_WORMHOLE_CCTP_ADDRESS");
@@ -107,10 +108,20 @@ contract MatchingEngineTest is Test, TestHelpers, WormholePoolTestHelper {
 		engine.registerOrderRouter(ARB_CHAIN, ARB_ROUTER);
 		engine.registerOrderRouter(POLY_CHAIN, POLY_ROUTER);
 
-		// Set the initial route.
-		engine.enableExecutionRoute(SUI_CHAIN, WRAPPED_ETH_USDC, false, 0);
-		engine.enableExecutionRoute(ARB_CHAIN, USDC, true, 0);
-		engine.enableExecutionRoute(POLY_CHAIN, WRAPPED_POLY_USDC, false, 0);
+		// Set the initial routes.
+		engine.enableExecutionRoute(ARB_CHAIN, USDC, true, int8(curvePoolIndex[USDC]));
+		engine.enableExecutionRoute(
+			SUI_CHAIN,
+			WRAPPED_ETH_USDC,
+			false,
+			int8(curvePoolIndex[WRAPPED_ETH_USDC])
+		);
+		engine.enableExecutionRoute(
+			POLY_CHAIN,
+			WRAPPED_POLY_USDC,
+			false,
+			int8(curvePoolIndex[WRAPPED_POLY_USDC])
+		);
 	}
 
 	function setUp() public {
@@ -124,6 +135,7 @@ contract MatchingEngineTest is Test, TestHelpers, WormholePoolTestHelper {
 		_initializeTestHelper(
 			wormholeSimulator,
 			TOKEN_BRIDGE,
+			CIRCLE_INTEGRATION,
 			poolCoins,
 			address(engine),
 			AVAX_CHAIN,
@@ -456,6 +468,23 @@ contract MatchingEngineTest is Test, TestHelpers, WormholePoolTestHelper {
 				new bytes32[](0)
 			)
 		);
+
+		// Execute the order.
+		vm.recordLogs();
+		vm.deal(address(this), WORMHOLE_FEE);
+		engine.executeOrder{value: WORMHOLE_FEE}(signedOrder);
+
+		// Fetch wormhole message and sign it.
+		IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(vm.getRecordedLogs()[7]);
+
+		// _assertCircleIntegrationMessage(
+		// 	_vm,
+		// 	amount,
+		// 	toUniversalAddress(NATIVE_ETH_USDC),
+		// 	ARB_ROUTER,
+		// 	ARB_CHAIN,
+		// 	toUniversalAddress(address(engine))
+		// );
 
 		_removeLiquidityAndBurn(lpShares);
 	}
