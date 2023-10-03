@@ -12,6 +12,8 @@ import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
 
+import "../src/OrderRouter/assets/Errors.sol";
+
 import {Messages} from "../src/shared/Messages.sol";
 import {toUniversalAddress} from "../src/shared/Utils.sol";
 
@@ -34,7 +36,7 @@ contract OrderRouterTest is Test {
 	address constant TOKEN_BRIDGE_ADDRESS = 0x0e082F06FF657D94310cB8cE8B0D9a04541d8052;
 	address constant WORMHOLE_CCTP_ADDRESS = 0x09Fb06A271faFf70A651047395AaEb6265265F13;
 
-	uint248 constant TESTING_TARGET_SLIPPAGE = 42069;
+	uint24 constant TESTING_TARGET_SLIPPAGE = 200; // 2.00 bps
 	bytes32 constant TESTING_TARGET_ENDPOINT =
 		0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef;
 
@@ -103,17 +105,50 @@ contract OrderRouterTest is Test {
 
 		vm.prank(notOwner);
 		vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
-		nativeRouter.addEndpoint(
+		nativeRouter.addRouterInfo(
 			1,
-			TESTING_TARGET_ENDPOINT,
-			TargetInfo({tokenType: TokenType.Native, slippage: TESTING_TARGET_SLIPPAGE})
+			RouterInfo({
+				endpoint: TESTING_TARGET_ENDPOINT,
+				tokenType: TokenType.Native,
+				slippage: TESTING_TARGET_SLIPPAGE
+			})
 		);
+	}
+
+	function testCannotPlaceMarketOrderErrZeroAmountIn() public {
+		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+			amountIn: 0,
+			minAmountOut: 0,
+			targetChain: 1,
+			redeemer: bytes32(0),
+			redeemerMessage: bytes("All your base are belong to us."),
+			refundAddress: address(0)
+		});
+
+		vm.expectRevert(abi.encodeWithSelector(ErrZeroAmountIn.selector));
+		nativeRouter.placeMarketOrder(args);
+	}
+
+	function testCannotPlaceMarketOrderErrZeroMinAmountOut() public {
+		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+			amountIn: 1,
+			minAmountOut: 0,
+			targetChain: 1,
+			redeemer: bytes32(0),
+			redeemerMessage: bytes("All your base are belong to us."),
+			refundAddress: address(0)
+		});
+
+		vm.expectRevert(abi.encodeWithSelector(ErrZeroMinAmountOut.selector));
+		nativeRouter.placeMarketOrder(args);
 	}
 
 	function testCannotPlaceMarketOrderErrTargetChainNotSupported(
 		uint256 amountIn,
 		uint16 targetChain
 	) public {
+		amountIn = bound(amountIn, 1, nativeRouter.MAX_AMOUNT());
+
 		_dealAndApproveUsdc(nativeRouter, amountIn);
 
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
@@ -125,12 +160,16 @@ contract OrderRouterTest is Test {
 			refundAddress: address(0)
 		});
 
-		vm.expectRevert(abi.encodeWithSelector(ErrUnsupportedTargetChain.selector, targetChain));
+		vm.expectRevert(abi.encodeWithSelector(ErrUnsupportedChain.selector, targetChain));
 		nativeRouter.placeMarketOrder(args);
 	}
 
-	function testCannotPlaceMarketOrderErrInsufficientAmount(uint256 amountIn) public {
-		vm.assume(amountIn < uint256(TESTING_TARGET_SLIPPAGE));
+	function testCannotPlaceMarketOrderErrInsufficientAmount(
+		uint256 amountIn,
+		uint256 relayerFee
+	) public {
+		amountIn = bound(amountIn, 1, nativeRouter.MAX_AMOUNT());
+		relayerFee = bound(relayerFee, amountIn, MAX_UINT256);
 
 		uint16 targetChain = 1;
 		_registerTargetChain(nativeRouter, targetChain, TokenType.Native);
@@ -149,26 +188,28 @@ contract OrderRouterTest is Test {
 		vm.expectRevert(
 			abi.encodeWithSelector(
 				ErrInsufficientAmount.selector,
-				amountIn,
-				TESTING_TARGET_SLIPPAGE
+				amountIn - _computeSlippage(amountIn),
+				relayerFee
 			)
 		);
-		nativeRouter.placeMarketOrder(args);
+		nativeRouter.placeMarketOrder(args, relayerFee);
 	}
 
 	function testCannotPlaceMarketOrderErrMinAmountOutExceedsLimit(
 		uint256 amountIn,
 		uint256 excessAmount
 	) public {
-		amountIn = bound(amountIn, TESTING_TARGET_SLIPPAGE, MAX_UINT256);
-		excessAmount = bound(excessAmount, 1, MAX_UINT256 - amountIn + TESTING_TARGET_SLIPPAGE);
+		amountIn = bound(amountIn, 1, nativeRouter.MAX_AMOUNT());
+
+		uint256 amountMinusSlippage = _computeMinAmountOut(amountIn, 0);
+		excessAmount = bound(excessAmount, 1, MAX_UINT256 - amountMinusSlippage);
 
 		uint16 targetChain = 1;
 		_registerTargetChain(nativeRouter, targetChain, TokenType.Native);
 
 		_dealAndApproveUsdc(nativeRouter, amountIn);
 
-		uint256 minAmountOut = amountIn - TESTING_TARGET_SLIPPAGE + excessAmount;
+		uint256 minAmountOut = amountMinusSlippage + excessAmount;
 
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
@@ -183,7 +224,7 @@ contract OrderRouterTest is Test {
 			abi.encodeWithSelector(
 				ErrMinAmountOutExceedsLimit.selector,
 				minAmountOut,
-				amountIn - TESTING_TARGET_SLIPPAGE
+				amountMinusSlippage
 			)
 		);
 		nativeRouter.placeMarketOrder(args);
@@ -199,7 +240,7 @@ contract OrderRouterTest is Test {
 
 		_dealAndApproveUsdc(nativeRouter, amountIn);
 
-		uint256 minAmountOut = amountIn - TESTING_TARGET_SLIPPAGE - relayerFee;
+		uint256 minAmountOut = _computeMinAmountOut(amountIn, relayerFee);
 
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
@@ -221,12 +262,7 @@ contract OrderRouterTest is Test {
 	}
 
 	function testNativeRouterPlaceMarketOrder(uint256 amountIn, uint8 targetTokenTypeInt) public {
-		amountIn = bound(
-			amountIn,
-			TESTING_TARGET_SLIPPAGE,
-			IERC20(USDC_ADDRESS).totalSupply() -
-				ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS)
-		);
+		amountIn = bound(amountIn, 1, _tokenBridgeBridgeLimit());
 		// This is a hack because forge tests cannot fuzz test enums yet.
 		vm.assume(
 			targetTokenTypeInt == uint8(TokenType.Native) ||
@@ -241,7 +277,7 @@ contract OrderRouterTest is Test {
 
 		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
-			minAmountOut: amountIn - TESTING_TARGET_SLIPPAGE,
+			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
@@ -276,9 +312,8 @@ contract OrderRouterTest is Test {
 		uint256 relayerFee,
 		uint8 targetTokenTypeInt
 	) public {
-		uint256 amountIn = IERC20(USDC_ADDRESS).totalSupply() -
-			ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS);
-		relayerFee = bound(relayerFee, 1, amountIn - TESTING_TARGET_SLIPPAGE);
+		uint256 amountIn = _tokenBridgeBridgeLimit();
+		relayerFee = bound(relayerFee, 1, _computeSlippage(amountIn) - 1);
 		// This is a hack because forge tests cannot fuzz test enums yet.
 		vm.assume(
 			targetTokenTypeInt == uint8(TokenType.Native) ||
@@ -293,7 +328,7 @@ contract OrderRouterTest is Test {
 
 		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
-			minAmountOut: amountIn - TESTING_TARGET_SLIPPAGE - relayerFee,
+			minAmountOut: _computeMinAmountOut(amountIn, relayerFee),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
@@ -334,8 +369,7 @@ contract OrderRouterTest is Test {
 		uint8 targetTokenTypeInt
 	) public {
 		numAllowedRelayers = bound(numAllowedRelayers, 0, 8);
-		uint256 amountIn = IERC20(USDC_ADDRESS).totalSupply() -
-			ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS);
+		uint256 amountIn = _tokenBridgeBridgeLimit();
 		uint256 relayerFee = amountIn / 2;
 		// This is a hack because forge tests cannot fuzz test enums yet.
 		vm.assume(
@@ -351,7 +385,7 @@ contract OrderRouterTest is Test {
 
 		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
-			minAmountOut: amountIn - TESTING_TARGET_SLIPPAGE - relayerFee,
+			minAmountOut: _computeMinAmountOut(amountIn, relayerFee),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
@@ -388,14 +422,12 @@ contract OrderRouterTest is Test {
 	}
 
 	function testCctpEnabledRouterPlaceMarketOrderTargetCctp(uint256 amountIn) public {
-		amountIn = bound(amountIn, TESTING_TARGET_SLIPPAGE, _cctpBurnLimit());
+		amountIn = bound(amountIn, 1, _cctpBurnLimit());
 
 		uint16 targetChain = 2;
 		_registerTargetChain(cctpEnabledRouter, targetChain, TokenType.Cctp);
 
 		_dealAndApproveUsdc(cctpEnabledRouter, amountIn);
-
-		uint256 minAmountOut = amountIn - TESTING_TARGET_SLIPPAGE;
 
 		address refundAddress = makeAddr("Where's my money?");
 		Messages.Fill memory expectedFill = Messages.Fill({
@@ -407,7 +439,7 @@ contract OrderRouterTest is Test {
 
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
-			minAmountOut: minAmountOut,
+			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: expectedFill.redeemer,
 			redeemerMessage: expectedFill.redeemerMessage,
@@ -433,18 +465,14 @@ contract OrderRouterTest is Test {
 				targetDomain: wormholeCctp.getDomainFromChainId(targetChain),
 				nonce: deposit.nonce, // This nonce comes from Circle's bridge.
 				fromAddress: toUniversalAddress(address(cctpEnabledRouter)),
-				mintRecipient: cctpEnabledRouter.getEndpoint(targetChain),
+				mintRecipient: cctpEnabledRouter.getRouterInfo(targetChain).endpoint,
 				payload: deposit.payload
 			});
 		assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
 	}
 
 	function testCctpEnabledRouterPlaceMarketOrderTargetNative(uint256 amountIn) public {
-		amountIn = bound(
-			amountIn,
-			TESTING_TARGET_SLIPPAGE,
-			ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS)
-		);
+		amountIn = bound(amountIn, 1, _cctpBurnLimit());
 
 		uint16 targetChain = 5;
 		_registerTargetChain(cctpEnabledRouter, targetChain, TokenType.Native);
@@ -453,7 +481,7 @@ contract OrderRouterTest is Test {
 
 		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
-			minAmountOut: amountIn - TESTING_TARGET_SLIPPAGE,
+			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
@@ -483,11 +511,7 @@ contract OrderRouterTest is Test {
 	}
 
 	function testCctpEnabledRouterPlaceMarketOrderTargetCanonical(uint256 amountIn) public {
-		amountIn = bound(
-			amountIn,
-			TESTING_TARGET_SLIPPAGE,
-			ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS)
-		);
+		amountIn = bound(amountIn, 1, _cctpBurnLimit());
 
 		uint16 targetChain = 23;
 		_registerTargetChain(cctpEnabledRouter, targetChain, TokenType.Canonical);
@@ -496,7 +520,7 @@ contract OrderRouterTest is Test {
 
 		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
-			minAmountOut: amountIn - TESTING_TARGET_SLIPPAGE,
+			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
@@ -526,14 +550,12 @@ contract OrderRouterTest is Test {
 	}
 
 	function testCanonicalEnabledRouterPlaceMarketOrderTargetCanonical(uint256 amountIn) public {
-		amountIn = bound(amountIn, TESTING_TARGET_SLIPPAGE, MAX_UINT256);
+		amountIn = bound(amountIn, 1, canonicalEnabledRouter.MAX_AMOUNT());
 
 		uint16 targetChain = 23;
 		_registerTargetChain(canonicalEnabledRouter, targetChain, TokenType.Canonical);
 
 		_dealAndApproveWrappedUsdc(canonicalEnabledRouter, amountIn);
-
-		uint256 minAmountOut = amountIn - TESTING_TARGET_SLIPPAGE;
 
 		address refundAddress = makeAddr("Where's my money?");
 		Messages.Fill memory expectedFill = Messages.Fill({
@@ -545,7 +567,7 @@ contract OrderRouterTest is Test {
 
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
-			minAmountOut: minAmountOut,
+			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: expectedFill.redeemer,
 			redeemerMessage: expectedFill.redeemerMessage,
@@ -568,7 +590,7 @@ contract OrderRouterTest is Test {
 				amount: amountIn,
 				tokenAddress: toUniversalAddress(CANONICAL_TOKEN_ADDRESS),
 				tokenChain: CANONICAL_TOKEN_CHAIN,
-				to: canonicalEnabledRouter.getEndpoint(targetChain),
+				to: canonicalEnabledRouter.getRouterInfo(targetChain).endpoint,
 				toChain: targetChain,
 				fromAddress: toUniversalAddress(address(canonicalEnabledRouter)),
 				payload: transfer.payload
@@ -577,7 +599,7 @@ contract OrderRouterTest is Test {
 	}
 
 	function testCanonicalEnabledRouterPlaceMarketOrderTargetNative(uint256 amountIn) public {
-		amountIn = bound(amountIn, TESTING_TARGET_SLIPPAGE, MAX_UINT256);
+		amountIn = bound(amountIn, 1, canonicalEnabledRouter.MAX_AMOUNT());
 
 		uint16 targetChain = 5;
 		_registerTargetChain(canonicalEnabledRouter, targetChain, TokenType.Native);
@@ -586,7 +608,7 @@ contract OrderRouterTest is Test {
 
 		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
-			minAmountOut: amountIn - TESTING_TARGET_SLIPPAGE,
+			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
@@ -618,7 +640,7 @@ contract OrderRouterTest is Test {
 	}
 
 	function testCanonicalEnabledRouterPlaceMarketOrderTargetCctp(uint256 amountIn) public {
-		amountIn = bound(amountIn, TESTING_TARGET_SLIPPAGE, MAX_UINT256);
+		amountIn = bound(amountIn, 1, canonicalEnabledRouter.MAX_AMOUNT());
 
 		uint16 targetChain = 2;
 		_registerTargetChain(canonicalEnabledRouter, targetChain, TokenType.Cctp);
@@ -627,7 +649,7 @@ contract OrderRouterTest is Test {
 
 		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
-			minAmountOut: amountIn - TESTING_TARGET_SLIPPAGE,
+			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
@@ -665,14 +687,16 @@ contract OrderRouterTest is Test {
 
 	function _registerTargetChain(OrderRouter router, uint16 chain, TokenType tokenType) internal {
 		vm.prank(makeAddr("owner"));
-		router.addEndpoint(
+		router.addRouterInfo(
 			chain,
-			TESTING_TARGET_ENDPOINT,
-			TargetInfo({tokenType: tokenType, slippage: TESTING_TARGET_SLIPPAGE})
+			RouterInfo({
+				endpoint: TESTING_TARGET_ENDPOINT,
+				tokenType: tokenType,
+				slippage: TESTING_TARGET_SLIPPAGE
+			})
 		);
 	}
 
-	// NOTE: This method is not "view" because assertGt is internal.
 	function _cctpBurnLimit() internal returns (uint256 limit) {
 		limit = ICircleIntegration(WORMHOLE_CCTP_ADDRESS)
 			.circleBridge()
@@ -798,5 +822,32 @@ contract OrderRouterTest is Test {
 			allowedRelayers[i] = bytes32(i + 1);
 		}
 		return allowedRelayers;
+	}
+
+	function _computeSlippage(uint256 amountIn) internal returns (uint256) {
+		// Must be greater than zero.
+		assertGt(amountIn, 0);
+		// Must be less than or equal to the max amount.
+		assertLe(amountIn, nativeRouter.MAX_AMOUNT());
+
+		return (amountIn * uint256(TESTING_TARGET_SLIPPAGE)) / nativeRouter.MAX_SLIPPAGE();
+	}
+
+	function _computeMinAmountOut(uint256 amountIn, uint256 relayerFee) internal returns (uint256) {
+		uint256 amountMinusSlippage = amountIn - _computeSlippage(amountIn);
+		assertGt(amountMinusSlippage, relayerFee);
+		return amountMinusSlippage - relayerFee;
+	}
+
+	function _tokenBridgeBridgeLimit() internal returns (uint256) {
+		uint256 supplyMinusBridged = IERC20(USDC_ADDRESS).totalSupply() -
+			ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS);
+
+		// Must be greater than one, which is the minimum relayer fee for testing.
+		assertGt(supplyMinusBridged, 1);
+		return
+			supplyMinusBridged < nativeRouter.MAX_AMOUNT()
+				? supplyMinusBridged
+				: nativeRouter.MAX_AMOUNT();
 	}
 }

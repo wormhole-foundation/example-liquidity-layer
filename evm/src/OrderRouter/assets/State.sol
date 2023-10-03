@@ -6,11 +6,17 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
-import {getEndpoints, getRedeemedFills, getTargetInfos} from "./Storage.sol";
+import "./Errors.sol";
+import {getRedeemedFills, getRouterInfos} from "./Storage.sol";
 
-import {TargetInfo, TokenType} from "../../interfaces/Types.sol";
+import {RouterInfo, TokenType} from "../../interfaces/Types.sol";
 
 abstract contract State {
+	uint24 public constant MIN_SLIPPAGE = 100; // 1.00 bps
+	uint24 public constant MAX_SLIPPAGE = 1000000; // 10,000.00 bps (100%)
+
+	uint256 public constant MAX_AMOUNT = 2 ** (256 - 24) - 1;
+
 	IERC20 public immutable orderToken;
 
 	uint16 public immutable matchingEngineChain;
@@ -59,15 +65,16 @@ abstract contract State {
 			);
 	}
 
-	function getEndpoint(uint16 chain) public view returns (bytes32) {
-		return getEndpoints().endpoints[chain];
+	function getRouterInfo(uint16 chain) external view returns (RouterInfo memory info) {
+		info = getRouterInfos().infos[chain];
+
+		// Target chain must be registered with the order router.
+		if (info.tokenType == TokenType.Unset) {
+			revert ErrUnsupportedChain(chain);
+		}
 	}
 
-	function getTargetInfo(uint16 chain) public view returns (TargetInfo memory) {
-		return getTargetInfos().targetInfos[chain];
-	}
-
-	function isFillRedeemed(bytes32 fillHash) public view returns (bool) {
-		return getRedeemedFills().redeemedFills[fillHash];
+	function isFillRedeemed(bytes32 fillHash) external view returns (bool) {
+		return getRedeemedFills().redeemed[fillHash];
 	}
 }

@@ -2,10 +2,10 @@
 
 pragma solidity 0.8.19;
 
-import {TargetInfo, TokenType} from "../../interfaces/Types.sol";
+import {RouterInfo, TokenType} from "../../interfaces/Types.sol";
 
 struct RedeemedFills {
-	mapping(bytes32 => bool) redeemedFills;
+	mapping(bytes32 => bool) redeemed;
 }
 
 // keccak256("RedeemedFills") - 1
@@ -17,28 +17,15 @@ function getRedeemedFills() pure returns (RedeemedFills storage state) {
 	}
 }
 
-struct TargetInfos {
-	mapping(uint16 => TargetInfo) targetInfos;
+struct RouterInfos {
+	mapping(uint16 => RouterInfo) infos;
 }
 
-// keccak256("TargetInfos") - 1
-bytes32 constant TARGET_INFOS_STORAGE_SLOT = 0x6a5f07b9c4483f1037b08865ccc880010dee12edabf2758c4e914ce80b9df3ac;
+// keccak256("RouterInfos") - 1
+bytes32 constant ROUTER_INFOS_STORAGE_SLOT = 0x84e23c7674e920b09745ee29fa732c2d9b4a42de483f834495405230c47214e7;
 
-function getTargetInfos() pure returns (TargetInfos storage state) {
+function getRouterInfos() pure returns (RouterInfos storage state) {
 	assembly ("memory-safe") {
-		state.slot := TARGET_INFOS_STORAGE_SLOT
-	}
-}
-
-struct Endpoints {
-	mapping(uint16 => bytes32) endpoints;
-}
-
-// keccak256("Endpoints") - 1
-bytes32 constant ENDPOINTS_STORAGE_SLOT = 0x62083ee23257c2bf0e740c4f1fb492a7e4547572f85b2ddfcdbbbff3dead0c09;
-
-function getEndpoints() pure returns (Endpoints storage state) {
-	assembly ("memory-safe") {
-		state.slot := ENDPOINTS_STORAGE_SLOT
+		state.slot := ROUTER_INFOS_STORAGE_SLOT
 	}
 }

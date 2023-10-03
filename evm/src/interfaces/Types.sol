@@ -9,7 +9,8 @@ enum TokenType {
 	Cctp
 }
 
-struct TargetInfo {
+struct RouterInfo {
+	bytes32 endpoint;
 	TokenType tokenType;
-	uint248 slippage; // TODO: re-evaluate
+	uint24 slippage; // TODO: re-evaluate
 }

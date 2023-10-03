@@ -13,11 +13,6 @@ struct PlaceMarketOrderArgs {
 	address refundAddress;
 }
 
-error ErrInsufficientAmount(uint256 amount, uint256 minimum);
-error ErrMinAmountOutExceedsLimit(uint256 minAmountOut, uint256 limit);
-error ErrUnsupportedTargetChain(uint16 targetChain);
-error ErrTooManyRelayers(uint256 numRelayers, uint256 limit);
-
 interface IPlaceMarketOrder {
 	function placeMarketOrder(
 		PlaceMarketOrderArgs calldata args
