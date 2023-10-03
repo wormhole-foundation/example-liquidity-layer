@@ -23,7 +23,7 @@ abstract contract State {
 
 	ICircleIntegration public immutable wormholeCctp;
 
-	uint16 public immutable orderRouterChain;
+	uint16 public immutable wormholeChain;
 	TokenType public immutable tokenType;
 
 	constructor(
@@ -46,7 +46,7 @@ abstract contract State {
 		tokenBridge = ITokenBridge(_tokenBridge);
 		wormholeCctp = ICircleIntegration(_wormholeCctp);
 
-		orderRouterChain = tokenBridge.wormhole().chainId();
+		wormholeChain = tokenBridge.wormhole().chainId();
 
 		// This needs to be a ternary because immutable variables cannot be assigned in a
 		// conditional.

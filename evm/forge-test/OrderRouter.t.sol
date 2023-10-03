@@ -399,6 +399,7 @@ contract OrderRouterTest is Test {
 
 		address refundAddress = makeAddr("Where's my money?");
 		Messages.Fill memory expectedFill = Messages.Fill({
+			sourceChain: cctpEnabledRouter.wormholeChain(),
 			orderSender: toUniversalAddress(address(this)),
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us")
@@ -536,6 +537,7 @@ contract OrderRouterTest is Test {
 
 		address refundAddress = makeAddr("Where's my money?");
 		Messages.Fill memory expectedFill = Messages.Fill({
+			sourceChain: cctpEnabledRouter.wormholeChain(),
 			orderSender: toUniversalAddress(address(this)),
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us")

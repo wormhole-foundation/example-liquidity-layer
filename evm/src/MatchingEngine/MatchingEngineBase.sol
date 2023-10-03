@@ -138,6 +138,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 				routers.registered[order.targetChain],
 				Messages
 					.Fill({
+						sourceChain: fromChain,
 						orderSender: order.sender,
 						redeemer: order.redeemer,
 						redeemerMessage: order.redeemerMessage
@@ -226,6 +227,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 				routers.registered[order.targetChain],
 				Messages
 					.Fill({
+						sourceChain: fromChain,
 						orderSender: order.sender,
 						redeemer: order.redeemer,
 						redeemerMessage: order.redeemerMessage

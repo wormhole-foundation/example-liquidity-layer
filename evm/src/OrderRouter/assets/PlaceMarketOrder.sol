@@ -99,6 +99,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 			0, // nonce
 			Messages
 				.Fill({
+					sourceChain: wormholeChain,
 					orderSender: toUniversalAddress(msg.sender),
 					redeemer: args.redeemer,
 					redeemerMessage: args.redeemerMessage
@@ -120,6 +121,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 			0, // nonce
 			Messages
 				.Fill({
+					sourceChain: wormholeChain,
 					orderSender: toUniversalAddress(msg.sender),
 					redeemer: args.redeemer,
 					redeemerMessage: args.redeemerMessage
@@ -135,7 +137,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 	) internal returns (uint64 sequence) {
 		SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCctp), args.amountIn);
 
-		if (orderRouterChain == matchingEngineChain) {
+		if (wormholeChain == matchingEngineChain) {
 			// TODO: Invoke the matching engine directly.
 			revert("Not implemented");
 		} else {

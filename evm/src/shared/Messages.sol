@@ -27,6 +27,7 @@ library Messages {
 	}
 
 	struct Fill {
+		uint16 sourceChain;
 		bytes32 orderSender;
 		bytes32 redeemer;
 		bytes redeemerMessage;
