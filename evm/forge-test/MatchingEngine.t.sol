@@ -11,6 +11,7 @@ import {IMatchingEngine} from "../src/interfaces/IMatchingEngine.sol";
 import {MatchingEngine} from "../src/MatchingEngine/MatchingEngine.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
+import {CircleSimulator} from "cctp-solidity/CircleSimulator.sol";
 import {WormholePoolTestHelper} from "curve-solidity/WormholeCurvePool.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../src/shared/Utils.sol";
 import {SigningWormholeSimulator} from "modules/wormhole/WormholeSimulator.sol";
@@ -20,6 +21,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 	// Env variables.
 	address immutable TOKEN_BRIDGE = vm.envAddress("AVAX_TOKEN_BRIDGE_ADDRESS");
 	address immutable CIRCLE_INTEGRATION = vm.envAddress("AVAX_WORMHOLE_CCTP_ADDRESS");
+	address immutable MESSAGE_TRANSMITTER = vm.envAddress("AVAX_MESSAGE_TRANSMITTER");
 	uint256 immutable GUARDIAN_SIGNER = uint256(vm.envBytes32("TESTING_DEVNET_GUARDIAN"));
 	bytes32 immutable SUI_BRIDGE = vm.envBytes32("SUI_TOKEN_BRIDGE_ADDRESS");
 	bytes32 immutable ARB_BRIDGE = toUniversalAddress(vm.envAddress("ARB_TOKEN_BRIDGE_ADDRESS"));
@@ -32,6 +34,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 	address constant WRAPPED_POLY_USDC = 0x543672E9CBEC728CBBa9C3Ccd99ed80aC3607FA8;
 	address constant NATIVE_ETH_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
 	address constant NATIVE_POLY_USDC = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
+	address constant NATIVE_ARB_USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 
 	// Test Variables.
 	address immutable TEST_SENDER = makeAddr("testSender");
@@ -51,11 +54,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
 	IMatchingEngine engine;
 	SigningWormholeSimulator wormholeSimulator;
+	CircleSimulator circleSimulator;
 	address[4] poolCoins;
 	mapping(address => int128) public curvePoolIndex;
 
-	/// @notice We use a constructor here so that the curve pool is
-	/// only deployed once (vs. in a `setUp` function).
+	/// @notice We use a constructor here so that the curve pool is only deployed once
+	// (vs. in a `setUp` function).
 	constructor()
 		WormholePoolTestHelper([USDC, WRAPPED_ETH_USDC, WRAPPED_SOL_USDC, WRAPPED_POLY_USDC])
 	{
@@ -124,16 +128,27 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 		);
 	}
 
-	function setUp() public {
-		_deployAndSetupMatchingEngine();
-
-		// Replace mainnet guardian keys with the devnet key.
+	function _setupWormholeSimulator() internal {
 		wormholeSimulator = new SigningWormholeSimulator(engine.getWormhole(), GUARDIAN_SIGNER);
 		wormholeSimulator.setMessageFee(WORMHOLE_FEE);
+	}
 
-		// Setup the TestHelpers contract.
+	function _setupCircleSimulator() internal {
+		circleSimulator = new CircleSimulator(
+			GUARDIAN_SIGNER,
+			MESSAGE_TRANSMITTER,
+			NATIVE_ARB_USDC
+		);
+		circleSimulator.setupCircleAttester();
+	}
+
+	function setUp() public {
+		_deployAndSetupMatchingEngine();
+		_setupWormholeSimulator();
+		_setupCircleSimulator();
 		_initializeTestHelper(
 			wormholeSimulator,
+			circleSimulator,
 			TOKEN_BRIDGE,
 			CIRCLE_INTEGRATION,
 			poolCoins,
@@ -463,7 +478,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 		require(amountOut > 0, "invalid test");
 
 		// Create a valid transfer from Sui to Arbitrum.
-		bytes memory signedOrder = _craftValidMarketOrder(
+		bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
 			amount,
 			toUniversalAddress(NATIVE_ETH_USDC),
 			ETH_CHAIN,
@@ -534,7 +549,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 		require(amountOut > 0, "invalid test");
 
 		// Create a valid transfer from Sui to Polygon.
-		bytes memory signedOrder = _craftValidMarketOrder(
+		bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
 			amount,
 			toUniversalAddress(NATIVE_ETH_USDC),
 			ETH_CHAIN,
@@ -577,5 +592,45 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
 		// After test.
 		_removeLiquidityAndBurn(lpShares);
+	}
+
+	function testExecuteOrderFromCCTPToCanonical(
+		uint256 amount,
+		bytes memory redeemerMessage
+	) public {
+		// Before test.
+		uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+		address fromUsdc = USDC;
+		address toUsdc = WRAPPED_ETH_USDC;
+
+		// Fuzz parameter.
+		amount = bound(amount, RELAYER_FEE + 10, INIT_LIQUIDITY / 2);
+		vm.assume(redeemerMessage.length < type(uint32).max);
+
+		// We will use this amountOut as the minAmountOut for the order,
+		// since there is no competing order flow in this test.
+		uint256 amountOut = get_amount_out(
+			engine.getCCTPIndex(),
+			curvePoolIndex[toUsdc],
+			amount - RELAYER_FEE
+		);
+		require(amountOut > 0, "invalid test");
+
+		// Create a valid transfer from Sui to Polygon.
+		// bytes memory signedOrder = _craftValidCCTPMarketOrder(
+		// 	amount,
+		// 	toUniversalAddress(NATIVE_ETH_USDC),
+		// 	ETH_CHAIN,
+		// 	SUI_ROUTER,
+		// 	SUI_BRIDGE,
+		// 	SUI_CHAIN,
+		// 	_encodeTestMarketOrder(
+		// 		amountOut, // Min amount out.
+		// 		POLY_CHAIN,
+		// 		redeemerMessage,
+		// 		RELAYER_FEE,
+		// 		new bytes32[](0)
+		// 	)
+		// );
 	}
 }

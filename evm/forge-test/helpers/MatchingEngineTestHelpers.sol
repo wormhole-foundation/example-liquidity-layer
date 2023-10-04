@@ -8,6 +8,7 @@ import {toUniversalAddress, fromUniversalAddress} from "../../src/shared/Utils.s
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
+import {CircleSimulator} from "cctp-solidity/CircleSimulator.sol";
 import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
 import {Messages} from "../../src/shared/Messages.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -26,6 +27,7 @@ contract TestHelpers is Test {
 	SigningWormholeSimulator sim;
 	ITokenBridge bridge;
 	ICircleIntegration circleIntegration;
+	CircleSimulator circleSimulator;
 	address[4] coins;
 	bytes32 matchingEngine;
 	uint16 matchingEngineChain;
@@ -35,6 +37,7 @@ contract TestHelpers is Test {
 
 	function _initializeTestHelper(
 		SigningWormholeSimulator _sim,
+		CircleSimulator _circleSimulator,
 		address _bridge,
 		address _circleIntegration,
 		address[4] memory _coins,
@@ -45,6 +48,7 @@ contract TestHelpers is Test {
 		address _testRefundAddress
 	) internal {
 		sim = _sim;
+		circleSimulator = _circleSimulator;
 		bridge = ITokenBridge(_bridge);
 		circleIntegration = ICircleIntegration(_circleIntegration);
 		coins = _coins;
@@ -77,7 +81,7 @@ contract TestHelpers is Test {
 		return sim.encodeAndSignMessage(vaa);
 	}
 
-	function _craftValidMarketOrder(
+	function _craftValidTokenBridgeMarketOrder(
 		uint256 amount,
 		bytes32 tokenAddress,
 		uint16 tokenChain,
@@ -101,6 +105,8 @@ contract TestHelpers is Test {
 
 		return _createSignedVaa(emitterChainId, emitterAddress, transferPayload);
 	}
+
+	function _crafteValidCCTPMarketOrder() internal {}
 
 	function _encodeTestMarketOrder(
 		uint256 minAmountOut,
