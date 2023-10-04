@@ -16,7 +16,7 @@ import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol"
 import "../src/OrderRouter/assets/Errors.sol";
 
 import {Messages} from "../src/shared/Messages.sol";
-import {toUniversalAddress} from "../src/shared/Utils.sol";
+import {fromUniversalAddress, toUniversalAddress} from "../src/shared/Utils.sol";
 
 import "../src/interfaces/IOrderRouter.sol";
 import {OrderRouter} from "../src/OrderRouter/OrderRouter.sol";
@@ -38,7 +38,7 @@ contract OrderRouterTest is Test {
 	address constant WORMHOLE_CCTP_ADDRESS = 0x09Fb06A271faFf70A651047395AaEb6265265F13;
 
 	uint24 constant TESTING_TARGET_SLIPPAGE = 200; // 2.00 bps
-	bytes32 constant TESTING_TARGET_ENDPOINT =
+	bytes32 constant TESTING_FOREIGN_ROUTER_ENDPOINT =
 		0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef;
 
 	uint256 constant MAX_UINT256 = 2 ** 256 - 1;
@@ -109,7 +109,7 @@ contract OrderRouterTest is Test {
 		nativeRouter.addRouterInfo(
 			1,
 			RouterInfo({
-				endpoint: TESTING_TARGET_ENDPOINT,
+				endpoint: TESTING_FOREIGN_ROUTER_ENDPOINT,
 				tokenType: TokenType.Native,
 				slippage: TESTING_TARGET_SLIPPAGE
 			})
@@ -248,43 +248,33 @@ contract OrderRouterTest is Test {
 		nativeRouter.placeMarketOrder(args, relayerFee, _makeAllowedRelayers(numAllowedRelayers));
 	}
 
-	function testNativeRouterPlaceMarketOrder(uint256 amountIn, uint8 targetTokenTypeInt) public {
-		amountIn = bound(amountIn, 1, _tokenBridgeBridgeLimit());
+	function testNativeRouterPlaceMarketOrder(uint256 amountIn, uint8 dstTokenTypeInt) public {
+		amountIn = bound(amountIn, 1, _tokenBridgeBridgeOutLimit());
 		// This is a hack because forge tests cannot fuzz test enums yet.
 		vm.assume(
-			targetTokenTypeInt == uint8(TokenType.Native) ||
-				targetTokenTypeInt == uint8(TokenType.Canonical) ||
-				targetTokenTypeInt == uint8(TokenType.Cctp)
+			dstTokenTypeInt == uint8(TokenType.Native) ||
+				dstTokenTypeInt == uint8(TokenType.Canonical) ||
+				dstTokenTypeInt == uint8(TokenType.Cctp)
 		);
 
 		uint16 targetChain = 2;
-		_registerTargetChain(nativeRouter, targetChain, TokenType(targetTokenTypeInt));
+		_registerTargetChain(nativeRouter, targetChain, TokenType(dstTokenTypeInt));
 
 		_dealAndApproveUsdc(nativeRouter, amountIn);
 
-		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
 			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
 			sender: toUniversalAddress(address(this)),
-			refundAddress: toUniversalAddress(refundAddress),
+			refundAddress: _makeRefundAddress(),
 			relayerFee: 0,
 			allowedRelayers: new bytes32[](0)
 		});
 
-		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-			amountIn: amountIn,
-			minAmountOut: expectedOrder.minAmountOut,
-			targetChain: expectedOrder.targetChain,
-			redeemer: expectedOrder.redeemer,
-			redeemerMessage: expectedOrder.redeemerMessage,
-			refundAddress: refundAddress
-		});
-
 		// Check that the payload is correct.
-		bytes memory tokenBridgePayload = _placeMarketOrder(nativeRouter, args);
+		bytes memory tokenBridgePayload = _placeMarketOrder(nativeRouter, amountIn, expectedOrder);
 		_assertTokenBridgeMarketOrder(
 			nativeRouter,
 			6,
@@ -297,50 +287,35 @@ contract OrderRouterTest is Test {
 
 	function testNativeRouterPlaceMarketOrderWithRelayerFee(
 		uint256 relayerFee,
-		uint8 targetTokenTypeInt
+		uint8 dstTokenTypeInt
 	) public {
-		uint256 amountIn = _tokenBridgeBridgeLimit();
+		uint256 amountIn = _tokenBridgeBridgeOutLimit();
 		relayerFee = bound(relayerFee, 1, _computeSlippage(amountIn) - 1);
 		// This is a hack because forge tests cannot fuzz test enums yet.
 		vm.assume(
-			targetTokenTypeInt == uint8(TokenType.Native) ||
-				targetTokenTypeInt == uint8(TokenType.Canonical) ||
-				targetTokenTypeInt == uint8(TokenType.Cctp)
+			dstTokenTypeInt == uint8(TokenType.Native) ||
+				dstTokenTypeInt == uint8(TokenType.Canonical) ||
+				dstTokenTypeInt == uint8(TokenType.Cctp)
 		);
 
 		uint16 targetChain = 2;
-		_registerTargetChain(nativeRouter, targetChain, TokenType(targetTokenTypeInt));
+		_registerTargetChain(nativeRouter, targetChain, TokenType(dstTokenTypeInt));
 
 		_dealAndApproveUsdc(nativeRouter, amountIn);
 
-		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
 			minAmountOut: _computeMinAmountOut(amountIn, relayerFee),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
 			sender: toUniversalAddress(address(this)),
-			refundAddress: toUniversalAddress(refundAddress),
+			refundAddress: _makeRefundAddress(),
 			relayerFee: relayerFee,
 			allowedRelayers: new bytes32[](0)
 		});
 
-		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-			amountIn: amountIn,
-			minAmountOut: expectedOrder.minAmountOut,
-			targetChain: expectedOrder.targetChain,
-			redeemer: expectedOrder.redeemer,
-			redeemerMessage: expectedOrder.redeemerMessage,
-			refundAddress: refundAddress
-		});
-
 		// Check that the payload is correct.
-		bytes memory tokenBridgePayload = _placeMarketOrderWithRelayerFee(
-			nativeRouter,
-			args,
-			expectedOrder.relayerFee,
-			expectedOrder.allowedRelayers
-		);
+		bytes memory tokenBridgePayload = _placeMarketOrder(nativeRouter, amountIn, expectedOrder);
 		_assertTokenBridgeMarketOrder(
 			nativeRouter,
 			6,
@@ -353,51 +328,36 @@ contract OrderRouterTest is Test {
 
 	function testNativeRouterPlaceMarketOrderWithAllowedRelayers(
 		uint256 numAllowedRelayers,
-		uint8 targetTokenTypeInt
+		uint8 dstTokenTypeInt
 	) public {
 		numAllowedRelayers = bound(numAllowedRelayers, 0, 8);
-		uint256 amountIn = _tokenBridgeBridgeLimit();
+		uint256 amountIn = _tokenBridgeBridgeOutLimit();
 		uint256 relayerFee = amountIn / 2;
 		// This is a hack because forge tests cannot fuzz test enums yet.
 		vm.assume(
-			targetTokenTypeInt == uint8(TokenType.Native) ||
-				targetTokenTypeInt == uint8(TokenType.Canonical) ||
-				targetTokenTypeInt == uint8(TokenType.Cctp)
+			dstTokenTypeInt == uint8(TokenType.Native) ||
+				dstTokenTypeInt == uint8(TokenType.Canonical) ||
+				dstTokenTypeInt == uint8(TokenType.Cctp)
 		);
 
 		uint16 targetChain = 2;
-		_registerTargetChain(nativeRouter, targetChain, TokenType(targetTokenTypeInt));
+		_registerTargetChain(nativeRouter, targetChain, TokenType(dstTokenTypeInt));
 
 		_dealAndApproveUsdc(nativeRouter, amountIn);
 
-		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
 			minAmountOut: _computeMinAmountOut(amountIn, relayerFee),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
 			sender: toUniversalAddress(address(this)),
-			refundAddress: toUniversalAddress(refundAddress),
+			refundAddress: _makeRefundAddress(),
 			relayerFee: relayerFee,
 			allowedRelayers: _makeAllowedRelayers(numAllowedRelayers)
 		});
 
-		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-			amountIn: amountIn,
-			minAmountOut: expectedOrder.minAmountOut,
-			targetChain: expectedOrder.targetChain,
-			redeemer: expectedOrder.redeemer,
-			redeemerMessage: expectedOrder.redeemerMessage,
-			refundAddress: refundAddress
-		});
-
 		// Check that the payload is correct.
-		bytes memory tokenBridgePayload = _placeMarketOrderWithRelayerFee(
-			nativeRouter,
-			args,
-			expectedOrder.relayerFee,
-			expectedOrder.allowedRelayers
-		);
+		bytes memory tokenBridgePayload = _placeMarketOrder(nativeRouter, amountIn, expectedOrder);
 		_assertTokenBridgeMarketOrder(
 			nativeRouter,
 			6,
@@ -437,7 +397,6 @@ contract OrderRouterTest is Test {
 
 		_dealAndApproveUsdc(cctpEnabledRouter, amountIn);
 
-		address refundAddress = makeAddr("Where's my money?");
 		Messages.Fill memory expectedFill = Messages.Fill({
 			sourceChain: cctpEnabledRouter.wormholeChain(),
 			orderSender: toUniversalAddress(address(this)),
@@ -445,19 +404,15 @@ contract OrderRouterTest is Test {
 			redeemerMessage: bytes("All your base are belong to us")
 		});
 
-		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-			amountIn: amountIn,
-			minAmountOut: amountIn,
-			targetChain: targetChain,
-			redeemer: expectedFill.redeemer,
-			redeemerMessage: expectedFill.redeemerMessage,
-			refundAddress: refundAddress
-		});
-
 		// Check that the payload is correct.
 		//
 		// NOTE: This is a special case where we send a fill directly to another order router.
-		bytes memory wormholeCctpPayload = _placeMarketOrder(cctpEnabledRouter, args);
+		bytes memory wormholeCctpPayload = _placeMarketOrder(
+			cctpEnabledRouter,
+			amountIn,
+			targetChain,
+			expectedFill
+		);
 		ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp
 			.decodeDepositWithPayload(wormholeCctpPayload);
 
@@ -487,29 +442,23 @@ contract OrderRouterTest is Test {
 
 		_dealAndApproveUsdc(cctpEnabledRouter, amountIn);
 
-		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
 			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
 			sender: toUniversalAddress(address(this)),
-			refundAddress: toUniversalAddress(refundAddress),
+			refundAddress: _makeRefundAddress(),
 			relayerFee: 0,
 			allowedRelayers: new bytes32[](0)
 		});
 
-		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-			amountIn: amountIn,
-			minAmountOut: expectedOrder.minAmountOut,
-			targetChain: expectedOrder.targetChain,
-			redeemer: expectedOrder.redeemer,
-			redeemerMessage: expectedOrder.redeemerMessage,
-			refundAddress: refundAddress
-		});
-
 		// Check that the payload is correct.
-		bytes memory wormholeCctpPayload = _placeMarketOrder(cctpEnabledRouter, args);
+		bytes memory wormholeCctpPayload = _placeMarketOrder(
+			cctpEnabledRouter,
+			amountIn,
+			expectedOrder
+		);
 		_assertWormholeCctpMarketOrder(
 			cctpEnabledRouter,
 			amountIn,
@@ -526,29 +475,23 @@ contract OrderRouterTest is Test {
 
 		_dealAndApproveUsdc(cctpEnabledRouter, amountIn);
 
-		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
 			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
 			sender: toUniversalAddress(address(this)),
-			refundAddress: toUniversalAddress(refundAddress),
+			refundAddress: _makeRefundAddress(),
 			relayerFee: 0,
 			allowedRelayers: new bytes32[](0)
 		});
 
-		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-			amountIn: amountIn,
-			minAmountOut: expectedOrder.minAmountOut,
-			targetChain: expectedOrder.targetChain,
-			redeemer: expectedOrder.redeemer,
-			redeemerMessage: expectedOrder.redeemerMessage,
-			refundAddress: refundAddress
-		});
-
 		// Check that the payload is correct.
-		bytes memory wormholeCctpPayload = _placeMarketOrder(cctpEnabledRouter, args);
+		bytes memory wormholeCctpPayload = _placeMarketOrder(
+			cctpEnabledRouter,
+			amountIn,
+			expectedOrder
+		);
 		_assertWormholeCctpMarketOrder(
 			cctpEnabledRouter,
 			amountIn,
@@ -588,7 +531,6 @@ contract OrderRouterTest is Test {
 
 		_dealAndApproveWrappedUsdc(canonicalEnabledRouter, amountIn);
 
-		address refundAddress = makeAddr("Where's my money?");
 		Messages.Fill memory expectedFill = Messages.Fill({
 			sourceChain: cctpEnabledRouter.wormholeChain(),
 			orderSender: toUniversalAddress(address(this)),
@@ -596,19 +538,15 @@ contract OrderRouterTest is Test {
 			redeemerMessage: bytes("All your base are belong to us")
 		});
 
-		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-			amountIn: amountIn,
-			minAmountOut: amountIn,
-			targetChain: targetChain,
-			redeemer: expectedFill.redeemer,
-			redeemerMessage: expectedFill.redeemerMessage,
-			refundAddress: refundAddress
-		});
-
 		// Check that the payload is correct.
 		//
 		// NOTE: This is a special case where we send a fill directly to another order router.
-		bytes memory tokenBridgePayload = _placeMarketOrder(canonicalEnabledRouter, args);
+		bytes memory tokenBridgePayload = _placeMarketOrder(
+			canonicalEnabledRouter,
+			amountIn,
+			targetChain,
+			expectedFill
+		);
 		ITokenBridge.TransferWithPayload memory transfer = tokenBridge.parseTransferWithPayload(
 			tokenBridgePayload
 		);
@@ -637,29 +575,23 @@ contract OrderRouterTest is Test {
 
 		_dealAndApproveWrappedUsdc(canonicalEnabledRouter, amountIn);
 
-		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
 			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
 			sender: toUniversalAddress(address(this)),
-			refundAddress: toUniversalAddress(refundAddress),
+			refundAddress: _makeRefundAddress(),
 			relayerFee: 0,
 			allowedRelayers: new bytes32[](0)
 		});
 
-		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-			amountIn: amountIn,
-			minAmountOut: expectedOrder.minAmountOut,
-			targetChain: expectedOrder.targetChain,
-			redeemer: expectedOrder.redeemer,
-			redeemerMessage: expectedOrder.redeemerMessage,
-			refundAddress: refundAddress
-		});
-
 		// Check that the payload is correct.
-		bytes memory tokenBridgePayload = _placeMarketOrder(canonicalEnabledRouter, args);
+		bytes memory tokenBridgePayload = _placeMarketOrder(
+			canonicalEnabledRouter,
+			amountIn,
+			expectedOrder
+		);
 		_assertTokenBridgeMarketOrder(
 			canonicalEnabledRouter,
 			CANONICAL_TOKEN_CHAIN,
@@ -678,29 +610,23 @@ contract OrderRouterTest is Test {
 
 		_dealAndApproveWrappedUsdc(canonicalEnabledRouter, amountIn);
 
-		address refundAddress = makeAddr("Where's my money?");
 		Messages.MarketOrder memory expectedOrder = Messages.MarketOrder({
 			minAmountOut: _computeMinAmountOut(amountIn, 0),
 			targetChain: targetChain,
 			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
 			redeemerMessage: bytes("All your base are belong to us"),
 			sender: toUniversalAddress(address(this)),
-			refundAddress: toUniversalAddress(refundAddress),
+			refundAddress: _makeRefundAddress(),
 			relayerFee: 0,
 			allowedRelayers: new bytes32[](0)
 		});
 
-		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-			amountIn: amountIn,
-			minAmountOut: expectedOrder.minAmountOut,
-			targetChain: expectedOrder.targetChain,
-			redeemer: expectedOrder.redeemer,
-			redeemerMessage: expectedOrder.redeemerMessage,
-			refundAddress: refundAddress
-		});
-
 		// Check that the payload is correct.
-		bytes memory tokenBridgePayload = _placeMarketOrder(canonicalEnabledRouter, args);
+		bytes memory tokenBridgePayload = _placeMarketOrder(
+			canonicalEnabledRouter,
+			amountIn,
+			expectedOrder
+		);
 		_assertTokenBridgeMarketOrder(
 			canonicalEnabledRouter,
 			CANONICAL_TOKEN_CHAIN,
@@ -711,68 +637,91 @@ contract OrderRouterTest is Test {
 		);
 	}
 
-	function _createSignedVaa(
-		uint16 emitterChainId,
-		bytes32 emitterAddress,
-		bytes memory payload
-	) internal view returns (bytes memory) {
-		IWormhole.VM memory vaa = IWormhole.VM({
-			version: 1,
-			timestamp: 1234567,
-			nonce: 0,
-			emitterChainId: emitterChainId,
-			emitterAddress: emitterAddress,
-			sequence: 0,
-			consistencyLevel: 1,
-			payload: payload,
-			guardianSetIndex: wormholeSimulator.currentGuardianSetIndex(),
-			signatures: new IWormhole.Signature[](0),
-			hash: 0x00
-		});
+	function testNativeRouterRedeemFill(uint256 amount, uint8 srcTokenTypeInt) public {
+		amount = bound(amount, 0, _tokenBridgeBridgeInLimit());
+		// This is a hack because forge tests cannot fuzz test enums yet.
+		vm.assume(
+			srcTokenTypeInt == uint8(TokenType.Native) ||
+				srcTokenTypeInt == uint8(TokenType.Canonical) ||
+				srcTokenTypeInt == uint8(TokenType.Cctp)
+		);
 
-		return wormholeSimulator.encodeAndSignMessage(vaa);
-	}
+		uint16 senderChain = 1;
+		_registerTargetChain(nativeRouter, senderChain, TokenType(srcTokenTypeInt));
 
-	function _craftTokenBridgeFill(
-		OrderRouter router,
-		uint256 amount,
-		address tokenAddress,
-		uint16 tokenChain,
-		bytes32 fromAddress,
-		Messages.Fill memory fill
-	) internal view returns (bytes memory) {
-		ITokenBridge.TransferWithPayload memory transfer = ITokenBridge.TransferWithPayload({
-			payloadID: 3,
+		RedeemedFill memory expectedRedeemed = RedeemedFill({
+			sender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			senderChain: senderChain,
+			token: address(nativeRouter.orderToken()),
 			amount: amount,
-			tokenAddress: toUniversalAddress(tokenAddress),
-			tokenChain: tokenChain,
-			to: toUniversalAddress(address(router)),
-			toChain: router.wormholeChain(),
-			fromAddress: fromAddress,
-			payload: fill.encode()
+			message: bytes("Somebody set up us the bomb")
 		});
 
-		bytes memory transferPayload = tokenBridge.encodeTransferWithPayload(transfer);
-
-		return
-			_createSignedVaa(
-				tokenBridge.chainId(),
-				toUniversalAddress(address(tokenBridge)),
-				transferPayload
-			);
+		_redeemTokenBridgeFill(
+			nativeRouter,
+			expectedRedeemed,
+			USDC_ADDRESS,
+			nativeRouter.wormholeChain(),
+			toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+			MATCHING_ENGINE_CHAIN
+		);
 	}
 
-	function testRedeemFill() public {
-		// TODO
-		// Messages.Fill memory fill = Messages.Fill({
-		// 	sourceChain: 1,
-		// 	orderSender: 0x1337133713371337133713371337133713371337133713371337133713371337,
-		// 	redeemer: toUniversalAddress(address(this)),
-		// 	redeemerMessage: bytes("Somebody set up us the bomb")
-		// });
-		// bytes memory encodedVaa = _craftTokenBridgeFill(
-		// 	1, nativeRouter.orderToken
-		// )
+	function testCanonicalEnabledRouterRedeemFillFromMatchingEngine(
+		uint256 amount,
+		uint8 srcTokenTypeInt
+	) public {
+		amount = bound(amount, 0, UINT256_MAX - IERC20(_wrappedUsdc()).totalSupply());
+		// This is a hack because forge tests cannot fuzz test enums yet.
+		vm.assume(
+			srcTokenTypeInt == uint8(TokenType.Native) ||
+				srcTokenTypeInt == uint8(TokenType.Canonical) ||
+				srcTokenTypeInt == uint8(TokenType.Cctp)
+		);
+
+		uint16 senderChain = 1;
+		_registerTargetChain(canonicalEnabledRouter, senderChain, TokenType(srcTokenTypeInt));
+
+		RedeemedFill memory expectedRedeemed = RedeemedFill({
+			sender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			senderChain: senderChain,
+			token: address(canonicalEnabledRouter.orderToken()),
+			amount: amount,
+			message: bytes("Somebody set up us the bomb")
+		});
+
+		_redeemTokenBridgeFill(
+			canonicalEnabledRouter,
+			expectedRedeemed,
+			CANONICAL_TOKEN_ADDRESS,
+			CANONICAL_TOKEN_CHAIN,
+			toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+			MATCHING_ENGINE_CHAIN
+		);
+	}
+
+	function testCanonicalEnabledRouterRedeemFillFromCanonicalRouter(uint256 amount) public {
+		amount = bound(amount, 0, UINT256_MAX - IERC20(_wrappedUsdc()).totalSupply());
+
+		uint16 senderChain = 23;
+		_registerTargetChain(canonicalEnabledRouter, senderChain, TokenType.Canonical);
+
+		RedeemedFill memory expectedRedeemed = RedeemedFill({
+			sender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			senderChain: senderChain,
+			token: address(canonicalEnabledRouter.orderToken()),
+			amount: amount,
+			message: bytes("Somebody set up us the bomb")
+		});
+
+		_redeemTokenBridgeFill(
+			canonicalEnabledRouter,
+			expectedRedeemed,
+			CANONICAL_TOKEN_ADDRESS,
+			CANONICAL_TOKEN_CHAIN,
+			TESTING_FOREIGN_ROUTER_ENDPOINT,
+			senderChain
+		);
 	}
 
 	function _dealAndApproveUsdc(OrderRouter router, uint256 amount) internal {
@@ -785,7 +734,7 @@ contract OrderRouterTest is Test {
 		router.addRouterInfo(
 			chain,
 			RouterInfo({
-				endpoint: TESTING_TARGET_ENDPOINT,
+				endpoint: TESTING_FOREIGN_ROUTER_ENDPOINT,
 				tokenType: tokenType,
 				slippage: TESTING_TARGET_SLIPPAGE
 			})
@@ -818,6 +767,7 @@ contract OrderRouterTest is Test {
 		// reflect however much we dealt. Otherwise we get arithmetic errors when Token Bridge tries
 		// to burn its assets.
 		vm.store(_wrappedUsdc(), bytes32(uint256(3)), bytes32(amount));
+		assertEq(IERC20(_wrappedUsdc()).totalSupply(), amount);
 
 		// Approve the router for spending.
 		IERC20(_wrappedUsdc()).approve(address(router), amount);
@@ -825,17 +775,54 @@ contract OrderRouterTest is Test {
 
 	function _placeMarketOrder(
 		OrderRouter router,
-		PlaceMarketOrderArgs memory args
+		uint256 amountIn,
+		Messages.MarketOrder memory expectedOrder
 	) internal returns (bytes memory) {
-		return _placeMarketOrderWithRelayerFee(router, args, 0, new bytes32[](0));
+		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+			amountIn: amountIn,
+			minAmountOut: expectedOrder.minAmountOut,
+			targetChain: expectedOrder.targetChain,
+			redeemer: expectedOrder.redeemer,
+			redeemerMessage: expectedOrder.redeemerMessage,
+			refundAddress: fromUniversalAddress(expectedOrder.refundAddress)
+		});
+
+		return
+			_placeMarketOrder(
+				router,
+				args,
+				expectedOrder.relayerFee,
+				expectedOrder.allowedRelayers
+			);
 	}
 
-	function _placeMarketOrderWithRelayerFee(
+	function _placeMarketOrder(
+		OrderRouter router,
+		uint256 amountIn,
+		uint16 targetChain,
+		Messages.Fill memory expectedFill
+	) internal returns (bytes memory) {
+		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+			amountIn: amountIn,
+			minAmountOut: amountIn,
+			targetChain: targetChain,
+			redeemer: expectedFill.redeemer,
+			redeemerMessage: expectedFill.redeemerMessage,
+			refundAddress: makeAddr("Where's my money?")
+		});
+
+		return _placeMarketOrder(router, args, 0, new bytes32[](0));
+	}
+
+	function _placeMarketOrder(
 		OrderRouter router,
 		PlaceMarketOrderArgs memory args,
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
 	) internal returns (bytes memory) {
+		// Grab balance.
+		uint256 balanceBefore = router.orderToken().balanceOf(address(this));
+
 		// Record logs for placeMarketOrder.
 		vm.recordLogs();
 
@@ -845,6 +832,9 @@ contract OrderRouterTest is Test {
 		// Fetch the logs for Wormhole message.
 		Vm.Log[] memory logs = vm.getRecordedLogs();
 		assertGt(logs.length, 0);
+
+		// Finally balance check.
+		assertEq(router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
 
 		return
 			wormholeSimulator
@@ -934,7 +924,7 @@ contract OrderRouterTest is Test {
 		return amountMinusSlippage - relayerFee;
 	}
 
-	function _tokenBridgeBridgeLimit() internal returns (uint256) {
+	function _tokenBridgeBridgeOutLimit() internal returns (uint256) {
 		uint256 supplyMinusBridged = IERC20(USDC_ADDRESS).totalSupply() -
 			ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS);
 
@@ -944,5 +934,134 @@ contract OrderRouterTest is Test {
 			supplyMinusBridged < nativeRouter.MAX_AMOUNT()
 				? supplyMinusBridged
 				: nativeRouter.MAX_AMOUNT();
+	}
+
+	function _tokenBridgeBridgeInLimit() internal returns (uint256) {
+		uint256 supply = IERC20(USDC_ADDRESS).totalSupply();
+		uint256 amount = supply -
+			ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS);
+
+		// First deal max amount to Token Bridge contract.
+		deal(USDC_ADDRESS, TOKEN_BRIDGE_ADDRESS, amount);
+
+		// Outstanding bridged amounts are stored in slot 10. We need the outstanding bridged amount
+		// for USDC to reflect however much we dealt. Otherwise we get arithmetic errors when Token
+		// Bridge tries to complete transfer.
+		vm.store(TOKEN_BRIDGE_ADDRESS, keccak256(abi.encode(USDC_ADDRESS, 10)), bytes32(supply));
+		assertEq(ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS), supply);
+
+		return amount;
+	}
+
+	function _createSignedVaa(
+		uint16 emitterChainId,
+		bytes32 emitterAddress,
+		bytes memory payload
+	) internal view returns (bytes memory) {
+		IWormhole.VM memory vaa = IWormhole.VM({
+			version: 1,
+			timestamp: 1234567,
+			nonce: 0,
+			emitterChainId: emitterChainId,
+			emitterAddress: emitterAddress,
+			sequence: 0,
+			consistencyLevel: 1,
+			payload: payload,
+			guardianSetIndex: wormholeSimulator.currentGuardianSetIndex(),
+			signatures: new IWormhole.Signature[](0),
+			hash: 0x00
+		});
+
+		return wormholeSimulator.encodeAndSignMessage(vaa);
+	}
+
+	function _craftTokenBridgeFill(
+		OrderRouter router,
+		uint256 amount,
+		address tokenAddress,
+		uint16 tokenChain,
+		bytes32 fromAddress,
+		uint16 fromChain,
+		Messages.Fill memory fill
+	) internal view returns (bytes memory) {
+		return
+			_createSignedVaa(
+				fromChain,
+				tokenBridge.bridgeContracts(fromChain),
+				tokenBridge.encodeTransferWithPayload(
+					ITokenBridge.TransferWithPayload({
+						payloadID: 3,
+						amount: amount,
+						tokenAddress: toUniversalAddress(tokenAddress),
+						tokenChain: tokenChain,
+						to: toUniversalAddress(address(router)),
+						toChain: router.wormholeChain(),
+						fromAddress: fromAddress,
+						payload: fill.encode()
+					})
+				)
+			);
+	}
+
+	function _redeemTokenBridgeFill(
+		OrderRouter router,
+		RedeemedFill memory expectedRedeemed,
+		address tokenAddress,
+		uint16 tokenChain,
+		bytes32 fromAddress,
+		uint16 fromChain
+	) internal {
+		Messages.Fill memory fill = Messages.Fill({
+			sourceChain: expectedRedeemed.senderChain,
+			orderSender: expectedRedeemed.sender,
+			redeemer: toUniversalAddress(address(this)),
+			redeemerMessage: expectedRedeemed.message
+		});
+
+		bytes memory encodedVaa = _craftTokenBridgeFill(
+			router,
+			expectedRedeemed.amount,
+			tokenAddress,
+			tokenChain,
+			fromAddress,
+			fromChain,
+			fill
+		);
+
+		uint256 balanceBefore = router.orderToken().balanceOf(address(this));
+
+		RedeemedFill memory redeemed = router.redeemFill(encodedVaa);
+		assertEq(keccak256(abi.encode(redeemed)), keccak256(abi.encode(expectedRedeemed)));
+		assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + redeemed.amount);
+	}
+
+	function _craftWormholeCctpFill(
+		OrderRouter router,
+		uint256 amount,
+		bytes32 fromAddress,
+		uint16 fromChain,
+		Messages.Fill memory fill
+	) internal view returns (bytes memory) {
+		return
+			_createSignedVaa(
+				fromChain,
+				wormholeCctp.getRegisteredEmitter(fromChain),
+				wormholeCctp.encodeDepositWithPayload(
+					ICircleIntegration.DepositWithPayload({
+						token: toUniversalAddress(USDC_ADDRESS),
+						amount: amount,
+						sourceDomain: wormholeCctp.getDomainFromChainId(fromChain),
+						targetDomain: wormholeCctp.localDomain(),
+						nonce: 2 ** 64 - 1,
+						fromAddress: fromAddress,
+						mintRecipient: toUniversalAddress(address(router)),
+						payload: fill.encode()
+					})
+				)
+			);
+	}
+
+	function _makeRefundAddress() internal returns (bytes32) {
+		return toUniversalAddress(makeAddr("Where's my money?"));
 	}
 }

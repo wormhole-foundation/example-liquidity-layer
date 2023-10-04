@@ -3,6 +3,7 @@
 pragma solidity 0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
@@ -61,31 +62,39 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
 
 	function _processFill(
 		bytes memory encodedVaa,
-		TokenType expectedTokenType,
+		TokenType directFillTokenType,
 		bytes32 fromAddress,
 		uint256 amount,
 		bytes memory payload
-	) internal view returns (RedeemedFill memory) {
+	) internal returns (RedeemedFill memory) {
 		uint16 emitterChain = _getEmitterChainFromVaa(encodedVaa);
 
-		RouterInfo memory src = this.getRouterInfo(emitterChain);
+		// If the matching engine sent this fill, we bypass this whole conditional.
+		if (fromAddress != matchingEngineEndpoint) {
+			RouterInfo memory src = this.getRouterInfo(emitterChain);
 
-		// We only trust either the Matching Engine or another order router to send us fills. If
-		// this message came from another order router, both this router and the source router must
-		// be TokenType.Canonical.
-		if (src.tokenType == expectedTokenType && src.tokenType == expectedTokenType) {
-			if (fromAddress != src.endpoint) {
-				revert ErrInvalidSourceRouter(fromAddress);
+			// The case where the order router's token type is the direct fill type, then we need to
+			// make sure the source is what we expect from our known order routers.
+			if (tokenType == directFillTokenType) {
+				if (src.tokenType != directFillTokenType || fromAddress != src.endpoint) {
+					revert ErrInvalidSourceRouter(emitterChain, fromAddress);
+				}
+			} else {
+				// Otherwise, this VAA is not for us.
+				revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);
 			}
-		} else if (fromAddress != matchingEngineEndpoint) {
-			revert ErrSourceNotMatchingEngine(fromAddress);
+		} else if (emitterChain != matchingEngineChain) {
+			revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);
 		}
 
-		// Parse the fill.
+		// Parse the fill and validate the redeemer.
 		Messages.Fill memory fill = payload.decodeFill();
 		if (toUniversalAddress(msg.sender) != fill.redeemer) {
 			revert ErrInvalidFillRedeemer(toUniversalAddress(msg.sender), fill.redeemer);
 		}
+
+		// Transfer token amount to redeemer.
+		SafeERC20.safeTransfer(orderToken, msg.sender, amount);
 
 		return
 			RedeemedFill({
@@ -98,6 +107,14 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
 	}
 
 	function _getEmitterChainFromVaa(bytes memory encodedVaa) internal pure returns (uint16 chain) {
-		(chain, ) = encodedVaa.asUint16Unchecked(6 + uint256(uint8(encodedVaa[5])) * 66);
+		// Offset:
+		//    1 (version)
+		// +  4 (guardian set index)
+		// +  1 (num signatures)
+		// +  4 (timestamp)
+		// +  4 (nonce)
+		// -----
+		// = 14
+		(chain, ) = encodedVaa.asUint16Unchecked(14 + uint256(uint8(encodedVaa[5])) * 66);
 	}
 }

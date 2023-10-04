@@ -143,7 +143,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
 	function _handleCctpToMatchingEngine(
 		PlaceMarketOrderArgs calldata args,
-		uint64 dstSlippage,
+		uint24 dstSlippage,
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
 	) internal returns (uint64 sequence) {
@@ -181,7 +181,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
 	function _handleBridgeToMatchingEngine(
 		PlaceMarketOrderArgs calldata args,
-		uint64 dstSlippage,
+		uint24 dstSlippage,
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
 	) internal returns (uint64 sequence) {
@@ -212,14 +212,14 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
 	function _validateForMatchingEngine(
 		PlaceMarketOrderArgs memory args,
-		uint64 dstSlippage,
+		uint24 dstSlippage,
 		uint256 relayerFee
 	) internal pure {
 		unchecked {
 			if (args.amountIn > MAX_AMOUNT) {
 				revert ErrAmountTooLarge(args.amountIn, MAX_AMOUNT);
 			}
-			// uint232 * uint24 ~ uint256, so we can do this unchecked.
+			// MAX_AMOUNT * uint24 < max uint256, so we can do this unchecked.
 			uint256 totalSlippage = (args.amountIn * uint256(dstSlippage)) / MAX_SLIPPAGE;
 
 			// The amount provided for the order must be more than the fee to execute the order plus
@@ -229,7 +229,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 			}
 
 			// Since we know that the relayer fee is less than the amount in minus total slippage,
-			// which is uint232 max, this operation is safe.
+			// this operation is safe.
 			totalSlippage += relayerFee;
 
 			// The minimum amount out must not exceed the amount in less the fees.
