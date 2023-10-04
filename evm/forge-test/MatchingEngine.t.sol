@@ -511,8 +511,6 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 		uint256 amount,
 		bytes memory redeemerMessage
 	) public {
-		vm.skip(true);
-
 		// Before test.
 		uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
 		address fromUsdc = WRAPPED_ETH_USDC;
@@ -521,6 +519,10 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 		// Fuzz parameter.
 		amount = bound(amount, RELAYER_FEE + 10, INIT_LIQUIDITY / 2);
 		vm.assume(redeemerMessage.length < type(uint32).max);
+
+		// Mint tokens in case total supply on the bridge is less
+		// than the test amount.
+		increaseWrappedSupply(toUsdc, amount);
 
 		// We will use this amountOut as the minAmountOut for the order,
 		// since there is no competing order flow in this test.

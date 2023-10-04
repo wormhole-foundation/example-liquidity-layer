@@ -10,6 +10,11 @@ import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
 import {Messages} from "../../src/shared/Messages.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+interface WrappedToken {
+	function mint(address to, uint256 amount) external;
+}
 
 contract TestHelpers is Test {
 	using Messages for *;
@@ -189,5 +194,11 @@ contract TestHelpers is Test {
 		assertEq(fill.orderSender, toUniversalAddress(testSender));
 		assertEq(fill.redeemer, toUniversalAddress(testRedeemer));
 		assertEq(fill.redeemerMessage, redeemerMessage);
+	}
+
+	function increaseWrappedSupply(address token, uint256 amount) internal {
+		// Only the bridge can mint tokens.
+		vm.prank(address(bridge));
+		WrappedToken(token).mint(makeAddr("moarTokens"), amount);
 	}
 }
