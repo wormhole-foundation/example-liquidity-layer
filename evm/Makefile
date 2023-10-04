@@ -11,7 +11,7 @@ build: dependencies
 	forge build
 	yarn build-types
 
-dependencies: node_modules lib/forge-std lib/openzeppelin-contracts 
+dependencies: node_modules lib/forge-std lib/openzeppelin-contracts
 
 clean:
 	forge clean

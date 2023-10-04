@@ -10,6 +10,7 @@ import {TestHelpers} from "./helpers/MatchingEngineTestHelpers.sol";
 import {IMatchingEngine} from "../src/interfaces/IMatchingEngine.sol";
 import {MatchingEngine} from "../src/MatchingEngine/MatchingEngine.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
+import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {CircleSimulator} from "cctp-solidity/CircleSimulator.sol";
 import {WormholePoolTestHelper} from "curve-solidity/WormholeCurvePool.sol";
@@ -507,7 +508,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 		IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
 
 		// Validate test results. The fill should be sent via the circle integration contract.
-		_assertCircleIntegrationMessage(
+		_assertCCTPMessage(
 			_vm,
 			amountOut,
 			toUniversalAddress(USDC), // CCTP USDC
@@ -537,7 +538,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
 		// Mint tokens in case total supply on the bridge is less
 		// than the test amount.
-		increaseWrappedSupply(toUsdc, amount);
+		_increaseWrappedSupply(toUsdc, amount);
 
 		// We will use this amountOut as the minAmountOut for the order,
 		// since there is no competing order flow in this test.
@@ -607,6 +608,10 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 		amount = bound(amount, RELAYER_FEE + 10, INIT_LIQUIDITY / 2);
 		vm.assume(redeemerMessage.length < type(uint32).max);
 
+		// Mint tokens in case total supply on the bridge is less
+		// than the test amount.
+		_increaseWrappedSupply(toUsdc, amount);
+
 		// We will use this amountOut as the minAmountOut for the order,
 		// since there is no competing order flow in this test.
 		uint256 amountOut = get_amount_out(
@@ -617,20 +622,47 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 		require(amountOut > 0, "invalid test");
 
 		// Create a valid transfer from Sui to Polygon.
-		// bytes memory signedOrder = _craftValidCCTPMarketOrder(
-		// 	amount,
-		// 	toUniversalAddress(NATIVE_ETH_USDC),
-		// 	ETH_CHAIN,
-		// 	SUI_ROUTER,
-		// 	SUI_BRIDGE,
-		// 	SUI_CHAIN,
-		// 	_encodeTestMarketOrder(
-		// 		amountOut, // Min amount out.
-		// 		POLY_CHAIN,
-		// 		redeemerMessage,
-		// 		RELAYER_FEE,
-		// 		new bytes32[](0)
-		// 	)
-		// );
+		ICircleIntegration.RedeemParameters memory params = _craftValidCCTPMarketOrder(
+			amount,
+			toUniversalAddress(NATIVE_ARB_USDC),
+			ARB_ROUTER,
+			ARB_CIRCLE_INTEGRATION,
+			ARB_CHAIN,
+			_encodeTestMarketOrder(
+				amountOut, // Min amount out.
+				SUI_CHAIN,
+				redeemerMessage,
+				RELAYER_FEE,
+				new bytes32[](0)
+			)
+		);
+
+		// Relayer balance before.
+		uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(address(this));
+
+		// Execute the order.
+		vm.recordLogs();
+		vm.deal(address(this), WORMHOLE_FEE);
+		engine.executeOrder{value: WORMHOLE_FEE}(params);
+
+		// Fetch wormhole message and sign it.
+		Vm.Log[] memory entries = vm.getRecordedLogs();
+		IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+
+		// Validate test results. The fill should be sent via the token bridge.
+		_assertTokenBridgeMessage(
+			_vm,
+			amountOut,
+			toUniversalAddress(NATIVE_ETH_USDC),
+			ETH_CHAIN,
+			SUI_ROUTER,
+			SUI_CHAIN,
+			toUniversalAddress(address(engine))
+		);
+		_assertFillPayloadTokenBridge(_vm, ARB_CHAIN, redeemerMessage);
+		assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, RELAYER_FEE);
+
+		// After test.
+		_removeLiquidityAndBurn(lpShares);
 	}
 }

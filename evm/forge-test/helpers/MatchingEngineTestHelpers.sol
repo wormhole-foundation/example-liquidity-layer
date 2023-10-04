@@ -23,11 +23,17 @@ contract TestHelpers is Test {
 	// Error.
 	error IndexNotFound();
 
+	// Circle contracts.
+	bytes32 immutable AVAX_CIRCLE_BRIDGE = toUniversalAddress(vm.envAddress("AVAX_CIRCLE_BRIDGE"));
+	bytes32 immutable ARB_CIRCLE_BRIDGE = toUniversalAddress(vm.envAddress("ARB_CIRCLE_BRIDGE"));
+	bytes32 immutable ARB_CIRCLE_INTEGRATION =
+		toUniversalAddress(vm.envAddress("ARB_CIRCLE_INTEGRATION"));
+
 	// State.
 	SigningWormholeSimulator sim;
 	ITokenBridge bridge;
 	ICircleIntegration circleIntegration;
-	CircleSimulator circleSimulator;
+	CircleSimulator circleSim;
 	address[4] coins;
 	bytes32 matchingEngine;
 	uint16 matchingEngineChain;
@@ -48,7 +54,7 @@ contract TestHelpers is Test {
 		address _testRefundAddress
 	) internal {
 		sim = _sim;
-		circleSimulator = _circleSimulator;
+		circleSim = _circleSimulator;
 		bridge = ITokenBridge(_bridge);
 		circleIntegration = ICircleIntegration(_circleIntegration);
 		coins = _coins;
@@ -81,6 +87,27 @@ contract TestHelpers is Test {
 		return sim.encodeAndSignMessage(vaa);
 	}
 
+	function createCircleMessage(
+		ICircleIntegration.DepositWithPayload memory deposit
+	) internal view returns (bytes memory) {
+		CircleSimulator.CircleMessage memory circleMessage;
+
+		// version
+		circleMessage.version = 0;
+		circleMessage.sourceDomain = deposit.sourceDomain;
+		circleMessage.targetDomain = deposit.targetDomain;
+		circleMessage.nonce = deposit.nonce;
+		circleMessage.sourceCircle = ARB_CIRCLE_BRIDGE;
+		circleMessage.targetCircle = AVAX_CIRCLE_BRIDGE;
+		circleMessage.targetCaller = toUniversalAddress((address(circleIntegration)));
+		circleMessage.token = deposit.token;
+		circleMessage.mintRecipient = deposit.mintRecipient;
+		circleMessage.amount = deposit.amount;
+		circleMessage.transferInitiator = ARB_CIRCLE_INTEGRATION;
+
+		return circleSim.encodeBurnMessageLog(circleMessage);
+	}
+
 	function _craftValidTokenBridgeMarketOrder(
 		uint256 amount,
 		bytes32 tokenAddress,
@@ -106,7 +133,37 @@ contract TestHelpers is Test {
 		return _createSignedVaa(emitterChainId, emitterAddress, transferPayload);
 	}
 
-	function _crafteValidCCTPMarketOrder() internal {}
+	function _craftValidCCTPMarketOrder(
+		uint256 amount,
+		bytes32 tokenAddress,
+		bytes32 router,
+		bytes32 emitterAddress,
+		uint16 emitterChainId,
+		bytes memory payload
+	) internal view returns (ICircleIntegration.RedeemParameters memory redeemParameters) {
+		ICircleIntegration.DepositWithPayload memory deposit = ICircleIntegration
+			.DepositWithPayload({
+				amount: amount,
+				token: tokenAddress,
+				sourceDomain: circleIntegration.getDomainFromChainId(emitterChainId),
+				targetDomain: circleIntegration.localDomain(), // target is always avax
+				nonce: 0,
+				fromAddress: router,
+				mintRecipient: matchingEngine,
+				payload: payload
+			});
+
+		// Package the redeem parameters.
+		redeemParameters.encodedWormholeMessage = _createSignedVaa(
+			emitterChainId,
+			emitterAddress,
+			circleIntegration.encodeDepositWithPayload(deposit)
+		);
+		redeemParameters.circleBridgeMessage = createCircleMessage(deposit);
+		redeemParameters.circleAttestation = circleSim.attestCircleMessage(
+			redeemParameters.circleBridgeMessage
+		);
+	}
 
 	function _encodeTestMarketOrder(
 		uint256 minAmountOut,
@@ -152,7 +209,7 @@ contract TestHelpers is Test {
 		assertEq(transfer.fromAddress, fromAddress);
 	}
 
-	function _assertCircleIntegrationMessage(
+	function _assertCCTPMessage(
 		IWormhole.VM memory vm,
 		uint256 amount,
 		bytes32 tokenAddress,
@@ -202,7 +259,7 @@ contract TestHelpers is Test {
 		assertEq(fill.redeemerMessage, redeemerMessage);
 	}
 
-	function increaseWrappedSupply(address token, uint256 amount) internal {
+	function _increaseWrappedSupply(address token, uint256 amount) internal {
 		// Only the bridge can mint tokens.
 		vm.prank(address(bridge));
 		WrappedToken(token).mint(makeAddr("moarTokens"), amount);
