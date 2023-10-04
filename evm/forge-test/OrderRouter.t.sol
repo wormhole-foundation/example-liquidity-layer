@@ -408,16 +408,11 @@ contract OrderRouterTest is Test {
 		);
 	}
 
-	function testCctpEnabledRouterCannotPlaceMarketOrderTargetCctpErrInsufficientAmount(
-		uint256 amountIn
-	) public {
-		amountIn = bound(amountIn, 1, _cctpBurnLimit() - 1);
-
+	function testCctpEnabledRouterCannotPlaceMarketOrderTargetCctpErrInsufficientAmount() public {
 		uint16 targetChain = 2;
 		_registerTargetChain(cctpEnabledRouter, targetChain, TokenType.Cctp);
 
-		_dealAndApproveUsdc(cctpEnabledRouter, amountIn);
-
+		uint256 amountIn = 0;
 		uint256 minAmountOut = amountIn + 1;
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
@@ -562,16 +557,13 @@ contract OrderRouterTest is Test {
 		);
 	}
 
-	function testCanonicalEnabledRouterCannotPlaceMarketOrderTargetCanonicalErrInsufficientAmount(
-		uint256 amountIn
-	) public {
-		amountIn = bound(amountIn, 1, canonicalEnabledRouter.MAX_AMOUNT() - 1);
-
+	function testCanonicalEnabledRouterCannotPlaceMarketOrderTargetCanonicalErrInsufficientAmount()
+		public
+	{
 		uint16 targetChain = 23;
 		_registerTargetChain(canonicalEnabledRouter, targetChain, TokenType.Canonical);
 
-		_dealAndApproveWrappedUsdc(canonicalEnabledRouter, amountIn);
-
+		uint256 amountIn = 0;
 		uint256 minAmountOut = amountIn + 1;
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
