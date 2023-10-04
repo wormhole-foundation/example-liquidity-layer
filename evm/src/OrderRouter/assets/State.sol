@@ -15,7 +15,7 @@ abstract contract State {
 	uint24 public constant MIN_SLIPPAGE = 100; // 1.00 bps
 	uint24 public constant MAX_SLIPPAGE = 1000000; // 10,000.00 bps (100%)
 
-	uint256 public constant MAX_AMOUNT = 2 ** (256 - 24) - 1;
+	uint256 public constant MAX_AMOUNT = (2 ** 256 - 1) / MAX_SLIPPAGE;
 
 	IERC20 public immutable orderToken;
 

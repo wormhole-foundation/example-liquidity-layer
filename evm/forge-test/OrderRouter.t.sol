@@ -10,6 +10,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IUSDC} from "cctp-solidity/IUSDC.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
+import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
 
 import "../src/OrderRouter/assets/Errors.sol";
@@ -113,20 +114,6 @@ contract OrderRouterTest is Test {
 				slippage: TESTING_TARGET_SLIPPAGE
 			})
 		);
-	}
-
-	function testCannotPlaceMarketOrderErrZeroAmountIn() public {
-		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-			amountIn: 0,
-			minAmountOut: 0,
-			targetChain: 1,
-			redeemer: bytes32(0),
-			redeemerMessage: bytes("All your base are belong to us."),
-			refundAddress: address(0)
-		});
-
-		vm.expectRevert(abi.encodeWithSelector(ErrZeroAmountIn.selector));
-		nativeRouter.placeMarketOrder(args);
 	}
 
 	function testCannotPlaceMarketOrderErrZeroMinAmountOut() public {
@@ -421,6 +408,32 @@ contract OrderRouterTest is Test {
 		);
 	}
 
+	function testCctpEnabledRouterCannotPlaceMarketOrderTargetCctpErrInsufficientAmount(
+		uint256 amountIn
+	) public {
+		amountIn = bound(amountIn, 1, _cctpBurnLimit() - 1);
+
+		uint16 targetChain = 2;
+		_registerTargetChain(cctpEnabledRouter, targetChain, TokenType.Cctp);
+
+		_dealAndApproveUsdc(cctpEnabledRouter, amountIn);
+
+		uint256 minAmountOut = amountIn + 1;
+		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+			amountIn: amountIn,
+			minAmountOut: minAmountOut,
+			targetChain: targetChain,
+			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			redeemerMessage: bytes("All your base are belong to us"),
+			refundAddress: address(0)
+		});
+
+		vm.expectRevert(
+			abi.encodeWithSelector(ErrInsufficientAmount.selector, amountIn, minAmountOut)
+		);
+		cctpEnabledRouter.placeMarketOrder(args);
+	}
+
 	function testCctpEnabledRouterPlaceMarketOrderTargetCctp(uint256 amountIn) public {
 		amountIn = bound(amountIn, 1, _cctpBurnLimit());
 
@@ -439,7 +452,7 @@ contract OrderRouterTest is Test {
 
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
-			minAmountOut: _computeMinAmountOut(amountIn, 0),
+			minAmountOut: amountIn,
 			targetChain: targetChain,
 			redeemer: expectedFill.redeemer,
 			redeemerMessage: expectedFill.redeemerMessage,
@@ -549,6 +562,32 @@ contract OrderRouterTest is Test {
 		);
 	}
 
+	function testCanonicalEnabledRouterCannotPlaceMarketOrderTargetCanonicalErrInsufficientAmount(
+		uint256 amountIn
+	) public {
+		amountIn = bound(amountIn, 1, canonicalEnabledRouter.MAX_AMOUNT() - 1);
+
+		uint16 targetChain = 23;
+		_registerTargetChain(canonicalEnabledRouter, targetChain, TokenType.Canonical);
+
+		_dealAndApproveWrappedUsdc(canonicalEnabledRouter, amountIn);
+
+		uint256 minAmountOut = amountIn + 1;
+		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+			amountIn: amountIn,
+			minAmountOut: minAmountOut,
+			targetChain: targetChain,
+			redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			redeemerMessage: bytes("All your base are belong to us"),
+			refundAddress: address(0)
+		});
+
+		vm.expectRevert(
+			abi.encodeWithSelector(ErrInsufficientAmount.selector, amountIn, minAmountOut)
+		);
+		canonicalEnabledRouter.placeMarketOrder(args);
+	}
+
 	function testCanonicalEnabledRouterPlaceMarketOrderTargetCanonical(uint256 amountIn) public {
 		amountIn = bound(amountIn, 1, canonicalEnabledRouter.MAX_AMOUNT());
 
@@ -567,7 +606,7 @@ contract OrderRouterTest is Test {
 
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
-			minAmountOut: _computeMinAmountOut(amountIn, 0),
+			minAmountOut: amountIn,
 			targetChain: targetChain,
 			redeemer: expectedFill.redeemer,
 			redeemerMessage: expectedFill.redeemerMessage,
@@ -678,6 +717,70 @@ contract OrderRouterTest is Test {
 			tokenBridgePayload,
 			expectedOrder
 		);
+	}
+
+	function _createSignedVaa(
+		uint16 emitterChainId,
+		bytes32 emitterAddress,
+		bytes memory payload
+	) internal view returns (bytes memory) {
+		IWormhole.VM memory vaa = IWormhole.VM({
+			version: 1,
+			timestamp: 1234567,
+			nonce: 0,
+			emitterChainId: emitterChainId,
+			emitterAddress: emitterAddress,
+			sequence: 0,
+			consistencyLevel: 1,
+			payload: payload,
+			guardianSetIndex: wormholeSimulator.currentGuardianSetIndex(),
+			signatures: new IWormhole.Signature[](0),
+			hash: 0x00
+		});
+
+		return wormholeSimulator.encodeAndSignMessage(vaa);
+	}
+
+	function _craftTokenBridgeFill(
+		OrderRouter router,
+		uint256 amount,
+		address tokenAddress,
+		uint16 tokenChain,
+		bytes32 fromAddress,
+		Messages.Fill memory fill
+	) internal view returns (bytes memory) {
+		ITokenBridge.TransferWithPayload memory transfer = ITokenBridge.TransferWithPayload({
+			payloadID: 3,
+			amount: amount,
+			tokenAddress: toUniversalAddress(tokenAddress),
+			tokenChain: tokenChain,
+			to: toUniversalAddress(address(router)),
+			toChain: router.wormholeChain(),
+			fromAddress: fromAddress,
+			payload: fill.encode()
+		});
+
+		bytes memory transferPayload = tokenBridge.encodeTransferWithPayload(transfer);
+
+		return
+			_createSignedVaa(
+				tokenBridge.chainId(),
+				toUniversalAddress(address(tokenBridge)),
+				transferPayload
+			);
+	}
+
+	function testRedeemFill() public {
+		// TODO
+		// Messages.Fill memory fill = Messages.Fill({
+		// 	sourceChain: 1,
+		// 	orderSender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+		// 	redeemer: toUniversalAddress(address(this)),
+		// 	redeemerMessage: bytes("Somebody set up us the bomb")
+		// });
+		// bytes memory encodedVaa = _craftTokenBridgeFill(
+		// 	1, nativeRouter.orderToken
+		// )
 	}
 
 	function _dealAndApproveUsdc(OrderRouter router, uint256 amount) internal {

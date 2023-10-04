@@ -51,10 +51,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 		uint256 relayerFee,
 		bytes32[] memory allowedRelayers
 	) internal returns (uint64 sequence) {
-		if (args.amountIn == 0) {
-			revert ErrZeroAmountIn();
-		}
-
 		if (args.minAmountOut == 0) {
 			revert ErrZeroMinAmountOut();
 		}
@@ -93,6 +89,10 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 		PlaceMarketOrderArgs calldata args,
 		bytes32 dstEndpoint
 	) internal returns (uint64 sequence) {
+		if (args.amountIn < args.minAmountOut) {
+			revert ErrInsufficientAmount(args.amountIn, args.minAmountOut);
+		}
+
 		SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCctp), args.amountIn);
 
 		sequence = wormholeCctp.transferTokensWithPayload{value: msg.value}(
@@ -118,6 +118,10 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 		PlaceMarketOrderArgs calldata args,
 		bytes32 dstEndpoint
 	) internal returns (uint64 sequence) {
+		if (args.amountIn < args.minAmountOut) {
+			revert ErrInsufficientAmount(args.amountIn, args.minAmountOut);
+		}
+
 		SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
 
 		sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
