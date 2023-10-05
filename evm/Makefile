@@ -9,17 +9,16 @@ unit-test: build
 
 build: dependencies
 	forge build
-	yarn build-types
+	npm run build-types
 
 dependencies: node_modules lib/forge-std lib/openzeppelin-contracts
 
 clean:
 	forge clean
-	rm -rf node_modules anvil.log lib forge-scripts ts-types
-
+	rm -rf node_modules anvil.log lib forge-scripts ts/src/types
 
 node_modules:
-	yarn
+	npm ci
 
 lib/forge-std:
 	forge install foundry-rs/forge-std@v1.6.1 --no-git --no-commit

@@ -20,6 +20,6 @@
     "typescript": "^4.9.5"
   },
   "scripts": {
-    "build-types": "typechain --target=ethers-v5 --out-dir=ts-types out/*/*.json"
+    "build-types": "typechain --target=ethers-v5 --out-dir=ts/src/types out/*/*.json"
   }
 }

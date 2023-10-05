@@ -5,5 +5,5 @@ out
 out.log
 broadcast
 forge-scripts/deploy.out
-ts-types
+ts/src/types
 dist
