@@ -30,6 +30,8 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
 	// Errors.
 	error InvalidRoute();
+	error RouteNotAvailable();
+	error RouteMismatch();
 	error InvalidPool();
 	error UnregisteredOrderRouter();
 	error NotAllowedRelayer();
@@ -57,9 +59,9 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 		 * Call `completeTransferWithPayload` on the token bridge. This
 		 * method acts as a reentrancy protection since it does not allow
 		 * transfers to be redeemed more than once. Also, parse the
-		 * the transfer payload. 
-		 
-		 * Since this contract will only receive USDC from the order routers, 
+		 * the transfer payload.
+
+		 * Since this contract will only receive USDC from the order routers,
 		 * we can trust the amount encoded in the payload (USDC decimals == 6).
 		 */
 		ITokenBridge.TransferWithPayload memory transfer = _tokenBridge.parseTransferWithPayload(
@@ -84,8 +86,11 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 		// is configured correctly.
 		Route memory toRoute = getExecutionRouteState().routes[order.targetChain];
 		Route memory fromRoute = getExecutionRouteState().routes[fromChain];
-		if (toRoute.target == address(0) || fromRoute.target != token) {
+		if (toRoute.target == address(0)) {
 			revert InvalidRoute();
+		}
+		if (fromRoute.target != token) {
+			revert RouteMismatch();
 		}
 
 		// Pay the msg.sender if they're an allowed relayer and the market order
@@ -117,7 +122,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 		if (amountOut == 0) {
 			sequence = _handleBridgeOut(
 				token,
-				amountIn,
+				amountIn, // Send full amount back.
 				fromChain,
 				routers.registered[fromChain],
 				Messages
@@ -173,8 +178,11 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 		// not receive a circle integration message if the target route is
 		// a CCTP chain.
 		Route memory route = getExecutionRouteState().routes[order.targetChain];
-		if (route.target == address(0) || route.cctp) {
+		if (route.target == address(0)) {
 			revert InvalidRoute();
+		}
+		if (route.cctp) {
+			revert RouteNotAvailable();
 		}
 
 		// Pay the msg.sender if they're an allowed relayer and the market order

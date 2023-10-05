@@ -44,14 +44,15 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 	bytes32 immutable SUI_ROUTER = toUniversalAddress(makeAddr("suiRouter"));
 	bytes32 immutable ARB_ROUTER = toUniversalAddress(makeAddr("arbRouter"));
 	bytes32 immutable POLY_ROUTER = toUniversalAddress(makeAddr("polyRouter"));
+	uint256 immutable INIT_LIQUIDITY = 2_000_000 * 10 ** 6; // 2 x CCTP Burn Limit
 	uint16 constant SUI_CHAIN = 21;
 	uint16 constant ETH_CHAIN = 2;
 	uint16 constant ARB_CHAIN = 23;
 	uint16 constant POLY_CHAIN = 5;
 	uint16 constant AVAX_CHAIN = 6;
-	uint256 constant INIT_LIQUIDITY = 1_000_000 * 10 ** 6; // (1MM USDC)
 	uint256 constant RELAYER_FEE = 5_000_000; // (5 USDC)
 	uint256 constant WORMHOLE_FEE = 1e16;
+	uint8 constant MAX_RELAYER_COUNT = 8;
 
 	IMatchingEngine engine;
 	SigningWormholeSimulator wormholeSimulator;
@@ -480,6 +481,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
 		// Create a valid transfer from Sui to Arbitrum.
 		bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+			block.timestamp,
 			amount,
 			toUniversalAddress(NATIVE_ETH_USDC),
 			ETH_CHAIN,
@@ -551,6 +553,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
 		// Create a valid transfer from Sui to Polygon.
 		bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+			block.timestamp,
 			amount,
 			toUniversalAddress(NATIVE_ETH_USDC),
 			ETH_CHAIN,
@@ -621,8 +624,9 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 		);
 		require(amountOut > 0, "invalid test");
 
-		// Create a valid transfer from Sui to Polygon.
+		// Create a valid transfer from Arb to Sui.
 		ICircleIntegration.RedeemParameters memory params = _craftValidCCTPMarketOrder(
+			block.timestamp,
 			amount,
 			toUniversalAddress(NATIVE_ARB_USDC),
 			ARB_ROUTER,
@@ -664,5 +668,405 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
 		// After test.
 		_removeLiquidityAndBurn(lpShares);
+	}
+
+	function testExecuteOrderRevertFromCCTP(uint256 amount, bytes memory redeemerMessage) public {
+		// Before test.
+		uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+		address fromUsdc = USDC;
+
+		// Fuzz parameter.
+		amount = bound(amount, RELAYER_FEE + 10, INIT_LIQUIDITY / 2);
+		vm.assume(redeemerMessage.length < type(uint32).max);
+
+		// Set the `minAmountOut` to the same value as `amount'. This will cause
+		// the swap to fail, since it assumes zero slippage.
+		uint256 amountOut = amount - RELAYER_FEE;
+
+		// Create a valid transfer from Sui to Polygon.
+		ICircleIntegration.RedeemParameters memory params = _craftValidCCTPMarketOrder(
+			block.timestamp,
+			amount,
+			toUniversalAddress(NATIVE_ARB_USDC),
+			ARB_ROUTER,
+			ARB_CIRCLE_INTEGRATION,
+			ARB_CHAIN,
+			_encodeTestMarketOrder(
+				amountOut, // Min amount out.
+				SUI_CHAIN,
+				redeemerMessage,
+				RELAYER_FEE,
+				new bytes32[](0)
+			)
+		);
+
+		// Relayer balance before.
+		uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(address(this));
+
+		// Execute the order.
+		vm.recordLogs();
+		vm.deal(address(this), WORMHOLE_FEE);
+		engine.executeOrder{value: WORMHOLE_FEE}(params);
+
+		// Fetch wormhole message and sign it.
+		Vm.Log[] memory entries = vm.getRecordedLogs();
+		IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+
+		// Validate test results. The OrderRevert should be sent via CCTP.
+		_assertCCTPMessage(
+			_vm,
+			amountOut,
+			toUniversalAddress(USDC), // CCTP USDC
+			ARB_ROUTER,
+			ARB_CHAIN,
+			toUniversalAddress(address(engine))
+		);
+		_assertOrderRevertPayloadCCTP(
+			_vm,
+			uint8(IMatchingEngine.RevertType.SwapFailed),
+			toUniversalAddress(TEST_RECIPIENT)
+		);
+		assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, RELAYER_FEE);
+
+		// After test.
+		_removeLiquidityAndBurn(lpShares);
+	}
+
+	function testExecuteOrderRevertFromNative(uint256 amount, bytes memory redeemerMessage) public {
+		// Before test.
+		uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+		address fromUsdc = WRAPPED_POLY_USDC;
+
+		// Fuzz parameter.
+		amount = bound(amount, RELAYER_FEE + 10, INIT_LIQUIDITY / 2);
+		vm.assume(redeemerMessage.length < type(uint32).max);
+
+		// Set the `minAmountOut` to the same value as `amount'. This will cause
+		// the swap to fail, since it assumes zero slippage.
+		uint256 amountOut = amount - RELAYER_FEE;
+
+		// Create a valid transfer from Polygon to Sui.
+		bytes memory signedMessage = _craftValidTokenBridgeMarketOrder(
+			block.timestamp,
+			amount,
+			toUniversalAddress(NATIVE_POLY_USDC),
+			POLY_CHAIN,
+			POLY_ROUTER,
+			POLY_BRIDGE,
+			POLY_CHAIN,
+			_encodeTestMarketOrder(
+				amountOut, // Min amount out.
+				SUI_CHAIN,
+				redeemerMessage,
+				RELAYER_FEE,
+				new bytes32[](0)
+			)
+		);
+
+		// Relayer balance before.
+		uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(address(this));
+
+		// Execute the order.
+		vm.recordLogs();
+		vm.deal(address(this), WORMHOLE_FEE);
+		engine.executeOrder{value: WORMHOLE_FEE}(signedMessage);
+
+		// Fetch wormhole message and sign it.
+		Vm.Log[] memory entries = vm.getRecordedLogs();
+		IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+
+		// Validate test results. The OrderRevert should be sent via CCTP.
+		_assertTokenBridgeMessage(
+			_vm,
+			amountOut,
+			toUniversalAddress(NATIVE_POLY_USDC),
+			POLY_CHAIN,
+			POLY_ROUTER,
+			POLY_CHAIN,
+			toUniversalAddress(address(engine))
+		);
+		_assertOrderRevertPayloadTokenBridge(
+			_vm,
+			uint8(IMatchingEngine.RevertType.SwapFailed),
+			toUniversalAddress(TEST_RECIPIENT)
+		);
+		assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, RELAYER_FEE);
+
+		// After test.
+		_removeLiquidityAndBurn(lpShares);
+	}
+
+	function testExecuteOrderWithAllowedRelayers(uint8 relayerCount, uint256 callerIndex) public {
+		// Before test.
+		uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+		address fromUsdc = WRAPPED_ETH_USDC;
+		uint256 amount = INIT_LIQUIDITY / 2;
+		bytes memory redeemerMessage = hex"deadbeef";
+
+		// Create an array of allowed relayers.
+		relayerCount = uint8(bound(relayerCount, 1, MAX_RELAYER_COUNT));
+		callerIndex = bound(callerIndex, 0, relayerCount - 1);
+		bytes32[] memory allowedRelayers = _createAllowedRelayerArray(relayerCount);
+
+		// Selected relayer.
+		address relayer = fromUniversalAddress(allowedRelayers[callerIndex]);
+
+		// We will use this amountOut as the minAmountOut for the order,
+		// since there is no competing order flow in this test.
+		uint256 amountOut = get_amount_out(
+			curvePoolIndex[fromUsdc],
+			engine.getCCTPIndex(),
+			amount - RELAYER_FEE
+		);
+		require(amountOut > 0, "invalid test");
+
+		// Create a valid transfer from Sui to Arbitrum.
+		bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+			block.timestamp,
+			amount,
+			toUniversalAddress(NATIVE_ETH_USDC),
+			ETH_CHAIN,
+			SUI_ROUTER,
+			SUI_BRIDGE,
+			SUI_CHAIN,
+			_encodeTestMarketOrder(
+				amountOut, // Min amount out.
+				ARB_CHAIN,
+				redeemerMessage,
+				RELAYER_FEE,
+				allowedRelayers
+			)
+		);
+
+		// Relayer balance before.
+		uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(relayer);
+
+		// Execute the order.
+		vm.recordLogs();
+		vm.deal(relayer, WORMHOLE_FEE);
+		vm.prank(relayer);
+		engine.executeOrder{value: WORMHOLE_FEE}(signedOrder);
+
+		// Fetch wormhole message and sign it.
+		Vm.Log[] memory entries = vm.getRecordedLogs();
+		IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+
+		// Validate test results. The fill should be sent via the circle integration contract.
+		_assertCCTPMessage(
+			_vm,
+			amountOut,
+			toUniversalAddress(USDC), // CCTP USDC
+			ARB_ROUTER,
+			ARB_CHAIN,
+			toUniversalAddress(address(engine))
+		);
+		_assertFillPayloadCCTP(_vm, SUI_CHAIN, redeemerMessage);
+		assertEq(IERC20(fromUsdc).balanceOf(relayer) - relayerBalanceBefore, RELAYER_FEE);
+
+		// After test.
+		_removeLiquidityAndBurn(lpShares);
+	}
+
+	function testExecuteOrderWithNoRelayerFee(uint8 relayerCount, uint256 callerIndex) public {
+		// Before test.
+		uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+		address fromUsdc = WRAPPED_ETH_USDC;
+		uint256 amount = INIT_LIQUIDITY / 2;
+		bytes memory redeemerMessage = hex"deadbeef";
+
+		// Create an array of allowed relayers.
+		relayerCount = uint8(bound(relayerCount, 1, MAX_RELAYER_COUNT));
+		callerIndex = bound(callerIndex, 0, relayerCount - 1);
+		bytes32[] memory allowedRelayers = _createAllowedRelayerArray(relayerCount);
+
+		// Selected relayer, this relayer is not included in the allowedRelayers list. However,
+		// it should be allowed to relay the message since the fee is set to zero.
+		address relayer = address(this);
+		uint256 relayerFee = 0;
+
+		// We will use this amountOut as the minAmountOut for the order,
+		// since there is no competing order flow in this test.
+		uint256 amountOut = get_amount_out(curvePoolIndex[fromUsdc], engine.getCCTPIndex(), amount);
+		require(amountOut > 0, "invalid test");
+
+		// Create a valid transfer from Sui to Arbitrum.
+		bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+			block.timestamp,
+			amount,
+			toUniversalAddress(NATIVE_ETH_USDC),
+			ETH_CHAIN,
+			SUI_ROUTER,
+			SUI_BRIDGE,
+			SUI_CHAIN,
+			_encodeTestMarketOrder(
+				amountOut, // Min amount out.
+				ARB_CHAIN,
+				redeemerMessage,
+				relayerFee,
+				allowedRelayers
+			)
+		);
+
+		// Relayer balance before.
+		uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(relayer);
+
+		// Execute the order.
+		vm.recordLogs();
+		vm.deal(relayer, WORMHOLE_FEE);
+		vm.prank(relayer);
+		engine.executeOrder{value: WORMHOLE_FEE}(signedOrder);
+
+		// Fetch wormhole message and sign it.
+		Vm.Log[] memory entries = vm.getRecordedLogs();
+		IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+
+		// Validate test results. The fill should be sent via the circle integration contract.
+		_assertCCTPMessage(
+			_vm,
+			amountOut,
+			toUniversalAddress(USDC), // CCTP USDC
+			ARB_ROUTER,
+			ARB_CHAIN,
+			toUniversalAddress(address(engine))
+		);
+		_assertFillPayloadCCTP(_vm, SUI_CHAIN, redeemerMessage);
+		assertEq(IERC20(fromUsdc).balanceOf(relayer) - relayerBalanceBefore, relayerFee);
+
+		// After test.
+		_removeLiquidityAndBurn(lpShares);
+	}
+
+	function testExecuteOrderAllowedRelayerTimeoutExpired() public {
+		// Before test.
+		uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+		address fromUsdc = WRAPPED_ETH_USDC;
+		uint256 amount = INIT_LIQUIDITY / 2;
+		bytes memory redeemerMessage = hex"deadbeef";
+
+		// Create an array of allowed relayers.
+		bytes32[] memory allowedRelayers = _createAllowedRelayerArray(5);
+
+		// We will use a relayer that is not in the allowedRelayers array.
+		address actualRelayer = address(this);
+
+		// We will use this amountOut as the minAmountOut for the order,
+		// since there is no competing order flow in this test.
+		uint256 amountOut = get_amount_out(
+			curvePoolIndex[fromUsdc],
+			engine.getCCTPIndex(),
+			amount - RELAYER_FEE
+		);
+		require(amountOut > 0, "invalid test");
+
+		// Create a valid transfer from Sui to Arbitrum.
+		bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+			block.timestamp,
+			amount,
+			toUniversalAddress(NATIVE_ETH_USDC),
+			ETH_CHAIN,
+			SUI_ROUTER,
+			SUI_BRIDGE,
+			SUI_CHAIN,
+			_encodeTestMarketOrder(
+				amountOut, // Min amount out.
+				ARB_CHAIN,
+				redeemerMessage,
+				RELAYER_FEE,
+				allowedRelayers
+			)
+		);
+
+		// Relayer balance before.
+		uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(actualRelayer);
+
+		// Warp time so that the relay timeout has expired. This will allow the actual relayer
+		// to relay the message.
+		vm.warp(block.timestamp + engine.RELAY_TIMEOUT() + 1);
+
+		// Execute the order.
+		vm.recordLogs();
+		vm.deal(actualRelayer, WORMHOLE_FEE);
+		vm.prank(actualRelayer);
+		engine.executeOrder{value: WORMHOLE_FEE}(signedOrder);
+
+		// Fetch wormhole message and sign it.
+		Vm.Log[] memory entries = vm.getRecordedLogs();
+		IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+
+		// Validate test results. The fill should be sent via the circle integration contract.
+		_assertCCTPMessage(
+			_vm,
+			amountOut,
+			toUniversalAddress(USDC), // CCTP USDC
+			ARB_ROUTER,
+			ARB_CHAIN,
+			toUniversalAddress(address(engine))
+		);
+		_assertFillPayloadCCTP(_vm, SUI_CHAIN, redeemerMessage);
+		assertEq(IERC20(fromUsdc).balanceOf(actualRelayer) - relayerBalanceBefore, RELAYER_FEE);
+
+		// After test.
+		_removeLiquidityAndBurn(lpShares);
+	}
+
+	function testCannotExecuteOrderInvalidRouteTokenBridge() public {
+		// Parameters.
+		uint256 amount = INIT_LIQUIDITY / 2;
+		bytes memory redeemerMessage = hex"deadbeef";
+		uint256 amountOut = 0;
+
+		// Disable the target route.
+		engine.disableExecutionRoute(ARB_CHAIN);
+
+		bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+			block.timestamp,
+			amount,
+			toUniversalAddress(NATIVE_ETH_USDC),
+			ETH_CHAIN,
+			SUI_ROUTER,
+			SUI_BRIDGE,
+			SUI_CHAIN,
+			_encodeTestMarketOrder(
+				amountOut, // Min amount out.
+				ARB_CHAIN,
+				redeemerMessage,
+				RELAYER_FEE,
+				new bytes32[](0)
+			)
+		);
+
+		// Expect failure.
+		vm.expectRevert(abi.encodeWithSignature("InvalidRoute()"));
+		engine.executeOrder(signedOrder);
+	}
+
+	function testCannotExecuteOrderInvalidRouteCCTP() public {
+		// Parameters.
+		uint256 amount = INIT_LIQUIDITY / 2;
+		bytes memory redeemerMessage = hex"deadbeef";
+		uint256 amountOut = 0;
+
+		// Disable the target route.
+		engine.disableExecutionRoute(POLY_CHAIN);
+
+		ICircleIntegration.RedeemParameters memory params = _craftValidCCTPMarketOrder(
+			block.timestamp,
+			amount,
+			toUniversalAddress(NATIVE_ARB_USDC),
+			ARB_ROUTER,
+			ARB_CIRCLE_INTEGRATION,
+			ARB_CHAIN,
+			_encodeTestMarketOrder(
+				amountOut, // Min amount out.
+				POLY_CHAIN,
+				redeemerMessage,
+				RELAYER_FEE,
+				new bytes32[](0)
+			)
+		);
+
+		// Expect failure.
+		vm.expectRevert(abi.encodeWithSignature("InvalidRoute()"));
+		engine.executeOrder(params);
 	}
 }

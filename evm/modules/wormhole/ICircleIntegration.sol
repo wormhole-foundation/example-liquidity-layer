@@ -5,6 +5,7 @@ pragma solidity ^0.8.19;
 import {IWormhole} from "./IWormhole.sol";
 import {ICircleBridge} from "cctp-solidity/ICircleBridge.sol";
 import {IMessageTransmitter} from "cctp-solidity/IMessageTransmitter.sol";
+import {ITokenMinter} from "cctp-solidity/ITokenMinter.sol";
 
 interface ICircleIntegration {
 	struct TransferParameters {
@@ -66,15 +67,13 @@ interface ICircleIntegration {
 
 	function circleTransmitter() external view returns (IMessageTransmitter);
 
-	function getRegisteredEmitter(
-		uint16 emitterChainId
-	) external view returns (bytes32);
+	function circleTokenMinter() external view returns (ITokenMinter);
+
+	function getRegisteredEmitter(uint16 emitterChainId) external view returns (bytes32);
 
 	function isAcceptedToken(address token) external view returns (bool);
 
-	function getDomainFromChainId(
-		uint16 chainId_
-	) external view returns (uint32);
+	function getDomainFromChainId(uint16 chainId_) external view returns (uint32);
 
 	function getChainIdFromDomain(uint32 domain) external view returns (uint16);
 

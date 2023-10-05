@@ -19,6 +19,10 @@ interface IMatchingEngine {
 		int8 nativeTokenIndex;
 	}
 
+	enum RevertType {
+		SwapFailed
+	}
+
 	function executeOrder(bytes calldata vaa) external payable returns (uint64 sequence);
 
 	function executeOrder(
@@ -67,4 +71,6 @@ interface IMatchingEngine {
 	function getPendingOwner() external view returns (address);
 
 	function getPaused() external view returns (bool);
+
+	function RELAY_TIMEOUT() external view returns (uint256);
 }
