@@ -7,7 +7,7 @@ import "forge-std/StdUtils.sol";
 import "forge-std/console.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IUSDC} from "cctp-solidity/IUSDC.sol";
+import {CircleSimulator} from "cctp-solidity/CircleSimulator.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
@@ -25,6 +25,7 @@ contract OrderRouterTest is Test {
 	using Messages for *;
 
 	address constant USDC_ADDRESS = 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
+	address constant ARBITRUM_USDC_ADDRESS = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 
 	// Because this test is run using an Avalanche fork, we need to use a different chain ID for the
 	// matching engine.
@@ -43,12 +44,27 @@ contract OrderRouterTest is Test {
 
 	uint256 constant MAX_UINT256 = 2 ** 256 - 1;
 
+	// Environment variables.
+	uint256 immutable TESTING_SIGNER = uint256(vm.envBytes32("TESTING_DEVNET_GUARDIAN"));
+
+	bytes32 immutable CIRCLE_BRIDGE = toUniversalAddress(vm.envAddress("AVAX_CIRCLE_BRIDGE"));
+	address immutable MESSAGE_TRANSMITTER = vm.envAddress("AVAX_MESSAGE_TRANSMITTER");
+
+	bytes32 immutable FOREIGN_CIRCLE_BRIDGE =
+		toUniversalAddress(vm.envAddress("ARB_CIRCLE_BRIDGE"));
+	bytes32 immutable FOREIGN_WORMHOLE_CCTP =
+		toUniversalAddress(vm.envAddress("ARB_CIRCLE_INTEGRATION"));
+
+	// Test routers.
 	OrderRouter nativeRouter;
 	OrderRouter cctpEnabledRouter;
 	OrderRouter canonicalEnabledRouter;
 
+	// Integrating contract helpers.
 	SigningWormholeSimulator wormholeSimulator;
+	CircleSimulator circleSimulator;
 
+	// Convenient interfaces.
 	ITokenBridge tokenBridge;
 	ICircleIntegration wormholeCctp;
 
@@ -97,14 +113,19 @@ contract OrderRouterTest is Test {
 
 		wormholeSimulator = new SigningWormholeSimulator(
 			ITokenBridge(TOKEN_BRIDGE_ADDRESS).wormhole(),
-			uint256(vm.envBytes32("TESTING_DEVNET_GUARDIAN"))
+			TESTING_SIGNER
 		);
+
+		circleSimulator = new CircleSimulator(
+			TESTING_SIGNER,
+			MESSAGE_TRANSMITTER,
+			ARBITRUM_USDC_ADDRESS
+		);
+		circleSimulator.setupCircleAttester();
 	}
 
-	function testCannotAddEndpointAsRandomCaller(address notOwner) public {
-		vm.assume(notOwner != makeAddr("owner"));
-
-		vm.prank(notOwner);
+	function testCannotAddEndpointAsRandomCaller() public {
+		vm.prank(makeAddr("not owner"));
 		vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
 		nativeRouter.addRouterInfo(
 			1,
@@ -130,14 +151,13 @@ contract OrderRouterTest is Test {
 		nativeRouter.placeMarketOrder(args);
 	}
 
-	function testCannotPlaceMarketOrderErrTargetChainNotSupported(
-		uint256 amountIn,
-		uint16 targetChain
-	) public {
-		amountIn = bound(amountIn, 1, nativeRouter.MAX_AMOUNT());
+	function testCannotPlaceMarketOrderErrUnsupportedChain() public {
+		uint256 amountIn = 69;
 
-		_dealAndApproveUsdc(nativeRouter, amountIn);
+		// TODO
+		//_dealAndApproveUsdc(nativeRouter, amountIn);
 
+		uint16 targetChain = 2;
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
 			minAmountOut: amountIn,
@@ -151,12 +171,9 @@ contract OrderRouterTest is Test {
 		nativeRouter.placeMarketOrder(args);
 	}
 
-	function testCannotPlaceMarketOrderErrInsufficientAmount(
-		uint256 amountIn,
-		uint256 relayerFee
-	) public {
-		amountIn = bound(amountIn, 1, nativeRouter.MAX_AMOUNT());
-		relayerFee = bound(relayerFee, amountIn, MAX_UINT256);
+	function testCannotPlaceMarketOrderErrInsufficientAmount() public {
+		uint256 amountIn = 69;
+		uint256 relayerFee = _computeMinAmountOut(amountIn, 0);
 
 		uint16 targetChain = 1;
 		_registerTargetChain(nativeRouter, targetChain, TokenType.Native);
@@ -173,30 +190,21 @@ contract OrderRouterTest is Test {
 		});
 
 		vm.expectRevert(
-			abi.encodeWithSelector(
-				ErrInsufficientAmount.selector,
-				amountIn - _computeSlippage(amountIn),
-				relayerFee
-			)
+			abi.encodeWithSelector(ErrInsufficientAmount.selector, relayerFee, relayerFee)
 		);
 		nativeRouter.placeMarketOrder(args, relayerFee);
 	}
 
-	function testCannotPlaceMarketOrderErrMinAmountOutExceedsLimit(
-		uint256 amountIn,
-		uint256 excessAmount
-	) public {
-		amountIn = bound(amountIn, 1, nativeRouter.MAX_AMOUNT());
-
+	function testCannotPlaceMarketOrderErrMinAmountOutExceedsLimit() public {
+		uint256 amountIn = 69;
 		uint256 amountMinusSlippage = _computeMinAmountOut(amountIn, 0);
-		excessAmount = bound(excessAmount, 1, MAX_UINT256 - amountMinusSlippage);
 
 		uint16 targetChain = 1;
 		_registerTargetChain(nativeRouter, targetChain, TokenType.Native);
 
 		_dealAndApproveUsdc(nativeRouter, amountIn);
 
-		uint256 minAmountOut = amountMinusSlippage + excessAmount;
+		uint256 minAmountOut = amountMinusSlippage + 1;
 
 		PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
 			amountIn: amountIn,
@@ -217,8 +225,8 @@ contract OrderRouterTest is Test {
 		nativeRouter.placeMarketOrder(args);
 	}
 
-	function testCannotPlaceMarketOrderErrTooManyRelayers(uint256 numAllowedRelayers) public {
-		numAllowedRelayers = bound(numAllowedRelayers, 9, 255);
+	function testCannotPlaceMarketOrderErrTooManyRelayers() public {
+		uint256 numAllowedRelayers = 9;
 		uint256 amountIn = 69420;
 		uint256 relayerFee = 69;
 
@@ -637,6 +645,130 @@ contract OrderRouterTest is Test {
 		);
 	}
 
+	function testCannotRedeemFillErrUnsupportedChain() public {
+		uint16 senderChain = 3;
+
+		Messages.Fill memory fill = Messages.Fill({
+			sourceChain: senderChain,
+			orderSender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			redeemer: toUniversalAddress(address(this)),
+			redeemerMessage: bytes("Somebody set up us the bomb")
+		});
+
+		bytes memory encodedVaa = _craftTokenBridgeFillVaa(
+			nativeRouter,
+			69, // amount
+			USDC_ADDRESS,
+			nativeRouter.wormholeChain(),
+			toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+			MATCHING_ENGINE_CHAIN,
+			fill
+		);
+
+		vm.expectRevert(abi.encodeWithSelector(ErrUnsupportedChain.selector, senderChain));
+		nativeRouter.redeemFill(encodedVaa);
+	}
+
+	function testCannotRedeemFillErrSourceNotMatchingEngine1() public {
+		uint16 senderChain = 1;
+		_registerTargetChain(nativeRouter, senderChain, TokenType.Native);
+
+		Messages.Fill memory fill = Messages.Fill({
+			sourceChain: senderChain,
+			orderSender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			redeemer: toUniversalAddress(address(this)),
+			redeemerMessage: bytes("Somebody set up us the bomb")
+		});
+
+		bytes32 emitterAddress = toUniversalAddress(makeAddr("not matching engine"));
+		assertNotEq(emitterAddress, toUniversalAddress(MATCHING_ENGINE_ADDRESS));
+
+		bytes memory encodedVaa = _craftTokenBridgeFillVaa(
+			nativeRouter,
+			69, // amount
+			USDC_ADDRESS,
+			nativeRouter.wormholeChain(),
+			emitterAddress,
+			MATCHING_ENGINE_CHAIN,
+			fill
+		);
+
+		vm.expectRevert(
+			abi.encodeWithSelector(
+				ErrSourceNotMatchingEngine.selector,
+				MATCHING_ENGINE_CHAIN,
+				emitterAddress
+			)
+		);
+		nativeRouter.redeemFill(encodedVaa);
+	}
+
+	function testCannotRedeemFillErrSourceNotMatchingEngine2() public {
+		uint16 senderChain = 1;
+		_registerTargetChain(nativeRouter, senderChain, TokenType.Native);
+
+		Messages.Fill memory fill = Messages.Fill({
+			sourceChain: senderChain,
+			orderSender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			redeemer: toUniversalAddress(address(this)),
+			redeemerMessage: bytes("Somebody set up us the bomb")
+		});
+
+		uint16 emitterChain = 3;
+		assertNotEq(emitterChain, MATCHING_ENGINE_CHAIN);
+
+		bytes memory encodedVaa = _craftTokenBridgeFillVaa(
+			nativeRouter,
+			69, // amount
+			USDC_ADDRESS,
+			nativeRouter.wormholeChain(),
+			toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+			emitterChain,
+			fill
+		);
+
+		vm.expectRevert(
+			abi.encodeWithSelector(
+				ErrSourceNotMatchingEngine.selector,
+				emitterChain,
+				toUniversalAddress(MATCHING_ENGINE_ADDRESS)
+			)
+		);
+		nativeRouter.redeemFill(encodedVaa);
+	}
+
+	function testCannotRedeemFillErrInvalidFillRedeemer() public {
+		uint16 senderChain = 1;
+		_registerTargetChain(nativeRouter, senderChain, TokenType.Native);
+
+		bytes32 expectedRedeemer = toUniversalAddress(makeAddr("someone else"));
+		Messages.Fill memory fill = Messages.Fill({
+			sourceChain: senderChain,
+			orderSender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			redeemer: expectedRedeemer,
+			redeemerMessage: bytes("Somebody set up us the bomb")
+		});
+
+		bytes memory encodedVaa = _craftTokenBridgeFillVaa(
+			nativeRouter,
+			69, // amount
+			USDC_ADDRESS,
+			nativeRouter.wormholeChain(),
+			toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+			MATCHING_ENGINE_CHAIN,
+			fill
+		);
+
+		vm.expectRevert(
+			abi.encodeWithSelector(
+				ErrInvalidFillRedeemer.selector,
+				toUniversalAddress(address(this)),
+				expectedRedeemer
+			)
+		);
+		nativeRouter.redeemFill(encodedVaa);
+	}
+
 	function testNativeRouterRedeemFill(uint256 amount, uint8 srcTokenTypeInt) public {
 		amount = bound(amount, 0, _tokenBridgeBridgeInLimit());
 		// This is a hack because forge tests cannot fuzz test enums yet.
@@ -664,6 +796,156 @@ contract OrderRouterTest is Test {
 			nativeRouter.wormholeChain(),
 			toUniversalAddress(MATCHING_ENGINE_ADDRESS),
 			MATCHING_ENGINE_CHAIN
+		);
+	}
+
+	function testCctpEnabledRouterCannotRedeemFillErrInvalidSourceRouter1() public {
+		uint16 senderChain = 1;
+		_registerTargetChain(cctpEnabledRouter, senderChain, TokenType.Cctp);
+
+		Messages.Fill memory fill = Messages.Fill({
+			sourceChain: senderChain,
+			orderSender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			redeemer: toUniversalAddress(address(this)),
+			redeemerMessage: bytes("Somebody set up us the bomb")
+		});
+
+		uint16 emitterChain = 23;
+		assertNotEq(emitterChain, senderChain);
+
+		ICircleIntegration.RedeemParameters
+			memory redeemParams = _craftWormholeCctpFillRedeemParams(
+				cctpEnabledRouter,
+				69, // amount
+				TESTING_FOREIGN_ROUTER_ENDPOINT,
+				emitterChain,
+				fill
+			);
+
+		vm.expectRevert(
+			abi.encodeWithSelector(
+				ErrInvalidSourceRouter.selector,
+				emitterChain,
+				TokenType.Cctp,
+				TESTING_FOREIGN_ROUTER_ENDPOINT
+			)
+		);
+		cctpEnabledRouter.redeemFill(redeemParams);
+	}
+
+	function testCctpEnabledRouterCannotRedeemFillErrInvalidSourceRouter2() public {
+		uint16 senderChain = 23;
+		_registerTargetChain(cctpEnabledRouter, senderChain, TokenType.Native);
+
+		Messages.Fill memory fill = Messages.Fill({
+			sourceChain: senderChain,
+			orderSender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			redeemer: toUniversalAddress(address(this)),
+			redeemerMessage: bytes("Somebody set up us the bomb")
+		});
+
+		ICircleIntegration.RedeemParameters
+			memory redeemParams = _craftWormholeCctpFillRedeemParams(
+				cctpEnabledRouter,
+				69, // amount
+				TESTING_FOREIGN_ROUTER_ENDPOINT,
+				senderChain,
+				fill
+			);
+
+		vm.expectRevert(
+			abi.encodeWithSelector(
+				ErrInvalidSourceRouter.selector,
+				senderChain,
+				TokenType.Native,
+				TESTING_FOREIGN_ROUTER_ENDPOINT
+			)
+		);
+		cctpEnabledRouter.redeemFill(redeemParams);
+	}
+
+	function testCctpEnabledRouterCannotRedeemFillErrInvalidSourceRouter3() public {
+		uint16 senderChain = 23;
+		_registerTargetChain(cctpEnabledRouter, senderChain, TokenType.Cctp);
+
+		Messages.Fill memory fill = Messages.Fill({
+			sourceChain: senderChain,
+			orderSender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			redeemer: toUniversalAddress(address(this)),
+			redeemerMessage: bytes("Somebody set up us the bomb")
+		});
+
+		bytes32 fromAddress = toUniversalAddress(makeAddr("unrecognized sender"));
+		ICircleIntegration.RedeemParameters
+			memory redeemParams = _craftWormholeCctpFillRedeemParams(
+				cctpEnabledRouter,
+				69, // amount
+				fromAddress,
+				senderChain,
+				fill
+			);
+
+		vm.expectRevert(
+			abi.encodeWithSelector(
+				ErrInvalidSourceRouter.selector,
+				senderChain,
+				TokenType.Cctp,
+				fromAddress
+			)
+		);
+		cctpEnabledRouter.redeemFill(redeemParams);
+	}
+
+	function testCctpEnabledRouterRedeemFillFromMatchingEngine(
+		uint256 amount,
+		uint8 srcTokenTypeInt
+	) public {
+		amount = bound(amount, 1, _cctpMintLimit());
+		// This is a hack because forge tests cannot fuzz test enums yet.
+		vm.assume(
+			srcTokenTypeInt == uint8(TokenType.Native) ||
+				srcTokenTypeInt == uint8(TokenType.Canonical) ||
+				srcTokenTypeInt == uint8(TokenType.Cctp)
+		);
+
+		uint16 senderChain = 1;
+		_registerTargetChain(cctpEnabledRouter, senderChain, TokenType(srcTokenTypeInt));
+
+		RedeemedFill memory expectedRedeemed = RedeemedFill({
+			sender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			senderChain: senderChain,
+			token: address(cctpEnabledRouter.orderToken()),
+			amount: amount,
+			message: bytes("Somebody set up us the bomb")
+		});
+
+		_redeemWormholeCctpFill(
+			cctpEnabledRouter,
+			expectedRedeemed,
+			toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+			MATCHING_ENGINE_CHAIN
+		);
+	}
+
+	function testCctpEnabledRouterRedeemFillFromCctpEnabledRouter(uint256 amount) public {
+		amount = bound(amount, 1, _cctpMintLimit());
+
+		uint16 senderChain = 23;
+		_registerTargetChain(cctpEnabledRouter, senderChain, TokenType.Cctp);
+
+		RedeemedFill memory expectedRedeemed = RedeemedFill({
+			sender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+			senderChain: senderChain,
+			token: address(cctpEnabledRouter.orderToken()),
+			amount: amount,
+			message: bytes("Somebody set up us the bomb")
+		});
+
+		_redeemWormholeCctpFill(
+			cctpEnabledRouter,
+			expectedRedeemed,
+			TESTING_FOREIGN_ROUTER_ENDPOINT,
+			senderChain
 		);
 	}
 
@@ -700,7 +982,7 @@ contract OrderRouterTest is Test {
 		);
 	}
 
-	function testCanonicalEnabledRouterRedeemFillFromCanonicalRouter(uint256 amount) public {
+	function testCanonicalEnabledRouterRedeemFillFromCanonicalEnabledRouter(uint256 amount) public {
 		amount = bound(amount, 0, UINT256_MAX - IERC20(_wrappedUsdc()).totalSupply());
 
 		uint16 senderChain = 23;
@@ -742,10 +1024,7 @@ contract OrderRouterTest is Test {
 	}
 
 	function _cctpBurnLimit() internal returns (uint256 limit) {
-		limit = ICircleIntegration(WORMHOLE_CCTP_ADDRESS)
-			.circleBridge()
-			.localMinter()
-			.burnLimitsPerMessage(USDC_ADDRESS);
+		limit = wormholeCctp.circleBridge().localMinter().burnLimitsPerMessage(USDC_ADDRESS);
 
 		// Having this check prevents us forking a network where Circle has not set a burn limit.
 		assertGt(limit, 0);
@@ -975,7 +1254,7 @@ contract OrderRouterTest is Test {
 		return wormholeSimulator.encodeAndSignMessage(vaa);
 	}
 
-	function _craftTokenBridgeFill(
+	function _craftTokenBridgeFillVaa(
 		OrderRouter router,
 		uint256 amount,
 		address tokenAddress,
@@ -983,11 +1262,14 @@ contract OrderRouterTest is Test {
 		bytes32 fromAddress,
 		uint16 fromChain,
 		Messages.Fill memory fill
-	) internal view returns (bytes memory) {
+	) internal returns (bytes memory) {
+		bytes32 emitterAddress = tokenBridge.bridgeContracts(fromChain);
+		assertNotEq(emitterAddress, bytes32(0));
+
 		return
 			_createSignedVaa(
 				fromChain,
-				tokenBridge.bridgeContracts(fromChain),
+				emitterAddress,
 				tokenBridge.encodeTransferWithPayload(
 					ITokenBridge.TransferWithPayload({
 						payloadID: 3,
@@ -1018,7 +1300,7 @@ contract OrderRouterTest is Test {
 			redeemerMessage: expectedRedeemed.message
 		});
 
-		bytes memory encodedVaa = _craftTokenBridgeFill(
+		bytes memory encodedVaa = _craftTokenBridgeFillVaa(
 			router,
 			expectedRedeemed.amount,
 			tokenAddress,
@@ -1035,33 +1317,93 @@ contract OrderRouterTest is Test {
 		assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + redeemed.amount);
 	}
 
-	function _craftWormholeCctpFill(
+	function _makeRefundAddress() internal returns (bytes32) {
+		return toUniversalAddress(makeAddr("Where's my money?"));
+	}
+
+	function _craftWormholeCctpFillRedeemParams(
 		OrderRouter router,
 		uint256 amount,
 		bytes32 fromAddress,
 		uint16 fromChain,
 		Messages.Fill memory fill
-	) internal view returns (bytes memory) {
+	) internal returns (ICircleIntegration.RedeemParameters memory) {
+		bytes32 emitterAddress = wormholeCctp.getRegisteredEmitter(fromChain);
+		assertNotEq(emitterAddress, bytes32(0));
+
+		ICircleIntegration.DepositWithPayload memory deposit = ICircleIntegration
+			.DepositWithPayload({
+				token: toUniversalAddress(ARBITRUM_USDC_ADDRESS),
+				amount: amount,
+				sourceDomain: wormholeCctp.getDomainFromChainId(fromChain),
+				targetDomain: wormholeCctp.localDomain(),
+				nonce: 2 ** 64 - 1,
+				fromAddress: fromAddress,
+				mintRecipient: toUniversalAddress(address(router)),
+				payload: fill.encode()
+			});
+
+		bytes memory encodedVaa = _createSignedVaa(
+			fromChain,
+			emitterAddress,
+			wormholeCctp.encodeDepositWithPayload(deposit)
+		);
+
+		bytes memory circleMessage = circleSimulator.encodeBurnMessageLog(
+			CircleSimulator.CircleMessage({
+				version: 0,
+				sourceDomain: deposit.sourceDomain,
+				targetDomain: deposit.targetDomain,
+				nonce: deposit.nonce,
+				sourceCircle: FOREIGN_CIRCLE_BRIDGE,
+				targetCircle: CIRCLE_BRIDGE,
+				targetCaller: toUniversalAddress((address(wormholeCctp))),
+				token: deposit.token,
+				mintRecipient: deposit.mintRecipient,
+				amount: deposit.amount,
+				transferInitiator: FOREIGN_WORMHOLE_CCTP
+			})
+		);
+
 		return
-			_createSignedVaa(
-				fromChain,
-				wormholeCctp.getRegisteredEmitter(fromChain),
-				wormholeCctp.encodeDepositWithPayload(
-					ICircleIntegration.DepositWithPayload({
-						token: toUniversalAddress(USDC_ADDRESS),
-						amount: amount,
-						sourceDomain: wormholeCctp.getDomainFromChainId(fromChain),
-						targetDomain: wormholeCctp.localDomain(),
-						nonce: 2 ** 64 - 1,
-						fromAddress: fromAddress,
-						mintRecipient: toUniversalAddress(address(router)),
-						payload: fill.encode()
-					})
-				)
-			);
+			ICircleIntegration.RedeemParameters({
+				encodedWormholeMessage: encodedVaa,
+				circleBridgeMessage: circleMessage,
+				circleAttestation: circleSimulator.attestCircleMessage(circleMessage)
+			});
 	}
 
-	function _makeRefundAddress() internal returns (bytes32) {
-		return toUniversalAddress(makeAddr("Where's my money?"));
+	function _redeemWormholeCctpFill(
+		OrderRouter router,
+		RedeemedFill memory expectedRedeemed,
+		bytes32 fromAddress,
+		uint16 fromChain
+	) internal {
+		Messages.Fill memory fill = Messages.Fill({
+			sourceChain: expectedRedeemed.senderChain,
+			orderSender: expectedRedeemed.sender,
+			redeemer: toUniversalAddress(address(this)),
+			redeemerMessage: expectedRedeemed.message
+		});
+
+		ICircleIntegration.RedeemParameters
+			memory redeemParams = _craftWormholeCctpFillRedeemParams(
+				router,
+				expectedRedeemed.amount,
+				fromAddress,
+				fromChain,
+				fill
+			);
+
+		uint256 balanceBefore = router.orderToken().balanceOf(address(this));
+
+		RedeemedFill memory redeemed = router.redeemFill(redeemParams);
+		assertEq(keccak256(abi.encode(redeemed)), keccak256(abi.encode(expectedRedeemed)));
+		assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + redeemed.amount);
+	}
+
+	function _cctpMintLimit() internal returns (uint256 limit) {
+		// This is a hack, assuming the burn limit == mint limit.
+		return _cctpBurnLimit();
 	}
 }

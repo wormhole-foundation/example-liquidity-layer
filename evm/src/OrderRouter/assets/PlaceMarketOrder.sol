@@ -8,7 +8,7 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
 import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
-import {toUniversalAddress, fromUniversalAddress} from "../../shared/Utils.sol";
+import {toUniversalAddress} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";

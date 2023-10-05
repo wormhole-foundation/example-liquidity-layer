@@ -69,15 +69,21 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
 	) internal returns (RedeemedFill memory) {
 		uint16 emitterChain = _getEmitterChainFromVaa(encodedVaa);
 
+		// Parse the fill. We need to check the sender chain to see if it came from a known router.
+		Messages.Fill memory fill = payload.decodeFill();
+		RouterInfo memory src = this.getRouterInfo(fill.sourceChain);
+
 		// If the matching engine sent this fill, we bypass this whole conditional.
 		if (fromAddress != matchingEngineEndpoint) {
-			RouterInfo memory src = this.getRouterInfo(emitterChain);
-
 			// The case where the order router's token type is the direct fill type, then we need to
 			// make sure the source is what we expect from our known order routers.
 			if (tokenType == directFillTokenType) {
-				if (src.tokenType != directFillTokenType || fromAddress != src.endpoint) {
-					revert ErrInvalidSourceRouter(emitterChain, fromAddress);
+				if (
+					emitterChain != fill.sourceChain ||
+					src.tokenType != directFillTokenType ||
+					fromAddress != src.endpoint
+				) {
+					revert ErrInvalidSourceRouter(emitterChain, src.tokenType, fromAddress);
 				}
 			} else {
 				// Otherwise, this VAA is not for us.
@@ -87,8 +93,7 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
 			revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);
 		}
 
-		// Parse the fill and validate the redeemer.
-		Messages.Fill memory fill = payload.decodeFill();
+		// Make sure the redeemer is who we expect.
 		if (toUniversalAddress(msg.sender) != fill.redeemer) {
 			revert ErrInvalidFillRedeemer(toUniversalAddress(msg.sender), fill.redeemer);
 		}

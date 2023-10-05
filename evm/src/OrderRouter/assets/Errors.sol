@@ -2,13 +2,15 @@
 
 pragma solidity ^0.8.0;
 
+import {TokenType} from "./State.sol";
+
 error ErrAmountTooLarge(uint256 amount, uint256 maximum);
 
 error ErrInsufficientAmount(uint256 amount, uint256 minimum);
 
 error ErrInvalidFillRedeemer(bytes32 redeemer, bytes32 expected);
 
-error ErrInvalidSourceRouter(uint16 chain, bytes32 fromAddress);
+error ErrInvalidSourceRouter(uint16 chain, TokenType tokenType, bytes32 fromAddress);
 
 error ErrMinAmountOutExceedsLimit(uint256 minAmountOut, uint256 limit);
 
