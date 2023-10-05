@@ -7,3 +7,4 @@ broadcast
 forge-scripts/deploy.out
 ts/src/types
 dist
+ts-types

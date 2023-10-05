@@ -32,7 +32,6 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     error InvalidRoute();
     error RouteNotAvailable();
     error RouteMismatch();
-    error InvalidPool();
     error UnregisteredOrderRouter();
     error NotAllowedRelayer();
     error NotAttested();
@@ -43,6 +42,10 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         address curve,
         int8 nativeTokenPoolIndex
     ) {
+        if (tokenBridge == address(0) || circleIntegration == address(0) || curve == address(0)) {
+            revert InvalidAddress();
+        }
+
         _tokenBridge = ITokenBridge(tokenBridge);
         _circleIntegration = ICircleIntegration(circleIntegration);
         _chainId = _tokenBridge.chainId();

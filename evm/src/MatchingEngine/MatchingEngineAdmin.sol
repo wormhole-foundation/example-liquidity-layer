@@ -9,6 +9,7 @@ import {CurvePoolInfo, Route, getExecutionRouteState, getCurvePoolState, getOrde
 abstract contract MatchingEngineAdmin is Admin {
     // Errors.
     error InvalidChainId();
+    error InvalidTokenIndex();
 
     function enableExecutionRoute(
         uint16 chainId,
@@ -19,8 +20,11 @@ abstract contract MatchingEngineAdmin is Admin {
         if (target == address(0)) {
             revert InvalidAddress();
         }
+        if (cctp && poolIndex != getCurvePoolState().nativeTokenIndex) {
+            revert InvalidTokenIndex();
+        }
 
-        // Update the route.
+        // Set the route.
         Route storage route = getExecutionRouteState().routes[chainId];
         route.target = target;
         route.cctp = cctp;

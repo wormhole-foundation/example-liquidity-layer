@@ -170,7 +170,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         uint16 chainId = 69;
         address target = makeAddr("ethEmitter");
         bool cctp = true;
-        int8 poolIndex = 1;
+        int8 poolIndex = 0; // CCTP USDC index.
 
         {
             IMatchingEngine.Route memory route = engine.getExecutionRoute(chainId);
@@ -207,17 +207,27 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     function testCannotEnableExecutionRouteInvalidAddress() public {
         uint16 chainId = 69;
         address target = address(0);
-        bool cctp = true;
+        bool cctp = false;
         int8 poolIndex = 1;
 
         vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
         engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
     }
 
+    function testCannotEnableExecutionRouteInvalidTokenIndex() public {
+        uint16 chainId = 69;
+        address target = makeAddr("token");
+        bool cctp = true;
+        int8 poolIndex = 69; // Must be CCTP USDC index.
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidTokenIndex()"));
+        engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
+    }
+
     function testCannotEnableExecutionRouteOwnerOnly() public {
         uint16 chainId = 69;
-        address target = makeAddr("ethEmitter");
-        bool cctp = true;
+        address target = makeAddr("token");
+        bool cctp = false;
         int8 poolIndex = 1;
 
         vm.prank(makeAddr("robber"));
@@ -227,8 +237,8 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
     function testDisableExecutionRoute() public {
         uint16 chainId = 69;
-        address target = makeAddr("ethEmitter");
-        bool cctp = true;
+        address target = makeAddr("token");
+        bool cctp = false;
         int8 poolIndex = 1;
 
         // Set the initial route.
@@ -253,7 +263,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
     function testRegisterOrderRouter() public {
         uint16 chainId = 69;
-        bytes32 router = bytes32(uint256(420));
+        bytes32 router = toUniversalAddress(makeAddr("orderRouter"));
 
         {
             bytes32 registered = engine.getOrderRouter(chainId);
@@ -270,7 +280,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Update the router to make sure the owner can change it.
         {
-            router = bytes32(uint256(69));
+            router = toUniversalAddress(makeAddr("orderRouter2"));
 
             engine.registerOrderRouter(chainId, router);
 
@@ -1040,6 +1050,161 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.executeOrder(signedOrder);
     }
 
+    function testCannotExecuteOrderRouteMismatchTokenBridge() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        // Disable the target route.
+        engine.enableExecutionRoute(SUI_CHAIN, makeAddr("badAddress"), false, 69);
+
+        bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ETH_USDC),
+            ETH_CHAIN,
+            SUI_ROUTER,
+            SUI_BRIDGE,
+            SUI_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut, // Min amount out.
+                ARB_CHAIN,
+                redeemerMessage,
+                RELAYER_FEE,
+                new bytes32[](0)
+            )
+        );
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("RouteMismatch()"));
+        engine.executeOrder(signedOrder);
+    }
+
+    function testCannotExecuteOrderNotAllowedRelayerTokenBridge() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        // Create list of allowed relayers.
+        bytes32[] memory allowedRelayers = _createAllowedRelayerArray(5);
+
+        bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ETH_USDC),
+            ETH_CHAIN,
+            SUI_ROUTER,
+            SUI_BRIDGE,
+            SUI_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut, // Min amount out.
+                ARB_CHAIN,
+                redeemerMessage,
+                RELAYER_FEE,
+                allowedRelayers
+            )
+        );
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("NotAllowedRelayer()"));
+        vm.prank(makeAddr("notAllowedRelayer"));
+        engine.executeOrder(signedOrder);
+    }
+
+    function testCannotExecuteOrderUnregisteredOrderRouterTokenBridge() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ETH_USDC),
+            ETH_CHAIN,
+            SUI_ROUTER,
+            SUI_BRIDGE,
+            SUI_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut, // Min amount out.
+                ARB_CHAIN,
+                redeemerMessage,
+                RELAYER_FEE,
+                new bytes32[](0)
+            )
+        );
+
+        // Change the registered emitter address for the Sui chain.
+        engine.registerOrderRouter(SUI_CHAIN, toUniversalAddress(makeAddr("badAddress")));
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("UnregisteredOrderRouter()"));
+        engine.executeOrder(signedOrder);
+    }
+
+    function testCannotExecuteOrderUnregisteredOrderRouterNoTargetTokenBridge() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        // Send to an unregistered chain ID.
+        bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ETH_USDC),
+            ETH_CHAIN,
+            SUI_ROUTER,
+            SUI_BRIDGE,
+            SUI_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut,
+                69, // Unregistered chain ID.
+                redeemerMessage,
+                RELAYER_FEE,
+                new bytes32[](0)
+            )
+        );
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("UnregisteredOrderRouter()"));
+        engine.executeOrder(signedOrder);
+    }
+
+    function testCannotExecuteOrderIsPausedTokenBridge() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        // Send to an unregistered chain ID.
+        bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ETH_USDC),
+            ETH_CHAIN,
+            SUI_ROUTER,
+            SUI_BRIDGE,
+            SUI_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut,
+                ARB_CHAIN,
+                redeemerMessage,
+                RELAYER_FEE,
+                new bytes32[](0)
+            )
+        );
+
+        // Pause the engine.
+        engine.setPause(true);
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("ContractPaused()"));
+        engine.executeOrder(signedOrder);
+    }
+
     function testCannotExecuteOrderInvalidRouteCCTP() public {
         // Parameters.
         uint256 amount = INIT_LIQUIDITY / 2;
@@ -1067,6 +1232,161 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Expect failure.
         vm.expectRevert(abi.encodeWithSignature("InvalidRoute()"));
+        engine.executeOrder(params);
+    }
+
+    function testCannotExecuteOrderRouteNotAvailableCCTP() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        // Enable new CCTP route with invalid chainID.
+        engine.enableExecutionRoute(
+            POLY_CHAIN,
+            WRAPPED_POLY_USDC,
+            true, // Set CCTP to true.
+            int8(curvePoolIndex[USDC])
+        );
+
+        // Set the target chain to a CCTP enabled chain.
+        ICircleIntegration.RedeemParameters memory params = _craftValidCCTPMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ARB_USDC),
+            ARB_ROUTER,
+            ARB_CIRCLE_INTEGRATION,
+            ARB_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut, // Min amount out.
+                POLY_CHAIN,
+                redeemerMessage,
+                RELAYER_FEE,
+                new bytes32[](0)
+            )
+        );
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("RouteNotAvailable()"));
+        engine.executeOrder(params);
+    }
+
+    function testCannotExecuteOrderNotAllowedRelayerCCTP() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        // Create list of allowed relayers.
+        bytes32[] memory allowedRelayers = _createAllowedRelayerArray(5);
+
+        ICircleIntegration.RedeemParameters memory params = _craftValidCCTPMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ARB_USDC),
+            ARB_ROUTER,
+            ARB_CIRCLE_INTEGRATION,
+            ARB_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut, // Min amount out.
+                POLY_CHAIN,
+                redeemerMessage,
+                RELAYER_FEE,
+                allowedRelayers
+            )
+        );
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("NotAllowedRelayer()"));
+        vm.prank(makeAddr("notAllowedRelayer"));
+        engine.executeOrder(params);
+    }
+
+    function testCannotExecuteOrderUnregisteredOrderRouterCCTP() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        ICircleIntegration.RedeemParameters memory params = _craftValidCCTPMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ARB_USDC),
+            ARB_ROUTER,
+            ARB_CIRCLE_INTEGRATION,
+            ARB_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut, // Min amount out.
+                POLY_CHAIN,
+                redeemerMessage,
+                RELAYER_FEE,
+                new bytes32[](0)
+            )
+        );
+
+        // Change the registered emitter address for the Arb chain.
+        engine.registerOrderRouter(ARB_CHAIN, toUniversalAddress(makeAddr("badAddress")));
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("UnregisteredOrderRouter()"));
+        engine.executeOrder(params);
+    }
+
+    function testCannotExecuteOrderUnregisteredOrderRouterNoTargetCCTP() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        // Send to an unregistered chain ID.
+        ICircleIntegration.RedeemParameters memory params = _craftValidCCTPMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ARB_USDC),
+            ARB_ROUTER,
+            ARB_CIRCLE_INTEGRATION,
+            ARB_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut, // Min amount out.
+                69, // Unregistered chain ID.
+                redeemerMessage,
+                RELAYER_FEE,
+                new bytes32[](0)
+            )
+        );
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("UnregisteredOrderRouter()"));
+        engine.executeOrder(params);
+    }
+
+    function testCannotExecuteOrderIsPausedCCTP() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        ICircleIntegration.RedeemParameters memory params = _craftValidCCTPMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ARB_USDC),
+            ARB_ROUTER,
+            ARB_CIRCLE_INTEGRATION,
+            ARB_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut, // Min amount out.
+                POLY_CHAIN,
+                redeemerMessage,
+                RELAYER_FEE,
+                new bytes32[](0)
+            )
+        );
+
+        // Pause the engine.
+        engine.setPause(true);
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("ContractPaused()"));
         engine.executeOrder(params);
     }
 }
