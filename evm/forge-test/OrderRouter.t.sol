@@ -154,9 +154,6 @@ contract OrderRouterTest is Test {
     function testCannotPlaceMarketOrderErrUnsupportedChain() public {
         uint256 amountIn = 69;
 
-        // TODO
-        //_dealAndApproveUsdc(nativeRouter, amountIn);
-
         uint16 targetChain = 2;
         PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
             amountIn: amountIn,
@@ -257,7 +254,7 @@ contract OrderRouterTest is Test {
     }
 
     function testNativeRouterPlaceMarketOrder(uint256 amountIn, uint8 dstTokenTypeInt) public {
-        amountIn = bound(amountIn, 1, _tokenBridgeBridgeOutLimit());
+        amountIn = bound(amountIn, 1, _tokenBridgeOutboundLimit());
         // This is a hack because forge tests cannot fuzz test enums yet.
         vm.assume(
             dstTokenTypeInt == uint8(TokenType.Native) ||
@@ -297,7 +294,7 @@ contract OrderRouterTest is Test {
         uint256 relayerFee,
         uint8 dstTokenTypeInt
     ) public {
-        uint256 amountIn = _tokenBridgeBridgeOutLimit();
+        uint256 amountIn = _tokenBridgeOutboundLimit();
         relayerFee = bound(relayerFee, 1, _computeSlippage(amountIn) - 1);
         // This is a hack because forge tests cannot fuzz test enums yet.
         vm.assume(
@@ -339,7 +336,7 @@ contract OrderRouterTest is Test {
         uint8 dstTokenTypeInt
     ) public {
         numAllowedRelayers = bound(numAllowedRelayers, 0, 8);
-        uint256 amountIn = _tokenBridgeBridgeOutLimit();
+        uint256 amountIn = _tokenBridgeOutboundLimit();
         uint256 relayerFee = amountIn / 2;
         // This is a hack because forge tests cannot fuzz test enums yet.
         vm.assume(
@@ -655,14 +652,14 @@ contract OrderRouterTest is Test {
             redeemerMessage: bytes("Somebody set up us the bomb")
         });
 
-        bytes memory encodedVaa = _craftTokenBridgeFillVaa(
+        bytes memory encodedVaa = _craftTokenBridgeVaa(
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
             nativeRouter.wormholeChain(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             MATCHING_ENGINE_CHAIN,
-            fill
+            fill.encode()
         );
 
         vm.expectRevert(abi.encodeWithSelector(ErrUnsupportedChain.selector, senderChain));
@@ -683,14 +680,14 @@ contract OrderRouterTest is Test {
         bytes32 emitterAddress = toUniversalAddress(makeAddr("not matching engine"));
         assertNotEq(emitterAddress, toUniversalAddress(MATCHING_ENGINE_ADDRESS));
 
-        bytes memory encodedVaa = _craftTokenBridgeFillVaa(
+        bytes memory encodedVaa = _craftTokenBridgeVaa(
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
             nativeRouter.wormholeChain(),
             emitterAddress,
             MATCHING_ENGINE_CHAIN,
-            fill
+            fill.encode()
         );
 
         vm.expectRevert(
@@ -717,14 +714,14 @@ contract OrderRouterTest is Test {
         uint16 emitterChain = 3;
         assertNotEq(emitterChain, MATCHING_ENGINE_CHAIN);
 
-        bytes memory encodedVaa = _craftTokenBridgeFillVaa(
+        bytes memory encodedVaa = _craftTokenBridgeVaa(
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
             nativeRouter.wormholeChain(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             emitterChain,
-            fill
+            fill.encode()
         );
 
         vm.expectRevert(
@@ -737,7 +734,7 @@ contract OrderRouterTest is Test {
         nativeRouter.redeemFill(encodedVaa);
     }
 
-    function testCannotRedeemFillErrInvalidFillRedeemer() public {
+    function testCannotRedeemFillErrInvalidRedeemer() public {
         uint16 senderChain = 1;
         _registerTargetChain(nativeRouter, senderChain, TokenType.Native);
 
@@ -749,19 +746,19 @@ contract OrderRouterTest is Test {
             redeemerMessage: bytes("Somebody set up us the bomb")
         });
 
-        bytes memory encodedVaa = _craftTokenBridgeFillVaa(
+        bytes memory encodedVaa = _craftTokenBridgeVaa(
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
             nativeRouter.wormholeChain(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             MATCHING_ENGINE_CHAIN,
-            fill
+            fill.encode()
         );
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ErrInvalidFillRedeemer.selector,
+                ErrInvalidRedeemer.selector,
                 toUniversalAddress(address(this)),
                 expectedRedeemer
             )
@@ -769,8 +766,150 @@ contract OrderRouterTest is Test {
         nativeRouter.redeemFill(encodedVaa);
     }
 
+    function testCannotRedeemFillInvalidPayloadId() public {
+        uint16 senderChain = 1;
+        _registerTargetChain(nativeRouter, senderChain, TokenType.Native);
+
+        Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
+            reason: Messages.RevertType.SwapFailed,
+            refundAddress: toUniversalAddress(address(this))
+        });
+
+        bytes memory encodedVaa = _craftTokenBridgeVaa(
+            nativeRouter,
+            69, // amount
+            USDC_ADDRESS,
+            nativeRouter.wormholeChain(),
+            toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+            MATCHING_ENGINE_CHAIN,
+            orderRevert.encode()
+        );
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidPayloadId(uint8,uint8)", 0x20, 0x10));
+        nativeRouter.redeemFill(encodedVaa);
+    }
+
+    function testCannotRedeemOrderRevertInvalidPayloadId() public {
+        uint16 senderChain = 1;
+        _registerTargetChain(nativeRouter, senderChain, TokenType.Native);
+
+        Messages.Fill memory fill = Messages.Fill({
+            sourceChain: senderChain,
+            orderSender: 0x1337133713371337133713371337133713371337133713371337133713371337,
+            redeemer: toUniversalAddress(address(this)),
+            redeemerMessage: bytes("Somebody set up us the bomb")
+        });
+
+        bytes memory encodedVaa = _craftTokenBridgeVaa(
+            nativeRouter,
+            69, // amount
+            USDC_ADDRESS,
+            nativeRouter.wormholeChain(),
+            toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+            MATCHING_ENGINE_CHAIN,
+            fill.encode()
+        );
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidPayloadId(uint8,uint8)", 0x10, 0x20));
+        nativeRouter.redeemOrderRevert(encodedVaa);
+    }
+
+    function testCannotRedeemOrderRevertErrSourceNotMatchingEngine1() public {
+        uint16 senderChain = 1;
+        _registerTargetChain(nativeRouter, senderChain, TokenType.Native);
+
+        Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
+            reason: Messages.RevertType.SwapFailed,
+            refundAddress: toUniversalAddress(address(this))
+        });
+
+        bytes32 emitterAddress = toUniversalAddress(makeAddr("not matching engine"));
+        assertNotEq(emitterAddress, toUniversalAddress(MATCHING_ENGINE_ADDRESS));
+
+        bytes memory encodedVaa = _craftTokenBridgeVaa(
+            nativeRouter,
+            69, // amount
+            USDC_ADDRESS,
+            nativeRouter.wormholeChain(),
+            emitterAddress,
+            MATCHING_ENGINE_CHAIN,
+            orderRevert.encode()
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ErrSourceNotMatchingEngine.selector,
+                MATCHING_ENGINE_CHAIN,
+                emitterAddress
+            )
+        );
+        nativeRouter.redeemOrderRevert(encodedVaa);
+    }
+
+    function testCannotRedeemOrderRevertErrSourceNotMatchingEngine2() public {
+        uint16 senderChain = 1;
+        _registerTargetChain(nativeRouter, senderChain, TokenType.Native);
+
+        Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
+            reason: Messages.RevertType.SwapFailed,
+            refundAddress: toUniversalAddress(address(this))
+        });
+
+        uint16 emitterChain = 3;
+        assertNotEq(emitterChain, MATCHING_ENGINE_CHAIN);
+
+        bytes memory encodedVaa = _craftTokenBridgeVaa(
+            nativeRouter,
+            69, // amount
+            USDC_ADDRESS,
+            nativeRouter.wormholeChain(),
+            toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+            emitterChain,
+            orderRevert.encode()
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ErrSourceNotMatchingEngine.selector,
+                emitterChain,
+                toUniversalAddress(MATCHING_ENGINE_ADDRESS)
+            )
+        );
+        nativeRouter.redeemOrderRevert(encodedVaa);
+    }
+
+    function testCannotRedeemOrderRevertErrInvalidRedeemer() public {
+        uint16 senderChain = 1;
+        _registerTargetChain(nativeRouter, senderChain, TokenType.Native);
+
+        bytes32 expectedRedeemer = toUniversalAddress(makeAddr("someone else"));
+        Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
+            reason: Messages.RevertType.SwapFailed,
+            refundAddress: expectedRedeemer
+        });
+
+        bytes memory encodedVaa = _craftTokenBridgeVaa(
+            nativeRouter,
+            69, // amount
+            USDC_ADDRESS,
+            nativeRouter.wormholeChain(),
+            toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+            MATCHING_ENGINE_CHAIN,
+            orderRevert.encode()
+        );
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ErrInvalidRedeemer.selector,
+                toUniversalAddress(address(this)),
+                expectedRedeemer
+            )
+        );
+        nativeRouter.redeemOrderRevert(encodedVaa);
+    }
+
     function testNativeRouterRedeemFill(uint256 amount, uint8 srcTokenTypeInt) public {
-        amount = bound(amount, 0, _tokenBridgeBridgeInLimit());
+        amount = bound(amount, 0, _tokenBridgeInboundLimit());
         // This is a hack because forge tests cannot fuzz test enums yet.
         vm.assume(
             srcTokenTypeInt == uint8(TokenType.Native) ||
@@ -799,6 +938,29 @@ contract OrderRouterTest is Test {
         );
     }
 
+    function testNativeRouterRedeemOrderRevert(uint256 refundAmount, uint8 srcTokenTypeInt) public {
+        refundAmount = bound(refundAmount, 0, _tokenBridgeInboundLimit());
+        // This is a hack because forge tests cannot fuzz test enums yet.
+        vm.assume(
+            srcTokenTypeInt == uint8(TokenType.Native) ||
+                srcTokenTypeInt == uint8(TokenType.Canonical) ||
+                srcTokenTypeInt == uint8(TokenType.Cctp)
+        );
+
+        uint16 senderChain = 1;
+        _registerTargetChain(nativeRouter, senderChain, TokenType(srcTokenTypeInt));
+
+        _redeemTokenBridgeOrderRevert(
+            nativeRouter,
+            refundAmount,
+            Messages.RevertType.SwapFailed,
+            USDC_ADDRESS,
+            nativeRouter.wormholeChain(),
+            toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+            MATCHING_ENGINE_CHAIN
+        );
+    }
+
     function testCctpEnabledRouterCannotRedeemFillErrInvalidSourceRouter1() public {
         uint16 senderChain = 1;
         _registerTargetChain(cctpEnabledRouter, senderChain, TokenType.Cctp);
@@ -813,14 +975,13 @@ contract OrderRouterTest is Test {
         uint16 emitterChain = 23;
         assertNotEq(emitterChain, senderChain);
 
-        ICircleIntegration.RedeemParameters
-            memory redeemParams = _craftWormholeCctpFillRedeemParams(
-                cctpEnabledRouter,
-                69, // amount
-                TESTING_FOREIGN_ROUTER_ENDPOINT,
-                emitterChain,
-                fill
-            );
+        ICircleIntegration.RedeemParameters memory redeemParams = _craftWormholeCctpRedeemParams(
+            cctpEnabledRouter,
+            69, // amount
+            TESTING_FOREIGN_ROUTER_ENDPOINT,
+            emitterChain,
+            fill.encode()
+        );
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -844,14 +1005,13 @@ contract OrderRouterTest is Test {
             redeemerMessage: bytes("Somebody set up us the bomb")
         });
 
-        ICircleIntegration.RedeemParameters
-            memory redeemParams = _craftWormholeCctpFillRedeemParams(
-                cctpEnabledRouter,
-                69, // amount
-                TESTING_FOREIGN_ROUTER_ENDPOINT,
-                senderChain,
-                fill
-            );
+        ICircleIntegration.RedeemParameters memory redeemParams = _craftWormholeCctpRedeemParams(
+            cctpEnabledRouter,
+            69, // amount
+            TESTING_FOREIGN_ROUTER_ENDPOINT,
+            senderChain,
+            fill.encode()
+        );
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -876,14 +1036,13 @@ contract OrderRouterTest is Test {
         });
 
         bytes32 fromAddress = toUniversalAddress(makeAddr("unrecognized sender"));
-        ICircleIntegration.RedeemParameters
-            memory redeemParams = _craftWormholeCctpFillRedeemParams(
-                cctpEnabledRouter,
-                69, // amount
-                fromAddress,
-                senderChain,
-                fill
-            );
+        ICircleIntegration.RedeemParameters memory redeemParams = _craftWormholeCctpRedeemParams(
+            cctpEnabledRouter,
+            69, // amount
+            fromAddress,
+            senderChain,
+            fill.encode()
+        );
 
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -894,6 +1053,30 @@ contract OrderRouterTest is Test {
             )
         );
         cctpEnabledRouter.redeemFill(redeemParams);
+    }
+
+    function testCctpEnabledRouterRedeemOrderRevert(
+        uint256 refundAmount,
+        uint8 srcTokenTypeInt
+    ) public {
+        refundAmount = bound(refundAmount, 1, _cctpMintLimit());
+        // This is a hack because forge tests cannot fuzz test enums yet.
+        vm.assume(
+            srcTokenTypeInt == uint8(TokenType.Native) ||
+                srcTokenTypeInt == uint8(TokenType.Canonical) ||
+                srcTokenTypeInt == uint8(TokenType.Cctp)
+        );
+
+        uint16 senderChain = 1;
+        _registerTargetChain(cctpEnabledRouter, senderChain, TokenType(srcTokenTypeInt));
+
+        _redeemWormholeCctpOrderRevert(
+            cctpEnabledRouter,
+            refundAmount,
+            Messages.RevertType.SwapFailed,
+            toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+            MATCHING_ENGINE_CHAIN
+        );
     }
 
     function testCctpEnabledRouterRedeemFillFromMatchingEngine(
@@ -1203,7 +1386,7 @@ contract OrderRouterTest is Test {
         return amountMinusSlippage - relayerFee;
     }
 
-    function _tokenBridgeBridgeOutLimit() internal returns (uint256) {
+    function _tokenBridgeOutboundLimit() internal returns (uint256) {
         uint256 supplyMinusBridged = IERC20(USDC_ADDRESS).totalSupply() -
             ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS);
 
@@ -1215,7 +1398,7 @@ contract OrderRouterTest is Test {
                 : nativeRouter.MAX_AMOUNT();
     }
 
-    function _tokenBridgeBridgeInLimit() internal returns (uint256) {
+    function _tokenBridgeInboundLimit() internal returns (uint256) {
         uint256 supply = IERC20(USDC_ADDRESS).totalSupply();
         uint256 amount = supply -
             ITokenBridge(TOKEN_BRIDGE_ADDRESS).outstandingBridged(USDC_ADDRESS);
@@ -1254,14 +1437,14 @@ contract OrderRouterTest is Test {
         return wormholeSimulator.encodeAndSignMessage(vaa);
     }
 
-    function _craftTokenBridgeFillVaa(
+    function _craftTokenBridgeVaa(
         OrderRouter router,
         uint256 amount,
         address tokenAddress,
         uint16 tokenChain,
         bytes32 fromAddress,
         uint16 fromChain,
-        Messages.Fill memory fill
+        bytes memory encodedMessage
     ) internal returns (bytes memory) {
         bytes32 emitterAddress = tokenBridge.bridgeContracts(fromChain);
         assertNotEq(emitterAddress, bytes32(0));
@@ -1279,7 +1462,7 @@ contract OrderRouterTest is Test {
                         to: toUniversalAddress(address(router)),
                         toChain: router.wormholeChain(),
                         fromAddress: fromAddress,
-                        payload: fill.encode()
+                        payload: encodedMessage
                     })
                 )
             );
@@ -1300,14 +1483,14 @@ contract OrderRouterTest is Test {
             redeemerMessage: expectedRedeemed.message
         });
 
-        bytes memory encodedVaa = _craftTokenBridgeFillVaa(
+        bytes memory encodedVaa = _craftTokenBridgeVaa(
             router,
             expectedRedeemed.amount,
             tokenAddress,
             tokenChain,
             fromAddress,
             fromChain,
-            fill
+            fill.encode()
         );
 
         uint256 balanceBefore = router.orderToken().balanceOf(address(this));
@@ -1317,16 +1500,47 @@ contract OrderRouterTest is Test {
         assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + redeemed.amount);
     }
 
+    function _redeemTokenBridgeOrderRevert(
+        OrderRouter router,
+        uint256 refundAmount,
+        Messages.RevertType expectedReason,
+        address tokenAddress,
+        uint16 tokenChain,
+        bytes32 fromAddress,
+        uint16 fromChain
+    ) internal {
+        Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
+            reason: expectedReason,
+            refundAddress: toUniversalAddress(address(this))
+        });
+
+        bytes memory encodedVaa = _craftTokenBridgeVaa(
+            router,
+            refundAmount,
+            tokenAddress,
+            tokenChain,
+            fromAddress,
+            fromChain,
+            orderRevert.encode()
+        );
+
+        uint256 balanceBefore = router.orderToken().balanceOf(address(this));
+
+        Messages.RevertType reason = router.redeemOrderRevert(encodedVaa);
+        assertEq(uint8(reason), uint8(expectedReason));
+        assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + refundAmount);
+    }
+
     function _makeRefundAddress() internal returns (bytes32) {
         return toUniversalAddress(makeAddr("Where's my money?"));
     }
 
-    function _craftWormholeCctpFillRedeemParams(
+    function _craftWormholeCctpRedeemParams(
         OrderRouter router,
         uint256 amount,
         bytes32 fromAddress,
         uint16 fromChain,
-        Messages.Fill memory fill
+        bytes memory encodedMessage
     ) internal returns (ICircleIntegration.RedeemParameters memory) {
         bytes32 emitterAddress = wormholeCctp.getRegisteredEmitter(fromChain);
         assertNotEq(emitterAddress, bytes32(0));
@@ -1340,7 +1554,7 @@ contract OrderRouterTest is Test {
                 nonce: 2 ** 64 - 1,
                 fromAddress: fromAddress,
                 mintRecipient: toUniversalAddress(address(router)),
-                payload: fill.encode()
+                payload: encodedMessage
             });
 
         bytes memory encodedVaa = _createSignedVaa(
@@ -1386,20 +1600,46 @@ contract OrderRouterTest is Test {
             redeemerMessage: expectedRedeemed.message
         });
 
-        ICircleIntegration.RedeemParameters
-            memory redeemParams = _craftWormholeCctpFillRedeemParams(
-                router,
-                expectedRedeemed.amount,
-                fromAddress,
-                fromChain,
-                fill
-            );
+        ICircleIntegration.RedeemParameters memory redeemParams = _craftWormholeCctpRedeemParams(
+            router,
+            expectedRedeemed.amount,
+            fromAddress,
+            fromChain,
+            fill.encode()
+        );
 
         uint256 balanceBefore = router.orderToken().balanceOf(address(this));
 
         RedeemedFill memory redeemed = router.redeemFill(redeemParams);
         assertEq(keccak256(abi.encode(redeemed)), keccak256(abi.encode(expectedRedeemed)));
         assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + redeemed.amount);
+    }
+
+    function _redeemWormholeCctpOrderRevert(
+        OrderRouter router,
+        uint256 refundAmount,
+        Messages.RevertType expectedReason,
+        bytes32 fromAddress,
+        uint16 fromChain
+    ) internal {
+        Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
+            reason: expectedReason,
+            refundAddress: toUniversalAddress(address(this))
+        });
+
+        ICircleIntegration.RedeemParameters memory redeemParams = _craftWormholeCctpRedeemParams(
+            router,
+            refundAmount,
+            fromAddress,
+            fromChain,
+            orderRevert.encode()
+        );
+
+        uint256 balanceBefore = router.orderToken().balanceOf(address(this));
+
+        Messages.RevertType reason = router.redeemOrderRevert(redeemParams);
+        assertEq(uint8(reason), uint8(expectedReason));
+        assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + refundAmount);
     }
 
     function _cctpMintLimit() internal returns (uint256 limit) {

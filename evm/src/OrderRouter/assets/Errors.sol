@@ -8,7 +8,7 @@ error ErrAmountTooLarge(uint256 amount, uint256 maximum);
 
 error ErrInsufficientAmount(uint256 amount, uint256 minimum);
 
-error ErrInvalidFillRedeemer(bytes32 redeemer, bytes32 expected);
+error ErrInvalidRedeemer(bytes32 redeemer, bytes32 expected);
 
 error ErrInvalidSourceRouter(uint16 chain, TokenType tokenType, bytes32 fromAddress);
 

@@ -9,7 +9,7 @@ library Messages {
 
     uint8 private constant MARKET_ORDER = 0x1;
     uint8 private constant FILL = 0x10;
-    uint8 private constant REVERT = 0x20;
+    uint8 private constant ORDER_REVERT = 0x20;
 
     // Custom errors.
     error InvalidPayloadId(uint8 parsedPayloadId, uint8 expectedPayloadId);
@@ -113,13 +113,13 @@ library Messages {
     }
 
     function encode(OrderRevert memory reverted) internal pure returns (bytes memory encoded) {
-        encoded = abi.encodePacked(REVERT, reverted.reason, reverted.refundAddress);
+        encoded = abi.encodePacked(ORDER_REVERT, reverted.reason, reverted.refundAddress);
     }
 
     function decodeOrderRevert(
         bytes memory encoded
     ) internal pure returns (OrderRevert memory reverted) {
-        uint256 offset = checkPayloadId(encoded, 0, REVERT);
+        uint256 offset = checkPayloadId(encoded, 0, ORDER_REVERT);
 
         uint8 reason;
         (reason, offset) = encoded.asUint8Unchecked(offset);

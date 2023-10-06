@@ -14,24 +14,23 @@ import {toUniversalAddress, unsafeEmitterChainFromVaa} from "../../shared/Utils.
 import "./Errors.sol";
 import {State} from "./State.sol";
 
-import "../../interfaces/IRedeemFill.sol";
+import "../../interfaces/IRedeemOrderRevert.sol";
 import {RouterInfo, TokenType} from "../../interfaces/Types.sol";
 
-abstract contract RedeemFill is IRedeemFill, Admin, State {
+abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
     using Messages for *;
 
     /**
      * @notice Redeem a fill sent by either another Order Router or the Matching Engine.
      */
-    function redeemFill(bytes calldata encodedVaa) external returns (RedeemedFill memory) {
+    function redeemOrderRevert(bytes calldata encodedVaa) external returns (Messages.RevertType) {
         ITokenBridge.TransferWithPayload memory transfer = tokenBridge.parseTransferWithPayload(
             tokenBridge.completeTransferWithPayload(encodedVaa)
         );
 
         return
-            _processFill(
+            _processOrderRevert(
                 encodedVaa,
-                TokenType.Canonical,
                 transfer.fromAddress,
                 transfer.amount,
                 transfer.payload
@@ -41,71 +40,44 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
     /**
      * @notice Redeem a fill sent by either another Order Router or the Matching Engine via CCTP.
      */
-    function redeemFill(
+    function redeemOrderRevert(
         ICircleIntegration.RedeemParameters calldata redeemParams
-    ) external returns (RedeemedFill memory) {
+    ) external returns (Messages.RevertType) {
         ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp.redeemTokensWithPayload(
             redeemParams
         );
 
         return
-            _processFill(
+            _processOrderRevert(
                 redeemParams.encodedWormholeMessage,
-                TokenType.Cctp,
                 deposit.fromAddress,
                 deposit.amount,
                 deposit.payload
             );
     }
 
-    function _processFill(
+    function _processOrderRevert(
         bytes memory encodedVaa,
-        TokenType directFillTokenType,
         bytes32 fromAddress,
         uint256 amount,
         bytes memory payload
-    ) internal returns (RedeemedFill memory) {
+    ) internal returns (Messages.RevertType) {
         uint16 emitterChain = unsafeEmitterChainFromVaa(encodedVaa);
-
-        // Parse the fill. We need to check the sender chain to see if it came from a known router.
-        Messages.Fill memory fill = payload.decodeFill();
-        RouterInfo memory src = this.getRouterInfo(fill.sourceChain);
-
-        // If the matching engine sent this fill, we bypass this whole conditional.
-        if (fromAddress != matchingEngineEndpoint) {
-            // The case where the order router's token type is the direct fill type, then we need to
-            // make sure the source is what we expect from our known order routers.
-            if (tokenType == directFillTokenType) {
-                if (
-                    emitterChain != fill.sourceChain ||
-                    src.tokenType != directFillTokenType ||
-                    fromAddress != src.endpoint
-                ) {
-                    revert ErrInvalidSourceRouter(emitterChain, src.tokenType, fromAddress);
-                }
-            } else {
-                // Otherwise, this VAA is not for us.
-                revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);
-            }
-        } else if (emitterChain != matchingEngineChain) {
+        if (emitterChain != matchingEngineChain || fromAddress != matchingEngineEndpoint) {
             revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);
         }
 
+        // Parse the fill. We need to check the sender chain to see if it came from a known router.
+        Messages.OrderRevert memory orderRevert = payload.decodeOrderRevert();
+
         // Make sure the redeemer is who we expect.
-        if (toUniversalAddress(msg.sender) != fill.redeemer) {
-            revert ErrInvalidRedeemer(toUniversalAddress(msg.sender), fill.redeemer);
+        if (toUniversalAddress(msg.sender) != orderRevert.refundAddress) {
+            revert ErrInvalidRedeemer(toUniversalAddress(msg.sender), orderRevert.refundAddress);
         }
 
         // Transfer token amount to redeemer.
         SafeERC20.safeTransfer(orderToken, msg.sender, amount);
 
-        return
-            RedeemedFill({
-                sender: fill.orderSender,
-                senderChain: fill.sourceChain,
-                token: address(orderToken),
-                amount: amount,
-                message: fill.redeemerMessage
-            });
+        return orderRevert.reason;
     }
 }

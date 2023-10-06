@@ -22,6 +22,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     uint256 public constant MAX_NUM_RELAYERS = 8;
 
+    event MarketOrderPlaced(address indexed sender, uint16 targetChain, uint256 relayerFee);
+
     function placeMarketOrder(
         PlaceMarketOrderArgs calldata args
     ) external payable notPaused returns (uint64 sequence) {
@@ -176,6 +178,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                     })
                     .encode()
             );
+
+            emit MarketOrderPlaced(msg.sender, args.targetChain, relayerFee);
         }
     }
 
@@ -208,6 +212,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 })
                 .encode()
         );
+
+        emit MarketOrderPlaced(msg.sender, args.targetChain, relayerFee);
     }
 
     function _validateForMatchingEngine(
