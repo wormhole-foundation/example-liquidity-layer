@@ -7,6 +7,9 @@ all: build
 unit-test: build
 	forge test --fork-url ${AVAX_RPC} -vv
 
+integration-test: .env build
+	bash ts/tests/run_integration_test.sh
+
 build: dependencies
 	forge build
 	npm run build-types
