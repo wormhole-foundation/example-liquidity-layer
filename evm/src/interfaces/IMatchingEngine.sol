@@ -6,6 +6,7 @@ import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
+import {Messages} from "../shared/Messages.sol";
 
 interface IMatchingEngine {
     struct Route {
@@ -27,6 +28,11 @@ interface IMatchingEngine {
 
     function executeOrder(
         ICircleIntegration.RedeemParameters calldata redeemParams
+    ) external payable returns (uint64 sequence);
+
+    function executeOrder(
+        uint256 amount,
+        Messages.MarketOrder memory order
     ) external payable returns (uint64 sequence);
 
     function enableExecutionRoute(

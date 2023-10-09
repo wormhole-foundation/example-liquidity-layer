@@ -14,9 +14,11 @@ import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {CircleSimulator} from "cctp-solidity/CircleSimulator.sol";
 import {WormholePoolTestHelper} from "curve-solidity/WormholeCurvePool.sol";
+import {Messages} from "../src/shared/Messages.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../src/shared/Utils.sol";
 import {SigningWormholeSimulator} from "modules/wormhole/WormholeSimulator.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     // Env variables.
@@ -44,6 +46,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     bytes32 immutable SUI_ROUTER = toUniversalAddress(makeAddr("suiRouter"));
     bytes32 immutable ARB_ROUTER = toUniversalAddress(makeAddr("arbRouter"));
     bytes32 immutable POLY_ROUTER = toUniversalAddress(makeAddr("polyRouter"));
+    bytes32 immutable AVAX_ROUTER = toUniversalAddress(makeAddr("avaxRouter"));
     uint256 immutable INIT_LIQUIDITY = 2_000_000 * 10 ** 6; // 2 x CCTP Burn Limit
     uint16 constant SUI_CHAIN = 21;
     uint16 constant ETH_CHAIN = 2;
@@ -113,6 +116,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.registerOrderRouter(SUI_CHAIN, SUI_ROUTER);
         engine.registerOrderRouter(ARB_CHAIN, ARB_ROUTER);
         engine.registerOrderRouter(POLY_CHAIN, POLY_ROUTER);
+        engine.registerOrderRouter(AVAX_CHAIN, AVAX_ROUTER);
 
         // Set the initial routes.
         engine.enableExecutionRoute(ARB_CHAIN, USDC, true, int8(curvePoolIndex[USDC]));
@@ -128,6 +132,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
             false,
             int8(curvePoolIndex[WRAPPED_POLY_USDC])
         );
+        engine.enableExecutionRoute(AVAX_CHAIN, USDC, true, int8(curvePoolIndex[USDC]));
     }
 
     function _setupWormholeSimulator() internal {
@@ -675,6 +680,74 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         );
         _assertFillPayloadTokenBridge(_vm, ARB_CHAIN, redeemerMessage);
         assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, RELAYER_FEE);
+
+        // After test.
+        _removeLiquidityAndBurn(lpShares);
+    }
+
+    function testExecuteOrderFromOrderRouter(uint256 amount, bytes memory redeemerMessage) public {
+        // Before test.
+        uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+        address fromUsdc = USDC;
+        address toUsdc = WRAPPED_ETH_USDC;
+        address fromRouter = fromUniversalAddress(AVAX_ROUTER);
+
+        // Fuzz parameter.
+        amount = bound(amount, 10, INIT_LIQUIDITY / 2);
+        vm.assume(redeemerMessage.length < type(uint32).max);
+
+        // Mint tokens in case total supply on the bridge is less
+        // than the test amount.
+        _increaseWrappedSupply(toUsdc, amount);
+
+        // We will use this amountOut as the minAmountOut for the order,
+        // since there is no competing order flow in this test.
+        uint256 amountOut = get_amount_out(engine.getCCTPIndex(), curvePoolIndex[toUsdc], amount);
+        require(amountOut > 0, "invalid test");
+
+        // Create a valid transfer from Avax to Sui.
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: amountOut,
+            targetChain: SUI_CHAIN,
+            redeemer: toUniversalAddress(TEST_REDEEMER),
+            redeemerMessage: redeemerMessage,
+            sender: toUniversalAddress(TEST_SENDER),
+            refundAddress: toUniversalAddress(TEST_RECIPIENT),
+            relayerFee: 0,
+            allowedRelayers: new bytes32[](0)
+        });
+
+        // Relayer balance before.
+        uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(address(this));
+
+        // Execute the order.
+        vm.recordLogs();
+        vm.deal(fromRouter, WORMHOLE_FEE);
+        deal(USDC, fromRouter, amount);
+
+        vm.startPrank(fromRouter);
+        SafeERC20.safeIncreaseAllowance(IERC20(USDC), address(engine), amount);
+        engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
+        vm.stopPrank();
+
+        // // Fetch wormhole message and sign it.
+        Vm.Log[] memory entries = vm.getRecordedLogs();
+        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+
+        // Validate test results. The fill should be sent via the token bridge.
+        _assertTokenBridgeMessage(
+            _vm,
+            amountOut,
+            toUniversalAddress(NATIVE_ETH_USDC),
+            ETH_CHAIN,
+            SUI_ROUTER,
+            SUI_CHAIN,
+            toUniversalAddress(address(engine))
+        );
+        _assertFillPayloadTokenBridge(_vm, AVAX_CHAIN, redeemerMessage);
+
+        // No relayer fee should be paid.
+        assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, 0);
 
         // After test.
         _removeLiquidityAndBurn(lpShares);
