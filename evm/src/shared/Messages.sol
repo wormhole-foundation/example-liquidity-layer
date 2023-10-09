@@ -53,14 +53,14 @@ library Messages {
             order.relayerFee,
             uint8(order.allowedRelayers.length),
             abi.encodePacked(order.allowedRelayers),
-            encodeBytes(order.redeemerMessage)
+            _encodeBytes(order.redeemerMessage)
         );
     }
 
     function decodeMarketOrder(
         bytes memory encoded
     ) internal pure returns (MarketOrder memory order) {
-        uint256 offset = checkPayloadId(encoded, 0, MARKET_ORDER);
+        uint256 offset = _checkPayloadId(encoded, 0, MARKET_ORDER);
 
         // Parse the encoded message.
         (order.minAmountOut, offset) = encoded.asUint256Unchecked(offset);
@@ -70,9 +70,9 @@ library Messages {
         (order.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
         (order.relayerFee, offset) = encoded.asUint256Unchecked(offset);
         (order.allowedRelayers, offset) = decodeAllowedRelayers(encoded, offset);
-        (order.redeemerMessage, offset) = decodeBytes(encoded, offset);
+        (order.redeemerMessage, offset) = _decodeBytes(encoded, offset);
 
-        checkLength(encoded, offset);
+        _checkLength(encoded, offset);
     }
 
     function decodeAllowedRelayers(
@@ -97,19 +97,19 @@ library Messages {
             fill.sourceChain,
             fill.orderSender,
             fill.redeemer,
-            encodeBytes(fill.redeemerMessage)
+            _encodeBytes(fill.redeemerMessage)
         );
     }
 
     function decodeFill(bytes memory encoded) internal pure returns (Fill memory fill) {
-        uint256 offset = checkPayloadId(encoded, 0, FILL);
+        uint256 offset = _checkPayloadId(encoded, 0, FILL);
 
         (fill.sourceChain, offset) = encoded.asUint16Unchecked(offset);
         (fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
         (fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
-        (fill.redeemerMessage, offset) = decodeBytes(encoded, offset);
+        (fill.redeemerMessage, offset) = _decodeBytes(encoded, offset);
 
-        checkLength(encoded, offset);
+        _checkLength(encoded, offset);
     }
 
     function encode(OrderRevert memory reverted) internal pure returns (bytes memory encoded) {
@@ -119,7 +119,7 @@ library Messages {
     function decodeOrderRevert(
         bytes memory encoded
     ) internal pure returns (OrderRevert memory reverted) {
-        uint256 offset = checkPayloadId(encoded, 0, ORDER_REVERT);
+        uint256 offset = _checkPayloadId(encoded, 0, ORDER_REVERT);
 
         uint8 reason;
         (reason, offset) = encoded.asUint8Unchecked(offset);
@@ -127,7 +127,7 @@ library Messages {
 
         (reverted.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
 
-        checkLength(encoded, offset);
+        _checkLength(encoded, offset);
     }
 
     function decodeWormholeTimestamp(bytes memory encoded) internal pure returns (uint256) {
@@ -148,7 +148,7 @@ library Messages {
 
     // ------------------------------------------ private --------------------------------------------
 
-    function decodeBytes(
+    function _decodeBytes(
         bytes memory encoded,
         uint256 startOffset
     ) private pure returns (bytes memory payload, uint256 offset) {
@@ -157,19 +157,19 @@ library Messages {
         (payload, offset) = encoded.sliceUnchecked(offset, payloadLength);
     }
 
-    function encodeBytes(bytes memory payload) private pure returns (bytes memory encoded) {
+    function _encodeBytes(bytes memory payload) private pure returns (bytes memory encoded) {
         // Casting payload.length to uint32 is safe because you'll be hard-pressed
         // to allocate 4 GB of EVM memory in a single transaction.
         encoded = abi.encodePacked(uint32(payload.length), payload);
     }
 
-    function checkLength(bytes memory encoded, uint256 expected) private pure {
+    function _checkLength(bytes memory encoded, uint256 expected) private pure {
         if (encoded.length != expected) {
             revert InvalidPayloadLength(encoded.length, expected);
         }
     }
 
-    function checkPayloadId(
+    function _checkPayloadId(
         bytes memory encoded,
         uint256 startOffset,
         uint8 expectedPayloadId

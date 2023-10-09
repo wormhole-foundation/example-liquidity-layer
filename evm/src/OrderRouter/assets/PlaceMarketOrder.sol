@@ -221,30 +221,32 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint24 dstSlippage,
         uint256 relayerFee
     ) internal pure {
-        unchecked {
-            if (args.amountIn > MAX_AMOUNT) {
-                revert ErrAmountTooLarge(args.amountIn, MAX_AMOUNT);
-            }
-            // MAX_AMOUNT * uint24 < max uint256, so we can do this unchecked.
-            uint256 totalSlippage = (args.amountIn * uint256(dstSlippage)) / MAX_SLIPPAGE;
+        uint256 amountIn = args.amountIn;
+        if (amountIn > MAX_AMOUNT) {
+            revert ErrAmountTooLarge(args.amountIn, MAX_AMOUNT);
+        }
 
-            // The amount provided for the order must be more than the fee to execute the order plus
-            // the configured relayer fee.
-            if (args.amountIn - totalSlippage <= relayerFee) {
-                revert ErrInsufficientAmount(args.amountIn - totalSlippage, relayerFee);
-            }
+        uint256 totalSlippage;
+        // MAX_AMOUNT * MAX_SLIPPAGE < max uint256, so we can do this unchecked.
+        assembly ("memory-safe") {
+            totalSlippage := div(mul(amountIn, and(0xffffff, dstSlippage)), MAX_SLIPPAGE)
+        }
 
-            // Since we know that the relayer fee is less than the amount in minus total slippage,
-            // this operation is safe.
-            totalSlippage += relayerFee;
+        // The amount provided for the order must be more than the fee to execute the order plus
+        // the configured relayer fee.
+        if (amountIn - totalSlippage <= relayerFee) {
+            revert ErrInsufficientAmount(amountIn - totalSlippage, relayerFee);
+        }
 
-            // The minimum amount out must not exceed the amount in less the fees.
-            if (args.minAmountOut > args.amountIn - totalSlippage) {
-                revert ErrMinAmountOutExceedsLimit(
-                    args.minAmountOut,
-                    args.amountIn - totalSlippage
-                );
-            }
+        // Since we know that the relayer fee is less than the amount in minus total slippage,
+        // this operation is safe.
+        assembly ("memory-safe") {
+            totalSlippage := add(totalSlippage, relayerFee)
+        }
+
+        // The minimum amount out must not exceed the amount in less the fees.
+        if (args.minAmountOut > amountIn - totalSlippage) {
+            revert ErrMinAmountOutExceedsLimit(args.minAmountOut, amountIn - totalSlippage);
         }
     }
 }

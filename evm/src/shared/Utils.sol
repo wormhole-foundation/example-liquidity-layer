@@ -4,19 +4,24 @@ pragma solidity ^0.8.19;
 
 error AddressOverflow(bytes32 addr);
 
-function toUniversalAddress(address evmAddr) pure returns (bytes32) {
-    return bytes32(uint256(uint160(evmAddr)));
+function toUniversalAddress(address evmAddr) pure returns (bytes32 converted) {
+    assembly ("memory-safe") {
+        converted := and(0xffffffffffffffffffffffffffffffffffffffff, evmAddr)
+    }
 }
 
-function fromUniversalAddress(bytes32 universalAddr) pure returns (address) {
+function fromUniversalAddress(bytes32 universalAddr) pure returns (address converted) {
     if (bytes12(universalAddr) != 0) {
         revert AddressOverflow(universalAddr);
     }
-    return address(uint160(uint256(universalAddr)));
+
+    assembly ("memory-safe") {
+        converted := universalAddr
+    }
 }
 
 function unsafeEmitterChainFromVaa(bytes memory encodedVaa) pure returns (uint16 chain) {
-    uint256 numSigs = uint256(uint8(encodedVaa[5]));
+    //bytes1 numSigs = encodedVaa[5];
     // VAA Offset:
     //    1 (version)
     // +  4 (guardian set index)
@@ -28,7 +33,19 @@ function unsafeEmitterChainFromVaa(bytes memory encodedVaa) pure returns (uint16
     //
     // mload uint16 (2 bytes) --> offset = 16
     assembly ("memory-safe") {
-        chain := mload(add(encodedVaa, add(mul(numSigs, 66), 16)))
+        let numSigs := and(0xff, mload(add(encodedVaa, 0x6)))
+        chain := mload(
+            add(
+                encodedVaa,
+                add(
+                    mul(
+                        numSigs,
+                        0x42 // 66 bytes
+                    ),
+                    0x10 // offset explained above
+                )
+            )
+        )
     }
 }
 
