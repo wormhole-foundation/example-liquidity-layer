@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {Messages} from "../shared/Messages.sol";
 import {MatchingEngineAdmin} from "./MatchingEngineAdmin.sol";
-import {toUniversalAddress, fromUniversalAddress, getDecimals, normalizeAmount, denormalizeAmount} from "../shared/Utils.sol";
+import {toUniversalAddress, fromUniversalAddress, getDecimals, denormalizeAmount} from "../shared/Utils.sol";
 import {getPendingOwnerState, getOwnerState, getPausedState} from "../shared/Admin.sol";
 import {getExecutionRouteState, Route, RegisteredOrderRouters, getOrderRoutersState, CurvePoolInfo, getCurvePoolState} from "./MatchingEngineStorage.sol";
 
@@ -37,6 +37,14 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     error NotAttested();
     error InvalidCCTPIndex();
 
+    struct InternalOrderParameters {
+        uint16 fromChain;
+        address token;
+        uint256 amount;
+        uint256 vaaTimestmp;
+        bytes32 fromAddress;
+    }
+
     constructor(
         address tokenBridge,
         address circleIntegration,
@@ -56,14 +64,6 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         CurvePoolInfo storage info = getCurvePoolState();
         info.pool = ICurvePool(curve);
         info.nativeTokenIndex = nativeTokenPoolIndex;
-    }
-
-    struct InternalOrderParameters {
-        uint16 fromChain;
-        address token;
-        uint256 amount;
-        uint256 vaaTimestmp;
-        bytes32 fromAddress;
     }
 
     function executeOrder(bytes calldata vaa) external payable notPaused returns (uint64 sequence) {
