@@ -36,6 +36,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     error NotAllowedRelayer();
     error NotAttested();
     error InvalidCCTPIndex();
+    error InvalidRelayerFee();
 
     struct InternalOrderParameters {
         uint16 fromChain;
@@ -117,17 +118,47 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
             );
     }
 
+    function executeOrder(
+        uint256 amount,
+        Messages.MarketOrder calldata order
+    ) external payable notPaused returns (uint64 sequence) {
+        if (order.relayerFee != 0 || order.allowedRelayers.length != 0) {
+            revert InvalidRelayerFee();
+        }
+
+        /**
+         * The msg.sender should be the OrderRouter contract on this chain. This
+         * is verified in the `_executeOrder` method to prevent adding redundant
+         * checks.
+         *
+         * Also, the timestamp is irrelevant here, since we ensure the relayer fee
+         * is set to zero.
+         */
+        return
+            _executeOrder(
+                InternalOrderParameters({
+                    fromChain: _chainId,
+                    token: getExecutionRouteState().routes[_chainId].target,
+                    amount: amount,
+                    vaaTimestmp: 0,
+                    fromAddress: toUniversalAddress(msg.sender)
+                }),
+                order
+            );
+    }
+
+    // ------------------------------------ Internal Functions -------------------------------------
+
     function _executeOrder(
         InternalOrderParameters memory params,
         Messages.MarketOrder memory order
-    ) internal returns (uint64 sequence) {
-        // Verify that the message sender is a registered order router and
-        // that the target chain has a registered router.
-        (bytes32 fromRouter, bytes32 toRouter) = _verifyMessageRouters(
-            params.fromChain,
-            params.fromAddress,
-            order.targetChain
-        );
+    ) private returns (uint64 sequence) {
+        bytes32 fromRouter = getOrderRoutersState().registered[params.fromChain];
+        bytes32 toRouter = getOrderRoutersState().registered[order.targetChain];
+
+        if (params.fromAddress != fromRouter || toRouter == bytes32(0)) {
+            revert UnregisteredOrderRouter();
+        }
 
         // Verify the to and from route.
         (Route memory fromRoute, Route memory toRoute) = _verifyExecutionRoute(
@@ -135,6 +166,17 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
             order.targetChain,
             params.token
         );
+
+        // If the order originates from this chain, we need to transfer the
+        // tokens from the msg.sender to this contract.
+        if (params.fromChain == _chainId) {
+            SafeERC20.safeTransferFrom(
+                IERC20(params.token),
+                msg.sender,
+                address(this),
+                params.amount
+            );
+        }
 
         // Pay the msg.sender if they're an allowed relayer and the market order
         // specifies a nonzero relayer fee.
@@ -192,8 +234,6 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         }
     }
 
-    // ------------------------------------ Internal Functions -------------------------------------
-
     function _verifyExecutionRoute(
         uint16 fromChain,
         uint16 targetChain,
@@ -213,19 +253,6 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
         if (fromRoute.target != token) {
             revert RouteMismatch();
-        }
-    }
-
-    function _verifyMessageRouters(
-        uint16 fromChain,
-        bytes32 fromAddress,
-        uint16 targetChain
-    ) private view returns (bytes32 fromRouter, bytes32 toRouter) {
-        fromRouter = getOrderRoutersState().registered[fromChain];
-        toRouter = getOrderRoutersState().registered[targetChain];
-
-        if (fromAddress != fromRouter || toRouter == bytes32(0)) {
-            revert UnregisteredOrderRouter();
         }
     }
 
