@@ -20,13 +20,6 @@ function fromUniversalAddress(bytes32 universalAddr) pure returns (address conve
     }
 }
 
-function normalizeAmount(uint256 amount, uint8 decimals) pure returns (uint256) {
-    if (decimals > 8) {
-        amount /= 10 ** (decimals - 8);
-    }
-    return amount;
-}
-
 function denormalizeAmount(uint256 amount, uint8 decimals) pure returns (uint256) {
     if (decimals > 8) {
         amount *= 10 ** (decimals - 8);
