@@ -35,6 +35,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     error UnregisteredOrderRouter();
     error NotAllowedRelayer();
     error NotAttested();
+    error InvalidCCTPIndex();
 
     constructor(
         address tokenBridge,
@@ -57,6 +58,14 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         info.nativeTokenIndex = nativeTokenPoolIndex;
     }
 
+    struct InternalOrderParameters {
+        uint16 fromChain;
+        address token;
+        uint256 amount;
+        uint256 vaaTimestmp;
+        bytes32 fromAddress;
+    }
+
     function executeOrder(bytes calldata vaa) external payable notPaused returns (uint64 sequence) {
         /**
          * Call `completeTransferWithPayload` on the token bridge. This
@@ -68,85 +77,20 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
             _tokenBridge.completeTransferWithPayload(vaa)
         );
 
-        // Parse the market order.
-        Messages.MarketOrder memory order = transfer.payload.decodeMarketOrder();
-
-        // SECURITY: Verify the to/from order routers.
-        uint16 fromChain = vaa.unsafeEmitterChainFromVaa();
-        RegisteredOrderRouters storage routers = _verifyMessageRoute(
-            fromChain,
-            transfer.fromAddress,
-            order.targetChain
-        );
-
-        // Fetch the token bridge representation of the bridged token.
+        // Fetch the token address for the transfer.
         address token = _getLocalTokenAddress(transfer.tokenAddress, transfer.tokenChain);
 
-        // Determine if the `toRoute` is enabled and the `fromRoute`
-        // is configured correctly.
-        Route memory toRoute = _fetchAndVerifyRoute(order.targetChain);
-        Route memory fromRoute = getExecutionRouteState().routes[fromChain];
-        if (fromRoute.target != token) {
-            revert RouteMismatch();
-        }
-
-        // Pay the msg.sender if they're an allowed relayer and the market order
-        // specifies a nonzero relayer fee.
-        uint256 amountIn = _handleRelayerFee(
-            token,
-            vaa.unsafeTimestampFromVaa(),
-            denormalizeAmount(transfer.amount, getDecimals(token)),
-            order.relayerFee,
-            order.allowedRelayers
-        );
-
-        // Execute curve swap. The `amountOut` will be zero if the swap fails
-        // for any reason. If the `toRoute` is a CCTP chain, then the `toIndex`
-        // will be the native token index.
-        CurvePoolInfo memory curve = getCurvePoolState();
-        uint256 amountOut = _handleSwap(
-            token,
-            address(curve.pool),
-            int128(fromRoute.poolIndex),
-            toRoute.cctp ? int128(curve.nativeTokenIndex) : int128(toRoute.poolIndex),
-            amountIn,
-            order.minAmountOut
-        );
-
-        // If the swap failed, revert the order and refund the redeemer on
-        // the origin chain. Otherwise, bridge (or CCTP) the swapped token to the
-        // destination chain.
-        if (amountOut == 0) {
-            sequence = _handleBridgeOut(
-                token,
-                amountIn, // Send full amount back.
-                fromChain,
-                routers.registered[fromChain],
-                Messages
-                    .OrderRevert({
-                        reason: Messages.RevertType.SwapFailed,
-                        refundAddress: order.refundAddress
-                    })
-                    .encode(),
-                false // Not CCTP
+        return
+            _executeOrder(
+                InternalOrderParameters({
+                    fromChain: vaa.unsafeEmitterChainFromVaa(),
+                    token: token,
+                    amount: denormalizeAmount(transfer.amount, getDecimals(token)),
+                    vaaTimestmp: vaa.unsafeTimestampFromVaa(),
+                    fromAddress: transfer.fromAddress
+                }),
+                transfer.payload.decodeMarketOrder()
             );
-        } else {
-            _handleBridgeOut(
-                toRoute.target,
-                amountOut,
-                order.targetChain,
-                routers.registered[order.targetChain],
-                Messages
-                    .Fill({
-                        sourceChain: fromChain,
-                        orderSender: order.sender,
-                        redeemer: order.redeemer,
-                        redeemerMessage: order.redeemerMessage
-                    })
-                    .encode(),
-                toRoute.cctp
-            );
-        }
     }
 
     function executeOrder(
@@ -160,123 +104,157 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         ICircleIntegration.DepositWithPayload memory deposit = _circleIntegration
             .redeemTokensWithPayload(redeemParams);
 
-        // Parse the market order.
-        Messages.MarketOrder memory order = deposit.payload.decodeMarketOrder();
+        return
+            _executeOrder(
+                InternalOrderParameters({
+                    fromChain: _circleIntegration.getChainIdFromDomain(deposit.sourceDomain),
+                    token: fromUniversalAddress(deposit.token),
+                    amount: deposit.amount,
+                    vaaTimestmp: redeemParams.encodedWormholeMessage.unsafeTimestampFromVaa(),
+                    fromAddress: deposit.fromAddress
+                }),
+                deposit.payload.decodeMarketOrder()
+            );
+    }
 
-        // SECURITY: Verify the to/from order routers.
-        uint16 fromChain = _circleIntegration.getChainIdFromDomain(deposit.sourceDomain);
-        RegisteredOrderRouters storage routers = _verifyMessageRoute(
-            fromChain,
-            deposit.fromAddress,
+    function _executeOrder(
+        InternalOrderParameters memory params,
+        Messages.MarketOrder memory order
+    ) internal returns (uint64 sequence) {
+        // Verify that the message sender is a registered order router and
+        // that the target chain has a registered router.
+        (bytes32 fromRouter, bytes32 toRouter) = _verifyMessageRouters(
+            params.fromChain,
+            params.fromAddress,
             order.targetChain
         );
 
-        // Determine if the target route is enabled. This contract should
-        // not receive a circle integration message if the target route is
-        // a CCTP chain.
-        Route memory route = _fetchAndVerifyRoute(order.targetChain);
-        if (route.cctp) {
-            revert RouteNotAvailable();
-        }
+        // Verify the to and from route.
+        (Route memory fromRoute, Route memory toRoute) = _verifyExecutionRoute(
+            params.fromChain,
+            order.targetChain,
+            params.token
+        );
 
         // Pay the msg.sender if they're an allowed relayer and the market order
         // specifies a nonzero relayer fee.
-        address token = fromUniversalAddress(deposit.token);
         uint256 amountIn = _handleRelayerFee(
-            token,
-            redeemParams.encodedWormholeMessage.unsafeTimestampFromVaa(),
-            deposit.amount,
+            params.token,
+            params.vaaTimestmp,
+            params.amount,
             order.relayerFee,
             order.allowedRelayers
         );
 
         // Execute curve swap. The `amountOut` will be zero if the
         // swap fails for any reason.
-        CurvePoolInfo memory curve = getCurvePoolState();
         uint256 amountOut = _handleSwap(
-            token,
-            address(curve.pool),
-            int128(curve.nativeTokenIndex),
-            int128(route.poolIndex),
+            params.token,
+            fromRoute,
+            toRoute,
             amountIn,
             order.minAmountOut
         );
 
         // If the swap failed, revert the order and refund the redeemer on
-        // the origin chain. Otherwise, bridge the swapped token to the
+        // the origin chain. Otherwise, bridge (or CCTP) the swapped token to the
         // destination chain.
         if (amountOut == 0) {
             sequence = _handleBridgeOut(
-                token,
+                params.token,
                 amountIn, // Send full amount back.
-                fromChain,
-                routers.registered[fromChain],
+                params.fromChain,
+                fromRouter,
                 Messages
                     .OrderRevert({
                         reason: Messages.RevertType.SwapFailed,
                         refundAddress: order.refundAddress
                     })
                     .encode(),
-                true // CCTP
+                fromRoute.cctp
             );
         } else {
             sequence = _handleBridgeOut(
-                route.target,
+                toRoute.target,
                 amountOut,
                 order.targetChain,
-                routers.registered[order.targetChain],
+                toRouter,
                 Messages
                     .Fill({
-                        sourceChain: fromChain,
+                        sourceChain: params.fromChain,
                         orderSender: order.sender,
                         redeemer: order.redeemer,
                         redeemerMessage: order.redeemerMessage
                     })
                     .encode(),
-                false // Not CCTP
+                toRoute.cctp
             );
         }
     }
 
     // ------------------------------------ Internal Functions -------------------------------------
 
-    function _fetchAndVerifyRoute(uint16 chainId) private view returns (Route memory route) {
-        route = getExecutionRouteState().routes[chainId];
-        if (route.target == address(0)) {
+    function _verifyExecutionRoute(
+        uint16 fromChain,
+        uint16 targetChain,
+        address token
+    ) private view returns (Route memory fromRoute, Route memory toRoute) {
+        fromRoute = getExecutionRouteState().routes[fromChain];
+        toRoute = getExecutionRouteState().routes[targetChain];
+
+        // Verify the executing path.
+        if (toRoute.target == address(0)) {
             revert InvalidRoute();
+        }
+
+        if (fromRoute.cctp && toRoute.cctp) {
+            revert RouteNotAvailable();
+        }
+
+        if (fromRoute.target != token) {
+            revert RouteMismatch();
         }
     }
 
-    function _verifyMessageRoute(
+    function _verifyMessageRouters(
         uint16 fromChain,
         bytes32 fromAddress,
         uint16 targetChain
-    ) private view returns (RegisteredOrderRouters storage routers) {
-        routers = getOrderRoutersState();
-        if (
-            fromAddress != routers.registered[fromChain] ||
-            routers.registered[targetChain] == bytes32(0)
-        ) {
+    ) private view returns (bytes32 fromRouter, bytes32 toRouter) {
+        fromRouter = getOrderRoutersState().registered[fromChain];
+        toRouter = getOrderRoutersState().registered[targetChain];
+
+        if (fromAddress != fromRouter || toRouter == bytes32(0)) {
             revert UnregisteredOrderRouter();
         }
     }
 
     function _handleSwap(
         address token,
-        address swapPool,
-        int128 fromIndex,
-        int128 toIndex,
+        Route memory fromRoute,
+        Route memory toRoute,
         uint256 amountIn,
         uint256 minAmountOut
     ) private returns (uint256) {
+        CurvePoolInfo memory curve = getCurvePoolState();
+        address swapPool = address(curve.pool);
+
+        // Verify that any cctp enabled route is using the native token pool index.
+        if (
+            (fromRoute.cctp && fromRoute.poolIndex != curve.nativeTokenIndex) ||
+            (toRoute.cctp && toRoute.poolIndex != curve.nativeTokenIndex)
+        ) {
+            revert InvalidCCTPIndex();
+        }
+
         SafeERC20.safeIncreaseAllowance(IERC20(token), swapPool, amountIn);
 
         // Perform the swap.
         (bool success, bytes memory result) = swapPool.call(
             abi.encodeWithSelector(
                 ICurvePool.exchange.selector,
-                fromIndex,
-                toIndex,
+                int128(fromRoute.poolIndex),
+                int128(toRoute.poolIndex),
                 amountIn,
                 minAmountOut
             )
