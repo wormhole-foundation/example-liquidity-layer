@@ -31,3 +31,22 @@ function unsafeEmitterChainFromVaa(bytes memory encodedVaa) pure returns (uint16
         chain := mload(add(encodedVaa, add(mul(numSigs, 66), 16)))
     }
 }
+
+function normalizeAmount(uint256 amount, uint8 decimals) pure returns (uint256) {
+    if (decimals > 8) {
+        amount /= 10 ** (decimals - 8);
+    }
+    return amount;
+}
+
+function denormalizeAmount(uint256 amount, uint8 decimals) pure returns (uint256) {
+    if (decimals > 8) {
+        amount *= 10 ** (decimals - 8);
+    }
+    return amount;
+}
+
+function getDecimals(address token) view returns (uint8) {
+    (, bytes memory queriedDecimals) = token.staticcall(abi.encodeWithSignature("decimals()"));
+    return abi.decode(queriedDecimals, (uint8));
+}

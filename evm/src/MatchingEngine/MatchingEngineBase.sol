@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {Messages} from "../shared/Messages.sol";
 import {MatchingEngineAdmin} from "./MatchingEngineAdmin.sol";
-import {toUniversalAddress, fromUniversalAddress} from "../shared/Utils.sol";
+import {toUniversalAddress, fromUniversalAddress, getDecimals, normalizeAmount, denormalizeAmount} from "../shared/Utils.sol";
 import {getPendingOwnerState, getOwnerState, getPausedState} from "../shared/Admin.sol";
 import {getExecutionRouteState, Route, RegisteredOrderRouters, getOrderRoutersState, CurvePoolInfo, getCurvePoolState} from "./MatchingEngineStorage.sol";
 
@@ -57,16 +57,13 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         info.nativeTokenIndex = nativeTokenPoolIndex;
     }
 
-    function executeOrder(bytes calldata vaa) public payable notPaused returns (uint64 sequence) {
+    function executeOrder(bytes calldata vaa) external payable notPaused returns (uint64 sequence) {
         /**
-		 * Call `completeTransferWithPayload` on the token bridge. This
-		 * method acts as a reentrancy protection since it does not allow
-		 * transfers to be redeemed more than once. Also, parse the
-		 * the transfer payload.
-
-		 * Since this contract will only receive USDC from the order routers,
-		 * we can trust the amount encoded in the payload (USDC decimals == 6).
-		 */
+         * Call `completeTransferWithPayload` on the token bridge. This
+         * method acts as a reentrancy protection since it does not allow
+         * transfers to be redeemed more than once. Also, parse the
+         * the transfer payload.
+         */
         ITokenBridge.TransferWithPayload memory transfer = _tokenBridge.parseTransferWithPayload(
             _tokenBridge.completeTransferWithPayload(vaa)
         );
@@ -87,11 +84,8 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
         // Determine if the `toRoute` is enabled and the `fromRoute`
         // is configured correctly.
-        Route memory toRoute = getExecutionRouteState().routes[order.targetChain];
+        Route memory toRoute = _fetchAndVerifyRoute(order.targetChain);
         Route memory fromRoute = getExecutionRouteState().routes[fromChain];
-        if (toRoute.target == address(0)) {
-            revert InvalidRoute();
-        }
         if (fromRoute.target != token) {
             revert RouteMismatch();
         }
@@ -101,7 +95,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         uint256 amountIn = _handleRelayerFee(
             token,
             vaa.decodeWormholeTimestamp(),
-            transfer.amount,
+            denormalizeAmount(transfer.amount, getDecimals(token)),
             order.relayerFee,
             order.allowedRelayers
         );
@@ -157,7 +151,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
     function executeOrder(
         ICircleIntegration.RedeemParameters calldata redeemParams
-    ) public payable notPaused returns (uint64 sequence) {
+    ) external payable notPaused returns (uint64 sequence) {
         /**
          * Mint tokens to this contract. Serves as a reentrancy protection,
          * since the circle integration contract will not allow the wormhole
@@ -180,10 +174,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         // Determine if the target route is enabled. This contract should
         // not receive a circle integration message if the target route is
         // a CCTP chain.
-        Route memory route = getExecutionRouteState().routes[order.targetChain];
-        if (route.target == address(0)) {
-            revert InvalidRoute();
-        }
+        Route memory route = _fetchAndVerifyRoute(order.targetChain);
         if (route.cctp) {
             revert RouteNotAvailable();
         }
@@ -248,6 +239,13 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     }
 
     // ------------------------------------ Internal Functions -------------------------------------
+
+    function _fetchAndVerifyRoute(uint16 chainId) private view returns (Route memory route) {
+        route = getExecutionRouteState().routes[chainId];
+        if (route.target == address(0)) {
+            revert InvalidRoute();
+        }
+    }
 
     function _verifyMessageRoute(
         uint16 fromChain,
