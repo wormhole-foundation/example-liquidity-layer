@@ -218,7 +218,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     function _validateForMatchingEngine(
         PlaceMarketOrderArgs memory args,
-        uint24 dstSlippage,
+        uint256 dstSlippage,
         uint256 relayerFee
     ) internal pure {
         uint256 amountIn = args.amountIn;
@@ -228,8 +228,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
         uint256 totalSlippage;
         // MAX_AMOUNT * MAX_SLIPPAGE < max uint256, so we can do this unchecked.
-        assembly ("memory-safe") {
-            totalSlippage := div(mul(amountIn, and(0xffffff, dstSlippage)), MAX_SLIPPAGE)
+        unchecked {
+            totalSlippage = (amountIn * dstSlippage) / MAX_SLIPPAGE;
         }
 
         // The amount provided for the order must be more than the fee to execute the order plus
@@ -240,8 +240,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
         // Since we know that the relayer fee is less than the amount in minus total slippage,
         // this operation is safe.
-        assembly ("memory-safe") {
-            totalSlippage := add(totalSlippage, relayerFee)
+        unchecked {
+            totalSlippage += relayerFee;
         }
 
         // The minimum amount out must not exceed the amount in less the fees.

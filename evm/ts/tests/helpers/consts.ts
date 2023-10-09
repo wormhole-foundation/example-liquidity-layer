@@ -3,6 +3,7 @@ import {
   CHAIN_ID_ETH,
   tryNativeToHexString,
 } from "@certusone/wormhole-sdk";
+import { ethers } from "ethers";
 
 export type NetworkVars = {
   arbitrum: string | null;
@@ -63,6 +64,15 @@ export const CANONICAL_TOKEN_ADDRESS = tryNativeToHexString(
   USDC_ADDRESSES.ethereum!,
   "ethereum"
 );
+
+export const CURVE_FACTORY_ADDRESS =
+  "0xb17b674D9c5CB2e441F8e196a2f048A81355d031";
+export const MATCHING_ENGINE_POOL_COINS: [string, string, string, string] = [
+  "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", // avalanche USDC
+  "0xB24CA28D4e2742907115fECda335b40dbda07a4C", // wrapped ethereum USDC
+  "0x543672E9CBEC728CBBa9C3Ccd99ed80aC3607FA8", // wrapped polygon USDC
+  ethers.constants.AddressZero, // placeholder
+];
 
 // export const WALLET_PRIVATE_KEY_TWO =
 //   "92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e";

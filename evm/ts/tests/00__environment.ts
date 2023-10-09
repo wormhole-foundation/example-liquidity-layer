@@ -1,14 +1,19 @@
 import {
   CHAIN_ID_AVAX,
+  CHAIN_ID_ETH,
+  CHAIN_ID_POLYGON,
   coalesceChainId,
   tryNativeToHexString,
+  tryNativeToUint8Array,
 } from "@certusone/wormhole-sdk";
 import { expect } from "chai";
 import { ethers } from "ethers";
 import * as fs from "fs";
 import {
+  CurveFactory__factory,
   ICircleBridge__factory,
   ICircleIntegration__factory,
+  ICurvePool__factory,
   IMessageTransmitter__factory,
   ITokenBridge__factory,
   IUSDC__factory,
@@ -17,9 +22,11 @@ import {
 import {
   CANONICAL_TOKEN_ADDRESS,
   CANONICAL_TOKEN_CHAIN,
+  CURVE_FACTORY_ADDRESS,
   GUARDIAN_PRIVATE_KEY,
   LOCALHOSTS,
   MATCHING_ENGINE_CHAIN,
+  MATCHING_ENGINE_POOL_COINS,
   TOKEN_BRIDGE_ADDRESSES,
   USDC_ADDRESSES,
   WALLET_PRIVATE_KEYS,
@@ -27,10 +34,15 @@ import {
   WORMHOLE_GUARDIAN_SET_INDEX,
   WORMHOLE_MESSAGE_FEE,
   mineWait,
+  mineWaitWut,
+  mintNativeUsdc,
+  mintWrappedTokens,
 } from "./helpers";
+import { TokenImplementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 
 describe("Environment", () => {
-  for (const network of ["avalanche", "arbitrum", "ethereum", "polygon"]) {
+  //for (const network of ["avalanche", "arbitrum", "ethereum", "polygon"]) {
+  for (const network of ["avalanche"]) {
     const networkName = network.charAt(0).toUpperCase() + network.slice(1);
 
     if (!(network in LOCALHOSTS)) {
@@ -49,6 +61,8 @@ describe("Environment", () => {
       const wallets = WALLET_PRIVATE_KEYS.map(
         (key) => new ethers.Wallet(key, provider)
       );
+
+      const deployer = wallets[9];
 
       const tokenBridge = ITokenBridge__factory.connect(
         tokenBridgeAddress,
@@ -252,8 +266,6 @@ describe("Environment", () => {
             ethers.BigNumber.from("1000000000000000000")._hex,
           ]);
 
-          const wallet = wallets[0];
-
           // configure my wallet as minter
           {
             const usdc = IUSDC__factory.connect(
@@ -262,7 +274,7 @@ describe("Environment", () => {
             );
 
             await usdc
-              .configureMinter(wallet.address, ethers.constants.MaxUint256)
+              .configureMinter(deployer.address, ethers.constants.MaxUint256)
               .then((tx) => mineWait(provider, tx));
           }
 
@@ -271,29 +283,138 @@ describe("Environment", () => {
 
           // mint USDC and confirm with a balance check
           {
-            const usdc = IUSDC__factory.connect(usdcAddress, wallet);
+            const usdc = IUSDC__factory.connect(usdcAddress, deployer);
             const amount = ethers.utils.parseUnits("69420", 6);
 
-            const balanceBefore = await usdc.balanceOf(wallet.address);
+            const balanceBefore = await usdc.balanceOf(deployer.address);
 
             await usdc
-              .mint(wallet.address, amount)
+              .mint(deployer.address, amount)
               .then((tx) => mineWait(provider, tx));
 
-            const balanceAfter = await usdc.balanceOf(wallet.address);
+            const balanceAfter = await usdc.balanceOf(deployer.address);
             expect(balanceAfter.sub(balanceBefore).eq(amount)).is.true;
+
+            await usdc
+              .transfer("0x0000000000000000000000000000000000000001", amount)
+              .then((tx) => mineWait(provider, tx));
           }
         }); // it("CCTP USDC", async () => {
       } // if (wormholeCctp !== null) {
 
       if (network === "avalanche") {
+        it("Deploy Curve Pool", async () => {
+          const curveFactory = CurveFactory__factory.connect(
+            CURVE_FACTORY_ADDRESS,
+            deployer
+          );
+
+          const receipt = await curveFactory
+            .deploy_plain_pool(
+              // "USDC Matching Engine Pool",
+              // "meUSDC",
+              "Mothership Test Pool", // Name
+              "WormUSDC", // Symbol
+              MATCHING_ENGINE_POOL_COINS,
+              100, // A
+              4_000_000, // fee (0.04%)
+              0, // asset type
+              0 // implementation index
+            )
+            .catch((err) => {
+              console.log(err);
+              throw err;
+            })
+            .then((tx) => mineWait(provider, tx));
+
+          const poolAddress = ethers.utils.hexlify(
+            ethers.utils.arrayify(receipt.logs[1].topics[2]).subarray(12)
+          );
+          const curvePool = ICurvePool__factory.connect(poolAddress, deployer);
+
+          for (let i = 0; i < 3; ++i) {
+            const actual = await curvePool.coins(i);
+            expect(actual).to.equal(MATCHING_ENGINE_POOL_COINS[i]);
+          }
+
+          // Prep to add liquidity.
+          const legAmount = "1000000";
+
+          const avaxUsdcAmount = ethers.utils.parseUnits(legAmount, 6);
+          const { usdc: avaxUsdc } = await mintNativeUsdc(
+            deployer,
+            usdcAddress,
+            deployer.address,
+            ethers.utils.parseUnits(legAmount, 6)
+          );
+
+          {
+            const balance = await avaxUsdc.balanceOf(deployer.address);
+            expect(balance).to.eql(avaxUsdcAmount);
+          }
+
+          const ethUsdcAmount = ethers.utils.parseUnits(legAmount, 6);
+          const { wrappedToken: ethUsdc } = await mintWrappedTokens(
+            deployer,
+            tokenBridgeAddress,
+            "ethereum",
+            USDC_ADDRESSES.ethereum!,
+            deployer.address,
+            ethers.utils.parseUnits(legAmount, 6)
+          );
+
+          {
+            const balance = await ethUsdc.balanceOf(deployer.address);
+            expect(balance).to.eql(ethUsdcAmount);
+          }
+
+          const polyUsdcAmount = ethers.utils.parseUnits(legAmount, 6);
+          const { wrappedToken: polyUsdc } = await mintWrappedTokens(
+            deployer,
+            tokenBridgeAddress,
+            "polygon",
+            USDC_ADDRESSES.polygon!,
+            deployer.address,
+            ethers.utils.parseUnits(legAmount, 6)
+          );
+
+          {
+            const balance = await polyUsdc.balanceOf(deployer.address);
+            expect(balance).to.eql(polyUsdcAmount);
+          }
+
+          // Now add liquidity.
+          await avaxUsdc
+            .approve(curvePool.address, avaxUsdcAmount)
+            .then((tx) => mineWait(provider, tx));
+          await ethUsdc
+            .approve(curvePool.address, ethUsdcAmount)
+            .then((tx) => mineWait(provider, tx));
+          await polyUsdc
+            .approve(curvePool.address, polyUsdcAmount)
+            .then((tx) => mineWait(provider, tx));
+
+          await curvePool["add_liquidity(uint256[3],uint256)"](
+            [avaxUsdcAmount, ethUsdcAmount, polyUsdcAmount],
+            0
+          ).then((tx) => mineWait(provider, tx));
+
+          const avaxUsdcLiqBalance = await curvePool.balances(0);
+          expect(avaxUsdcLiqBalance).to.eql(avaxUsdcAmount);
+
+          const ethUsdcLiqBalance = await curvePool.balances(1);
+          expect(ethUsdcLiqBalance).to.eql(ethUsdcAmount);
+
+          const polyUsdcLiqBalance = await curvePool.balances(2);
+          expect(polyUsdcLiqBalance).to.eql(polyUsdcAmount);
+        });
+
         it("Deploy Matching Engine", async () => {
           // TODO
         });
       }
 
       it("Deploy Order Router", async () => {
-        const deployer = wallets[9];
         const factory = new ethers.ContractFactory(
           orderRouterAbi,
           orderRouterBytecode,
