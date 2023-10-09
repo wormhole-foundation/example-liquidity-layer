@@ -9,7 +9,7 @@ import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
 import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
-import {toUniversalAddress, unsafeEmitterChainFromVaa} from "../../shared/Utils.sol";
+import {toUniversalAddress} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
@@ -62,7 +62,7 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
         uint256 amount,
         bytes memory payload
     ) internal returns (Messages.RevertType) {
-        uint16 emitterChain = unsafeEmitterChainFromVaa(encodedVaa);
+        uint16 emitterChain = encodedVaa.unsafeEmitterChainFromVaa();
         if (emitterChain != matchingEngineChain || fromAddress != matchingEngineEndpoint) {
             revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);
         }

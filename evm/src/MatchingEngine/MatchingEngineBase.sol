@@ -72,7 +72,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         Messages.MarketOrder memory order = transfer.payload.decodeMarketOrder();
 
         // SECURITY: Verify the to/from order routers.
-        uint16 fromChain = vaa.decodeWormholeEmitterChain();
+        uint16 fromChain = vaa.unsafeEmitterChainFromVaa();
         RegisteredOrderRouters storage routers = _verifyMessageRoute(
             fromChain,
             transfer.fromAddress,
@@ -94,7 +94,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         // specifies a nonzero relayer fee.
         uint256 amountIn = _handleRelayerFee(
             token,
-            vaa.decodeWormholeTimestamp(),
+            vaa.unsafeTimestampFromVaa(),
             denormalizeAmount(transfer.amount, getDecimals(token)),
             order.relayerFee,
             order.allowedRelayers
@@ -184,7 +184,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         address token = fromUniversalAddress(deposit.token);
         uint256 amountIn = _handleRelayerFee(
             token,
-            redeemParams.encodedWormholeMessage.decodeWormholeTimestamp(),
+            redeemParams.encodedWormholeMessage.unsafeTimestampFromVaa(),
             deposit.amount,
             order.relayerFee,
             order.allowedRelayers

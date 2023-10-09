@@ -9,7 +9,7 @@ import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
 import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
-import {toUniversalAddress, unsafeEmitterChainFromVaa} from "../../shared/Utils.sol";
+import {toUniversalAddress} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
@@ -65,7 +65,7 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
         uint256 amount,
         bytes memory payload
     ) internal returns (RedeemedFill memory) {
-        uint16 emitterChain = unsafeEmitterChainFromVaa(encodedVaa);
+        uint16 emitterChain = encodedVaa.unsafeEmitterChainFromVaa();
 
         // Parse the fill. We need to check the sender chain to see if it came from a known router.
         Messages.Fill memory fill = payload.decodeFill();

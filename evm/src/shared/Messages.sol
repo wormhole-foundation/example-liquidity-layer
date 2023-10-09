@@ -7,9 +7,14 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 library Messages {
     using BytesParsing for bytes;
 
+    // Payload IDs.
     uint8 private constant MARKET_ORDER = 0x1;
     uint8 private constant FILL = 0x10;
     uint8 private constant ORDER_REVERT = 0x20;
+
+    // VAA fields.
+    uint256 private constant SIG_COUNT_OFFSET = 5;
+    uint256 private constant SIG_LENGTH = 66;
 
     // Custom errors.
     error InvalidPayloadId(uint8 parsedPayloadId, uint8 expectedPayloadId);
@@ -130,23 +135,7 @@ library Messages {
         _checkLength(encoded, offset);
     }
 
-    function decodeWormholeTimestamp(bytes memory encoded) internal pure returns (uint256) {
-        // Skip the payload ID and guardian set index.
-        (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(5);
-        (uint32 timestamp, ) = encoded.asUint32Unchecked(offset + 66 * numSignatures);
-        return uint256(timestamp);
-    }
-
-    function decodeWormholeEmitterChain(bytes memory encoded) internal pure returns (uint16) {
-        // Skip the payload ID and guardian set index.
-        (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(5);
-
-        // Add 8 to skip the timestamp and nonce.
-        (uint16 emitterChain, ) = encoded.asUint16Unchecked(offset + 66 * numSignatures + 8);
-        return emitterChain;
-    }
-
-    // ------------------------------------------ private --------------------------------------------
+    // ---------------------------------------- private -------------------------------------------
 
     function _decodeBytes(
         bytes memory encoded,
@@ -179,5 +168,25 @@ library Messages {
         if (parsedPayloadId != expectedPayloadId) {
             revert InvalidPayloadId(parsedPayloadId, expectedPayloadId);
         }
+    }
+
+    // ---------------------------------- Unsafe VAA Parsing --------------------------------------
+
+    function unsafeTimestampFromVaa(bytes memory encoded) internal pure returns (uint256) {
+        // Skip the payload ID and guardian set index.
+        (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
+        (uint32 timestamp, ) = encoded.asUint32Unchecked(offset + SIG_LENGTH * numSignatures);
+        return uint256(timestamp);
+    }
+
+    function unsafeEmitterChainFromVaa(bytes memory encoded) internal pure returns (uint16) {
+        // Skip the payload ID and guardian set index.
+        (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
+
+        // Add 8 to skip the timestamp and nonce.
+        (uint16 emitterChain, ) = encoded.asUint16Unchecked(
+            offset + SIG_LENGTH * numSignatures + 8
+        );
+        return emitterChain;
     }
 }

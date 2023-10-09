@@ -20,35 +20,6 @@ function fromUniversalAddress(bytes32 universalAddr) pure returns (address conve
     }
 }
 
-function unsafeEmitterChainFromVaa(bytes memory encodedVaa) pure returns (uint16 chain) {
-    //bytes1 numSigs = encodedVaa[5];
-    // VAA Offset:
-    //    1 (version)
-    // +  4 (guardian set index)
-    // +  1 (num signatures)
-    // +  4 (timestamp)
-    // +  4 (nonce)
-    // -----
-    // = 14
-    //
-    // mload uint16 (2 bytes) --> offset = 16
-    assembly ("memory-safe") {
-        let numSigs := and(0xff, mload(add(encodedVaa, 0x6)))
-        chain := mload(
-            add(
-                encodedVaa,
-                add(
-                    mul(
-                        numSigs,
-                        0x42 // 66 bytes
-                    ),
-                    0x10 // offset explained above
-                )
-            )
-        )
-    }
-}
-
 function normalizeAmount(uint256 amount, uint8 decimals) pure returns (uint256) {
     if (decimals > 8) {
         amount /= 10 ** (decimals - 8);
