@@ -1278,6 +1278,37 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.executeOrder(signedOrder);
     }
 
+    function testCannotExecuteOrderInvalidCCTPIndexTokenBridge() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        // Change the CCTP token index.
+        engine.updateCurvePool(ICurvePool(curvePool), 69);
+
+        bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ETH_USDC),
+            ETH_CHAIN,
+            SUI_ROUTER,
+            SUI_BRIDGE,
+            SUI_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut,
+                ARB_CHAIN,
+                redeemerMessage,
+                RELAYER_FEE,
+                new bytes32[](0)
+            )
+        );
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("InvalidCCTPIndex()"));
+        engine.executeOrder(signedOrder);
+    }
+
     function testCannotExecuteOrderInvalidRouteCCTP() public {
         // Parameters.
         uint256 amount = INIT_LIQUIDITY / 2;
@@ -1463,7 +1494,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.executeOrder(params);
     }
 
-    function testCannotExecuteOrderIsPausedOrderRouter() public {
+    function testCannotExecuteOrderIsPausedFromOrderRouter() public {
         // Parameters.
         uint256 amount = INIT_LIQUIDITY / 2;
         bytes memory redeemerMessage = hex"deadbeef";
@@ -1522,7 +1553,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
     }
 
-    function testCannotExecuteFromOrderRouterNonzeroRelayerFee() public {
+    function testCannotExecuteNonzeroRelayerFeeFromOrderRouter() public {
         // Parameters.
         uint256 amount = INIT_LIQUIDITY / 2;
         bytes memory redeemerMessage = hex"deadbeef";
@@ -1550,7 +1581,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
     }
 
-    function testCannotExecuteFromOrderRouterSpecifiedAllowedRelayers() public {
+    function testCannotExecuteSpecifiedAllowedRelayersFromOrderRouter() public {
         // Parameters.
         uint256 amount = INIT_LIQUIDITY / 2;
         bytes memory redeemerMessage = hex"deadbeef";
@@ -1581,7 +1612,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
     }
 
-    function testCannotExecuteFromOrderRouterSwapFailed() public {
+    function testCannotExecuteSwapFailedFromOrderRouter() public {
         // Parameters.
         uint256 amount = INIT_LIQUIDITY / 2;
         bytes memory redeemerMessage = hex"deadbeef";
@@ -1609,6 +1640,100 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         vm.startPrank(fromRouter);
         SafeERC20.safeIncreaseAllowance(IERC20(USDC), address(engine), amount);
         vm.expectRevert(abi.encodeWithSignature("SwapFailed()"));
+        engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
+    }
+
+    function testCannotExecuteInvalidRouteFromOrderRouter() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+        address fromRouter = fromUniversalAddress(AVAX_ROUTER);
+
+        // Disable the target route.
+        engine.disableExecutionRoute(SUI_CHAIN);
+
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: amountOut,
+            targetChain: SUI_CHAIN,
+            redeemer: toUniversalAddress(TEST_REDEEMER),
+            redeemerMessage: redeemerMessage,
+            sender: toUniversalAddress(TEST_SENDER),
+            refundAddress: toUniversalAddress(TEST_RECIPIENT),
+            relayerFee: 0,
+            allowedRelayers: new bytes32[](0)
+        });
+
+        // Execute the order.
+        vm.deal(fromRouter, WORMHOLE_FEE);
+        deal(USDC, fromRouter, amount);
+
+        // Expect failure.
+        vm.startPrank(fromRouter);
+        SafeERC20.safeIncreaseAllowance(IERC20(USDC), address(engine), amount);
+        vm.expectRevert(abi.encodeWithSignature("InvalidRoute()"));
+        engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
+    }
+
+    function testCannotExecuteRouteNotAvailableFromOrderRouter() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+        address fromRouter = fromUniversalAddress(AVAX_ROUTER);
+
+        // Create a market order with a target chain that is CCTP enabled.
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: amountOut,
+            targetChain: ARB_CHAIN,
+            redeemer: toUniversalAddress(TEST_REDEEMER),
+            redeemerMessage: redeemerMessage,
+            sender: toUniversalAddress(TEST_SENDER),
+            refundAddress: toUniversalAddress(TEST_RECIPIENT),
+            relayerFee: 0,
+            allowedRelayers: new bytes32[](0)
+        });
+
+        // Execute the order.
+        vm.deal(fromRouter, WORMHOLE_FEE);
+        deal(USDC, fromRouter, amount);
+
+        // Expect failure.
+        vm.startPrank(fromRouter);
+        SafeERC20.safeIncreaseAllowance(IERC20(USDC), address(engine), amount);
+        vm.expectRevert(abi.encodeWithSignature("RouteNotAvailable()"));
+        engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
+    }
+
+    function testCannotExecuteInvalidCCTPIndexFromOrderRouter() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+        address fromRouter = fromUniversalAddress(AVAX_ROUTER);
+
+        // Update the avax-usdc token index to an invalid value.
+        engine.updateCurvePool(ICurvePool(curvePool), 69);
+
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: amountOut,
+            targetChain: SUI_CHAIN,
+            redeemer: toUniversalAddress(TEST_REDEEMER),
+            redeemerMessage: redeemerMessage,
+            sender: toUniversalAddress(TEST_SENDER),
+            refundAddress: toUniversalAddress(TEST_RECIPIENT),
+            relayerFee: 0,
+            allowedRelayers: new bytes32[](0)
+        });
+
+        // Execute the order.
+        vm.deal(fromRouter, WORMHOLE_FEE);
+        deal(USDC, fromRouter, amount);
+
+        // Expect failure.
+        vm.startPrank(fromRouter);
+        SafeERC20.safeIncreaseAllowance(IERC20(USDC), address(engine), amount);
+        vm.expectRevert(abi.encodeWithSignature("InvalidCCTPIndex()"));
         engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
     }
 }
