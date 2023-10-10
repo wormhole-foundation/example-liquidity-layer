@@ -16,18 +16,18 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 import {IMockOrderRouter, MockOrderRouterImplementation} from "./helpers/mock/MockOrderRouterImplementation.sol";
 
-import "../src/OrderRouter/assets/Errors.sol";
-import {Messages} from "../src/shared/Messages.sol";
-import {fromUniversalAddress, toUniversalAddress} from "../src/shared/Utils.sol";
+import "../../src/OrderRouter/assets/Errors.sol";
+import {Messages} from "../../src/shared/Messages.sol";
+import {fromUniversalAddress, toUniversalAddress} from "../../src/shared/Utils.sol";
 
-import "../src/OrderRouter/assets/Errors.sol";
-import {OrderRouterImplementation} from "../src/OrderRouter/OrderRouterImplementation.sol";
-import {OrderRouterSetup} from "../src/OrderRouter/OrderRouterSetup.sol";
+import "../../src/OrderRouter/assets/Errors.sol";
+import {OrderRouterImplementation} from "../../src/OrderRouter/OrderRouterImplementation.sol";
+import {OrderRouterSetup} from "../../src/OrderRouter/OrderRouterSetup.sol";
 
-import {Messages} from "../src/shared/Messages.sol";
-import {fromUniversalAddress, toUniversalAddress} from "../src/shared/Utils.sol";
+import {Messages} from "../../src/shared/Messages.sol";
+import {fromUniversalAddress, toUniversalAddress} from "../../src/shared/Utils.sol";
 
-import "../src/interfaces/IOrderRouter.sol";
+import "../../src/interfaces/IOrderRouter.sol";
 
 contract OrderRouterTest is Test {
     using Messages for *;

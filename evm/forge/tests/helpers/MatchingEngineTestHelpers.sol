@@ -4,14 +4,14 @@ pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
 
-import {toUniversalAddress, fromUniversalAddress} from "../../src/shared/Utils.sol";
+import {toUniversalAddress, fromUniversalAddress} from "../../../src/shared/Utils.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenMinter} from "cctp-solidity/ITokenMinter.sol";
 import {CircleSimulator} from "cctp-solidity/CircleSimulator.sol";
 import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
-import {Messages} from "../../src/shared/Messages.sol";
+import {Messages} from "../../../src/shared/Messages.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
