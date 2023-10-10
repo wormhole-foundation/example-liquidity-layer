@@ -15,8 +15,7 @@ import {State} from "./assets/State.sol";
 
 import {IOrderRouter} from "../interfaces/IOrderRouter.sol";
 
-contract OrderRouter is
-    IOrderRouter,
+abstract contract OrderRouterBase is
     OrderRouterAdmin,
     PlaceMarketOrder,
     RedeemFill,
@@ -34,7 +33,6 @@ contract OrderRouter is
         address _tokenBridge,
         address _wormholeCircle
     )
-        Admin()
         State(
             _token,
             _matchingEngineChain,

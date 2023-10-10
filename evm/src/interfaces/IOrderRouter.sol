@@ -7,4 +7,40 @@ import "./IPlaceMarketOrder.sol";
 import "./IRedeemFill.sol";
 import "./IRedeemOrderRevert.sol";
 
-interface IOrderRouter is IPlaceMarketOrder, IRedeemFill, IRedeemOrderRevert {}
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
+import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
+
+import {RouterInfo, TokenType} from "./Types.sol";
+
+interface IOrderRouter is IPlaceMarketOrder, IRedeemFill, IRedeemOrderRevert {
+    function MIN_SLIPPAGE() external view returns (uint24);
+
+    function MAX_SLIPPAGE() external view returns (uint24);
+
+    function MAX_AMOUNT() external view returns (uint256);
+
+    function orderToken() external view returns (IERC20);
+
+    function matchingEngineChain() external view returns (uint16);
+
+    function matchingEngineEndpoint() external view returns (bytes32);
+
+    function canonicalTokenChain() external view returns (uint16);
+
+    function canonicalTokenAddress() external view returns (bytes32);
+
+    function tokenBridge() external view returns (ITokenBridge);
+
+    function wormholeCctp() external view returns (ICircleIntegration);
+
+    function wormholeChainId() external view returns (uint16);
+
+    function tokenType() external view returns (TokenType);
+
+    function getRouterInfo(uint16 chain) external view returns (RouterInfo memory);
+
+    function isFillRedeemed(bytes32 fillHash) external view returns (bool);
+
+    function addRouterInfo(uint16 chain, RouterInfo memory info) external;
+}

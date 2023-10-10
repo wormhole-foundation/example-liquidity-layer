@@ -18,8 +18,15 @@ import "../src/OrderRouter/assets/Errors.sol";
 import {Messages} from "../src/shared/Messages.sol";
 import {fromUniversalAddress, toUniversalAddress} from "../src/shared/Utils.sol";
 
+import "../src/OrderRouter/assets/Errors.sol";
+import {OrderRouterImplementation} from "../src/OrderRouter/OrderRouterImplementation.sol";
+import {OrderRouterSetup} from "../src/OrderRouter/OrderRouterSetup.sol";
+import {OrderRouterProxy} from "../src/OrderRouter/OrderRouterProxy.sol";
+
+import {Messages} from "../src/shared/Messages.sol";
+import {fromUniversalAddress, toUniversalAddress} from "../src/shared/Utils.sol";
+
 import "../src/interfaces/IOrderRouter.sol";
-import {OrderRouter} from "../src/OrderRouter/OrderRouter.sol";
 
 contract OrderRouterTest is Test {
     using Messages for *;
@@ -56,9 +63,9 @@ contract OrderRouterTest is Test {
         toUniversalAddress(vm.envAddress("ARB_CIRCLE_INTEGRATION"));
 
     // Test routers.
-    OrderRouter nativeRouter;
-    OrderRouter cctpEnabledRouter;
-    OrderRouter canonicalEnabledRouter;
+    IOrderRouter nativeRouter;
+    IOrderRouter cctpEnabledRouter;
+    IOrderRouter canonicalEnabledRouter;
 
     // Integrating contract helpers.
     SigningWormholeSimulator wormholeSimulator;
@@ -68,6 +75,37 @@ contract OrderRouterTest is Test {
     ITokenBridge tokenBridge;
     ICircleIntegration wormholeCctp;
 
+    function deployProxy(
+        address _token,
+        uint16 _matchingEngineChain,
+        bytes32 _matchingEngineEndpoint,
+        uint16 _canonicalTokenChain,
+        bytes32 _canonicalTokenAddress,
+        address _tokenBridge,
+        address _wormholeCircle
+    ) internal returns (IOrderRouter) {
+        // Deploy Setup.
+        OrderRouterSetup setup = new OrderRouterSetup();
+
+        // Deploy Implementation.
+        OrderRouterImplementation implementation = new OrderRouterImplementation(
+            _token,
+            _matchingEngineChain,
+            _matchingEngineEndpoint,
+            _canonicalTokenChain,
+            _canonicalTokenAddress,
+            _tokenBridge,
+            _wormholeCircle
+        );
+
+        // Deploy Proxy.
+        OrderRouterProxy proxy = new OrderRouterProxy(
+            address(setup),
+            abi.encodeWithSelector(bytes4(keccak256("setup(address)")), address(implementation))
+        );
+        return IOrderRouter(address(proxy));
+    }
+
     function setUp() public {
         tokenBridge = ITokenBridge(TOKEN_BRIDGE_ADDRESS);
         wormholeCctp = ICircleIntegration(WORMHOLE_CCTP_ADDRESS);
@@ -76,7 +114,7 @@ contract OrderRouterTest is Test {
         {
             // Prank with an arbitrary owner.
             vm.startPrank(makeAddr("owner"));
-            nativeRouter = new OrderRouter(
+            nativeRouter = deployProxy(
                 USDC_ADDRESS,
                 MATCHING_ENGINE_CHAIN,
                 toUniversalAddress(MATCHING_ENGINE_ADDRESS),
@@ -87,7 +125,7 @@ contract OrderRouterTest is Test {
             );
             assert(nativeRouter.tokenType() == TokenType.Native);
 
-            cctpEnabledRouter = new OrderRouter(
+            cctpEnabledRouter = deployProxy(
                 USDC_ADDRESS,
                 MATCHING_ENGINE_CHAIN,
                 toUniversalAddress(MATCHING_ENGINE_ADDRESS),
@@ -98,7 +136,7 @@ contract OrderRouterTest is Test {
             );
             assert(cctpEnabledRouter.tokenType() == TokenType.Cctp);
 
-            canonicalEnabledRouter = new OrderRouter(
+            canonicalEnabledRouter = deployProxy(
                 _wrappedUsdc(),
                 MATCHING_ENGINE_CHAIN,
                 toUniversalAddress(MATCHING_ENGINE_ADDRESS),
@@ -1233,12 +1271,12 @@ contract OrderRouterTest is Test {
         );
     }
 
-    function _dealAndApproveUsdc(OrderRouter router, uint256 amount) internal {
+    function _dealAndApproveUsdc(IOrderRouter router, uint256 amount) internal {
         deal(USDC_ADDRESS, address(this), amount);
         IERC20(USDC_ADDRESS).approve(address(router), amount);
     }
 
-    function _registerTargetChain(OrderRouter router, uint16 chain, TokenType tokenType) internal {
+    function _registerTargetChain(IOrderRouter router, uint16 chain, TokenType tokenType) internal {
         vm.prank(makeAddr("owner"));
         router.addRouterInfo(
             chain,
@@ -1265,7 +1303,7 @@ contract OrderRouterTest is Test {
             );
     }
 
-    function _dealAndApproveWrappedUsdc(OrderRouter router, uint256 amount) internal {
+    function _dealAndApproveWrappedUsdc(IOrderRouter router, uint256 amount) internal {
         // First deal amount to this contract.
         deal(_wrappedUsdc(), address(this), amount);
 
@@ -1280,7 +1318,7 @@ contract OrderRouterTest is Test {
     }
 
     function _placeMarketOrder(
-        OrderRouter router,
+        IOrderRouter router,
         uint256 amountIn,
         Messages.MarketOrder memory expectedOrder
     ) internal returns (bytes memory) {
@@ -1303,7 +1341,7 @@ contract OrderRouterTest is Test {
     }
 
     function _placeMarketOrder(
-        OrderRouter router,
+        IOrderRouter router,
         uint256 amountIn,
         uint16 targetChain,
         Messages.Fill memory expectedFill
@@ -1321,7 +1359,7 @@ contract OrderRouterTest is Test {
     }
 
     function _placeMarketOrder(
-        OrderRouter router,
+        IOrderRouter router,
         PlaceMarketOrderArgs memory args,
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
@@ -1349,7 +1387,7 @@ contract OrderRouterTest is Test {
     }
 
     function _assertTokenBridgeMarketOrder(
-        OrderRouter router,
+        IOrderRouter router,
         uint16 tokenChain,
         address tokenAddress,
         uint256 amountIn,
@@ -1379,7 +1417,7 @@ contract OrderRouterTest is Test {
     }
 
     function _assertWormholeCctpMarketOrder(
-        OrderRouter router,
+        IOrderRouter router,
         uint256 amountIn,
         bytes memory wormholePayload,
         Messages.MarketOrder memory expectedOrder
@@ -1482,7 +1520,7 @@ contract OrderRouterTest is Test {
     }
 
     function _craftTokenBridgeVaa(
-        OrderRouter router,
+        IOrderRouter router,
         uint256 amount,
         address tokenAddress,
         uint16 tokenChain,
@@ -1513,7 +1551,7 @@ contract OrderRouterTest is Test {
     }
 
     function _redeemTokenBridgeFill(
-        OrderRouter router,
+        IOrderRouter router,
         RedeemedFill memory expectedRedeemed,
         address tokenAddress,
         uint16 tokenChain,
@@ -1545,7 +1583,7 @@ contract OrderRouterTest is Test {
     }
 
     function _redeemTokenBridgeOrderRevert(
-        OrderRouter router,
+        IOrderRouter router,
         uint256 refundAmount,
         Messages.RevertType expectedReason,
         address tokenAddress,
@@ -1580,7 +1618,7 @@ contract OrderRouterTest is Test {
     }
 
     function _craftWormholeCctpRedeemParams(
-        OrderRouter router,
+        IOrderRouter router,
         uint256 amount,
         bytes32 fromAddress,
         uint16 fromChain,
@@ -1632,7 +1670,7 @@ contract OrderRouterTest is Test {
     }
 
     function _redeemWormholeCctpFill(
-        OrderRouter router,
+        IOrderRouter router,
         RedeemedFill memory expectedRedeemed,
         bytes32 fromAddress,
         uint16 fromChain
@@ -1660,7 +1698,7 @@ contract OrderRouterTest is Test {
     }
 
     function _redeemWormholeCctpOrderRevert(
-        OrderRouter router,
+        IOrderRouter router,
         uint256 refundAmount,
         Messages.RevertType expectedReason,
         bytes32 fromAddress,

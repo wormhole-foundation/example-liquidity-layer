@@ -109,13 +109,13 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         // Deploy Setup.
         MatchingEngineSetup setup = new MatchingEngineSetup();
 
-        // deploy Implementation
+        // Deploy Implementation.
         MatchingEngineImplementation implementation = new MatchingEngineImplementation(
             TOKEN_BRIDGE,
             CIRCLE_INTEGRATION
         );
 
-        // // deploy Proxy
+        // Deploy Proxy.
         MatchingEngineProxy proxy = new MatchingEngineProxy(
             address(setup),
             abi.encodeWithSelector(

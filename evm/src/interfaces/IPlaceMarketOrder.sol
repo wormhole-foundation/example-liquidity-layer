@@ -28,4 +28,6 @@ interface IPlaceMarketOrder {
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
     ) external payable returns (uint64 sequence);
+
+    function MAX_NUM_RELAYERS() external view returns (uint256);
 }
