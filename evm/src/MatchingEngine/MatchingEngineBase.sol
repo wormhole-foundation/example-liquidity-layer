@@ -15,7 +15,7 @@ import {toUniversalAddress, fromUniversalAddress, getDecimals, denormalizeAmount
 import {getPendingOwnerState, getOwnerState, getPausedState} from "../shared/Admin.sol";
 import {getExecutionRouteState, Route, RegisteredOrderRouters, getOrderRoutersState, CurvePoolInfo, getCurvePoolState} from "./MatchingEngineStorage.sol";
 
-abstract contract MatchingEngineBase is MatchingEngineAdmin {
+contract MatchingEngineBase is MatchingEngineAdmin {
     using Messages for *;
 
     // Immutable state.
@@ -47,13 +47,8 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         bytes32 fromAddress;
     }
 
-    constructor(
-        address tokenBridge,
-        address circleIntegration,
-        address curve,
-        int8 nativeTokenPoolIndex
-    ) {
-        if (tokenBridge == address(0) || circleIntegration == address(0) || curve == address(0)) {
+    constructor(address tokenBridge, address circleIntegration) {
+        if (tokenBridge == address(0) || circleIntegration == address(0)) {
             revert InvalidAddress();
         }
 
@@ -61,11 +56,6 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         _circleIntegration = ICircleIntegration(circleIntegration);
         _chainId = _tokenBridge.chainId();
         _wormhole = _tokenBridge.wormhole();
-
-        // Set curve pool info in storage. TODO: move this to initalize method.
-        CurvePoolInfo storage info = getCurvePoolState();
-        info.pool = ICurvePool(curve);
-        info.nativeTokenIndex = nativeTokenPoolIndex;
     }
 
     function executeOrder(bytes calldata vaa) external payable notPaused returns (uint64 sequence) {

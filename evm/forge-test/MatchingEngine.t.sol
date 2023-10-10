@@ -5,17 +5,20 @@ pragma solidity ^0.8.19;
 import "forge-std/StdUtils.sol";
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
-import {TestHelpers} from "./helpers/MatchingEngineTestHelpers.sol";
 
 import {IMatchingEngine} from "../src/interfaces/IMatchingEngine.sol";
-import {MatchingEngine} from "../src/MatchingEngine/MatchingEngine.sol";
+import {MatchingEngineImplementation} from "../src/MatchingEngine/MatchingEngineImplementation.sol";
+import {MatchingEngineProxy} from "../src/MatchingEngine/MatchingEngineProxy.sol";
+import {MatchingEngineSetup} from "../src/MatchingEngine/MatchingEngineSetup.sol";
+import {Messages} from "../src/shared/Messages.sol";
+import {toUniversalAddress, fromUniversalAddress} from "../src/shared/Utils.sol";
+
+import {TestHelpers} from "./helpers/MatchingEngineTestHelpers.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {CircleSimulator} from "cctp-solidity/CircleSimulator.sol";
 import {WormholePoolTestHelper} from "curve-solidity/WormholeCurvePool.sol";
-import {Messages} from "../src/shared/Messages.sol";
-import {toUniversalAddress, fromUniversalAddress} from "../src/shared/Utils.sol";
 import {SigningWormholeSimulator} from "modules/wormhole/WormholeSimulator.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -103,12 +106,24 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     }
 
     function _deployAndSetupMatchingEngine() internal {
-        // Deploy the matching engine.
-        MatchingEngine proxy = new MatchingEngine(
+        // Deploy Setup.
+        MatchingEngineSetup setup = new MatchingEngineSetup();
+
+        // deploy Implementation
+        MatchingEngineImplementation implementation = new MatchingEngineImplementation(
             TOKEN_BRIDGE,
-            CIRCLE_INTEGRATION,
-            curvePool,
-            0 // USDC pool index
+            CIRCLE_INTEGRATION
+        );
+
+        // // deploy Proxy
+        MatchingEngineProxy proxy = new MatchingEngineProxy(
+            address(setup),
+            abi.encodeWithSelector(
+                bytes4(keccak256("setup(address,address,int8)")),
+                address(implementation),
+                address(curvePool),
+                int8(0)
+            )
         );
         engine = IMatchingEngine(address(proxy));
 
