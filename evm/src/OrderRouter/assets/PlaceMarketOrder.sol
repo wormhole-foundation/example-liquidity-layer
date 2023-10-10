@@ -64,7 +64,12 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
         // We either need to encode an order message for the matching engine or directly encode
         // a fill message for the target chain.
-        if (tokenType == TokenType.Cctp) {
+        if (
+            (wormholeChainId == canonicalTokenChain || tokenType == TokenType.Canonical) &&
+            (args.targetChain == canonicalTokenChain || dst.tokenType == TokenType.Canonical)
+        ) {
+            sequence = _handleCanonicalToCanonical(args, dst.endpoint);
+        } else if (tokenType == TokenType.Cctp) {
             if (dst.tokenType == TokenType.Cctp) {
                 sequence = _handleCctpToCctp(args, dst.endpoint);
             } else {
@@ -75,8 +80,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                     allowedRelayers
                 );
             }
-        } else if (tokenType == TokenType.Canonical && dst.tokenType == TokenType.Canonical) {
-            sequence = _handleCanonicalToCanonical(args, dst.endpoint);
         } else {
             sequence = _handleBridgeToMatchingEngine(
                 args,
@@ -107,7 +110,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             0, // nonce
             Messages
                 .Fill({
-                    sourceChain: wormholeChain,
+                    sourceChain: wormholeChainId,
                     orderSender: toUniversalAddress(msg.sender),
                     redeemer: args.redeemer,
                     redeemerMessage: args.redeemerMessage
@@ -134,7 +137,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             0, // nonce
             Messages
                 .Fill({
-                    sourceChain: wormholeChain,
+                    sourceChain: wormholeChainId,
                     orderSender: toUniversalAddress(msg.sender),
                     redeemer: args.redeemer,
                     redeemerMessage: args.redeemerMessage
@@ -153,7 +156,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
         SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCctp), args.amountIn);
 
-        if (wormholeChain == matchingEngineChain) {
+        if (wormholeChainId == matchingEngineChain) {
             // TODO: Invoke the matching engine directly.
             revert("Not implemented");
         } else {

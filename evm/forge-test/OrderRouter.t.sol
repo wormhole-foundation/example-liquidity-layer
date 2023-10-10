@@ -403,7 +403,7 @@ contract OrderRouterTest is Test {
         _dealAndApproveUsdc(cctpEnabledRouter, amountIn);
 
         Messages.Fill memory expectedFill = Messages.Fill({
-            sourceChain: cctpEnabledRouter.wormholeChain(),
+            sourceChain: cctpEnabledRouter.wormholeChainId(),
             orderSender: toUniversalAddress(address(this)),
             redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
             redeemerMessage: bytes("All your base are belong to us")
@@ -528,16 +528,60 @@ contract OrderRouterTest is Test {
         canonicalEnabledRouter.placeMarketOrder(args);
     }
 
-    function testCanonicalEnabledRouterPlaceMarketOrderTargetCanonical(uint256 amountIn) public {
+    function testCanonicalEnabledRouterPlaceMarketOrderTargetCanonical1(uint256 amountIn) public {
         amountIn = bound(amountIn, 1, canonicalEnabledRouter.MAX_AMOUNT());
 
-        uint16 targetChain = 23;
+        uint16 targetChain = 21;
         _registerTargetChain(canonicalEnabledRouter, targetChain, TokenType.Canonical);
 
         _dealAndApproveWrappedUsdc(canonicalEnabledRouter, amountIn);
 
         Messages.Fill memory expectedFill = Messages.Fill({
-            sourceChain: cctpEnabledRouter.wormholeChain(),
+            sourceChain: cctpEnabledRouter.wormholeChainId(),
+            orderSender: toUniversalAddress(address(this)),
+            redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        // Check that the payload is correct.
+        //
+        // NOTE: This is a special case where we send a fill directly to another order router.
+        bytes memory tokenBridgePayload = _placeMarketOrder(
+            canonicalEnabledRouter,
+            amountIn,
+            targetChain,
+            expectedFill
+        );
+        ITokenBridge.TransferWithPayload memory transfer = tokenBridge.parseTransferWithPayload(
+            tokenBridgePayload
+        );
+
+        assertEq(transfer.payload, expectedFill.encode());
+
+        ITokenBridge.TransferWithPayload memory expectedTransfer = ITokenBridge
+            .TransferWithPayload({
+                payloadID: 3,
+                amount: amountIn,
+                tokenAddress: toUniversalAddress(CANONICAL_TOKEN_ADDRESS),
+                tokenChain: CANONICAL_TOKEN_CHAIN,
+                to: canonicalEnabledRouter.getRouterInfo(targetChain).endpoint,
+                toChain: targetChain,
+                fromAddress: toUniversalAddress(address(canonicalEnabledRouter)),
+                payload: transfer.payload
+            });
+        assertEq(keccak256(abi.encode(transfer)), keccak256(abi.encode(expectedTransfer)));
+    }
+
+    function testCanonicalEnabledRouterPlaceMarketOrderTargetCanonical2(uint256 amountIn) public {
+        amountIn = bound(amountIn, 1, canonicalEnabledRouter.MAX_AMOUNT());
+
+        uint16 targetChain = 2;
+        _registerTargetChain(canonicalEnabledRouter, targetChain, TokenType.Cctp);
+
+        _dealAndApproveWrappedUsdc(canonicalEnabledRouter, amountIn);
+
+        Messages.Fill memory expectedFill = Messages.Fill({
+            sourceChain: cctpEnabledRouter.wormholeChainId(),
             orderSender: toUniversalAddress(address(this)),
             redeemer: 0x1337133713371337133713371337133713371337133713371337133713371337,
             redeemerMessage: bytes("All your base are belong to us")
@@ -610,7 +654,7 @@ contract OrderRouterTest is Test {
     function testCanonicalEnabledRouterPlaceMarketOrderTargetCctp(uint256 amountIn) public {
         amountIn = bound(amountIn, 1, canonicalEnabledRouter.MAX_AMOUNT());
 
-        uint16 targetChain = 2;
+        uint16 targetChain = 6;
         _registerTargetChain(canonicalEnabledRouter, targetChain, TokenType.Cctp);
 
         _dealAndApproveWrappedUsdc(canonicalEnabledRouter, amountIn);
@@ -656,7 +700,7 @@ contract OrderRouterTest is Test {
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
-            nativeRouter.wormholeChain(),
+            nativeRouter.wormholeChainId(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             MATCHING_ENGINE_CHAIN,
             fill.encode()
@@ -684,7 +728,7 @@ contract OrderRouterTest is Test {
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
-            nativeRouter.wormholeChain(),
+            nativeRouter.wormholeChainId(),
             emitterAddress,
             MATCHING_ENGINE_CHAIN,
             fill.encode()
@@ -718,7 +762,7 @@ contract OrderRouterTest is Test {
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
-            nativeRouter.wormholeChain(),
+            nativeRouter.wormholeChainId(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             emitterChain,
             fill.encode()
@@ -750,7 +794,7 @@ contract OrderRouterTest is Test {
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
-            nativeRouter.wormholeChain(),
+            nativeRouter.wormholeChainId(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             MATCHING_ENGINE_CHAIN,
             fill.encode()
@@ -779,7 +823,7 @@ contract OrderRouterTest is Test {
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
-            nativeRouter.wormholeChain(),
+            nativeRouter.wormholeChainId(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             MATCHING_ENGINE_CHAIN,
             orderRevert.encode()
@@ -804,7 +848,7 @@ contract OrderRouterTest is Test {
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
-            nativeRouter.wormholeChain(),
+            nativeRouter.wormholeChainId(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             MATCHING_ENGINE_CHAIN,
             fill.encode()
@@ -830,7 +874,7 @@ contract OrderRouterTest is Test {
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
-            nativeRouter.wormholeChain(),
+            nativeRouter.wormholeChainId(),
             emitterAddress,
             MATCHING_ENGINE_CHAIN,
             orderRevert.encode()
@@ -862,7 +906,7 @@ contract OrderRouterTest is Test {
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
-            nativeRouter.wormholeChain(),
+            nativeRouter.wormholeChainId(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             emitterChain,
             orderRevert.encode()
@@ -892,7 +936,7 @@ contract OrderRouterTest is Test {
             nativeRouter,
             69, // amount
             USDC_ADDRESS,
-            nativeRouter.wormholeChain(),
+            nativeRouter.wormholeChainId(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             MATCHING_ENGINE_CHAIN,
             orderRevert.encode()
@@ -932,7 +976,7 @@ contract OrderRouterTest is Test {
             nativeRouter,
             expectedRedeemed,
             USDC_ADDRESS,
-            nativeRouter.wormholeChain(),
+            nativeRouter.wormholeChainId(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             MATCHING_ENGINE_CHAIN
         );
@@ -955,7 +999,7 @@ contract OrderRouterTest is Test {
             refundAmount,
             Messages.RevertType.SwapFailed,
             USDC_ADDRESS,
-            nativeRouter.wormholeChain(),
+            nativeRouter.wormholeChainId(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             MATCHING_ENGINE_CHAIN
         );
@@ -1460,7 +1504,7 @@ contract OrderRouterTest is Test {
                         tokenAddress: toUniversalAddress(tokenAddress),
                         tokenChain: tokenChain,
                         to: toUniversalAddress(address(router)),
-                        toChain: router.wormholeChain(),
+                        toChain: router.wormholeChainId(),
                         fromAddress: fromAddress,
                         payload: encodedMessage
                     })
