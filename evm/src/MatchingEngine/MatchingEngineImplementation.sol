@@ -7,6 +7,8 @@ import {MatchingEngineBase} from "./MatchingEngineBase.sol";
 import {getImplementationState, Implementation} from "../shared/Admin.sol";
 
 contract MatchingEngineImplementation is MatchingEngineBase {
+    error AlreadyInitialized();
+
     constructor(
         address tokenBridge,
         address circleIntegration
@@ -21,7 +23,9 @@ contract MatchingEngineImplementation is MatchingEngineBase {
 
         Implementation storage implementation = getImplementationState();
 
-        require(!implementation.isInitialized[impl], "already initialized");
+        if (implementation.isInitialized[impl]) {
+            revert AlreadyInitialized();
+        }
 
         // Initialize the implementation.
         implementation.isInitialized[impl] = true;

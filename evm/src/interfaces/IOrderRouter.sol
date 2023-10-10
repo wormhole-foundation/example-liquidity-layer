@@ -43,4 +43,6 @@ interface IOrderRouter is IPlaceMarketOrder, IRedeemFill, IRedeemOrderRevert {
     function isFillRedeemed(bytes32 fillHash) external view returns (bool);
 
     function addRouterInfo(uint16 chain, RouterInfo memory info) external;
+
+    function upgradeContract(address newImplementation) external;
 }

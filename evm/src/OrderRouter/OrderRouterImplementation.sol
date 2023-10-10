@@ -7,6 +7,8 @@ import {OrderRouterBase} from "./OrderRouterBase.sol";
 import {getImplementationState, Implementation} from "../shared/Admin.sol";
 
 contract OrderRouterImplementation is OrderRouterBase {
+    error AlreadyInitialized();
+
     constructor(
         address _token,
         uint16 _matchingEngineChain,
@@ -36,7 +38,9 @@ contract OrderRouterImplementation is OrderRouterBase {
 
         Implementation storage implementation = getImplementationState();
 
-        require(!implementation.isInitialized[impl], "already initialized");
+        if (implementation.isInitialized[impl]) {
+            revert AlreadyInitialized();
+        }
 
         // Initialize the implementation.
         implementation.isInitialized[impl] = true;

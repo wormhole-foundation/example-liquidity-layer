@@ -12,6 +12,8 @@ import {MatchingEngineSetup} from "../src/MatchingEngine/MatchingEngineSetup.sol
 import {Messages} from "../src/shared/Messages.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../src/shared/Utils.sol";
 
+import {IMockMatchingEngine, MockMatchingEngineImplementation} from "./helpers/mock/MockMatchingEngineImplementation.sol";
+
 import {TestHelpers} from "./helpers/MatchingEngineTestHelpers.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
@@ -185,6 +187,49 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     /**
      * Admin Tests
      */
+
+    function testUpgradeContract() public {
+        // Deploy new implementation.
+        MockMatchingEngineImplementation newImplementation = new MockMatchingEngineImplementation(
+            TOKEN_BRIDGE,
+            CIRCLE_INTEGRATION
+        );
+
+        // Upgrade the contract.
+        engine.upgradeContract(address(newImplementation));
+
+        // Use mock implementation interface.
+        IMockMatchingEngine mockEngine = IMockMatchingEngine(address(engine));
+
+        // Verify the new implementation.
+        assertEq(mockEngine.getImplementation(), address(newImplementation));
+        assertTrue(mockEngine.isUpgraded());
+    }
+
+    function testCannotUpgradeContractAgain() public {
+        // Deploy new implementation.
+        MockMatchingEngineImplementation newImplementation = new MockMatchingEngineImplementation(
+            TOKEN_BRIDGE,
+            CIRCLE_INTEGRATION
+        );
+
+        // Upgrade the contract.
+        engine.upgradeContract(address(newImplementation));
+
+        vm.expectRevert(abi.encodeWithSignature("AlreadyInitialized()"));
+        engine.upgradeContract(address(newImplementation));
+    }
+
+    function testCannotUpgradeContractInvalidAddress() public {
+        vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
+        engine.upgradeContract(address(0));
+    }
+
+    function testCannotUpgradeContractOwnerOnly() public {
+        vm.prank(makeAddr("robber"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        engine.upgradeContract(address(makeAddr("newImplementation")));
+    }
 
     function testEnableExecutionRoute() public {
         uint16 chainId = 69;

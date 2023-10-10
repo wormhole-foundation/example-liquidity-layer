@@ -48,6 +48,8 @@ interface IMatchingEngine {
 
     function updateCurvePool(ICurvePool pool, int8 nativeTokenIndex) external;
 
+    function upgradeContract(address newImplementation) external;
+
     function setPause(bool paused) external;
 
     function submitOwnershipTransferRequest(address newOwner) external;

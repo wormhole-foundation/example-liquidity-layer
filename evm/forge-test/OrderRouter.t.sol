@@ -14,6 +14,8 @@ import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
+import {IMockOrderRouter, MockOrderRouterImplementation} from "./helpers/mock/MockOrderRouterImplementation.sol";
+
 import "../src/OrderRouter/assets/Errors.sol";
 import {Messages} from "../src/shared/Messages.sol";
 import {fromUniversalAddress, toUniversalAddress} from "../src/shared/Utils.sol";
@@ -159,6 +161,63 @@ contract OrderRouterTest is Test {
             ARBITRUM_USDC_ADDRESS
         );
         circleSimulator.setupCircleAttester();
+    }
+
+    function testUpgradeContract() public {
+        // Deploy new implementation.
+        MockOrderRouterImplementation newImplementation = new MockOrderRouterImplementation(
+            USDC_ADDRESS,
+            MATCHING_ENGINE_CHAIN,
+            toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+            CANONICAL_TOKEN_CHAIN,
+            toUniversalAddress(CANONICAL_TOKEN_ADDRESS),
+            address(tokenBridge),
+            address(0) // wormholeCctp
+        );
+
+        // Upgrade the contract.
+        vm.prank(makeAddr("owner"));
+        nativeRouter.upgradeContract(address(newImplementation));
+
+        // Use mock implementation interface.
+        IMockOrderRouter mockRouter = IMockOrderRouter(address(nativeRouter));
+
+        // Verify the new implementation.
+        assertEq(mockRouter.getImplementation(), address(newImplementation));
+        assertTrue(mockRouter.isUpgraded());
+    }
+
+    function testCannotUpgradeContractAgain() public {
+        // Deploy new implementation.
+        MockOrderRouterImplementation newImplementation = new MockOrderRouterImplementation(
+            USDC_ADDRESS,
+            MATCHING_ENGINE_CHAIN,
+            toUniversalAddress(MATCHING_ENGINE_ADDRESS),
+            CANONICAL_TOKEN_CHAIN,
+            toUniversalAddress(CANONICAL_TOKEN_ADDRESS),
+            address(tokenBridge),
+            address(0) // wormholeCctp
+        );
+
+        vm.startPrank(makeAddr("owner"));
+
+        // Upgrade the contract.
+        nativeRouter.upgradeContract(address(newImplementation));
+
+        vm.expectRevert(abi.encodeWithSignature("AlreadyInitialized()"));
+        nativeRouter.upgradeContract(address(newImplementation));
+    }
+
+    function testCannotUpgradeContractInvalidAddress() public {
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
+        nativeRouter.upgradeContract(address(0));
+    }
+
+    function testCannotUpgradeContractOwnerOnly() public {
+        vm.prank(makeAddr("not owner"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        nativeRouter.upgradeContract(address(makeAddr("newImplementation")));
     }
 
     function testCannotAddEndpointAsRandomCaller() public {
