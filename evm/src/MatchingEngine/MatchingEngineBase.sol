@@ -19,13 +19,13 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     using Messages for *;
 
     // Immutable state.
-    uint16 private immutable _chainId;
+    uint16 public immutable _chainId;
     IWormhole private immutable _wormhole;
     ITokenBridge private immutable _tokenBridge;
     ICircleIntegration private immutable _circleIntegration;
 
     // Consts.
-    uint256 public constant RELAY_TIMEOUT = 900; // seconds
+    uint256 public constant RELAY_TIMEOUT = 1800; // seconds
     uint32 private constant NONCE = 0;
 
     // Errors.
@@ -37,6 +37,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     error NotAttested();
     error InvalidCCTPIndex();
     error InvalidRelayerFee();
+    error SwapFailed();
 
     struct InternalOrderParameters {
         uint16 fromChain;
@@ -61,7 +62,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         _chainId = _tokenBridge.chainId();
         _wormhole = _tokenBridge.wormhole();
 
-        // Set curve pool info in storage.
+        // Set curve pool info in storage. TODO: move this to initalize method.
         CurvePoolInfo storage info = getCurvePoolState();
         info.pool = ICurvePool(curve);
         info.nativeTokenIndex = nativeTokenPoolIndex;
@@ -202,6 +203,10 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         // the origin chain. Otherwise, bridge (or CCTP) the swapped token to the
         // destination chain.
         if (amountOut == 0) {
+            if (params.fromChain == _chainId) {
+                revert SwapFailed();
+            }
+
             sequence = _handleBridgeOut(
                 params.token,
                 amountIn, // Send full amount back.
@@ -308,7 +313,17 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         uint256 relayerCount = allowedRelayers.length;
         bytes32 relayer = toUniversalAddress(msg.sender);
 
-        // Check if the msg.sender is an allowed relayer.
+        /**
+         * Check if the msg.sender is an allowed relayer.
+         *
+         * If the difference between the current block timestamp and the message
+         * timestamp is greater than the relay timeout, then any relayer is
+         * allowed to complete the transfer for the relayer fee.
+         *
+         * NOTE: There are potential time synchronization issues here, but the
+         * the relayer timeout is set to 30 minutes, so this should not be an
+         * issue in practice.
+         */
         bool allowed = false;
         if (relayerCount == 0 || block.timestamp > messageTime + RELAY_TIMEOUT) {
             allowed = true;

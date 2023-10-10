@@ -1462,4 +1462,153 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         vm.expectRevert(abi.encodeWithSignature("ContractPaused()"));
         engine.executeOrder(params);
     }
+
+    function testCannotExecuteOrderIsPausedOrderRouter() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+        address fromRouter = fromUniversalAddress(AVAX_ROUTER);
+
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: amountOut,
+            targetChain: SUI_CHAIN,
+            redeemer: toUniversalAddress(TEST_REDEEMER),
+            redeemerMessage: redeemerMessage,
+            sender: toUniversalAddress(TEST_SENDER),
+            refundAddress: toUniversalAddress(TEST_RECIPIENT),
+            relayerFee: 0,
+            allowedRelayers: new bytes32[](0)
+        });
+
+        // Execute the order.
+        vm.deal(fromRouter, WORMHOLE_FEE);
+        deal(USDC, fromRouter, amount);
+
+        // Pause the engine.
+        engine.setPause(true);
+
+        // Expect failure.
+        vm.expectRevert(abi.encodeWithSignature("ContractPaused()"));
+        vm.prank(fromRouter);
+        engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
+    }
+
+    function testCannotExecuteOrderUnregisteredOrderRouter() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+        address fromRouter = fromUniversalAddress(AVAX_ROUTER);
+
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: amountOut,
+            targetChain: SUI_CHAIN,
+            redeemer: toUniversalAddress(TEST_REDEEMER),
+            redeemerMessage: redeemerMessage,
+            sender: toUniversalAddress(TEST_SENDER),
+            refundAddress: toUniversalAddress(TEST_RECIPIENT),
+            relayerFee: 0,
+            allowedRelayers: new bytes32[](0)
+        });
+
+        // Execute the order.
+        vm.deal(fromRouter, WORMHOLE_FEE);
+        deal(USDC, fromRouter, amount);
+
+        // Expect failure.
+        vm.startPrank(makeAddr("notARouter"));
+        vm.expectRevert(); // No revert message, it appears there is a forge bug.
+        engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
+    }
+
+    function testCannotExecuteFromOrderRouterNonzeroRelayerFee() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+        address fromRouter = fromUniversalAddress(AVAX_ROUTER);
+
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: amountOut,
+            targetChain: SUI_CHAIN,
+            redeemer: toUniversalAddress(TEST_REDEEMER),
+            redeemerMessage: redeemerMessage,
+            sender: toUniversalAddress(TEST_SENDER),
+            refundAddress: toUniversalAddress(TEST_RECIPIENT),
+            relayerFee: 69, // Nonzero relayer fee.
+            allowedRelayers: new bytes32[](0)
+        });
+
+        // Execute the order.
+        vm.deal(fromRouter, WORMHOLE_FEE);
+        deal(USDC, fromRouter, amount);
+
+        // Expect failure.
+        vm.startPrank(fromRouter);
+        vm.expectRevert(abi.encodeWithSignature("InvalidRelayerFee()"));
+        engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
+    }
+
+    function testCannotExecuteFromOrderRouterSpecifiedAllowedRelayers() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+        address fromRouter = fromUniversalAddress(AVAX_ROUTER);
+
+        // Create a random list of allowed relayers.
+        bytes32[] memory allowedRelayers = _createAllowedRelayerArray(5);
+
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: amountOut,
+            targetChain: SUI_CHAIN,
+            redeemer: toUniversalAddress(TEST_REDEEMER),
+            redeemerMessage: redeemerMessage,
+            sender: toUniversalAddress(TEST_SENDER),
+            refundAddress: toUniversalAddress(TEST_RECIPIENT),
+            relayerFee: 0,
+            allowedRelayers: allowedRelayers
+        });
+
+        // Execute the order.
+        vm.deal(fromRouter, WORMHOLE_FEE);
+        deal(USDC, fromRouter, amount);
+
+        // Expect failure.
+        vm.startPrank(fromRouter);
+        vm.expectRevert(abi.encodeWithSignature("InvalidRelayerFee()"));
+        engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
+    }
+
+    function testCannotExecuteFromOrderRouterSwapFailed() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+
+        // Set the amountOut to a value that is impossible to achieve.
+        uint256 amountOut = amount;
+        address fromRouter = fromUniversalAddress(AVAX_ROUTER);
+
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: amountOut,
+            targetChain: SUI_CHAIN,
+            redeemer: toUniversalAddress(TEST_REDEEMER),
+            redeemerMessage: redeemerMessage,
+            sender: toUniversalAddress(TEST_SENDER),
+            refundAddress: toUniversalAddress(TEST_RECIPIENT),
+            relayerFee: 0,
+            allowedRelayers: new bytes32[](0)
+        });
+
+        // Execute the order.
+        vm.deal(fromRouter, WORMHOLE_FEE);
+        deal(USDC, fromRouter, amount);
+
+        // Expect failure.
+        vm.startPrank(fromRouter);
+        SafeERC20.safeIncreaseAllowance(IERC20(USDC), address(engine), amount);
+        vm.expectRevert(abi.encodeWithSignature("SwapFailed()"));
+        engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
+    }
 }
