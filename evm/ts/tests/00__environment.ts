@@ -1,11 +1,5 @@
-import {
-  CHAIN_ID_AVAX,
-  CHAIN_ID_ETH,
-  CHAIN_ID_POLYGON,
-  coalesceChainId,
-  tryNativeToHexString,
-  tryNativeToUint8Array,
-} from "@certusone/wormhole-sdk";
+import { coalesceChainId, tryNativeToHexString } from "@certusone/wormhole-sdk";
+import { TokenImplementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 import { expect } from "chai";
 import { ethers } from "ethers";
 import * as fs from "fs";
@@ -27,22 +21,22 @@ import {
   LOCALHOSTS,
   MATCHING_ENGINE_CHAIN,
   MATCHING_ENGINE_POOL_COINS,
+  POLYGON_USDC_ADDRESS,
   TOKEN_BRIDGE_ADDRESSES,
   USDC_ADDRESSES,
+  USDC_DECIMALS,
   WALLET_PRIVATE_KEYS,
   WORMHOLE_CCTP_ADDRESSES,
   WORMHOLE_GUARDIAN_SET_INDEX,
   WORMHOLE_MESSAGE_FEE,
   mineWait,
-  mineWaitWut,
   mintNativeUsdc,
   mintWrappedTokens,
 } from "./helpers";
-import { TokenImplementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 
 describe("Environment", () => {
-  //for (const network of ["avalanche", "arbitrum", "ethereum", "polygon"]) {
-  for (const network of ["avalanche"]) {
+  for (const network of ["avalanche", "ethereum", "bsc", "moonbeam"]) {
+    //for (const network of ["avalanche"]) {
     const networkName = network.charAt(0).toUpperCase() + network.slice(1);
 
     if (!(network in LOCALHOSTS)) {
@@ -55,6 +49,7 @@ describe("Environment", () => {
       network
     ] as string;
     const wormholeCctpAddress = (WORMHOLE_CCTP_ADDRESSES as any)[network];
+    // const usdcDecimals = (USDC_DECIMALS as any)[network];
 
     describe(`${networkName} Fork`, () => {
       const provider = new ethers.providers.StaticJsonRpcProvider(localhost);
@@ -180,9 +175,8 @@ describe("Environment", () => {
         }
       }); // it("Modify Core Bridge", async () => {
 
-      it("Modify Token Bridge", async () => {
+      it.skip("Modify Token Bridge", async () => {
         // TODO
-        // override outstanding bridged?
       });
 
       if (wormholeCctp !== null) {
@@ -311,20 +305,14 @@ describe("Environment", () => {
 
           const receipt = await curveFactory
             .deploy_plain_pool(
-              // "USDC Matching Engine Pool",
-              // "meUSDC",
-              "Mothership Test Pool", // Name
-              "WormUSDC", // Symbol
+              "USDC Matching Pool",
+              "meUSDC",
               MATCHING_ENGINE_POOL_COINS,
               100, // A
               4_000_000, // fee (0.04%)
               0, // asset type
               0 // implementation index
             )
-            .catch((err) => {
-              console.log(err);
-              throw err;
-            })
             .then((tx) => mineWait(provider, tx));
 
           const poolAddress = ethers.utils.hexlify(
@@ -332,7 +320,7 @@ describe("Environment", () => {
           );
           const curvePool = ICurvePool__factory.connect(poolAddress, deployer);
 
-          for (let i = 0; i < 3; ++i) {
+          for (let i = 0; i < 4; ++i) {
             const actual = await curvePool.coins(i);
             expect(actual).to.equal(MATCHING_ENGINE_POOL_COINS[i]);
           }
@@ -340,30 +328,50 @@ describe("Environment", () => {
           // Prep to add liquidity.
           const legAmount = "1000000";
 
-          const avaxUsdcAmount = ethers.utils.parseUnits(legAmount, 6);
+          const avaxUsdcDecimals = USDC_DECIMALS.avalanche!;
+          const avaxUsdcAmount = ethers.utils.parseUnits(
+            legAmount,
+            avaxUsdcDecimals
+          );
           const { usdc: avaxUsdc } = await mintNativeUsdc(
             deployer,
             usdcAddress,
             deployer.address,
-            ethers.utils.parseUnits(legAmount, 6)
+            avaxUsdcAmount
           );
 
           {
+            const decimals = await IUSDC__factory.connect(
+              avaxUsdc.address,
+              provider
+            ).decimals();
+            expect(decimals).to.equal(avaxUsdcDecimals);
+
             const balance = await avaxUsdc.balanceOf(deployer.address);
             expect(balance).to.eql(avaxUsdcAmount);
           }
 
-          const ethUsdcAmount = ethers.utils.parseUnits(legAmount, 6);
+          const ethUsdcDecimals = USDC_DECIMALS.ethereum!;
+          const ethUsdcAmount = ethers.utils.parseUnits(
+            legAmount,
+            ethUsdcDecimals
+          );
           const { wrappedToken: ethUsdc } = await mintWrappedTokens(
             deployer,
             tokenBridgeAddress,
             "ethereum",
             USDC_ADDRESSES.ethereum!,
             deployer.address,
-            ethers.utils.parseUnits(legAmount, 6)
+            ethUsdcAmount
           );
 
           {
+            const decimals = await TokenImplementation__factory.connect(
+              ethUsdc.address,
+              provider
+            ).decimals();
+            expect(decimals).to.equal(ethUsdcDecimals);
+
             const balance = await ethUsdc.balanceOf(deployer.address);
             expect(balance).to.eql(ethUsdcAmount);
           }
@@ -373,14 +381,46 @@ describe("Environment", () => {
             deployer,
             tokenBridgeAddress,
             "polygon",
-            USDC_ADDRESSES.polygon!,
+            POLYGON_USDC_ADDRESS,
             deployer.address,
-            ethers.utils.parseUnits(legAmount, 6)
+            polyUsdcAmount
           );
 
           {
+            const decimals = await new ethers.Contract(
+              polyUsdc.address,
+              ["function decimals() external view returns (uint8)"],
+              provider
+            ).decimals();
+            expect(decimals).to.equal(6);
+
             const balance = await polyUsdc.balanceOf(deployer.address);
             expect(balance).to.eql(polyUsdcAmount);
+          }
+
+          const bscUsdcDecimals = USDC_DECIMALS.bsc!;
+          const bscUsdcAmount = ethers.utils.parseUnits(
+            legAmount,
+            bscUsdcDecimals
+          );
+          const { wrappedToken: bscUsdc } = await mintWrappedTokens(
+            deployer,
+            tokenBridgeAddress,
+            "bsc",
+            USDC_ADDRESSES.bsc!,
+            deployer.address,
+            bscUsdcAmount
+          );
+
+          {
+            const decimals = await TokenImplementation__factory.connect(
+              bscUsdc.address,
+              provider
+            ).decimals();
+            expect(decimals).to.equal(bscUsdcDecimals);
+
+            const balance = await bscUsdc.balanceOf(deployer.address);
+            expect(balance).to.eql(bscUsdcAmount);
           }
 
           // Now add liquidity.
@@ -393,9 +433,12 @@ describe("Environment", () => {
           await polyUsdc
             .approve(curvePool.address, polyUsdcAmount)
             .then((tx) => mineWait(provider, tx));
+          await bscUsdc
+            .approve(curvePool.address, bscUsdcAmount)
+            .then((tx) => mineWait(provider, tx));
 
-          await curvePool["add_liquidity(uint256[3],uint256)"](
-            [avaxUsdcAmount, ethUsdcAmount, polyUsdcAmount],
+          await curvePool["add_liquidity(uint256[4],uint256)"](
+            [avaxUsdcAmount, ethUsdcAmount, polyUsdcAmount, bscUsdcAmount],
             0
           ).then((tx) => mineWait(provider, tx));
 
@@ -407,9 +450,12 @@ describe("Environment", () => {
 
           const polyUsdcLiqBalance = await curvePool.balances(2);
           expect(polyUsdcLiqBalance).to.eql(polyUsdcAmount);
+
+          const bscUsdcLiqBalance = await curvePool.balances(3);
+          expect(bscUsdcLiqBalance).to.eql(bscUsdcAmount);
         });
 
-        it("Deploy Matching Engine", async () => {
+        it.skip("Deploy Matching Engine", async () => {
           // TODO
         });
       }
@@ -442,7 +488,23 @@ describe("Environment", () => {
         expect(maxAmount.toString()).equals(
           "115792089237316195423570985008687907853269984665640564039457584007913129"
         );
-        //console.log("wtf", wtf);
+
+        const tokenType = await orderRouter.tokenType();
+        if (network === "avalanche") {
+          // CCTP
+          expect(tokenType).to.equal(3);
+        } else if (network === "ethereum") {
+          // CCTP
+          expect(tokenType).to.equal(3);
+        } else if (network === "bsc") {
+          // Native
+          expect(tokenType).to.equal(1);
+        } else if (network === "moonbeam") {
+          // Canonical
+          expect(tokenType).to.equal(2);
+        } else {
+          throw new Error("unrecognized network");
+        }
       }); // it("Deploy Order Router", async () => {
     });
   } // for (const network of ["arbitrum", "avalanche", "ethereum", "polygon"]) {

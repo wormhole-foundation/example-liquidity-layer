@@ -3,42 +3,51 @@ import {
   CHAIN_ID_ETH,
   tryNativeToHexString,
 } from "@certusone/wormhole-sdk";
-import { ethers } from "ethers";
 
-export type NetworkVars = {
-  arbitrum: string | null;
-  avalanche: string | null;
-  ethereum: string | null;
-  polygon: string | null;
+export type NetworkVars<T> = {
+  avalanche: T;
+  ethereum: T;
+  bsc: T;
+  moonbeam: T;
 };
 
 // Avalanche Mainnet Fork
-export const LOCALHOSTS: NetworkVars = {
-  arbitrum: "http://localhost:8546",
+export const LOCALHOSTS: NetworkVars<string> = {
   avalanche: "http://localhost:8547",
   ethereum: "http://localhost:8548",
-  polygon: "http://localhost:8549",
+  bsc: "http://localhost:8549",
+  moonbeam: "http://localhost:8550",
 };
 
-export const USDC_ADDRESSES: NetworkVars = {
-  arbitrum: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+export const USDC_ADDRESSES: NetworkVars<string> = {
   avalanche: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
   ethereum: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-  polygon: "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+  bsc: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+  moonbeam: "0x931715FEE2d06333043d11F658C8CE934aC61D0c",
 };
 
-export const TOKEN_BRIDGE_ADDRESSES: NetworkVars = {
-  arbitrum: "0x0b2402144Bb366A632D14B83F244D2e0e21bD39c",
+export const POLYGON_USDC_ADDRESS =
+  "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+
+export const TOKEN_BRIDGE_ADDRESSES: NetworkVars<string> = {
   avalanche: "0x0e082F06FF657D94310cB8cE8B0D9a04541d8052",
   ethereum: "0x3ee18B2214AFF97000D974cf647E7C347E8fa585",
-  polygon: "0x5a58505a96D1dbf8dF91cB21B54419FC36e93fdE",
+  bsc: "0xB6F6D86a8f9879A9c87f643768d9efc38c1Da6E7",
+  moonbeam: "0xB1731c586ca89a23809861c6103F0b96B3F57D92",
 };
 
-export const WORMHOLE_CCTP_ADDRESSES: NetworkVars = {
-  arbitrum: "0x2703483B1a5a7c577e8680de9Df8Be03c6f30e3c",
+export const WORMHOLE_CCTP_ADDRESSES: NetworkVars<string | null> = {
   avalanche: "0x09Fb06A271faFf70A651047395AaEb6265265F13",
   ethereum: "0xAaDA05BD399372f0b0463744C09113c137636f6a",
-  polygon: null,
+  bsc: null,
+  moonbeam: null,
+};
+
+export const USDC_DECIMALS: NetworkVars<number> = {
+  avalanche: 6,
+  ethereum: 6,
+  bsc: 18,
+  moonbeam: 6,
 };
 
 export const WORMHOLE_MESSAGE_FEE = 0;
@@ -71,7 +80,7 @@ export const MATCHING_ENGINE_POOL_COINS: [string, string, string, string] = [
   "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", // avalanche USDC
   "0xB24CA28D4e2742907115fECda335b40dbda07a4C", // wrapped ethereum USDC
   "0x543672E9CBEC728CBBa9C3Ccd99ed80aC3607FA8", // wrapped polygon USDC
-  ethers.constants.AddressZero, // placeholder
+  "0x6145E8a910aE937913426BF32De2b26039728ACF", // wrapped bsc USDC
 ];
 
 // export const WALLET_PRIVATE_KEY_TWO =

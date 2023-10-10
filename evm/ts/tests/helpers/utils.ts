@@ -30,7 +30,7 @@ export async function mineWaitWut(
 export async function mintWrappedTokens(
   providerOrSigner: ethers.providers.StaticJsonRpcProvider | ethers.Signer,
   tokenBridgeAddress: string,
-  tokenChain: "ethereum" | "polygon",
+  tokenChain: "ethereum" | "polygon" | "bsc",
   tokenAddress: string,
   recipient: string,
   amount: ethers.BigNumberish
