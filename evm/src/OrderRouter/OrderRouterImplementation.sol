@@ -43,8 +43,4 @@ contract OrderRouterImplementation is OrderRouterBase {
 
         _;
     }
-
-    function orderRouterImplementation() public pure returns (bytes32) {
-        return keccak256("orderRouterImplementation()");
-    }
 }

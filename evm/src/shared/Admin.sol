@@ -71,6 +71,24 @@ abstract contract Admin is ERC1967Upgrade {
     // Events.
     event OwnershipTransfered(address indexed oldOwner, address indexed newOwner);
     event IsPaused(bool paused);
+    event ContractUpgraded(address indexed oldContract, address indexed newContract);
+
+    function upgradeContract(address newImplementation) external onlyOwner {
+        if (newImplementation == address(0)) {
+            revert InvalidAddress();
+        }
+        address oldImplementation = _getImplementation();
+
+        _upgradeTo(newImplementation);
+
+        // Call initialize function of the new implementation.
+        (bool success, bytes memory reason) = newImplementation.delegatecall(
+            abi.encodeWithSignature("initialize()")
+        );
+        require(success, string(reason));
+
+        emit ContractUpgraded(oldImplementation, newImplementation);
+    }
 
     function setPause(bool paused) external onlyOwner {
         emit IsPaused(paused);

@@ -28,8 +28,4 @@ contract MatchingEngineImplementation is MatchingEngineBase {
 
         _;
     }
-
-    function matchingEngineImplementation() public pure returns (bytes32) {
-        return keccak256("matchingEngineImplementation()");
-    }
 }

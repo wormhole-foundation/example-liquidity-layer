@@ -12,16 +12,15 @@ import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "../src/OrderRouter/assets/Errors.sol";
-
 import {Messages} from "../src/shared/Messages.sol";
 import {fromUniversalAddress, toUniversalAddress} from "../src/shared/Utils.sol";
 
 import "../src/OrderRouter/assets/Errors.sol";
 import {OrderRouterImplementation} from "../src/OrderRouter/OrderRouterImplementation.sol";
 import {OrderRouterSetup} from "../src/OrderRouter/OrderRouterSetup.sol";
-import {OrderRouterProxy} from "../src/OrderRouter/OrderRouterProxy.sol";
 
 import {Messages} from "../src/shared/Messages.sol";
 import {fromUniversalAddress, toUniversalAddress} from "../src/shared/Utils.sol";
@@ -99,7 +98,7 @@ contract OrderRouterTest is Test {
         );
 
         // Deploy Proxy.
-        OrderRouterProxy proxy = new OrderRouterProxy(
+        ERC1967Proxy proxy = new ERC1967Proxy(
             address(setup),
             abi.encodeWithSelector(bytes4(keccak256("setup(address)")), address(implementation))
         );

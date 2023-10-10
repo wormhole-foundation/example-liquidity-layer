@@ -8,7 +8,6 @@ import "forge-std/console.sol";
 
 import {IMatchingEngine} from "../src/interfaces/IMatchingEngine.sol";
 import {MatchingEngineImplementation} from "../src/MatchingEngine/MatchingEngineImplementation.sol";
-import {MatchingEngineProxy} from "../src/MatchingEngine/MatchingEngineProxy.sol";
 import {MatchingEngineSetup} from "../src/MatchingEngine/MatchingEngineSetup.sol";
 import {Messages} from "../src/shared/Messages.sol";
 import {toUniversalAddress, fromUniversalAddress} from "../src/shared/Utils.sol";
@@ -22,6 +21,7 @@ import {WormholePoolTestHelper} from "curve-solidity/WormholeCurvePool.sol";
 import {SigningWormholeSimulator} from "modules/wormhole/WormholeSimulator.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     // Env variables.
@@ -116,7 +116,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         );
 
         // Deploy Proxy.
-        MatchingEngineProxy proxy = new MatchingEngineProxy(
+        ERC1967Proxy proxy = new ERC1967Proxy(
             address(setup),
             abi.encodeWithSelector(
                 bytes4(keccak256("setup(address,address,int8)")),
