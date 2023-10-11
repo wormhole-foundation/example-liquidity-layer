@@ -50,6 +50,8 @@ interface IMatchingEngine {
 
     function upgradeContract(address newImplementation) external;
 
+    function updateOwnerAssistant(address newAssistant) external;
+
     function setPause(bool paused) external;
 
     function submitOwnershipTransferRequest(address newOwner) external;
@@ -75,6 +77,8 @@ interface IMatchingEngine {
     function getCCTPIndex() external view returns (int128);
 
     function owner() external view returns (address);
+
+    function ownerAssistant() external view returns (address);
 
     function pendingOwner() external view returns (address);
 

@@ -268,6 +268,21 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
             assertEq(route.cctp, cctp);
             assertEq(route.poolIndex, poolIndex);
         }
+
+        // Update the route as owner assistant
+        {
+            target = makeAddr("polyEmitter");
+            cctp = false;
+            poolIndex = 3;
+
+            vm.prank(makeAddr("ownerAssistant"));
+            engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
+
+            IMatchingEngine.Route memory route = engine.getExecutionRoute(chainId);
+            assertEq(route.target, target);
+            assertEq(route.cctp, cctp);
+            assertEq(route.poolIndex, poolIndex);
+        }
     }
 
     function testCannotEnableExecutionRouteInvalidAddress() public {
@@ -319,6 +334,25 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         assertEq(route.poolIndex, 0);
     }
 
+    function testDisableExecutionRouteAsOwnerAssistant() public {
+        uint16 chainId = 69;
+        address target = makeAddr("token");
+        bool cctp = false;
+        int8 poolIndex = 1;
+
+        // Set the initial route.
+        engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
+
+        // Disable the route.
+        vm.prank(makeAddr("ownerAssistant"));
+        engine.disableExecutionRoute(chainId);
+
+        IMatchingEngine.Route memory route = engine.getExecutionRoute(chainId);
+        assertEq(route.target, address(0));
+        assertEq(route.cctp, false);
+        assertEq(route.poolIndex, 0);
+    }
+
     function testCannotDisableExecutionRouteOnlyOrOrAssistant() public {
         uint16 chainId = 69;
 
@@ -353,6 +387,18 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
             bytes32 registered = engine.getOrderRouter(chainId);
             assertEq(registered, router);
         }
+    }
+
+    function testRegisterOrderRouterAsAssistant() public {
+        uint16 chainId = 69;
+        bytes32 router = toUniversalAddress(makeAddr("orderRouter"));
+
+        // Set the initial router.
+        vm.prank(makeAddr("ownerAssistant"));
+        engine.registerOrderRouter(chainId, router);
+
+        bytes32 registered = engine.getOrderRouter(chainId);
+        assertEq(registered, router);
     }
 
     function testCannotRegisterOrderRouterInvalidAddress() public {
@@ -401,6 +447,28 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         }
     }
 
+    function testUpdateCurvePoolAsAssistant() public {
+        // Check initial curve pool info.
+        {
+            IMatchingEngine.CurvePoolInfo memory info = engine.getCurvePoolInfo();
+            assertEq(address(info.pool), curvePool);
+            assertEq(info.nativeTokenIndex, 0);
+        }
+
+        // Update the curve pool.
+        {
+            ICurvePool newCurvePool = ICurvePool(makeAddr("newCurvePool"));
+            int8 newNativeTokenIndex = 1;
+
+            vm.prank(makeAddr("ownerAssistant"));
+            engine.updateCurvePool(newCurvePool, newNativeTokenIndex);
+
+            IMatchingEngine.CurvePoolInfo memory info = engine.getCurvePoolInfo();
+            assertEq(address(info.pool), address(newCurvePool));
+            assertEq(info.nativeTokenIndex, newNativeTokenIndex);
+        }
+    }
+
     function testCannotUpdateCurvePoolInvalidAddress() public {
         ICurvePool newCurvePool = ICurvePool(address(0));
         int8 newNativeTokenIndex = 1;
@@ -439,6 +507,15 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
             bool paused = engine.isPaused();
             assertEq(paused, false);
+        }
+
+        // Pause as assistant.
+        {
+            vm.prank(makeAddr("ownerAssistant"));
+            engine.setPause(true);
+
+            bool paused = engine.isPaused();
+            assertEq(paused, true);
         }
     }
 
@@ -528,6 +605,28 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         vm.prank(makeAddr("robber"));
         vm.expectRevert(abi.encodeWithSignature("NotPendingOwner()"));
         engine.confirmOwnershipTransferRequest();
+    }
+
+    function testUpdateOwnerAssistant() public {
+        address newAssistant = makeAddr("newAssistant");
+
+        engine.updateOwnerAssistant(newAssistant);
+        assertEq(engine.ownerAssistant(), newAssistant);
+    }
+
+    function testCannotUpdateOwnerAssistantInvalidAddress() public {
+        address newAssistant = address(0);
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
+        engine.updateOwnerAssistant(newAssistant);
+    }
+
+    function testCannotUpdateOwnerAssistantOwnerOnly() public {
+        address newAssistant = makeAddr("newAssistant");
+
+        vm.prank(makeAddr("robber"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        engine.updateOwnerAssistant(newAssistant);
     }
 
     /**

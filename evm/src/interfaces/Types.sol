@@ -12,5 +12,5 @@ enum TokenType {
 struct RouterInfo {
     bytes32 endpoint;
     TokenType tokenType;
-    uint24 slippage; // TODO: re-evaluate
+    uint24 slippage;
 }

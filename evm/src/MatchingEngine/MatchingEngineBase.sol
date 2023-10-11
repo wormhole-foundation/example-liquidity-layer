@@ -12,7 +12,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Messages} from "../shared/Messages.sol";
 import {MatchingEngineAdmin} from "./MatchingEngineAdmin.sol";
 import {toUniversalAddress, fromUniversalAddress, getDecimals, denormalizeAmount} from "../shared/Utils.sol";
-import {getPendingOwnerState, getOwnerState, getPausedState} from "../shared/Admin.sol";
+import {getPendingOwnerState, getOwnerState, getOwnerAssistantState, getPausedState} from "../shared/Admin.sol";
 import {getExecutionRouteState, Route, RegisteredOrderRouters, getOrderRoutersState, CurvePoolInfo, getCurvePoolState} from "./MatchingEngineStorage.sol";
 
 abstract contract MatchingEngineBase is MatchingEngineAdmin {
@@ -422,6 +422,10 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
     function owner() external view returns (address) {
         return getOwnerState().owner;
+    }
+
+    function ownerAssistant() external view returns (address) {
+        return getOwnerAssistantState().ownerAssistant;
     }
 
     function pendingOwner() external view returns (address) {

@@ -104,7 +104,7 @@ abstract contract Admin is ERC1967Upgrade {
         emit ContractUpgraded(oldImplementation, newImplementation);
     }
 
-    function updateOwnerAssistant(address newAssistant) public onlyOwner {
+    function updateOwnerAssistant(address newAssistant) external onlyOwner {
         if (newAssistant == address(0)) {
             revert InvalidAddress();
         }
