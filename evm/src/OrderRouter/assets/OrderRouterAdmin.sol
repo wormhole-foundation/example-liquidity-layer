@@ -20,4 +20,6 @@ abstract contract OrderRouterAdmin is Admin, State {
 
         getRouterInfos().infos[chain] = info;
     }
+
+    // TODO: add a way to update slippage in batch
 }

@@ -58,7 +58,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             revert ErrZeroMinAmountOut();
         }
 
-        RouterInfo memory dst = this.getRouterInfo(args.targetChain);
+        RouterInfo memory dst = getRouterInfo(args.targetChain);
 
         // Transfer the order token to this contract.
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);

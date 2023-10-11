@@ -65,7 +65,7 @@ abstract contract State {
             );
     }
 
-    function getRouterInfo(uint16 chain) external view returns (RouterInfo memory info) {
+    function getRouterInfo(uint16 chain) public view returns (RouterInfo memory info) {
         info = getRouterInfos().infos[chain];
 
         // Target chain must be registered with the order router.
