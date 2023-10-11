@@ -153,7 +153,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
     ) internal returns (uint64 sequence) {
-        _validateForMatchingEngine(args, dstSlippage, relayerFee, allowedRelayers);
+        _validateForMatchingEngine(args, dstSlippage, relayerFee);
 
         // Create market order.
         Messages.MarketOrder memory order = Messages.MarketOrder({
@@ -193,7 +193,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
     ) internal returns (uint64 sequence) {
-        _validateForMatchingEngine(args, dstSlippage, relayerFee, allowedRelayers);
+        _validateForMatchingEngine(args, dstSlippage, relayerFee);
 
         // Create market order.
         Messages.MarketOrder memory order = Messages.MarketOrder({
@@ -228,18 +228,11 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _validateForMatchingEngine(
         PlaceMarketOrderArgs memory args,
         uint256 dstSlippage,
-        uint256 relayerFee,
-        bytes32[] memory allowedRelayers
-    ) internal view {
+        uint256 relayerFee
+    ) internal pure {
         uint256 amountIn = args.amountIn;
         if (amountIn > MAX_AMOUNT) {
             revert ErrAmountTooLarge(args.amountIn, MAX_AMOUNT);
-        }
-
-        if (
-            wormholeChainId == matchingEngineChain && (relayerFee > 0 || allowedRelayers.length > 0)
-        ) {
-            revert ErrRelayerNotAllowedForPath();
         }
 
         uint256 totalSlippage;

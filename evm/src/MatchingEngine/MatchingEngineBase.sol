@@ -15,7 +15,7 @@ import {toUniversalAddress, fromUniversalAddress, getDecimals, denormalizeAmount
 import {getPendingOwnerState, getOwnerState, getPausedState} from "../shared/Admin.sol";
 import {getExecutionRouteState, Route, RegisteredOrderRouters, getOrderRoutersState, CurvePoolInfo, getCurvePoolState} from "./MatchingEngineStorage.sol";
 
-contract MatchingEngineBase is MatchingEngineAdmin {
+abstract contract MatchingEngineBase is MatchingEngineAdmin {
     using Messages for *;
 
     // Immutable state.
