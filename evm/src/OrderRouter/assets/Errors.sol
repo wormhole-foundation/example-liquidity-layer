@@ -24,4 +24,6 @@ error ErrTooManyRelayers(uint256 numRelayers, uint256 limit);
 
 error ErrUnsupportedChain(uint16 chain);
 
+error ErrRelayerNotAllowedForPath();
+
 error ErrZeroMinAmountOut();

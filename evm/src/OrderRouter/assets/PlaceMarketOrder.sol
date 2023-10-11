@@ -4,11 +4,12 @@ pragma solidity 0.8.19;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
+import {IMatchingEngine} from "../../interfaces/IMatchingEngine.sol";
 import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
 import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
-import {toUniversalAddress} from "../../shared/Utils.sol";
+import {fromUniversalAddress, toUniversalAddress} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
@@ -152,13 +153,31 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
     ) internal returns (uint64 sequence) {
-        _validateForMatchingEngine(args, dstSlippage, relayerFee);
+        _validateForMatchingEngine(args, dstSlippage, relayerFee, allowedRelayers);
 
-        SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCctp), args.amountIn);
+        bool isLocalRouter = wormholeChainId == matchingEngineChain;
+        address matchingEngine = fromUniversalAddress(matchingEngineEndpoint);
 
-        if (wormholeChainId == matchingEngineChain) {
-            // TODO: Invoke the matching engine directly.
-            revert("Not implemented");
+        SafeERC20.safeIncreaseAllowance(
+            orderToken,
+            isLocalRouter ? matchingEngine : address(wormholeCctp),
+            args.amountIn
+        );
+
+        // Create market order.
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: args.minAmountOut,
+            targetChain: args.targetChain,
+            redeemer: args.redeemer,
+            sender: toUniversalAddress(msg.sender),
+            refundAddress: toUniversalAddress(args.refundAddress),
+            redeemerMessage: args.redeemerMessage,
+            relayerFee: relayerFee,
+            allowedRelayers: allowedRelayers
+        });
+
+        if (isLocalRouter) {
+            sequence = IMatchingEngine(matchingEngine).executeOrder(args.amountIn, order);
         } else {
             sequence = wormholeCctp.transferTokensWithPayload{value: msg.value}(
                 ICircleIntegration.TransferParameters({
@@ -168,22 +187,11 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                     mintRecipient: matchingEngineEndpoint
                 }),
                 0, // nonce
-                Messages
-                    .MarketOrder({
-                        minAmountOut: args.minAmountOut,
-                        targetChain: args.targetChain,
-                        redeemer: args.redeemer,
-                        sender: toUniversalAddress(msg.sender),
-                        refundAddress: toUniversalAddress(args.refundAddress),
-                        redeemerMessage: args.redeemerMessage,
-                        relayerFee: relayerFee,
-                        allowedRelayers: allowedRelayers
-                    })
-                    .encode()
+                order.encode()
             );
-
-            emit MarketOrderPlaced(msg.sender, args.targetChain, relayerFee);
         }
+
+        emit MarketOrderPlaced(msg.sender, args.targetChain, relayerFee);
     }
 
     function _handleBridgeToMatchingEngine(
@@ -192,29 +200,41 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
     ) internal returns (uint64 sequence) {
-        _validateForMatchingEngine(args, dstSlippage, relayerFee);
+        _validateForMatchingEngine(args, dstSlippage, relayerFee, allowedRelayers);
 
-        SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
+        bool isLocalRouter = wormholeChainId == matchingEngineChain;
+        address matchingEngine = fromUniversalAddress(matchingEngineEndpoint);
 
-        sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
-            address(orderToken),
-            args.amountIn,
-            matchingEngineChain,
-            matchingEngineEndpoint,
-            0, // nonce
-            Messages
-                .MarketOrder({
-                    minAmountOut: args.minAmountOut,
-                    targetChain: args.targetChain,
-                    redeemer: args.redeemer,
-                    sender: toUniversalAddress(msg.sender),
-                    refundAddress: toUniversalAddress(args.refundAddress),
-                    redeemerMessage: args.redeemerMessage,
-                    relayerFee: relayerFee,
-                    allowedRelayers: allowedRelayers
-                })
-                .encode()
+        SafeERC20.safeIncreaseAllowance(
+            orderToken,
+            isLocalRouter ? matchingEngine : address(tokenBridge),
+            args.amountIn
         );
+
+        // Create market order.
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: args.minAmountOut,
+            targetChain: args.targetChain,
+            redeemer: args.redeemer,
+            sender: toUniversalAddress(msg.sender),
+            refundAddress: toUniversalAddress(args.refundAddress),
+            redeemerMessage: args.redeemerMessage,
+            relayerFee: relayerFee,
+            allowedRelayers: allowedRelayers
+        });
+
+        if (isLocalRouter) {
+            sequence = IMatchingEngine(matchingEngine).executeOrder(args.amountIn, order);
+        } else {
+            sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
+                address(orderToken),
+                args.amountIn,
+                matchingEngineChain,
+                matchingEngineEndpoint,
+                0, // nonce
+                order.encode()
+            );
+        }
 
         emit MarketOrderPlaced(msg.sender, args.targetChain, relayerFee);
     }
@@ -222,11 +242,18 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _validateForMatchingEngine(
         PlaceMarketOrderArgs memory args,
         uint256 dstSlippage,
-        uint256 relayerFee
-    ) internal pure {
+        uint256 relayerFee,
+        bytes32[] memory allowedRelayers
+    ) internal view {
         uint256 amountIn = args.amountIn;
         if (amountIn > MAX_AMOUNT) {
             revert ErrAmountTooLarge(args.amountIn, MAX_AMOUNT);
+        }
+
+        if (
+            wormholeChainId == matchingEngineChain && (relayerFee > 0 || allowedRelayers.length > 0)
+        ) {
+            revert ErrRelayerNotAllowedForPath();
         }
 
         uint256 totalSlippage;
