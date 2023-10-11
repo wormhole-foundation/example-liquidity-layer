@@ -42,9 +42,9 @@ interface IMatchingEngine {
         int8 poolIndex
     ) external;
 
-    function disableExecutionRoute(uint16 chainId) external;
+    function disableExecutionRoute(uint16 chainId_) external;
 
-    function registerOrderRouter(uint16 chainId, bytes32 router) external;
+    function registerOrderRouter(uint16 chainId_, bytes32 router) external;
 
     function updateCurvePool(ICurvePool pool, int8 nativeTokenIndex) external;
 
@@ -58,27 +58,27 @@ interface IMatchingEngine {
 
     function confirmOwnershipTransferRequest() external;
 
-    function getChainId() external view returns (uint16);
+    function chainId() external view returns (uint16);
 
-    function getWormhole() external view returns (IWormhole);
+    function wormhole() external view returns (IWormhole);
 
-    function getTokenBridge() external view returns (ITokenBridge);
+    function tokenBridge() external view returns (ITokenBridge);
 
-    function getCircleIntegration() external view returns (ICircleIntegration);
+    function circleIntegration() external view returns (ICircleIntegration);
 
-    function getExecutionRoute(uint16 chainId) external view returns (Route memory);
+    function getExecutionRoute(uint16 chainId_) external view returns (Route memory);
 
-    function getOrderRouter(uint16 chainId) external view returns (bytes32);
+    function getOrderRouter(uint16 chainId_) external view returns (bytes32);
 
     function getCurvePoolInfo() external pure returns (CurvePoolInfo memory);
 
     function getCCTPIndex() external view returns (int128);
 
-    function getOwner() external view returns (address);
+    function owner() external view returns (address);
 
-    function getPendingOwner() external view returns (address);
+    function pendingOwner() external view returns (address);
 
-    function getPaused() external view returns (bool);
+    function isPaused() external view returns (bool);
 
     function RELAY_TIMEOUT() external view returns (uint256);
 }

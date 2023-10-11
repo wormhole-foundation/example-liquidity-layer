@@ -12,7 +12,7 @@ abstract contract MatchingEngineAdmin is Admin {
     error InvalidTokenIndex();
 
     function enableExecutionRoute(
-        uint16 chainId,
+        uint16 chainId_,
         address target,
         bool cctp,
         int8 poolIndex
@@ -25,27 +25,27 @@ abstract contract MatchingEngineAdmin is Admin {
         }
 
         // Set the route.
-        Route storage route = getExecutionRouteState().routes[chainId];
+        Route storage route = getExecutionRouteState().routes[chainId_];
         route.target = target;
         route.cctp = cctp;
         route.poolIndex = poolIndex;
     }
 
-    function disableExecutionRoute(uint16 chainId) external onlyOwner {
-        delete getExecutionRouteState().routes[chainId];
+    function disableExecutionRoute(uint16 chainId_) external onlyOwner {
+        delete getExecutionRouteState().routes[chainId_];
     }
 
-    function registerOrderRouter(uint16 chainId, bytes32 router) external onlyOwner {
+    function registerOrderRouter(uint16 chainId_, bytes32 router) external onlyOwner {
         if (router == bytes32(0)) {
             revert InvalidAddress();
         }
 
-        if (chainId == 0) {
+        if (chainId_ == 0) {
             revert InvalidChainId();
         }
 
         // Update the router address.
-        getOrderRoutersState().registered[chainId] = router;
+        getOrderRoutersState().registered[chainId_] = router;
     }
 
     function updateCurvePool(ICurvePool pool, int8 nativeTokenIndex) external onlyOwner {

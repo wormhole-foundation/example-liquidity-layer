@@ -153,7 +153,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     }
 
     function _setupWormholeSimulator() internal {
-        wormholeSimulator = new SigningWormholeSimulator(engine.getWormhole(), GUARDIAN_SIGNER);
+        wormholeSimulator = new SigningWormholeSimulator(engine.wormhole(), GUARDIAN_SIGNER);
         wormholeSimulator.setMessageFee(WORMHOLE_FEE);
     }
 
@@ -420,7 +420,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     function testSetPause() public {
         // Check initial pause state.
         {
-            bool paused = engine.getPaused();
+            bool paused = engine.isPaused();
             assertEq(paused, false);
         }
 
@@ -428,7 +428,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         {
             engine.setPause(true);
 
-            bool paused = engine.getPaused();
+            bool paused = engine.isPaused();
             assertEq(paused, true);
         }
 
@@ -436,7 +436,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         {
             engine.setPause(false);
 
-            bool paused = engine.getPaused();
+            bool paused = engine.isPaused();
             assertEq(paused, false);
         }
     }
@@ -446,10 +446,10 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Check initial ownership state.
         {
-            address owner = engine.getOwner();
+            address owner = engine.owner();
             assertEq(owner, address(this));
 
-            address pendingOwner = engine.getPendingOwner();
+            address pendingOwner = engine.pendingOwner();
             assertEq(pendingOwner, address(0));
         }
 
@@ -457,7 +457,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         {
             engine.submitOwnershipTransferRequest(newOwner);
 
-            address pendingOwner = engine.getPendingOwner();
+            address pendingOwner = engine.pendingOwner();
             assertEq(pendingOwner, newOwner);
         }
     }
@@ -486,7 +486,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         // Cancel the ownership transfer request.
         engine.cancelOwnershipTransferRequest();
 
-        address pendingOwner = engine.getPendingOwner();
+        address pendingOwner = engine.pendingOwner();
         assertEq(pendingOwner, address(0));
     }
 
@@ -505,7 +505,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         address newOwner = makeAddr("newOwner");
 
         // Verify current owner.
-        assertEq(engine.getOwner(), address(this));
+        assertEq(engine.owner(), address(this));
 
         // Submit the ownership transfer request.
         engine.submitOwnershipTransferRequest(newOwner);
@@ -514,8 +514,8 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         vm.prank(newOwner);
         engine.confirmOwnershipTransferRequest();
 
-        assertEq(engine.getOwner(), newOwner);
-        assertEq(engine.getPendingOwner(), address(0));
+        assertEq(engine.owner(), newOwner);
+        assertEq(engine.pendingOwner(), address(0));
     }
 
     function testCannotConfirmOwnershipTransferRequestNotPendingOwner() public {

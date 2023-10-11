@@ -47,13 +47,13 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         bytes32 fromAddress;
     }
 
-    constructor(address tokenBridge, address circleIntegration) {
-        if (tokenBridge == address(0) || circleIntegration == address(0)) {
+    constructor(address wormholeTokenBridge, address wormholeCCTPBridge) {
+        if (wormholeTokenBridge == address(0) || wormholeCCTPBridge == address(0)) {
             revert InvalidAddress();
         }
 
-        _tokenBridge = ITokenBridge(tokenBridge);
-        _circleIntegration = ICircleIntegration(circleIntegration);
+        _tokenBridge = ITokenBridge(wormholeTokenBridge);
+        _circleIntegration = ICircleIntegration(wormholeCCTPBridge);
         _chainId = _tokenBridge.chainId();
         _wormhole = _tokenBridge.wormhole();
     }
@@ -395,28 +395,28 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     }
 
     // ------------------------------------ Getter Functions --------------------------------------
-    function getChainId() external view returns (uint16) {
+    function chainId() external view returns (uint16) {
         return _chainId;
     }
 
-    function getWormhole() external view returns (IWormhole) {
+    function wormhole() external view returns (IWormhole) {
         return _wormhole;
     }
 
-    function getTokenBridge() external view returns (ITokenBridge) {
+    function tokenBridge() external view returns (ITokenBridge) {
         return _tokenBridge;
     }
 
-    function getCircleIntegration() external view returns (ICircleIntegration) {
+    function circleIntegration() external view returns (ICircleIntegration) {
         return _circleIntegration;
     }
 
-    function getExecutionRoute(uint16 chainId) external view returns (Route memory) {
-        return getExecutionRouteState().routes[chainId];
+    function getExecutionRoute(uint16 chainId_) external view returns (Route memory) {
+        return getExecutionRouteState().routes[chainId_];
     }
 
-    function getOrderRouter(uint16 chainId) external view returns (bytes32) {
-        return getOrderRoutersState().registered[chainId];
+    function getOrderRouter(uint16 chainId_) external view returns (bytes32) {
+        return getOrderRoutersState().registered[chainId_];
     }
 
     function getCurvePoolInfo() external pure returns (CurvePoolInfo memory) {
@@ -427,15 +427,15 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         return int128(getCurvePoolState().nativeTokenIndex);
     }
 
-    function getOwner() external view returns (address) {
+    function owner() external view returns (address) {
         return getOwnerState().owner;
     }
 
-    function getPendingOwner() external view returns (address) {
+    function pendingOwner() external view returns (address) {
         return getPendingOwnerState().pendingOwner;
     }
 
-    function getPaused() external view returns (bool) {
+    function isPaused() external view returns (bool) {
         return getPausedState().paused;
     }
 }
