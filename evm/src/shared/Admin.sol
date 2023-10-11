@@ -128,6 +128,8 @@ abstract contract Admin is ERC1967Upgrade {
         emit OwnershipTransfered(currentOwner, newOwner);
     }
 
+    // TODO: add owner assistant.
+
     modifier onlyOwner() {
         if (getOwnerState().owner != msg.sender) {
             revert NotTheOwner();

@@ -99,7 +99,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         return
             _executeOrder(
                 InternalOrderParameters({
-                    fromChain: _circleIntegration.getChainIdFromDomain(deposit.sourceDomain),
+                    fromChain: redeemParams.encodedWormholeMessage.unsafeEmitterChainFromVaa(),
                     token: fromUniversalAddress(deposit.token),
                     amount: deposit.amount,
                     vaaTimestmp: redeemParams.encodedWormholeMessage.unsafeTimestampFromVaa(),
@@ -181,13 +181,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
         // Execute curve swap. The `amountOut` will be zero if the
         // swap fails for any reason.
-        uint256 amountOut = _handleSwap(
-            params.token,
-            fromRoute,
-            toRoute,
-            amountIn,
-            order.minAmountOut
-        );
+        uint256 amountOut = _handleSwap(fromRoute, toRoute, amountIn, order.minAmountOut);
 
         // If the swap failed, revert the order and refund the redeemer on
         // the origin chain. Otherwise, bridge (or CCTP) the swapped token to the
@@ -252,7 +246,6 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     }
 
     function _handleSwap(
-        address token,
         Route memory fromRoute,
         Route memory toRoute,
         uint256 amountIn,
@@ -269,7 +262,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
             revert InvalidCCTPIndex();
         }
 
-        SafeERC20.safeIncreaseAllowance(IERC20(token), swapPool, amountIn);
+        SafeERC20.safeIncreaseAllowance(IERC20(fromRoute.target), swapPool, amountIn);
 
         // Perform the swap.
         (bool success, bytes memory result) = swapPool.call(
