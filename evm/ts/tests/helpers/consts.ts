@@ -3,6 +3,7 @@ import {
   CHAIN_ID_ETH,
   tryNativeToHexString,
 } from "@certusone/wormhole-sdk";
+import { ethers } from "ethers";
 
 export type NetworkVars<T> = {
   avalanche: T;
@@ -36,11 +37,11 @@ export const TOKEN_BRIDGE_ADDRESSES: NetworkVars<string> = {
   moonbeam: "0xB1731c586ca89a23809861c6103F0b96B3F57D92",
 };
 
-export const WORMHOLE_CCTP_ADDRESSES: NetworkVars<string | null> = {
+export const WORMHOLE_CCTP_ADDRESSES: NetworkVars<string> = {
   avalanche: "0x09Fb06A271faFf70A651047395AaEb6265265F13",
   ethereum: "0xAaDA05BD399372f0b0463744C09113c137636f6a",
-  bsc: null,
-  moonbeam: null,
+  bsc: ethers.constants.AddressZero,
+  moonbeam: ethers.constants.AddressZero,
 };
 
 export const USDC_DECIMALS: NetworkVars<number> = {
@@ -68,6 +69,10 @@ export const WALLET_PRIVATE_KEYS = [
 ];
 
 export const MATCHING_ENGINE_CHAIN = CHAIN_ID_AVAX;
+export const MATCHING_ENGINE_ENDPOINT = tryNativeToHexString(
+  "0xEeB3A6143B71b9eBc867479f2cf57DB0bE4604C2",
+  "avalanche"
+);
 export const CANONICAL_TOKEN_CHAIN = CHAIN_ID_ETH;
 export const CANONICAL_TOKEN_ADDRESS = tryNativeToHexString(
   USDC_ADDRESSES.ethereum!,
@@ -83,5 +88,16 @@ export const MATCHING_ENGINE_POOL_COINS: [string, string, string, string] = [
   "0x6145E8a910aE937913426BF32De2b26039728ACF", // wrapped bsc USDC
 ];
 
-// export const WALLET_PRIVATE_KEY_TWO =
-//   "92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e";
+export const ORDER_ROUTERS: NetworkVars<string> = {
+  avalanche: "0xD8eFF32B3Fa436A3904851A0e95A8cD965c245a5",
+  ethereum: "0x321DD22870b5DF733a30498763a2A43FEda8A5F4",
+  bsc: "0x27D44c7337ce4D67b7cd573e9c36bDEED2b2162a",
+  moonbeam: "0xBe0B0f08A599F07699E98A9D001084e97b9a900A",
+};
+
+export const TOKEN_TYPES: NetworkVars<number> = {
+  avalanche: 3,
+  ethereum: 3,
+  bsc: 1,
+  moonbeam: 2,
+};

@@ -10,6 +10,7 @@ import {
   ICurvePool__factory,
   IMatchingEngine__factory,
   IMessageTransmitter__factory,
+  IOrderRouter__factory,
   ITokenBridge__factory,
   IUSDC__factory,
   IWormhole__factory,
@@ -21,9 +22,12 @@ import {
   GUARDIAN_PRIVATE_KEY,
   LOCALHOSTS,
   MATCHING_ENGINE_CHAIN,
+  MATCHING_ENGINE_ENDPOINT,
   MATCHING_ENGINE_POOL_COINS,
+  ORDER_ROUTERS,
   POLYGON_USDC_ADDRESS,
   TOKEN_BRIDGE_ADDRESSES,
+  TOKEN_TYPES,
   USDC_ADDRESSES,
   USDC_DECIMALS,
   WALLET_PRIVATE_KEYS,
@@ -37,21 +41,28 @@ import {
 import { execSync } from "child_process";
 
 describe("Environment", () => {
-  //for (const network of ["avalanche", "ethereum", "bsc", "moonbeam"]) {
-  for (const network of ["avalanche"]) {
+  for (const network of ["avalanche", "ethereum", "bsc", "moonbeam"]) {
+    //for (const network of ["avalanche"]) {
     const networkName = network.charAt(0).toUpperCase() + network.slice(1);
 
     if (!(network in LOCALHOSTS)) {
       throw new Error(`Missing network: ${network}`);
     }
 
+    // @ts-ignore
+    const chainId = coalesceChainId(network);
     const localhost = (LOCALHOSTS as any)[network] as string;
     const usdcAddress = (USDC_ADDRESSES as any)[network] as string;
     const tokenBridgeAddress = (TOKEN_BRIDGE_ADDRESSES as any)[
       network
     ] as string;
-    const wormholeCctpAddress = (WORMHOLE_CCTP_ADDRESSES as any)[network];
+    const wormholeCctpAddress = (WORMHOLE_CCTP_ADDRESSES as any)[
+      network
+    ] as string;
     // const usdcDecimals = (USDC_DECIMALS as any)[network];
+
+    const orderRouterAddress = (ORDER_ROUTERS as any)[network] as string;
+    const tokenType = (TOKEN_TYPES as any)[network] as number;
 
     const localVariables = new Map<string, any>();
 
@@ -69,7 +80,7 @@ describe("Environment", () => {
       );
 
       const wormholeCctp =
-        wormholeCctpAddress === null
+        wormholeCctpAddress === ethers.constants.AddressZero
           ? null
           : ICircleIntegration__factory.connect(wormholeCctpAddress, provider);
 
@@ -98,9 +109,8 @@ describe("Environment", () => {
           provider
         );
 
-        const chainId = await coreBridge.chainId();
-        // @ts-ignore
-        expect(chainId).to.equal(coalesceChainId(network));
+        const actualChainId = await coreBridge.chainId();
+        expect(actualChainId).to.equal(chainId);
 
         // fetch current coreBridge protocol fee
         const messageFee = await coreBridge.messageFee();
@@ -479,7 +489,6 @@ describe("Environment", () => {
             `forge script ${scripts}/DeployMatchingEngineContracts.s.sol ` +
             `--rpc-url ${localhost} --broadcast ` +
             `--private-key ${deployer.privateKey} > /dev/null 2>&1`;
-
           execSync(cmd);
 
           await provider.send("evm_setAutomine", [false]);
@@ -491,50 +500,39 @@ describe("Environment", () => {
           const { pool: poolInfoAddress } =
             await matchingEngine.getCurvePoolInfo();
           expect(poolInfoAddress.toLowerCase()).to.equal(curvePoolAddress);
-        });
-      }
+        }); // it("Deploy Matching Engine", async () => {
+      } // if (network === "avalanche") {
 
-      it.skip("Deploy Order Router", async () => {
-        // const factory = new ethers.ContractFactory(
-        //   orderRouterAbi,
-        //   orderRouterBytecode,
-        //   deployer
-        // );
-        // // Deploy an instance of the contract
-        // const orderRouter = await factory.deploy(
-        //   usdcAddress,
-        //   MATCHING_ENGINE_CHAIN,
-        //   "0x" +
-        //     tryNativeToHexString(
-        //       "0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef", // TODO: fix this
-        //       "ethereum"
-        //     ),
-        //   CANONICAL_TOKEN_CHAIN,
-        //   "0x" + CANONICAL_TOKEN_ADDRESS,
-        //   tokenBridgeAddress,
-        //   wormholeCctpAddress ?? ethers.constants.AddressZero
-        // );
-        // await mineWait(provider, orderRouter.deployTransaction);
-        // const maxAmount = await orderRouter.MAX_AMOUNT();
-        // expect(maxAmount.toString()).equals(
-        //   "115792089237316195423570985008687907853269984665640564039457584007913129"
-        // );
-        // const tokenType = await orderRouter.tokenType();
-        // if (network === "avalanche") {
-        //   // CCTP
-        //   expect(tokenType).to.equal(3);
-        // } else if (network === "ethereum") {
-        //   // CCTP
-        //   expect(tokenType).to.equal(3);
-        // } else if (network === "bsc") {
-        //   // Native
-        //   expect(tokenType).to.equal(1);
-        // } else if (network === "moonbeam") {
-        //   // Canonical
-        //   expect(tokenType).to.equal(2);
-        // } else {
-        //   throw new Error("unrecognized network");
-        // }
+      it("Deploy Order Router", async () => {
+        await provider.send("evm_setAutomine", [true]);
+
+        const scripts = `${__dirname}/../../forge/scripts`;
+        const cmd =
+          `RELEASE_CHAIN_ID=${chainId} ` +
+          `RELEASE_TOKEN_ADDRESS=${usdcAddress} ` +
+          `RELEASE_MATCHING_ENGINE_CHAIN=${MATCHING_ENGINE_CHAIN} ` +
+          `RELEASE_MATCHING_ENGINE_ENDPOINT=0x${MATCHING_ENGINE_ENDPOINT} ` +
+          `RELEASE_CANONICAL_TOKEN_CHAIN=${CANONICAL_TOKEN_CHAIN} ` +
+          `RELEASE_CANONICAL_TOKEN_ADDRESS=0x${CANONICAL_TOKEN_ADDRESS} ` +
+          `RELEASE_TOKEN_BRIDGE_ADDRESS=${tokenBridgeAddress} ` +
+          `RELEASE_WORMHOLE_CCTP_ADDRESS=${wormholeCctpAddress} ` +
+          `forge script ${scripts}/DeployOrderRouterContracts.s.sol ` +
+          `--rpc-url ${localhost} --broadcast ` +
+          `--private-key ${deployer.privateKey} > /dev/null 2>&1`;
+        execSync(cmd);
+
+        await provider.send("evm_setAutomine", [false]);
+
+        const orderRouter = IOrderRouter__factory.connect(
+          orderRouterAddress,
+          provider
+        );
+        const maxAmount = await orderRouter.MAX_AMOUNT();
+        expect(maxAmount.toString()).equals(
+          "115792089237316195423570985008687907853269984665640564039457584007913129"
+        );
+        const actualTokenType = await orderRouter.tokenType();
+        expect(actualTokenType).to.equal(tokenType);
       }); // it("Deploy Order Router", async () => {
     });
   } // for (const network of ["arbitrum", "avalanche", "ethereum", "polygon"]) {
