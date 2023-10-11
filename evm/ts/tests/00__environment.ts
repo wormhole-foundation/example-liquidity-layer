@@ -1,4 +1,8 @@
-import { coalesceChainId, tryNativeToHexString } from "@certusone/wormhole-sdk";
+import {
+  coalesceChainId,
+  tryHexToNativeString,
+  tryNativeToHexString,
+} from "@certusone/wormhole-sdk";
 import { TokenImplementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 import { expect } from "chai";
 import { ethers } from "ethers";
@@ -22,7 +26,7 @@ import {
   GUARDIAN_PRIVATE_KEY,
   LOCALHOSTS,
   MATCHING_ENGINE_CHAIN,
-  MATCHING_ENGINE_ENDPOINT,
+  MATCHING_ENGINE_ADDRESS,
   MATCHING_ENGINE_POOL_COINS,
   ORDER_ROUTERS,
   POLYGON_USDC_ADDRESS,
@@ -37,6 +41,8 @@ import {
   mineWait,
   mintNativeUsdc,
   mintWrappedTokens,
+  OWNER_PRIVATE_KEY,
+  OWNER_ASSISTANT_PRIVATE_KEY,
 } from "./helpers";
 import { execSync } from "child_process";
 
@@ -72,7 +78,11 @@ describe("Environment", () => {
         (key) => new ethers.Wallet(key, provider)
       );
 
-      const deployer = wallets[9];
+      const owner = new ethers.Wallet(OWNER_PRIVATE_KEY, provider);
+      const ownerAssistant = new ethers.Wallet(
+        OWNER_ASSISTANT_PRIVATE_KEY,
+        provider
+      );
 
       const tokenBridge = ITokenBridge__factory.connect(
         tokenBridgeAddress,
@@ -282,7 +292,7 @@ describe("Environment", () => {
             );
 
             await usdc
-              .configureMinter(deployer.address, ethers.constants.MaxUint256)
+              .configureMinter(owner.address, ethers.constants.MaxUint256)
               .then((tx) => mineWait(provider, tx));
           }
 
@@ -291,16 +301,16 @@ describe("Environment", () => {
 
           // mint USDC and confirm with a balance check
           {
-            const usdc = IUSDC__factory.connect(usdcAddress, deployer);
+            const usdc = IUSDC__factory.connect(usdcAddress, owner);
             const amount = ethers.utils.parseUnits("69420", 6);
 
-            const balanceBefore = await usdc.balanceOf(deployer.address);
+            const balanceBefore = await usdc.balanceOf(owner.address);
 
             await usdc
-              .mint(deployer.address, amount)
+              .mint(owner.address, amount)
               .then((tx) => mineWait(provider, tx));
 
-            const balanceAfter = await usdc.balanceOf(deployer.address);
+            const balanceAfter = await usdc.balanceOf(owner.address);
             expect(balanceAfter.sub(balanceBefore).eq(amount)).is.true;
 
             await usdc
@@ -314,7 +324,7 @@ describe("Environment", () => {
         it("Deploy Curve Pool", async () => {
           const curveFactory = CurveFactory__factory.connect(
             CURVE_FACTORY_ADDRESS,
-            deployer
+            owner
           );
 
           const receipt = await curveFactory
@@ -334,7 +344,7 @@ describe("Environment", () => {
           );
           const curvePool = ICurvePool__factory.connect(
             curvePoolAddress,
-            deployer
+            owner
           );
 
           for (let i = 0; i < 4; ++i) {
@@ -351,9 +361,9 @@ describe("Environment", () => {
             avaxUsdcDecimals
           );
           const { usdc: avaxUsdc } = await mintNativeUsdc(
-            deployer,
+            owner,
             usdcAddress,
-            deployer.address,
+            owner.address,
             avaxUsdcAmount
           );
 
@@ -364,7 +374,7 @@ describe("Environment", () => {
             ).decimals();
             expect(decimals).to.equal(avaxUsdcDecimals);
 
-            const balance = await avaxUsdc.balanceOf(deployer.address);
+            const balance = await avaxUsdc.balanceOf(owner.address);
             expect(balance).to.eql(avaxUsdcAmount);
           }
 
@@ -374,11 +384,11 @@ describe("Environment", () => {
             ethUsdcDecimals
           );
           const { wrappedToken: ethUsdc } = await mintWrappedTokens(
-            deployer,
+            owner,
             tokenBridgeAddress,
             "ethereum",
             USDC_ADDRESSES.ethereum!,
-            deployer.address,
+            owner.address,
             ethUsdcAmount
           );
 
@@ -389,17 +399,17 @@ describe("Environment", () => {
             ).decimals();
             expect(decimals).to.equal(ethUsdcDecimals);
 
-            const balance = await ethUsdc.balanceOf(deployer.address);
+            const balance = await ethUsdc.balanceOf(owner.address);
             expect(balance).to.eql(ethUsdcAmount);
           }
 
           const polyUsdcAmount = ethers.utils.parseUnits(legAmount, 6);
           const { wrappedToken: polyUsdc } = await mintWrappedTokens(
-            deployer,
+            owner,
             tokenBridgeAddress,
             "polygon",
             POLYGON_USDC_ADDRESS,
-            deployer.address,
+            owner.address,
             polyUsdcAmount
           );
 
@@ -411,7 +421,7 @@ describe("Environment", () => {
             ).decimals();
             expect(decimals).to.equal(6);
 
-            const balance = await polyUsdc.balanceOf(deployer.address);
+            const balance = await polyUsdc.balanceOf(owner.address);
             expect(balance).to.eql(polyUsdcAmount);
           }
 
@@ -421,11 +431,11 @@ describe("Environment", () => {
             bscUsdcDecimals
           );
           const { wrappedToken: bscUsdc } = await mintWrappedTokens(
-            deployer,
+            owner,
             tokenBridgeAddress,
             "bsc",
             USDC_ADDRESSES.bsc!,
-            deployer.address,
+            owner.address,
             bscUsdcAmount
           );
 
@@ -436,7 +446,7 @@ describe("Environment", () => {
             ).decimals();
             expect(decimals).to.equal(bscUsdcDecimals);
 
-            const balance = await bscUsdc.balanceOf(deployer.address);
+            const balance = await bscUsdc.balanceOf(owner.address);
             expect(balance).to.eql(bscUsdcAmount);
           }
 
@@ -486,21 +496,38 @@ describe("Environment", () => {
             `RELEASE_TOKEN_BRIDGE_ADDRESS=${tokenBridgeAddress} ` +
             `RELEASE_WORMHOLE_CCTP_ADDRESS=${wormholeCctpAddress} ` +
             `RELEASE_CURVE_POOL_ADDRESS=${curvePoolAddress} ` +
+            `RELEASE_OWNER_ASSISTANT_ADDRESS=${ownerAssistant.address} ` +
             `forge script ${scripts}/DeployMatchingEngineContracts.s.sol ` +
             `--rpc-url ${localhost} --broadcast ` +
-            `--private-key ${deployer.privateKey} > /dev/null 2>&1`;
-          execSync(cmd);
+            `--private-key ${owner.privateKey} > /dev/null 2>&1`;
+          const out = execSync(cmd, { encoding: "utf8" });
 
           await provider.send("evm_setAutomine", [false]);
 
           const matchingEngine = IMatchingEngine__factory.connect(
-            "0xEeB3A6143B71b9eBc867479f2cf57DB0bE4604C2",
+            MATCHING_ENGINE_ADDRESS,
             provider
           );
           const { pool: poolInfoAddress } =
             await matchingEngine.getCurvePoolInfo();
           expect(poolInfoAddress.toLowerCase()).to.equal(curvePoolAddress);
         }); // it("Deploy Matching Engine", async () => {
+
+        it("Upgrade Matching Engine", async () => {
+          await provider.send("evm_setAutomine", [true]);
+
+          const scripts = `${__dirname}/../../forge/scripts`;
+          const cmd =
+            `RELEASE_TOKEN_BRIDGE_ADDRESS=${tokenBridgeAddress} ` +
+            `RELEASE_WORMHOLE_CCTP_ADDRESS=${wormholeCctpAddress} ` +
+            `RELEASE_MATCHING_ENGINE_ADDRESS=${MATCHING_ENGINE_ADDRESS} ` +
+            `forge script ${scripts}/UpgradeMatchingEngine.s.sol ` +
+            `--rpc-url ${localhost} --broadcast ` +
+            `--private-key ${owner.privateKey} > /dev/null 2>&1`;
+          const out = execSync(cmd, { encoding: "utf8" });
+
+          await provider.send("evm_setAutomine", [false]);
+        }); // it("Upgrade Matching Engine", async () => {
       } // if (network === "avalanche") {
 
       it("Deploy Order Router", async () => {
@@ -511,15 +538,19 @@ describe("Environment", () => {
           `RELEASE_CHAIN_ID=${chainId} ` +
           `RELEASE_TOKEN_ADDRESS=${usdcAddress} ` +
           `RELEASE_MATCHING_ENGINE_CHAIN=${MATCHING_ENGINE_CHAIN} ` +
-          `RELEASE_MATCHING_ENGINE_ENDPOINT=0x${MATCHING_ENGINE_ENDPOINT} ` +
+          `RELEASE_MATCHING_ENGINE_ENDPOINT=0x${tryNativeToHexString(
+            MATCHING_ENGINE_ADDRESS,
+            "avalanche"
+          )} ` +
           `RELEASE_CANONICAL_TOKEN_CHAIN=${CANONICAL_TOKEN_CHAIN} ` +
           `RELEASE_CANONICAL_TOKEN_ADDRESS=0x${CANONICAL_TOKEN_ADDRESS} ` +
           `RELEASE_TOKEN_BRIDGE_ADDRESS=${tokenBridgeAddress} ` +
           `RELEASE_WORMHOLE_CCTP_ADDRESS=${wormholeCctpAddress} ` +
+          `RELEASE_OWNER_ASSISTANT_ADDRESS=${ownerAssistant.address} ` +
           `forge script ${scripts}/DeployOrderRouterContracts.s.sol ` +
           `--rpc-url ${localhost} --broadcast ` +
-          `--private-key ${deployer.privateKey} > /dev/null 2>&1`;
-        execSync(cmd);
+          `--private-key ${owner.privateKey} > /dev/null 2>&1`;
+        const out = execSync(cmd, { encoding: "utf8" });
 
         await provider.send("evm_setAutomine", [false]);
 
@@ -534,6 +565,31 @@ describe("Environment", () => {
         const actualTokenType = await orderRouter.tokenType();
         expect(actualTokenType).to.equal(tokenType);
       }); // it("Deploy Order Router", async () => {
+
+      it("Upgrade Order Router", async () => {
+        await provider.send("evm_setAutomine", [true]);
+
+        const scripts = `${__dirname}/../../forge/scripts`;
+        const cmd =
+          `RELEASE_CHAIN_ID=${chainId} ` +
+          `RELEASE_TOKEN_ADDRESS=${usdcAddress} ` +
+          `RELEASE_MATCHING_ENGINE_CHAIN=${MATCHING_ENGINE_CHAIN} ` +
+          `RELEASE_MATCHING_ENGINE_ENDPOINT=0x${tryNativeToHexString(
+            MATCHING_ENGINE_ADDRESS,
+            "avalanche"
+          )} ` +
+          `RELEASE_CANONICAL_TOKEN_CHAIN=${CANONICAL_TOKEN_CHAIN} ` +
+          `RELEASE_CANONICAL_TOKEN_ADDRESS=0x${CANONICAL_TOKEN_ADDRESS} ` +
+          `RELEASE_TOKEN_BRIDGE_ADDRESS=${tokenBridgeAddress} ` +
+          `RELEASE_WORMHOLE_CCTP_ADDRESS=${wormholeCctpAddress} ` +
+          `RELEASE_ORDER_ROUTER_ADDRESS=${orderRouterAddress} ` +
+          `forge script ${scripts}/UpgradeOrderRouter.s.sol ` +
+          `--rpc-url ${localhost} --broadcast ` +
+          `--private-key ${owner.privateKey} > /dev/null 2>&1`;
+        const out = execSync(cmd, { encoding: "utf8" });
+
+        await provider.send("evm_setAutomine", [false]);
+      }); // it("Upgrade Order Router", async () => {
     });
   } // for (const network of ["arbitrum", "avalanche", "ethereum", "polygon"]) {
 });

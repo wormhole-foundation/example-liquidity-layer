@@ -1,7 +1,7 @@
 {
   "name": "example-liquidity-layer-evm",
-  "version": "1.0.0",
-  "author": "Wormhole-Foundation",
+  "version": "0.1.0",
+  "author": "Wormhole Contributors",
   "license": "Apache-2.0",
   "devDependencies": {
     "@certusone/wormhole-sdk": "^0.9.11",

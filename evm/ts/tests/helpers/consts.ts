@@ -68,11 +68,14 @@ export const WALLET_PRIVATE_KEYS = [
   "0xb0057716d5917badaf911b193b12b910811c1497b5bada8d7711f758981c3773",
 ];
 
+// Arbitrarily decided.
+export const OWNER_PRIVATE_KEY = WALLET_PRIVATE_KEYS[9];
+export const OWNER_ASSISTANT_PRIVATE_KEY = WALLET_PRIVATE_KEYS[8];
+
 export const MATCHING_ENGINE_CHAIN = CHAIN_ID_AVAX;
-export const MATCHING_ENGINE_ENDPOINT = tryNativeToHexString(
-  "0xEeB3A6143B71b9eBc867479f2cf57DB0bE4604C2",
-  "avalanche"
-);
+export const MATCHING_ENGINE_ADDRESS =
+  "0xEeB3A6143B71b9eBc867479f2cf57DB0bE4604C2";
+
 export const CANONICAL_TOKEN_CHAIN = CHAIN_ID_ETH;
 export const CANONICAL_TOKEN_ADDRESS = tryNativeToHexString(
   USDC_ADDRESSES.ethereum!,
@@ -89,15 +92,22 @@ export const MATCHING_ENGINE_POOL_COINS: [string, string, string, string] = [
 ];
 
 export const ORDER_ROUTERS: NetworkVars<string> = {
-  avalanche: "0xD8eFF32B3Fa436A3904851A0e95A8cD965c245a5",
+  avalanche: "0x586643C7D083a83E4b0FCAAE87945D31A21B5E7e",
   ethereum: "0x321DD22870b5DF733a30498763a2A43FEda8A5F4",
   bsc: "0x27D44c7337ce4D67b7cd573e9c36bDEED2b2162a",
   moonbeam: "0xBe0B0f08A599F07699E98A9D001084e97b9a900A",
 };
 
-export const TOKEN_TYPES: NetworkVars<number> = {
-  avalanche: 3,
-  ethereum: 3,
-  bsc: 1,
-  moonbeam: 2,
+export enum TokenType {
+  Unset,
+  Native,
+  Canonical,
+  Cctp,
+}
+
+export const TOKEN_TYPES: NetworkVars<TokenType> = {
+  avalanche: TokenType.Cctp,
+  ethereum: TokenType.Cctp,
+  bsc: TokenType.Native,
+  moonbeam: TokenType.Canonical,
 };

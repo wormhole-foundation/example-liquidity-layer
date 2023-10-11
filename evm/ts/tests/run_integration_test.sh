@@ -37,10 +37,10 @@ anvil --port 8550 \
     --no-mining \
     --fork-url $MOONBEAM_RPC > $LOGS/moonbeam.log &
 
+# Chill.
 sleep 10
 
-# echo "running tests (found in ts/test)"
 npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/*.ts
 
-# nuke
+# Nuke.
 pkill anvil

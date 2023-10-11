@@ -5,16 +5,15 @@ pragma solidity ^0.8.19;
 import "forge-std/Script.sol";
 import "forge-std/console2.sol";
 
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
-import {OrderRouterSetup} from "../../src/OrderRouter/OrderRouterSetup.sol";
 import {OrderRouterImplementation} from "../../src/OrderRouter/OrderRouterImplementation.sol";
+import {IOrderRouter} from "../../src/interfaces/IOrderRouter.sol";
 
 import {CheckWormholeContracts} from "./helpers/CheckWormholeContracts.sol";
 
-contract DeployOrderRouterContracts is CheckWormholeContracts, Script {
+contract UpgradeOrderRouter is CheckWormholeContracts, Script {
     uint16 immutable _chainId = uint16(vm.envUint("RELEASE_CHAIN_ID"));
 
     address immutable _token = vm.envAddress("RELEASE_TOKEN_ADDRESS");
@@ -27,12 +26,10 @@ contract DeployOrderRouterContracts is CheckWormholeContracts, Script {
     address immutable _tokenBridgeAddress = vm.envAddress("RELEASE_TOKEN_BRIDGE_ADDRESS");
     address immutable _wormholeCctpAddress = vm.envAddress("RELEASE_WORMHOLE_CCTP_ADDRESS");
 
-    address immutable _ownerAssistantAddress = vm.envAddress("RELEASE_OWNER_ASSISTANT_ADDRESS");
+    address immutable _orderRouterAddress = vm.envAddress("RELEASE_ORDER_ROUTER_ADDRESS");
 
-    function deploy() public {
+    function upgrade() public {
         requireValidChain(_chainId, _tokenBridgeAddress, _wormholeCctpAddress);
-
-        OrderRouterSetup setup = new OrderRouterSetup();
 
         OrderRouterImplementation implementation = new OrderRouterImplementation(
             _token,
@@ -44,23 +41,15 @@ contract DeployOrderRouterContracts is CheckWormholeContracts, Script {
             _wormholeCctpAddress
         );
 
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(setup),
-            abi.encodeWithSelector(
-                bytes4(keccak256("setup(address,address)")),
-                address(implementation),
-                _ownerAssistantAddress
-            )
-        );
-        console2.log("Deployed OrderRouter (chain=%s): %s", _chainId, address(proxy));
+        IOrderRouter(_orderRouterAddress).upgradeContract(address(implementation));
     }
 
     function run() public {
         // Begin sending transactions.
         vm.startBroadcast();
 
-        // Deploy setup, implementation and erc1967 proxy.
-        deploy();
+        // Perform upgrade.
+        upgrade();
 
         // Done.
         vm.stopBroadcast();
