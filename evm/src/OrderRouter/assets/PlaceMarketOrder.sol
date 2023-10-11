@@ -202,15 +202,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     ) internal returns (uint64 sequence) {
         _validateForMatchingEngine(args, dstSlippage, relayerFee, allowedRelayers);
 
-        bool isLocalRouter = wormholeChainId == matchingEngineChain;
-        address matchingEngine = fromUniversalAddress(matchingEngineEndpoint);
-
-        SafeERC20.safeIncreaseAllowance(
-            orderToken,
-            isLocalRouter ? matchingEngine : address(tokenBridge),
-            args.amountIn
-        );
-
         // Create market order.
         Messages.MarketOrder memory order = Messages.MarketOrder({
             minAmountOut: args.minAmountOut,
@@ -223,9 +214,12 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             allowedRelayers: allowedRelayers
         });
 
-        if (isLocalRouter) {
+        if (wormholeChainId == matchingEngineChain) {
+            address matchingEngine = fromUniversalAddress(matchingEngineEndpoint);
+            SafeERC20.safeIncreaseAllowance(orderToken, matchingEngine, args.amountIn);
             sequence = IMatchingEngine(matchingEngine).executeOrder(args.amountIn, order);
         } else {
+            SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
             sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
                 address(orderToken),
                 args.amountIn,
