@@ -121,8 +121,9 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(setup),
             abi.encodeWithSelector(
-                bytes4(keccak256("setup(address,address,int8)")),
+                bytes4(keccak256("setup(address,address,address,int8)")),
                 address(implementation),
+                makeAddr("ownerAssistant"),
                 address(curvePool),
                 int8(0)
             )
@@ -289,14 +290,14 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
     }
 
-    function testCannotEnableExecutionRouteOwnerOnly() public {
+    function testCannotEnableExecutionRouteOwnerOrAssistantOnly() public {
         uint16 chainId = 69;
         address target = makeAddr("token");
         bool cctp = false;
         int8 poolIndex = 1;
 
         vm.prank(makeAddr("robber"));
-        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
         engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
     }
 
@@ -318,11 +319,11 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         assertEq(route.poolIndex, 0);
     }
 
-    function testCannotDisableExecutionRoute() public {
+    function testCannotDisableExecutionRouteOnlyOrOrAssistant() public {
         uint16 chainId = 69;
 
         vm.prank(makeAddr("robber"));
-        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
         engine.disableExecutionRoute(chainId);
     }
 
@@ -370,12 +371,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.registerOrderRouter(chainId, router);
     }
 
-    function testCannotRegisterOrderRouterOwnerOnly() public {
+    function testCannotRegisterOrderRouterOnlyOwnerOrAssistant() public {
         uint16 chainId = 69;
         bytes32 router = bytes32(uint256(420));
 
         vm.prank(makeAddr("robber"));
-        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
         engine.registerOrderRouter(chainId, router);
     }
 
@@ -408,12 +409,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.updateCurvePool(newCurvePool, newNativeTokenIndex);
     }
 
-    function testCannotUpdateCurvePoolOwnerOnly() public {
+    function testCannotUpdateCurvePoolOnlyOwnerOrAssistant() public {
         ICurvePool newCurvePool = ICurvePool(makeAddr("newCurvePool"));
         int8 newNativeTokenIndex = 1;
 
         vm.prank(makeAddr("robber"));
-        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
         engine.updateCurvePool(newCurvePool, newNativeTokenIndex);
     }
 

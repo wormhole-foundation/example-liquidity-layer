@@ -16,7 +16,7 @@ abstract contract MatchingEngineAdmin is Admin {
         address target,
         bool cctp,
         int8 poolIndex
-    ) external onlyOwner {
+    ) external onlyOwnerOrAssistant {
         if (target == address(0)) {
             revert InvalidAddress();
         }
@@ -31,11 +31,11 @@ abstract contract MatchingEngineAdmin is Admin {
         route.poolIndex = poolIndex;
     }
 
-    function disableExecutionRoute(uint16 chainId_) external onlyOwner {
+    function disableExecutionRoute(uint16 chainId_) external onlyOwnerOrAssistant {
         delete getExecutionRouteState().routes[chainId_];
     }
 
-    function registerOrderRouter(uint16 chainId_, bytes32 router) external onlyOwner {
+    function registerOrderRouter(uint16 chainId_, bytes32 router) external onlyOwnerOrAssistant {
         if (router == bytes32(0)) {
             revert InvalidAddress();
         }
@@ -48,7 +48,7 @@ abstract contract MatchingEngineAdmin is Admin {
         getOrderRoutersState().registered[chainId_] = router;
     }
 
-    function updateCurvePool(ICurvePool pool, int8 nativeTokenIndex) external onlyOwner {
+    function updateCurvePool(ICurvePool pool, int8 nativeTokenIndex) external onlyOwnerOrAssistant {
         if (address(pool) == address(0)) {
             revert InvalidAddress();
         }

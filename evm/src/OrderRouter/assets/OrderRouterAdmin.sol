@@ -9,7 +9,7 @@ import {State} from "./State.sol";
 import {RouterInfo, getRouterInfos} from "./Storage.sol";
 
 abstract contract OrderRouterAdmin is Admin, State {
-    function addRouterInfo(uint16 chain, RouterInfo memory info) external onlyOwner {
+    function addRouterInfo(uint16 chain, RouterInfo memory info) external onlyOwnerOrAssistant {
         if (info.slippage < MIN_SLIPPAGE) {
             revert ErrRouterSlippageTooLow(info.slippage, MIN_SLIPPAGE);
         }

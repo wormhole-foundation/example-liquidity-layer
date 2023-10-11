@@ -7,15 +7,22 @@ import "@openzeppelin/contracts/utils/Context.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
 
 import {CurvePoolInfo, getCurvePoolState} from "./MatchingEngineStorage.sol";
-import {getOwnerState} from "../shared/Admin.sol";
+import {getOwnerState, getOwnerAssistantState} from "../shared/Admin.sol";
 
 contract MatchingEngineSetup is ERC1967Upgrade, Context {
-    function setup(address implementation, address curve, int8 nativeTokenPoolIndex) public {
+    function setup(
+        address implementation,
+        address ownerAssistant,
+        address curve,
+        int8 nativeTokenPoolIndex
+    ) public {
         assert(implementation != address(0));
+        assert(ownerAssistant != address(0));
         assert(curve != address(0));
 
-        // Set the owner.
+        // Set the owner and owner assistant.
         getOwnerState().owner = _msgSender();
+        getOwnerAssistantState().ownerAssistant = ownerAssistant;
 
         // Set the Curve pool and native token index.
         CurvePoolInfo storage info = getCurvePoolState();

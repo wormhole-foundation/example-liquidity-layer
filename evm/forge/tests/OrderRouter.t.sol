@@ -102,7 +102,11 @@ contract OrderRouterTest is Test {
         // Deploy Proxy.
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(setup),
-            abi.encodeWithSelector(bytes4(keccak256("setup(address)")), address(implementation))
+            abi.encodeWithSelector(
+                bytes4(keccak256("setup(address,address)")),
+                address(implementation),
+                makeAddr("ownerAssistant")
+            )
         );
         return IOrderRouter(address(proxy));
     }
@@ -222,7 +226,7 @@ contract OrderRouterTest is Test {
 
     function testCannotAddEndpointAsRandomCaller() public {
         vm.prank(makeAddr("not owner"));
-        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
         nativeRouter.addRouterInfo(
             1,
             RouterInfo({

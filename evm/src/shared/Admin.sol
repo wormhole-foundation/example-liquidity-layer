@@ -19,6 +19,19 @@ function getOwnerState() pure returns (Owner storage state) {
     }
 }
 
+struct OwnerAssistant {
+    address ownerAssistant;
+}
+
+// keccak256("OwnerAssistant") - 1
+bytes32 constant OWNER_ASSISTANT_STORAGE_SLOT = 0x925b68768238281ebba08893a21c195b2ac9d692cd50daec33cc09240e0317cd;
+
+function getOwnerAssistantState() pure returns (OwnerAssistant storage state) {
+    assembly ("memory-safe") {
+        state.slot := OWNER_ASSISTANT_STORAGE_SLOT
+    }
+}
+
 struct PendingOwner {
     address pendingOwner;
 }
@@ -67,6 +80,7 @@ abstract contract Admin is ERC1967Upgrade {
     error NotTheOwner();
     error NotPendingOwner();
     error ContractPaused();
+    error NotTheOwnerOrAssistant();
 
     // Events.
     event OwnershipTransfered(address indexed oldOwner, address indexed newOwner);
@@ -90,7 +104,16 @@ abstract contract Admin is ERC1967Upgrade {
         emit ContractUpgraded(oldImplementation, newImplementation);
     }
 
-    function setPause(bool paused) external onlyOwner {
+    function updateOwnerAssistant(address newAssistant) public onlyOwner {
+        if (newAssistant == address(0)) {
+            revert InvalidAddress();
+        }
+
+        // update the owner assistant
+        getOwnerAssistantState().ownerAssistant = newAssistant;
+    }
+
+    function setPause(bool paused) external onlyOwnerOrAssistant {
         emit IsPaused(paused);
         getPausedState().paused = paused;
     }
@@ -128,11 +151,19 @@ abstract contract Admin is ERC1967Upgrade {
         emit OwnershipTransfered(currentOwner, newOwner);
     }
 
-    // TODO: add owner assistant.
-
     modifier onlyOwner() {
         if (getOwnerState().owner != msg.sender) {
             revert NotTheOwner();
+        }
+        _;
+    }
+
+    modifier onlyOwnerOrAssistant() {
+        if (
+            getOwnerState().owner != msg.sender &&
+            getOwnerAssistantState().ownerAssistant != msg.sender
+        ) {
+            revert NotTheOwnerOrAssistant();
         }
         _;
     }
