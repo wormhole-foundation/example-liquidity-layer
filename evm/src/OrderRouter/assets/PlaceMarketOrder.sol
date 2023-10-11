@@ -61,16 +61,16 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         RouterInfo memory dst = this.getRouterInfo(args.targetChain);
 
         // Transfer the order token to this contract.
-        SafeERC20.safeTransferFrom(orderToken, msg.sender, address(this), args.amountIn);
+        SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
 
         // We either need to encode an order message for the matching engine or directly encode
         // a fill message for the target chain.
         if (
-            (wormholeChainId == canonicalTokenChain || tokenType == TokenType.Canonical) &&
-            (args.targetChain == canonicalTokenChain || dst.tokenType == TokenType.Canonical)
+            (_wormholeChainId == _canonicalTokenChain || _tokenType == TokenType.Canonical) &&
+            (args.targetChain == _canonicalTokenChain || dst.tokenType == TokenType.Canonical)
         ) {
             sequence = _handleCanonicalToCanonical(args, dst.endpoint);
-        } else if (tokenType == TokenType.Cctp) {
+        } else if (_tokenType == TokenType.Cctp) {
             if (dst.tokenType == TokenType.Cctp) {
                 sequence = _handleCctpToCctp(args, dst.endpoint);
             } else {
@@ -99,11 +99,11 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             revert ErrInsufficientAmount(args.amountIn, args.minAmountOut);
         }
 
-        SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCctp), args.amountIn);
+        SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
 
-        sequence = wormholeCctp.transferTokensWithPayload{value: msg.value}(
+        sequence = _wormholeCctp.transferTokensWithPayload{value: msg.value}(
             ICircleIntegration.TransferParameters({
-                token: address(orderToken),
+                token: address(_orderToken),
                 amount: args.amountIn,
                 targetChain: args.targetChain,
                 mintRecipient: dstEndpoint
@@ -111,7 +111,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             0, // nonce
             Messages
                 .Fill({
-                    sourceChain: wormholeChainId,
+                    sourceChain: _wormholeChainId,
                     orderSender: toUniversalAddress(msg.sender),
                     redeemer: args.redeemer,
                     redeemerMessage: args.redeemerMessage
@@ -128,17 +128,17 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             revert ErrInsufficientAmount(args.amountIn, args.minAmountOut);
         }
 
-        SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
+        SafeERC20.safeIncreaseAllowance(_orderToken, address(_tokenBridge), args.amountIn);
 
-        sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
-            address(orderToken),
+        sequence = _tokenBridge.transferTokensWithPayload{value: msg.value}(
+            address(_orderToken),
             args.amountIn,
             args.targetChain,
             dstEndpoint,
             0, // nonce
             Messages
                 .Fill({
-                    sourceChain: wormholeChainId,
+                    sourceChain: _wormholeChainId,
                     orderSender: toUniversalAddress(msg.sender),
                     redeemer: args.redeemer,
                     redeemerMessage: args.redeemerMessage
@@ -167,17 +167,17 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             allowedRelayers: allowedRelayers
         });
 
-        if (wormholeChainId == matchingEngineChain) {
+        if (_wormholeChainId == _matchingEngineChain) {
             sequence = _executeMatchingEngineOrder(args.amountIn, order);
         } else {
-            SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCctp), args.amountIn);
+            SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
 
-            sequence = wormholeCctp.transferTokensWithPayload{value: msg.value}(
+            sequence = _wormholeCctp.transferTokensWithPayload{value: msg.value}(
                 ICircleIntegration.TransferParameters({
-                    token: address(orderToken),
+                    token: address(_orderToken),
                     amount: args.amountIn,
-                    targetChain: matchingEngineChain,
-                    mintRecipient: matchingEngineEndpoint
+                    targetChain: _matchingEngineChain,
+                    mintRecipient: _matchingEngineEndpoint
                 }),
                 0, // nonce
                 order.encode()
@@ -207,16 +207,16 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             allowedRelayers: allowedRelayers
         });
 
-        if (wormholeChainId == matchingEngineChain) {
+        if (_wormholeChainId == _matchingEngineChain) {
             sequence = _executeMatchingEngineOrder(args.amountIn, order);
         } else {
-            SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
+            SafeERC20.safeIncreaseAllowance(_orderToken, address(_tokenBridge), args.amountIn);
 
-            sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
-                address(orderToken),
+            sequence = _tokenBridge.transferTokensWithPayload{value: msg.value}(
+                address(_orderToken),
                 args.amountIn,
-                matchingEngineChain,
-                matchingEngineEndpoint,
+                _matchingEngineChain,
+                _matchingEngineEndpoint,
                 0, // nonce
                 order.encode()
             );
@@ -263,10 +263,10 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint256 amountIn,
         Messages.MarketOrder memory order
     ) internal returns (uint64) {
-        address matchingEngine = fromUniversalAddress(matchingEngineEndpoint);
+        address _matchingEngine = fromUniversalAddress(_matchingEngineEndpoint);
 
-        SafeERC20.safeIncreaseAllowance(orderToken, matchingEngine, amountIn);
+        SafeERC20.safeIncreaseAllowance(_orderToken, _matchingEngine, amountIn);
 
-        return IMatchingEngine(matchingEngine).executeOrder(amountIn, order);
+        return IMatchingEngine(_matchingEngine).executeOrder(amountIn, order);
     }
 }

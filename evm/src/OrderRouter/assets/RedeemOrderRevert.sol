@@ -24,8 +24,8 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
      * @notice Redeem a fill sent by either another Order Router or the Matching Engine.
      */
     function redeemOrderRevert(bytes calldata encodedVaa) external returns (Messages.RevertType) {
-        ITokenBridge.TransferWithPayload memory transfer = tokenBridge.parseTransferWithPayload(
-            tokenBridge.completeTransferWithPayload(encodedVaa)
+        ITokenBridge.TransferWithPayload memory transfer = _tokenBridge.parseTransferWithPayload(
+            _tokenBridge.completeTransferWithPayload(encodedVaa)
         );
 
         return
@@ -43,9 +43,8 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
     function redeemOrderRevert(
         ICircleIntegration.RedeemParameters calldata redeemParams
     ) external returns (Messages.RevertType) {
-        ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp.redeemTokensWithPayload(
-            redeemParams
-        );
+        ICircleIntegration.DepositWithPayload memory deposit = _wormholeCctp
+            .redeemTokensWithPayload(redeemParams);
 
         return
             _processOrderRevert(
@@ -63,7 +62,7 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
         bytes memory payload
     ) internal returns (Messages.RevertType) {
         uint16 emitterChain = encodedVaa.unsafeEmitterChainFromVaa();
-        if (emitterChain != matchingEngineChain || fromAddress != matchingEngineEndpoint) {
+        if (emitterChain != _matchingEngineChain || fromAddress != _matchingEngineEndpoint) {
             revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);
         }
 
@@ -76,7 +75,7 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
         }
 
         // Transfer token amount to redeemer.
-        SafeERC20.safeTransfer(orderToken, msg.sender, amount);
+        SafeERC20.safeTransfer(_orderToken, msg.sender, amount);
 
         return orderRevert.reason;
     }

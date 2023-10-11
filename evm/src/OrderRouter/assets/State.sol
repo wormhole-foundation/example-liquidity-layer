@@ -17,49 +17,49 @@ abstract contract State {
 
     uint256 public constant MAX_AMOUNT = (2 ** 256 - 1) / MAX_SLIPPAGE;
 
-    IERC20 public immutable orderToken;
+    IERC20 immutable _orderToken;
 
-    uint16 public immutable matchingEngineChain;
-    bytes32 public immutable matchingEngineEndpoint;
+    uint16 immutable _matchingEngineChain;
+    bytes32 immutable _matchingEngineEndpoint;
 
-    uint16 public immutable canonicalTokenChain;
-    bytes32 public immutable canonicalTokenAddress;
+    uint16 immutable _canonicalTokenChain;
+    bytes32 immutable _canonicalTokenAddress;
 
-    ITokenBridge public immutable tokenBridge;
+    ITokenBridge immutable _tokenBridge;
 
-    ICircleIntegration public immutable wormholeCctp;
+    ICircleIntegration immutable _wormholeCctp;
 
-    uint16 public immutable wormholeChainId;
-    TokenType public immutable tokenType;
+    uint16 immutable _wormholeChainId;
+    TokenType immutable _tokenType;
 
     constructor(
-        address _token,
-        uint16 _matchingEngineChain,
-        bytes32 _matchingEngineEndpoint,
-        uint16 _canonicalTokenChain,
-        bytes32 _canonicalTokenAddress,
-        address _tokenBridge,
-        address _wormholeCctp
+        address token_,
+        uint16 matchingEngineChain_,
+        bytes32 matchingEngineEndpoint_,
+        uint16 canonicalTokenChain_,
+        bytes32 canonicalTokenAddress_,
+        address tokenBridge_,
+        address wormholeCctp_
     ) {
-        orderToken = IERC20(_token);
+        _orderToken = IERC20(token_);
 
-        matchingEngineChain = _matchingEngineChain;
-        matchingEngineEndpoint = _matchingEngineEndpoint;
+        _matchingEngineChain = matchingEngineChain_;
+        _matchingEngineEndpoint = matchingEngineEndpoint_;
 
-        canonicalTokenChain = _canonicalTokenChain;
-        canonicalTokenAddress = _canonicalTokenAddress;
+        _canonicalTokenChain = canonicalTokenChain_;
+        _canonicalTokenAddress = canonicalTokenAddress_;
 
-        tokenBridge = ITokenBridge(_tokenBridge);
-        wormholeCctp = ICircleIntegration(_wormholeCctp);
+        _tokenBridge = ITokenBridge(tokenBridge_);
+        _wormholeCctp = ICircleIntegration(wormholeCctp_);
 
-        wormholeChainId = tokenBridge.wormhole().chainId();
+        _wormholeChainId = _tokenBridge.wormhole().chainId();
 
         // This needs to be a ternary because immutable variables cannot be assigned in a
         // conditional.
-        tokenType = _wormholeCctp != address(0)
+        _tokenType = wormholeCctp_ != address(0)
             ? TokenType.Cctp
             : (
-                _token == tokenBridge.wrappedAsset(_canonicalTokenChain, _canonicalTokenAddress)
+                token_ == _tokenBridge.wrappedAsset(canonicalTokenChain_, canonicalTokenAddress_)
                     ? TokenType.Canonical
                     : TokenType.Native
             );
@@ -76,5 +76,41 @@ abstract contract State {
 
     function isFillRedeemed(bytes32 fillHash) external view returns (bool) {
         return getRedeemedFills().redeemed[fillHash];
+    }
+
+    function orderToken() external view returns (IERC20) {
+        return _orderToken;
+    }
+
+    function matchingEngineChain() external view returns (uint16) {
+        return _matchingEngineChain;
+    }
+
+    function matchingEngineEndpoint() external view returns (bytes32) {
+        return _matchingEngineEndpoint;
+    }
+
+    function canonicalTokenChain() external view returns (uint16) {
+        return _canonicalTokenChain;
+    }
+
+    function canonicalTokenAddress() external view returns (bytes32) {
+        return _canonicalTokenAddress;
+    }
+
+    function tokenBridge() external view returns (ITokenBridge) {
+        return _tokenBridge;
+    }
+
+    function wormholeCctp() external view returns (ICircleIntegration) {
+        return _wormholeCctp;
+    }
+
+    function wormholeChainId() external view returns (uint16) {
+        return _wormholeChainId;
+    }
+
+    function tokenType() external view returns (TokenType) {
+        return _tokenType;
     }
 }

@@ -24,8 +24,8 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
      * @notice Redeem a fill sent by either another Order Router or the Matching Engine.
      */
     function redeemFill(bytes calldata encodedVaa) external returns (RedeemedFill memory) {
-        ITokenBridge.TransferWithPayload memory transfer = tokenBridge.parseTransferWithPayload(
-            tokenBridge.completeTransferWithPayload(encodedVaa)
+        ITokenBridge.TransferWithPayload memory transfer = _tokenBridge.parseTransferWithPayload(
+            _tokenBridge.completeTransferWithPayload(encodedVaa)
         );
 
         return
@@ -44,9 +44,8 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
     function redeemFill(
         ICircleIntegration.RedeemParameters calldata redeemParams
     ) external returns (RedeemedFill memory) {
-        ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp.redeemTokensWithPayload(
-            redeemParams
-        );
+        ICircleIntegration.DepositWithPayload memory deposit = _wormholeCctp
+            .redeemTokensWithPayload(redeemParams);
 
         return
             _processFill(
@@ -72,10 +71,10 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
         RouterInfo memory src = this.getRouterInfo(fill.sourceChain);
 
         // If the matching engine sent this fill, we bypass this whole conditional.
-        if (fromAddress != matchingEngineEndpoint) {
+        if (fromAddress != _matchingEngineEndpoint) {
             // The case where the order router's token type is the direct fill type, then we need to
             // make sure the source is what we expect from our known order routers.
-            if (tokenType == directFillTokenType) {
+            if (_tokenType == directFillTokenType) {
                 if (
                     emitterChain != fill.sourceChain ||
                     src.tokenType != directFillTokenType ||
@@ -87,7 +86,7 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
                 // Otherwise, this VAA is not for us.
                 revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);
             }
-        } else if (emitterChain != matchingEngineChain) {
+        } else if (emitterChain != _matchingEngineChain) {
             revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);
         }
 
@@ -97,13 +96,13 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
         }
 
         // Transfer token amount to redeemer.
-        SafeERC20.safeTransfer(orderToken, msg.sender, amount);
+        SafeERC20.safeTransfer(_orderToken, msg.sender, amount);
 
         return
             RedeemedFill({
                 sender: fill.orderSender,
                 senderChain: fill.sourceChain,
-                token: address(orderToken),
+                token: address(_orderToken),
                 amount: amount,
                 message: fill.redeemerMessage
             });
