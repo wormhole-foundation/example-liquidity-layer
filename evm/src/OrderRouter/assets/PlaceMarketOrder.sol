@@ -155,15 +155,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     ) internal returns (uint64 sequence) {
         _validateForMatchingEngine(args, dstSlippage, relayerFee, allowedRelayers);
 
-        bool isLocalRouter = wormholeChainId == matchingEngineChain;
-        address matchingEngine = fromUniversalAddress(matchingEngineEndpoint);
-
-        SafeERC20.safeIncreaseAllowance(
-            orderToken,
-            isLocalRouter ? matchingEngine : address(wormholeCctp),
-            args.amountIn
-        );
-
         // Create market order.
         Messages.MarketOrder memory order = Messages.MarketOrder({
             minAmountOut: args.minAmountOut,
@@ -176,9 +167,11 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             allowedRelayers: allowedRelayers
         });
 
-        if (isLocalRouter) {
-            sequence = IMatchingEngine(matchingEngine).executeOrder(args.amountIn, order);
+        if (wormholeChainId == matchingEngineChain) {
+            sequence = _executeMatchingEngineOrder(args.amountIn, order);
         } else {
+            SafeERC20.safeIncreaseAllowance(orderToken, address(wormholeCctp), args.amountIn);
+
             sequence = wormholeCctp.transferTokensWithPayload{value: msg.value}(
                 ICircleIntegration.TransferParameters({
                     token: address(orderToken),
@@ -215,11 +208,10 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         });
 
         if (wormholeChainId == matchingEngineChain) {
-            address matchingEngine = fromUniversalAddress(matchingEngineEndpoint);
-            SafeERC20.safeIncreaseAllowance(orderToken, matchingEngine, args.amountIn);
-            sequence = IMatchingEngine(matchingEngine).executeOrder(args.amountIn, order);
+            sequence = _executeMatchingEngineOrder(args.amountIn, order);
         } else {
             SafeERC20.safeIncreaseAllowance(orderToken, address(tokenBridge), args.amountIn);
+
             sequence = tokenBridge.transferTokensWithPayload{value: msg.value}(
                 address(orderToken),
                 args.amountIn,
@@ -272,5 +264,16 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         if (args.minAmountOut > amountIn - totalSlippage) {
             revert ErrMinAmountOutExceedsLimit(args.minAmountOut, amountIn - totalSlippage);
         }
+    }
+
+    function _executeMatchingEngineOrder(
+        uint256 amountIn,
+        Messages.MarketOrder memory order
+    ) internal returns (uint64) {
+        address matchingEngine = fromUniversalAddress(matchingEngineEndpoint);
+
+        SafeERC20.safeIncreaseAllowance(orderToken, matchingEngine, amountIn);
+
+        return IMatchingEngine(matchingEngine).executeOrder(amountIn, order);
     }
 }
