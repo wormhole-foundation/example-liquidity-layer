@@ -37,8 +37,6 @@ import {
 describe("Environment", () => {
   for (const chainName of ["avalanche", "ethereum", "bsc", "moonbeam"]) {
     //for (const chainName of ["avalanche"]) {
-    const networkName = chainName.charAt(0).toUpperCase() + chainName.slice(1);
-
     if (!(chainName in LOCALHOSTS)) {
       throw new Error(`Missing chainName: ${chainName}`);
     }
@@ -59,9 +57,7 @@ describe("Environment", () => {
 
     const tokenType = (TOKEN_TYPES as any)[chainName] as number;
 
-    const localVariables = new Map<string, any>();
-
-    describe(`${networkName} Fork`, () => {
+    describe(`Forked Network: ${chainName}`, () => {
       const provider = new ethers.providers.StaticJsonRpcProvider(localhost);
       const wallets = WALLET_PRIVATE_KEYS.map(
         (key) => new ethers.Wallet(key, provider)
