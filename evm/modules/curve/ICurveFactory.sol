@@ -8,26 +8,6 @@ interface ICurveFactory is IERC20 {
     function deploy_plain_pool(
         string memory _name,
         string memory _symbol,
-        address[2] memory _coins,
-        uint256 _A,
-        uint256 _fee,
-        uint256 _asset_type,
-        uint256 _implementation_idx
-    ) external returns (address);
-
-    function deploy_plain_pool(
-        string memory _name,
-        string memory _symbol,
-        address[3] memory _coins,
-        uint256 _A,
-        uint256 _fee,
-        uint256 _asset_type,
-        uint256 _implementation_idx
-    ) external returns (address);
-
-    function deploy_plain_pool(
-        string memory _name,
-        string memory _symbol,
         address[4] memory _coins,
         uint256 _A,
         uint256 _fee,
