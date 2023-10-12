@@ -14,3 +14,8 @@ struct RouterInfo {
     TokenType tokenType;
     uint24 slippage;
 }
+
+struct SlippageUpdate {
+    uint16 chain;
+    uint24 slippage;
+}

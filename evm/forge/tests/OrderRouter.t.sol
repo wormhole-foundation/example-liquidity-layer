@@ -237,6 +237,65 @@ contract OrderRouterTest is Test {
         );
     }
 
+    function testUpdateSlippage() public {
+        uint16 nativeChain = 1;
+        uint16 cctpChain = 23;
+
+        // Register the target chains.
+        _registerTargetChain(nativeRouter, nativeChain, TokenType.Native);
+        _registerTargetChain(cctpEnabledRouter, cctpChain, TokenType.Cctp);
+
+        vm.startPrank(makeAddr("owner"));
+
+        nativeRouter.addRouterInfo(
+            nativeChain,
+            RouterInfo({
+                endpoint: TESTING_FOREIGN_ROUTER_ENDPOINT,
+                tokenType: TokenType.Native,
+                slippage: TESTING_TARGET_SLIPPAGE
+            })
+        );
+        nativeRouter.addRouterInfo(
+            cctpChain,
+            RouterInfo({
+                endpoint: TESTING_FOREIGN_ROUTER_ENDPOINT,
+                tokenType: TokenType.Cctp,
+                slippage: TESTING_TARGET_SLIPPAGE
+            })
+        );
+
+        SlippageUpdate[] memory update = new SlippageUpdate[](2);
+        update[0] = SlippageUpdate({chain: nativeChain, slippage: 100});
+        update[1] = SlippageUpdate({chain: cctpChain, slippage: 100});
+
+        nativeRouter.updateSlippage(update);
+
+        vm.stopPrank();
+
+        // Check that the slippage was updated.
+        assertEq(nativeRouter.getRouterInfo(nativeChain).slippage, 100);
+        assertEq(nativeRouter.getRouterInfo(cctpChain).slippage, 100);
+    }
+
+    function testCannotUpdateSlippageNoUpdate() public {
+        vm.expectRevert(abi.encodeWithSignature("ErrNoSlippageUpdate()"));
+        vm.prank(makeAddr("owner"));
+        nativeRouter.updateSlippage(new SlippageUpdate[](0));
+    }
+
+    function testCannotUpdateSlippageOnlyOwnerOrAssistant() public {
+        uint16 nativeChain = 1;
+        uint16 cctpChain = 23;
+
+        SlippageUpdate[] memory update = new SlippageUpdate[](2);
+        update[0] = SlippageUpdate({chain: nativeChain, slippage: 100});
+        update[1] = SlippageUpdate({chain: cctpChain, slippage: 100});
+
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
+        vm.prank(makeAddr("not owner"));
+        nativeRouter.updateSlippage(update);
+    }
+
     function testCannotPlaceMarketOrderErrZeroMinAmountOut() public {
         PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
             amountIn: 1,

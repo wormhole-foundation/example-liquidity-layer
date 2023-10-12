@@ -27,3 +27,5 @@ error ErrUnsupportedChain(uint16 chain);
 error ErrRelayerNotAllowedForPath();
 
 error ErrZeroMinAmountOut();
+
+error ErrNoSlippageUpdate();
