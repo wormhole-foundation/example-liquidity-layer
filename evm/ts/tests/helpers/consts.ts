@@ -30,20 +30,6 @@ export const USDC_ADDRESSES: NetworkVars<string> = {
 export const POLYGON_USDC_ADDRESS =
   "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 
-export const TOKEN_BRIDGE_ADDRESSES: NetworkVars<string> = {
-  avalanche: "0x0e082F06FF657D94310cB8cE8B0D9a04541d8052",
-  ethereum: "0x3ee18B2214AFF97000D974cf647E7C347E8fa585",
-  bsc: "0xB6F6D86a8f9879A9c87f643768d9efc38c1Da6E7",
-  moonbeam: "0xB1731c586ca89a23809861c6103F0b96B3F57D92",
-};
-
-export const WORMHOLE_CCTP_ADDRESSES: NetworkVars<string> = {
-  avalanche: "0x09Fb06A271faFf70A651047395AaEb6265265F13",
-  ethereum: "0xAaDA05BD399372f0b0463744C09113c137636f6a",
-  bsc: ethers.constants.AddressZero,
-  moonbeam: ethers.constants.AddressZero,
-};
-
 export const USDC_DECIMALS: NetworkVars<number> = {
   avalanche: 6,
   ethereum: 6,
@@ -72,16 +58,6 @@ export const WALLET_PRIVATE_KEYS = [
 export const OWNER_PRIVATE_KEY = WALLET_PRIVATE_KEYS[9];
 export const OWNER_ASSISTANT_PRIVATE_KEY = WALLET_PRIVATE_KEYS[8];
 
-export const MATCHING_ENGINE_CHAIN = CHAIN_ID_AVAX;
-export const MATCHING_ENGINE_ADDRESS =
-  "0xEeB3A6143B71b9eBc867479f2cf57DB0bE4604C2";
-
-export const CANONICAL_TOKEN_CHAIN = CHAIN_ID_ETH;
-export const CANONICAL_TOKEN_ADDRESS = tryNativeToHexString(
-  USDC_ADDRESSES.ethereum!,
-  "ethereum"
-);
-
 export const CURVE_FACTORY_ADDRESS =
   "0xb17b674D9c5CB2e441F8e196a2f048A81355d031";
 export const MATCHING_ENGINE_POOL_COINS: [string, string, string, string] = [
@@ -90,14 +66,6 @@ export const MATCHING_ENGINE_POOL_COINS: [string, string, string, string] = [
   "0x543672E9CBEC728CBBa9C3Ccd99ed80aC3607FA8", // wrapped polygon USDC
   "0x6145E8a910aE937913426BF32De2b26039728ACF", // wrapped bsc USDC
 ];
-export const CURVE_POOL_ADDRESS = "0x5c10886c032ed7b39598e6ab3f3a64e296b735b4";
-
-export const ORDER_ROUTERS: NetworkVars<string> = {
-  avalanche: "0x7c4609DF21FD7237cE861b2C8F62805a001AAC14",
-  ethereum: "0xd98bfe6915cE92D4915149941246d36504125501",
-  bsc: "0x6d851a101f61e538287983C8e777024A8D6Fd34A",
-  moonbeam: "0xd9533C0B54d335165B117873Db6fd527e60E3651",
-};
 
 export enum TokenType {
   Unset,

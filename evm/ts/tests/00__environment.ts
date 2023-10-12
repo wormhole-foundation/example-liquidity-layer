@@ -1,12 +1,8 @@
-import {
-  coalesceChainId,
-  tryHexToNativeString,
-  tryNativeToHexString,
-} from "@certusone/wormhole-sdk";
+import { tryUint8ArrayToNative } from "@certusone/wormhole-sdk";
 import { TokenImplementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 import { expect } from "chai";
+import { execSync } from "child_process";
 import { ethers } from "ethers";
-import * as fs from "fs";
 import {
   CurveFactory__factory,
   ICircleBridge__factory,
@@ -20,54 +16,47 @@ import {
   IWormhole__factory,
 } from "../src/types";
 import {
-  CANONICAL_TOKEN_ADDRESS,
-  CANONICAL_TOKEN_CHAIN,
   CURVE_FACTORY_ADDRESS,
   GUARDIAN_PRIVATE_KEY,
   LOCALHOSTS,
-  MATCHING_ENGINE_CHAIN,
-  MATCHING_ENGINE_ADDRESS,
   MATCHING_ENGINE_POOL_COINS,
-  ORDER_ROUTERS,
+  OWNER_PRIVATE_KEY,
   POLYGON_USDC_ADDRESS,
-  TOKEN_BRIDGE_ADDRESSES,
   TOKEN_TYPES,
   USDC_ADDRESSES,
   USDC_DECIMALS,
   WALLET_PRIVATE_KEYS,
-  WORMHOLE_CCTP_ADDRESSES,
   WORMHOLE_GUARDIAN_SET_INDEX,
   WORMHOLE_MESSAGE_FEE,
   mineWait,
   mintNativeUsdc,
   mintWrappedTokens,
-  OWNER_PRIVATE_KEY,
-  OWNER_ASSISTANT_PRIVATE_KEY,
+  parseLiquidityLayerEnvFile,
 } from "./helpers";
-import { execSync } from "child_process";
 
 describe("Environment", () => {
-  //for (const chainName of ["avalanche", "ethereum", "bsc", "moonbeam"]) {
-  for (const chainName of ["avalanche"]) {
+  for (const chainName of ["avalanche", "ethereum", "bsc", "moonbeam"]) {
+    //for (const chainName of ["avalanche"]) {
     const networkName = chainName.charAt(0).toUpperCase() + chainName.slice(1);
 
     if (!(chainName in LOCALHOSTS)) {
       throw new Error(`Missing chainName: ${chainName}`);
     }
 
-    // @ts-ignore
-    const chainId = coalesceChainId(chainName);
+    const envPath = `${__dirname}/../../env/localnet`;
+    const {
+      chainId,
+      tokenAddress: usdcAddress,
+      tokenBridgeAddress,
+      wormholeCctpAddress,
+      orderRouterAddress,
+      matchingEngineEndpoint,
+      curvePoolAddress,
+    } = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
+
     const localhost = (LOCALHOSTS as any)[chainName] as string;
-    const usdcAddress = (USDC_ADDRESSES as any)[chainName] as string;
-    const tokenBridgeAddress = (TOKEN_BRIDGE_ADDRESSES as any)[
-      chainName
-    ] as string;
-    const wormholeCctpAddress = (WORMHOLE_CCTP_ADDRESSES as any)[
-      chainName
-    ] as string;
     // const usdcDecimals = (USDC_DECIMALS as any)[chainName];
 
-    const orderRouterAddress = (ORDER_ROUTERS as any)[chainName] as string;
     const tokenType = (TOKEN_TYPES as any)[chainName] as number;
 
     const localVariables = new Map<string, any>();
@@ -476,15 +465,9 @@ describe("Environment", () => {
 
           const bscUsdcLiqBalance = await curvePool.balances(3);
           expect(bscUsdcLiqBalance).to.eql(bscUsdcAmount);
-
-          localVariables.set("curvePoolAddress", curvePoolAddress);
         });
 
         it("Deploy Matching Engine", async () => {
-          const curvePoolAddress = localVariables.get(
-            "curvePoolAddress"
-          ) as string;
-
           await provider.send("evm_setAutomine", [true]);
 
           const scripts = `${__dirname}/../../sh`;
@@ -497,12 +480,15 @@ describe("Environment", () => {
           await provider.send("evm_setAutomine", [false]);
 
           const matchingEngine = IMatchingEngine__factory.connect(
-            MATCHING_ENGINE_ADDRESS,
+            tryUint8ArrayToNative(
+              ethers.utils.arrayify(matchingEngineEndpoint),
+              "avalanche"
+            ),
             provider
           );
           const { pool: poolInfoAddress } =
             await matchingEngine.getCurvePoolInfo();
-          expect(poolInfoAddress.toLowerCase()).to.equal(curvePoolAddress);
+          expect(poolInfoAddress).to.equal(curvePoolAddress!);
         }); // it("Deploy Matching Engine", async () => {
 
         it("Upgrade Matching Engine", async () => {

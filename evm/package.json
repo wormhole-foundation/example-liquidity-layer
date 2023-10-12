@@ -23,6 +23,6 @@
     "build-types": "typechain --target=ethers-v5 --out-dir=ts/src/types out/*/*.json"
   },
   "dependencies": {
-    "env-to-object": "^1.1.0"
+    "envfile": "^6.18.0"
   }
 }
