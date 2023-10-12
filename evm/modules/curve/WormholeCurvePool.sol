@@ -5,20 +5,8 @@ pragma solidity ^0.8.19;
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ICurveFactory} from "curve-solidity/ICurveFactory.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
-
-interface CurveFactory is IERC20 {
-    function deploy_plain_pool(
-        string memory _name,
-        string memory _symbol,
-        address[4] memory _coins,
-        uint256 _A,
-        uint256 _fee,
-        uint256 _asset_type,
-        uint256 _implementation_idx
-    ) external returns (address);
-}
 
 contract WormholePoolTestHelper {
     address constant curveFactoryAddress = 0xb17b674D9c5CB2e441F8e196a2f048A81355d031;
@@ -30,7 +18,7 @@ contract WormholePoolTestHelper {
         uint256 asset_type = 0;
         uint256 implementation_idx = 0;
 
-        curvePool = CurveFactory(curveFactoryAddress).deploy_plain_pool(
+        curvePool = ICurveFactory(curveFactoryAddress).deploy_plain_pool(
             "Mothership Test Pool", // Name
             "WormUSDC", // Symbol
             coins,
