@@ -47,4 +47,10 @@ interface IOrderRouter is IPlaceMarketOrder, IRedeemFill, IRedeemOrderRevert {
     function upgradeContract(address newImplementation) external;
 
     function updateSlippage(SlippageUpdate[] calldata update) external;
+
+    function getOwner() external view returns (address);
+
+    function getOwnerAssistant() external view returns (address);
+
+    function getDeployer() external view returns (address);
 }

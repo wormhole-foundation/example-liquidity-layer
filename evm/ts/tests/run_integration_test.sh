@@ -6,9 +6,9 @@ if [ $? -eq 0 ]; then
     exit 1;
 fi
 
-. .env
-
 ROOT=$(dirname $0)
+
+. $ROOT/.env
 
 LOGS=$ROOT/.anvil
 mkdir -p $LOGS

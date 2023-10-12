@@ -113,6 +113,14 @@ abstract contract Admin is ERC1967Upgrade {
         getOwnerAssistantState().ownerAssistant = newAssistant;
     }
 
+    function getOwner() external view returns (address) {
+        return getOwnerState().owner;
+    }
+
+    function getOwnerAssistant() external view returns (address) {
+        return getOwnerAssistantState().ownerAssistant;
+    }
+
     function setPause(bool paused) external onlyOwnerOrAssistant {
         emit IsPaused(paused);
         getPausedState().paused = paused;

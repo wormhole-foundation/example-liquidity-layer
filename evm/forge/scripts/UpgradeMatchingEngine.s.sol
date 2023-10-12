@@ -10,6 +10,7 @@ import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
 import {MatchingEngineImplementation} from "../../src/MatchingEngine/MatchingEngineImplementation.sol";
 import {IMatchingEngine} from "../../src/interfaces/IMatchingEngine.sol";
+import {fromUniversalAddress} from "../../src/shared/Utils.sol";
 
 import {CheckWormholeContracts} from "./helpers/CheckWormholeContracts.sol";
 
@@ -19,7 +20,7 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
     address immutable _tokenBridgeAddress = vm.envAddress("RELEASE_TOKEN_BRIDGE_ADDRESS");
     address immutable _wormholeCctpAddress = vm.envAddress("RELEASE_WORMHOLE_CCTP_ADDRESS");
 
-    address immutable _matchingEngineAddress = vm.envAddress("RELEASE_MATCHING_ENGINE_ADDRESS");
+    bytes32 immutable _matchingEngineEndpoint = vm.envBytes32("RELEASE_MATCHING_ENGINE_ENDPOINT");
 
     function upgrade() public {
         requireValidChain(_CHAIN_ID, _tokenBridgeAddress, _wormholeCctpAddress);
@@ -29,7 +30,8 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
             _wormholeCctpAddress
         );
 
-        IMatchingEngine(_matchingEngineAddress).upgradeContract(address(implementation));
+        address matchingEngineAdress = fromUniversalAddress(_matchingEngineEndpoint);
+        IMatchingEngine(matchingEngineAdress).upgradeContract(address(implementation));
     }
 
     function run() public {

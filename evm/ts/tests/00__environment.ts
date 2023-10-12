@@ -47,28 +47,28 @@ import {
 import { execSync } from "child_process";
 
 describe("Environment", () => {
-  for (const network of ["avalanche", "ethereum", "bsc", "moonbeam"]) {
-    //for (const network of ["avalanche"]) {
-    const networkName = network.charAt(0).toUpperCase() + network.slice(1);
+  //for (const chainName of ["avalanche", "ethereum", "bsc", "moonbeam"]) {
+  for (const chainName of ["avalanche"]) {
+    const networkName = chainName.charAt(0).toUpperCase() + chainName.slice(1);
 
-    if (!(network in LOCALHOSTS)) {
-      throw new Error(`Missing network: ${network}`);
+    if (!(chainName in LOCALHOSTS)) {
+      throw new Error(`Missing chainName: ${chainName}`);
     }
 
     // @ts-ignore
-    const chainId = coalesceChainId(network);
-    const localhost = (LOCALHOSTS as any)[network] as string;
-    const usdcAddress = (USDC_ADDRESSES as any)[network] as string;
+    const chainId = coalesceChainId(chainName);
+    const localhost = (LOCALHOSTS as any)[chainName] as string;
+    const usdcAddress = (USDC_ADDRESSES as any)[chainName] as string;
     const tokenBridgeAddress = (TOKEN_BRIDGE_ADDRESSES as any)[
-      network
+      chainName
     ] as string;
     const wormholeCctpAddress = (WORMHOLE_CCTP_ADDRESSES as any)[
-      network
+      chainName
     ] as string;
-    // const usdcDecimals = (USDC_DECIMALS as any)[network];
+    // const usdcDecimals = (USDC_DECIMALS as any)[chainName];
 
-    const orderRouterAddress = (ORDER_ROUTERS as any)[network] as string;
-    const tokenType = (TOKEN_TYPES as any)[network] as number;
+    const orderRouterAddress = (ORDER_ROUTERS as any)[chainName] as string;
+    const tokenType = (TOKEN_TYPES as any)[chainName] as number;
 
     const localVariables = new Map<string, any>();
 
@@ -79,10 +79,6 @@ describe("Environment", () => {
       );
 
       const owner = new ethers.Wallet(OWNER_PRIVATE_KEY, provider);
-      const ownerAssistant = new ethers.Wallet(
-        OWNER_ASSISTANT_PRIVATE_KEY,
-        provider
-      );
 
       const tokenBridge = ITokenBridge__factory.connect(
         tokenBridgeAddress,
@@ -320,7 +316,7 @@ describe("Environment", () => {
         }); // it("CCTP USDC", async () => {
       } // if (wormholeCctp !== null) {
 
-      if (network === "avalanche") {
+      if (chainName === "avalanche") {
         it("Deploy Curve Pool", async () => {
           const curveFactory = CurveFactory__factory.connect(
             CURVE_FACTORY_ADDRESS,
@@ -491,15 +487,11 @@ describe("Environment", () => {
 
           await provider.send("evm_setAutomine", [true]);
 
-          const scripts = `${__dirname}/../../forge/scripts`;
+          const scripts = `${__dirname}/../../sh`;
           const cmd =
-            `RELEASE_TOKEN_BRIDGE_ADDRESS=${tokenBridgeAddress} ` +
-            `RELEASE_WORMHOLE_CCTP_ADDRESS=${wormholeCctpAddress} ` +
-            `RELEASE_CURVE_POOL_ADDRESS=${curvePoolAddress} ` +
-            `RELEASE_OWNER_ASSISTANT_ADDRESS=${ownerAssistant.address} ` +
-            `forge script ${scripts}/DeployMatchingEngineContracts.s.sol ` +
-            `--rpc-url ${localhost} --broadcast ` +
-            `--private-key ${owner.privateKey} > /dev/null 2>&1`;
+            `bash ${scripts}/deploy_matching_engine.sh ` +
+            `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}` +
+            `> /dev/null 2>&1`;
           const out = execSync(cmd, { encoding: "utf8" });
 
           await provider.send("evm_setAutomine", [false]);
@@ -516,40 +508,25 @@ describe("Environment", () => {
         it("Upgrade Matching Engine", async () => {
           await provider.send("evm_setAutomine", [true]);
 
-          const scripts = `${__dirname}/../../forge/scripts`;
+          const scripts = `${__dirname}/../../sh`;
           const cmd =
-            `RELEASE_TOKEN_BRIDGE_ADDRESS=${tokenBridgeAddress} ` +
-            `RELEASE_WORMHOLE_CCTP_ADDRESS=${wormholeCctpAddress} ` +
-            `RELEASE_MATCHING_ENGINE_ADDRESS=${MATCHING_ENGINE_ADDRESS} ` +
-            `forge script ${scripts}/UpgradeMatchingEngine.s.sol ` +
-            `--rpc-url ${localhost} --broadcast ` +
-            `--private-key ${owner.privateKey} > /dev/null 2>&1`;
+            `bash ${scripts}/upgrade_matching_engine.sh ` +
+            `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}` +
+            `> /dev/null 2>&1`;
           const out = execSync(cmd, { encoding: "utf8" });
 
           await provider.send("evm_setAutomine", [false]);
         }); // it("Upgrade Matching Engine", async () => {
-      } // if (network === "avalanche") {
+      } // if (chainName === "avalanche") {
 
       it("Deploy Order Router", async () => {
         await provider.send("evm_setAutomine", [true]);
 
-        const scripts = `${__dirname}/../../forge/scripts`;
+        const scripts = `${__dirname}/../../sh`;
         const cmd =
-          `RELEASE_CHAIN_ID=${chainId} ` +
-          `RELEASE_TOKEN_ADDRESS=${usdcAddress} ` +
-          `RELEASE_MATCHING_ENGINE_CHAIN=${MATCHING_ENGINE_CHAIN} ` +
-          `RELEASE_MATCHING_ENGINE_ENDPOINT=0x${tryNativeToHexString(
-            MATCHING_ENGINE_ADDRESS,
-            "avalanche"
-          )} ` +
-          `RELEASE_CANONICAL_TOKEN_CHAIN=${CANONICAL_TOKEN_CHAIN} ` +
-          `RELEASE_CANONICAL_TOKEN_ADDRESS=0x${CANONICAL_TOKEN_ADDRESS} ` +
-          `RELEASE_TOKEN_BRIDGE_ADDRESS=${tokenBridgeAddress} ` +
-          `RELEASE_WORMHOLE_CCTP_ADDRESS=${wormholeCctpAddress} ` +
-          `RELEASE_OWNER_ASSISTANT_ADDRESS=${ownerAssistant.address} ` +
-          `forge script ${scripts}/DeployOrderRouterContracts.s.sol ` +
-          `--rpc-url ${localhost} --broadcast ` +
-          `--private-key ${owner.privateKey} > /dev/null 2>&1`;
+          `bash ${scripts}/deploy_order_router.sh ` +
+          `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey} ` +
+          `> /dev/null 2>&1`;
         const out = execSync(cmd, { encoding: "utf8" });
 
         await provider.send("evm_setAutomine", [false]);
@@ -569,27 +546,15 @@ describe("Environment", () => {
       it("Upgrade Order Router", async () => {
         await provider.send("evm_setAutomine", [true]);
 
-        const scripts = `${__dirname}/../../forge/scripts`;
+        const scripts = `${__dirname}/../../sh`;
         const cmd =
-          `RELEASE_CHAIN_ID=${chainId} ` +
-          `RELEASE_TOKEN_ADDRESS=${usdcAddress} ` +
-          `RELEASE_MATCHING_ENGINE_CHAIN=${MATCHING_ENGINE_CHAIN} ` +
-          `RELEASE_MATCHING_ENGINE_ENDPOINT=0x${tryNativeToHexString(
-            MATCHING_ENGINE_ADDRESS,
-            "avalanche"
-          )} ` +
-          `RELEASE_CANONICAL_TOKEN_CHAIN=${CANONICAL_TOKEN_CHAIN} ` +
-          `RELEASE_CANONICAL_TOKEN_ADDRESS=0x${CANONICAL_TOKEN_ADDRESS} ` +
-          `RELEASE_TOKEN_BRIDGE_ADDRESS=${tokenBridgeAddress} ` +
-          `RELEASE_WORMHOLE_CCTP_ADDRESS=${wormholeCctpAddress} ` +
-          `RELEASE_ORDER_ROUTER_ADDRESS=${orderRouterAddress} ` +
-          `forge script ${scripts}/UpgradeOrderRouter.s.sol ` +
-          `--rpc-url ${localhost} --broadcast ` +
-          `--private-key ${owner.privateKey} > /dev/null 2>&1`;
+          `bash ${scripts}/upgrade_order_router.sh ` +
+          `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}` +
+          `> /dev/null 2>&1`;
         const out = execSync(cmd, { encoding: "utf8" });
 
         await provider.send("evm_setAutomine", [false]);
       }); // it("Upgrade Order Router", async () => {
     });
-  } // for (const network of ["arbitrum", "avalanche", "ethereum", "polygon"]) {
+  } // for (const chainName of ["arbitrum", "avalanche", "ethereum", "polygon"]) {
 });

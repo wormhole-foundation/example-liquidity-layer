@@ -12,6 +12,8 @@ import {getRedeemedFills, getRouterInfos} from "./Storage.sol";
 import {RouterInfo, TokenType} from "../../interfaces/Types.sol";
 
 abstract contract State {
+    address immutable _deployer;
+
     uint24 public constant MIN_SLIPPAGE = 100; // 1.00 bps
     uint24 public constant MAX_SLIPPAGE = 1000000; // 10,000.00 bps (100%)
 
@@ -41,6 +43,7 @@ abstract contract State {
         address tokenBridge_,
         address wormholeCctp_
     ) {
+        _deployer = msg.sender;
         _orderToken = IERC20(token_);
 
         _matchingEngineChain = matchingEngineChain_;
@@ -63,6 +66,10 @@ abstract contract State {
                     ? TokenType.Canonical
                     : TokenType.Native
             );
+    }
+
+    function getDeployer() external view returns (address) {
+        return _deployer;
     }
 
     function getRouterInfo(uint16 chain) public view returns (RouterInfo memory info) {

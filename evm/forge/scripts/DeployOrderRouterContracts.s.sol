@@ -32,8 +32,6 @@ contract DeployOrderRouterContracts is CheckWormholeContracts, Script {
     function deploy() public {
         requireValidChain(_chainId, _tokenBridgeAddress, _wormholeCctpAddress);
 
-        OrderRouterSetup setup = new OrderRouterSetup();
-
         OrderRouterImplementation implementation = new OrderRouterImplementation(
             _token,
             _matchingEngineChain,
@@ -44,15 +42,10 @@ contract DeployOrderRouterContracts is CheckWormholeContracts, Script {
             _wormholeCctpAddress
         );
 
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(setup),
-            abi.encodeWithSelector(
-                bytes4(keccak256("setup(address,address)")),
-                address(implementation),
-                _ownerAssistantAddress
-            )
-        );
-        console2.log("Deployed OrderRouter (chain=%s): %s", _chainId, address(proxy));
+        OrderRouterSetup setup = new OrderRouterSetup();
+        address proxy = setup.deployProxy(address(implementation), _ownerAssistantAddress);
+
+        console2.log("Deployed OrderRouter (chain=%s): %s", _chainId, proxy);
     }
 
     function run() public {

@@ -2,19 +2,45 @@
 
 pragma solidity ^0.8.19;
 
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {ERC1967Upgrade} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
-import "@openzeppelin/contracts/utils/Context.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
 import {getOwnerState, getOwnerAssistantState} from "../shared/Admin.sol";
 
+import {IOrderRouter} from "../interfaces/IOrderRouter.sol";
+
+import {OrderRouterImplementation} from "../OrderRouter/OrderRouterImplementation.sol";
+
 contract OrderRouterSetup is ERC1967Upgrade, Context {
-    function setup(address implementation, address ownerAssistant) public {
+    error AlreadyDeployed();
+
+    function deployProxy(
+        address implementation,
+        address ownerAssistant
+    ) public payable returns (address) {
+        if (_getAdmin() != address(0)) {
+            revert AlreadyDeployed();
+        }
+
+        _changeAdmin(_msgSender());
+
+        ERC1967Proxy proxy = new ERC1967Proxy(
+            address(this),
+            abi.encodeCall(this.setup, (_getAdmin(), implementation, ownerAssistant))
+        );
+
+        return address(proxy);
+    }
+
+    function setup(address admin, address implementation, address ownerAssistant) public {
         assert(implementation != address(0));
         assert(ownerAssistant != address(0));
+        assert(IOrderRouter(implementation).getDeployer() == admin);
 
         // Set the owner, have to use context here since the proxy contract will
         // be the caller.
-        getOwnerState().owner = _msgSender();
+        getOwnerState().owner = admin;
         getOwnerAssistantState().ownerAssistant = ownerAssistant;
 
         // Set implementation.
@@ -22,7 +48,7 @@ contract OrderRouterSetup is ERC1967Upgrade, Context {
 
         // Call initialize function of the new implementation.
         (bool success, bytes memory reason) = implementation.delegatecall(
-            abi.encodeWithSignature("initialize()")
+            abi.encodeCall(OrderRouterImplementation.initialize, ())
         );
         require(success, string(reason));
     }
