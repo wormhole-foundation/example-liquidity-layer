@@ -85,9 +85,6 @@ contract OrderRouterTest is Test {
         address _tokenBridge,
         address _wormholeCircle
     ) internal returns (IOrderRouter) {
-        // Deploy Setup.
-        OrderRouterSetup setup = new OrderRouterSetup();
-
         // Deploy Implementation.
         OrderRouterImplementation implementation = new OrderRouterImplementation(
             _token,
@@ -99,16 +96,11 @@ contract OrderRouterTest is Test {
             _wormholeCircle
         );
 
-        // Deploy Proxy.
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(setup),
-            abi.encodeWithSelector(
-                bytes4(keccak256("setup(address,address)")),
-                address(implementation),
-                makeAddr("ownerAssistant")
-            )
-        );
-        return IOrderRouter(address(proxy));
+        // Deploy Setup.
+        OrderRouterSetup setup = new OrderRouterSetup();
+        address proxy = setup.deployProxy(address(implementation), makeAddr("ownerAssistant"));
+
+        return IOrderRouter(proxy);
     }
 
     function setUp() public {
