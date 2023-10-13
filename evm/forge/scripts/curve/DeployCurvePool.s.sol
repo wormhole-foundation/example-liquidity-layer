@@ -8,11 +8,10 @@ import "forge-std/console2.sol";
 import {ICurveFactory} from "curve-solidity/ICurveFactory.sol";
 
 contract DeployCurvePool is Script {
-    uint16 constant _CHAIN_ID = 6;
+    // Testnet addresses on Avax.
     address usdc = 0x5425890298aed601595a70AB815c96711a31Bc65;
     address wrappedEthUsdc = 0x63A30f239DC8d1c17Bf6653a68Fc6C2F83641E6d;
     address wrappedBscUsdc = 0xd1C5F207aC817b721FEfb978C6d55a1A2e8cf747;
-
     ICurveFactory immutable _curveFactory =
         ICurveFactory(0xd4A231Db402C5F0A4441D62F4683Aa6BEF8854ce);
 
