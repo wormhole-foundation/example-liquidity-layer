@@ -11,7 +11,9 @@ import {RouterInfo, getRouterInfos, getDefaultRelayerFee} from "./Storage.sol";
 
 abstract contract OrderRouterAdmin is Admin, State {
     function addRouterInfo(uint16 chain, RouterInfo memory info) external onlyOwnerOrAssistant {
-        // TODO: don't allow own chain.
+        if (chain == _wormholeChainId) {
+            revert ErrChainNotAllowed();
+        }
 
         if (info.slippage < MIN_SLIPPAGE) {
             revert ErrRouterSlippageTooLow(info.slippage, MIN_SLIPPAGE);

@@ -879,7 +879,7 @@ contract OrderRouterTest is Test {
     function testCanonicalEnabledRouterPlaceMarketOrderTargetCctp(uint256 amountIn) public {
         amountIn = bound(amountIn, 1, canonicalEnabledRouter.MAX_AMOUNT());
 
-        uint16 targetChain = 6;
+        uint16 targetChain = 69;
         _registerTargetChain(canonicalEnabledRouter, targetChain, TokenType.Cctp);
 
         _dealAndApproveWrappedUsdc(canonicalEnabledRouter, amountIn);

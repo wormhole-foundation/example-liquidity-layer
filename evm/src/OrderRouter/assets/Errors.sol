@@ -29,3 +29,5 @@ error ErrRelayerNotAllowedForPath();
 error ErrZeroMinAmountOut();
 
 error ErrNoSlippageUpdate();
+
+error ErrChainNotAllowed();
