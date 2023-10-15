@@ -7,10 +7,12 @@ import {Admin} from "../../shared/Admin.sol";
 import "./Errors.sol";
 import {SlippageUpdate} from "../../interfaces/Types.sol";
 import {State} from "./State.sol";
-import {RouterInfo, getRouterInfos} from "./Storage.sol";
+import {RouterInfo, getRouterInfos, getDefaultRelayerFee} from "./Storage.sol";
 
 abstract contract OrderRouterAdmin is Admin, State {
     function addRouterInfo(uint16 chain, RouterInfo memory info) external onlyOwnerOrAssistant {
+        // TODO: don't allow own chain.
+
         if (info.slippage < MIN_SLIPPAGE) {
             revert ErrRouterSlippageTooLow(info.slippage, MIN_SLIPPAGE);
         }
@@ -55,5 +57,9 @@ abstract contract OrderRouterAdmin is Admin, State {
                 ++i;
             }
         }
+    }
+
+    function updateDefaultRelayerFee(uint256 fee) external onlyOwnerOrAssistant {
+        getDefaultRelayerFee().fee = fee;
     }
 }

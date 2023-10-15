@@ -40,6 +40,8 @@ interface IOrderRouter is IPlaceMarketOrder, IRedeemFill, IRedeemOrderRevert {
 
     function getRouterInfo(uint16 chain) external view returns (RouterInfo memory);
 
+    function defaultRelayerFee() external view returns (uint256);
+
     function isFillRedeemed(bytes32 fillHash) external view returns (bool);
 
     function addRouterInfo(uint16 chain, RouterInfo memory info) external;
@@ -47,6 +49,8 @@ interface IOrderRouter is IPlaceMarketOrder, IRedeemFill, IRedeemOrderRevert {
     function upgradeContract(address newImplementation) external;
 
     function updateSlippage(SlippageUpdate[] calldata update) external;
+
+    function updateDefaultRelayerFee(uint256 fee) external;
 
     function getOwner() external view returns (address);
 

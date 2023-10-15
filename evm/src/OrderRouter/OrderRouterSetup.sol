@@ -11,13 +11,15 @@ import {getOwnerState, getOwnerAssistantState} from "../shared/Admin.sol";
 import {IOrderRouter} from "../interfaces/IOrderRouter.sol";
 
 import {OrderRouterImplementation} from "../OrderRouter/OrderRouterImplementation.sol";
+import {getDefaultRelayerFee} from "../OrderRouter/assets/Storage.sol";
 
 contract OrderRouterSetup is ERC1967Upgrade, Context {
     error AlreadyDeployed();
 
     function deployProxy(
         address implementation,
-        address ownerAssistant
+        address ownerAssistant,
+        uint256 defaultRelayerFee
     ) public payable returns (address) {
         if (_getAdmin() != address(0)) {
             revert AlreadyDeployed();
@@ -27,21 +29,31 @@ contract OrderRouterSetup is ERC1967Upgrade, Context {
 
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(this),
-            abi.encodeCall(this.setup, (_getAdmin(), implementation, ownerAssistant))
+            abi.encodeCall(
+                this.setup,
+                (_getAdmin(), implementation, ownerAssistant, defaultRelayerFee)
+            )
         );
 
         return address(proxy);
     }
 
-    function setup(address admin, address implementation, address ownerAssistant) public {
+    function setup(
+        address admin,
+        address implementation,
+        address ownerAssistant,
+        uint256 defaultRelayerFee
+    ) public {
         assert(implementation != address(0));
         assert(ownerAssistant != address(0));
         assert(IOrderRouter(implementation).getDeployer() == admin);
 
-        // Set the owner, have to use context here since the proxy contract will
-        // be the caller.
+        // Set the owner.
         getOwnerState().owner = admin;
         getOwnerAssistantState().ownerAssistant = ownerAssistant;
+
+        // Set the default relayer fee.
+        getDefaultRelayerFee().fee = defaultRelayerFee;
 
         // Set implementation.
         _upgradeTo(implementation);

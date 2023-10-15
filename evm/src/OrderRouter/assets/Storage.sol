@@ -29,3 +29,16 @@ function getRouterInfos() pure returns (RouterInfos storage state) {
         state.slot := ROUTER_INFOS_STORAGE_SLOT
     }
 }
+
+struct DefaultRelayerFee {
+    uint256 fee;
+}
+
+// keccak256("DefaultRelayerFee") - 1
+bytes32 constant DEFAULT_RELAYER_STORAGE_SLOT = 0x9e85cadd43c295e12fec987deb843da4a50820cd1fb3f3746974cf26ee1161cd;
+
+function getDefaultRelayerFee() pure returns (DefaultRelayerFee storage state) {
+    assembly ("memory-safe") {
+        state.slot := DEFAULT_RELAYER_STORAGE_SLOT
+    }
+}

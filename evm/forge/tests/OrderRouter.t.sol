@@ -98,7 +98,11 @@ contract OrderRouterTest is Test {
 
         // Deploy Setup.
         OrderRouterSetup setup = new OrderRouterSetup();
-        address proxy = setup.deployProxy(address(implementation), makeAddr("ownerAssistant"));
+        address proxy = setup.deployProxy(
+            address(implementation),
+            makeAddr("ownerAssistant"),
+            0 // Default relayer fee.
+        );
 
         return IOrderRouter(proxy);
     }
@@ -288,6 +292,23 @@ contract OrderRouterTest is Test {
         nativeRouter.updateSlippage(update);
     }
 
+    function testUpdateDefaultRelayerFee() public {
+        uint256 startingFee = nativeRouter.defaultRelayerFee();
+        uint256 newFee = 69;
+        assertFalse(startingFee == newFee);
+
+        vm.prank(makeAddr("owner"));
+        nativeRouter.updateDefaultRelayerFee(newFee);
+
+        assertEq(nativeRouter.defaultRelayerFee(), newFee);
+    }
+
+    function testCannotUpdateDefaultRelayerFeeOnlyOwnerOrAssistant() public {
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
+        vm.prank(makeAddr("not owner"));
+        nativeRouter.updateDefaultRelayerFee(69);
+    }
+
     function testCannotPlaceMarketOrderErrZeroMinAmountOut() public {
         PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
             amountIn: 1,
@@ -340,7 +361,7 @@ contract OrderRouterTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(ErrInsufficientAmount.selector, relayerFee, relayerFee)
         );
-        nativeRouter.placeMarketOrder(args, relayerFee);
+        nativeRouter.placeMarketOrder(args, relayerFee, new bytes32[](0));
     }
 
     function testCannotPlaceMarketOrderErrMinAmountOutExceedsLimit() public {
@@ -402,6 +423,59 @@ contract OrderRouterTest is Test {
             )
         );
         nativeRouter.placeMarketOrder(args, relayerFee, _makeAllowedRelayers(numAllowedRelayers));
+    }
+
+    function testPlaceMarketOrderDefaultRelayerFee() public {
+        uint256 amountIn = 69420;
+        uint256 defaultRelayerFee = 69;
+
+        uint16 targetChain = 1;
+        _registerTargetChain(nativeRouter, targetChain, TokenType.Native);
+
+        _dealAndApproveUsdc(nativeRouter, amountIn);
+
+        // Set the default relayer fee.
+        vm.prank(makeAddr("owner"));
+        nativeRouter.updateDefaultRelayerFee(defaultRelayerFee);
+
+        uint256 minAmountOut = _computeMinAmountOut(amountIn, nativeRouter.defaultRelayerFee());
+
+        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+            amountIn: amountIn,
+            minAmountOut: minAmountOut,
+            targetChain: targetChain,
+            redeemer: bytes32(0),
+            redeemerMessage: bytes("All your base are belong to us."),
+            refundAddress: address(0)
+        });
+
+        // Record logs for placeMarketOrder.
+        vm.recordLogs();
+
+        // Place the order.
+        nativeRouter.placeMarketOrder(args);
+
+        // Fetch the logs for Wormhole message.
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertGt(logs.length, 0);
+
+        bytes memory payload = wormholeSimulator
+            .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[0])
+            .payload;
+
+        // Check that the order is correct.
+        Messages.MarketOrder memory order = Messages.decodeMarketOrder(
+            tokenBridge.parseTransferWithPayload(payload).payload
+        );
+
+        assertEq(order.minAmountOut, minAmountOut);
+        assertEq(order.targetChain, targetChain);
+        assertEq(order.redeemer, bytes32(0));
+        assertEq(order.redeemerMessage, args.redeemerMessage);
+        assertEq(order.sender, toUniversalAddress(address(this)));
+        assertEq(order.refundAddress, toUniversalAddress(args.refundAddress));
+        assertEq(order.relayerFee, defaultRelayerFee);
+        assertEq(order.allowedRelayers.length, 0);
     }
 
     function testNativeRouterPlaceMarketOrder(uint256 amountIn, uint8 dstTokenTypeInt) public {

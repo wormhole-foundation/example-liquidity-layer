@@ -7,7 +7,7 @@ import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
 import "./Errors.sol";
-import {getRedeemedFills, getRouterInfos} from "./Storage.sol";
+import {getRedeemedFills, getRouterInfos, getDefaultRelayerFee} from "./Storage.sol";
 
 import {RouterInfo, TokenType} from "../../interfaces/Types.sol";
 
@@ -79,6 +79,10 @@ abstract contract State {
         if (info.tokenType == TokenType.Unset) {
             revert ErrUnsupportedChain(chain);
         }
+    }
+
+    function defaultRelayerFee() public view returns (uint256) {
+        return getDefaultRelayerFee().fee;
     }
 
     function isFillRedeemed(bytes32 fillHash) external view returns (bool) {

@@ -20,11 +20,6 @@ interface IPlaceMarketOrder {
 
     function placeMarketOrder(
         PlaceMarketOrderArgs calldata args,
-        uint256 relayerFee
-    ) external payable returns (uint64 sequence);
-
-    function placeMarketOrder(
-        PlaceMarketOrderArgs calldata args,
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
     ) external payable returns (uint64 sequence);

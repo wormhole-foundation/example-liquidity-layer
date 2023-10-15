@@ -9,6 +9,10 @@ enum TokenType {
     Cctp
 }
 
+struct DefaultRelayerFee {
+    uint256 fee;
+}
+
 struct RouterInfo {
     bytes32 endpoint;
     TokenType tokenType;

@@ -28,14 +28,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function placeMarketOrder(
         PlaceMarketOrderArgs calldata args
     ) external payable notPaused returns (uint64 sequence) {
-        sequence = _placeMarketOrder(args, 0, new bytes32[](0));
-    }
-
-    function placeMarketOrder(
-        PlaceMarketOrderArgs calldata args,
-        uint256 relayerFee
-    ) external payable notPaused returns (uint64 sequence) {
-        sequence = _placeMarketOrder(args, relayerFee, new bytes32[](0));
+        sequence = _placeMarketOrder(args, defaultRelayerFee(), new bytes32[](0));
     }
 
     function placeMarketOrder(
