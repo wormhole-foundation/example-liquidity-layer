@@ -15,7 +15,7 @@ import "./Errors.sol";
 import {State} from "./State.sol";
 
 import "../../interfaces/IRedeemOrderRevert.sol";
-import {RouterInfo, TokenType} from "../../interfaces/Types.sol";
+import {RouterInfo, TokenType, OrderResponse} from "../../interfaces/Types.sol";
 
 abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
     using Messages for *;
@@ -23,36 +23,40 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
     /**
      * @notice Redeem a fill sent by either another Order Router or the Matching Engine.
      */
-    function redeemOrderRevert(bytes calldata encodedVaa) external returns (Messages.RevertType) {
-        ITokenBridge.TransferWithPayload memory transfer = _tokenBridge.parseTransferWithPayload(
-            _tokenBridge.completeTransferWithPayload(encodedVaa)
-        );
-
-        return
-            _processOrderRevert(
-                encodedVaa,
-                transfer.fromAddress,
-                transfer.amount,
-                transfer.payload
-            );
-    }
-
-    /**
-     * @notice Redeem a fill sent by either another Order Router or the Matching Engine via CCTP.
-     */
     function redeemOrderRevert(
-        ICircleIntegration.RedeemParameters calldata redeemParams
+        OrderResponse memory response
     ) external returns (Messages.RevertType) {
-        ICircleIntegration.DepositWithPayload memory deposit = _wormholeCctp
-            .redeemTokensWithPayload(redeemParams);
+        if (response.circleBridgeMessage.length == 0 && response.circleAttestation.length == 0) {
+            ITokenBridge.TransferWithPayload memory transfer = _tokenBridge
+                .parseTransferWithPayload(
+                    _tokenBridge.completeTransferWithPayload(response.encodedWormholeMessage)
+                );
 
-        return
-            _processOrderRevert(
-                redeemParams.encodedWormholeMessage,
-                deposit.fromAddress,
-                deposit.amount,
-                deposit.payload
-            );
+            return
+                _processOrderRevert(
+                    response.encodedWormholeMessage,
+                    transfer.fromAddress,
+                    transfer.amount,
+                    transfer.payload
+                );
+        } else {
+            ICircleIntegration.DepositWithPayload memory deposit = _wormholeCctp
+                .redeemTokensWithPayload(
+                    ICircleIntegration.RedeemParameters({
+                        encodedWormholeMessage: response.encodedWormholeMessage,
+                        circleBridgeMessage: response.circleBridgeMessage,
+                        circleAttestation: response.circleAttestation
+                    })
+                );
+
+            return
+                _processOrderRevert(
+                    response.encodedWormholeMessage,
+                    deposit.fromAddress,
+                    deposit.amount,
+                    deposit.payload
+                );
+        }
     }
 
     function _processOrderRevert(

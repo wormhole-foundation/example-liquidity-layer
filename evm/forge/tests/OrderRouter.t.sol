@@ -932,7 +932,13 @@ contract OrderRouterTest is Test {
         );
 
         vm.expectRevert(abi.encodeWithSelector(ErrUnsupportedChain.selector, senderChain));
-        nativeRouter.redeemFill(encodedVaa);
+        nativeRouter.redeemFill(
+            OrderResponse({
+                encodedWormholeMessage: encodedVaa,
+                circleBridgeMessage: "",
+                circleAttestation: ""
+            })
+        );
     }
 
     function testCannotRedeemFillErrSourceNotMatchingEngine1() public {
@@ -966,7 +972,13 @@ contract OrderRouterTest is Test {
                 emitterAddress
             )
         );
-        nativeRouter.redeemFill(encodedVaa);
+        nativeRouter.redeemFill(
+            OrderResponse({
+                encodedWormholeMessage: encodedVaa,
+                circleBridgeMessage: "",
+                circleAttestation: ""
+            })
+        );
     }
 
     function testCannotRedeemFillErrSourceNotMatchingEngine2() public {
@@ -1000,7 +1012,13 @@ contract OrderRouterTest is Test {
                 toUniversalAddress(MATCHING_ENGINE_ADDRESS)
             )
         );
-        nativeRouter.redeemFill(encodedVaa);
+        nativeRouter.redeemFill(
+            OrderResponse({
+                encodedWormholeMessage: encodedVaa,
+                circleBridgeMessage: "",
+                circleAttestation: ""
+            })
+        );
     }
 
     function testCannotRedeemFillErrInvalidRedeemer() public {
@@ -1032,7 +1050,13 @@ contract OrderRouterTest is Test {
                 expectedRedeemer
             )
         );
-        nativeRouter.redeemFill(encodedVaa);
+        nativeRouter.redeemFill(
+            OrderResponse({
+                encodedWormholeMessage: encodedVaa,
+                circleBridgeMessage: "",
+                circleAttestation: ""
+            })
+        );
     }
 
     function testCannotRedeemFillInvalidPayloadId() public {
@@ -1055,7 +1079,13 @@ contract OrderRouterTest is Test {
         );
 
         vm.expectRevert(abi.encodeWithSignature("InvalidPayloadId(uint8,uint8)", 0x20, 0x10));
-        nativeRouter.redeemFill(encodedVaa);
+        nativeRouter.redeemFill(
+            OrderResponse({
+                encodedWormholeMessage: encodedVaa,
+                circleBridgeMessage: "",
+                circleAttestation: ""
+            })
+        );
     }
 
     function testCannotRedeemOrderRevertInvalidPayloadId() public {
@@ -1080,7 +1110,13 @@ contract OrderRouterTest is Test {
         );
 
         vm.expectRevert(abi.encodeWithSignature("InvalidPayloadId(uint8,uint8)", 0x10, 0x20));
-        nativeRouter.redeemOrderRevert(encodedVaa);
+        nativeRouter.redeemOrderRevert(
+            OrderResponse({
+                encodedWormholeMessage: encodedVaa,
+                circleBridgeMessage: "",
+                circleAttestation: ""
+            })
+        );
     }
 
     function testCannotRedeemOrderRevertErrSourceNotMatchingEngine1() public {
@@ -1112,7 +1148,13 @@ contract OrderRouterTest is Test {
                 emitterAddress
             )
         );
-        nativeRouter.redeemOrderRevert(encodedVaa);
+        nativeRouter.redeemOrderRevert(
+            OrderResponse({
+                encodedWormholeMessage: encodedVaa,
+                circleBridgeMessage: "",
+                circleAttestation: ""
+            })
+        );
     }
 
     function testCannotRedeemOrderRevertErrSourceNotMatchingEngine2() public {
@@ -1144,7 +1186,13 @@ contract OrderRouterTest is Test {
                 toUniversalAddress(MATCHING_ENGINE_ADDRESS)
             )
         );
-        nativeRouter.redeemOrderRevert(encodedVaa);
+        nativeRouter.redeemOrderRevert(
+            OrderResponse({
+                encodedWormholeMessage: encodedVaa,
+                circleBridgeMessage: "",
+                circleAttestation: ""
+            })
+        );
     }
 
     function testCannotRedeemOrderRevertErrInvalidRedeemer() public {
@@ -1174,7 +1222,13 @@ contract OrderRouterTest is Test {
                 expectedRedeemer
             )
         );
-        nativeRouter.redeemOrderRevert(encodedVaa);
+        nativeRouter.redeemOrderRevert(
+            OrderResponse({
+                encodedWormholeMessage: encodedVaa,
+                circleBridgeMessage: "",
+                circleAttestation: ""
+            })
+        );
     }
 
     function testNativeRouterRedeemFill(uint256 amount, uint8 srcTokenTypeInt) public {
@@ -1260,7 +1314,13 @@ contract OrderRouterTest is Test {
                 TESTING_FOREIGN_ROUTER_ENDPOINT
             )
         );
-        cctpEnabledRouter.redeemFill(redeemParams);
+        cctpEnabledRouter.redeemFill(
+            OrderResponse({
+                encodedWormholeMessage: redeemParams.encodedWormholeMessage,
+                circleBridgeMessage: redeemParams.circleBridgeMessage,
+                circleAttestation: redeemParams.circleAttestation
+            })
+        );
     }
 
     function testCctpEnabledRouterCannotRedeemFillErrInvalidSourceRouter2() public {
@@ -1290,7 +1350,13 @@ contract OrderRouterTest is Test {
                 TESTING_FOREIGN_ROUTER_ENDPOINT
             )
         );
-        cctpEnabledRouter.redeemFill(redeemParams);
+        cctpEnabledRouter.redeemFill(
+            OrderResponse({
+                encodedWormholeMessage: redeemParams.encodedWormholeMessage,
+                circleBridgeMessage: redeemParams.circleBridgeMessage,
+                circleAttestation: redeemParams.circleAttestation
+            })
+        );
     }
 
     function testCctpEnabledRouterCannotRedeemFillErrInvalidSourceRouter3() public {
@@ -1321,7 +1387,13 @@ contract OrderRouterTest is Test {
                 fromAddress
             )
         );
-        cctpEnabledRouter.redeemFill(redeemParams);
+        cctpEnabledRouter.redeemFill(
+            OrderResponse({
+                encodedWormholeMessage: redeemParams.encodedWormholeMessage,
+                circleBridgeMessage: redeemParams.circleBridgeMessage,
+                circleAttestation: redeemParams.circleAttestation
+            })
+        );
     }
 
     function testCctpEnabledRouterRedeemOrderRevert(
@@ -1764,7 +1836,13 @@ contract OrderRouterTest is Test {
 
         uint256 balanceBefore = router.orderToken().balanceOf(address(this));
 
-        RedeemedFill memory redeemed = router.redeemFill(encodedVaa);
+        RedeemedFill memory redeemed = router.redeemFill(
+            OrderResponse({
+                encodedWormholeMessage: encodedVaa,
+                circleBridgeMessage: "",
+                circleAttestation: ""
+            })
+        );
         assertEq(keccak256(abi.encode(redeemed)), keccak256(abi.encode(expectedRedeemed)));
         assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + redeemed.amount);
     }
@@ -1795,7 +1873,13 @@ contract OrderRouterTest is Test {
 
         uint256 balanceBefore = router.orderToken().balanceOf(address(this));
 
-        Messages.RevertType reason = router.redeemOrderRevert(encodedVaa);
+        Messages.RevertType reason = router.redeemOrderRevert(
+            OrderResponse({
+                encodedWormholeMessage: encodedVaa,
+                circleBridgeMessage: "",
+                circleAttestation: ""
+            })
+        );
         assertEq(uint8(reason), uint8(expectedReason));
         assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + refundAmount);
     }
@@ -1879,7 +1963,13 @@ contract OrderRouterTest is Test {
 
         uint256 balanceBefore = router.orderToken().balanceOf(address(this));
 
-        RedeemedFill memory redeemed = router.redeemFill(redeemParams);
+        RedeemedFill memory redeemed = router.redeemFill(
+            OrderResponse({
+                encodedWormholeMessage: redeemParams.encodedWormholeMessage,
+                circleBridgeMessage: redeemParams.circleBridgeMessage,
+                circleAttestation: redeemParams.circleAttestation
+            })
+        );
         assertEq(keccak256(abi.encode(redeemed)), keccak256(abi.encode(expectedRedeemed)));
         assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + redeemed.amount);
     }
@@ -1906,7 +1996,13 @@ contract OrderRouterTest is Test {
 
         uint256 balanceBefore = router.orderToken().balanceOf(address(this));
 
-        Messages.RevertType reason = router.redeemOrderRevert(redeemParams);
+        Messages.RevertType reason = router.redeemOrderRevert(
+            OrderResponse({
+                encodedWormholeMessage: redeemParams.encodedWormholeMessage,
+                circleBridgeMessage: redeemParams.circleBridgeMessage,
+                circleAttestation: redeemParams.circleAttestation
+            })
+        );
         assertEq(uint8(reason), uint8(expectedReason));
         assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + refundAmount);
     }

@@ -11,7 +11,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
-import {RouterInfo, TokenType, SlippageUpdate} from "./Types.sol";
+import {RouterInfo, TokenType, SlippageUpdate, OrderResponse} from "./Types.sol";
 
 interface IOrderRouter is IPlaceMarketOrder, IRedeemFill, IRedeemOrderRevert {
     function MIN_SLIPPAGE() external view returns (uint24);

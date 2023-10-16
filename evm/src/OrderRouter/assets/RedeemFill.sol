@@ -15,46 +15,47 @@ import "./Errors.sol";
 import {State} from "./State.sol";
 
 import "../../interfaces/IRedeemFill.sol";
-import {RouterInfo, TokenType} from "../../interfaces/Types.sol";
+import {RouterInfo, TokenType, OrderResponse} from "../../interfaces/Types.sol";
+
+import "forge-std/console.sol";
 
 abstract contract RedeemFill is IRedeemFill, Admin, State {
     using Messages for *;
 
-    /**
-     * @notice Redeem a fill sent by either another Order Router or the Matching Engine.
-     */
-    function redeemFill(bytes calldata encodedVaa) external returns (RedeemedFill memory) {
-        ITokenBridge.TransferWithPayload memory transfer = _tokenBridge.parseTransferWithPayload(
-            _tokenBridge.completeTransferWithPayload(encodedVaa)
-        );
+    function redeemFill(OrderResponse calldata response) external returns (RedeemedFill memory) {
+        if (response.circleBridgeMessage.length == 0 && response.circleAttestation.length == 0) {
+            ITokenBridge.TransferWithPayload memory transfer = _tokenBridge
+                .parseTransferWithPayload(
+                    _tokenBridge.completeTransferWithPayload(response.encodedWormholeMessage)
+                );
 
-        return
-            _processFill(
-                encodedVaa,
-                TokenType.Canonical,
-                transfer.fromAddress,
-                transfer.amount,
-                transfer.payload
-            );
-    }
+            return
+                _processFill(
+                    response.encodedWormholeMessage,
+                    TokenType.Canonical,
+                    transfer.fromAddress,
+                    transfer.amount,
+                    transfer.payload
+                );
+        } else {
+            ICircleIntegration.DepositWithPayload memory deposit = _wormholeCctp
+                .redeemTokensWithPayload(
+                    ICircleIntegration.RedeemParameters({
+                        encodedWormholeMessage: response.encodedWormholeMessage,
+                        circleBridgeMessage: response.circleBridgeMessage,
+                        circleAttestation: response.circleAttestation
+                    })
+                );
 
-    /**
-     * @notice Redeem a fill sent by either another Order Router or the Matching Engine via CCTP.
-     */
-    function redeemFill(
-        ICircleIntegration.RedeemParameters calldata redeemParams
-    ) external returns (RedeemedFill memory) {
-        ICircleIntegration.DepositWithPayload memory deposit = _wormholeCctp
-            .redeemTokensWithPayload(redeemParams);
-
-        return
-            _processFill(
-                redeemParams.encodedWormholeMessage,
-                TokenType.Cctp,
-                deposit.fromAddress,
-                deposit.amount,
-                deposit.payload
-            );
+            return
+                _processFill(
+                    response.encodedWormholeMessage,
+                    TokenType.Cctp,
+                    deposit.fromAddress,
+                    deposit.amount,
+                    deposit.payload
+                );
+        }
     }
 
     function _processFill(

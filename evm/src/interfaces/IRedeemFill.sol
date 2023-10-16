@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
+import {OrderResponse} from "./Types.sol";
 
 struct RedeemedFill {
     bytes32 sender;
@@ -13,15 +14,5 @@ struct RedeemedFill {
 }
 
 interface IRedeemFill {
-    /**
-     * @notice Redeem a fill sent by either another Order Router or the Matching Engine.
-     */
-    function redeemFill(bytes calldata encodedVaa) external returns (RedeemedFill memory);
-
-    /**
-     * @notice Redeem a fill sent by either another Order Router or the Matching Engine via CCTP.
-     */
-    function redeemFill(
-        ICircleIntegration.RedeemParameters calldata redeemParams
-    ) external returns (RedeemedFill memory);
+    function redeemFill(OrderResponse memory response) external returns (RedeemedFill memory);
 }

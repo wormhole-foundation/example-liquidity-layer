@@ -23,3 +23,9 @@ struct SlippageUpdate {
     uint16 chain;
     uint24 slippage;
 }
+
+struct OrderResponse {
+    bytes encodedWormholeMessage;
+    bytes circleBridgeMessage;
+    bytes circleAttestation;
+}

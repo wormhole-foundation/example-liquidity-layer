@@ -40,7 +40,7 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
                 address(implementation),
                 _ownerAssistantAddress,
                 address(_curvePoolAddress),
-                int8(0)
+                int8(0) // CCTP Index.
             )
         );
         console2.log("Deployed MatchingEngine: %s", address(proxy));
