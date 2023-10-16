@@ -4,6 +4,9 @@ import {
   tryNativeToHexString,
 } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
+import { TokenType } from "../../src";
+
+export type ValidNetworks = "avalanche" | "ethereum" | "bsc" | "moonbeam";
 
 export type NetworkVars<T> = {
   avalanche: T;
@@ -20,15 +23,22 @@ export const LOCALHOSTS: NetworkVars<string> = {
   moonbeam: "http://localhost:8550",
 };
 
-export const USDC_ADDRESSES: NetworkVars<string> = {
-  avalanche: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
-  ethereum: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-  bsc: "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
-  moonbeam: "0x931715FEE2d06333043d11F658C8CE934aC61D0c",
-};
-
+export const AVALANCHE_USDC_ADDRESS =
+  "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E";
+export const ETHEREUM_USDC_ADDRESS =
+  "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+export const BSC_USDC_ADDRESS = "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d";
+export const MOONBEAM_USDC_ADDRESS =
+  "0x931715FEE2d06333043d11F658C8CE934aC61D0c";
 export const POLYGON_USDC_ADDRESS =
   "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+
+export const USDC_ADDRESSES: NetworkVars<string> = {
+  avalanche: AVALANCHE_USDC_ADDRESS,
+  ethereum: ETHEREUM_USDC_ADDRESS,
+  bsc: BSC_USDC_ADDRESS,
+  moonbeam: MOONBEAM_USDC_ADDRESS,
+};
 
 export const USDC_DECIMALS: NetworkVars<number> = {
   avalanche: 6,
@@ -66,13 +76,6 @@ export const MATCHING_ENGINE_POOL_COINS: [string, string, string, string] = [
   "0x543672E9CBEC728CBBa9C3Ccd99ed80aC3607FA8", // wrapped polygon USDC
   "0x6145E8a910aE937913426BF32De2b26039728ACF", // wrapped bsc USDC
 ];
-
-export enum TokenType {
-  Unset,
-  Native,
-  Canonical,
-  Cctp,
-}
 
 export const TOKEN_TYPES: NetworkVars<TokenType> = {
   avalanche: TokenType.Cctp,

@@ -16,15 +16,17 @@ import {
   IWormhole__factory,
 } from "../src/types";
 import {
+  BSC_USDC_ADDRESS,
   CURVE_FACTORY_ADDRESS,
+  ETHEREUM_USDC_ADDRESS,
   GUARDIAN_PRIVATE_KEY,
   LOCALHOSTS,
   MATCHING_ENGINE_POOL_COINS,
   OWNER_PRIVATE_KEY,
   POLYGON_USDC_ADDRESS,
   TOKEN_TYPES,
-  USDC_ADDRESSES,
   USDC_DECIMALS,
+  ValidNetworks,
   WALLET_PRIVATE_KEYS,
   WORMHOLE_GUARDIAN_SET_INDEX,
   WORMHOLE_MESSAGE_FEE,
@@ -35,7 +37,14 @@ import {
 } from "./helpers";
 
 describe("Environment", () => {
-  for (const chainName of ["avalanche", "ethereum", "bsc", "moonbeam"]) {
+  const chainNames: ValidNetworks[] = [
+    "avalanche",
+    "ethereum",
+    "bsc",
+    "moonbeam",
+  ];
+
+  for (const chainName of chainNames) {
     //for (const chainName of ["avalanche"]) {
     if (!(chainName in LOCALHOSTS)) {
       throw new Error(`Missing chainName: ${chainName}`);
@@ -52,10 +61,10 @@ describe("Environment", () => {
       curvePoolAddress,
     } = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
 
-    const localhost = (LOCALHOSTS as any)[chainName] as string;
-    // const usdcDecimals = (USDC_DECIMALS as any)[chainName];
+    const localhost = LOCALHOSTS[chainName] as string;
+    // const usdcDecimals = USDC_DECIMALS[chainName];
 
-    const tokenType = (TOKEN_TYPES as any)[chainName] as number;
+    const tokenType = TOKEN_TYPES[chainName] as number;
 
     describe(`Forked Network: ${chainName}`, () => {
       const provider = new ethers.providers.StaticJsonRpcProvider(localhost);
@@ -368,7 +377,7 @@ describe("Environment", () => {
             owner,
             tokenBridgeAddress,
             "ethereum",
-            USDC_ADDRESSES.ethereum!,
+            ETHEREUM_USDC_ADDRESS,
             owner.address,
             ethUsdcAmount
           );
@@ -415,7 +424,7 @@ describe("Environment", () => {
             owner,
             tokenBridgeAddress,
             "bsc",
-            USDC_ADDRESSES.bsc!,
+            BSC_USDC_ADDRESS,
             owner.address,
             bscUsdcAmount
           );
