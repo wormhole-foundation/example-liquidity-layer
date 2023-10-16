@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { execSync } from "child_process";
 import { ethers } from "ethers";
 import {
-  CurveFactory__factory,
+  ICurveFactory__factory,
   ICircleBridge__factory,
   ICircleIntegration__factory,
   ICurvePool__factory,
@@ -312,7 +312,7 @@ describe("Environment", () => {
 
       if (chainName === "avalanche") {
         it("Deploy Curve Pool", async () => {
-          const curveFactory = CurveFactory__factory.connect(
+          const curveFactory = ICurveFactory__factory.connect(
             CURVE_FACTORY_ADDRESS,
             owner
           );

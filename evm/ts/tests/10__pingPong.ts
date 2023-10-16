@@ -1,53 +1,22 @@
 import {
   coalesceChainId,
-  tryHexToNativeString,
-  tryNativeToHexString,
   tryNativeToUint8Array,
   tryUint8ArrayToNative,
 } from "@certusone/wormhole-sdk";
-import { TokenImplementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
-import { expect } from "chai";
 import { ethers } from "ethers";
-import * as fs from "fs";
+import { IERC20, IMatchingEngine__factory } from "../src/types";
 import {
-  CurveFactory__factory,
-  ICircleBridge__factory,
-  ICircleIntegration__factory,
-  ICurvePool__factory,
-  IERC20,
-  IMatchingEngine__factory,
-  IMessageTransmitter__factory,
-  IOrderRouter__factory,
-  ITokenBridge__factory,
-  IUSDC__factory,
-  IWormhole__factory,
-} from "../src/types";
-import {
-  CURVE_FACTORY_ADDRESS,
-  GUARDIAN_PRIVATE_KEY,
+  GuardianNetwork,
   LOCALHOSTS,
-  MATCHING_ENGINE_POOL_COINS,
-  POLYGON_USDC_ADDRESS,
-  TOKEN_TYPES,
-  USDC_DECIMALS,
+  USDC_ADDRESSES,
+  ValidNetworks,
   WALLET_PRIVATE_KEYS,
-  WORMHOLE_GUARDIAN_SET_INDEX,
-  WORMHOLE_MESSAGE_FEE,
   mineWait,
   mintNativeUsdc,
-  mintWrappedTokens,
-  OWNER_PRIVATE_KEY,
-  OWNER_ASSISTANT_PRIVATE_KEY,
-  ValidNetworks,
-  USDC_ADDRESSES,
-  GuardianNetwork,
 } from "./helpers";
-import { execSync } from "child_process";
 
-import { parse as envParse } from "envfile";
-import { parseLiquidityLayerEnvFile } from "./helpers";
-import { ETHEREUM_KEY_LENGTH } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { OrderRouter } from "../src";
+import { parseLiquidityLayerEnvFile } from "./helpers";
 
 describe("Ping Pong", () => {
   const envPath = `${__dirname}/../../env/localnet`;
