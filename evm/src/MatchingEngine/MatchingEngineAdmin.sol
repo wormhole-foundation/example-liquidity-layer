@@ -4,7 +4,7 @@ pragma solidity 0.8.19;
 
 import {Admin} from "../shared/Admin.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
-import {CurvePoolInfo, Route, getExecutionRouteState, getCurvePoolState, getOrderRoutersState} from "./MatchingEngineStorage.sol";
+import {CurvePoolInfo, Route, getExecutionRouteState, getCurvePoolState, getOrderRoutersState, getDefaultRelayersState} from "./MatchingEngineStorage.sol";
 
 abstract contract MatchingEngineAdmin is Admin {
     // Errors.
@@ -57,5 +57,16 @@ abstract contract MatchingEngineAdmin is Admin {
         CurvePoolInfo storage info = getCurvePoolState();
         info.pool = pool;
         info.nativeTokenIndex = nativeTokenIndex;
+    }
+
+    function registerDefaultRelayer(
+        address relayer,
+        bool shouldRegister
+    ) external onlyOwnerOrAssistant {
+        if (relayer == address(0)) {
+            revert InvalidAddress();
+        }
+
+        getDefaultRelayersState().registered[relayer] = shouldRegister;
     }
 }

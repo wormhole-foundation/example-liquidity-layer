@@ -48,6 +48,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     address immutable TEST_SENDER = makeAddr("testSender");
     address immutable TEST_REDEEMER = makeAddr("testRedeemer");
     address immutable TEST_RECIPIENT = makeAddr("testRecipient");
+    address immutable DEFAULT_RELAYER = makeAddr("defaultRelayer");
     bytes32 immutable SUI_ROUTER = toUniversalAddress(makeAddr("suiRouter"));
     bytes32 immutable ARB_ROUTER = toUniversalAddress(makeAddr("arbRouter"));
     bytes32 immutable POLY_ROUTER = toUniversalAddress(makeAddr("polyRouter"));
@@ -151,6 +152,9 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
             int8(curvePoolIndex[WRAPPED_POLY_USDC])
         );
         engine.enableExecutionRoute(AVAX_CHAIN, USDC, true, int8(curvePoolIndex[USDC]));
+
+        // Register the default relayer.
+        engine.registerDefaultRelayer(DEFAULT_RELAYER, true);
     }
 
     function _setupWormholeSimulator() internal {
@@ -629,6 +633,36 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.updateOwnerAssistant(newAssistant);
     }
 
+    function testRegisterDefaultRelayer() public {
+        address relayer = makeAddr("new relayer");
+
+        // Check initial default relayer state.
+        assertFalse(engine.isDefaultRelayer(relayer));
+
+        // Register the new default relayer.
+        engine.registerDefaultRelayer(relayer, true);
+        assertTrue(engine.isDefaultRelayer(relayer));
+
+        // Deregister the default relayer.
+        engine.registerDefaultRelayer(relayer, false);
+        assertFalse(engine.isDefaultRelayer(relayer));
+    }
+
+    function testCannotRegisterDefaultRelayerInvalidAddress() public {
+        address relayer = address(0);
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
+        engine.registerDefaultRelayer(relayer, true);
+    }
+
+    function testCannotRegisterDefaultRelayerOnlyOwnerOrAssistant() public {
+        address relayer = makeAddr("new relayer");
+
+        vm.prank(makeAddr("robber"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
+        engine.registerDefaultRelayer(relayer, true);
+    }
+
     /**
      * Business Logic Tests
      */
@@ -673,11 +707,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         );
 
         // Relayer balance before.
-        uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(address(this));
+        uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER);
 
         // Execute the order.
         vm.recordLogs();
-        vm.deal(address(this), WORMHOLE_FEE);
+        vm.deal(DEFAULT_RELAYER, WORMHOLE_FEE);
+        vm.prank(DEFAULT_RELAYER);
         engine.executeOrder{value: WORMHOLE_FEE}(signedOrder);
 
         // Fetch wormhole message and sign it.
@@ -694,7 +729,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
             toUniversalAddress(address(engine))
         );
         _assertFillPayloadCCTP(_vm, SUI_CHAIN, redeemerMessage);
-        assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, RELAYER_FEE);
+        assertEq(IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
         _removeLiquidityAndBurn(lpShares);
@@ -745,11 +780,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         );
 
         // Relayer balance before.
-        uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(address(this));
+        uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER);
 
         // Execute the order.
         vm.recordLogs();
-        vm.deal(address(this), WORMHOLE_FEE);
+        vm.deal(DEFAULT_RELAYER, WORMHOLE_FEE);
+        vm.prank(DEFAULT_RELAYER);
         engine.executeOrder{value: WORMHOLE_FEE}(signedOrder);
 
         // Fetch wormhole message and sign it.
@@ -767,7 +803,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
             toUniversalAddress(address(engine))
         );
         _assertFillPayloadTokenBridge(_vm, SUI_CHAIN, redeemerMessage);
-        assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, RELAYER_FEE);
+        assertEq(IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
         _removeLiquidityAndBurn(lpShares);
@@ -817,11 +853,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         );
 
         // Relayer balance before.
-        uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(address(this));
+        uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER);
 
         // Execute the order.
         vm.recordLogs();
-        vm.deal(address(this), WORMHOLE_FEE);
+        vm.deal(DEFAULT_RELAYER, WORMHOLE_FEE);
+        vm.prank(DEFAULT_RELAYER);
         engine.executeOrder{value: WORMHOLE_FEE}(params);
 
         // Fetch wormhole message and sign it.
@@ -839,7 +876,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
             toUniversalAddress(address(engine))
         );
         _assertFillPayloadTokenBridge(_vm, ARB_CHAIN, redeemerMessage);
-        assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, RELAYER_FEE);
+        assertEq(IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
         _removeLiquidityAndBurn(lpShares);
@@ -944,11 +981,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         );
 
         // Relayer balance before.
-        uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(address(this));
+        uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER);
 
         // Execute the order.
         vm.recordLogs();
-        vm.deal(address(this), WORMHOLE_FEE);
+        vm.deal(DEFAULT_RELAYER, WORMHOLE_FEE);
+        vm.prank(DEFAULT_RELAYER);
         engine.executeOrder{value: WORMHOLE_FEE}(params);
 
         // Fetch wormhole message and sign it.
@@ -969,7 +1007,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
             uint8(IMatchingEngine.RevertType.SwapFailed),
             toUniversalAddress(TEST_RECIPIENT)
         );
-        assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, RELAYER_FEE);
+        assertEq(IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
         _removeLiquidityAndBurn(lpShares);
@@ -1007,11 +1045,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         );
 
         // Relayer balance before.
-        uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(address(this));
+        uint256 relayerBalanceBefore = IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER);
 
         // Execute the order.
         vm.recordLogs();
-        vm.deal(address(this), WORMHOLE_FEE);
+        vm.deal(DEFAULT_RELAYER, WORMHOLE_FEE);
+        vm.prank(DEFAULT_RELAYER);
         engine.executeOrder{value: WORMHOLE_FEE}(signedMessage);
 
         // Fetch wormhole message and sign it.
@@ -1033,7 +1072,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
             uint8(IMatchingEngine.RevertType.SwapFailed),
             toUniversalAddress(TEST_RECIPIENT)
         );
-        assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, RELAYER_FEE);
+        assertEq(IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
         _removeLiquidityAndBurn(lpShares);
@@ -1466,6 +1505,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Expect failure.
         vm.expectRevert(abi.encodeWithSignature("InvalidCCTPIndex()"));
+        vm.prank(DEFAULT_RELAYER);
         engine.executeOrder(signedOrder);
     }
 
@@ -1895,5 +1935,35 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         SafeERC20.safeIncreaseAllowance(IERC20(USDC), address(engine), amount);
         vm.expectRevert(abi.encodeWithSignature("InvalidCCTPIndex()"));
         engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
+    }
+
+    function testCannotExecuteOrderNotDefaultRelayer() public {
+        // Parameters.
+        uint256 amount = INIT_LIQUIDITY / 2;
+        bytes memory redeemerMessage = hex"deadbeef";
+        uint256 amountOut = 0;
+
+        bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
+            block.timestamp,
+            amount,
+            toUniversalAddress(NATIVE_ETH_USDC),
+            ETH_CHAIN,
+            SUI_ROUTER,
+            SUI_BRIDGE,
+            SUI_CHAIN,
+            _encodeTestMarketOrder(
+                amountOut,
+                ARB_CHAIN,
+                redeemerMessage,
+                RELAYER_FEE,
+                new bytes32[](0)
+            )
+        );
+
+        // Expect failure.
+        vm.deal(DEFAULT_RELAYER, WORMHOLE_FEE);
+        // No prank.
+        vm.expectRevert(abi.encodeWithSignature("NotAllowedRelayer()"));
+        engine.executeOrder(signedOrder);
     }
 }

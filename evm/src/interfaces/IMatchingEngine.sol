@@ -60,6 +60,8 @@ interface IMatchingEngine {
 
     function confirmOwnershipTransferRequest() external;
 
+    function registerDefaultRelayer(address relayer, bool shouldRegister) external;
+
     function chainId() external view returns (uint16);
 
     function wormhole() external view returns (IWormhole);
@@ -67,6 +69,8 @@ interface IMatchingEngine {
     function tokenBridge() external view returns (ITokenBridge);
 
     function circleIntegration() external view returns (ICircleIntegration);
+
+    function isDefaultRelayer(address relayer) external view returns (bool);
 
     function getExecutionRoute(uint16 chainId_) external view returns (Route memory);
 

@@ -13,7 +13,7 @@ import {Messages} from "../shared/Messages.sol";
 import {MatchingEngineAdmin} from "./MatchingEngineAdmin.sol";
 import {toUniversalAddress, fromUniversalAddress, getDecimals, denormalizeAmount} from "../shared/Utils.sol";
 import {getPendingOwnerState, getOwnerState, getOwnerAssistantState, getPausedState} from "../shared/Admin.sol";
-import {getExecutionRouteState, Route, RegisteredOrderRouters, getOrderRoutersState, CurvePoolInfo, getCurvePoolState} from "./MatchingEngineStorage.sol";
+import {getExecutionRouteState, Route, RegisteredOrderRouters, getOrderRoutersState, CurvePoolInfo, getCurvePoolState, getDefaultRelayersState} from "./MatchingEngineStorage.sol";
 
 abstract contract MatchingEngineBase is MatchingEngineAdmin {
     using Messages for *;
@@ -308,7 +308,10 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
          * issue in practice.
          */
         bool allowed = false;
-        if (relayerCount == 0 || block.timestamp > messageTime + RELAY_TIMEOUT) {
+        if (
+            (relayerCount == 0 && getDefaultRelayersState().registered[msg.sender]) ||
+            block.timestamp > messageTime + RELAY_TIMEOUT
+        ) {
             allowed = true;
         } else {
             for (uint256 i = 0; i < relayerCount; ) {
@@ -402,6 +405,10 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
     function circleIntegration() external view returns (ICircleIntegration) {
         return _circleIntegration;
+    }
+
+    function isDefaultRelayer(address relayer) external view returns (bool) {
+        return getDefaultRelayersState().registered[relayer];
     }
 
     function getExecutionRoute(uint16 chainId_) external view returns (Route memory) {

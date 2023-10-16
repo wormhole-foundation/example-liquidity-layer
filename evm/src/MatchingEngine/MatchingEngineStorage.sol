@@ -51,3 +51,16 @@ function getCurvePoolState() pure returns (CurvePoolInfo storage state) {
         state.slot := CURVE_POOL_INFO_STORAGE_SLOT
     }
 }
+
+struct DefaultRelayers {
+    mapping(address => bool) registered;
+}
+
+// keccak256("DefaultRelayers") - 1
+bytes32 constant DEFAULT_RELAYERS_STORAGE_SLOT = 0xdec56d794f7704019d0d813066e194c34342e6d3932b08da657cbfdfb6ee8134;
+
+function getDefaultRelayersState() pure returns (DefaultRelayers storage state) {
+    assembly ("memory-safe") {
+        state.slot := DEFAULT_RELAYERS_STORAGE_SLOT
+    }
+}
