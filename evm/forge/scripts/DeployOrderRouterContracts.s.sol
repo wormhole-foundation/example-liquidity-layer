@@ -28,6 +28,7 @@ contract DeployOrderRouterContracts is CheckWormholeContracts, Script {
     address immutable _wormholeCctpAddress = vm.envAddress("RELEASE_WORMHOLE_CCTP_ADDRESS");
 
     address immutable _ownerAssistantAddress = vm.envAddress("RELEASE_OWNER_ASSISTANT_ADDRESS");
+    uint256 immutable _defaultRelayerFee = vm.envUint("RELEASE_DEFAULT_RELAYER_FEE");
 
     function deploy() public {
         requireValidChain(_chainId, _tokenBridgeAddress, _wormholeCctpAddress);
@@ -43,7 +44,11 @@ contract DeployOrderRouterContracts is CheckWormholeContracts, Script {
         );
 
         OrderRouterSetup setup = new OrderRouterSetup();
-        address proxy = setup.deployProxy(address(implementation), _ownerAssistantAddress);
+        address proxy = setup.deployProxy(
+            address(implementation),
+            _ownerAssistantAddress,
+            _defaultRelayerFee
+        );
 
         console2.log("Deployed OrderRouter (chain=%s): %s", _chainId, proxy);
     }
