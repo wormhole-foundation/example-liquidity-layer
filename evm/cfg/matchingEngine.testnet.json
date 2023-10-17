@@ -1,0 +1,28 @@
+{
+  "executionRoutes": {
+    "2": {
+      "router": "0x000000000000000000000000731448f9d63c2A235b8128C6Bae4DCEdb883697F",
+      "target": "0x5425890298aed601595a70AB815c96711a31Bc65",
+      "cctp": true,
+      "poolIndex": 0
+    },
+    "4": {
+      "router": "0x000000000000000000000000102F1e1F723851C2B65206D60504136b871aE845",
+      "target": "0xd1C5F207aC817b721FEfb978C6d55a1A2e8cf747",
+      "cctp": false,
+      "poolIndex": 2
+    },
+    "6": {
+      "router": "0x0000000000000000000000002d01112b54A31E7021795dC89F73C7B024124e24",
+      "target": "0x5425890298aed601595a70AB815c96711a31Bc65",
+      "cctp": true,
+      "poolIndex": 0
+    },
+    "16": {
+      "router": "0x00000000000000000000000040cB8EcCfc169ae1b905C7557AbE24b67a957b2e",
+      "target": "0x63A30f239DC8d1c17Bf6653a68Fc6C2F83641E6d",
+      "cctp": false,
+      "poolIndex": 1
+    }
+  }
+}
