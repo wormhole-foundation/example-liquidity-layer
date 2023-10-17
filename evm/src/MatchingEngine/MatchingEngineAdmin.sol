@@ -4,7 +4,7 @@ pragma solidity 0.8.19;
 
 import {Admin} from "../shared/Admin.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
-import {CurvePoolInfo, Route, getExecutionRouteState, getCurvePoolState, getOrderRoutersState, getDefaultRelayersState} from "./MatchingEngineStorage.sol";
+import {CurvePoolInfo, Route, getExecutionRouteState, getCurvePoolState, getDefaultRelayersState} from "./MatchingEngineStorage.sol";
 
 abstract contract MatchingEngineAdmin is Admin {
     // Errors.
@@ -13,6 +13,7 @@ abstract contract MatchingEngineAdmin is Admin {
 
     function enableExecutionRoute(
         uint16 chainId_,
+        bytes32 router,
         address target,
         bool cctp,
         int8 poolIndex
@@ -23,9 +24,16 @@ abstract contract MatchingEngineAdmin is Admin {
         if (cctp && poolIndex != getCurvePoolState().nativeTokenIndex) {
             revert InvalidTokenIndex();
         }
+        if (router == bytes32(0)) {
+            revert InvalidAddress();
+        }
+        if (chainId_ == 0) {
+            revert InvalidChainId();
+        }
 
         // Set the route.
         Route storage route = getExecutionRouteState().routes[chainId_];
+        route.router = router;
         route.target = target;
         route.cctp = cctp;
         route.poolIndex = poolIndex;
@@ -33,19 +41,6 @@ abstract contract MatchingEngineAdmin is Admin {
 
     function disableExecutionRoute(uint16 chainId_) external onlyOwnerOrAssistant {
         delete getExecutionRouteState().routes[chainId_];
-    }
-
-    function registerOrderRouter(uint16 chainId_, bytes32 router) external onlyOwnerOrAssistant {
-        if (router == bytes32(0)) {
-            revert InvalidAddress();
-        }
-
-        if (chainId_ == 0) {
-            revert InvalidChainId();
-        }
-
-        // Update the router address.
-        getOrderRoutersState().registered[chainId_] = router;
     }
 
     function updateCurvePool(ICurvePool pool, int8 nativeTokenIndex) external onlyOwnerOrAssistant {

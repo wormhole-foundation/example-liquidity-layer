@@ -131,27 +131,29 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         );
         engine = IMatchingEngine(address(proxy));
 
-        // Set the initial router.
-        engine.registerOrderRouter(SUI_CHAIN, SUI_ROUTER);
-        engine.registerOrderRouter(ARB_CHAIN, ARB_ROUTER);
-        engine.registerOrderRouter(POLY_CHAIN, POLY_ROUTER);
-        engine.registerOrderRouter(AVAX_CHAIN, AVAX_ROUTER);
-
         // Set the initial routes.
-        engine.enableExecutionRoute(ARB_CHAIN, USDC, true, int8(curvePoolIndex[USDC]));
+        engine.enableExecutionRoute(ARB_CHAIN, ARB_ROUTER, USDC, true, int8(curvePoolIndex[USDC]));
         engine.enableExecutionRoute(
             SUI_CHAIN,
+            SUI_ROUTER,
             WRAPPED_ETH_USDC,
             false,
             int8(curvePoolIndex[WRAPPED_ETH_USDC])
         );
         engine.enableExecutionRoute(
             POLY_CHAIN,
+            POLY_ROUTER,
             WRAPPED_POLY_USDC,
             false,
             int8(curvePoolIndex[WRAPPED_POLY_USDC])
         );
-        engine.enableExecutionRoute(AVAX_CHAIN, USDC, true, int8(curvePoolIndex[USDC]));
+        engine.enableExecutionRoute(
+            AVAX_CHAIN,
+            AVAX_ROUTER,
+            USDC,
+            true,
+            int8(curvePoolIndex[USDC])
+        );
 
         // Register the default relayer.
         engine.registerDefaultRelayer(DEFAULT_RELAYER, true);
@@ -238,12 +240,14 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
     function testEnableExecutionRoute() public {
         uint16 chainId = 69;
+        bytes32 router = toUniversalAddress(makeAddr("ethRouter"));
         address target = makeAddr("ethEmitter");
         bool cctp = true;
         int8 poolIndex = 0; // CCTP USDC index.
 
         {
             IMatchingEngine.Route memory route = engine.getExecutionRoute(chainId);
+            assertEq(route.router, bytes32(0));
             assertEq(route.target, address(0));
             assertEq(route.cctp, false);
             assertEq(route.poolIndex, 0);
@@ -251,9 +255,10 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Set the initial route.
         {
-            engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
+            engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
 
             IMatchingEngine.Route memory route = engine.getExecutionRoute(chainId);
+            assertEq(route.router, router);
             assertEq(route.target, target);
             assertEq(route.cctp, cctp);
             assertEq(route.poolIndex, poolIndex);
@@ -262,13 +267,15 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         // Update the route to make sure the owner can change it.
         {
             target = makeAddr("solEmitter");
+            router = toUniversalAddress(makeAddr("solRouter"));
             cctp = false;
             poolIndex = 2;
 
-            engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
+            engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
 
             IMatchingEngine.Route memory route = engine.getExecutionRoute(chainId);
             assertEq(route.target, target);
+            assertEq(route.router, router);
             assertEq(route.cctp, cctp);
             assertEq(route.poolIndex, poolIndex);
         }
@@ -276,63 +283,92 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         // Update the route as owner assistant
         {
             target = makeAddr("polyEmitter");
+            router = toUniversalAddress(makeAddr("polyRouter"));
             cctp = false;
             poolIndex = 3;
 
             vm.prank(makeAddr("ownerAssistant"));
-            engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
+            engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
 
             IMatchingEngine.Route memory route = engine.getExecutionRoute(chainId);
             assertEq(route.target, target);
+            assertEq(route.router, router);
             assertEq(route.cctp, cctp);
             assertEq(route.poolIndex, poolIndex);
         }
     }
 
-    function testCannotEnableExecutionRouteInvalidAddress() public {
+    function testCannotEnableExecutionRouteInvalidChainId() public {
+        uint16 chainId = 0;
+        address target = makeAddr("token");
+        bytes32 router = toUniversalAddress(makeAddr("polyRouter"));
+        bool cctp = false;
+        int8 poolIndex = 1;
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidChainId()"));
+        engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
+    }
+
+    function testCannotEnableExecutionRouteInvalidTargetAddress() public {
         uint16 chainId = 69;
         address target = address(0);
+        bytes32 router = toUniversalAddress(makeAddr("polyRouter"));
         bool cctp = false;
         int8 poolIndex = 1;
 
         vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
-        engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
+        engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
+    }
+
+    function testCannotEnableExecutionRouteInvalidRouterAddress() public {
+        uint16 chainId = 69;
+        address target = makeAddr("token");
+        bytes32 router = bytes32(0);
+        bool cctp = false;
+        int8 poolIndex = 1;
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
+        engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
     }
 
     function testCannotEnableExecutionRouteInvalidTokenIndex() public {
         uint16 chainId = 69;
         address target = makeAddr("token");
+        bytes32 router = toUniversalAddress(makeAddr("polyRouter"));
         bool cctp = true;
         int8 poolIndex = 69; // Must be CCTP USDC index.
 
         vm.expectRevert(abi.encodeWithSignature("InvalidTokenIndex()"));
-        engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
+        engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
     }
 
     function testCannotEnableExecutionRouteOwnerOrAssistantOnly() public {
         uint16 chainId = 69;
         address target = makeAddr("token");
+        bytes32 router = toUniversalAddress(makeAddr("polyRouter"));
         bool cctp = false;
         int8 poolIndex = 1;
 
         vm.prank(makeAddr("robber"));
         vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
-        engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
+        engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
     }
 
     function testDisableExecutionRoute() public {
         uint16 chainId = 69;
         address target = makeAddr("token");
+        bytes32 router = toUniversalAddress(makeAddr("router"));
         bool cctp = false;
         int8 poolIndex = 1;
 
         // Set the initial route.
-        engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
+        engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
 
         // Disable the route.
         engine.disableExecutionRoute(chainId);
 
         IMatchingEngine.Route memory route = engine.getExecutionRoute(chainId);
+        assertEq(route.router, bytes32(0));
         assertEq(route.target, address(0));
         assertEq(route.cctp, false);
         assertEq(route.poolIndex, 0);
@@ -341,17 +377,19 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     function testDisableExecutionRouteAsOwnerAssistant() public {
         uint16 chainId = 69;
         address target = makeAddr("token");
+        bytes32 router = toUniversalAddress(makeAddr("router"));
         bool cctp = false;
         int8 poolIndex = 1;
 
         // Set the initial route.
-        engine.enableExecutionRoute(chainId, target, cctp, poolIndex);
+        engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
 
         // Disable the route.
         vm.prank(makeAddr("ownerAssistant"));
         engine.disableExecutionRoute(chainId);
 
         IMatchingEngine.Route memory route = engine.getExecutionRoute(chainId);
+        assertEq(route.router, bytes32(0));
         assertEq(route.target, address(0));
         assertEq(route.cctp, false);
         assertEq(route.poolIndex, 0);
@@ -363,71 +401,6 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         vm.prank(makeAddr("robber"));
         vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
         engine.disableExecutionRoute(chainId);
-    }
-
-    function testRegisterOrderRouter() public {
-        uint16 chainId = 69;
-        bytes32 router = toUniversalAddress(makeAddr("orderRouter"));
-
-        {
-            bytes32 registered = engine.getOrderRouter(chainId);
-            assertEq(registered, bytes32(0));
-        }
-
-        // Set the initial router.
-        {
-            engine.registerOrderRouter(chainId, router);
-
-            bytes32 registered = engine.getOrderRouter(chainId);
-            assertEq(registered, router);
-        }
-
-        // Update the router to make sure the owner can change it.
-        {
-            router = toUniversalAddress(makeAddr("orderRouter2"));
-
-            engine.registerOrderRouter(chainId, router);
-
-            bytes32 registered = engine.getOrderRouter(chainId);
-            assertEq(registered, router);
-        }
-    }
-
-    function testRegisterOrderRouterAsAssistant() public {
-        uint16 chainId = 69;
-        bytes32 router = toUniversalAddress(makeAddr("orderRouter"));
-
-        // Set the initial router.
-        vm.prank(makeAddr("ownerAssistant"));
-        engine.registerOrderRouter(chainId, router);
-
-        bytes32 registered = engine.getOrderRouter(chainId);
-        assertEq(registered, router);
-    }
-
-    function testCannotRegisterOrderRouterInvalidAddress() public {
-        uint16 chainId = 69;
-        bytes32 router = bytes32(uint256(0));
-
-        vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
-        engine.registerOrderRouter(chainId, router);
-    }
-
-    function testCannotRegisterOrderRouterInvalidChainId() public {
-        uint16 chainId = 0;
-        bytes32 router = bytes32(uint256(420));
-
-        vm.expectRevert(abi.encodeWithSignature("InvalidChainId()"));
-        engine.registerOrderRouter(chainId, router);
-    }
-
-    function testCannotRegisterOrderRouterOnlyOwnerOrAssistant() public {
-        uint16 chainId = 69;
-        bytes32 router = bytes32(uint256(420));
-
-        vm.prank(makeAddr("robber"));
-        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
-        engine.registerOrderRouter(chainId, router);
     }
 
     function testUpdateCurvePool() public {
@@ -1329,7 +1302,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         uint256 amountOut = 0;
 
         // Disable the target route.
-        engine.enableExecutionRoute(SUI_CHAIN, makeAddr("badAddress"), false, 69);
+        engine.enableExecutionRoute(SUI_CHAIN, SUI_ROUTER, makeAddr("badAddress"), false, 69);
 
         bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
             block.timestamp,
@@ -1409,35 +1382,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         );
 
         // Change the registered emitter address for the Sui chain.
-        engine.registerOrderRouter(SUI_CHAIN, toUniversalAddress(makeAddr("badAddress")));
-
-        // Expect failure.
-        vm.expectRevert(abi.encodeWithSignature("UnregisteredOrderRouter()"));
-        engine.executeOrder(signedOrder);
-    }
-
-    function testCannotExecuteOrderUnregisteredOrderRouterNoTargetTokenBridge() public {
-        // Parameters.
-        uint256 amount = INIT_LIQUIDITY / 2;
-        bytes memory redeemerMessage = hex"deadbeef";
-        uint256 amountOut = 0;
-
-        // Send to an unregistered chain ID.
-        bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
-            block.timestamp,
-            amount,
-            toUniversalAddress(NATIVE_ETH_USDC),
-            ETH_CHAIN,
-            SUI_ROUTER,
-            SUI_BRIDGE,
+        engine.enableExecutionRoute(
             SUI_CHAIN,
-            _encodeTestMarketOrder(
-                amountOut,
-                69, // Unregistered chain ID.
-                redeemerMessage,
-                RELAYER_FEE,
-                new bytes32[](0)
-            )
+            toUniversalAddress(makeAddr("badAddress")),
+            WRAPPED_ETH_USDC,
+            false,
+            int8(curvePoolIndex[WRAPPED_ETH_USDC])
         );
 
         // Expect failure.
@@ -1548,6 +1498,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         // Enable new CCTP route with invalid chainID.
         engine.enableExecutionRoute(
             POLY_CHAIN,
+            POLY_ROUTER,
             WRAPPED_POLY_USDC,
             true, // Set CCTP to true.
             int8(curvePoolIndex[USDC])
@@ -1629,34 +1580,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         );
 
         // Change the registered emitter address for the Arb chain.
-        engine.registerOrderRouter(ARB_CHAIN, toUniversalAddress(makeAddr("badAddress")));
-
-        // Expect failure.
-        vm.expectRevert(abi.encodeWithSignature("UnregisteredOrderRouter()"));
-        engine.executeOrder(params);
-    }
-
-    function testCannotExecuteOrderUnregisteredOrderRouterNoTargetCCTP() public {
-        // Parameters.
-        uint256 amount = INIT_LIQUIDITY / 2;
-        bytes memory redeemerMessage = hex"deadbeef";
-        uint256 amountOut = 0;
-
-        // Send to an unregistered chain ID.
-        ICircleIntegration.RedeemParameters memory params = _craftValidCCTPMarketOrder(
-            block.timestamp,
-            amount,
-            toUniversalAddress(NATIVE_ARB_USDC),
-            ARB_ROUTER,
-            ARB_CIRCLE_INTEGRATION,
+        engine.enableExecutionRoute(
             ARB_CHAIN,
-            _encodeTestMarketOrder(
-                amountOut, // Min amount out.
-                69, // Unregistered chain ID.
-                redeemerMessage,
-                RELAYER_FEE,
-                new bytes32[](0)
-            )
+            toUniversalAddress(makeAddr("badAddress")),
+            USDC,
+            true,
+            int8(curvePoolIndex[USDC])
         );
 
         // Expect failure.

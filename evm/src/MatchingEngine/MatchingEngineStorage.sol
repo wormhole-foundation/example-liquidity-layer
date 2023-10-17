@@ -7,6 +7,7 @@ import {ICurvePool} from "curve-solidity/ICurvePool.sol";
 // -------------------------------------- Persistent Storage ---------------------------------------
 
 struct Route {
+    bytes32 router;
     address target;
     bool cctp;
     int8 poolIndex;
@@ -22,19 +23,6 @@ bytes32 constant EXECUTION_ROUTES_STORAGE_SLOT = 0x383382b5f02489edee2a4291e8584
 function getExecutionRouteState() pure returns (ExecutionRoutes storage state) {
     assembly ("memory-safe") {
         state.slot := EXECUTION_ROUTES_STORAGE_SLOT
-    }
-}
-
-struct RegisteredOrderRouters {
-    mapping(uint16 => bytes32) registered;
-}
-
-// keccak256("RegisteredOrderRouters") - 1
-bytes32 constant REGISTERED_ORDER_ROUTERS_STORAGE_SLOT = 0xca8563aa1bc6c7c344236139a238fcf417d4ef764fd632968827af37204289eb;
-
-function getOrderRoutersState() pure returns (RegisteredOrderRouters storage state) {
-    assembly ("memory-safe") {
-        state.slot := REGISTERED_ORDER_ROUTERS_STORAGE_SLOT
     }
 }
 

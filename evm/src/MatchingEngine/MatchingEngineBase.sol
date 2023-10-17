@@ -13,7 +13,7 @@ import {Messages} from "../shared/Messages.sol";
 import {MatchingEngineAdmin} from "./MatchingEngineAdmin.sol";
 import {toUniversalAddress, fromUniversalAddress, getDecimals, denormalizeAmount} from "../shared/Utils.sol";
 import {getPendingOwnerState, getOwnerState, getOwnerAssistantState, getPausedState} from "../shared/Admin.sol";
-import {getExecutionRouteState, Route, RegisteredOrderRouters, getOrderRoutersState, CurvePoolInfo, getCurvePoolState, getDefaultRelayersState} from "./MatchingEngineStorage.sol";
+import {getExecutionRouteState, Route, CurvePoolInfo, getCurvePoolState, getDefaultRelayersState} from "./MatchingEngineStorage.sol";
 
 abstract contract MatchingEngineBase is MatchingEngineAdmin {
     using Messages for *;
@@ -144,16 +144,10 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         InternalOrderParameters memory params,
         Messages.MarketOrder memory order
     ) private returns (uint64 sequence) {
-        bytes32 fromRouter = getOrderRoutersState().registered[params.fromChain];
-        bytes32 toRouter = getOrderRoutersState().registered[order.targetChain];
-
-        if (params.fromAddress != fromRouter || toRouter == bytes32(0)) {
-            revert UnregisteredOrderRouter();
-        }
-
         // Verify the to and from route.
         (Route memory fromRoute, Route memory toRoute) = _verifyExecutionRoute(
             params.fromChain,
+            params.fromAddress,
             order.targetChain,
             params.token
         );
@@ -195,7 +189,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
                 params.token,
                 amountIn, // Send full amount back.
                 params.fromChain,
-                fromRouter,
+                fromRoute.router,
                 Messages
                     .OrderRevert({
                         reason: Messages.RevertType.SwapFailed,
@@ -209,7 +203,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
                 toRoute.target,
                 amountOut,
                 order.targetChain,
-                toRouter,
+                toRoute.router,
                 Messages
                     .Fill({
                         sourceChain: params.fromChain,
@@ -225,13 +219,14 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
     function _verifyExecutionRoute(
         uint16 fromChain,
+        bytes32 fromAddress,
         uint16 targetChain,
         address token
     ) private view returns (Route memory fromRoute, Route memory toRoute) {
         fromRoute = getExecutionRouteState().routes[fromChain];
         toRoute = getExecutionRouteState().routes[targetChain];
 
-        // Verify the executing path.
+        // Verify route.
         if (toRoute.target == address(0)) {
             revert InvalidRoute();
         }
@@ -242,6 +237,10 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
         if (fromRoute.target != token) {
             revert RouteMismatch();
+        }
+
+        if (fromAddress != fromRoute.router || toRoute.router == bytes32(0)) {
+            revert UnregisteredOrderRouter();
         }
     }
 
@@ -416,7 +415,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     }
 
     function getOrderRouter(uint16 chainId_) external view returns (bytes32) {
-        return getOrderRoutersState().registered[chainId_];
+        return getExecutionRouteState().routes[chainId_].router;
     }
 
     function getCurvePoolInfo() external pure returns (CurvePoolInfo memory) {

@@ -10,6 +10,7 @@ import {Messages} from "../shared/Messages.sol";
 
 interface IMatchingEngine {
     struct Route {
+        bytes32 router;
         address target;
         bool cctp;
         int8 poolIndex;
@@ -37,14 +38,13 @@ interface IMatchingEngine {
 
     function enableExecutionRoute(
         uint16 chainId,
+        bytes32 router,
         address target,
         bool cctp,
         int8 poolIndex
     ) external;
 
     function disableExecutionRoute(uint16 chainId_) external;
-
-    function registerOrderRouter(uint16 chainId_, bytes32 router) external;
 
     function updateCurvePool(ICurvePool pool, int8 nativeTokenIndex) external;
 
