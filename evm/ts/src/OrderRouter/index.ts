@@ -1,5 +1,6 @@
-import { ethers } from "ethers";
-import { IOrderRouter__factory } from "../types";
+import { ChainType, PreparedInstruction } from "..";
+
+export * from "./evm";
 
 export enum TokenType {
   Unset,
@@ -9,54 +10,41 @@ export enum TokenType {
 }
 
 export type PlaceMarketOrderArgs = {
-  amountIn: ethers.BigNumberish;
-  minAmountOut: ethers.BigNumberish;
+  amountIn: bigint;
+  minAmountOut: bigint;
   targetChain: number;
-  redeemer: ethers.BytesLike;
-  redeemerMessage: ethers.BytesLike;
+  redeemer: Buffer | Uint8Array;
+  redeemerMessage: Buffer | Uint8Array;
   refundAddress: string;
 };
 
 export type RouterInfo = {
-  endpoint: ethers.BytesLike;
+  endpoint: Buffer | Uint8Array;
   tokenType: TokenType;
   slippage: number;
 };
 
-export class OrderRouter {
-  address: string;
+export type OrderResponse = {
+  encodedWormholeMessage: Buffer | Uint8Array;
+  circleBridgeMessage: Buffer | Uint8Array;
+  circleAttestation: Buffer | Uint8Array;
+};
 
-  constructor(contractAddress: string) {
-    this.address = contractAddress;
-  }
+export abstract class OrderRouter<
+  PreparedTransactionType extends PreparedInstruction
+> {
+  abstract get address(): string;
 
-  placeMarketOrder(
-    signer: ethers.Signer,
+  abstract placeMarketOrder(
     args: PlaceMarketOrderArgs,
-    relayerFee?: ethers.BigNumberish,
-    allowedRelayers?: ethers.BytesLike[]
-  ) {
-    const router = IOrderRouter__factory.connect(this.address, signer);
-    if (allowedRelayers !== undefined) {
-      if (relayerFee === undefined) {
-        throw new Error("relayerFee undefined");
-      }
-      return router[
-        "placeMarketOrder((uint256,uint256,uint16,bytes32,bytes,address),uint256,bytes32[])"
-      ](args, relayerFee, allowedRelayers);
-    } else if (relayerFee !== undefined) {
-      return router[
-        "placeMarketOrder((uint256,uint256,uint16,bytes32,bytes,address),uint256)"
-      ](args, relayerFee);
-    } else {
-      return router[
-        "placeMarketOrder((uint256,uint256,uint16,bytes32,bytes,address))"
-      ](args);
-    }
-  }
+    relayerFee?: bigint,
+    allowedRelayers?: Buffer[]
+  ): Promise<PreparedTransactionType>;
 
-  addRouterInfo(owner: ethers.Signer, chain: number, info: RouterInfo) {
-    const router = IOrderRouter__factory.connect(this.address, owner);
-    return router.addRouterInfo(chain, info);
-  }
+  abstract tokenType(): Promise<TokenType>;
+
+  abstract addRouterInfo(
+    chain: number,
+    info: RouterInfo
+  ): Promise<PreparedTransactionType>;
 }

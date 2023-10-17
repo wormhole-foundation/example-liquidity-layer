@@ -24,11 +24,11 @@ library Messages {
         uint256 minAmountOut;
         uint16 targetChain;
         bytes32 redeemer;
-        bytes redeemerMessage;
         bytes32 sender;
         bytes32 refundAddress;
         uint256 relayerFee;
         bytes32[] allowedRelayers;
+        bytes redeemerMessage;
     }
 
     struct Fill {

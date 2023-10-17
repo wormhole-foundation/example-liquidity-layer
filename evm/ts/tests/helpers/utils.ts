@@ -1,6 +1,7 @@
 import { TokenImplementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 import { ethers } from "ethers";
 import {
+  IERC20,
   IERC20__factory,
   ITokenBridge__factory,
   IUSDC__factory,
@@ -11,20 +12,16 @@ import {
   tryNativeToUint8Array,
 } from "@certusone/wormhole-sdk";
 
+export async function mine(provider: ethers.providers.StaticJsonRpcProvider) {
+  await provider.send("evm_mine", []);
+}
+
 export async function mineWait(
   provider: ethers.providers.StaticJsonRpcProvider,
   tx: ethers.ContractTransaction
 ) {
-  await provider.send("evm_mine", []);
+  await mine(provider);
   return tx.wait();
-}
-
-export async function mineWaitWut(
-  provider: ethers.providers.StaticJsonRpcProvider,
-  txs: ethers.ContractTransaction[]
-) {
-  await provider.send("evm_mine", []);
-  return Promise.all(txs.map((tx) => tx.wait()));
 }
 
 export async function mintWrappedTokens(
@@ -70,22 +67,20 @@ export async function mintWrappedTokens(
 }
 
 export async function mintNativeUsdc(
-  providerOrSigner: ethers.providers.StaticJsonRpcProvider | ethers.Signer,
-  usdcAddress: string,
+  usdc: IERC20,
   recipient: string,
   amount: ethers.BigNumberish
 ) {
-  const provider = (
-    "provider" in providerOrSigner
-      ? providerOrSigner.provider!
-      : providerOrSigner
-  ) as ethers.providers.StaticJsonRpcProvider;
+  if (!("detectNetwork" in usdc.provider)) {
+    throw new Error("provider must be a StaticJsonRpcProvider");
+  }
+
+  const provider = usdc.provider as ethers.providers.StaticJsonRpcProvider;
+
   await IUSDC__factory.connect(
-    usdcAddress,
+    usdc.address,
     new ethers.Wallet(WALLET_PRIVATE_KEYS[9], provider)
   )
     .mint(recipient, amount)
     .then((tx) => mineWait(provider, tx));
-
-  return { usdc: IERC20__factory.connect(usdcAddress, providerOrSigner) };
 }

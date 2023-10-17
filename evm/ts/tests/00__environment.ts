@@ -1,13 +1,18 @@
 import { tryUint8ArrayToNative } from "@certusone/wormhole-sdk";
-import { TokenImplementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
+import {
+  IERC165__factory,
+  TokenImplementation__factory,
+} from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 import { expect } from "chai";
 import { execSync } from "child_process";
 import { ethers } from "ethers";
+import { parseLiquidityLayerEnvFile } from "../src";
 import {
-  ICurveFactory__factory,
   ICircleBridge__factory,
   ICircleIntegration__factory,
+  ICurveFactory__factory,
   ICurvePool__factory,
+  IERC20__factory,
   IMatchingEngine__factory,
   IMessageTransmitter__factory,
   IOrderRouter__factory,
@@ -33,7 +38,6 @@ import {
   mineWait,
   mintNativeUsdc,
   mintWrappedTokens,
-  parseLiquidityLayerEnvFile,
 } from "./helpers";
 
 describe("Environment", () => {
@@ -58,7 +62,7 @@ describe("Environment", () => {
       wormholeCctpAddress,
       orderRouterAddress,
       matchingEngineEndpoint,
-      curvePoolAddress,
+      matchingPoolAddress,
     } = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
 
     const localhost = LOCALHOSTS[chainName] as string;
@@ -329,11 +333,11 @@ describe("Environment", () => {
             )
             .then((tx) => mineWait(provider, tx));
 
-          const curvePoolAddress = ethers.utils.hexlify(
+          const matchingPoolAddress = ethers.utils.hexlify(
             ethers.utils.arrayify(receipt.logs[1].topics[2]).subarray(12)
           );
           const curvePool = ICurvePool__factory.connect(
-            curvePoolAddress,
+            matchingPoolAddress,
             owner
           );
 
@@ -350,12 +354,8 @@ describe("Environment", () => {
             legAmount,
             avaxUsdcDecimals
           );
-          const { usdc: avaxUsdc } = await mintNativeUsdc(
-            owner,
-            usdcAddress,
-            owner.address,
-            avaxUsdcAmount
-          );
+          const avaxUsdc = IERC20__factory.connect(usdcAddress, owner);
+          await mintNativeUsdc(avaxUsdc, owner.address, avaxUsdcAmount);
 
           {
             const decimals = await IUSDC__factory.connect(
@@ -493,7 +493,7 @@ describe("Environment", () => {
           );
           const { pool: poolInfoAddress } =
             await matchingEngine.getCurvePoolInfo();
-          expect(poolInfoAddress).to.equal(curvePoolAddress!);
+          expect(poolInfoAddress).to.equal(matchingPoolAddress!);
         }); // it("Deploy Matching Engine", async () => {
 
         it("Upgrade Matching Engine", async () => {

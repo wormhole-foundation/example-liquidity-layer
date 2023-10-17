@@ -4,7 +4,7 @@ import {
   tryUint8ArrayToNative,
 } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
-import { IMatchingEngine__factory } from "../src/types";
+import { ICurvePool__factory, IMatchingEngine__factory } from "../src/types";
 import {
   LOCALHOSTS,
   OWNER_ASSISTANT_PRIVATE_KEY,
@@ -14,8 +14,12 @@ import {
   mineWait,
 } from "./helpers";
 
-import { OrderRouter } from "../src";
-import { parseLiquidityLayerEnvFile } from "./helpers";
+import {
+  ChainType,
+  EvmOrderRouter,
+  TokenType,
+  parseLiquidityLayerEnvFile,
+} from "../src";
 
 describe("Registration", () => {
   const envPath = `${__dirname}/../../env/localnet`;
@@ -26,13 +30,26 @@ describe("Registration", () => {
     ethers.utils.arrayify(avalancheEnv.matchingEngineEndpoint),
     "avalanche"
   );
-  const meProvider = new ethers.providers.JsonRpcProvider(LOCALHOSTS.avalanche);
+  const meProvider = new ethers.providers.StaticJsonRpcProvider(
+    LOCALHOSTS.avalanche
+  );
 
-  const relayer = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], meProvider);
+  const meOwnerAssistant = new ethers.Wallet(
+    OWNER_ASSISTANT_PRIVATE_KEY,
+    meProvider
+  );
   const matchingEngine = IMatchingEngine__factory.connect(
     matchingEngineAddress,
-    relayer
+    meOwnerAssistant
   );
+
+  it("Matching Engine -- Register Default Relayers", async () => {
+    const relayer = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], meProvider);
+
+    await matchingEngine
+      .registerDefaultRelayer(relayer.address, true)
+      .then((tx) => mineWait(meProvider, tx));
+  });
 
   const chainNames: ValidNetworks[] = [
     "avalanche",
@@ -42,13 +59,51 @@ describe("Registration", () => {
   ];
 
   for (const chainName of chainNames) {
-    it.skip(`Matching Engine -- Register ${chainName}`, async () => {
-      // TODO
+    const chainEnv = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
+
+    // it(`Matching Engine -- Register ${chainName} Order Router`, async () => {
+    //   await matchingEngine
+    //     .registerOrderRouter(
+    //       chainEnv.chainId,
+    //       tryNativeToUint8Array(chainEnv.orderRouterAddress, chainName)
+    //     )
+    //     .then((tx) => mineWait(meProvider, tx));
+    // });
+
+    it(`Matching Engine -- Enable Route for ${chainName}`, async () => {
+      const poolIndex = chainEnv.matchingPoolIndex;
+      const poolLegAddress = await ICurvePool__factory.connect(
+        chainEnv.matchingPoolAddress,
+        meProvider
+      ).coins(poolIndex);
+
+      const [orderRouterAddress, tokenType] = await (async () => {
+        if (chainEnv.chainType === ChainType.Evm) {
+          const orderRouter = new EvmOrderRouter(
+            new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[chainName]),
+            chainEnv.orderRouterAddress
+          );
+
+          return [orderRouter.address, await orderRouter.tokenType()];
+        } else {
+          throw new Error("unsupported chain");
+        }
+      })();
+
+      await matchingEngine
+        .enableExecutionRoute(
+          chainEnv.chainId,
+          tryNativeToUint8Array(orderRouterAddress, chainName),
+          poolLegAddress,
+          tokenType == TokenType.Cctp,
+          poolIndex
+        )
+        .then((tx) => mineWait(meProvider, tx));
     });
   }
 
   for (const chainName of chainNames) {
-    const provider = new ethers.providers.JsonRpcProvider(
+    const provider = new ethers.providers.StaticJsonRpcProvider(
       LOCALHOSTS[chainName]
     );
     const ownerAssistant = new ethers.Wallet(
@@ -57,7 +112,13 @@ describe("Registration", () => {
     );
 
     const chainEnv = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
-    const orderRouter = new OrderRouter(chainEnv.orderRouterAddress);
+    const orderRouter = (() => {
+      if (chainEnv.chainType === ChainType.Evm) {
+        return new EvmOrderRouter(ownerAssistant, chainEnv.orderRouterAddress);
+      } else {
+        throw new Error("unsupported chain");
+      }
+    })();
 
     for (const targetChainName of chainNames) {
       const targetEnv = parseLiquidityLayerEnvFile(
@@ -71,10 +132,12 @@ describe("Registration", () => {
       } else {
         it(`Network: ${chainName} -- Register ${targetChainName}`, async () => {
           await orderRouter
-            .addRouterInfo(ownerAssistant, coalesceChainId(targetChainName), {
-              endpoint: tryNativeToUint8Array(
-                targetEnv.orderRouterAddress,
-                targetChainName
+            .addRouterInfo(coalesceChainId(targetChainName), {
+              endpoint: Buffer.from(
+                tryNativeToUint8Array(
+                  targetEnv.orderRouterAddress,
+                  targetChainName
+                )
               ),
               tokenType: TOKEN_TYPES[targetChainName],
               slippage: 1000, // 0.1%

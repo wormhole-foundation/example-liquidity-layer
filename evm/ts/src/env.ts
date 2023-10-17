@@ -1,7 +1,13 @@
 import { parse as envParse } from "envfile";
 import * as fs from "fs";
 
+export enum ChainType {
+  Evm,
+  Solana,
+}
+
 export type LiquidityLayerEnv = {
+  chainType: ChainType;
   chainId: number;
   tokenAddress: string;
   tokenBridgeAddress: string;
@@ -12,7 +18,8 @@ export type LiquidityLayerEnv = {
   orderRouterAddress: string;
   matchingEngineChain: number;
   matchingEngineEndpoint: string;
-  curvePoolAddress?: string;
+  matchingPoolAddress: string;
+  matchingPoolIndex: number;
 };
 
 export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
@@ -24,6 +31,7 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
   const contents = envParse(raw.replace(/export RELEASE_/g, ""));
 
   const keys = [
+    "CHAIN_TYPE",
     "CHAIN_ID",
     "TOKEN_ADDRESS",
     "TOKEN_BRIDGE_ADDRESS",
@@ -34,6 +42,8 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
     "ORDER_ROUTER_ADDRESS",
     "MATCHING_ENGINE_CHAIN",
     "MATCHING_ENGINE_ENDPOINT",
+    "MATCHING_POOL_ADDRESS",
+    "MATCHING_POOL_INDEX",
   ];
   for (const key of keys) {
     if (!contents[key]) {
@@ -42,6 +52,7 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
   }
 
   return {
+    chainType: parseChainType(contents.CHAIN_TYPE),
     chainId: parseInt(contents.CHAIN_ID),
     tokenAddress: contents.TOKEN_ADDRESS,
     tokenBridgeAddress: contents.TOKEN_BRIDGE_ADDRESS,
@@ -52,6 +63,21 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
     orderRouterAddress: contents.ORDER_ROUTER_ADDRESS,
     matchingEngineChain: parseInt(contents.MATCHING_ENGINE_CHAIN),
     matchingEngineEndpoint: contents.MATCHING_ENGINE_ENDPOINT,
-    curvePoolAddress: contents.CURVE_POOL_ADDRESS,
+    matchingPoolAddress: contents.MATCHING_POOL_ADDRESS,
+    matchingPoolIndex: parseInt(contents.MATCHING_POOL_INDEX),
   };
+}
+
+function parseChainType(chainType: string) {
+  switch (chainType) {
+    case "evm": {
+      return ChainType.Evm;
+    }
+    case "solana": {
+      return ChainType.Solana;
+    }
+    default: {
+      throw new Error(`invalid chain type: ${chainType}`);
+    }
+  }
 }

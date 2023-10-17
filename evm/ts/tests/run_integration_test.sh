@@ -40,7 +40,7 @@ anvil --port 8550 \
 # Chill.
 sleep 10
 
-npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/*.ts
+npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/[0-9]*.ts
 
 # Nuke.
 pkill anvil

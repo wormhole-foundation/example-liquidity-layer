@@ -19,7 +19,7 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
 
     address immutable _tokenBridgeAddress = vm.envAddress("RELEASE_TOKEN_BRIDGE_ADDRESS");
     address immutable _wormholeCctpAddress = vm.envAddress("RELEASE_WORMHOLE_CCTP_ADDRESS");
-    address immutable _curvePoolAddress = vm.envAddress("RELEASE_CURVE_POOL_ADDRESS");
+    address immutable _curvePoolAddress = vm.envAddress("RELEASE_MATCHING_POOL_ADDRESS");
 
     address immutable _ownerAssistantAddress = vm.envAddress("RELEASE_OWNER_ASSISTANT_ADDRESS");
 

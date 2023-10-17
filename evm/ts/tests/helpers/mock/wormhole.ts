@@ -6,18 +6,9 @@ import {
 } from "@certusone/wormhole-sdk";
 import { MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
 import { ethers } from "ethers";
-import { parseEvmEvent } from "../../src";
-import { GUARDIAN_PRIVATE_KEY, WORMHOLE_GUARDIAN_SET_INDEX } from "./consts";
-
-abstract class EvmObserver<T> {
-  constructor() {}
-
-  abstract observeEvm(
-    provider: ethers.providers.Provider,
-    chain: ChainName,
-    txReceipt: ethers.ContractReceipt
-  ): Promise<T>;
-}
+import { EvmObserver } from ".";
+import { parseEvmEvent } from "../../../src";
+import { GUARDIAN_PRIVATE_KEY, WORMHOLE_GUARDIAN_SET_INDEX } from "../consts";
 
 export class GuardianNetwork implements EvmObserver<Buffer> {
   guardians: MockGuardians;
