@@ -1,0 +1,24 @@
+{
+  "routerInfo": {
+    "2": {
+      "endpoint": "0x000000000000000000000000731448f9d63c2A235b8128C6Bae4DCEdb883697F",
+      "tokenType": 3,
+      "slippage": 500
+    },
+    "4": {
+      "endpoint": "0x000000000000000000000000102F1e1F723851C2B65206D60504136b871aE845",
+      "tokenType": 1,
+      "slippage": 500
+    },
+    "6": {
+      "endpoint": "0x0000000000000000000000002d01112b54A31E7021795dC89F73C7B024124e24",
+      "tokenType": 3,
+      "slippage": 500
+    },
+    "16": {
+      "endpoint": "0x00000000000000000000000040cB8EcCfc169ae1b905C7557AbE24b67a957b2e",
+      "tokenType": 2,
+      "slippage": 500
+    }
+  }
+}

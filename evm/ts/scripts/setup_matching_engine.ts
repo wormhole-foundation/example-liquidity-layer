@@ -71,7 +71,7 @@ async function enableExecutionRoute(
 
 async function main() {
   const { network, rpc, key } = getArgs();
-  const config = getConfig(network)["executionRoutes"];
+  const config = getConfig(network, "matchingEngine")["executionRoutes"];
 
   // Setup ethers wallet.
   const provider = new ethers.providers.StaticJsonRpcProvider(rpc);
