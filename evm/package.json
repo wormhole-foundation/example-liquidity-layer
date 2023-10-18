@@ -23,6 +23,7 @@
     "build-types": "typechain --target=ethers-v5 --out-dir=ts/src/types out/*/*.json"
   },
   "dependencies": {
+    "@improbable-eng/grpc-web-node-http-transport": "^0.15.0",
     "envfile": "^6.18.0",
     "yargs": "^17.7.2"
   }
