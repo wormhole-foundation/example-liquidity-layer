@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {Messages} from "../shared/Messages.sol";
 import {MatchingEngineAdmin} from "./MatchingEngineAdmin.sol";
-import {toUniversalAddress, fromUniversalAddress, getDecimals, denormalizeAmount} from "../shared/Utils.sol";
+import {toUniversalAddress, fromUniversalAddress, getDecimals, denormalizeAmount, adjustDecimalDiff} from "../shared/Utils.sol";
 import {getPendingOwnerState, getOwnerState, getOwnerAssistantState, getPausedState} from "../shared/Admin.sol";
 import {getExecutionRouteState, Route, CurvePoolInfo, getCurvePoolState, getDefaultRelayersState} from "./MatchingEngineStorage.sol";
 
@@ -263,20 +263,23 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
         SafeERC20.safeIncreaseAllowance(IERC20(fromRoute.target), swapPool, amountIn);
 
-        // Perform the swap.
+        // Perform the swap. We need to adjust the minAmountOut if the input and
+        // output token have different decimals.
         (bool success, bytes memory result) = swapPool.call(
             abi.encodeWithSelector(
                 ICurvePool.exchange.selector,
                 int128(fromRoute.poolIndex),
                 int128(toRoute.poolIndex),
                 amountIn,
-                minAmountOut
+                adjustDecimalDiff(fromRoute.target, toRoute.target, minAmountOut)
             )
         );
 
         if (success) {
             return abi.decode(result, (uint256));
         } else {
+            // Reset allowance that wasn't spent by the Curve pool.
+            SafeERC20.safeDecreaseAllowance(IERC20(fromRoute.target), swapPool, amountIn);
             return 0;
         }
     }

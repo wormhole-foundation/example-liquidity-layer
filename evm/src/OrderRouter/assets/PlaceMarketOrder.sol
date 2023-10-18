@@ -9,7 +9,7 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
 import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
-import {fromUniversalAddress, toUniversalAddress} from "../../shared/Utils.sol";
+import {fromUniversalAddress, toUniversalAddress, normalizeAmount, getDecimals} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
@@ -47,7 +47,10 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
     ) internal returns (uint64 sequence) {
-        if (args.minAmountOut == 0) {
+        if (
+            args.minAmountOut == 0 ||
+            normalizeAmount(args.minAmountOut, getDecimals(address(_orderToken))) == 0
+        ) {
             revert ErrZeroMinAmountOut();
         }
 

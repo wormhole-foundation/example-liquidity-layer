@@ -20,6 +20,13 @@ function fromUniversalAddress(bytes32 universalAddr) pure returns (address conve
     }
 }
 
+function normalizeAmount(uint256 amount, uint8 decimals) pure returns (uint256) {
+    if (decimals > 8) {
+        amount /= 10 ** (decimals - 8);
+    }
+    return amount;
+}
+
 function denormalizeAmount(uint256 amount, uint8 decimals) pure returns (uint256) {
     if (decimals > 8) {
         amount *= 10 ** (decimals - 8);
@@ -30,4 +37,16 @@ function denormalizeAmount(uint256 amount, uint8 decimals) pure returns (uint256
 function getDecimals(address token) view returns (uint8) {
     (, bytes memory queriedDecimals) = token.staticcall(abi.encodeWithSignature("decimals()"));
     return abi.decode(queriedDecimals, (uint8));
+}
+
+function adjustDecimalDiff(address tokenX, address tokenY, uint256 amount) view returns (uint256) {
+    uint8 decimalsX = getDecimals(tokenX);
+    uint8 decimalsY = getDecimals(tokenY);
+
+    if (decimalsX > decimalsY) {
+        amount /= 10 ** (decimalsX - decimalsY);
+    } else if (decimalsY > decimalsX) {
+        amount *= 10 ** (decimalsY - decimalsX);
+    }
+    return amount;
 }
