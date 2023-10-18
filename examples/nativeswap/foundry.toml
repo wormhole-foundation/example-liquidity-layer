@@ -1,6 +1,27 @@
 [profile.default]
-src = "src"
-out = "out"
-libs = ["lib"]
+solc_version = "0.8.19"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+extra_output = ["metadata", "storageLayout", "evm.deployedBytecode.immutableReferences"]
 
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+test = "forge/tests"
+
+libs = [
+    "lib",
+    "node_modules",
+    "../../evm/src"
+]
+
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "forge-std/=lib/forge-std/src/",
+    "wormhole-solidity/=../../evm/modules/wormhole",
+    "cctp-solidity/=../../evm/modules/circle",
+    "curve-solidity/=../../evm/modules/curve",
+    "liquidity-layer/=../../evm/src"
+]
+
+gas_limit = "18446744073709551615"
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config
