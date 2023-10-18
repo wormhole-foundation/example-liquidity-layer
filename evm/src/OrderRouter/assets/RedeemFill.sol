@@ -9,7 +9,7 @@ import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
 import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
-import {toUniversalAddress} from "../../shared/Utils.sol";
+import {denormalizeAmount, getDecimals, toUniversalAddress} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
@@ -34,7 +34,7 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
                     response.encodedWormholeMessage,
                     TokenType.Canonical,
                     transfer.fromAddress,
-                    transfer.amount,
+                    denormalizeAmount(transfer.amount, getDecimals(address(_orderToken))),
                     transfer.payload
                 );
         } else {
