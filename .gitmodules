@@ -1,0 +1,3 @@
+[submodule "examples/nativeswap/lib/forge-std"]
+	path = examples/nativeswap/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
