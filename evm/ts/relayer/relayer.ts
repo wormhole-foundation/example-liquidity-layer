@@ -18,6 +18,9 @@ import { WebSocketProvider } from "./websocket";
 import { NodeHttpTransport } from "@improbable-eng/grpc-web-node-http-transport";
 import * as fs from "fs";
 
+import { AxiosResponse } from "axios";
+const axios = require("axios"); // import breaks
+
 const strip0x = (str: string) =>
   str.startsWith("0x") ? str.substring(2) : str;
 
@@ -76,6 +79,11 @@ const CIRCLE_DOMAIN_TO_WORMHOLE_CHAIN: { [key in number]: SupportedChainId } = {
   1: CHAIN_ID_AVAX,
 };
 
+const CIRCLE_EMITTER_ADDRESSES = {
+  [CHAIN_ID_ETH]: "0x26413e8157CD32011E726065a5462e97dD4d03D9",
+  [CHAIN_ID_AVAX]: "0xa9fB1b3009DCb79E2fe346c16a604B8Fa8aE0a79",
+};
+
 // This might not be the case on mainnet, but it's true on testnet.
 const WORMHOLE_FEE = 0;
 
@@ -103,6 +111,112 @@ function getBridgeChainId(sender: string): ChainId | null {
   return senderChainId;
 }
 
+function findCircleMessageInLogs(
+  logs: ethers.providers.Log[],
+  circleEmitterAddress: string
+): string | null {
+  for (const log of logs) {
+    console.log(log.address, circleEmitterAddress);
+    if (log.address === circleEmitterAddress) {
+      const messageSentIface = new ethers.utils.Interface([
+        "event MessageSent(bytes message)",
+      ]);
+      return messageSentIface.parseLog(log).args.message as string;
+    }
+  }
+
+  return null;
+}
+
+async function sleep(timeout: number) {
+  return new Promise((resolve) => setTimeout(resolve, timeout));
+}
+
+async function getCircleAttestation(
+  messageHash: ethers.BytesLike,
+  timeout: number = 2000
+) {
+  while (true) {
+    // get the post
+    const response = await axios
+      .get(`https://iris-api-sandbox.circle.com/attestations/${messageHash}`)
+      .catch(() => {
+        return null;
+      })
+      .then(async (response: AxiosResponse | null) => {
+        if (
+          response !== null &&
+          response.status === 200 &&
+          response.data.status === "complete"
+        ) {
+          return response.data.attestation as string;
+        }
+
+        return null;
+      });
+
+    if (response !== null) {
+      return response;
+    }
+
+    await sleep(timeout);
+  }
+}
+
+async function handleCircleMessageInLogs(
+  logs: ethers.providers.Log[],
+  circleEmitterAddress: string
+): Promise<[string | null, string | null]> {
+  const circleMessage = findCircleMessageInLogs(logs, circleEmitterAddress);
+  if (circleMessage === null) {
+    return [null, null];
+  }
+
+  const circleMessageHash = ethers.utils.keccak256(circleMessage);
+  const signature = await getCircleAttestation(circleMessageHash);
+
+  return [circleMessage, signature];
+}
+
+async function executeCCTPOrder(
+  receipt: ethers.ContractReceipt,
+  circleEmitterAddress: string,
+  vaa: Uint8Array
+) {
+  try {
+    const [circleBridgeMessage, circleAttestation] =
+      await handleCircleMessageInLogs(receipt.logs!, circleEmitterAddress);
+
+    // Verify params.
+    if (circleBridgeMessage === null || circleAttestation === null) {
+      throw new Error(
+        `Error parsing receipt, txhash: ${receipt.transactionHash}`
+      );
+    }
+
+    // redeem parameters for target function call
+    const redeemParameters = {
+      encodedWormholeMessage: `0x${uint8ArrayToHex(vaa)}`,
+      circleBridgeMessage: circleBridgeMessage,
+      circleAttestation: circleAttestation,
+    };
+    console.log("All redeem parameters have been located");
+
+    const tx: ethers.ContractTransaction = await MATCHING_ENGINE[
+      "executeOrder((bytes,bytes,bytes))"
+    ](redeemParameters, {
+      value: WORMHOLE_FEE,
+    });
+    const redeedReceipt: ethers.ContractReceipt = await tx.wait();
+
+    console.log(
+      `Redeemed transfer in txhash: ${redeedReceipt.transactionHash}`
+    );
+  } catch (e) {
+    throw Error(`Failed to execute CCTP order: ${e}`);
+  }
+}
+
 async function executeTokenBridgeOrder(vaa: Uint8Array) {
   try {
     const tx: ethers.ContractTransaction = await MATCHING_ENGINE[
@@ -116,7 +230,7 @@ async function executeTokenBridgeOrder(vaa: Uint8Array) {
       `Redeemed transfer in txhash: ${redeedReceipt.transactionHash}`
     );
   } catch (e) {
-    console.error(e);
+    throw Error(`Failed to execute token bridge order: ${e}`);
   }
 }
 
@@ -136,7 +250,6 @@ function handleRelayerEvent(
     }
   >
 ) {
-  console.log(`Parsing transaction: ${typedEvent.transactionHash}`);
   (async () => {
     try {
       // create payload buffer
@@ -178,6 +291,8 @@ function handleRelayerEvent(
         return;
       }
 
+      console.log(`Relaying transaction: ${typedEvent.transactionHash}`);
+
       // Check that the fromAddress is a valid order router.
       if (
         ethers.utils.getAddress(fromAddress) !=
@@ -203,6 +318,12 @@ function handleRelayerEvent(
 
       // Execute the order on the matching engine.
       if (isCCTP) {
+        const receipt = await typedEvent.getTransactionReceipt();
+        await executeCCTPOrder(
+          receipt,
+          CIRCLE_EMITTER_ADDRESSES[fromChain],
+          vaaBytes
+        );
       } else {
         await executeTokenBridgeOrder(vaaBytes);
       }
