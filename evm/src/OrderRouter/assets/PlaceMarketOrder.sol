@@ -48,7 +48,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         PlaceMarketOrderArgs calldata args,
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
-    ) internal returns (uint64 sequence) {
+    ) private returns (uint64 sequence) {
         if (
             args.minAmountOut == 0 ||
             normalizeAmount(args.minAmountOut, getDecimals(address(_orderToken))) == 0
@@ -92,7 +92,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _handleCctpToCctp(
         PlaceMarketOrderArgs calldata args,
         bytes32 dstEndpoint
-    ) internal returns (uint64 sequence) {
+    ) private returns (uint64 sequence) {
         if (args.amountIn < args.minAmountOut) {
             revert ErrInsufficientAmount(args.amountIn, args.minAmountOut);
         }
@@ -123,7 +123,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _handleCanonicalToCanonical(
         PlaceMarketOrderArgs calldata args,
         bytes32 dstEndpoint
-    ) internal returns (uint64 sequence) {
+    ) private returns (uint64 sequence) {
         if (args.amountIn < args.minAmountOut) {
             revert ErrInsufficientAmount(args.amountIn, args.minAmountOut);
         }
@@ -154,7 +154,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint24 dstSlippage,
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
-    ) internal returns (uint64 sequence) {
+    ) private returns (uint64 sequence) {
         if (_wormholeChainId == _matchingEngineChain) {
             sequence = _executeMatchingEngineOrder(args, dstSlippage);
         } else {
@@ -194,7 +194,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint24 dstSlippage,
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
-    ) internal returns (uint64 sequence) {
+    ) private returns (uint64 sequence) {
         if (_wormholeChainId == _matchingEngineChain) {
             sequence = _executeMatchingEngineOrder(args, dstSlippage);
         } else {
@@ -231,7 +231,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         PlaceMarketOrderArgs memory args,
         uint256 dstSlippage,
         uint256 relayerFee
-    ) internal pure {
+    ) private pure {
         unchecked {
             if (args.amountIn <= relayerFee) {
                 revert ErrInsufficientAmount(args.amountIn, relayerFee);
@@ -261,7 +261,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _executeMatchingEngineOrder(
         PlaceMarketOrderArgs calldata args,
         uint24 dstSlippage
-    ) internal returns (uint64) {
+    ) private returns (uint64) {
         _validateForMatchingEngine(args, dstSlippage, 0);
 
         // Create market order.

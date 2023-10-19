@@ -213,7 +213,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
                         redeemerMessage: order.redeemerMessage
                     })
                     .encode(),
-                toRoute.cctp
+                toRoute.cctp && order.targetChain != _chainId
             );
         }
     }
@@ -346,13 +346,9 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         bytes memory payload,
         bool isCCTP
     ) private returns (uint64 sequence) {
-        SafeERC20.safeIncreaseAllowance(
-            IERC20(token),
-            isCCTP ? address(_circleIntegration) : address(_tokenBridge),
-            amount
-        );
-
         if (isCCTP) {
+            SafeERC20.safeIncreaseAllowance(IERC20(token), address(_circleIntegration), amount);
+
             sequence = _circleIntegration.transferTokensWithPayload{value: msg.value}(
                 ICircleIntegration.TransferParameters({
                     token: token,
@@ -364,6 +360,8 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
                 payload
             );
         } else {
+            SafeERC20.safeIncreaseAllowance(IERC20(token), address(_tokenBridge), amount);
+
             sequence = _tokenBridge.transferTokensWithPayload{value: msg.value}(
                 token,
                 amount,

@@ -1,8 +1,12 @@
-import { tryUint8ArrayToNative } from "@certusone/wormhole-sdk";
 import {
-  IERC165__factory,
-  TokenImplementation__factory,
-} from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
+  coalesceChainId,
+  tryUint8ArrayToNative,
+} from "@certusone/wormhole-sdk";
+import {
+  GovernanceEmitter,
+  MockGuardians,
+} from "@certusone/wormhole-sdk/lib/cjs/mock";
+import { TokenImplementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 import { expect } from "chai";
 import { execSync } from "child_process";
 import { ethers } from "ethers";
@@ -192,10 +196,6 @@ describe("Environment", () => {
           expect(guardians[0]).to.equal(devnetGuardian);
         }
       }); // it("Modify Core Bridge", async () => {
-
-      it.skip("Modify Token Bridge", async () => {
-        // TODO
-      });
 
       if (wormholeCctp !== null) {
         it("Modify Circle Contracts", async () => {
@@ -549,6 +549,29 @@ describe("Environment", () => {
 
         await provider.send("evm_setAutomine", [false]);
       }); // it("Upgrade Order Router", async () => {
+
+      // Special Token Bridge handling depending on the network.
+      if (chainName === "avalanche") {
+        it("Modify Token Bridge", async () => {
+          // Register itself as a token bridge.
+          const governance = new GovernanceEmitter(
+            "0000000000000000000000000000000000000000000000000000000000000004"
+          );
+          const guardians = new MockGuardians(WORMHOLE_GUARDIAN_SET_INDEX, [
+            GUARDIAN_PRIVATE_KEY,
+          ]);
+          const published = governance.publishTokenBridgeRegisterChain(
+            0,
+            coalesceChainId(chainName),
+            tokenBridgeAddress
+          );
+          const signedVaa = guardians.addSignatures(published, [0]);
+
+          await ITokenBridge__factory.connect(tokenBridgeAddress, owner)
+            .registerChain(signedVaa)
+            .then((tx) => mineWait(provider, tx));
+        }); // it("Modify Token Bridge", async () => {
+      }
     });
   } // for (const chainName of ["arbitrum", "avalanche", "ethereum", "polygon"]) {
 });

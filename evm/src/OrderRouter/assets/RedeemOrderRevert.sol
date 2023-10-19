@@ -64,7 +64,7 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
         bytes32 fromAddress,
         uint256 amount,
         bytes memory payload
-    ) internal returns (Messages.RevertType, address) {
+    ) private returns (Messages.RevertType, address) {
         uint16 emitterChain = encodedVaa.unsafeEmitterChainFromVaa();
         if (emitterChain != _matchingEngineChain || fromAddress != _matchingEngineEndpoint) {
             revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);

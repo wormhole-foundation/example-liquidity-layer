@@ -64,7 +64,7 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
         bytes32 fromAddress,
         uint256 amount,
         bytes memory payload
-    ) internal returns (RedeemedFill memory) {
+    ) private returns (RedeemedFill memory) {
         uint16 emitterChain = encodedVaa.unsafeEmitterChainFromVaa();
 
         // Parse the fill. We need to check the sender chain to see if it came from a known router.
