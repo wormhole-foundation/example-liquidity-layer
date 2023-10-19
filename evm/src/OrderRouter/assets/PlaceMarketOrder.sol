@@ -226,32 +226,29 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint256 dstSlippage,
         uint256 relayerFee
     ) internal pure {
-        uint256 amountIn = args.amountIn;
-        if (amountIn > MAX_AMOUNT) {
-            revert ErrAmountTooLarge(args.amountIn, MAX_AMOUNT);
-        }
-
-        uint256 totalSlippage;
-        // MAX_AMOUNT * MAX_SLIPPAGE < max uint256, so we can do this unchecked.
         unchecked {
-            totalSlippage = (amountIn * dstSlippage) / MAX_SLIPPAGE;
-        }
+            if (args.amountIn <= relayerFee) {
+                revert ErrInsufficientAmount(args.amountIn, relayerFee);
+            }
 
-        // The amount provided for the order must be more than the fee to execute the order plus
-        // the configured relayer fee.
-        if (amountIn - totalSlippage <= relayerFee) {
-            revert ErrInsufficientAmount(amountIn - totalSlippage, relayerFee);
-        }
+            // Slippage should be computed by adjusting out the relayer fee.
+            uint256 amountMinusFee = args.amountIn - relayerFee;
 
-        // Since we know that the relayer fee is less than the amount in minus total slippage,
-        // this operation is safe.
-        unchecked {
-            totalSlippage += relayerFee;
-        }
+            if (amountMinusFee > MAX_AMOUNT) {
+                revert ErrAmountTooLarge(amountMinusFee, MAX_AMOUNT);
+            }
 
-        // The minimum amount out must not exceed the amount in less the fees.
-        if (args.minAmountOut > amountIn - totalSlippage) {
-            revert ErrMinAmountOutExceedsLimit(args.minAmountOut, amountIn - totalSlippage);
+            // MAX_AMOUNT * MAX_SLIPPAGE < max uint256, so we can do this unchecked.
+            uint256 totalSlippage = (amountMinusFee * dstSlippage) / MAX_SLIPPAGE;
+
+            // The minimum amount out must not exceed the amount in less the fees less the computed
+            // slippage.
+            if (args.minAmountOut > amountMinusFee - totalSlippage) {
+                revert ErrMinAmountOutExceedsLimit(
+                    args.minAmountOut,
+                    amountMinusFee - totalSlippage
+                );
+            }
         }
     }
 

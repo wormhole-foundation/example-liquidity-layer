@@ -150,7 +150,7 @@ export class Fill {
   }
 
   static get ID(): number {
-    return 32; // 0x10
+    return 16; // 0x10
   }
 
   static decode(payload: Buffer): Fill {
@@ -176,7 +176,7 @@ export class OrderRevert {
   }
 
   static get ID(): number {
-    return 64; // 0x20
+    return 32; // 0x20
   }
 
   static decode(payload: Buffer): OrderRevert {

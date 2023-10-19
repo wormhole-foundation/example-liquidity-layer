@@ -4,6 +4,7 @@ import {
   OrderRouter,
   PlaceMarketOrderArgs,
   RouterInfo,
+  TokenType,
 } from ".";
 import { IOrderRouter, IOrderRouter__factory } from "../types";
 
@@ -21,6 +22,32 @@ export class EvmOrderRouter implements OrderRouter<ethers.ContractTransaction> {
 
   get address(): string {
     return this.connection.address;
+  }
+
+  async computeMinAmountOut(
+    amountIn: bigint,
+    targetChain: number,
+    slippage?: number,
+    relayerFee?: bigint
+  ): Promise<bigint> {
+    if (relayerFee === undefined) {
+      relayerFee = await this.defaultRelayerFee();
+    }
+
+    if (slippage === undefined) {
+      slippage = await this.getRouterInfo(targetChain).then(
+        (info) => info.slippage
+      );
+    }
+
+    const minAmountOut = await this.connection.computeMinAmountOut(
+      amountIn,
+      targetChain,
+      slippage!,
+      relayerFee
+    );
+
+    return BigInt(minAmountOut.toString());
   }
 
   placeMarketOrder(
@@ -52,5 +79,21 @@ export class EvmOrderRouter implements OrderRouter<ethers.ContractTransaction> {
 
   addRouterInfo(chain: number, info: RouterInfo) {
     return this.connection.addRouterInfo(chain, info);
+  }
+
+  defaultRelayerFee(): Promise<bigint> {
+    return this.connection
+      .defaultRelayerFee()
+      .then((fee) => BigInt(fee.toString()));
+  }
+
+  getRouterInfo(chain: number): Promise<RouterInfo> {
+    return this.connection.getRouterInfo(chain).then((info) => {
+      return {
+        endpoint: ethers.utils.arrayify(info.endpoint),
+        tokenType: info.tokenType as TokenType,
+        slippage: info.slippage,
+      };
+    });
   }
 }

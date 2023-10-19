@@ -520,7 +520,7 @@ contract OrderRouterTest is Test {
         uint8 dstTokenTypeInt
     ) public {
         uint256 amountIn = _tokenBridgeOutboundLimit();
-        relayerFee = bound(relayerFee, 1, _computeSlippage(amountIn) - 1);
+        relayerFee = bound(relayerFee, 1, amountIn - 1);
         // This is a hack because forge tests cannot fuzz test enums yet.
         vm.assume(
             dstTokenTypeInt == uint8(TokenType.Native) ||
@@ -1722,9 +1722,12 @@ contract OrderRouterTest is Test {
     }
 
     function _computeMinAmountOut(uint256 amountIn, uint256 relayerFee) internal returns (uint256) {
-        uint256 amountMinusSlippage = amountIn - _computeSlippage(amountIn);
-        assertGt(amountMinusSlippage, relayerFee);
-        return amountMinusSlippage - relayerFee;
+        // Must be greater than relayer fee.
+        assertGt(amountIn, relayerFee);
+        uint256 amountMinusFee = amountIn - relayerFee;
+        uint256 slippage = (amountMinusFee * uint256(TESTING_TARGET_SLIPPAGE)) /
+            nativeRouter.MAX_SLIPPAGE();
+        return amountMinusFee - slippage;
     }
 
     function _tokenBridgeOutboundLimit() internal returns (uint256) {

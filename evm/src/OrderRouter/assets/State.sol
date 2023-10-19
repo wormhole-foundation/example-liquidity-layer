@@ -124,4 +124,37 @@ abstract contract State {
     function tokenType() external view returns (TokenType) {
         return _tokenType;
     }
+
+    function computeMinAmountOut(
+        uint256 amountIn,
+        uint16 targetChain,
+        uint24 slippage,
+        uint256 relayerFee
+    ) external view returns (uint256) {
+        uint256 amountMinusFee = amountIn - relayerFee;
+        if (amountMinusFee > MAX_AMOUNT) {
+            revert ErrAmountTooLarge(amountMinusFee, MAX_AMOUNT);
+        }
+
+        RouterInfo memory dst = getRouterInfo(targetChain);
+
+        if (slippage < dst.slippage) {
+            slippage = dst.slippage;
+        }
+
+        if (
+            (_wormholeChainId == _canonicalTokenChain || _tokenType == TokenType.Canonical) &&
+            (targetChain == _canonicalTokenChain || dst.tokenType == TokenType.Canonical)
+        ) {
+            return amountIn;
+        } else if (_tokenType == TokenType.Cctp) {
+            if (dst.tokenType == TokenType.Cctp) {
+                return amountIn;
+            } else {
+                return amountMinusFee - (amountMinusFee * slippage) / MAX_SLIPPAGE;
+            }
+        } else {
+            return amountMinusFee - (amountMinusFee * slippage) / MAX_SLIPPAGE;
+        }
+    }
 }

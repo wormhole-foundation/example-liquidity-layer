@@ -57,4 +57,11 @@ interface IOrderRouter is IPlaceMarketOrder, IRedeemFill, IRedeemOrderRevert {
     function getOwnerAssistant() external view returns (address);
 
     function getDeployer() external view returns (address);
+
+    function computeMinAmountOut(
+        uint256 amountIn,
+        uint16 targetChain,
+        uint24 slippage,
+        uint256 relayerFee
+    ) external view returns (uint256);
 }

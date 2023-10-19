@@ -35,6 +35,13 @@ export abstract class OrderRouter<
 > {
   abstract get address(): string;
 
+  abstract computeMinAmountOut(
+    amountIn: bigint,
+    targetChain: number,
+    slippage?: number,
+    relayerFee?: bigint
+  ): Promise<bigint>;
+
   abstract placeMarketOrder(
     args: PlaceMarketOrderArgs,
     relayerFee?: bigint,
@@ -47,4 +54,8 @@ export abstract class OrderRouter<
     chain: number,
     info: RouterInfo
   ): Promise<PreparedTransactionType>;
+
+  abstract defaultRelayerFee(): Promise<bigint>;
+
+  abstract getRouterInfo(chain: number): Promise<RouterInfo>;
 }

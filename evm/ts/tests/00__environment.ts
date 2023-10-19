@@ -308,7 +308,10 @@ describe("Environment", () => {
             expect(balanceAfter.sub(balanceBefore).eq(amount)).is.true;
 
             await usdc
-              .transfer("0x0000000000000000000000000000000000000001", amount)
+              .transfer(
+                "0x0000000000000000000000000000000000000001",
+                balanceAfter
+              )
               .then((tx) => mineWait(provider, tx));
           }
         }); // it("CCTP USDC", async () => {
