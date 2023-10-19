@@ -25,6 +25,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     event MarketOrderPlaced(address indexed sender, uint16 targetChain, uint256 relayerFee);
 
+    event DirectFillSent(address indexed sender, uint16 targetChain, TokenType tokenType);
+
     function placeMarketOrder(
         PlaceMarketOrderArgs calldata args
     ) external payable notPaused returns (uint64 sequence) {
@@ -114,6 +116,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 })
                 .encode()
         );
+
+        emit DirectFillSent(msg.sender, args.targetChain, TokenType.Cctp);
     }
 
     function _handleCanonicalToCanonical(
@@ -141,6 +145,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 })
                 .encode()
         );
+
+        emit DirectFillSent(msg.sender, args.targetChain, TokenType.Canonical);
     }
 
     function _handleCctpToMatchingEngine(
@@ -149,23 +155,23 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
     ) internal returns (uint64 sequence) {
-        _validateForMatchingEngine(args, dstSlippage, relayerFee);
-
-        // Create market order.
-        Messages.MarketOrder memory order = Messages.MarketOrder({
-            minAmountOut: args.minAmountOut,
-            targetChain: args.targetChain,
-            redeemer: args.redeemer,
-            sender: toUniversalAddress(msg.sender),
-            refundAddress: toUniversalAddress(args.refundAddress),
-            redeemerMessage: args.redeemerMessage,
-            relayerFee: relayerFee,
-            allowedRelayers: allowedRelayers
-        });
-
         if (_wormholeChainId == _matchingEngineChain) {
-            sequence = _executeMatchingEngineOrder(args.amountIn, order);
+            sequence = _executeMatchingEngineOrder(args, dstSlippage);
         } else {
+            _validateForMatchingEngine(args, dstSlippage, relayerFee);
+
+            // Create market order.
+            Messages.MarketOrder memory order = Messages.MarketOrder({
+                minAmountOut: args.minAmountOut,
+                targetChain: args.targetChain,
+                redeemer: args.redeemer,
+                sender: toUniversalAddress(msg.sender),
+                refundAddress: toUniversalAddress(args.refundAddress),
+                redeemerMessage: args.redeemerMessage,
+                relayerFee: relayerFee,
+                allowedRelayers: allowedRelayers
+            });
+
             SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
 
             sequence = _wormholeCctp.transferTokensWithPayload{value: msg.value}(
@@ -178,9 +184,9 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 0, // nonce
                 order.encode()
             );
-        }
 
-        emit MarketOrderPlaced(msg.sender, args.targetChain, relayerFee);
+            emit MarketOrderPlaced(msg.sender, args.targetChain, relayerFee);
+        }
     }
 
     function _handleBridgeToMatchingEngine(
@@ -189,23 +195,23 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint256 relayerFee,
         bytes32[] memory allowedRelayers
     ) internal returns (uint64 sequence) {
-        _validateForMatchingEngine(args, dstSlippage, relayerFee);
-
-        // Create market order.
-        Messages.MarketOrder memory order = Messages.MarketOrder({
-            minAmountOut: args.minAmountOut,
-            targetChain: args.targetChain,
-            redeemer: args.redeemer,
-            sender: toUniversalAddress(msg.sender),
-            refundAddress: toUniversalAddress(args.refundAddress),
-            redeemerMessage: args.redeemerMessage,
-            relayerFee: relayerFee,
-            allowedRelayers: allowedRelayers
-        });
-
         if (_wormholeChainId == _matchingEngineChain) {
-            sequence = _executeMatchingEngineOrder(args.amountIn, order);
+            sequence = _executeMatchingEngineOrder(args, dstSlippage);
         } else {
+            _validateForMatchingEngine(args, dstSlippage, relayerFee);
+
+            // Create market order.
+            Messages.MarketOrder memory order = Messages.MarketOrder({
+                minAmountOut: args.minAmountOut,
+                targetChain: args.targetChain,
+                redeemer: args.redeemer,
+                sender: toUniversalAddress(msg.sender),
+                refundAddress: toUniversalAddress(args.refundAddress),
+                redeemerMessage: args.redeemerMessage,
+                relayerFee: relayerFee,
+                allowedRelayers: allowedRelayers
+            });
+
             SafeERC20.safeIncreaseAllowance(_orderToken, address(_tokenBridge), args.amountIn);
 
             sequence = _tokenBridge.transferTokensWithPayload{value: msg.value}(
@@ -216,9 +222,9 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 0, // nonce
                 order.encode()
             );
-        }
 
-        emit MarketOrderPlaced(msg.sender, args.targetChain, relayerFee);
+            emit MarketOrderPlaced(msg.sender, args.targetChain, relayerFee);
+        }
     }
 
     function _validateForMatchingEngine(
@@ -253,13 +259,26 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     }
 
     function _executeMatchingEngineOrder(
-        uint256 amountIn,
-        Messages.MarketOrder memory order
+        PlaceMarketOrderArgs calldata args,
+        uint24 dstSlippage
     ) internal returns (uint64) {
+        _validateForMatchingEngine(args, dstSlippage, 0);
+
+        // Create market order.
+        Messages.MarketOrder memory order = Messages.MarketOrder({
+            minAmountOut: args.minAmountOut,
+            targetChain: args.targetChain,
+            redeemer: args.redeemer,
+            sender: toUniversalAddress(msg.sender),
+            refundAddress: toUniversalAddress(args.refundAddress),
+            redeemerMessage: args.redeemerMessage,
+            relayerFee: 0,
+            allowedRelayers: new bytes32[](0)
+        });
+
         address _matchingEngine = fromUniversalAddress(_matchingEngineEndpoint);
+        SafeERC20.safeIncreaseAllowance(_orderToken, _matchingEngine, args.amountIn);
 
-        SafeERC20.safeIncreaseAllowance(_orderToken, _matchingEngine, amountIn);
-
-        return IMatchingEngine(_matchingEngine).executeOrder(amountIn, order);
+        return IMatchingEngine(_matchingEngine).executeOrder(args.amountIn, order);
     }
 }

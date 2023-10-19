@@ -45,6 +45,7 @@ library Messages {
     struct OrderRevert {
         RevertType reason;
         bytes32 refundAddress;
+        bytes32 redeemer;
     }
 
     function encode(MarketOrder memory order) internal pure returns (bytes memory encoded) {
@@ -118,7 +119,12 @@ library Messages {
     }
 
     function encode(OrderRevert memory reverted) internal pure returns (bytes memory encoded) {
-        encoded = abi.encodePacked(ORDER_REVERT, reverted.reason, reverted.refundAddress);
+        encoded = abi.encodePacked(
+            ORDER_REVERT,
+            reverted.reason,
+            reverted.refundAddress,
+            reverted.redeemer
+        );
     }
 
     function decodeOrderRevert(
@@ -131,6 +137,7 @@ library Messages {
         reverted.reason = RevertType(reason);
 
         (reverted.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
+        (reverted.redeemer, offset) = encoded.asBytes32Unchecked(offset);
 
         _checkLength(encoded, offset);
     }

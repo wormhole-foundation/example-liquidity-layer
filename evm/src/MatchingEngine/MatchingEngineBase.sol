@@ -193,7 +193,8 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
                 Messages
                     .OrderRevert({
                         reason: Messages.RevertType.SwapFailed,
-                        refundAddress: order.refundAddress
+                        refundAddress: order.refundAddress,
+                        redeemer: order.sender
                     })
                     .encode(),
                 fromRoute.cctp

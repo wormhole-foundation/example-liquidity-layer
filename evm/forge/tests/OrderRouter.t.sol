@@ -1065,7 +1065,8 @@ contract OrderRouterTest is Test {
 
         Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
             reason: Messages.RevertType.SwapFailed,
-            refundAddress: toUniversalAddress(address(this))
+            refundAddress: _makeRefundAddress(),
+            redeemer: toUniversalAddress(address(this))
         });
 
         bytes memory encodedVaa = _craftTokenBridgeVaa(
@@ -1125,7 +1126,8 @@ contract OrderRouterTest is Test {
 
         Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
             reason: Messages.RevertType.SwapFailed,
-            refundAddress: toUniversalAddress(address(this))
+            refundAddress: _makeRefundAddress(),
+            redeemer: toUniversalAddress(address(this))
         });
 
         bytes32 emitterAddress = toUniversalAddress(makeAddr("not matching engine"));
@@ -1163,7 +1165,8 @@ contract OrderRouterTest is Test {
 
         Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
             reason: Messages.RevertType.SwapFailed,
-            refundAddress: toUniversalAddress(address(this))
+            refundAddress: _makeRefundAddress(),
+            redeemer: toUniversalAddress(address(this))
         });
 
         uint16 emitterChain = 3;
@@ -1202,7 +1205,8 @@ contract OrderRouterTest is Test {
         bytes32 expectedRedeemer = toUniversalAddress(makeAddr("someone else"));
         Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
             reason: Messages.RevertType.SwapFailed,
-            refundAddress: expectedRedeemer
+            refundAddress: _makeRefundAddress(),
+            redeemer: expectedRedeemer
         });
 
         bytes memory encodedVaa = _craftTokenBridgeVaa(
@@ -1861,7 +1865,8 @@ contract OrderRouterTest is Test {
     ) internal {
         Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
             reason: expectedReason,
-            refundAddress: toUniversalAddress(address(this))
+            refundAddress: _makeRefundAddress(),
+            redeemer: toUniversalAddress(address(this))
         });
 
         bytes memory encodedVaa = _craftTokenBridgeVaa(
@@ -1876,7 +1881,7 @@ contract OrderRouterTest is Test {
 
         uint256 balanceBefore = router.orderToken().balanceOf(address(this));
 
-        Messages.RevertType reason = router.redeemOrderRevert(
+        (Messages.RevertType reason, address actualRefundAddress) = router.redeemOrderRevert(
             OrderResponse({
                 encodedWormholeMessage: encodedVaa,
                 circleBridgeMessage: "",
@@ -1884,6 +1889,7 @@ contract OrderRouterTest is Test {
             })
         );
         assertEq(uint8(reason), uint8(expectedReason));
+        assertEq(toUniversalAddress(actualRefundAddress), _makeRefundAddress());
         assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + refundAmount);
     }
 
@@ -1986,7 +1992,8 @@ contract OrderRouterTest is Test {
     ) internal {
         Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
             reason: expectedReason,
-            refundAddress: toUniversalAddress(address(this))
+            refundAddress: _makeRefundAddress(),
+            redeemer: toUniversalAddress(address(this))
         });
 
         ICircleIntegration.RedeemParameters memory redeemParams = _craftWormholeCctpRedeemParams(
@@ -1999,7 +2006,7 @@ contract OrderRouterTest is Test {
 
         uint256 balanceBefore = router.orderToken().balanceOf(address(this));
 
-        Messages.RevertType reason = router.redeemOrderRevert(
+        (Messages.RevertType reason, address actualRefundAddress) = router.redeemOrderRevert(
             OrderResponse({
                 encodedWormholeMessage: redeemParams.encodedWormholeMessage,
                 circleBridgeMessage: redeemParams.circleBridgeMessage,
@@ -2007,6 +2014,7 @@ contract OrderRouterTest is Test {
             })
         );
         assertEq(uint8(reason), uint8(expectedReason));
+        assertEq(toUniversalAddress(actualRefundAddress), _makeRefundAddress());
         assertEq(router.orderToken().balanceOf(address(this)), balanceBefore + refundAmount);
     }
 

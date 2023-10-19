@@ -9,7 +9,7 @@ import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
 import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
-import {denormalizeAmount, getDecimals, toUniversalAddress} from "../../shared/Utils.sol";
+import {denormalizeAmount, fromUniversalAddress, getDecimals, toUniversalAddress} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
@@ -25,7 +25,7 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
      */
     function redeemOrderRevert(
         OrderResponse memory response
-    ) external returns (Messages.RevertType) {
+    ) external returns (Messages.RevertType, address) {
         if (response.circleBridgeMessage.length == 0 && response.circleAttestation.length == 0) {
             ITokenBridge.TransferWithPayload memory transfer = _tokenBridge
                 .parseTransferWithPayload(
@@ -64,7 +64,7 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
         bytes32 fromAddress,
         uint256 amount,
         bytes memory payload
-    ) internal returns (Messages.RevertType) {
+    ) internal returns (Messages.RevertType, address) {
         uint16 emitterChain = encodedVaa.unsafeEmitterChainFromVaa();
         if (emitterChain != _matchingEngineChain || fromAddress != _matchingEngineEndpoint) {
             revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);
@@ -74,13 +74,13 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
         Messages.OrderRevert memory orderRevert = payload.decodeOrderRevert();
 
         // Make sure the redeemer is who we expect.
-        if (toUniversalAddress(msg.sender) != orderRevert.refundAddress) {
-            revert ErrInvalidRedeemer(toUniversalAddress(msg.sender), orderRevert.refundAddress);
+        if (toUniversalAddress(msg.sender) != orderRevert.redeemer) {
+            revert ErrInvalidRedeemer(toUniversalAddress(msg.sender), orderRevert.redeemer);
         }
 
         // Transfer token amount to redeemer.
         SafeERC20.safeTransfer(_orderToken, msg.sender, amount);
 
-        return orderRevert.reason;
+        return (orderRevert.reason, fromUniversalAddress(orderRevert.refundAddress));
     }
 }

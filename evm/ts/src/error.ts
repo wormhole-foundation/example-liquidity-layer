@@ -43,6 +43,9 @@ export function errorDecoder(ethersError: any): DecodedErr {
         data: "0x" + data.substring(10),
       };
     }
+    case computeSelector("InvalidRelayerFee()"): {
+      return { selector: "InvalidRelayerFee" };
+    }
     default: {
       throw new Error(`unknown selector: ${selector}`);
     }

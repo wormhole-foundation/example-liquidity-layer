@@ -9,5 +9,5 @@ import {Messages} from "../shared/Messages.sol";
 interface IRedeemOrderRevert {
     function redeemOrderRevert(
         OrderResponse memory response
-    ) external returns (Messages.RevertType);
+    ) external returns (Messages.RevertType, address);
 }

@@ -7,6 +7,7 @@ import {
   TokenType,
 } from ".";
 import { IOrderRouter, IOrderRouter__factory } from "../types";
+import { parseEvmEvent } from "../utils";
 
 type SignerOrProvider = ethers.Signer | ethers.providers.StaticJsonRpcProvider;
 
@@ -96,4 +97,29 @@ export class EvmOrderRouter implements OrderRouter<ethers.ContractTransaction> {
       };
     });
   }
+}
+
+export type MarketOrderPlaced = {
+  sender: string;
+  targetChain: number;
+  relayerFee: bigint;
+};
+
+export function parseMarketOrderPlaced(
+  txReceipt: ethers.ContractReceipt,
+  orderRouterAddress: string
+): MarketOrderPlaced {
+  const marketOrderPlaced = parseEvmEvent(
+    txReceipt,
+    orderRouterAddress,
+    "MarketOrderPlaced(address indexed sender, uint16 targetChain, uint256 relayerFee)"
+  );
+
+  const { sender, targetChain, relayerFee } = marketOrderPlaced;
+
+  return {
+    sender,
+    targetChain,
+    relayerFee: BigInt(relayerFee.toString()),
+  };
 }
