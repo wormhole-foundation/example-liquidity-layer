@@ -47,11 +47,12 @@ if [ "$( pgrep anvil | wc -l )" -ne 4 ]; then
     exit 1
 fi
 
-#npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/[0-9]*.ts
-npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/00_*.ts
-npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/05__*.ts
-npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/12__*.ts
-npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/14__*.ts
+npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/[0-9]*.ts
+# npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/00_*.ts
+# npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/05__*.ts
+# npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/10__*.ts
+#npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/12__*.ts
+#npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/14__*.ts
 
 
 # Nuke.

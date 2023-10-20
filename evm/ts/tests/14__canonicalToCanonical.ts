@@ -1,37 +1,26 @@
 import {
   coalesceChainId,
-  parseTokenTransferVaa,
-  parseVaa,
   tryNativeToUint8Array,
-  tryUint8ArrayToNative,
 } from "@certusone/wormhole-sdk";
 import { expect } from "chai";
 import { ethers } from "ethers";
 import {
   ChainType,
   EvmOrderRouter,
-  Fill,
   Message,
   OrderResponse,
-  TokenType,
   errorDecoder,
   parseLiquidityLayerEnvFile,
-  parseMarketOrderPlaced,
 } from "../src";
+import { IERC20__factory } from "../src/types";
 import {
-  IERC20,
-  IERC20__factory,
-  IMatchingEngine__factory,
-} from "../src/types";
-import {
-  CircleAttester,
   GuardianNetwork,
   LOCALHOSTS,
   ValidNetwork,
   WALLET_PRIVATE_KEYS,
+  burnAllUsdc,
   mineWait,
   mintNativeUsdc,
-  mintWrappedTokens,
 } from "./helpers";
 
 const CHAIN_PATHWAYS: ValidNetwork[][] = [["ethereum", "moonbeam"]];
@@ -318,14 +307,3 @@ describe("Ping Pong -- Canonical to Canonical", () => {
     });
   }
 });
-
-async function burnAllUsdc(usdc: IERC20) {
-  await usdc
-    .balanceOf(usdc.signer.getAddress())
-    .then((balance) =>
-      usdc.transfer("0x6969696969696969696969696969696969696969", balance)
-    )
-    .then((tx) =>
-      mineWait(usdc.provider as ethers.providers.StaticJsonRpcProvider, tx)
-    );
-}

@@ -87,3 +87,14 @@ export async function mintNativeUsdc(
     .mint(recipient, amount)
     .then((tx) => mineWait(provider, tx));
 }
+
+export async function burnAllUsdc(usdc: IERC20) {
+  await usdc
+    .balanceOf(usdc.signer.getAddress())
+    .then((balance) =>
+      usdc.transfer("0x6969696969696969696969696969696969696969", balance)
+    )
+    .then((tx) =>
+      mineWait(usdc.provider as ethers.providers.StaticJsonRpcProvider, tx)
+    );
+}

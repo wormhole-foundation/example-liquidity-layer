@@ -21,13 +21,13 @@ export class Message {
     const payloadId = payload.readUInt8(0);
     switch (payloadId) {
       case MarketOrder.ID: {
-        return { marketOrder: {}, message: MarketOrder.decode(payload) };
+        return { marketOrder: MarketOrder.decode(payload) };
       }
       case Fill.ID: {
-        return { fill: {}, message: Fill.decode(payload) };
+        return { fill: Fill.decode(payload) };
       }
       case OrderRevert.ID: {
-        return { orderRevert: {}, message: OrderRevert.decode(payload) };
+        return { orderRevert: OrderRevert.decode(payload) };
       }
       default: {
         throw new Error(`Invalid payload ID: ${payloadId}`);
