@@ -8,6 +8,7 @@ import {
 } from "../../src/types";
 import { WALLET_PRIVATE_KEYS } from "./consts";
 import {
+  CONTRACTS,
   coalesceChainId,
   tryNativeToUint8Array,
 } from "@certusone/wormhole-sdk";
@@ -28,7 +29,7 @@ export async function mintWrappedTokens(
   providerOrSigner: ethers.providers.StaticJsonRpcProvider | ethers.Signer,
   tokenBridgeAddress: string,
   tokenChain: "ethereum" | "polygon" | "bsc",
-  tokenAddress: string,
+  tokenAddress: Uint8Array | string,
   recipient: string,
   amount: ethers.BigNumberish
 ) {
@@ -38,7 +39,9 @@ export async function mintWrappedTokens(
   )
     .wrappedAsset(
       coalesceChainId(tokenChain),
-      tryNativeToUint8Array(tokenAddress, tokenChain)
+      typeof tokenAddress == "string"
+        ? tryNativeToUint8Array(tokenAddress, tokenChain)
+        : tokenAddress
     )
     .then((addr) => IERC20__factory.connect(addr, providerOrSigner));
 

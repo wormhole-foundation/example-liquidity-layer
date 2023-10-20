@@ -1,5 +1,6 @@
 import {
   coalesceChainId,
+  parseTokenTransferVaa,
   tryNativeToUint8Array,
   tryUint8ArrayToNative,
 } from "@certusone/wormhole-sdk";
@@ -21,10 +22,11 @@ import {
   CircleAttester,
   GuardianNetwork,
   LOCALHOSTS,
-  ValidNetworks,
+  ValidNetwork,
   WALLET_PRIVATE_KEYS,
   mineWait,
   mintNativeUsdc,
+  mintWrappedTokens,
 } from "./helpers";
 
 describe("Ping Pong", () => {
@@ -51,7 +53,7 @@ describe("Ping Pong", () => {
   const guardianNetwork = new GuardianNetwork();
 
   // const chainNames = ["ethereum", "avalanche", "bsc", "moonbeam"];
-  const chainNames: ValidNetworks[] = []; //"avalanche", "bsc"];
+  const chainNames: ValidNetwork[] = ["ethereum", "avalanche", "moonbeam"];
 
   const directRoutes = ["ethereum <> avalanche", "ethereum <> moonbeam"];
 
@@ -82,7 +84,7 @@ describe("Ping Pong", () => {
           if (pingEnv.chainType === ChainType.Evm) {
             return new EvmOrderRouter(pingWallet, pingEnv.orderRouterAddress);
           } else {
-            throw new Error("unsupported chain");
+            throw new Error("Unsupported chain");
           }
         })();
 
@@ -106,7 +108,7 @@ describe("Ping Pong", () => {
           if (pongEnv.chainType === ChainType.Evm) {
             return new EvmOrderRouter(pongWallet, pongEnv.orderRouterAddress);
           } else {
-            throw new Error("unsupported chain");
+            throw new Error("Unsupported chain");
           }
         })();
 
@@ -114,18 +116,28 @@ describe("Ping Pong", () => {
           pongEnv.wormholeCctpAddress
         );
 
-        it(`Ping Network -- Mint USDC`, async () => {
-          if (pingEnv.chainType == ChainType.Evm) {
-            // TODO: fix for bsc
+        if (pingChainName == "avalanche" || pingChainName == "ethereum") {
+          it(`Ping Network -- Mint USDC`, async () => {
             await mintNativeUsdc(
               IERC20__factory.connect(pingEnv.tokenAddress, pingProvider),
               pingWallet.address,
-              "1000000000"
+              ethers.utils.parseUnits("1000", 6)
             );
-          } else {
-            throw new Error("unsupported chain");
-          }
-        });
+          });
+        } else if (pingChainName == "moonbeam") {
+          it(`Ping Network -- Mint Wrapped USDC`, async () => {
+            await mintWrappedTokens(
+              pingProvider,
+              pingEnv.tokenBridgeAddress,
+              "ethereum",
+              ethers.utils.arrayify(pingEnv.canonicalTokenAddress),
+              pingWallet.address,
+              ethers.utils.parseUnits("1000", 6)
+            );
+          });
+        } else {
+          throw new Error("Test misconfigured");
+        }
 
         it(`Ping Network -- Place Market Order`, async () => {
           const amountIn = await (async () => {
@@ -141,7 +153,7 @@ describe("Ping Pong", () => {
 
               return BigInt(amount.toString());
             } else {
-              throw new Error("unsupported chain");
+              throw new Error("Unsupported chain");
             }
           })();
 
@@ -167,6 +179,8 @@ describe("Ping Pong", () => {
               console.log(errorDecoder(err));
               throw err;
             });
+
+          console.log("getting vaa");
           const orderVaa = await guardianNetwork.observeEvm(
             pingProvider,
             pingChainName,
@@ -174,6 +188,7 @@ describe("Ping Pong", () => {
           );
           localVariables.set("orderVaa", orderVaa);
 
+          console.log("getting cctp");
           const tokenType = await pingOrderRouter.tokenType();
           if (tokenType == TokenType.Cctp && pingChainName != "avalanche") {
             const { circleBridgeMessage, circleAttestation } =
@@ -208,37 +223,28 @@ describe("Ping Pong", () => {
             ) as Buffer;
             expect(localVariables.delete("orderVaa")).is.true;
 
-            const [circleBridgeMessage, circleAttestation] = (() => {
-              try {
-                const marketOrderPlaced = parseMarketOrderPlaced(
-                  receipt,
-                  pingOrderRouter.address
-                );
-                console.log("marketOrderPlaced", marketOrderPlaced);
+            const targetTokenType = await pingOrderRouter
+              .getRouterInfo(targetChain)
+              .then((info) => info.tokenType);
 
-                const circleBridgeMessage = localVariables.get(
-                  "circleBridgeMessage"
-                ) as Buffer;
-                expect(localVariables.delete("circleBridgeMessage")).is.true;
+            if (targetTokenType == TokenType.Cctp) {
+              const circleBridgeMessage = localVariables.get(
+                "circleBridgeMessage"
+              ) as Buffer;
+              expect(localVariables.delete("circleBridgeMessage")).is.true;
 
-                const circleAttestation = localVariables.get(
-                  "circleAttestation"
-                ) as Buffer;
-                expect(localVariables.delete("circleAttestation")).is.true;
+              const circleAttestation = localVariables.get(
+                "circleAttestation"
+              ) as Buffer;
+              expect(localVariables.delete("circleAttestation")).is.true;
 
-                return [circleBridgeMessage, circleAttestation];
-              } catch (error) {
-                expect(error).to.equal("Error: contract address not found");
-                return [Buffer.alloc(0), Buffer.alloc(0)];
-              }
-            })();
-
-            const orderResponse: OrderResponse = {
-              encodedWormholeMessage,
-              circleBridgeMessage,
-              circleAttestation,
-            };
-            localVariables.set("orderResponse", orderResponse);
+              const orderResponse: OrderResponse = {
+                encodedWormholeMessage,
+                circleBridgeMessage,
+                circleAttestation,
+              };
+              localVariables.set("orderResponse", orderResponse);
+            }
           }
         });
 
@@ -273,20 +279,26 @@ describe("Ping Pong", () => {
                   return matchingEngine["executeOrder(bytes)"](orderVaa);
                 }
               } else {
-                throw new Error("unsupported chain");
+                throw new Error("Unsupported chain");
               }
             })().then((tx) => mineWait(meProvider, tx));
 
+            console.log("howdy");
             const signedVaa = await guardianNetwork.observeEvm(
               meProvider,
               "avalanche",
               receipt
             );
 
+            console.log("hoody");
+
             const { circleBridgeMessage, circleAttestation } =
               await (async () => {
                 const tokenType = await pongOrderRouter.tokenType();
-                if (tokenType == TokenType.Cctp) {
+                if (
+                  tokenType == TokenType.Cctp &&
+                  pongChainName != "avalanche"
+                ) {
                   return meCircleAttester.observeEvm(
                     meProvider,
                     "avalanche",
@@ -314,6 +326,13 @@ describe("Ping Pong", () => {
             "orderResponse"
           ) as OrderResponse;
           expect(localVariables.delete("orderResponse")).is.true;
+
+          console.log("orderResponse", orderResponse);
+
+          const parsed = parseTokenTransferVaa(
+            orderResponse.encodedWormholeMessage
+          );
+          console.log("parsed", parsed);
 
           const usdc = IERC20__factory.connect(
             pongEnv.tokenAddress,
@@ -350,7 +369,7 @@ describe("Ping Pong", () => {
 
               return BigInt(amount.toString());
             } else {
-              throw new Error("unsupported chain");
+              throw new Error("Unsupported chain");
             }
           })();
 
@@ -469,20 +488,26 @@ describe("Ping Pong", () => {
                   return matchingEngine["executeOrder(bytes)"](orderVaa);
                 }
               } else {
-                throw new Error("unsupported chain");
+                throw new Error("Unsupported chain");
               }
             })().then((tx) => mineWait(meProvider, tx));
 
+            console.log("hey ho");
             const signedVaa = await guardianNetwork.observeEvm(
               meProvider,
               "avalanche",
               receipt
             );
 
+            console.log("hurdy burdy");
+
             const { circleBridgeMessage, circleAttestation } =
               await (async () => {
                 const tokenType = await pingOrderRouter.tokenType();
-                if (tokenType == TokenType.Cctp) {
+                if (
+                  tokenType == TokenType.Cctp &&
+                  pingChainName != "avalanche"
+                ) {
                   return meCircleAttester.observeEvm(
                     meProvider,
                     "avalanche",

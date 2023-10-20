@@ -69,16 +69,17 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
 
         // Parse the fill. We need to check the sender chain to see if it came from a known router.
         Messages.Fill memory fill = payload.decodeFill();
-        RouterInfo memory src = this.getRouterInfo(fill.sourceChain);
+        RouterInfo memory src = getRouterInfo(fill.sourceChain);
 
         // If the matching engine sent this fill, we bypass this whole conditional.
         if (fromAddress != _matchingEngineEndpoint) {
             // The case where the order router's token type is the direct fill type, then we need to
             // make sure the source is what we expect from our known order routers.
-            if (_tokenType == directFillTokenType) {
+            if (_tokenType == directFillTokenType || _wormholeChainId == _canonicalTokenChain) {
                 if (
                     emitterChain != fill.sourceChain ||
-                    src.tokenType != directFillTokenType ||
+                    (src.tokenType != directFillTokenType &&
+                        emitterChain != _canonicalTokenChain) ||
                     fromAddress != src.endpoint
                 ) {
                     revert ErrInvalidSourceRouter(emitterChain, src.tokenType, fromAddress);

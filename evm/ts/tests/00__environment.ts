@@ -1,5 +1,6 @@
 import {
   coalesceChainId,
+  tryNativeToUint8Array,
   tryUint8ArrayToNative,
 } from "@certusone/wormhole-sdk";
 import {
@@ -35,7 +36,7 @@ import {
   POLYGON_USDC_ADDRESS,
   TOKEN_TYPES,
   USDC_DECIMALS,
-  ValidNetworks,
+  ValidNetwork,
   WALLET_PRIVATE_KEYS,
   WORMHOLE_GUARDIAN_SET_INDEX,
   WORMHOLE_MESSAGE_FEE,
@@ -45,7 +46,7 @@ import {
 } from "./helpers";
 
 describe("Environment", () => {
-  const chainNames: ValidNetworks[] = [
+  const chainNames: ValidNetwork[] = [
     "avalanche",
     "ethereum",
     "bsc",
@@ -53,7 +54,7 @@ describe("Environment", () => {
   ];
 
   for (const chainName of chainNames) {
-    //for (const chainName of ["avalanche"]) {
+    //for (const chainName of ["avalanche"] as ValidNetwork[]) {
     if (!(chainName in LOCALHOSTS)) {
       throw new Error(`Missing chainName: ${chainName}`);
     }
@@ -553,6 +554,11 @@ describe("Environment", () => {
       // Special Token Bridge handling depending on the network.
       if (chainName === "avalanche") {
         it("Modify Token Bridge", async () => {
+          const tokenBridge = ITokenBridge__factory.connect(
+            tokenBridgeAddress,
+            owner
+          );
+
           // Register itself as a token bridge.
           const governance = new GovernanceEmitter(
             "0000000000000000000000000000000000000000000000000000000000000004"
@@ -563,13 +569,20 @@ describe("Environment", () => {
           const published = governance.publishTokenBridgeRegisterChain(
             0,
             coalesceChainId(chainName),
-            tokenBridgeAddress
+            tokenBridge.address
           );
           const signedVaa = guardians.addSignatures(published, [0]);
 
-          await ITokenBridge__factory.connect(tokenBridgeAddress, owner)
+          await tokenBridge
             .registerChain(signedVaa)
             .then((tx) => mineWait(provider, tx));
+
+          const actual = await tokenBridge
+            .bridgeContracts(coalesceChainId(chainName))
+            .then((addr) => ethers.utils.arrayify(addr));
+          expect(actual).to.eql(
+            tryNativeToUint8Array(tokenBridge.address, chainName)
+          );
         }); // it("Modify Token Bridge", async () => {
       }
     });

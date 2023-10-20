@@ -17,6 +17,8 @@ export function errorDecoder(ethersError: any): DecodedErr {
     throw new Error("not contract error");
   }
 
+  console.log("reason?", ethersError.error.reason);
+
   const { data } = ethersError.error.error.error as {
     data: string;
   };
@@ -45,6 +47,24 @@ export function errorDecoder(ethersError: any): DecodedErr {
     }
     case computeSelector("InvalidRelayerFee()"): {
       return { selector: "InvalidRelayerFee" };
+    }
+    case computeSelector("ErrUnsupportedChain(uint16)"): {
+      return {
+        selector: "ErrUnsupportedChain",
+        data: "0x" + data.substring(10),
+      };
+    }
+    case computeSelector("ErrInvalidSourceRouter(uint16,uint8,bytes32)"): {
+      return {
+        selector: "ErrInvalidSourceRouter",
+        data: "0x" + data.substring(10),
+      };
+    }
+    case computeSelector("ErrSourceNotMatchingEngine(uint16,bytes32)"): {
+      return {
+        selector: "ErrSourceNotMatchingEngine",
+        data: "0x" + data.substring(10),
+      };
     }
     default: {
       throw new Error(`unknown selector: ${selector}`);

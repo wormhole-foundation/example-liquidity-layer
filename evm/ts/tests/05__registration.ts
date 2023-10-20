@@ -9,7 +9,7 @@ import {
   LOCALHOSTS,
   OWNER_ASSISTANT_PRIVATE_KEY,
   TOKEN_TYPES,
-  ValidNetworks,
+  ValidNetwork,
   WALLET_PRIVATE_KEYS,
   mineWait,
 } from "./helpers";
@@ -51,7 +51,7 @@ describe("Registration", () => {
       .then((tx) => mineWait(meProvider, tx));
   });
 
-  const chainNames: ValidNetworks[] = [
+  const chainNames: ValidNetwork[] = [
     "avalanche",
     "ethereum",
     "bsc",
@@ -60,15 +60,6 @@ describe("Registration", () => {
 
   for (const chainName of chainNames) {
     const chainEnv = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
-
-    // it(`Matching Engine -- Register ${chainName} Order Router`, async () => {
-    //   await matchingEngine
-    //     .registerOrderRouter(
-    //       chainEnv.chainId,
-    //       tryNativeToUint8Array(chainEnv.orderRouterAddress, chainName)
-    //     )
-    //     .then((tx) => mineWait(meProvider, tx));
-    // });
 
     it(`Matching Engine -- Enable Route for ${chainName}`, async () => {
       const poolIndex = chainEnv.matchingPoolIndex;
@@ -86,7 +77,7 @@ describe("Registration", () => {
 
           return [orderRouter.address, await orderRouter.tokenType()];
         } else {
-          throw new Error("unsupported chain");
+          throw new Error("Unsupported chain");
         }
       })();
 
@@ -116,7 +107,7 @@ describe("Registration", () => {
       if (chainEnv.chainType === ChainType.Evm) {
         return new EvmOrderRouter(ownerAssistant, chainEnv.orderRouterAddress);
       } else {
-        throw new Error("unsupported chain");
+        throw new Error("Unsupported chain");
       }
     })();
 

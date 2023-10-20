@@ -6,7 +6,7 @@ import {
 import { ethers } from "ethers";
 import { TokenType } from "../../src";
 
-export type ValidNetworks = "avalanche" | "ethereum" | "bsc" | "moonbeam";
+export type ValidNetwork = "avalanche" | "ethereum" | "bsc" | "moonbeam";
 
 export type NetworkVars<T> = {
   avalanche: T;
