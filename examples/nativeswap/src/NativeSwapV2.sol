@@ -19,7 +19,7 @@ contract NativeSwapV2 is NativeSwapBase {
     using SafeERC20 for IERC20;
     using BytesLib for bytes;
 
-    IUniswapV2Router02 public immutable SWAP_ROUTER;  
+    IUniswapV2Router02 public immutable SWAP_ROUTER;
 
     constructor(
         address _swapRouterAddress,
@@ -36,13 +36,13 @@ contract NativeSwapV2 is NativeSwapBase {
     function swapExactNativeInAndTransfer(
         ExactInParameters calldata swapParams,
         address[] calldata path,
-        uint16 targetChainId, 
+        uint16 targetChainId,
         uint256 wormholeSlippage
-    ) external payable { 
+    ) external payable {
         (bytes32 targetContract, uint256 targetChainRelayerFee) = _verifyInput(
-            path, 
-            swapParams.amountOutMinimum, 
-            targetChainId, 
+            path,
+            swapParams.amountOutMinimum,
+            targetChainId,
             wormholeSlippage
         );
 
@@ -73,7 +73,7 @@ contract NativeSwapV2 is NativeSwapBase {
         ORDER_ROUTER.placeMarketOrder{value: wormholeFee}(
             PlaceMarketOrderArgs({
                 amountIn: amountOut,
-                minAmountOut: amountOut - wormholeSlippage, 
+                minAmountOut: amountOut - wormholeSlippage,
                 targetChain: targetChainId,
                 redeemer: targetContract,
                 redeemerMessage: encodeSwapInParameters(swapParams, path, targetChainRelayerFee),
@@ -111,14 +111,14 @@ contract NativeSwapV2 is NativeSwapBase {
         OrderResponse calldata orderResponse
     ) external payable returns (uint256[] memory amounts) {
         (
-            RecvSwapInParameters memory swapParams, 
+            RecvSwapInParameters memory swapParams,
             uint256 swapAmount
-        ) = _handleAndVerifyFill(orderResponse); 
+        ) = _handleAndVerifyFill(orderResponse);
 
         // create dynamic address array, uniswap won't take fixed size array
         address[] memory uniPath = new address[](2);
         uniPath[0] = swapParams.path[0];
-        uniPath[1] = swapParams.path[1]; 
+        uniPath[1] = swapParams.path[1];
 
         // convert recipient bytes32 address to type address
         address recipientAddress = fromUniversalAddress(swapParams.recipientAddress);
@@ -139,19 +139,19 @@ contract NativeSwapV2 is NativeSwapBase {
             swapParams.deadline
         ) returns (uint256[] memory amounts) {
             _handleSuccessfulSwap(
-                amounts[1], 
-                swapAmount, 
-                swapParams.relayerFee, 
+                amounts[1],
+                swapAmount,
+                swapParams.relayerFee,
                 recipientAddress
             );
             return amounts;
         } catch {
             _handleFailedSwap(
-                swapAmount, 
-                swapParams.relayerFee, 
+                swapAmount,
+                swapParams.relayerFee,
                 recipientAddress,
                 address(SWAP_ROUTER)
             );
         }
-    }  
+    }
 }

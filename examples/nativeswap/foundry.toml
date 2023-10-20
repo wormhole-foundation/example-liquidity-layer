@@ -10,7 +10,8 @@ test = "forge/tests"
 libs = [
     "lib",
     "node_modules",
-    "../../evm/src"
+    "../../evm/src",
+    "../../evm/modules"
 ]
 
 remappings = [

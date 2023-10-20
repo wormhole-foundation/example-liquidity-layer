@@ -69,7 +69,7 @@ abstract contract NativeSwapBase {
         WRAPPED_NATIVE_ADDRESS = _wrappedNativeAddress;
     }
 
-    // ------------------------------ Public ------------------------------ //   
+    // ------------------------------ Public ------------------------------ //
 
     function handleOrderRevert(OrderResponse calldata response) external {
         // This pattern is relatively safe considering that the USDC address
@@ -77,12 +77,12 @@ abstract contract NativeSwapBase {
         // contract is malicious. If that's the case, we have bigger problems.
         IERC20 usdc = IERC20(USDC_ADDRESS);
         uint256 balanceBefore = usdc.balanceOf(address(this));
-        (, address refundAddress) = ORDER_ROUTER.redeemOrderRevert(response); 
+        (, address refundAddress) = ORDER_ROUTER.redeemOrderRevert(response);
         uint256 balanceAfter = usdc.balanceOf(address(this));
 
         // refund the USDC to the refund address
         usdc.safeTransfer(refundAddress, balanceAfter - balanceBefore);
-    } 
+    }
 
     function encodeSwapInParameters(
         ExactInParameters memory swapParams,
@@ -147,10 +147,10 @@ abstract contract NativeSwapBase {
     // ------------------------------ Internal Logic ------------------------------ //
 
     function _verifyInput(
-        address[] calldata path, 
+        address[] calldata path,
         uint256 amountOutMinimum,
         uint16 targetChainId,
-        uint256 wormholeSlippage 
+        uint256 wormholeSlippage
     ) internal view returns (bytes32 targetContract, uint256 relayerFee) {
         require(path.length == 4, "invalid path");
         require(
@@ -167,7 +167,7 @@ abstract contract NativeSwapBase {
         require(
             amountOutMinimum > relayerFee + wormholeSlippage,
             "insufficient amountOutMinimum"
-        ); 
+        );
 
         targetContract = registeredContracts[targetChainId];
         require(
@@ -183,7 +183,7 @@ abstract contract NativeSwapBase {
         // is allowlisted. The only way that this could fail is if the USDC
         // contract is malicious. If that's the case, we have bigger problems.
         uint256 balanceBefore = IERC20(USDC_ADDRESS).balanceOf(address(this));
-        RedeemedFill memory fill = ORDER_ROUTER.redeemFill(orderResponse); 
+        RedeemedFill memory fill = ORDER_ROUTER.redeemFill(orderResponse);
         swapAmount = IERC20(USDC_ADDRESS).balanceOf(address(this)) - balanceBefore;
 
         // verify that the sender is a registered contract
@@ -209,7 +209,7 @@ abstract contract NativeSwapBase {
     }
 
     function _handleSuccessfulSwap(
-        uint256 amountOut, 
+        uint256 amountOut,
         uint256 swapAmount,
         uint256 relayerFee,
         address recipient
@@ -268,8 +268,8 @@ abstract contract NativeSwapBase {
     }
 
     function _computeNativeAmounts(
-        uint256 amountIn, 
-        uint256 amountOut, 
+        uint256 amountIn,
+        uint256 amountOut,
         uint256 usdcFee
     ) internal pure returns (uint256 nativeFee, uint256 adjustedAmountOut) {
         nativeFee = amountOut *  usdcFee / amountIn;
@@ -278,7 +278,7 @@ abstract contract NativeSwapBase {
 
     // ------------------------------ Deployer Only ------------------------------ //
 
-    function registerContract(uint16 chainId, bytes32 contractAddress) public onlyDeployer {
+    function registerContract(uint16 chainId, bytes32 contractAddress) external onlyDeployer {
         // sanity check both input arguments
         require(
             contractAddress != bytes32(0),
@@ -288,11 +288,11 @@ abstract contract NativeSwapBase {
 
         // update the registeredContracts state variable
         registeredContracts[chainId] = contractAddress;
-    } 
+    }
 
-    function setRelayerFee(uint16 chainId, uint256 fee) public onlyDeployer {
+    function setRelayerFee(uint16 chainId, uint256 fee) external onlyDeployer {
         relayerFees[chainId] = fee;
-    } 
+    }
 
     modifier onlyDeployer() {
         require(deployer == msg.sender, "caller not the deployer");

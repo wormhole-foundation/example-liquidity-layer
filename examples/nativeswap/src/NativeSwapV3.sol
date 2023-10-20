@@ -40,9 +40,9 @@ contract NativeSwapV3 is NativeSwapBase {
         uint256 wormholeSlippage
     ) external payable {
         (bytes32 targetContract, uint256 targetChainRelayerFee) = _verifyInput(
-            path, 
-            swapParams.amountOutMinimum, 
-            targetChainId, 
+            path,
+            swapParams.amountOutMinimum,
+            targetChainId,
             wormholeSlippage
         );
 
@@ -69,7 +69,7 @@ contract NativeSwapV3 is NativeSwapBase {
         ORDER_ROUTER.placeMarketOrder{value: wormholeFee}(
             PlaceMarketOrderArgs({
                 amountIn: amountOut,
-                minAmountOut: amountOut - wormholeSlippage, 
+                minAmountOut: amountOut - wormholeSlippage,
                 targetChain: targetChainId,
                 redeemer: targetContract,
                 redeemerMessage: encodeSwapInParameters(swapParams, path, targetChainRelayerFee),
@@ -109,7 +109,7 @@ contract NativeSwapV3 is NativeSwapBase {
         (
             RecvSwapInParameters memory swapParams,
             uint256 swapAmount
-        ) = _handleAndVerifyFill(orderResponse); 
+        ) = _handleAndVerifyFill(orderResponse);
 
         // convert recipient bytes32 address to type address
         address recipientAddress = fromUniversalAddress(swapParams.recipientAddress);
@@ -119,7 +119,7 @@ contract NativeSwapV3 is NativeSwapBase {
             IERC20(swapParams.path[0]),
             address(SWAP_ROUTER),
             swapAmount
-        ); 
+        );
 
         // try to execute the swap
         try SWAP_ROUTER.exactInputSingle(
@@ -135,17 +135,17 @@ contract NativeSwapV3 is NativeSwapBase {
             })
         ) returns (uint256 amountOut) {
             _handleSuccessfulSwap(
-                amountOut, 
-                swapAmount, 
-                swapParams.relayerFee, 
+                amountOut,
+                swapAmount,
+                swapParams.relayerFee,
                 recipientAddress
             );
             return amountOut;
         } catch {
             _handleFailedSwap(
-                swapAmount, 
-                swapParams.relayerFee, 
-                recipientAddress, 
+                swapAmount,
+                swapParams.relayerFee,
+                recipientAddress,
                 address(SWAP_ROUTER)
             );
         }
