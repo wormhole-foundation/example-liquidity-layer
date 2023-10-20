@@ -22,7 +22,7 @@
     "@uniswap/v3-periphery": "^1.3.0"
   },
   "scripts": {
-    "build-types": "typechain --target=ethers-v5 --out-dir=ts-types out/*/*.json"
+    "build-types": "typechain --target=ethers-v5 --out-dir=relayer/src/types out/*/*.json"
   },
   "dependencies": {
     "@improbable-eng/grpc-web-node-http-transport": "^0.15.0",

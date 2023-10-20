@@ -69,7 +69,7 @@ contract NativeSwapV3 is NativeSwapBase {
         ORDER_ROUTER.placeMarketOrder{value: wormholeFee}(
             PlaceMarketOrderArgs({
                 amountIn: amountOut,
-                minAmountOut: amountOut - wormholeSlippage,
+                minAmountOut: swapParams.amountOutMinimum - wormholeSlippage,
                 targetChain: targetChainId,
                 redeemer: targetContract,
                 redeemerMessage: encodeSwapInParameters(swapParams, path, targetChainRelayerFee),

@@ -10,9 +10,9 @@ import {
   tryUint8ArrayToNative,
   uint8ArrayToHex,
 } from "@certusone/wormhole-sdk";
-import { TypedEvent } from "../src/types/common";
+import { TypedEvent } from "./src/types/common";
+import { INativeSwap__factory } from "./src/types";
 import { Implementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
-import { IMatchingEngine__factory } from "../src/types";
 import { ethers, Wallet } from "ethers";
 import { WebSocketProvider } from "./websocket";
 import { NodeHttpTransport } from "@improbable-eng/grpc-web-node-http-transport";
@@ -68,11 +68,8 @@ const TESTNET_GUARDIAN_RPC: string[] = [
 const configPath = `${__dirname}/cfg/relayer.json`;
 const CONFIG = JSON.parse(fs.readFileSync(configPath, "utf8"));
 const ROUTES = CONFIG.executionRoutes!;
-const MATCHING_ENGINE_CHAIN = Number(CONFIG.matchingEngineChain!);
-const MATCHING_ENGINE = IMatchingEngine__factory.connect(
-  CONFIG.matchingEngineAddress!,
-  SIGNERS[MATCHING_ENGINE_CHAIN as ChainId]
-);
+const MATCHING_ENGINE_CHAIN: number = Number(CONFIG.matchingEngineChain!);
+const MATCHING_ENGINE_ADDRESS = CONFIG.matchingEngineAddress!;
 
 const CIRCLE_DOMAIN_TO_WORMHOLE_CHAIN: { [key in number]: SupportedChainId } = {
   0: CHAIN_ID_ETH,
@@ -84,14 +81,39 @@ const CIRCLE_EMITTER_ADDRESSES = {
   [CHAIN_ID_AVAX]: "0xa9fB1b3009DCb79E2fe346c16a604B8Fa8aE0a79",
 };
 
-// This might not be the case on mainnet, but it's true on testnet.
-const WORMHOLE_FEE = 0;
+function nativeSwapContract(chainId: SupportedChainId): ethers.Contract {
+  return INativeSwap__factory.connect(
+    ethers.utils.getAddress(ROUTES[chainId.toString()].nativeSwap),
+    SIGNERS[chainId]
+  );
+}
 
 function wormholeContract(
   address: string,
   signer: ethers.Signer
 ): ethers.Contract {
   return Implementation__factory.connect(address, signer);
+}
+
+function isValidSender(
+  fromChain: SupportedChainId,
+  fromAddress: string
+): boolean {
+  // Check that the fromAddress is a valid order router.
+  const validFromAddress = ethers.utils.getAddress(fromAddress);
+  if (
+    fromChain === MATCHING_ENGINE_CHAIN &&
+    validFromAddress == ethers.utils.getAddress(MATCHING_ENGINE_ADDRESS)
+  ) {
+    return true;
+  } else if (
+    validFromAddress ==
+    ethers.utils.getAddress(ROUTES[fromChain.toString()].router)
+  ) {
+    return true;
+  } else {
+    return false;
+  }
 }
 
 function getBridgeChainId(sender: string): ChainId | null {
@@ -177,59 +199,81 @@ async function handleCircleMessageInLogs(
   return [circleMessage, signature];
 }
 
-async function executeCCTPOrder(
+async function getRedeemParameters(
   receipt: ethers.ContractReceipt,
   circleEmitterAddress: string,
   vaa: Uint8Array
 ) {
-  try {
-    const [circleBridgeMessage, circleAttestation] =
-      await handleCircleMessageInLogs(receipt.logs!, circleEmitterAddress);
+  const [circleBridgeMessage, circleAttestation] =
+    await handleCircleMessageInLogs(receipt.logs!, circleEmitterAddress);
 
-    // Verify params.
-    if (circleBridgeMessage === null || circleAttestation === null) {
-      throw new Error(
-        `Error parsing receipt, txhash: ${receipt.transactionHash}`
-      );
-    }
-
-    // redeem parameters for target function call
-    const redeemParameters = {
-      encodedWormholeMessage: `0x${uint8ArrayToHex(vaa)}`,
-      circleBridgeMessage: circleBridgeMessage,
-      circleAttestation: circleAttestation,
-    };
-    console.log("All redeem parameters have been located");
-
-    const tx: ethers.ContractTransaction = await MATCHING_ENGINE[
-      "executeOrder((bytes,bytes,bytes))"
-    ](redeemParameters, {
-      value: WORMHOLE_FEE,
-    });
-    const redeedReceipt: ethers.ContractReceipt = await tx.wait();
-
-    console.log(
-      `Redeemed transfer in txhash: ${redeedReceipt.transactionHash}`
+  // Verify params.
+  if (circleBridgeMessage === null || circleAttestation === null) {
+    throw new Error(
+      `Error parsing receipt, txhash: ${receipt.transactionHash}`
     );
-  } catch (e) {
-    throw Error(`Failed to execute CCTP order: ${e}`);
   }
+
+  // redeem parameters for target function call
+  return {
+    encodedWormholeMessage: `0x${uint8ArrayToHex(vaa)}`,
+    circleBridgeMessage: circleBridgeMessage,
+    circleAttestation: circleAttestation,
+  };
 }
 
-async function executeTokenBridgeOrder(vaa: Uint8Array) {
-  try {
-    const tx: ethers.ContractTransaction = await MATCHING_ENGINE[
-      "executeOrder(bytes)"
-    ](`0x${uint8ArrayToHex(vaa)}`, {
-      value: WORMHOLE_FEE,
-    });
-    const redeedReceipt: ethers.ContractReceipt = await tx.wait();
+interface OrderResponse {
+  encodedWormholeMessage: string;
+  circleBridgeMessage: string;
+  circleAttestation: string;
+}
 
+async function getOrderResponseFromVaa(
+  vaa: Uint8Array,
+  fromChain: number,
+  isCCTP: boolean,
+  receipt: ethers.ContractReceipt
+): Promise<OrderResponse> {
+  let response: OrderResponse = {} as any;
+
+  // Execute the order on the matching engine.
+  if (isCCTP) {
+    const redeemParams = await getRedeemParameters(
+      receipt,
+      CIRCLE_EMITTER_ADDRESSES[fromChain],
+      vaa
+    );
+    response = {
+      circleAttestation: redeemParams.circleAttestation,
+      circleBridgeMessage: redeemParams.circleBridgeMessage,
+      encodedWormholeMessage: redeemParams.encodedWormholeMessage,
+    };
+  } else {
+    response = {
+      circleAttestation: "0x",
+      circleBridgeMessage: "0x",
+      encodedWormholeMessage: `0x${uint8ArrayToHex(vaa)}`,
+    };
+  }
+
+  return response;
+}
+
+async function handleOrderResponse(
+  response: OrderResponse,
+  toChain: SupportedChainId
+) {
+  try {
+    console.log(`Posting order response to chain: ${toChain}`);
+    const nativeSwap = nativeSwapContract(toChain);
+    const tx: ethers.ContractTransaction =
+      await nativeSwap.recvAndSwapExactNativeIn(response);
+    const redeedReceipt: ethers.ContractReceipt = await tx.wait();
     console.log(
-      `Redeemed transfer in txhash: ${redeedReceipt.transactionHash}`
+      `Posted order response in txhash: ${redeedReceipt.transactionHash}`
     );
   } catch (e) {
-    throw Error(`Failed to execute token bridge order: ${e}`);
+    throw new Error(`Error executing order: ${e}`);
   }
 }
 
@@ -258,7 +302,8 @@ function handleRelayerEvent(
       const payloadType = payloadArray.readUint8(0);
 
       // Parse the fromChain.
-      let fromChain;
+      let fromChain: SupportedChainId;
+      let toChain: SupportedChainId;
       let fromAddress;
       let isCCTP = false;
 
@@ -268,19 +313,28 @@ function handleRelayerEvent(
           console.warn(`Unknown fromDomain: ${fromDomain}`);
           return;
         }
+
+        const toDomain = payloadArray.readUInt32BE(69);
+        if (!(toDomain in CIRCLE_DOMAIN_TO_WORMHOLE_CHAIN)) {
+          console.warn(`Unknown toDomain: ${toDomain}`);
+          return;
+        }
+
         fromChain = CIRCLE_DOMAIN_TO_WORMHOLE_CHAIN[fromDomain];
+        toChain = CIRCLE_DOMAIN_TO_WORMHOLE_CHAIN[toDomain];
         fromAddress = tryUint8ArrayToNative(
           payloadArray.subarray(81, 113),
           fromChain as ChainId
         );
         isCCTP = true;
       } else if (payloadType == 3) {
-        fromChain = getBridgeChainId(_sender)!;
+        fromChain = getBridgeChainId(_sender)! as SupportedChainId;
+        toChain = payloadArray.readUInt16BE(99) as SupportedChainId;
         fromAddress = tryUint8ArrayToNative(
           payloadArray.subarray(101, 133),
           fromChain as ChainId
         );
-        if (fromChain === null) {
+        if (fromChain === null || toChain === null) {
           console.warn(
             `Unable to fetch chainId from sender address: ${_sender}`
           );
@@ -290,21 +344,14 @@ function handleRelayerEvent(
         return;
       }
 
-      // Check that the fromAddress is a valid order router.
-      if (
-        ethers.utils.getAddress(fromAddress) !=
-        ethers.utils.getAddress(ROUTES[fromChain.toString()].router)
-      ) {
+      // Check if valid sender.
+      if (!isValidSender(fromChain, fromAddress)) {
         return;
       }
 
-      console.log(
-        `Relaying transaction: ${typedEvent.transactionHash}, from: ${_sender}, chainId: ${fromChain}`
-      );
-
       // Fetch the vaa.
       console.log(
-        `Fetching Wormhole message from: ${_sender}, chainId: ${fromChain}`
+        `Relaying transaction: ${typedEvent.transactionHash}, from: ${_sender}, chainId: ${fromChain}`
       );
       const { vaaBytes } = await getSignedVAAWithRetry(
         TESTNET_GUARDIAN_RPC,
@@ -316,17 +363,19 @@ function handleRelayerEvent(
         }
       );
 
-      // Execute the order on the matching engine.
-      if (isCCTP) {
-        const receipt = await typedEvent.getTransactionReceipt();
-        await executeCCTPOrder(
-          receipt,
-          CIRCLE_EMITTER_ADDRESSES[fromChain],
-          vaaBytes
-        );
-      } else {
-        await executeTokenBridgeOrder(vaaBytes);
-      }
+      // Fetch OrderResponse parameters.
+      const receipt = await typedEvent.getTransactionReceipt();
+      const orderResponse = await getOrderResponseFromVaa(
+        vaaBytes,
+        fromChain,
+        isCCTP,
+        receipt
+      );
+
+      // TODO: determine if the OrderResponse is a fill or an order revert.
+
+      // Execute the order on the target nativeswap contract.
+      await handleOrderResponse(orderResponse, toChain);
     } catch (e) {
       console.error(e);
     }

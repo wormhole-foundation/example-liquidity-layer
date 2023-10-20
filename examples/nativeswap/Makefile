@@ -13,7 +13,7 @@ dependencies: node_modules lib/forge-std lib/openzeppelin-contracts
 .PHONY: clean
 clean:
 	forge clean
-	rm -rf node_modules anvil.log lib forge-scripts ts-types
+	rm -rf node_modules anvil.log lib forge-scripts relayer/src/types
 
 node_modules:
 	npm ci

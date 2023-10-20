@@ -1,12 +1,10 @@
 #!/bin/bash
 
-while getopts ":n:c:u:k:" opt; do
+while getopts ":n:c:k:" opt; do
   case $opt in
     n) network="$OPTARG"
     ;;
     c) chain="$OPTARG"
-    ;;
-    u) rpc="$OPTARG"
     ;;
     k) private_key="$OPTARG"
     ;;
@@ -34,12 +32,6 @@ then
     exit 1
 fi
 
-if [ -z ${rpc+x} ];
-then
-    echo "rpc (-u) is unset" >&2
-    exit 1
-fi
-
 if [ -z ${private_key+x} ];
 then
     echo "private key (-k) is unset" >&2
@@ -55,7 +47,8 @@ FORGE_SCRIPTS=$ROOT/../forge/scripts
 . $ENV/$network/$chain.env
 
 forge script $FORGE_SCRIPTS/DeployNativeSwap.s.sol \
-    --rpc-url $rpc \
+    --rpc-url $RPC \
     --broadcast \
     --private-key $private_key \
+    --gas-estimate-multiplier 200 \
     --tc DeployNativeSwap

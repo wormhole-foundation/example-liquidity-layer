@@ -7,6 +7,6 @@ out
 out.log
 broadcast
 forge-scripts/deploy.out
-ts/src/types
+relayer/src/types
 dist
 ts-types
