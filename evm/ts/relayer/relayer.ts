@@ -84,8 +84,17 @@ const CIRCLE_EMITTER_ADDRESSES = {
   [CHAIN_ID_AVAX]: "0xa9fB1b3009DCb79E2fe346c16a604B8Fa8aE0a79",
 };
 
-// This might not be the case on mainnet, but it's true on testnet.
 const WORMHOLE_FEE = 0;
+const CIRCLE_INTEGRATION_PAYLOAD_LEN = 147;
+const TOKEN_BRIDGE_PAYLOAD_LEN = 133;
+
+function parseMessageType(payload: Buffer, isCCTP: boolean): number {
+  if (isCCTP) {
+    return payload.readUint8(CIRCLE_INTEGRATION_PAYLOAD_LEN);
+  } else {
+    return payload.readUint8(TOKEN_BRIDGE_PAYLOAD_LEN);
+  }
+}
 
 function wormholeContract(
   address: string,
@@ -298,13 +307,14 @@ function handleRelayerEvent(
         return;
       }
 
-      console.log(
-        `Relaying transaction: ${typedEvent.transactionHash}, from: ${_sender}, chainId: ${fromChain}`
-      );
+      // Confirm that it's a market order.
+      if (parseMessageType(payloadArray, isCCTP) != 1) {
+        return;
+      }
 
       // Fetch the vaa.
       console.log(
-        `Fetching Wormhole message from: ${_sender}, chainId: ${fromChain}`
+        `Relaying transaction: ${typedEvent.transactionHash}, from: ${_sender}, chainId: ${fromChain}`
       );
       const { vaaBytes } = await getSignedVAAWithRetry(
         TESTNET_GUARDIAN_RPC,

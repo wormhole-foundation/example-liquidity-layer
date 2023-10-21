@@ -11,8 +11,11 @@ import {
   uint8ArrayToHex,
 } from "@certusone/wormhole-sdk";
 import { TypedEvent } from "./src/types/common";
-import { INativeSwap__factory } from "./src/types";
-import { Implementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
+import { INativeSwap__factory, ICircleIntegration__factory } from "./src/types";
+import {
+  Implementation__factory,
+  ITokenBridge__factory,
+} from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 import { ethers, Wallet } from "ethers";
 import { WebSocketProvider } from "./websocket";
 import { NodeHttpTransport } from "@improbable-eng/grpc-web-node-http-transport";
@@ -71,6 +74,11 @@ const ROUTES = CONFIG.executionRoutes!;
 const MATCHING_ENGINE_CHAIN: number = Number(CONFIG.matchingEngineChain!);
 const MATCHING_ENGINE_ADDRESS = CONFIG.matchingEngineAddress!;
 
+// Message response types.
+const TYPE_MARKET_ORDER = 1;
+const TYPE_FILL = 16;
+const TYPE_REVERT = 32;
+
 const CIRCLE_DOMAIN_TO_WORMHOLE_CHAIN: { [key in number]: SupportedChainId } = {
   0: CHAIN_ID_ETH,
   1: CHAIN_ID_AVAX,
@@ -80,6 +88,17 @@ const CIRCLE_EMITTER_ADDRESSES = {
   [CHAIN_ID_ETH]: "0x26413e8157CD32011E726065a5462e97dD4d03D9",
   [CHAIN_ID_AVAX]: "0xa9fB1b3009DCb79E2fe346c16a604B8Fa8aE0a79",
 };
+
+const CIRCLE_INTEGRATION_PAYLOAD_LEN = 147;
+const TOKEN_BRIDGE_PAYLOAD_LEN = 133;
+
+function parseMessageType(payload: Buffer, isCCTP: boolean): number {
+  if (isCCTP) {
+    return payload.readUint8(CIRCLE_INTEGRATION_PAYLOAD_LEN);
+  } else {
+    return payload.readUint8(TOKEN_BRIDGE_PAYLOAD_LEN);
+  }
+}
 
 function nativeSwapContract(chainId: SupportedChainId): ethers.Contract {
   return INativeSwap__factory.connect(
@@ -261,16 +280,29 @@ async function getOrderResponseFromVaa(
 
 async function handleOrderResponse(
   response: OrderResponse,
-  toChain: SupportedChainId
+  toChain: SupportedChainId,
+  responseType: number
 ) {
   try {
     console.log(`Posting order response to chain: ${toChain}`);
     const nativeSwap = nativeSwapContract(toChain);
-    const tx: ethers.ContractTransaction =
-      await nativeSwap.recvAndSwapExactNativeIn(response);
-    const redeedReceipt: ethers.ContractReceipt = await tx.wait();
+
+    let redeemReceipt: ethers.ContractReceipt;
+    if (responseType == TYPE_FILL) {
+      const tx: ethers.ContractTransaction =
+        await nativeSwap.recvAndSwapExactNativeIn(response);
+      redeemReceipt = await tx.wait();
+    } else if (responseType == TYPE_REVERT) {
+      const tx: ethers.ContractTransaction = await nativeSwap.handleOrderRevert(
+        response
+      );
+      redeemReceipt = await tx.wait();
+    } else {
+      return;
+    }
+
     console.log(
-      `Posted order response in txhash: ${redeedReceipt.transactionHash}`
+      `Posted order response in txhash: ${redeemReceipt.transactionHash}`
     );
   } catch (e) {
     throw new Error(`Error executing order: ${e}`);
@@ -297,8 +329,6 @@ function handleRelayerEvent(
     try {
       // create payload buffer
       const payloadArray = Buffer.from(ethers.utils.arrayify(payload));
-
-      // confirm that it's a payload3
       const payloadType = payloadArray.readUint8(0);
 
       // Parse the fromChain.
@@ -307,6 +337,7 @@ function handleRelayerEvent(
       let fromAddress;
       let isCCTP = false;
 
+      // Only parse necessary fields for now to avoid unnecessary RPC calls.
       if (payloadType == 1) {
         const fromDomain = payloadArray.readUInt32BE(65);
         if (!(fromDomain in CIRCLE_DOMAIN_TO_WORMHOLE_CHAIN)) {
@@ -349,6 +380,12 @@ function handleRelayerEvent(
         return;
       }
 
+      // Ignore market orders.
+      const responseType = parseMessageType(payloadArray, isCCTP);
+      if (responseType != TYPE_FILL && responseType != TYPE_REVERT) {
+        return;
+      }
+
       // Fetch the vaa.
       console.log(
         `Relaying transaction: ${typedEvent.transactionHash}, from: ${_sender}, chainId: ${fromChain}`
@@ -372,10 +409,8 @@ function handleRelayerEvent(
         receipt
       );
 
-      // TODO: determine if the OrderResponse is a fill or an order revert.
-
       // Execute the order on the target nativeswap contract.
-      await handleOrderResponse(orderResponse, toChain);
+      await handleOrderResponse(orderResponse, toChain, responseType);
     } catch (e) {
       console.error(e);
     }
