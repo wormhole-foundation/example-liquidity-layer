@@ -9,10 +9,17 @@ import {
   getEmitterAddressEth,
   tryUint8ArrayToNative,
   uint8ArrayToHex,
+  parseVaa,
 } from "@certusone/wormhole-sdk";
 import { TypedEvent } from "../src/types/common";
-import { Implementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
-import { IMatchingEngine__factory } from "../src/types";
+import {
+  Implementation__factory,
+  ITokenBridge__factory,
+} from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
+import {
+  IMatchingEngine__factory,
+  ICircleIntegration__factory,
+} from "../src/types";
 import { ethers, Wallet } from "ethers";
 import { WebSocketProvider } from "./websocket";
 import { NodeHttpTransport } from "@improbable-eng/grpc-web-node-http-transport";
@@ -74,6 +81,9 @@ const MATCHING_ENGINE = IMatchingEngine__factory.connect(
   SIGNERS[MATCHING_ENGINE_CHAIN as ChainId]
 );
 
+const CIRCLE_BURN_MESSAGE_TOPIC =
+  "0x8c5261668696ce22758910d05bab8f186d6eb247ceac2af2e82c7dc17669b036";
+
 const CIRCLE_DOMAIN_TO_WORMHOLE_CHAIN: { [key in number]: SupportedChainId } = {
   0: CHAIN_ID_ETH,
   1: CHAIN_ID_AVAX,
@@ -94,6 +104,20 @@ function parseMessageType(payload: Buffer, isCCTP: boolean): number {
   } else {
     return payload.readUint8(TOKEN_BRIDGE_PAYLOAD_LEN);
   }
+}
+
+function circleIntegrationContract(chainId: SupportedChainId): ethers.Contract {
+  return ICircleIntegration__factory.connect(
+    ethers.utils.getAddress(ROUTES[chainId.toString()].cctp),
+    SIGNERS[chainId]
+  );
+}
+
+function tokenBridgeContract(chainId: SupportedChainId): ethers.Contract {
+  return ITokenBridge__factory.connect(
+    ethers.utils.getAddress(ROUTES[chainId.toString()].bridge),
+    SIGNERS[chainId]
+  );
 }
 
 function wormholeContract(
@@ -125,7 +149,10 @@ function findCircleMessageInLogs(
   circleEmitterAddress: string
 ): string | null {
   for (const log of logs) {
-    if (log.address === circleEmitterAddress) {
+    if (
+      log.address === circleEmitterAddress &&
+      log.topics[0] === CIRCLE_BURN_MESSAGE_TOPIC
+    ) {
       const messageSentIface = new ethers.utils.Interface([
         "event MessageSent(bytes message)",
       ]);
@@ -242,6 +269,18 @@ async function executeTokenBridgeOrder(vaa: Uint8Array) {
   }
 }
 
+async function isTransferRedeemed(
+  chainId: SupportedChainId,
+  isCCTP: boolean,
+  vaaHash: string
+): Promise<boolean> {
+  if (isCCTP) {
+    return await circleIntegrationContract(chainId).isMessageConsumed(vaaHash);
+  } else {
+    return await tokenBridgeContract(chainId).isTransferCompleted(vaaHash);
+  }
+}
+
 function handleRelayerEvent(
   _sender: string,
   sequence: ethers.BigNumber,
@@ -325,6 +364,19 @@ function handleRelayerEvent(
           transport: NodeHttpTransport(),
         }
       );
+
+      // Check if the order is already executed.
+      const isRedeemed = await isTransferRedeemed(
+        MATCHING_ENGINE_CHAIN as SupportedChainId,
+        isCCTP,
+        "0x" + parseVaa(vaaBytes).hash.toString("hex")
+      );
+      if (isRedeemed) {
+        console.log(
+          `Order already executed, txhash: ${typedEvent.transactionHash}`
+        );
+        return;
+      }
 
       // Execute the order on the matching engine.
       if (isCCTP) {

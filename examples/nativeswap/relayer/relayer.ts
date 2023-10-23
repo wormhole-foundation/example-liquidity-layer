@@ -9,6 +9,7 @@ import {
   getEmitterAddressEth,
   tryUint8ArrayToNative,
   uint8ArrayToHex,
+  parseVaa,
 } from "@certusone/wormhole-sdk";
 import { TypedEvent } from "./src/types/common";
 import { INativeSwap__factory, ICircleIntegration__factory } from "./src/types";
@@ -75,9 +76,11 @@ const MATCHING_ENGINE_CHAIN: number = Number(CONFIG.matchingEngineChain!);
 const MATCHING_ENGINE_ADDRESS = CONFIG.matchingEngineAddress!;
 
 // Message response types.
-const TYPE_MARKET_ORDER = 1;
 const TYPE_FILL = 16;
 const TYPE_REVERT = 32;
+
+const CIRCLE_BURN_MESSAGE_TOPIC =
+  "0x8c5261668696ce22758910d05bab8f186d6eb247ceac2af2e82c7dc17669b036";
 
 const CIRCLE_DOMAIN_TO_WORMHOLE_CHAIN: { [key in number]: SupportedChainId } = {
   0: CHAIN_ID_ETH,
@@ -103,6 +106,20 @@ function parseMessageType(payload: Buffer, isCCTP: boolean): number {
 function nativeSwapContract(chainId: SupportedChainId): ethers.Contract {
   return INativeSwap__factory.connect(
     ethers.utils.getAddress(ROUTES[chainId.toString()].nativeSwap),
+    SIGNERS[chainId]
+  );
+}
+
+function circleIntegrationContract(chainId: SupportedChainId): ethers.Contract {
+  return ICircleIntegration__factory.connect(
+    ethers.utils.getAddress(ROUTES[chainId.toString()].cctp),
+    SIGNERS[chainId]
+  );
+}
+
+function tokenBridgeContract(chainId: SupportedChainId): ethers.Contract {
+  return ITokenBridge__factory.connect(
+    ethers.utils.getAddress(ROUTES[chainId.toString()].bridge),
     SIGNERS[chainId]
   );
 }
@@ -156,8 +173,15 @@ function findCircleMessageInLogs(
   logs: ethers.providers.Log[],
   circleEmitterAddress: string
 ): string | null {
+  if (logs.length === 0) {
+    throw new Error("No logs found");
+  }
+
   for (const log of logs) {
-    if (log.address === circleEmitterAddress) {
+    if (
+      log.address === circleEmitterAddress &&
+      log.topics[0] === CIRCLE_BURN_MESSAGE_TOPIC
+    ) {
       const messageSentIface = new ethers.utils.Interface([
         "event MessageSent(bytes message)",
       ]);
@@ -276,6 +300,18 @@ async function getOrderResponseFromVaa(
   }
 
   return response;
+}
+
+async function isTransferRedeemed(
+  chainId: SupportedChainId,
+  isCCTP: boolean,
+  vaaHash: string
+): Promise<boolean> {
+  if (isCCTP) {
+    return await circleIntegrationContract(chainId).isMessageConsumed(vaaHash);
+  } else {
+    return await tokenBridgeContract(chainId).isTransferCompleted(vaaHash);
+  }
 }
 
 async function handleOrderResponse(
@@ -399,6 +435,19 @@ function handleRelayerEvent(
           transport: NodeHttpTransport(),
         }
       );
+
+      // Check if the order is already executed.
+      const isRedeemed = await isTransferRedeemed(
+        toChain,
+        isCCTP,
+        "0x" + parseVaa(vaaBytes).hash.toString("hex")
+      );
+      if (isRedeemed) {
+        console.log(
+          `Order already executed, txhash: ${typedEvent.transactionHash}`
+        );
+        return;
+      }
 
       // Fetch OrderResponse parameters.
       const receipt = await typedEvent.getTransactionReceipt();
