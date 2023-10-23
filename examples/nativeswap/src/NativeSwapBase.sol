@@ -8,8 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {IWETH} from "wormhole-solidity/IWETH.sol";
 import {BytesLib} from "wormhole-solidity/BytesLib.sol";
-import {IOrderRouter, OrderResponse, RedeemedFill} from "liquidity-layer/interfaces/IOrderRouter.sol";
-import {Messages} from "liquidity-layer/shared/Messages.sol";
+import {IOrderRouter, OrderResponse, RedeemedFill} from "liquidity-layer/IOrderRouter.sol";
 
 abstract contract NativeSwapBase {
     using SafeERC20 for IERC20;

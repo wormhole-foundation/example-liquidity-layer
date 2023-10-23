@@ -15,7 +15,7 @@ import "./Errors.sol";
 import {State} from "./State.sol";
 
 import "../../interfaces/IRedeemOrderRevert.sol";
-import {RouterInfo, TokenType, OrderResponse} from "../../interfaces/Types.sol";
+import {RevertType, RouterInfo, TokenType, OrderResponse} from "../../interfaces/Types.sol";
 
 abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
     using Messages for *;
@@ -25,7 +25,7 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
      */
     function redeemOrderRevert(
         OrderResponse memory response
-    ) external returns (Messages.RevertType, address) {
+    ) external returns (RevertType, address) {
         if (response.circleBridgeMessage.length == 0 && response.circleAttestation.length == 0) {
             ITokenBridge.TransferWithPayload memory transfer = _tokenBridge
                 .parseTransferWithPayload(
@@ -64,7 +64,7 @@ abstract contract RedeemOrderRevert is IRedeemOrderRevert, Admin, State {
         bytes32 fromAddress,
         uint256 amount,
         bytes memory payload
-    ) private returns (Messages.RevertType, address) {
+    ) private returns (RevertType, address) {
         uint16 emitterChain = encodedVaa.unsafeEmitterChainFromVaa();
         if (emitterChain != _matchingEngineChain || fromAddress != _matchingEngineEndpoint) {
             revert ErrSourceNotMatchingEngine(emitterChain, fromAddress);

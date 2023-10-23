@@ -9,11 +9,11 @@ import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
 
 import {BytesLib} from "wormhole-solidity/BytesLib.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
-import {IOrderRouter, PlaceMarketOrderArgs, OrderResponse, RedeemedFill} from "liquidity-layer/interfaces/IOrderRouter.sol";
-import {fromUniversalAddress} from "liquidity-layer/shared/Utils.sol";
+import {IOrderRouter, PlaceMarketOrderArgs, OrderResponse, RedeemedFill} from "liquidity-layer/IOrderRouter.sol";
 import {IWETH} from "wormhole-solidity/IWETH.sol";
 
 import {NativeSwapBase} from "./NativeSwapBase.sol";
+import {fromUniversalAddress} from "./Utils.sol";
 
 contract NativeSwapV2 is NativeSwapBase {
     using SafeERC20 for IERC20;
@@ -137,7 +137,7 @@ contract NativeSwapV2 is NativeSwapBase {
             uniPath,
             address(this),
             swapParams.deadline
-        ) returns (uint256[] memory amounts) {
+        ) returns (uint256[] memory) {
             _handleSuccessfulSwap(
                 amounts[1],
                 swapAmount,

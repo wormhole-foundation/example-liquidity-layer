@@ -8,12 +8,12 @@ build: dependencies
 	npm run build-types
 
 .PHONY: dependencies
-dependencies: node_modules lib/forge-std lib/openzeppelin-contracts
+dependencies: modules node_modules lib/forge-std lib/openzeppelin-contracts
 
 .PHONY: clean
 clean:
 	forge clean
-	rm -rf node_modules anvil.log lib forge-scripts relayer/src/types
+	rm -rf modules node_modules anvil.log lib forge-scripts relayer/src/types
 
 node_modules:
 	npm ci
@@ -23,3 +23,10 @@ lib/forge-std:
 
 lib/openzeppelin-contracts:
 	forge install openzeppelin/openzeppelin-contracts@v4.8.1 --no-git --no-commit
+
+modules:
+	mkdir -p modules
+	cp -r ../../evm/modules/wormhole/ modules
+	cp -r ../../evm/modules/circle/ modules
+	mkdir -p modules/liquidity-layer
+	cp ../../evm/src/interfaces/* modules/liquidity-layer

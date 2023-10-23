@@ -8,12 +8,13 @@ import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 import {BytesLib} from "wormhole-solidity/BytesLib.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
-import {IOrderRouter, PlaceMarketOrderArgs, OrderResponse, RedeemedFill} from "liquidity-layer/interfaces/IOrderRouter.sol";
-import {fromUniversalAddress} from "liquidity-layer/shared/Utils.sol";
+import {IOrderRouter, PlaceMarketOrderArgs, OrderResponse, RedeemedFill} from "liquidity-layer/IOrderRouter.sol";
 import {IWETH} from "wormhole-solidity/IWETH.sol";
+
 import "./interfaces/IUniswap.sol";
 
 import {NativeSwapBase} from "./NativeSwapBase.sol";
+import {fromUniversalAddress} from "./Utils.sol";
 
 contract NativeSwapV3 is NativeSwapBase {
     using SafeERC20 for IERC20;
@@ -133,7 +134,7 @@ contract NativeSwapV3 is NativeSwapBase {
                 amountOutMinimum: swapParams.estimatedAmount,
                 sqrtPriceLimitX96: 0
             })
-        ) returns (uint256 amountOut) {
+        ) returns (uint256) {
             _handleSuccessfulSwap(
                 amountOut,
                 swapAmount,

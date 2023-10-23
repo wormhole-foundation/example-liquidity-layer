@@ -4,6 +4,8 @@ pragma solidity ^0.8.19;
 
 import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
+import {RevertType} from "../interfaces/Types.sol";
+
 library Messages {
     using BytesParsing for bytes;
 
@@ -36,10 +38,6 @@ library Messages {
         bytes32 orderSender;
         bytes32 redeemer;
         bytes redeemerMessage;
-    }
-
-    enum RevertType {
-        SwapFailed
     }
 
     struct OrderRevert {

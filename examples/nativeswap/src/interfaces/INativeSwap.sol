@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.19;
 
-import {OrderResponse, RedeemedFill} from "liquidity-layer/interfaces/IOrderRouter.sol";
+import {OrderResponse, RedeemedFill} from "liquidity-layer/IOrderRouter.sol";
 
 interface INativeSwap {
     struct ExactInParameters {

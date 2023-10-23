@@ -29,3 +29,7 @@ struct OrderResponse {
     bytes circleBridgeMessage;
     bytes circleAttestation;
 }
+
+enum RevertType {
+    SwapFailed
+}

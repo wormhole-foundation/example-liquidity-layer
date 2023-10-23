@@ -9,18 +9,15 @@ test = "forge/tests"
 
 libs = [
     "lib",
-    "node_modules",
-    "../../evm/src",
-    "../../evm/modules"
+    "node_modules"
 ]
 
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "forge-std/=lib/forge-std/src/",
-    "wormhole-solidity/=../../evm/modules/wormhole",
-    "cctp-solidity/=../../evm/modules/circle",
-    "curve-solidity/=../../evm/modules/curve",
-    "liquidity-layer/=../../evm/src"
+    "wormhole-solidity/=modules/wormhole/",
+    "cctp-solidity/=modules/circle/",
+    "liquidity-layer/=modules/liquidity-layer/"
 ]
 
 gas_limit = "18446744073709551615"

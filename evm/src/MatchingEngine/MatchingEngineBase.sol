@@ -14,6 +14,7 @@ import {MatchingEngineAdmin} from "./MatchingEngineAdmin.sol";
 import {toUniversalAddress, fromUniversalAddress, getDecimals, denormalizeAmount, adjustDecimalDiff} from "../shared/Utils.sol";
 import {getPendingOwnerState, getOwnerState, getOwnerAssistantState, getPausedState} from "../shared/Admin.sol";
 import {getExecutionRouteState, Route, CurvePoolInfo, getCurvePoolState, getDefaultRelayersState} from "./MatchingEngineStorage.sol";
+import {RevertType} from "../interfaces/Types.sol";
 
 abstract contract MatchingEngineBase is MatchingEngineAdmin {
     using Messages for *;
@@ -192,7 +193,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
                 fromRoute.router,
                 Messages
                     .OrderRevert({
-                        reason: Messages.RevertType.SwapFailed,
+                        reason: RevertType.SwapFailed,
                         refundAddress: order.refundAddress,
                         redeemer: order.sender
                     })

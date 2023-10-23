@@ -16,9 +16,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 import {IMockOrderRouter, MockOrderRouterImplementation} from "./helpers/mock/MockOrderRouterImplementation.sol";
 
-import "../../src/OrderRouter/assets/Errors.sol";
-import {Messages} from "../../src/shared/Messages.sol";
-import {fromUniversalAddress, toUniversalAddress} from "../../src/shared/Utils.sol";
+import {RevertType} from "../../src/interfaces/Types.sol";
 
 import "../../src/OrderRouter/assets/Errors.sol";
 import {OrderRouterImplementation} from "../../src/OrderRouter/OrderRouterImplementation.sol";
@@ -1064,7 +1062,7 @@ contract OrderRouterTest is Test {
         _registerTargetChain(nativeRouter, senderChain, TokenType.Native);
 
         Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
-            reason: Messages.RevertType.SwapFailed,
+            reason: RevertType.SwapFailed,
             refundAddress: _makeRefundAddress(),
             redeemer: toUniversalAddress(address(this))
         });
@@ -1125,7 +1123,7 @@ contract OrderRouterTest is Test {
         _registerTargetChain(nativeRouter, senderChain, TokenType.Native);
 
         Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
-            reason: Messages.RevertType.SwapFailed,
+            reason: RevertType.SwapFailed,
             refundAddress: _makeRefundAddress(),
             redeemer: toUniversalAddress(address(this))
         });
@@ -1164,7 +1162,7 @@ contract OrderRouterTest is Test {
         _registerTargetChain(nativeRouter, senderChain, TokenType.Native);
 
         Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
-            reason: Messages.RevertType.SwapFailed,
+            reason: RevertType.SwapFailed,
             refundAddress: _makeRefundAddress(),
             redeemer: toUniversalAddress(address(this))
         });
@@ -1204,7 +1202,7 @@ contract OrderRouterTest is Test {
 
         bytes32 expectedRedeemer = toUniversalAddress(makeAddr("someone else"));
         Messages.OrderRevert memory orderRevert = Messages.OrderRevert({
-            reason: Messages.RevertType.SwapFailed,
+            reason: RevertType.SwapFailed,
             refundAddress: _makeRefundAddress(),
             redeemer: expectedRedeemer
         });
@@ -1280,7 +1278,7 @@ contract OrderRouterTest is Test {
         _redeemTokenBridgeOrderRevert(
             nativeRouter,
             refundAmount,
-            Messages.RevertType.SwapFailed,
+            RevertType.SwapFailed,
             USDC_ADDRESS,
             nativeRouter.wormholeChainId(),
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
@@ -1418,7 +1416,7 @@ contract OrderRouterTest is Test {
         _redeemWormholeCctpOrderRevert(
             cctpEnabledRouter,
             refundAmount,
-            Messages.RevertType.SwapFailed,
+            RevertType.SwapFailed,
             toUniversalAddress(MATCHING_ENGINE_ADDRESS),
             MATCHING_ENGINE_CHAIN
         );
@@ -1857,7 +1855,7 @@ contract OrderRouterTest is Test {
     function _redeemTokenBridgeOrderRevert(
         IOrderRouter router,
         uint256 refundAmount,
-        Messages.RevertType expectedReason,
+        RevertType expectedReason,
         address tokenAddress,
         uint16 tokenChain,
         bytes32 fromAddress,
@@ -1881,7 +1879,7 @@ contract OrderRouterTest is Test {
 
         uint256 balanceBefore = router.orderToken().balanceOf(address(this));
 
-        (Messages.RevertType reason, address actualRefundAddress) = router.redeemOrderRevert(
+        (RevertType reason, address actualRefundAddress) = router.redeemOrderRevert(
             OrderResponse({
                 encodedWormholeMessage: encodedVaa,
                 circleBridgeMessage: "",
@@ -1986,7 +1984,7 @@ contract OrderRouterTest is Test {
     function _redeemWormholeCctpOrderRevert(
         IOrderRouter router,
         uint256 refundAmount,
-        Messages.RevertType expectedReason,
+        RevertType expectedReason,
         bytes32 fromAddress,
         uint16 fromChain
     ) internal {
@@ -2006,7 +2004,7 @@ contract OrderRouterTest is Test {
 
         uint256 balanceBefore = router.orderToken().balanceOf(address(this));
 
-        (Messages.RevertType reason, address actualRefundAddress) = router.redeemOrderRevert(
+        (RevertType reason, address actualRefundAddress) = router.redeemOrderRevert(
             OrderResponse({
                 encodedWormholeMessage: redeemParams.encodedWormholeMessage,
                 circleBridgeMessage: redeemParams.circleBridgeMessage,
