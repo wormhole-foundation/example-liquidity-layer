@@ -23,10 +23,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     uint256 public constant MAX_NUM_RELAYERS = 8;
 
-    event MarketOrderPlaced(address indexed sender, uint16 targetChain, uint256 relayerFee);
-
-    event DirectFillSent(address indexed sender, uint16 targetChain, TokenType tokenType);
-
     function placeMarketOrder(
         PlaceMarketOrderArgs calldata args
     ) external payable notPaused returns (uint64 sequence) {
@@ -116,8 +112,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 })
                 .encode()
         );
-
-        emit DirectFillSent(msg.sender, args.targetChain, TokenType.Cctp);
     }
 
     function _handleCanonicalToCanonical(
@@ -145,8 +139,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 })
                 .encode()
         );
-
-        emit DirectFillSent(msg.sender, args.targetChain, TokenType.Canonical);
     }
 
     function _handleCctpToMatchingEngine(
@@ -184,8 +176,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 0, // nonce
                 order.encode()
             );
-
-            emit MarketOrderPlaced(msg.sender, args.targetChain, relayerFee);
         }
     }
 
@@ -222,8 +212,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 0, // nonce
                 order.encode()
             );
-
-            emit MarketOrderPlaced(msg.sender, args.targetChain, relayerFee);
         }
     }
 

@@ -22,21 +22,26 @@ import "forge-std/console.sol";
 abstract contract RedeemFill is IRedeemFill, Admin, State {
     using Messages for *;
 
-    function redeemFill(OrderResponse calldata response) external returns (RedeemedFill memory) {
+    event FillRedeemed(
+        uint16 indexed emitterChainId,
+        bytes32 indexed emitterAddress,
+        uint64 indexed sequence
+    );
+
+    function redeemFill(OrderResponse calldata response) external returns (RedeemedFill memory fill) {
         if (response.circleBridgeMessage.length == 0 && response.circleAttestation.length == 0) {
             ITokenBridge.TransferWithPayload memory transfer = _tokenBridge
                 .parseTransferWithPayload(
                     _tokenBridge.completeTransferWithPayload(response.encodedWormholeMessage)
                 );
 
-            return
-                _processFill(
-                    response.encodedWormholeMessage,
-                    TokenType.Canonical,
-                    transfer.fromAddress,
-                    denormalizeAmount(transfer.amount, getDecimals(address(_orderToken))),
-                    transfer.payload
-                );
+            fill = _processFill(
+                response.encodedWormholeMessage,
+                TokenType.Canonical,
+                transfer.fromAddress,
+                denormalizeAmount(transfer.amount, getDecimals(address(_orderToken))),
+                transfer.payload
+            );
         } else {
             ICircleIntegration.DepositWithPayload memory deposit = _wormholeCctp
                 .redeemTokensWithPayload(
@@ -47,15 +52,20 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
                     })
                 );
 
-            return
-                _processFill(
-                    response.encodedWormholeMessage,
-                    TokenType.Cctp,
-                    deposit.fromAddress,
-                    deposit.amount,
-                    deposit.payload
-                );
+            fill = _processFill(
+                response.encodedWormholeMessage,
+                TokenType.Cctp,
+                deposit.fromAddress,
+                deposit.amount,
+                deposit.payload
+            );
         }
+
+        emit FillRedeemed(
+            response.encodedWormholeMessage.unsafeEmitterChainFromVaa(),
+            response.encodedWormholeMessage.unsafeEmitterAddressFromVaa(),
+            response.encodedWormholeMessage.unsafeSequenceFromVaa()
+        );
     }
 
     function _processFill(
