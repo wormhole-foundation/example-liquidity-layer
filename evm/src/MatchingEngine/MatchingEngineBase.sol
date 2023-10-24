@@ -40,6 +40,16 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     error InvalidRelayerFee();
     error SwapFailed();
 
+    // Order executed event. This is used to help off-chain services determine the
+    // sequence number of the fill or order revert.
+    event OrderExecuted(
+        uint16 indexed emitterChainId,
+        bytes32 indexed emitterAddress,
+        uint64 indexed sequence,
+        uint64 newSequence,
+        bool orderFilled
+    );
+
     struct InternalOrderParameters {
         uint16 fromChain;
         address token;
@@ -59,7 +69,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         _wormhole = _tokenBridge.wormhole();
     }
 
-    function executeOrder(bytes calldata vaa) external payable notPaused returns (uint64 sequence) {
+    function executeOrder(bytes calldata vaa) external payable notPaused returns (uint64) {
         /**
          * Call `completeTransferWithPayload` on the token bridge. This
          * method acts as a reentrancy protection since it does not allow
@@ -72,23 +82,33 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
         // Fetch the token address for the transfer.
         address token = _getLocalTokenAddress(transfer.tokenAddress, transfer.tokenChain);
+        uint16 emitterChain = vaa.unsafeEmitterChainFromVaa();
 
-        return
-            _executeOrder(
-                InternalOrderParameters({
-                    fromChain: vaa.unsafeEmitterChainFromVaa(),
-                    token: token,
-                    amount: denormalizeAmount(transfer.amount, getDecimals(token)),
-                    vaaTimestmp: vaa.unsafeTimestampFromVaa(),
-                    fromAddress: transfer.fromAddress
-                }),
-                transfer.payload.decodeMarketOrder()
-            );
+        (uint64 sequence, bool filled)  = _executeOrder(
+            InternalOrderParameters({
+                fromChain: emitterChain,
+                token: token,
+                amount: denormalizeAmount(transfer.amount, getDecimals(token)),
+                vaaTimestmp: vaa.unsafeTimestampFromVaa(),
+                fromAddress: transfer.fromAddress
+            }),
+            transfer.payload.decodeMarketOrder()
+        );
+
+        emit OrderExecuted(
+            emitterChain,
+            vaa.unsafeEmitterAddressFromVaa(),
+            vaa.unsafeSequenceFromVaa(),
+            sequence,
+            filled
+        );
+
+        return sequence;
     }
 
     function executeOrder(
         ICircleIntegration.RedeemParameters calldata redeemParams
-    ) external payable notPaused returns (uint64 sequence) {
+    ) external payable notPaused returns (uint64) {
         /**
          * Mint tokens to this contract. Serves as a reentrancy protection,
          * since the circle integration contract will not allow the wormhole
@@ -97,17 +117,28 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         ICircleIntegration.DepositWithPayload memory deposit = _circleIntegration
             .redeemTokensWithPayload(redeemParams);
 
-        return
-            _executeOrder(
-                InternalOrderParameters({
-                    fromChain: redeemParams.encodedWormholeMessage.unsafeEmitterChainFromVaa(),
-                    token: fromUniversalAddress(deposit.token),
-                    amount: deposit.amount,
-                    vaaTimestmp: redeemParams.encodedWormholeMessage.unsafeTimestampFromVaa(),
-                    fromAddress: deposit.fromAddress
-                }),
-                deposit.payload.decodeMarketOrder()
-            );
+        uint16 emitterChain = redeemParams.encodedWormholeMessage.unsafeEmitterChainFromVaa();
+
+        (uint64 sequence, bool filled) = _executeOrder(
+            InternalOrderParameters({
+                fromChain: emitterChain,
+                token: fromUniversalAddress(deposit.token),
+                amount: deposit.amount,
+                vaaTimestmp: redeemParams.encodedWormholeMessage.unsafeTimestampFromVaa(),
+                fromAddress: deposit.fromAddress
+            }),
+            deposit.payload.decodeMarketOrder()
+        );
+
+        emit OrderExecuted(
+            emitterChain,
+            redeemParams.encodedWormholeMessage.unsafeEmitterAddressFromVaa(),
+            redeemParams.encodedWormholeMessage.unsafeSequenceFromVaa(),
+            sequence,
+            filled
+        );
+
+        return sequence;
     }
 
     function executeOrder(
@@ -126,17 +157,17 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
          * Also, the timestamp is irrelevant here, since we ensure the relayer fee
          * is set to zero.
          */
-        return
-            _executeOrder(
-                InternalOrderParameters({
-                    fromChain: _chainId,
-                    token: getExecutionRouteState().routes[_chainId].target,
-                    amount: amount,
-                    vaaTimestmp: 0,
-                    fromAddress: toUniversalAddress(msg.sender)
-                }),
-                order
-            );
+
+        (sequence, ) = _executeOrder(
+            InternalOrderParameters({
+                fromChain: _chainId,
+                token: getExecutionRouteState().routes[_chainId].target,
+                amount: amount,
+                vaaTimestmp: 0,
+                fromAddress: toUniversalAddress(msg.sender)
+            }),
+            order
+        );
     }
 
     // ------------------------------------ Internal Functions -------------------------------------
@@ -144,7 +175,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     function _executeOrder(
         InternalOrderParameters memory params,
         Messages.MarketOrder memory order
-    ) private returns (uint64 sequence) {
+    ) private returns (uint64 sequence, bool filled) {
         // Verify the to and from route.
         (Route memory fromRoute, Route memory toRoute) = _verifyExecutionRoute(
             params.fromChain,
@@ -186,6 +217,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
                 revert SwapFailed();
             }
 
+            filled = false;
             sequence = _handleBridgeOut(
                 params.token,
                 amountIn, // Send full amount back.
@@ -201,6 +233,7 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
                 fromRoute.cctp
             );
         } else {
+            filled = true;
             sequence = _handleBridgeOut(
                 toRoute.target,
                 amountOut,

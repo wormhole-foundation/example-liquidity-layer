@@ -187,11 +187,27 @@ library Messages {
     function unsafeEmitterChainFromVaa(bytes memory encoded) internal pure returns (uint16) {
         // Skip the payload ID and guardian set index.
         (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
-
-        // Add 8 to skip the timestamp and nonce.
         (uint16 emitterChain, ) = encoded.asUint16Unchecked(
             offset + SIG_LENGTH * numSignatures + 8
         );
         return emitterChain;
+    }
+
+    function unsafeEmitterAddressFromVaa(bytes memory encoded) internal pure returns (bytes32) {
+        // Skip the payload ID and guardian set index.
+        (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
+        (bytes32 emitterAddress, ) = encoded.asBytes32Unchecked(
+            offset + SIG_LENGTH * numSignatures + 10
+        );
+        return emitterAddress;
+    }
+
+    function unsafeSequenceFromVaa(bytes memory encoded) internal pure returns (uint64) {
+        // Skip the payload ID and guardian set index.
+        (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
+        (uint64 sequence, ) = encoded.asUint64Unchecked(
+            offset + SIG_LENGTH * numSignatures + 42
+        );
+        return sequence;
     }
 }

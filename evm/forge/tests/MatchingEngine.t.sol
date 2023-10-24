@@ -690,7 +690,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Fetch wormhole message and sign it.
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 2]);
 
         // Validate test results. The fill should be sent via the circle integration contract.
         _assertCCTPMessage(
@@ -763,7 +763,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Fetch wormhole message and sign it.
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 2]);
 
         // Validate test results. The fill should be sent via the token bridge.
         _assertTokenBridgeMessage(
@@ -836,7 +836,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Fetch wormhole message and sign it.
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 2]);
 
         // Validate test results. The fill should be sent via the token bridge.
         _assertTokenBridgeMessage(
@@ -964,7 +964,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Fetch wormhole message and sign it.
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 2]);
 
         // Validate test results. The OrderRevert should be sent via CCTP.
         _assertCCTPMessage(
@@ -1028,7 +1028,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Fetch wormhole message and sign it.
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 2]);
 
         // Validate test results. The OrderRevert should be sent via CCTP.
         _assertTokenBridgeMessage(
@@ -1104,7 +1104,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Fetch wormhole message and sign it.
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 2]);
 
         // Validate test results. The fill should be sent via the circle integration contract.
         _assertCCTPMessage(
@@ -1173,7 +1173,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Fetch wormhole message and sign it.
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 2]);
 
         // Validate test results. The fill should be sent via the circle integration contract.
         _assertCCTPMessage(
@@ -1246,7 +1246,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Fetch wormhole message and sign it.
         Vm.Log[] memory entries = vm.getRecordedLogs();
-        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 1]);
+        IWormhole.VM memory _vm = wormholeSimulator.parseVMFromLogs(entries[entries.length - 2]);
 
         // Validate test results. The fill should be sent via the circle integration contract.
         _assertCCTPMessage(
