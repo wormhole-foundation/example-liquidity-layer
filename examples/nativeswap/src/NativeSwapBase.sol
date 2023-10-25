@@ -216,7 +216,7 @@ abstract contract NativeSwapBase {
         IWETH(WRAPPED_NATIVE_ADDRESS).withdraw(amountOut);
 
         // convert relayer fee to native asset
-        (uint256 nativeAmountOut, uint256 nativeRelayerFee) = _computeNativeAmounts(
+        (uint256 nativeRelayerFee, uint256 nativeAmountOut) = _computeNativeAmounts(
             swapAmount,
             amountOut,
             relayerFee
@@ -224,7 +224,9 @@ abstract contract NativeSwapBase {
 
         // pay the relayer and recipient
         payable(recipient).transfer(nativeAmountOut);
-        payable(msg.sender).transfer(nativeRelayerFee);
+        if (nativeRelayerFee > 0) {
+            payable(msg.sender).transfer(nativeRelayerFee);
+        }
 
         emit SwapResult(
             recipient,
@@ -243,7 +245,9 @@ abstract contract NativeSwapBase {
     ) internal {
         // pay relayer in the USDC since the swap failed
         IERC20 feeToken = IERC20(USDC_ADDRESS);
-        feeToken.safeTransfer(msg.sender, relayerFee);
+        if (relayerFee > 0) {
+            feeToken.safeTransfer(msg.sender, relayerFee);
+        }
 
         // swap failed - return remaining USDC to recipient
         feeToken.safeTransfer(

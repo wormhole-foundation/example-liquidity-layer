@@ -6,7 +6,7 @@ import "forge-std/Script.sol";
 import "forge-std/console2.sol";
 
 import {INativeSwap} from "../../src/interfaces/INativeSwap.sol";
-import {IOrderRouter} from "liquidity-layer/interfaces/IOrderRouter.sol";
+import {IOrderRouter} from "liquidity-layer/IOrderRouter.sol";
 
 contract TestSwap is Script {
     address immutable _deployed = vm.envAddress("DEPLOYED");
