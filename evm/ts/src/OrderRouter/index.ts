@@ -1,61 +1,73 @@
-import { ChainType, PreparedInstruction } from "..";
+import {ChainType, LiquidityLayerMessage, PreparedInstruction} from "..";
 
 export * from "./evm";
 
 export enum TokenType {
-  Unset,
-  Native,
-  Canonical,
-  Cctp,
+    Unset,
+    Native,
+    Canonical,
+    Cctp,
 }
 
 export type PlaceMarketOrderArgs = {
-  amountIn: bigint;
-  minAmountOut: bigint;
-  targetChain: number;
-  redeemer: Buffer | Uint8Array;
-  redeemerMessage: Buffer | Uint8Array;
-  refundAddress: string;
+    amountIn: bigint;
+    minAmountOut: bigint;
+    targetChain: number;
+    redeemer: Buffer | Uint8Array;
+    redeemerMessage: Buffer | Uint8Array;
+    refundAddress: string;
 };
 
 export type RouterInfo = {
-  endpoint: Buffer | Uint8Array;
-  tokenType: TokenType;
-  slippage: number;
+    endpoint: Buffer | Uint8Array;
+    tokenType: TokenType;
+    slippage: number;
 };
 
 export type OrderResponse = {
-  encodedWormholeMessage: Buffer | Uint8Array;
-  circleBridgeMessage: Buffer | Uint8Array;
-  circleAttestation: Buffer | Uint8Array;
+    encodedWormholeMessage: Buffer | Uint8Array;
+    circleBridgeMessage: Buffer | Uint8Array;
+    circleAttestation: Buffer | Uint8Array;
 };
 
-export abstract class OrderRouter<
-  PreparedTransactionType extends PreparedInstruction
-> {
-  abstract get address(): string;
+export type LiquidityLayerWormholeMessage = {
+    emitterAddress: Buffer | Uint8Array;
+    sequence: bigint;
+    nonce: number;
+    consistencyLevel: number;
+    message: LiquidityLayerMessage;
+};
 
-  abstract computeMinAmountOut(
-    amountIn: bigint,
-    targetChain: number,
-    slippage?: number,
-    relayerFee?: bigint
-  ): Promise<bigint>;
+export type OrderRouterTransactionResult = {
+    wormhole: LiquidityLayerWormholeMessage;
+    circleMessage?: Buffer;
+};
 
-  abstract placeMarketOrder(
-    args: PlaceMarketOrderArgs,
-    relayerFee?: bigint,
-    allowedRelayers?: Buffer[]
-  ): Promise<PreparedTransactionType>;
+export abstract class OrderRouter<PreparedTransactionType extends PreparedInstruction> {
+    abstract get address(): string;
 
-  abstract tokenType(): Promise<TokenType>;
+    abstract computeMinAmountOut(
+        amountIn: bigint,
+        targetChain: number,
+        slippage?: number,
+        relayerFee?: bigint
+    ): Promise<bigint>;
 
-  abstract addRouterInfo(
-    chain: number,
-    info: RouterInfo
-  ): Promise<PreparedTransactionType>;
+    abstract placeMarketOrder(
+        args: PlaceMarketOrderArgs,
+        relayerFee?: bigint,
+        allowedRelayers?: Buffer[]
+    ): Promise<PreparedTransactionType>;
 
-  abstract defaultRelayerFee(): Promise<bigint>;
+    abstract redeemFill(response: OrderResponse): Promise<PreparedTransactionType>;
 
-  abstract getRouterInfo(chain: number): Promise<RouterInfo>;
+    abstract tokenType(): Promise<TokenType>;
+
+    abstract addRouterInfo(chain: number, info: RouterInfo): Promise<PreparedTransactionType>;
+
+    abstract defaultRelayerFee(): Promise<bigint>;
+
+    abstract getRouterInfo(chain: number): Promise<RouterInfo>;
+
+    abstract getTransactionResults(txHash: string): Promise<OrderRouterTransactionResult>;
 }

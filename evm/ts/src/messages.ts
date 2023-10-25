@@ -1,23 +1,32 @@
 import { parseVaa as _parseVaa } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
 
+const TOKEN_BRIDGE_INTEGRATOR_MESSAGE_IDX = 133;
+const WORMHOLE_CCTP_INTEGRATOR_MESSAGE_IDX = 147;
+
 export enum RevertType {
   SwapFailed,
 }
 
-export class Message {
-  tokenBridgeEmitterAddress: Buffer | Uint8Array;
-  wormholeCctpEmitterAddress: Buffer | Uint8Array;
+export type LiquidityLayerMessage = {
+  marketOrder?: MarketOrder;
+  fill?: Fill;
+  orderRevert?: OrderRevert;
+};
+
+export class MessageDecoder {
+  tokenBridgeAddress: Buffer | Uint8Array;
+  wormholeCctpAddress?: Buffer | Uint8Array;
 
   constructor(
-    tokenBridgeEmitterAddress: Buffer | Uint8Array,
-    wormholeCctpEmitterAddress: Buffer | Uint8Array
+    tokenBridgeAddress: Buffer | Uint8Array,
+    wormholeCctpAddress?: Buffer | Uint8Array
   ) {
-    this.tokenBridgeEmitterAddress = tokenBridgeEmitterAddress;
-    this.wormholeCctpEmitterAddress = wormholeCctpEmitterAddress;
+    this.tokenBridgeAddress = tokenBridgeAddress;
+    this.wormholeCctpAddress = wormholeCctpAddress;
   }
 
-  decode(payload: Buffer) {
+  static decode(payload: Buffer): LiquidityLayerMessage {
     const payloadId = payload.readUInt8(0);
     switch (payloadId) {
       case MarketOrder.ID: {
@@ -35,25 +44,53 @@ export class Message {
     }
   }
 
+  decodeCoreBridgeMessage(
+    emitterAddress: Buffer | Uint8Array,
+    messagePayload: Buffer | Uint8Array
+  ) {
+    const emitter = Buffer.from(emitterAddress);
+    if (emitter.equals(this.tokenBridgeAddress)) {
+      return MessageDecoder.unsafeDecodeTokenBridgeTransferPayload(
+        messagePayload
+      );
+    } else if (
+      this.wormholeCctpAddress !== undefined &&
+      emitter.equals(this.wormholeCctpAddress)
+    ) {
+      return MessageDecoder.unsafeDecodeWormholeCctpPayload(messagePayload);
+    } else {
+      throw new Error("unrecognized emitter");
+    }
+  }
   parseVaa(encodedVaa: Buffer) {
     const vaa = _parseVaa(encodedVaa);
 
     // TODO: return the token bridge or wormhole cctp message?
 
-    const offset = (() => {
-      if (vaa.emitterAddress.equals(this.tokenBridgeEmitterAddress)) {
-        return 133;
-      } else if (vaa.emitterAddress.equals(this.wormholeCctpEmitterAddress)) {
-        return 147;
-      } else {
-        throw new Error("unrecognized emitter");
-      }
-    })();
-
     return {
       vaa,
-      decoded: this.decode(vaa.payload.subarray(offset)),
+      decoded: this.decodeCoreBridgeMessage(vaa.emitterAddress, vaa.payload),
     };
+  }
+
+  static unsafeDecodeTokenBridgeTransferPayload(
+    tokenBridgeMessage: Buffer | Uint8Array
+  ) {
+    return this.decode(
+      Buffer.from(tokenBridgeMessage).subarray(
+        TOKEN_BRIDGE_INTEGRATOR_MESSAGE_IDX
+      )
+    );
+  }
+
+  static unsafeDecodeWormholeCctpPayload(
+    wormholeCctpMessage: Buffer | Uint8Array
+  ) {
+    return this.decode(
+      Buffer.from(wormholeCctpMessage).subarray(
+        WORMHOLE_CCTP_INTEGRATOR_MESSAGE_IDX
+      )
+    );
   }
 }
 
