@@ -1,26 +1,17 @@
+import {ChainId} from "@certusone/wormhole-sdk";
 import {ethers} from "ethers";
+import {OrderResponse, OrderRouter, PlaceMarketOrderArgs, RouterInfo, TokenType} from ".";
+import {LiquidityLayerTransactionResult} from "..";
 import {
-    OrderResponse,
-    OrderRouter,
-    PlaceMarketOrderArgs,
-    RouterInfo,
-    TokenType,
-    OrderRouterTransactionResult,
-    LiquidityLayerWormholeMessage,
-} from ".";
-import {
-    IWormhole,
-    IOrderRouter,
-    IOrderRouter__factory,
-    IWormhole__factory,
-    ITokenBridge__factory,
-    ITokenBridge,
     ICircleIntegration,
     ICircleIntegration__factory,
+    IOrderRouter,
+    IOrderRouter__factory,
+    ITokenBridge,
+    ITokenBridge__factory,
+    IWormhole,
+    IWormhole__factory,
 } from "../types";
-import {bufferfy, parseEvmEvent} from "../utils";
-import {MessageDecoder} from "../messages";
-import {ChainId, coalesceChainId, tryNativeToUint8Array} from "@certusone/wormhole-sdk";
 
 export class EvmOrderRouter implements OrderRouter<ethers.ContractTransaction> {
     contract: IOrderRouter;
@@ -107,62 +98,22 @@ export class EvmOrderRouter implements OrderRouter<ethers.ContractTransaction> {
         });
     }
 
-    async getTransactionResults(txHash: string): Promise<OrderRouterTransactionResult> {
+    async getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult> {
         // Check cached contracts.
         const {chainId, wormholeCctp, coreBridge, circleTransmitterAddress} =
             await this._cacheIfNeeded();
 
-        // Fetch the transaction receipt.
-        const txReceipt = await this.contract.provider.getTransactionReceipt(txHash);
-
-        // First get Wormhole message.
-        const logMessagePublished = parseEvmEvent(
-            txReceipt,
-            coreBridge.address,
-            "LogMessagePublished(address indexed sender, uint64 sequence, uint32 nonce, bytes payload, uint8 consistencyLevel)"
-        );
-        const {
-            sender: evmEmitterAddress,
-            sequence: ethersSequence,
-            nonce,
-            payload: payloadByteslike,
-            consistencyLevel,
-        } = logMessagePublished;
-
-        const emitterAddress = Buffer.from(tryNativeToUint8Array(evmEmitterAddress, chainId));
-        const sequence = BigInt(ethersSequence.toString());
-        const encodedMessage = ethers.utils.arrayify(payloadByteslike);
-
-        if (evmEmitterAddress === wormholeCctp.address) {
-            // This should never happen.
-            if (circleTransmitterAddress === undefined) {
-                throw new Error("Circle transmitter address is undefined");
-            }
-
-            const wormhole = {
-                emitterAddress,
-                sequence,
-                nonce,
-                consistencyLevel,
-                message: MessageDecoder.unsafeDecodeWormholeCctpPayload(encodedMessage),
-            };
-
-            const circleMessage = bufferfy(
-                parseEvmEvent(txReceipt, circleTransmitterAddress, "MessageSent(bytes message)")
-                    .message
+        return this.contract.provider
+            .getTransactionReceipt(txHash)
+            .then((txReceipt) =>
+                LiquidityLayerTransactionResult.fromEthersTransactionReceipt(
+                    chainId,
+                    coreBridge.address,
+                    wormholeCctp.address,
+                    txReceipt,
+                    circleTransmitterAddress
+                )
             );
-            return {wormhole, circleMessage};
-        } else {
-            return {
-                wormhole: {
-                    emitterAddress,
-                    sequence,
-                    nonce,
-                    consistencyLevel,
-                    message: MessageDecoder.unsafeDecodeTokenBridgeTransferPayload(encodedMessage),
-                },
-            };
-        }
     }
 
     private async _cacheIfNeeded() {

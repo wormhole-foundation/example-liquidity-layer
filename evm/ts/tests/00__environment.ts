@@ -3,12 +3,12 @@ import {
     tryNativeToUint8Array,
     tryUint8ArrayToNative,
 } from "@certusone/wormhole-sdk";
-import {GovernanceEmitter, MockGuardians} from "@certusone/wormhole-sdk/lib/cjs/mock";
-import {TokenImplementation__factory} from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
-import {expect} from "chai";
-import {execSync} from "child_process";
-import {ethers} from "ethers";
-import {parseLiquidityLayerEnvFile} from "../src";
+import { GovernanceEmitter, MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
+import { TokenImplementation__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
+import { expect } from "chai";
+import { execSync } from "child_process";
+import { ethers } from "ethers";
+import { parseLiquidityLayerEnvFile } from "../src";
 import {
     ICircleBridge__factory,
     ICircleIntegration__factory,
@@ -335,7 +335,7 @@ describe("Environment", () => {
 
                     const ethUsdcDecimals = USDC_DECIMALS.ethereum!;
                     const ethUsdcAmount = ethers.utils.parseUnits(legAmount, ethUsdcDecimals);
-                    const {wrappedToken: ethUsdc} = await mintWrappedTokens(
+                    const { wrappedToken: ethUsdc } = await mintWrappedTokens(
                         owner,
                         tokenBridgeAddress,
                         "ethereum",
@@ -356,7 +356,7 @@ describe("Environment", () => {
                     }
 
                     const polyUsdcAmount = ethers.utils.parseUnits(legAmount, 6);
-                    const {wrappedToken: polyUsdc} = await mintWrappedTokens(
+                    const { wrappedToken: polyUsdc } = await mintWrappedTokens(
                         owner,
                         tokenBridgeAddress,
                         "polygon",
@@ -379,7 +379,7 @@ describe("Environment", () => {
 
                     const bscUsdcDecimals = USDC_DECIMALS.bsc!;
                     const bscUsdcAmount = ethers.utils.parseUnits(legAmount, bscUsdcDecimals);
-                    const {wrappedToken: bscUsdc} = await mintWrappedTokens(
+                    const { wrappedToken: bscUsdc } = await mintWrappedTokens(
                         owner,
                         tokenBridgeAddress,
                         "bsc",
@@ -439,7 +439,7 @@ describe("Environment", () => {
                         `bash ${scripts}/deploy_matching_engine.sh ` +
                         `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}` +
                         `> /dev/null 2>&1`;
-                    const out = execSync(cmd, {encoding: "utf8"});
+                    const out = execSync(cmd, { encoding: "utf8" });
 
                     await provider.send("evm_setAutomine", [false]);
 
@@ -450,7 +450,7 @@ describe("Environment", () => {
                         ),
                         provider
                     );
-                    const {pool: poolInfoAddress} = await matchingEngine.getCurvePoolInfo();
+                    const { pool: poolInfoAddress } = await matchingEngine.getCurvePoolInfo();
                     expect(poolInfoAddress).to.equal(matchingPoolAddress!);
                 }); // it("Deploy Matching Engine", async () => {
 
@@ -462,7 +462,7 @@ describe("Environment", () => {
                         `bash ${scripts}/upgrade_matching_engine.sh ` +
                         `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}` +
                         `> /dev/null 2>&1`;
-                    const out = execSync(cmd, {encoding: "utf8"});
+                    const out = execSync(cmd, { encoding: "utf8" });
 
                     await provider.send("evm_setAutomine", [false]);
                 }); // it("Upgrade Matching Engine", async () => {
@@ -476,7 +476,7 @@ describe("Environment", () => {
                     `bash ${scripts}/deploy_order_router.sh ` +
                     `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey} ` +
                     `> /dev/null 2>&1`;
-                const out = execSync(cmd, {encoding: "utf8"});
+                const out = execSync(cmd, { encoding: "utf8" });
 
                 await provider.send("evm_setAutomine", [false]);
 
@@ -497,7 +497,7 @@ describe("Environment", () => {
                     `bash ${scripts}/upgrade_order_router.sh ` +
                     `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}` +
                     `> /dev/null 2>&1`;
-                const out = execSync(cmd, {encoding: "utf8"});
+                const out = execSync(cmd, { encoding: "utf8" });
 
                 await provider.send("evm_setAutomine", [false]);
             }); // it("Upgrade Order Router", async () => {

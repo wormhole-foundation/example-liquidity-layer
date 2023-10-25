@@ -1,4 +1,4 @@
-import {ChainType, LiquidityLayerMessage, PreparedInstruction} from "..";
+import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
 
 export * from "./evm";
 
@@ -30,19 +30,6 @@ export type OrderResponse = {
     circleAttestation: Buffer | Uint8Array;
 };
 
-export type LiquidityLayerWormholeMessage = {
-    emitterAddress: Buffer | Uint8Array;
-    sequence: bigint;
-    nonce: number;
-    consistencyLevel: number;
-    message: LiquidityLayerMessage;
-};
-
-export type OrderRouterTransactionResult = {
-    wormhole: LiquidityLayerWormholeMessage;
-    circleMessage?: Buffer;
-};
-
 export abstract class OrderRouter<PreparedTransactionType extends PreparedInstruction> {
     abstract get address(): string;
 
@@ -69,5 +56,5 @@ export abstract class OrderRouter<PreparedTransactionType extends PreparedInstru
 
     abstract getRouterInfo(chain: number): Promise<RouterInfo>;
 
-    abstract getTransactionResults(txHash: string): Promise<OrderRouterTransactionResult>;
+    abstract getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult>;
 }

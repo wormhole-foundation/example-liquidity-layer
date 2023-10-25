@@ -5,9 +5,9 @@ export * from "./circleAttester";
 export * from "./wormhole";
 
 export abstract class EvmObserver<T> {
-  abstract observeEvm(
-    provider: ethers.providers.Provider,
-    chain: ChainName,
-    txReceipt: ethers.ContractReceipt
-  ): Promise<T>;
+    abstract observeEvm(
+        provider: ethers.providers.Provider,
+        chain: ChainName,
+        txReceipt: ethers.ContractReceipt
+    ): Promise<T>;
 }

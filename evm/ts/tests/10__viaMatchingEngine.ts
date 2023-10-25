@@ -4,8 +4,8 @@ import {
     tryNativeToUint8Array,
     tryUint8ArrayToNative,
 } from "@certusone/wormhole-sdk";
-import {expect} from "chai";
-import {ethers} from "ethers";
+import { expect } from "chai";
+import { ethers } from "ethers";
 import {
     ChainType,
     EvmOrderRouter,
@@ -15,9 +15,14 @@ import {
     OrderResponse,
     TokenType,
     errorDecoder,
+    LiquidityLayerTransactionResult,
     parseLiquidityLayerEnvFile,
 } from "../src";
-import {IERC20__factory, IMatchingEngine__factory} from "../src/types";
+import {
+    ICircleIntegration__factory,
+    IERC20__factory,
+    IMatchingEngine__factory,
+} from "../src/types";
 import {
     CircleAttester,
     GuardianNetwork,
@@ -51,9 +56,8 @@ describe("Ping Pong -- via Matching Engine", () => {
     const relayer = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], meProvider);
     const matchingEngine = IMatchingEngine__factory.connect(matchingEngineAddress, relayer);
 
-    const meCircleAttester = new CircleAttester(matchingEngineEnv.wormholeCctpAddress);
-
     const guardianNetwork = new GuardianNetwork();
+    const circleAttester = new CircleAttester();
 
     for (const [pingChainName, pongChainName] of CHAIN_PATHWAYS) {
         const localVariables = new Map<string, any>();
@@ -74,8 +78,6 @@ describe("Ping Pong -- via Matching Engine", () => {
                 }
             })();
 
-            const pingCircleAttester = new CircleAttester(pingEnv.wormholeCctpAddress);
-
             // Pong setup.
             const pongProvider = new ethers.providers.StaticJsonRpcProvider(
                 LOCALHOSTS[pongChainName]
@@ -90,8 +92,6 @@ describe("Ping Pong -- via Matching Engine", () => {
                     throw new Error("Unsupported chain");
                 }
             })();
-
-            const pongCircleAttester = new CircleAttester(pongEnv.wormholeCctpAddress);
 
             if (pingChainName == "avalanche" || pingChainName == "ethereum") {
                 before(`Ping Network -- Mint USDC`, async () => {
@@ -152,66 +152,46 @@ describe("Ping Pong -- via Matching Engine", () => {
                         throw err;
                     });
 
+                const transactionResult = await pingOrderRouter.getTransactionResults(
+                    receipt.transactionHash
+                );
+
                 const possiblyOrderVaa = await guardianNetwork.observeEvm(
                     pingProvider,
                     pingChainName,
                     receipt
                 );
 
-                const tokenBridgeEmitterAddress = tryNativeToUint8Array(
-                    pingEnv.tokenBridgeAddress,
-                    pingChainName
-                );
-                const wormholeCctpEmitterAddress = tryNativeToUint8Array(
-                    pingEnv.wormholeCctpAddress,
-                    pingChainName
-                );
-
-                const {decoded} = new MessageDecoder(
-                    tokenBridgeEmitterAddress,
-                    wormholeCctpEmitterAddress
-                ).parseVaa(possiblyOrderVaa);
                 if (pingChainName == "avalanche") {
-                    expect(decoded).has.property("fill");
+                    expect(transactionResult.wormhole.message.body).has.property("fill");
 
-                    const orderResponse: OrderResponse = await pingOrderRouter
-                        .getRouterInfo(targetChain)
-                        .then(async (info) => {
-                            if (info.tokenType == TokenType.Cctp) {
-                                const {circleBridgeMessage, circleAttestation} =
-                                    await pingCircleAttester.observeEvm(
-                                        pingProvider,
-                                        pingChainName,
-                                        receipt
-                                    );
+                    const [circleBridgeMessage, circleAttestation] = (() => {
+                        if (transactionResult.circleMessage !== undefined) {
+                            const circleBridgeMessage = transactionResult.circleMessage;
+                            return [
+                                circleBridgeMessage,
+                                circleAttester.createAttestation(circleBridgeMessage),
+                            ];
+                        } else {
+                            return [Buffer.alloc(0), Buffer.alloc(0)];
+                        }
+                    })();
 
-                                return {
-                                    encodedWormholeMessage: possiblyOrderVaa,
-                                    circleBridgeMessage,
-                                    circleAttestation,
-                                };
-                            } else {
-                                return {
-                                    encodedWormholeMessage: possiblyOrderVaa,
-                                    circleBridgeMessage: Buffer.alloc(0),
-                                    circleAttestation: Buffer.alloc(0),
-                                };
-                            }
-                        });
+                    const orderResponse: OrderResponse = {
+                        encodedWormholeMessage: possiblyOrderVaa,
+                        circleBridgeMessage,
+                        circleAttestation,
+                    };
 
                     localVariables.set("orderResponse", orderResponse);
                 } else {
-                    expect(decoded).has.property("marketOrder");
+                    expect(transactionResult.wormhole.message.body).has.property("marketOrder");
 
-                    const tokenType = await pingOrderRouter.tokenType();
+                    if (transactionResult.circleMessage !== undefined) {
+                        const circleBridgeMessage = transactionResult.circleMessage;
+                        const circleAttestation =
+                            circleAttester.createAttestation(circleBridgeMessage);
 
-                    if (tokenType == TokenType.Cctp) {
-                        const {circleBridgeMessage, circleAttestation} =
-                            await pingCircleAttester.observeEvm(
-                                pingProvider,
-                                pingChainName,
-                                receipt
-                            );
                         localVariables.set("circleBridgeMessage", circleBridgeMessage);
                         localVariables.set("circleAttestation", circleAttestation);
                     }
@@ -226,14 +206,6 @@ describe("Ping Pong -- via Matching Engine", () => {
 
                     const orderVaa = localVariables.get("orderVaa") as Buffer;
                     expect(localVariables.delete("orderVaa")).is.true;
-
-                    const {decoded} = new MessageDecoder(
-                        tryNativeToUint8Array(pingEnv.tokenBridgeAddress, pingChainName),
-                        tryNativeToUint8Array(pingEnv.wormholeCctpAddress, pingChainName)
-                    ).parseVaa(orderVaa);
-                    expect(decoded).has.property("marketOrder");
-
-                    const marketOrder = decoded.marketOrder!;
 
                     const receipt = await (async () => {
                         if (pingEnv.chainType === ChainType.Evm) {
@@ -267,30 +239,41 @@ describe("Ping Pong -- via Matching Engine", () => {
                         receipt
                     );
 
-                    const orderResponse: OrderResponse = await matchingEngine
-                        .getExecutionRoute(marketOrder.targetChain)
-                        .then(async (route) => {
-                            if (pongChainName != "avalanche" && route.cctp) {
-                                const {circleBridgeMessage, circleAttestation} =
-                                    await meCircleAttester.observeEvm(
-                                        meProvider,
-                                        "avalanche",
-                                        receipt
-                                    );
-                                return {
-                                    encodedWormholeMessage: fillVaa,
-                                    circleBridgeMessage,
-                                    circleAttestation,
-                                };
-                            } else {
-                                return {
-                                    encodedWormholeMessage: fillVaa,
-                                    circleBridgeMessage: Buffer.alloc(0),
-                                    circleAttestation: Buffer.alloc(0),
-                                };
-                            }
-                        });
+                    const wormholeCctp = ICircleIntegration__factory.connect(
+                        matchingEngineEnv.wormholeCctpAddress,
+                        meProvider
+                    );
+                    const transactionResult = await Promise.all([
+                        wormholeCctp.wormhole(),
+                        wormholeCctp.circleTransmitter(),
+                    ]).then(([coreBridgeAddress, circleTransmitterAddress]) =>
+                        LiquidityLayerTransactionResult.fromEthersTransactionReceipt(
+                            "avalanche",
+                            coreBridgeAddress,
+                            wormholeCctp.address,
+                            receipt,
+                            circleTransmitterAddress
+                        )
+                    );
+                    expect(transactionResult.wormhole.message.body).has.property("fill");
 
+                    const [circleBridgeMessage, circleAttestation] = (() => {
+                        if (transactionResult.circleMessage !== undefined) {
+                            const circleBridgeMessage = transactionResult.circleMessage;
+                            return [
+                                circleBridgeMessage,
+                                circleAttester.createAttestation(circleBridgeMessage),
+                            ];
+                        } else {
+                            return [Buffer.alloc(0), Buffer.alloc(0)];
+                        }
+                    })();
+
+                    const orderResponse: OrderResponse = {
+                        encodedWormholeMessage: fillVaa,
+                        circleBridgeMessage,
+                        circleAttestation,
+                    };
                     localVariables.set("orderResponse", orderResponse);
                 });
             }
@@ -351,66 +334,46 @@ describe("Ping Pong -- via Matching Engine", () => {
                         throw err;
                     });
 
+                const transactionResult = await pongOrderRouter.getTransactionResults(
+                    receipt.transactionHash
+                );
+
                 const possiblyOrderVaa = await guardianNetwork.observeEvm(
                     pongProvider,
                     pongChainName,
                     receipt
                 );
 
-                const tokenBridgeEmitterAddress = tryNativeToUint8Array(
-                    pongEnv.tokenBridgeAddress,
-                    pongChainName
-                );
-                const wormholeCctpEmitterAddress = tryNativeToUint8Array(
-                    pongEnv.wormholeCctpAddress,
-                    pongChainName
-                );
-
-                const {decoded} = new MessageDecoder(
-                    tokenBridgeEmitterAddress,
-                    wormholeCctpEmitterAddress
-                ).parseVaa(possiblyOrderVaa);
                 if (pongChainName == "avalanche") {
-                    expect(decoded).has.property("fill");
+                    expect(transactionResult.wormhole.message.body).has.property("fill");
 
-                    const orderResponse: OrderResponse = await pongOrderRouter
-                        .getRouterInfo(targetChain)
-                        .then(async (info) => {
-                            if (info.tokenType == TokenType.Cctp) {
-                                const {circleBridgeMessage, circleAttestation} =
-                                    await pongCircleAttester.observeEvm(
-                                        pingProvider,
-                                        pingChainName,
-                                        receipt
-                                    );
+                    const [circleBridgeMessage, circleAttestation] = (() => {
+                        if (transactionResult.circleMessage !== undefined) {
+                            const circleBridgeMessage = transactionResult.circleMessage;
+                            return [
+                                circleBridgeMessage,
+                                circleAttester.createAttestation(circleBridgeMessage),
+                            ];
+                        } else {
+                            return [Buffer.alloc(0), Buffer.alloc(0)];
+                        }
+                    })();
 
-                                return {
-                                    encodedWormholeMessage: possiblyOrderVaa,
-                                    circleBridgeMessage,
-                                    circleAttestation,
-                                };
-                            } else {
-                                return {
-                                    encodedWormholeMessage: possiblyOrderVaa,
-                                    circleBridgeMessage: Buffer.alloc(0),
-                                    circleAttestation: Buffer.alloc(0),
-                                };
-                            }
-                        });
+                    const orderResponse: OrderResponse = {
+                        encodedWormholeMessage: possiblyOrderVaa,
+                        circleBridgeMessage,
+                        circleAttestation,
+                    };
 
                     localVariables.set("orderResponse", orderResponse);
                 } else {
-                    expect(decoded).has.property("marketOrder");
+                    expect(transactionResult.wormhole.message.body).has.property("marketOrder");
 
-                    const tokenType = await pongOrderRouter.tokenType();
+                    if (transactionResult.circleMessage !== undefined) {
+                        const circleBridgeMessage = transactionResult.circleMessage;
+                        const circleAttestation =
+                            circleAttester.createAttestation(circleBridgeMessage);
 
-                    if (tokenType == TokenType.Cctp) {
-                        const {circleBridgeMessage, circleAttestation} =
-                            await pingCircleAttester.observeEvm(
-                                pingProvider,
-                                pingChainName,
-                                receipt
-                            );
                         localVariables.set("circleBridgeMessage", circleBridgeMessage);
                         localVariables.set("circleAttestation", circleAttestation);
                     }
@@ -425,14 +388,6 @@ describe("Ping Pong -- via Matching Engine", () => {
 
                     const orderVaa = localVariables.get("orderVaa") as Buffer;
                     expect(localVariables.delete("orderVaa")).is.true;
-
-                    const {decoded} = new MessageDecoder(
-                        tryNativeToUint8Array(pongEnv.tokenBridgeAddress, pongChainName),
-                        tryNativeToUint8Array(pongEnv.wormholeCctpAddress, pongChainName)
-                    ).parseVaa(orderVaa);
-                    expect(decoded).has.property("marketOrder");
-
-                    const marketOrder = decoded.marketOrder!;
 
                     const receipt = await (async () => {
                         if (pongEnv.chainType === ChainType.Evm) {
@@ -466,29 +421,41 @@ describe("Ping Pong -- via Matching Engine", () => {
                         receipt
                     );
 
-                    const orderResponse: OrderResponse = await matchingEngine
-                        .getExecutionRoute(marketOrder.targetChain)
-                        .then(async (route) => {
-                            if (pingChainName != "avalanche" && route.cctp) {
-                                const {circleBridgeMessage, circleAttestation} =
-                                    await meCircleAttester.observeEvm(
-                                        meProvider,
-                                        "avalanche",
-                                        receipt
-                                    );
-                                return {
-                                    encodedWormholeMessage: fillVaa,
-                                    circleBridgeMessage,
-                                    circleAttestation,
-                                };
-                            } else {
-                                return {
-                                    encodedWormholeMessage: fillVaa,
-                                    circleBridgeMessage: Buffer.alloc(0),
-                                    circleAttestation: Buffer.alloc(0),
-                                };
-                            }
-                        });
+                    const wormholeCctp = ICircleIntegration__factory.connect(
+                        matchingEngineEnv.wormholeCctpAddress,
+                        meProvider
+                    );
+                    const transactionResult = await Promise.all([
+                        wormholeCctp.wormhole(),
+                        wormholeCctp.circleTransmitter(),
+                    ]).then(([coreBridgeAddress, circleTransmitterAddress]) =>
+                        LiquidityLayerTransactionResult.fromEthersTransactionReceipt(
+                            "avalanche",
+                            coreBridgeAddress,
+                            wormholeCctp.address,
+                            receipt,
+                            circleTransmitterAddress
+                        )
+                    );
+                    expect(transactionResult.wormhole.message.body).has.property("fill");
+
+                    const [circleBridgeMessage, circleAttestation] = (() => {
+                        if (transactionResult.circleMessage !== undefined) {
+                            const circleBridgeMessage = transactionResult.circleMessage;
+                            return [
+                                circleBridgeMessage,
+                                circleAttester.createAttestation(circleBridgeMessage),
+                            ];
+                        } else {
+                            return [Buffer.alloc(0), Buffer.alloc(0)];
+                        }
+                    })();
+
+                    const orderResponse: OrderResponse = {
+                        encodedWormholeMessage: fillVaa,
+                        circleBridgeMessage,
+                        circleAttestation,
+                    };
 
                     localVariables.set("orderResponse", orderResponse);
                 });

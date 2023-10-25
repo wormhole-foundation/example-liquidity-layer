@@ -1,6 +1,6 @@
-import {coalesceChainId, tryNativeToUint8Array} from "@certusone/wormhole-sdk";
-import {expect} from "chai";
-import {ethers} from "ethers";
+import { coalesceChainId, tryNativeToUint8Array } from "@certusone/wormhole-sdk";
+import { expect } from "chai";
+import { ethers } from "ethers";
 import {
     ChainType,
     EvmOrderRouter,
@@ -9,7 +9,7 @@ import {
     errorDecoder,
     parseLiquidityLayerEnvFile,
 } from "../src";
-import {IERC20__factory} from "../src/types";
+import { IERC20__factory } from "../src/types";
 import {
     GuardianNetwork,
     LOCALHOSTS,
@@ -128,7 +128,7 @@ describe("Ping Pong -- Canonical to Canonical", () => {
                 expect(transactionResult.wormhole.emitterAddress).to.eql(
                     tryNativeToUint8Array(pingEnv.tokenBridgeAddress, pingChainName)
                 );
-                expect(transactionResult.wormhole.message).has.property("fill");
+                expect(transactionResult.wormhole.message.body).has.property("fill");
                 expect(transactionResult.circleMessage).is.undefined;
 
                 const fillVaa = await guardianNetwork.observeEvm(
@@ -212,7 +212,7 @@ describe("Ping Pong -- Canonical to Canonical", () => {
                 expect(transactionResult.wormhole.emitterAddress).to.eql(
                     tryNativeToUint8Array(pongEnv.tokenBridgeAddress, pongChainName)
                 );
-                expect(transactionResult.wormhole.message).has.property("fill");
+                expect(transactionResult.wormhole.message.body).has.property("fill");
                 expect(transactionResult.circleMessage).is.undefined;
 
                 const fillVaa = await guardianNetwork.observeEvm(

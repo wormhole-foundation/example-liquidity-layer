@@ -3,8 +3,8 @@ import {
     tryNativeToUint8Array,
     tryUint8ArrayToNative,
 } from "@certusone/wormhole-sdk";
-import {ethers} from "ethers";
-import {ICurvePool__factory, IMatchingEngine__factory} from "../src/types";
+import { ethers } from "ethers";
+import { ICurvePool__factory, IMatchingEngine__factory } from "../src/types";
 import {
     LOCALHOSTS,
     OWNER_ASSISTANT_PRIVATE_KEY,
@@ -14,7 +14,7 @@ import {
     mineWait,
 } from "./helpers";
 
-import {ChainType, EvmOrderRouter, TokenType, parseLiquidityLayerEnvFile} from "../src";
+import { ChainType, EvmOrderRouter, TokenType, parseLiquidityLayerEnvFile } from "../src";
 
 describe("Registration", () => {
     const envPath = `${__dirname}/../../env/localnet`;
@@ -134,7 +134,7 @@ function errorDecoder(ethersError: any): DecodedErr {
         throw new Error("not contract error");
     }
 
-    const {data} = ethersError.error.error.error as {
+    const { data } = ethersError.error.error.error as {
         data: string;
     };
 
@@ -146,7 +146,7 @@ function errorDecoder(ethersError: any): DecodedErr {
 
     switch (selector) {
         case computeSelector("ErrZeroMinAmountOut()"): {
-            return {selector: "ErrZeroMinAmountOut"};
+            return { selector: "ErrZeroMinAmountOut" };
         }
         case computeSelector("ErrUnsupportedChain(uint16)"): {
             return {

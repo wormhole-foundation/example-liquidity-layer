@@ -1,6 +1,6 @@
-import {coalesceChainId, tryNativeToUint8Array} from "@certusone/wormhole-sdk";
-import {expect} from "chai";
-import {ethers} from "ethers";
+import { coalesceChainId, tryNativeToUint8Array } from "@certusone/wormhole-sdk";
+import { expect } from "chai";
+import { ethers } from "ethers";
 import {
     ChainType,
     EvmOrderRouter,
@@ -9,7 +9,7 @@ import {
     errorDecoder,
     parseLiquidityLayerEnvFile,
 } from "../src";
-import {IERC20__factory} from "../src/types";
+import { IERC20__factory } from "../src/types";
 import {
     CircleAttester,
     GuardianNetwork,
@@ -29,6 +29,7 @@ describe("Ping Pong -- CCTP to CCTP", () => {
     const envPath = `${__dirname}/../../env/localnet`;
 
     const guardianNetwork = new GuardianNetwork();
+    const circleAttester = new CircleAttester();
 
     for (const [pingChainName, pongChainName] of CHAIN_PATHWAYS) {
         const localVariables = new Map<string, any>();
@@ -49,8 +50,6 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                 }
             })();
 
-            const pingCircleAttester = new CircleAttester(pingEnv.wormholeCctpAddress);
-
             // Pong setup.
             const pongProvider = new ethers.providers.StaticJsonRpcProvider(
                 LOCALHOSTS[pongChainName]
@@ -65,8 +64,6 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                     throw new Error("Unsupported chain");
                 }
             })();
-
-            const pongCircleAttester = new CircleAttester(pongEnv.wormholeCctpAddress);
 
             if (pingEnv.chainType == ChainType.Evm) {
                 before(`Ping Network -- Mint USDC`, async () => {
@@ -133,7 +130,7 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                 expect(transactionResult.wormhole.emitterAddress).to.eql(
                     tryNativeToUint8Array(pingEnv.wormholeCctpAddress, pingChainName)
                 );
-                expect(transactionResult.wormhole.message).has.property("fill");
+                expect(transactionResult.wormhole.message.body).has.property("fill");
                 expect(transactionResult.circleMessage).is.not.undefined;
 
                 const fillVaa = await guardianNetwork.observeEvm(
@@ -142,8 +139,8 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                     receipt
                 );
 
-                const {circleBridgeMessage, circleAttestation} =
-                    await pingCircleAttester.observeEvm(pingProvider, pingChainName, receipt);
+                const circleBridgeMessage = transactionResult.circleMessage!;
+                const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
                 const orderResponse: OrderResponse = {
                     encodedWormholeMessage: fillVaa,
@@ -220,7 +217,7 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                 expect(transactionResult.wormhole.emitterAddress).to.eql(
                     tryNativeToUint8Array(pongEnv.wormholeCctpAddress, pongChainName)
                 );
-                expect(transactionResult.wormhole.message).has.property("fill");
+                expect(transactionResult.wormhole.message.body).has.property("fill");
                 expect(transactionResult.circleMessage).is.not.undefined;
 
                 const fillVaa = await guardianNetwork.observeEvm(
@@ -229,8 +226,8 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                     receipt
                 );
 
-                const {circleBridgeMessage, circleAttestation} =
-                    await pongCircleAttester.observeEvm(pongProvider, pongChainName, receipt);
+                const circleBridgeMessage = transactionResult.circleMessage!;
+                const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
                 const orderResponse: OrderResponse = {
                     encodedWormholeMessage: fillVaa,
