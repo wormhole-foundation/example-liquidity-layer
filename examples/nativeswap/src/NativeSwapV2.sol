@@ -137,14 +137,14 @@ contract NativeSwapV2 is NativeSwapBase {
             uniPath,
             address(this),
             swapParams.deadline
-        ) returns (uint256[] memory) {
+        ) returns (uint256[] memory amountsOut) {
             _handleSuccessfulSwap(
-                amounts[1],
+                amountsOut[1],
                 swapAmount,
                 swapParams.relayerFee,
                 recipientAddress
             );
-            return amounts;
+            return amountsOut;
         } catch {
             _handleFailedSwap(
                 swapAmount,

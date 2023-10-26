@@ -7,28 +7,28 @@
       "wormhole": "0x706abc4E45D419950511e474C7B9Ed348A4a716c",
       "bridge": "0xF890982f9310df57d00f659cf4fd87e65adEd8d7",
       "cctp": "0x0a69146716b3a21622287efa1607424c663069a4",
-      "nativeSwap": "0x10e47Ff1764E7924f3A5c9b01440C92FAf2509D2"
+      "nativeSwap": "0x29710E4AAE8a5D2251Edb6773ceFA787589A93e9"
     },
     "4": {
       "router": "0x3B51421ECcF81410aa7eb2c518985e5cBCafCc86",
       "wormhole": "0x68605AD7b15c732a30b1BbC62BE8F2A509D74b4D",
       "bridge": "0x9dcF9D205C9De35334D646BeE44b2D2859712A09",
       "cctp": "",
-      "nativeSwap": "0x1eD1CB259221C52747bA3f034f3Ed9034B8ED9fC"
+      "nativeSwap": "0x0A9Dcd0357FED079D46f840C723b596FE435A514"
     },
     "6": {
       "router": "0x0F38455859BA5194946aCb40D428b78DFf11789E",
       "wormhole": "0x7bbcE28e64B3F8b84d876Ab298393c38ad7aac4C",
       "bridge": "0x61E44E506Ca5659E6c0bba9b678586fA2d729756",
       "cctp": "0x58f4c17449c90665891c42e14d34aae7a26a472e",
-      "nativeSwap": "0x4F7FBF380475f164483ABc1B24548e68B6d58fFd"
+      "nativeSwap": "0xFd21Dc4310DcBE2F9b56b9420bC24D0689abABcB"
     },
     "16": {
       "router": "0x33e4915963e78b79B72a40Fe142C0Ee6e193E4A6",
       "wormhole": "0xa5B7D85a8f27dd7907dc8FdC21FA5657D5E2F901",
       "bridge": "0xbc976D4b9D57E57c3cA52e1Fd136C45FF7955A96",
       "cctp": "",
-      "nativeSwap": "0x1f37890A2D1a6a7922F2AFB88288Ea303A6Dc381"
+      "nativeSwap": "0xFA759A8bb01317E696e01E3d36A5C043e2Ba2d53"
     }
   }
 }
