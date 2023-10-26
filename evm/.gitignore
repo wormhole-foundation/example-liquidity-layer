@@ -2,6 +2,7 @@
 .env
 cache
 /lib
+/bin
 node_modules
 out
 out.log

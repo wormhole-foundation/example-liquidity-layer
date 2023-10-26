@@ -27,8 +27,9 @@ function getExecutionRouteState() pure returns (ExecutionRoutes storage state) {
 }
 
 struct CurvePoolInfo {
-    ICurvePool pool;
     int8 nativeTokenIndex;
+    address nativeTokenAddress;
+    mapping(uint16 => address) pool;
 }
 
 // keccak256("CurvePoolInfo") - 1

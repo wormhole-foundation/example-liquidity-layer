@@ -13,21 +13,21 @@ contract MatchingEngineSetup is ERC1967Upgrade, Context {
     function setup(
         address implementation,
         address ownerAssistant,
-        address curve,
-        int8 nativeTokenPoolIndex
+        address nativeTokenAddress,
+        int8 nativeTokenIndex
     ) public {
         assert(implementation != address(0));
         assert(ownerAssistant != address(0));
-        assert(curve != address(0));
+        assert(nativeTokenAddress != address(0));
 
         // Set the owner and owner assistant.
         getOwnerState().owner = _msgSender();
         getOwnerAssistantState().ownerAssistant = ownerAssistant;
 
-        // Set the Curve pool and native token index.
-        CurvePoolInfo storage info = getCurvePoolState();
-        info.pool = ICurvePool(curve);
-        info.nativeTokenIndex = nativeTokenPoolIndex;
+        // Set the curve pool info.
+        CurvePoolInfo storage curvePoolInfo = getCurvePoolState();
+        curvePoolInfo.nativeTokenIndex = nativeTokenIndex;
+        curvePoolInfo.nativeTokenAddress = nativeTokenAddress;
 
         // Set implementation.
         _upgradeTo(implementation);

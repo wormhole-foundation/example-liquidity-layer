@@ -5,7 +5,6 @@ pragma solidity ^0.8.0;
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
-import {ICurvePool} from "curve-solidity/ICurvePool.sol";
 import {Messages} from "../shared/Messages.sol";
 
 interface IMatchingEngine {
@@ -14,11 +13,6 @@ interface IMatchingEngine {
         address target;
         bool cctp;
         int8 poolIndex;
-    }
-
-    struct CurvePoolInfo {
-        ICurvePool pool;
-        int8 nativeTokenIndex;
     }
 
     enum RevertType {
@@ -46,7 +40,13 @@ interface IMatchingEngine {
 
     function disableExecutionRoute(uint16 chainId_) external;
 
-    function updateCurvePool(ICurvePool pool, int8 nativeTokenIndex) external;
+    function updateNativePoolInfo(
+        uint16 chainId_,
+        int8 nativeTokenIndex_,
+        address nativeTokenAddress_
+    ) external;
+
+    function updateCurvePoolAddress(uint16 chainId_, address curvePool) external;
 
     function upgradeContract(address newImplementation) external;
 
@@ -76,9 +76,11 @@ interface IMatchingEngine {
 
     function getOrderRouter(uint16 chainId_) external view returns (bytes32);
 
-    function getCurvePoolInfo() external pure returns (CurvePoolInfo memory);
+    function getCurvePoolAddress(uint16 chainId_) external view returns (address);
 
     function getCCTPIndex() external view returns (int128);
+
+    function getNativeTokenAddress() external view returns (address);
 
     function owner() external view returns (address);
 

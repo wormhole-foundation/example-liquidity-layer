@@ -3,13 +3,15 @@
 pragma solidity 0.8.19;
 
 import {Admin} from "../shared/Admin.sol";
+import {MatchingEngineState} from "./MatchingEngineState.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
 import {CurvePoolInfo, Route, getExecutionRouteState, getCurvePoolState, getDefaultRelayersState} from "./MatchingEngineStorage.sol";
 
-abstract contract MatchingEngineAdmin is Admin {
+abstract contract MatchingEngineAdmin is MatchingEngineState, Admin {
     // Errors.
     error InvalidChainId();
     error InvalidTokenIndex();
+    error CurvePoolNotSet();
 
     function enableExecutionRoute(
         uint16 chainId_,
@@ -21,14 +23,22 @@ abstract contract MatchingEngineAdmin is Admin {
         if (target == address(0)) {
             revert InvalidAddress();
         }
-        if (cctp && poolIndex != getCurvePoolState().nativeTokenIndex) {
-            revert InvalidTokenIndex();
-        }
         if (router == bytes32(0)) {
             revert InvalidAddress();
         }
         if (chainId_ == 0) {
             revert InvalidChainId();
+        }
+
+        // Fetch the curve pool address and validate the token index.
+        if (chainId_ != _chainId) {
+            address curvePool = getCurvePoolState().pool[chainId_];
+            if (curvePool == address(0)) {
+                revert CurvePoolNotSet();
+            }
+            if (ICurvePool(curvePool).coins(uint256(uint8(poolIndex))) != target) {
+                revert InvalidTokenIndex();
+            }
         }
 
         // Set the route.
@@ -43,15 +53,37 @@ abstract contract MatchingEngineAdmin is Admin {
         delete getExecutionRouteState().routes[chainId_];
     }
 
-    function updateCurvePool(ICurvePool pool, int8 nativeTokenIndex) external onlyOwnerOrAssistant {
-        if (address(pool) == address(0)) {
+    function updateCurvePoolAddress(
+        uint16 chainId_,
+        address curvePool
+    ) external onlyOwnerOrAssistant {
+        if (curvePool == address(0)) {
+            revert InvalidAddress();
+        }
+        if (chainId_ == 0 || chainId_ == _chainId) {
+            revert InvalidChainId();
+        }
+
+        // Update the pool address.
+        getCurvePoolState().pool[chainId_] = curvePool;
+    }
+
+    function updateNativePoolInfo(
+        uint16 chainId_,
+        int8 nativeTokenIndex,
+        address nativeTokenAddress
+    ) external onlyOwnerOrAssistant {
+        if (chainId_ == 0) {
+            revert InvalidChainId();
+        }
+        if (nativeTokenAddress == address(0)) {
             revert InvalidAddress();
         }
 
         // Update the pool address.
-        CurvePoolInfo storage info = getCurvePoolState();
-        info.pool = pool;
-        info.nativeTokenIndex = nativeTokenIndex;
+        CurvePoolInfo storage poolState = getCurvePoolState();
+        poolState.nativeTokenIndex = nativeTokenIndex;
+        poolState.nativeTokenAddress = nativeTokenAddress;
     }
 
     function registerDefaultRelayer(

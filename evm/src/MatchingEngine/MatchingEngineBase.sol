@@ -11,6 +11,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {Messages} from "../shared/Messages.sol";
 import {MatchingEngineAdmin} from "./MatchingEngineAdmin.sol";
+import {MatchingEngineState} from "./MatchingEngineState.sol";
 import {toUniversalAddress, fromUniversalAddress, getDecimals, denormalizeAmount, adjustDecimalDiff} from "../shared/Utils.sol";
 import {getPendingOwnerState, getOwnerState, getOwnerAssistantState, getPausedState} from "../shared/Admin.sol";
 import {getExecutionRouteState, Route, CurvePoolInfo, getCurvePoolState, getDefaultRelayersState} from "./MatchingEngineStorage.sol";
@@ -19,16 +20,6 @@ import {RevertType} from "../interfaces/Types.sol";
 abstract contract MatchingEngineBase is MatchingEngineAdmin {
     using Messages for *;
 
-    // Immutable state.
-    uint16 public immutable _chainId;
-    IWormhole private immutable _wormhole;
-    ITokenBridge private immutable _tokenBridge;
-    ICircleIntegration private immutable _circleIntegration;
-
-    // Consts.
-    uint256 public constant RELAY_TIMEOUT = 1800; // seconds
-    uint32 private constant NONCE = 0;
-
     // Errors.
     error InvalidRoute();
     error RouteNotAvailable();
@@ -36,7 +27,6 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
     error UnregisteredOrderRouter();
     error NotAllowedRelayer();
     error NotAttested();
-    error InvalidCCTPIndex();
     error InvalidRelayerFee();
     error SwapFailed();
 
@@ -58,16 +48,9 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         bytes32 fromAddress;
     }
 
-    constructor(address wormholeTokenBridge, address wormholeCCTPBridge) {
-        if (wormholeTokenBridge == address(0) || wormholeCCTPBridge == address(0)) {
-            revert InvalidAddress();
-        }
-
-        _tokenBridge = ITokenBridge(wormholeTokenBridge);
-        _circleIntegration = ICircleIntegration(wormholeCCTPBridge);
-        _chainId = _tokenBridge.chainId();
-        _wormhole = _tokenBridge.wormhole();
-    }
+    constructor(address wormholeTokenBridge, address wormholeCCTPBridge)
+        MatchingEngineState(wormholeTokenBridge, wormholeCCTPBridge)
+    {}
 
     function executeOrder(bytes calldata vaa) external payable notPaused returns (uint64) {
         /**
@@ -207,7 +190,14 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
 
         // Execute curve swap. The `amountOut` will be zero if the
         // swap fails for any reason.
-        uint256 amountOut = _handleSwap(fromRoute, toRoute, amountIn, order.minAmountOut);
+        uint256 amountOut = _handleSwap(
+            params.fromChain,
+            order.targetChain,
+            fromRoute,
+            toRoute,
+            amountIn,
+            order.minAmountOut
+        );
 
         // If the swap failed, revert the order and refund the redeemer on
         // the origin chain. Otherwise, bridge (or CCTP) the swapped token to the
@@ -279,46 +269,6 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         }
     }
 
-    function _handleSwap(
-        Route memory fromRoute,
-        Route memory toRoute,
-        uint256 amountIn,
-        uint256 minAmountOut
-    ) private returns (uint256) {
-        CurvePoolInfo memory curve = getCurvePoolState();
-        address swapPool = address(curve.pool);
-
-        // Verify that any cctp enabled route is using the native token pool index.
-        if (
-            (fromRoute.cctp && fromRoute.poolIndex != curve.nativeTokenIndex) ||
-            (toRoute.cctp && toRoute.poolIndex != curve.nativeTokenIndex)
-        ) {
-            revert InvalidCCTPIndex();
-        }
-
-        SafeERC20.safeIncreaseAllowance(IERC20(fromRoute.target), swapPool, amountIn);
-
-        // Perform the swap. We need to adjust the minAmountOut if the input and
-        // output token have different decimals.
-        (bool success, bytes memory result) = swapPool.call(
-            abi.encodeWithSelector(
-                ICurvePool.exchange.selector,
-                int128(fromRoute.poolIndex),
-                int128(toRoute.poolIndex),
-                amountIn,
-                adjustDecimalDiff(fromRoute.target, toRoute.target, minAmountOut)
-            )
-        );
-
-        if (success) {
-            return abi.decode(result, (uint256));
-        } else {
-            // Reset allowance that wasn't spent by the Curve pool.
-            SafeERC20.safeDecreaseAllowance(IERC20(fromRoute.target), swapPool, amountIn);
-            return 0;
-        }
-    }
-
     function _handleRelayerFee(
         address token,
         uint256 messageTime,
@@ -372,6 +322,112 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
         return amountIn - relayerFee;
     }
 
+    function _handleSwap(
+        uint16 fromChain,
+        uint16 targetChain,
+        Route memory fromRoute,
+        Route memory toRoute,
+        uint256 amountIn,
+        uint256 minAmountOut
+    ) private returns (uint256) {
+        CurvePoolInfo storage poolState = getCurvePoolState();
+
+        /**
+         * Sets the pool address for the from and to chains. If one of the swap legs includes
+         * the USDC from the Matching Engine's chain, then the swap pool address is set to the
+         * pool address for the other chain. The pool address for the Matching Engine's chain
+         * is not set initially, because it is assumed to be included in all registered swap pools.
+         */
+        (address fromPool, address toPool) = _resolveCurvePools(fromChain, targetChain, poolState);
+
+        // Execute a single swap if the to and from assets live in the same pool. Otherwise,
+        // execute two swaps, where the intermediate asset is the native token for the pool.
+        if (fromPool == toPool) {
+            return _executeSwap(
+                fromPool,
+                fromRoute.target,
+                toRoute.target,
+                fromRoute.poolIndex,
+                toRoute.poolIndex,
+                amountIn,
+                minAmountOut
+            );
+        } else {
+            uint256 intermediateAmount = _executeSwap(
+                fromPool,
+                fromRoute.target,
+                poolState.nativeTokenAddress,
+                fromRoute.poolIndex,
+                poolState.nativeTokenIndex,
+                amountIn,
+                minAmountOut
+            );
+
+            if (intermediateAmount == 0) {
+                return 0;
+            } else {
+                return _executeSwap(
+                    toPool,
+                    poolState.nativeTokenAddress,
+                    toRoute.target,
+                    poolState.nativeTokenIndex,
+                    toRoute.poolIndex,
+                    intermediateAmount,
+                    minAmountOut
+                );
+            }
+        }
+    }
+
+    function _executeSwap(
+        address swapPool,
+        address fromToken,
+        address toToken,
+        int128 fromIndex,
+        int128 toIndex,
+        uint256 amountIn,
+        uint256 minAmountOut
+    ) private returns (uint256) {
+        SafeERC20.safeIncreaseAllowance(IERC20(fromToken), swapPool, amountIn);
+
+        // Perform the swap. We need to adjust the minAmountOut if the input and
+        // output token have different decimals.
+        (bool success, bytes memory result) = swapPool.call(
+            abi.encodeWithSelector(
+                ICurvePool.exchange.selector,
+                fromIndex,
+                toIndex,
+                amountIn,
+                adjustDecimalDiff(fromToken, toToken, minAmountOut)
+            )
+        );
+
+        if (success) {
+            return abi.decode(result, (uint256));
+        } else {
+            // Reset allowance that wasn't spent by the Curve pool.
+            SafeERC20.safeDecreaseAllowance(IERC20(fromToken), swapPool, amountIn);
+            return 0;
+        }
+    }
+
+    function _resolveCurvePools(
+        uint16 fromChain,
+        uint16 targetChain,
+        CurvePoolInfo storage poolState
+    ) private view returns (address fromPool, address toPool) {
+        if (fromChain == _chainId) {
+            fromPool = poolState.pool[targetChain];
+            toPool = fromPool;
+        } else if (targetChain == _chainId) {
+            toPool = poolState.pool[fromChain];
+            fromPool = toPool;
+        } else {
+            fromPool = poolState.pool[fromChain];
+            toPool = poolState.pool[targetChain];
+        }
+    }
+
     function _handleBridgeOut(
         address token,
         uint256 amount,
@@ -423,58 +479,5 @@ abstract contract MatchingEngineBase is MatchingEngineAdmin {
             // return the encoded address if the token is native to this chain
             localAddress = fromUniversalAddress(tokenAddress);
         }
-    }
-
-    // ------------------------------------ Getter Functions --------------------------------------
-    function chainId() external view returns (uint16) {
-        return _chainId;
-    }
-
-    function wormhole() external view returns (IWormhole) {
-        return _wormhole;
-    }
-
-    function tokenBridge() external view returns (ITokenBridge) {
-        return _tokenBridge;
-    }
-
-    function circleIntegration() external view returns (ICircleIntegration) {
-        return _circleIntegration;
-    }
-
-    function isDefaultRelayer(address relayer) external view returns (bool) {
-        return getDefaultRelayersState().registered[relayer];
-    }
-
-    function getExecutionRoute(uint16 chainId_) external view returns (Route memory) {
-        return getExecutionRouteState().routes[chainId_];
-    }
-
-    function getOrderRouter(uint16 chainId_) external view returns (bytes32) {
-        return getExecutionRouteState().routes[chainId_].router;
-    }
-
-    function getCurvePoolInfo() external pure returns (CurvePoolInfo memory) {
-        return getCurvePoolState();
-    }
-
-    function getCCTPIndex() external view returns (int128) {
-        return int128(getCurvePoolState().nativeTokenIndex);
-    }
-
-    function owner() external view returns (address) {
-        return getOwnerState().owner;
-    }
-
-    function ownerAssistant() external view returns (address) {
-        return getOwnerAssistantState().ownerAssistant;
-    }
-
-    function pendingOwner() external view returns (address) {
-        return getPendingOwnerState().pendingOwner;
-    }
-
-    function isPaused() external view returns (bool) {
-        return getPausedState().paused;
     }
 }

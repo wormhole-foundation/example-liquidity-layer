@@ -36,7 +36,6 @@ contract TestHelpers is Test {
     ITokenBridge bridge;
     ICircleIntegration circleIntegration;
     CircleSimulator circleSim;
-    address[4] coins;
     bytes32 matchingEngine;
     uint16 matchingEngineChain;
     address testSender;
@@ -48,7 +47,6 @@ contract TestHelpers is Test {
         CircleSimulator _circleSimulator,
         address _bridge,
         address _circleIntegration,
-        address[4] memory _coins,
         address _matchingEngine,
         uint16 _matchingEngineChain,
         address _testSender,
@@ -59,7 +57,6 @@ contract TestHelpers is Test {
         circleSim = _circleSimulator;
         bridge = ITokenBridge(_bridge);
         circleIntegration = ICircleIntegration(_circleIntegration);
-        coins = _coins;
         matchingEngine = toUniversalAddress(_matchingEngine);
         matchingEngineChain = _matchingEngineChain;
         testSender = _testSender;

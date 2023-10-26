@@ -26,17 +26,17 @@ interface ICurvePool {
     function remove_liquidity(
         uint256 _amount,
         uint256[1] memory _min_amounts
-    ) external returns (uint256[4] memory);
+    ) external returns (uint256[1] memory);
 
     function remove_liquidity(
         uint256 _amount,
         uint256[2] memory _min_amounts
-    ) external returns (uint256[4] memory);
+    ) external returns (uint256[2] memory);
 
     function remove_liquidity(
         uint256 _amount,
         uint256[3] memory _min_amounts
-    ) external returns (uint256[4] memory);
+    ) external returns (uint256[3] memory);
 
     function remove_liquidity(
         uint256 _amount,

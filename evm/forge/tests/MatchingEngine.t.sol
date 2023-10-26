@@ -14,18 +14,19 @@ import {toUniversalAddress, fromUniversalAddress} from "../../src/shared/Utils.s
 
 import {IMockMatchingEngine, MockMatchingEngineImplementation} from "./helpers/mock/MockMatchingEngineImplementation.sol";
 
-import {TestHelpers} from "./helpers/MatchingEngineTestHelpers.sol";
 import {ICurvePool} from "curve-solidity/ICurvePool.sol";
+import {ICurveFactory} from "curve-solidity/ICurveFactory.sol";
+
+import {TestHelpers} from "./helpers/MatchingEngineTestHelpers.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {CircleSimulator} from "cctp-solidity/CircleSimulator.sol";
-import {WormholePoolTestHelper} from "curve-solidity/WormholeCurvePool.sol";
-import {SigningWormholeSimulator} from "modules/wormhole/WormholeSimulator.sol";
+import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
+contract MatchingEngineTest is TestHelpers {
     // Env variables.
     address immutable TOKEN_BRIDGE = vm.envAddress("AVAX_TOKEN_BRIDGE_ADDRESS");
     address immutable CIRCLE_INTEGRATION = vm.envAddress("AVAX_WORMHOLE_CCTP_ADDRESS");
@@ -40,9 +41,11 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     address constant WRAPPED_ETH_USDC = 0xB24CA28D4e2742907115fECda335b40dbda07a4C;
     address constant WRAPPED_SOL_USDC = 0x0950Fc1AD509358dAeaD5eB8020a3c7d8b43b9DA;
     address constant WRAPPED_POLY_USDC = 0x543672E9CBEC728CBBa9C3Ccd99ed80aC3607FA8;
+    address constant WRAPPED_BSC_USDC = 0x6145E8a910aE937913426BF32De2b26039728ACF;
     address constant NATIVE_ETH_USDC = 0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48;
     address constant NATIVE_POLY_USDC = 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174;
     address constant NATIVE_ARB_USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
+    address constant NATIVE_BSC_USDC = 0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d;
 
     // Test Variables.
     address immutable TEST_SENDER = makeAddr("testSender");
@@ -53,59 +56,131 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     bytes32 immutable ARB_ROUTER = toUniversalAddress(makeAddr("arbRouter"));
     bytes32 immutable POLY_ROUTER = toUniversalAddress(makeAddr("polyRouter"));
     bytes32 immutable AVAX_ROUTER = toUniversalAddress(makeAddr("avaxRouter"));
+    bytes32 immutable BSC_ROUTER = toUniversalAddress(makeAddr("bscRouter"));
     uint256 immutable INIT_LIQUIDITY = 2_000_000 * 10 ** 6; // 2 x CCTP Burn Limit
     uint16 constant SUI_CHAIN = 21;
     uint16 constant ETH_CHAIN = 2;
     uint16 constant ARB_CHAIN = 23;
     uint16 constant POLY_CHAIN = 5;
     uint16 constant AVAX_CHAIN = 6;
+    uint16 constant BSC_CHAIN = 4;
     uint256 constant RELAYER_FEE = 5_000_000; // (5 USDC)
     uint256 constant WORMHOLE_FEE = 1e16;
     uint8 constant MAX_RELAYER_COUNT = 8;
 
+    // Pool parameters.
+    address constant CURVE_FACTORY = 0xb17b674D9c5CB2e441F8e196a2f048A81355d031;
+    uint256 constant A = 100;
+    uint256 constant POOL_FEE = 4000000;
+    uint256 constant ASSET_TYPE = 0;
+    uint256 constant IMPL_IDX = 0;
+
+    // State variables.
     IMatchingEngine engine;
     SigningWormholeSimulator wormholeSimulator;
     CircleSimulator circleSimulator;
-    address[4] poolCoins;
+    address mainPool;
+    address altPool;
+    address[4] mainPoolCoins;
+    address[4] altPoolCoins;
     mapping(address => int128) public curvePoolIndex;
 
     /// @notice We use a constructor here so that the curve pool is only deployed once
     // (vs. in a `setUp` function).
-    constructor()
-        WormholePoolTestHelper([USDC, WRAPPED_ETH_USDC, WRAPPED_SOL_USDC, WRAPPED_POLY_USDC])
-    {
-        poolCoins = [USDC, WRAPPED_ETH_USDC, WRAPPED_SOL_USDC, WRAPPED_POLY_USDC];
+    constructor() {
+        // Main pool.
+        mainPoolCoins = [USDC, WRAPPED_ETH_USDC, WRAPPED_SOL_USDC, WRAPPED_POLY_USDC];
         curvePoolIndex[USDC] = 0;
         curvePoolIndex[WRAPPED_ETH_USDC] = 1;
         curvePoolIndex[WRAPPED_SOL_USDC] = 2;
         curvePoolIndex[WRAPPED_POLY_USDC] = 3;
+
+        mainPool = ICurveFactory(CURVE_FACTORY).deploy_plain_pool(
+            "Mothership Main Pool", // Name
+            "wormMain", // Symbol
+            mainPoolCoins,
+            A,
+            POOL_FEE,
+            ASSET_TYPE,
+            IMPL_IDX
+        );
+
+        // Alternative pool.
+        altPoolCoins = [USDC, WRAPPED_BSC_USDC, address(0), address(0)];
+        curvePoolIndex[WRAPPED_BSC_USDC] = 1;
+
+        altPool = ICurveFactory(CURVE_FACTORY).deploy_plain_pool(
+            "Mothership Alt Pool", // Name
+            "wormAlt", // Symbol
+            altPoolCoins,
+            A,
+            POOL_FEE,
+            ASSET_TYPE,
+            IMPL_IDX
+        );
     }
 
-    function _mintAndProvideLiquidity(uint256 amount) internal returns (uint256) {
-        // Mint tokens and approve them for the curve pool.
-        uint256[4] memory amounts;
-        for (uint256 i = 0; i < poolCoins.length; ++i) {
-            deal(poolCoins[i], address(this), amount);
-            IERC20(poolCoins[i]).approve(curvePool, amount);
-            amounts[i] = amount;
+    function _mintAndProvideLiquidity(uint256 amount) internal returns (uint256, uint256) {
+        // Mint tokens and provide liquidity to the main pool.
+        uint256[4] memory mainAmounts;
+        for (uint256 i = 0; i < 4; ++i) {
+            address token = mainPoolCoins[i];
+            deal(token, address(this), amount);
+            IERC20(token).approve(mainPool, amount);
+            mainAmounts[i] = amount;
         }
+        uint256 mainLpShares = ICurvePool(mainPool).add_liquidity(
+            mainAmounts,
+            0 // minimum LP shares
+        );
 
-        return
-            addCurveLiquidity(
-                amounts,
-                0 // minimum LP shares
-            );
+        // Mint tokens and provide liquidity to the alt pool.
+        uint256[2] memory altAmounts;
+        for (uint256 i = 0; i < 2; ++i) {
+            uint256 scaledAmount = amount;
+            address token = altPoolCoins[i];
+            if (token == WRAPPED_BSC_USDC) {
+                scaledAmount = amount * 10**12;
+            }
+
+            deal(token, address(this), scaledAmount);
+            IERC20(token).approve(altPool, scaledAmount);
+            altAmounts[i] = scaledAmount;
+        }
+        uint256 altLpShares = ICurvePool(altPool).add_liquidity(
+            altAmounts,
+            0 // minimum LP shares
+        );
+
+        return (mainLpShares, altLpShares);
     }
 
-    function _removeLiquidityAndBurn(uint256 amount) internal {
-        // Remove liquidity and burn the USDC.
+    function _removeLiquidityAndBurn(uint256 mainLpShares, uint256 altLpShares) internal {
         uint256 minAmount = 0;
-        uint256[4] memory minAmounts = [minAmount, minAmount, minAmount, minAmount];
-        removeCurveLiquidity(amount, minAmounts);
 
-        for (uint256 i = 0; i < poolCoins.length; ++i) {
-            deal(poolCoins[i], address(this), 0);
+        // Remove and burn liquidity from the main pool.
+        {
+            uint256[4] memory minAmounts = [minAmount, minAmount, minAmount, minAmount];
+            ICurvePool(mainPool).remove_liquidity(mainLpShares, minAmounts);
+
+            for (uint256 i = 0; i < 4; ++i) {
+                deal(mainPoolCoins[i], address(this), 0);
+            }
         }
+
+        // Remove and burn liquidity from the alt pool.
+        {
+            uint256[2] memory minAmounts = [minAmount, minAmount];
+            ICurvePool(altPool).remove_liquidity(altLpShares, minAmounts);
+
+            for (uint256 i = 0; i < 2; ++i) {
+                deal(altPoolCoins[i], address(this), 0);
+            }
+        }
+    }
+
+    function _getAmountOut(int128 i, int128 j, uint256 dx) internal view returns (uint256) {
+        return ICurvePool(mainPool).get_dy(i, j, dx);
     }
 
     function _deployAndSetupMatchingEngine() internal {
@@ -125,11 +200,17 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
                 bytes4(keccak256("setup(address,address,address,int8)")),
                 address(implementation),
                 makeAddr("ownerAssistant"),
-                address(curvePool),
+                USDC,
                 int8(0)
             )
         );
         engine = IMatchingEngine(address(proxy));
+
+        // Set the swap pools.
+        engine.updateCurvePoolAddress(ARB_CHAIN, mainPool);
+        engine.updateCurvePoolAddress(SUI_CHAIN, mainPool);
+        engine.updateCurvePoolAddress(POLY_CHAIN, mainPool);
+        engine.updateCurvePoolAddress(BSC_CHAIN, altPool);
 
         // Set the initial routes.
         engine.enableExecutionRoute(ARB_CHAIN, ARB_ROUTER, USDC, true, int8(curvePoolIndex[USDC]));
@@ -154,6 +235,13 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
             true,
             int8(curvePoolIndex[USDC])
         );
+        // engine.enableExecutionRoute(
+        //     BSC_CHAIN,
+        //     BSC_ROUTER,
+        //     USDC,
+        //     false,
+        //     int8(curvePoolIndex[WRAPPED_BSC_USDC])
+        // );
 
         // Register the default relayer.
         engine.registerDefaultRelayer(DEFAULT_RELAYER, true);
@@ -182,7 +270,6 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
             circleSimulator,
             TOKEN_BRIDGE,
             CIRCLE_INTEGRATION,
-            poolCoins,
             address(engine),
             AVAX_CHAIN,
             TEST_SENDER,
@@ -241,9 +328,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
     function testEnableExecutionRoute() public {
         uint16 chainId = 69;
         bytes32 router = toUniversalAddress(makeAddr("ethRouter"));
-        address target = makeAddr("ethEmitter");
+        address target = USDC;
         bool cctp = true;
         int8 poolIndex = 0; // CCTP USDC index.
+
+        // Set the curve pool address.
+        engine.updateCurvePoolAddress(chainId, mainPool);
 
         {
             IMatchingEngine.Route memory route = engine.getExecutionRoute(chainId);
@@ -266,10 +356,10 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Update the route to make sure the owner can change it.
         {
-            target = makeAddr("solEmitter");
+            target = WRAPPED_ETH_USDC;
             router = toUniversalAddress(makeAddr("solRouter"));
             cctp = false;
-            poolIndex = 2;
+            poolIndex = 1;
 
             engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
 
@@ -282,7 +372,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // Update the route as owner assistant
         {
-            target = makeAddr("polyEmitter");
+            target = WRAPPED_POLY_USDC;
             router = toUniversalAddress(makeAddr("polyRouter"));
             cctp = false;
             poolIndex = 3;
@@ -300,7 +390,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
     function testCannotEnableExecutionRouteInvalidChainId() public {
         uint16 chainId = 0;
-        address target = makeAddr("token");
+        address target = WRAPPED_ETH_USDC;
         bytes32 router = toUniversalAddress(makeAddr("polyRouter"));
         bool cctp = false;
         int8 poolIndex = 1;
@@ -322,7 +412,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
     function testCannotEnableExecutionRouteInvalidRouterAddress() public {
         uint16 chainId = 69;
-        address target = makeAddr("token");
+        address target = WRAPPED_ETH_USDC;
         bytes32 router = bytes32(0);
         bool cctp = false;
         int8 poolIndex = 1;
@@ -333,10 +423,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
     function testCannotEnableExecutionRouteInvalidTokenIndex() public {
         uint16 chainId = 69;
-        address target = makeAddr("token");
+        address target = USDC;
         bytes32 router = toUniversalAddress(makeAddr("polyRouter"));
         bool cctp = true;
-        int8 poolIndex = 69; // Must be CCTP USDC index.
+        int8 poolIndex = int8(curvePoolIndex[WRAPPED_ETH_USDC]); // Invalid index.
+
+        engine.updateCurvePoolAddress(chainId, mainPool);
 
         vm.expectRevert(abi.encodeWithSignature("InvalidTokenIndex()"));
         engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
@@ -344,7 +436,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
     function testCannotEnableExecutionRouteOwnerOrAssistantOnly() public {
         uint16 chainId = 69;
-        address target = makeAddr("token");
+        address target = WRAPPED_ETH_USDC;
         bytes32 router = toUniversalAddress(makeAddr("polyRouter"));
         bool cctp = false;
         int8 poolIndex = 1;
@@ -354,14 +446,28 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
     }
 
+    function testCannotEnableExecutionRouteCurvePoolNotSet() public {
+        uint16 chainId = 69;
+        address target = WRAPPED_ETH_USDC;
+        bytes32 router = toUniversalAddress(makeAddr("polyRouter"));
+        bool cctp = false;
+        int8 poolIndex = 1;
+
+        // NOTE: intentionally do not set the curve pool address.
+
+        vm.expectRevert(abi.encodeWithSignature("CurvePoolNotSet()"));
+        engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
+    }
+
     function testDisableExecutionRoute() public {
         uint16 chainId = 69;
-        address target = makeAddr("token");
+        address target = WRAPPED_ETH_USDC;
         bytes32 router = toUniversalAddress(makeAddr("router"));
         bool cctp = false;
         int8 poolIndex = 1;
 
         // Set the initial route.
+        engine.updateCurvePoolAddress(chainId, mainPool);
         engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
 
         // Disable the route.
@@ -376,12 +482,13 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
     function testDisableExecutionRouteAsOwnerAssistant() public {
         uint16 chainId = 69;
-        address target = makeAddr("token");
+        address target = WRAPPED_ETH_USDC;
         bytes32 router = toUniversalAddress(makeAddr("router"));
         bool cctp = false;
         int8 poolIndex = 1;
 
         // Set the initial route.
+        engine.updateCurvePoolAddress(chainId, mainPool);
         engine.enableExecutionRoute(chainId, router, target, cctp, poolIndex);
 
         // Disable the route.
@@ -403,64 +510,93 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.disableExecutionRoute(chainId);
     }
 
-    function testUpdateCurvePool() public {
-        // Check initial curve pool info.
-        {
-            IMatchingEngine.CurvePoolInfo memory info = engine.getCurvePoolInfo();
-            assertEq(address(info.pool), curvePool);
-            assertEq(info.nativeTokenIndex, 0);
-        }
+    function testUpdateCurvePoolAddress() public {
+        uint16 chainId = 69;
+        address curvePool = makeAddr("curvePool");
 
-        // Update the curve pool.
-        {
-            ICurvePool newCurvePool = ICurvePool(makeAddr("newCurvePool"));
-            int8 newNativeTokenIndex = 1;
+        assertEq(engine.getCurvePoolAddress(chainId), address(0));
 
-            engine.updateCurvePool(newCurvePool, newNativeTokenIndex);
+        // Set the curve pool address.
+        engine.updateCurvePoolAddress(chainId, curvePool);
 
-            IMatchingEngine.CurvePoolInfo memory info = engine.getCurvePoolInfo();
-            assertEq(address(info.pool), address(newCurvePool));
-            assertEq(info.nativeTokenIndex, newNativeTokenIndex);
-        }
+        // Verify the curve pool address.
+        assertEq(engine.getCurvePoolAddress(chainId), curvePool);
     }
 
-    function testUpdateCurvePoolAsAssistant() public {
-        // Check initial curve pool info.
-        {
-            IMatchingEngine.CurvePoolInfo memory info = engine.getCurvePoolInfo();
-            assertEq(address(info.pool), curvePool);
-            assertEq(info.nativeTokenIndex, 0);
-        }
-
-        // Update the curve pool.
-        {
-            ICurvePool newCurvePool = ICurvePool(makeAddr("newCurvePool"));
-            int8 newNativeTokenIndex = 1;
-
-            vm.prank(makeAddr("ownerAssistant"));
-            engine.updateCurvePool(newCurvePool, newNativeTokenIndex);
-
-            IMatchingEngine.CurvePoolInfo memory info = engine.getCurvePoolInfo();
-            assertEq(address(info.pool), address(newCurvePool));
-            assertEq(info.nativeTokenIndex, newNativeTokenIndex);
-        }
-    }
-
-    function testCannotUpdateCurvePoolInvalidAddress() public {
-        ICurvePool newCurvePool = ICurvePool(address(0));
-        int8 newNativeTokenIndex = 1;
+    function testCannotupdateCurvePoolAddressInvalidAddress() public {
+        uint16 chainId = 69;
+        address curvePool = address(0);
 
         vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
-        engine.updateCurvePool(newCurvePool, newNativeTokenIndex);
+        engine.updateCurvePoolAddress(chainId, curvePool);
     }
 
-    function testCannotUpdateCurvePoolOnlyOwnerOrAssistant() public {
-        ICurvePool newCurvePool = ICurvePool(makeAddr("newCurvePool"));
-        int8 newNativeTokenIndex = 1;
+    function testCannotupdateCurvePoolAddressCannotAddThisChain() public {
+        uint16 chainId = AVAX_CHAIN;
+        address curvePool = makeAddr("curvePool");
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidChainId()"));
+        engine.updateCurvePoolAddress(chainId, curvePool);
+    }
+
+    function testCannotupdateCurvePoolAddressInvalidChainId() public {
+        uint16 chainId = 0;
+        address curvePool = makeAddr("curvePool");
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidChainId()"));
+        engine.updateCurvePoolAddress(chainId, curvePool);
+    }
+
+    function testCannotupdateCurvePoolAddressOwnerOrAssistantOnly() public {
+        uint16 chainId = 69;
+        address curvePool = makeAddr("curvePool");
 
         vm.prank(makeAddr("robber"));
         vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
-        engine.updateCurvePool(newCurvePool, newNativeTokenIndex);
+        engine.updateCurvePoolAddress(chainId, curvePool);
+    }
+
+    function testUpdateNativePoolInfo() public {
+        uint16 chainId = 69;
+        int8 nativeTokenIndex = 69; // Random index.
+        address nativeTokenAddress = USDC;
+
+        assertEq(engine.getCurvePoolAddress(chainId), address(0));
+
+        // Set the native pool info.
+        engine.updateNativePoolInfo(chainId, nativeTokenIndex, nativeTokenAddress);
+
+        // Verify the native pool info.
+        assertEq(engine.getCCTPIndex(), nativeTokenIndex);
+        assertEq(engine.getNativeTokenAddress(), nativeTokenAddress);
+    }
+
+    function testCannotUpdateNativePoolInfoInvalidChainId() public {
+        uint16 chainId = 0;
+        int8 nativeTokenIndex = 1;
+        address nativeTokenAddress = USDC;
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidChainId()"));
+        engine.updateNativePoolInfo(chainId, nativeTokenIndex, nativeTokenAddress);
+    }
+
+    function testCannotUpdateNativePoolInfoInvalidAddress() public {
+        uint16 chainId = 69;
+        int8 nativeTokenIndex = 1;
+        address nativeTokenAddress = address(0);
+
+        vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
+        engine.updateNativePoolInfo(chainId, nativeTokenIndex, nativeTokenAddress);
+    }
+
+    function testCannotUpdateNativePoolInfoOwnerOrAssistantOnly() public {
+        uint16 chainId = 69;
+        int8 nativeTokenIndex = 1;
+        address nativeTokenAddress = USDC;
+
+        vm.prank(makeAddr("robber"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
+        engine.updateNativePoolInfo(chainId, nativeTokenIndex, nativeTokenAddress);
     }
 
     function testSetPause() public {
@@ -645,7 +781,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         bytes memory redeemerMessage
     ) public {
         // Before test.
-        uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+        (uint256 mainLp, uint256 altLp) = _mintAndProvideLiquidity(INIT_LIQUIDITY);
         address fromUsdc = WRAPPED_ETH_USDC;
 
         // Fuzz parameter.
@@ -654,7 +790,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // We will use this amountOut as the minAmountOut for the order,
         // since there is no competing order flow in this test.
-        uint256 amountOut = get_amount_out(
+        uint256 amountOut = _getAmountOut(
             curvePoolIndex[fromUsdc],
             engine.getCCTPIndex(),
             amount - RELAYER_FEE
@@ -705,7 +841,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         assertEq(IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
-        _removeLiquidityAndBurn(lpShares);
+        _removeLiquidityAndBurn(mainLp, altLp);
     }
 
     function testExecuteOrderFromCanonicalToNative(
@@ -713,7 +849,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         bytes memory redeemerMessage
     ) public {
         // Before test.
-        uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+        (uint256 mainLp, uint256 altLp) = _mintAndProvideLiquidity(INIT_LIQUIDITY);
         address fromUsdc = WRAPPED_ETH_USDC;
         address toUsdc = WRAPPED_POLY_USDC;
 
@@ -727,7 +863,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // We will use this amountOut as the minAmountOut for the order,
         // since there is no competing order flow in this test.
-        uint256 amountOut = get_amount_out(
+        uint256 amountOut = _getAmountOut(
             curvePoolIndex[fromUsdc],
             curvePoolIndex[toUsdc],
             amount - RELAYER_FEE
@@ -779,7 +915,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         assertEq(IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
-        _removeLiquidityAndBurn(lpShares);
+        _removeLiquidityAndBurn(mainLp, altLp);
     }
 
     function testExecuteOrderFromCCTPToCanonical(
@@ -787,7 +923,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         bytes memory redeemerMessage
     ) public {
         // Before test.
-        uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+        (uint256 mainLp, uint256 altLp) = _mintAndProvideLiquidity(INIT_LIQUIDITY);
         address fromUsdc = USDC;
         address toUsdc = WRAPPED_ETH_USDC;
 
@@ -801,7 +937,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // We will use this amountOut as the minAmountOut for the order,
         // since there is no competing order flow in this test.
-        uint256 amountOut = get_amount_out(
+        uint256 amountOut = _getAmountOut(
             engine.getCCTPIndex(),
             curvePoolIndex[toUsdc],
             amount - RELAYER_FEE
@@ -852,12 +988,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         assertEq(IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
-        _removeLiquidityAndBurn(lpShares);
+        _removeLiquidityAndBurn(mainLp, altLp);
     }
 
     function testExecuteOrderFromOrderRouter(uint256 amount, bytes memory redeemerMessage) public {
         // Before test.
-        uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+        (uint256 mainLp, uint256 altLp) = _mintAndProvideLiquidity(INIT_LIQUIDITY);
         address fromUsdc = USDC;
         address toUsdc = WRAPPED_ETH_USDC;
         address fromRouter = fromUniversalAddress(AVAX_ROUTER);
@@ -872,7 +1008,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // We will use this amountOut as the minAmountOut for the order,
         // since there is no competing order flow in this test.
-        uint256 amountOut = get_amount_out(engine.getCCTPIndex(), curvePoolIndex[toUsdc], amount);
+        uint256 amountOut = _getAmountOut(engine.getCCTPIndex(), curvePoolIndex[toUsdc], amount);
         require(amountOut > 0, "invalid test");
 
         // Create a valid transfer from Avax to Sui.
@@ -920,12 +1056,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         assertEq(IERC20(fromUsdc).balanceOf(address(this)) - relayerBalanceBefore, 0);
 
         // After test.
-        _removeLiquidityAndBurn(lpShares);
+        _removeLiquidityAndBurn(mainLp, altLp);
     }
 
     function testExecuteOrderRevertFromCCTP(uint256 amount, bytes memory redeemerMessage) public {
         // Before test.
-        uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+        (uint256 mainLp, uint256 altLp) = _mintAndProvideLiquidity(INIT_LIQUIDITY);
         address fromUsdc = USDC;
 
         // Fuzz parameter.
@@ -983,12 +1119,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         assertEq(IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
-        _removeLiquidityAndBurn(lpShares);
+        _removeLiquidityAndBurn(mainLp, altLp);
     }
 
     function testExecuteOrderRevertFromNative(uint256 amount, bytes memory redeemerMessage) public {
         // Before test.
-        uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+        (uint256 mainLp, uint256 altLp) = _mintAndProvideLiquidity(INIT_LIQUIDITY);
         address fromUsdc = WRAPPED_POLY_USDC;
 
         // Fuzz parameter.
@@ -1048,12 +1184,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         assertEq(IERC20(fromUsdc).balanceOf(DEFAULT_RELAYER) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
-        _removeLiquidityAndBurn(lpShares);
+        _removeLiquidityAndBurn(mainLp, altLp);
     }
 
     function testExecuteOrderWithAllowedRelayers(uint8 relayerCount, uint256 callerIndex) public {
         // Before test.
-        uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+        (uint256 mainLp, uint256 altLp) = _mintAndProvideLiquidity(INIT_LIQUIDITY);
         address fromUsdc = WRAPPED_ETH_USDC;
         uint256 amount = INIT_LIQUIDITY / 2;
         bytes memory redeemerMessage = hex"deadbeef";
@@ -1068,7 +1204,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // We will use this amountOut as the minAmountOut for the order,
         // since there is no competing order flow in this test.
-        uint256 amountOut = get_amount_out(
+        uint256 amountOut = _getAmountOut(
             curvePoolIndex[fromUsdc],
             engine.getCCTPIndex(),
             amount - RELAYER_FEE
@@ -1119,12 +1255,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         assertEq(IERC20(fromUsdc).balanceOf(relayer) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
-        _removeLiquidityAndBurn(lpShares);
+        _removeLiquidityAndBurn(mainLp, altLp);
     }
 
     function testExecuteOrderWithNoRelayerFee(uint8 relayerCount, uint256 callerIndex) public {
         // Before test.
-        uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+        (uint256 mainLp, uint256 altLp) = _mintAndProvideLiquidity(INIT_LIQUIDITY);
         address fromUsdc = WRAPPED_ETH_USDC;
         uint256 amount = INIT_LIQUIDITY / 2;
         bytes memory redeemerMessage = hex"deadbeef";
@@ -1141,7 +1277,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // We will use this amountOut as the minAmountOut for the order,
         // since there is no competing order flow in this test.
-        uint256 amountOut = get_amount_out(curvePoolIndex[fromUsdc], engine.getCCTPIndex(), amount);
+        uint256 amountOut = _getAmountOut(curvePoolIndex[fromUsdc], engine.getCCTPIndex(), amount);
         require(amountOut > 0, "invalid test");
 
         // Create a valid transfer from Sui to Arbitrum.
@@ -1188,12 +1324,12 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         assertEq(IERC20(fromUsdc).balanceOf(relayer) - relayerBalanceBefore, relayerFee);
 
         // After test.
-        _removeLiquidityAndBurn(lpShares);
+        _removeLiquidityAndBurn(mainLp, altLp);
     }
 
     function testExecuteOrderAllowedRelayerTimeoutExpired() public {
         // Before test.
-        uint256 lpShares = _mintAndProvideLiquidity(INIT_LIQUIDITY);
+        (uint256 mainLp, uint256 altLp) = _mintAndProvideLiquidity(INIT_LIQUIDITY);
         address fromUsdc = WRAPPED_ETH_USDC;
         uint256 amount = INIT_LIQUIDITY / 2;
         bytes memory redeemerMessage = hex"deadbeef";
@@ -1206,7 +1342,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
 
         // We will use this amountOut as the minAmountOut for the order,
         // since there is no competing order flow in this test.
-        uint256 amountOut = get_amount_out(
+        uint256 amountOut = _getAmountOut(
             curvePoolIndex[fromUsdc],
             engine.getCCTPIndex(),
             amount - RELAYER_FEE
@@ -1261,7 +1397,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         assertEq(IERC20(fromUsdc).balanceOf(actualRelayer) - relayerBalanceBefore, RELAYER_FEE);
 
         // After test.
-        _removeLiquidityAndBurn(lpShares);
+        _removeLiquidityAndBurn(mainLp, altLp);
     }
 
     function testCannotExecuteOrderInvalidRouteTokenBridge() public {
@@ -1302,7 +1438,13 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         uint256 amountOut = 0;
 
         // Disable the target route.
-        engine.enableExecutionRoute(SUI_CHAIN, SUI_ROUTER, makeAddr("badAddress"), false, 69);
+        engine.enableExecutionRoute(
+            SUI_CHAIN,
+            SUI_ROUTER,
+            WRAPPED_POLY_USDC,
+            false,
+            int8(curvePoolIndex[WRAPPED_POLY_USDC])
+        );
 
         bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
             block.timestamp,
@@ -1427,38 +1569,6 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.executeOrder(signedOrder);
     }
 
-    function testCannotExecuteOrderInvalidCCTPIndexTokenBridge() public {
-        // Parameters.
-        uint256 amount = INIT_LIQUIDITY / 2;
-        bytes memory redeemerMessage = hex"deadbeef";
-        uint256 amountOut = 0;
-
-        // Change the CCTP token index.
-        engine.updateCurvePool(ICurvePool(curvePool), 69);
-
-        bytes memory signedOrder = _craftValidTokenBridgeMarketOrder(
-            block.timestamp,
-            amount,
-            toUniversalAddress(NATIVE_ETH_USDC),
-            ETH_CHAIN,
-            SUI_ROUTER,
-            SUI_BRIDGE,
-            SUI_CHAIN,
-            _encodeTestMarketOrder(
-                amountOut,
-                ARB_CHAIN,
-                redeemerMessage,
-                RELAYER_FEE,
-                new bytes32[](0)
-            )
-        );
-
-        // Expect failure.
-        vm.expectRevert(abi.encodeWithSignature("InvalidCCTPIndex()"));
-        vm.prank(DEFAULT_RELAYER);
-        engine.executeOrder(signedOrder);
-    }
-
     function testCannotExecuteOrderInvalidRouteCCTP() public {
         // Parameters.
         uint256 amount = INIT_LIQUIDITY / 2;
@@ -1499,7 +1609,7 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         engine.enableExecutionRoute(
             POLY_CHAIN,
             POLY_ROUTER,
-            WRAPPED_POLY_USDC,
+            USDC,
             true, // Set CCTP to true.
             int8(curvePoolIndex[USDC])
         );
@@ -1831,38 +1941,6 @@ contract MatchingEngineTest is TestHelpers, WormholePoolTestHelper {
         vm.startPrank(fromRouter);
         SafeERC20.safeIncreaseAllowance(IERC20(USDC), address(engine), amount);
         vm.expectRevert(abi.encodeWithSignature("RouteNotAvailable()"));
-        engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
-    }
-
-    function testCannotExecuteInvalidCCTPIndexFromOrderRouter() public {
-        // Parameters.
-        uint256 amount = INIT_LIQUIDITY / 2;
-        bytes memory redeemerMessage = hex"deadbeef";
-        uint256 amountOut = 0;
-        address fromRouter = fromUniversalAddress(AVAX_ROUTER);
-
-        // Update the avax-usdc token index to an invalid value.
-        engine.updateCurvePool(ICurvePool(curvePool), 69);
-
-        Messages.MarketOrder memory order = Messages.MarketOrder({
-            minAmountOut: amountOut,
-            targetChain: SUI_CHAIN,
-            redeemer: toUniversalAddress(TEST_REDEEMER),
-            redeemerMessage: redeemerMessage,
-            sender: toUniversalAddress(TEST_SENDER),
-            refundAddress: toUniversalAddress(TEST_RECIPIENT),
-            relayerFee: 0,
-            allowedRelayers: new bytes32[](0)
-        });
-
-        // Execute the order.
-        vm.deal(fromRouter, WORMHOLE_FEE);
-        deal(USDC, fromRouter, amount);
-
-        // Expect failure.
-        vm.startPrank(fromRouter);
-        SafeERC20.safeIncreaseAllowance(IERC20(USDC), address(engine), amount);
-        vm.expectRevert(abi.encodeWithSignature("InvalidCCTPIndex()"));
         engine.executeOrder{value: WORMHOLE_FEE}(amount, order);
     }
 
