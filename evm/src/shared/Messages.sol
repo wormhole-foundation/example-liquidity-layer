@@ -4,15 +4,11 @@ pragma solidity ^0.8.19;
 
 import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
-import {RevertType} from "../interfaces/Types.sol";
-
 library Messages {
     using BytesParsing for bytes;
 
     // Payload IDs.
-    uint8 private constant MARKET_ORDER = 0x1;
-    uint8 private constant FILL = 0x10;
-    uint8 private constant ORDER_REVERT = 0x20;
+    uint8 private constant FILL = 0x1;
 
     // VAA fields.
     uint256 private constant SIG_COUNT_OFFSET = 5;
@@ -22,77 +18,11 @@ library Messages {
     error InvalidPayloadId(uint8 parsedPayloadId, uint8 expectedPayloadId);
     error InvalidPayloadLength(uint256 parsedLength, uint256 expectedLength);
 
-    struct MarketOrder {
-        uint256 minAmountOut;
-        uint16 targetChain;
-        bytes32 redeemer;
-        bytes32 sender;
-        bytes32 refundAddress;
-        uint256 relayerFee;
-        bytes32[] allowedRelayers;
-        bytes redeemerMessage;
-    }
-
     struct Fill {
         uint16 sourceChain;
         bytes32 orderSender;
         bytes32 redeemer;
         bytes redeemerMessage;
-    }
-
-    struct OrderRevert {
-        RevertType reason;
-        bytes32 refundAddress;
-        bytes32 redeemer;
-    }
-
-    function encode(MarketOrder memory order) internal pure returns (bytes memory encoded) {
-        encoded = abi.encodePacked(
-            MARKET_ORDER,
-            order.minAmountOut,
-            order.targetChain,
-            order.redeemer,
-            order.sender,
-            order.refundAddress,
-            order.relayerFee,
-            uint8(order.allowedRelayers.length),
-            abi.encodePacked(order.allowedRelayers),
-            _encodeBytes(order.redeemerMessage)
-        );
-    }
-
-    function decodeMarketOrder(
-        bytes memory encoded
-    ) internal pure returns (MarketOrder memory order) {
-        uint256 offset = _checkPayloadId(encoded, 0, MARKET_ORDER);
-
-        // Parse the encoded message.
-        (order.minAmountOut, offset) = encoded.asUint256Unchecked(offset);
-        (order.targetChain, offset) = encoded.asUint16Unchecked(offset);
-        (order.redeemer, offset) = encoded.asBytes32Unchecked(offset);
-        (order.sender, offset) = encoded.asBytes32Unchecked(offset);
-        (order.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
-        (order.relayerFee, offset) = encoded.asUint256Unchecked(offset);
-        (order.allowedRelayers, offset) = decodeAllowedRelayers(encoded, offset);
-        (order.redeemerMessage, offset) = _decodeBytes(encoded, offset);
-
-        _checkLength(encoded, offset);
-    }
-
-    function decodeAllowedRelayers(
-        bytes memory encoded,
-        uint256 startOffset
-    ) internal pure returns (bytes32[] memory allowedRelayers, uint256 offset) {
-        uint8 relayerCount;
-        (relayerCount, offset) = encoded.asUint8Unchecked(startOffset);
-
-        allowedRelayers = new bytes32[](relayerCount);
-        for (uint256 i = 0; i < relayerCount; ) {
-            (allowedRelayers[i], offset) = encoded.asBytes32Unchecked(offset);
-            unchecked {
-                ++i;
-            }
-        }
     }
 
     function encode(Fill memory fill) internal pure returns (bytes memory encoded) {
@@ -112,30 +42,6 @@ library Messages {
         (fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
         (fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
         (fill.redeemerMessage, offset) = _decodeBytes(encoded, offset);
-
-        _checkLength(encoded, offset);
-    }
-
-    function encode(OrderRevert memory reverted) internal pure returns (bytes memory encoded) {
-        encoded = abi.encodePacked(
-            ORDER_REVERT,
-            reverted.reason,
-            reverted.refundAddress,
-            reverted.redeemer
-        );
-    }
-
-    function decodeOrderRevert(
-        bytes memory encoded
-    ) internal pure returns (OrderRevert memory reverted) {
-        uint256 offset = _checkPayloadId(encoded, 0, ORDER_REVERT);
-
-        uint8 reason;
-        (reason, offset) = encoded.asUint8Unchecked(offset);
-        reverted.reason = RevertType(reason);
-
-        (reverted.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
-        (reverted.redeemer, offset) = encoded.asBytes32Unchecked(offset);
 
         _checkLength(encoded, offset);
     }
@@ -177,13 +83,6 @@ library Messages {
 
     // ---------------------------------- Unsafe VAA Parsing --------------------------------------
 
-    function unsafeTimestampFromVaa(bytes memory encoded) internal pure returns (uint256) {
-        // Skip the payload ID and guardian set index.
-        (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
-        (uint32 timestamp, ) = encoded.asUint32Unchecked(offset + SIG_LENGTH * numSignatures);
-        return uint256(timestamp);
-    }
-
     function unsafeEmitterChainFromVaa(bytes memory encoded) internal pure returns (uint16) {
         // Skip the payload ID and guardian set index.
         (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
@@ -191,23 +90,5 @@ library Messages {
             offset + SIG_LENGTH * numSignatures + 8
         );
         return emitterChain;
-    }
-
-    function unsafeEmitterAddressFromVaa(bytes memory encoded) internal pure returns (bytes32) {
-        // Skip the payload ID and guardian set index.
-        (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
-        (bytes32 emitterAddress, ) = encoded.asBytes32Unchecked(
-            offset + SIG_LENGTH * numSignatures + 10
-        );
-        return emitterAddress;
-    }
-
-    function unsafeSequenceFromVaa(bytes memory encoded) internal pure returns (uint64) {
-        // Skip the payload ID and guardian set index.
-        (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
-        (uint64 sequence, ) = encoded.asUint64Unchecked(
-            offset + SIG_LENGTH * numSignatures + 42
-        );
-        return sequence;
     }
 }

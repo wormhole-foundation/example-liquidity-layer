@@ -8,18 +8,16 @@ import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
 import {getOwnerState, getOwnerAssistantState} from "../shared/Admin.sol";
 
-import {IOrderRouter} from "../interfaces/IOrderRouter.sol";
+import {ITokenRouter} from "../interfaces/ITokenRouter.sol";
 
-import {OrderRouterImplementation} from "../OrderRouter/OrderRouterImplementation.sol";
-import {getDefaultRelayerFee} from "../OrderRouter/assets/Storage.sol";
+import {TokenRouterImplementation} from "../TokenRouter/TokenRouterImplementation.sol";
 
-contract OrderRouterSetup is ERC1967Upgrade, Context {
+contract TokenRouterSetup is ERC1967Upgrade, Context {
     error AlreadyDeployed();
 
     function deployProxy(
         address implementation,
-        address ownerAssistant,
-        uint256 defaultRelayerFee
+        address ownerAssistant
     ) public payable returns (address) {
         if (_getAdmin() != address(0)) {
             revert AlreadyDeployed();
@@ -31,7 +29,7 @@ contract OrderRouterSetup is ERC1967Upgrade, Context {
             address(this),
             abi.encodeCall(
                 this.setup,
-                (_getAdmin(), implementation, ownerAssistant, defaultRelayerFee)
+                (_getAdmin(), implementation, ownerAssistant)
             )
         );
 
@@ -41,26 +39,22 @@ contract OrderRouterSetup is ERC1967Upgrade, Context {
     function setup(
         address admin,
         address implementation,
-        address ownerAssistant,
-        uint256 defaultRelayerFee
+        address ownerAssistant
     ) public {
         assert(implementation != address(0));
         assert(ownerAssistant != address(0));
-        assert(IOrderRouter(implementation).getDeployer() == admin);
+        assert(ITokenRouter(implementation).getDeployer() == admin);
 
         // Set the owner.
         getOwnerState().owner = admin;
         getOwnerAssistantState().ownerAssistant = ownerAssistant;
-
-        // Set the default relayer fee.
-        getDefaultRelayerFee().fee = defaultRelayerFee;
 
         // Set implementation.
         _upgradeTo(implementation);
 
         // Call initialize function of the new implementation.
         (bool success, bytes memory reason) = implementation.delegatecall(
-            abi.encodeCall(OrderRouterImplementation.initialize, ())
+            abi.encodeCall(TokenRouterImplementation.initialize, ())
         );
         require(success, string(reason));
     }

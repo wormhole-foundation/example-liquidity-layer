@@ -10,36 +10,24 @@ import {Admin} from "../shared/Admin.sol";
 import {Messages} from "../shared/Messages.sol";
 import {getImplementationState, Implementation} from "../shared/Admin.sol";
 
-import {OrderRouterAdmin} from "./assets/OrderRouterAdmin.sol";
+import {TokenRouterAdmin} from "./assets/TokenRouterAdmin.sol";
 import {PlaceMarketOrder} from "./assets/PlaceMarketOrder.sol";
 import {RedeemFill} from "./assets/RedeemFill.sol";
-import {RedeemOrderRevert} from "./assets/RedeemOrderRevert.sol";
 import {State} from "./assets/State.sol";
 
-contract OrderRouterImplementation is
-    OrderRouterAdmin,
+contract TokenRouterImplementation is
+    TokenRouterAdmin,
     PlaceMarketOrder,
-    RedeemFill,
-    RedeemOrderRevert
+    RedeemFill
 {
     error AlreadyInitialized();
 
     constructor(
         address token_,
-        uint16 matchingEngineChain_,
-        bytes32 matchingEngineEndpoint_,
-        uint16 canonicalTokenChain_,
-        bytes32 canonicalTokenAddress_,
-        address tokenBridge_,
         address wormholeCircle_
     )
         State(
             token_,
-            matchingEngineChain_,
-            matchingEngineEndpoint_,
-            canonicalTokenChain_,
-            canonicalTokenAddress_,
-            tokenBridge_,
             wormholeCircle_
         )
     {}

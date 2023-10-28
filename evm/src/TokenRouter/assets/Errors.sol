@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: Apache 2
+
+pragma solidity ^0.8.0;
+
+error ErrInsufficientAmount();
+
+error ErrInvalidRedeemer(bytes32 redeemer, bytes32 expected);
+
+error ErrInvalidRefundAddress();
+
+error ErrInvalidRedeemerAddress();
+
+error ErrInvalidEndpoint(bytes32 endpoint);
+
+error ErrUnsupportedChain(uint16 chain);
+
+error ErrChainNotAllowed(uint16 chain);
+
+error ErrInvalidSourceRouter(bytes32 sender, bytes32 expected);
+
+error ErrInvalidChain(uint16 chain);
