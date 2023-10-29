@@ -2,6 +2,8 @@
 
 pragma solidity 0.8.19;
 
+import {IAdmin} from "../interfaces/IAdmin.sol";
+
 import {ERC1967Upgrade} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
 
 // -------------------------------------- Persistent Storage ---------------------------------------
@@ -74,7 +76,7 @@ function getImplementationState() pure returns (Implementation storage state) {
 /**
  * @dev This contract is shared between the `MatchingEngine` and `OrderRouter` contracts.
  */
-abstract contract Admin is ERC1967Upgrade {
+abstract contract Admin is IAdmin, ERC1967Upgrade {
     // Errors.
     error InvalidAddress();
     error NotTheOwner();

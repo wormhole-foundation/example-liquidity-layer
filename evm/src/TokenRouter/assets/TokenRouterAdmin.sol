@@ -8,7 +8,9 @@ import "./Errors.sol";
 import {State} from "./State.sol";
 import {getRouterEndpoint} from "./Storage.sol";
 
-abstract contract TokenRouterAdmin is Admin, State {
+import {ITokenRouterAdmin} from "../../interfaces/ITokenRouterAdmin.sol";
+
+abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
     function addRouterEndpoint(uint16 chain, bytes32 router) external onlyOwnerOrAssistant {
         if (chain == _wormholeChainId) {
             revert ErrChainNotAllowed(chain);

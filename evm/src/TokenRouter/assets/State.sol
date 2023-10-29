@@ -5,11 +5,12 @@ pragma solidity ^0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
+import {IState} from "../../interfaces/IState.sol";
 
 import "./Errors.sol";
 import {getRouterEndpoint} from "./Storage.sol";
 
-abstract contract State {
+abstract contract State is IState {
     // Immutable state.
     address immutable _deployer;
     IERC20 immutable _orderToken;
