@@ -8,7 +8,7 @@ import "forge-std/console2.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "../../src/interfaces/IOrderRouter.sol";
+import "../../src/interfaces/ITokenRouter.sol";
 import {PlaceMarketOrderArgs} from "../../src/interfaces/IPlaceMarketOrder.sol";
 
 contract TestTransfer is Script {
@@ -26,7 +26,7 @@ contract TestTransfer is Script {
 
     function transfer() public {
         SafeERC20.safeIncreaseAllowance(IERC20(_token), _router, _amountIn);
-        IOrderRouter(_router).placeMarketOrder(
+        ITokenRouter(_router).placeMarketOrder(
             PlaceMarketOrderArgs({
                 amountIn: _amountIn,
                 minAmountOut: _amountOut,

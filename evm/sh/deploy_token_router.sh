@@ -54,7 +54,7 @@ FORGE_SCRIPTS=$ROOT/../forge/scripts
 
 . $ENV/$network/$chain.env
 
-forge script $FORGE_SCRIPTS/DeployOrderRouterContracts.s.sol \
+forge script $FORGE_SCRIPTS/DeployTokenRouterContracts.s.sol \
     --rpc-url $rpc \
     --broadcast \
     --private-key $private_key
