@@ -3,11 +3,10 @@ import { expect } from "chai";
 import { ethers } from "ethers";
 import {
     ChainType,
-    EvmOrderRouter,
-    MessageDecoder,
-    OrderResponse,
+    EvmTokenRouter,
     errorDecoder,
     parseLiquidityLayerEnvFile,
+    OrderResponse,
 } from "../src";
 import { IERC20__factory } from "../src/types";
 import {
@@ -42,9 +41,9 @@ describe("Ping Pong -- CCTP to CCTP", () => {
             const pingWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], pingProvider);
 
             const pingEnv = parseLiquidityLayerEnvFile(`${envPath}/${pingChainName}.env`);
-            const pingOrderRouter = (() => {
+            const pingtokenRouter = (() => {
                 if (pingEnv.chainType === ChainType.Evm) {
-                    return new EvmOrderRouter(pingWallet, pingEnv.orderRouterAddress);
+                    return new EvmTokenRouter(pingWallet, pingEnv.tokenRouterAddress);
                 } else {
                     throw new Error("Unsupported chain");
                 }
@@ -57,34 +56,30 @@ describe("Ping Pong -- CCTP to CCTP", () => {
             const pongWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], pongProvider);
 
             const pongEnv = parseLiquidityLayerEnvFile(`${envPath}/${pongChainName}.env`);
-            const pongOrderRouter = (() => {
+            const pongtokenRouter = (() => {
                 if (pongEnv.chainType === ChainType.Evm) {
-                    return new EvmOrderRouter(pongWallet, pongEnv.orderRouterAddress);
+                    return new EvmTokenRouter(pongWallet, pongEnv.tokenRouterAddress);
                 } else {
                     throw new Error("Unsupported chain");
                 }
             })();
 
-            if (pingEnv.chainType == ChainType.Evm) {
-                before(`Ping Network -- Mint USDC`, async () => {
-                    const usdc = IERC20__factory.connect(pingEnv.tokenAddress, pingWallet);
+            before(`Ping Network -- Mint USDC`, async () => {
+                const usdc = IERC20__factory.connect(pingEnv.tokenAddress, pingWallet);
 
-                    await burnAllUsdc(usdc);
+                await burnAllUsdc(usdc);
 
-                    await mintNativeUsdc(
-                        IERC20__factory.connect(pingEnv.tokenAddress, pingProvider),
-                        pingWallet.address,
-                        PING_PONG_AMOUNT
-                    );
-                });
+                await mintNativeUsdc(
+                    IERC20__factory.connect(pingEnv.tokenAddress, pingProvider),
+                    pingWallet.address,
+                    PING_PONG_AMOUNT
+                );
+            });
 
-                after(`Burn USDC`, async () => {
-                    const usdc = IERC20__factory.connect(pingEnv.tokenAddress, pingWallet);
-                    await burnAllUsdc(usdc);
-                });
-            } else {
-                throw new Error("Test misconfigured");
-            }
+            after(`Burn USDC`, async () => {
+                const usdc = IERC20__factory.connect(pingEnv.tokenAddress, pingWallet);
+                await burnAllUsdc(usdc);
+            });
 
             it(`Ping Network -- Place Market Order`, async () => {
                 const amountIn = await (async () => {
@@ -92,7 +87,7 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                         const usdc = IERC20__factory.connect(pingEnv.tokenAddress, pingWallet);
                         const amount = await usdc.balanceOf(pingWallet.address);
                         await usdc
-                            .approve(pingOrderRouter.address, amount)
+                            .approve(pingtokenRouter.address, amount)
                             .then((tx) => mineWait(pingProvider, tx));
 
                         return BigInt(amount.toString());
@@ -100,31 +95,28 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                         throw new Error("Unsupported chain");
                     }
                 })();
+                localVariables.set("amountIn", amountIn);
 
                 const targetChain = coalesceChainId(pongChainName);
-
-                const receipt = await pingOrderRouter
-                    .computeMinAmountOut(amountIn, targetChain)
-                    .then((minAmountOut) =>
-                        pingOrderRouter.placeMarketOrder({
-                            amountIn,
-                            minAmountOut,
-                            targetChain,
-                            redeemer: Buffer.from(
-                                tryNativeToUint8Array(pongWallet.address, pongChainName)
-                            ),
-                            redeemerMessage: Buffer.from("All your base are belong to us."),
-                            refundAddress: pingWallet.address,
-                        })
-                    )
+                const minAmountOut = BigInt(0);
+                const receipt = await pingtokenRouter
+                    .placeMarketOrder({
+                        amountIn,
+                        minAmountOut,
+                        targetChain,
+                        redeemer: Buffer.from(
+                            tryNativeToUint8Array(pongWallet.address, pongChainName)
+                        ),
+                        redeemerMessage: Buffer.from("All your base are belong to us."),
+                        refundAddress: pingWallet.address,
+                    })
                     .then((tx) => mineWait(pingProvider, tx))
                     .catch((err) => {
                         console.log(err);
                         console.log(errorDecoder(err));
                         throw err;
                     });
-
-                const transactionResult = await pingOrderRouter.getTransactionResults(
+                const transactionResult = await pingtokenRouter.getTransactionResults(
                     receipt.transactionHash
                 );
                 expect(transactionResult.wormhole.emitterAddress).to.eql(
@@ -157,7 +149,7 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                 const usdc = IERC20__factory.connect(pongEnv.tokenAddress, pongProvider);
                 const balanceBefore = await usdc.balanceOf(pongWallet.address);
 
-                const receipt = await pongOrderRouter
+                const receipt = await pongtokenRouter
                     .redeemFill(orderResponse)
                     .then((tx) => mineWait(pongProvider, tx))
                     .catch((err) => {
@@ -168,9 +160,10 @@ describe("Ping Pong -- CCTP to CCTP", () => {
 
                 const balanceAfter = await usdc.balanceOf(pongWallet.address);
 
-                console.log("balance check", balanceBefore.toString(), balanceAfter.toString());
-
-                // TODO: Check balance.
+                expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
+                    localVariables.get("amountIn").toString()
+                );
+                expect(localVariables.delete("amountIn")).is.true;
             });
 
             it(`Pong Network -- Place Market Order`, async () => {
@@ -179,7 +172,7 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                         const usdc = IERC20__factory.connect(pongEnv.tokenAddress, pongWallet);
                         const amount = await usdc.balanceOf(pongWallet.address);
                         await usdc
-                            .approve(pongOrderRouter.address, amount)
+                            .approve(pongtokenRouter.address, amount)
                             .then((tx) => mineWait(pongProvider, tx));
 
                         return BigInt(amount.toString());
@@ -187,23 +180,21 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                         throw new Error("Unsupported chain");
                     }
                 })();
+                localVariables.set("amountIn", amountIn);
 
                 const targetChain = coalesceChainId(pingChainName);
-
-                const receipt = await pongOrderRouter
-                    .computeMinAmountOut(amountIn, targetChain)
-                    .then((minAmountOut) =>
-                        pongOrderRouter.placeMarketOrder({
-                            amountIn,
-                            minAmountOut,
-                            targetChain,
-                            redeemer: Buffer.from(
-                                tryNativeToUint8Array(pingWallet.address, pingChainName)
-                            ),
-                            redeemerMessage: Buffer.from("All your base are belong to us."),
-                            refundAddress: pongWallet.address,
-                        })
-                    )
+                const minAmountOut = BigInt(0);
+                const receipt = await pongtokenRouter
+                    .placeMarketOrder({
+                        amountIn,
+                        minAmountOut,
+                        targetChain,
+                        redeemer: Buffer.from(
+                            tryNativeToUint8Array(pingWallet.address, pingChainName)
+                        ),
+                        redeemerMessage: Buffer.from("All your base are belong to us."),
+                        refundAddress: pongWallet.address,
+                    })
                     .then((tx) => mineWait(pongProvider, tx))
                     .catch((err) => {
                         console.log(err);
@@ -211,7 +202,7 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                         throw err;
                     });
 
-                const transactionResult = await pongOrderRouter.getTransactionResults(
+                const transactionResult = await pongtokenRouter.getTransactionResults(
                     receipt.transactionHash
                 );
                 expect(transactionResult.wormhole.emitterAddress).to.eql(
@@ -244,7 +235,7 @@ describe("Ping Pong -- CCTP to CCTP", () => {
                 const usdc = IERC20__factory.connect(pingEnv.tokenAddress, pingProvider);
                 const balanceBefore = await usdc.balanceOf(pingWallet.address);
 
-                const receipt = await pingOrderRouter
+                const receipt = await pingtokenRouter
                     .redeemFill(orderResponse)
                     .then((tx) => mineWait(pingProvider, tx))
                     .catch((err) => {
@@ -255,8 +246,10 @@ describe("Ping Pong -- CCTP to CCTP", () => {
 
                 const balanceAfter = await usdc.balanceOf(pingWallet.address);
 
-                console.log("balance change", balanceBefore.toString(), balanceAfter.toString());
-                // TODO: Check balance.
+                expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
+                    localVariables.get("amountIn").toString()
+                );
+                expect(localVariables.delete("amountIn")).is.true;
             });
         });
     }

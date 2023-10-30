@@ -14,7 +14,7 @@ import {PlaceMarketOrderArgs} from "../../src/interfaces/IPlaceMarketOrder.sol";
 contract TestTransfer is Script {
     uint16 immutable _chainId = uint16(vm.envUint("RELEASE_CHAIN_ID"));
     address immutable _token = vm.envAddress("RELEASE_TOKEN_ADDRESS");
-    address immutable _router = vm.envAddress("RELEASE_ORDER_ROUTER_ADDRESS");
+    address immutable _router = vm.envAddress("RELEASE_TOKEN_ROUTER_ADDRESS");
 
     // Transfer params.
     uint256 _amountIn = vm.envUint("TEST_AMOUNT_IN");

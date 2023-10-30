@@ -83,7 +83,7 @@ contract TokenRouterTest is Test {
     function setUp() public {
         wormholeCctp = ICircleIntegration(WORMHOLE_CCTP_ADDRESS);
 
-        // Set up order routers. These routers will represent the different outbound paths.
+        // Set up token routers. These routers will represent the different outbound paths.
         vm.startPrank(makeAddr("owner"));
         router = deployProxy(
             USDC_ADDRESS,

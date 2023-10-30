@@ -17,7 +17,7 @@ contract UpgradeTokenRouter is CheckWormholeContracts, Script {
     uint16 immutable _chainId = uint16(vm.envUint("RELEASE_CHAIN_ID"));
     address immutable _token = vm.envAddress("RELEASE_TOKEN_ADDRESS");
     address immutable _wormholeCctpAddress = vm.envAddress("RELEASE_WORMHOLE_CCTP_ADDRESS");
-    address immutable _orderRouterAddress = vm.envAddress("RELEASE_ORDER_ROUTER_ADDRESS");
+    address immutable _tokenRouterAddress = vm.envAddress("RELEASE_TOKEN_ROUTER_ADDRESS");
 
     function upgrade() public {
         requireValidChain(_chainId, _wormholeCctpAddress);
@@ -27,7 +27,7 @@ contract UpgradeTokenRouter is CheckWormholeContracts, Script {
             _wormholeCctpAddress
         );
 
-        ITokenRouter(_orderRouterAddress).upgradeContract(address(implementation));
+        ITokenRouter(_tokenRouterAddress).upgradeContract(address(implementation));
     }
 
     function run() public {

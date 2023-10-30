@@ -74,7 +74,7 @@ function getImplementationState() pure returns (Implementation storage state) {
 }
 
 /**
- * @dev This contract is shared between the `MatchingEngine` and `OrderRouter` contracts.
+ * @dev This contract is shared between the `MatchingEngine` and `tokenRouter` contracts.
  */
 abstract contract Admin is IAdmin, ERC1967Upgrade {
     // Errors.

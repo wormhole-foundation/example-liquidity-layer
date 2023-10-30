@@ -25,35 +25,17 @@ anvil --port 8548 \
     --no-mining \
     --fork-url $ETHEREUM_RPC > $LOGS/ethereum.log &
 
-# BNB (Native).
-anvil --port 8549 \
-    -m "myth like bonus scare over problem client lizard pioneer submit female collect" \
-    --no-mining \
-    --fork-url $BNB_RPC > $LOGS/bnb.log &
-
-# Moonbeam (Canonical).
-anvil --port 8550 \
-    -m "myth like bonus scare over problem client lizard pioneer submit female collect" \
-    --no-mining \
-    --fork-url $MOONBEAM_RPC > $LOGS/moonbeam.log &
-
 # Chill.
 sleep 2
 
 # Double-check number of anvil instances.
-if [ "$( pgrep anvil | wc -l )" -ne 4 ]; then
+if [ "$( pgrep anvil | wc -l )" -ne 2 ]; then
     echo "Not all anvil instances are running. Try again."
     pkill anvil
     exit 1
 fi
 
-npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/[0-9]*.ts
-# npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/00_*.ts
-# npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/05__*.ts
-# npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/10__*.ts
-#npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/12__*.ts
-#npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json $ROOT/14__*.ts
-
+npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json  $ROOT/[0-9]*.ts
 
 # Nuke.
 pkill anvil
