@@ -7,8 +7,7 @@ struct RouterEndpoints {
 }
 
 // keccak256("RouterEndpoints") - 1
-// TODO: need to recalculate the storage slot.
-bytes32 constant ROUTER_ENDPOINT_STORAGE_SLOT = 0x84e23c7674e920b09745ee29fa732c2d9b4a42de483f834495405230c47214e7;
+bytes32 constant ROUTER_ENDPOINT_STORAGE_SLOT = 0x3627fcf6b5d29b232a423d0b586326756a413529bc2286eb687a1a7d4123d9ff;
 
 function getRouterEndpoint() pure returns (RouterEndpoints storage state) {
     assembly ("memory-safe") {
