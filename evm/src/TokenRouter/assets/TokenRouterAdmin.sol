@@ -11,6 +11,7 @@ import {getRouterEndpoint} from "./Storage.sol";
 import {ITokenRouterAdmin} from "../../interfaces/ITokenRouterAdmin.sol";
 
 abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
+    /// @inheritdoc ITokenRouterAdmin
     function addRouterEndpoint(uint16 chain, bytes32 router) external onlyOwnerOrAssistant {
         if (chain == _wormholeChainId) {
             revert ErrChainNotAllowed(chain);

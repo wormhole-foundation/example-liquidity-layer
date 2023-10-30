@@ -89,6 +89,7 @@ abstract contract Admin is IAdmin, ERC1967Upgrade {
     event IsPaused(bool paused);
     event ContractUpgraded(address indexed oldContract, address indexed newContract);
 
+    /// @inheritdoc IAdmin
     function upgradeContract(address newImplementation) external onlyOwner {
         if (newImplementation == address(0)) {
             revert InvalidAddress();
@@ -106,6 +107,7 @@ abstract contract Admin is IAdmin, ERC1967Upgrade {
         emit ContractUpgraded(oldImplementation, newImplementation);
     }
 
+    /// @inheritdoc IAdmin
     function updateOwnerAssistant(address newAssistant) external onlyOwner {
         if (newAssistant == address(0)) {
             revert InvalidAddress();
@@ -115,11 +117,13 @@ abstract contract Admin is IAdmin, ERC1967Upgrade {
         getOwnerAssistantState().ownerAssistant = newAssistant;
     }
 
+    /// @inheritdoc IAdmin
     function setPause(bool paused) external onlyOwnerOrAssistant {
         emit IsPaused(paused);
         getPausedState().paused = paused;
     }
 
+    /// @inheritdoc IAdmin
     function submitOwnershipTransferRequest(address newOwner) external onlyOwner {
         if (newOwner == address(0)) {
             revert InvalidAddress();
@@ -128,10 +132,12 @@ abstract contract Admin is IAdmin, ERC1967Upgrade {
         getPendingOwnerState().pendingOwner = newOwner;
     }
 
+    /// @inheritdoc IAdmin
     function cancelOwnershipTransferRequest() external onlyOwner {
         getPendingOwnerState().pendingOwner = address(0);
     }
 
+    /// @inheritdoc IAdmin
     function confirmOwnershipTransferRequest() external {
         PendingOwner storage pending = getPendingOwnerState();
         Owner storage current = getOwnerState();
@@ -155,18 +161,22 @@ abstract contract Admin is IAdmin, ERC1967Upgrade {
 
     // -------------------------------------- Getters ----------------------------------------
 
+    /// @inheritdoc IAdmin
     function getOwner() external view returns (address) {
         return getOwnerState().owner;
     }
 
+    /// @inheritdoc IAdmin
     function getOwnerAssistant() external view returns (address) {
         return getOwnerAssistantState().ownerAssistant;
     }
 
+    /// @inheritdoc IAdmin
     function getPendingOwner() external view returns (address) {
         return getPendingOwnerState().pendingOwner;
     }
 
+    /// @inheritdoc IAdmin
     function isPaused() external view returns (bool) {
         return getPausedState().paused;
     }

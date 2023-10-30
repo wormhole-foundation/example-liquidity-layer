@@ -30,26 +30,32 @@ abstract contract State is IState {
         _wormholeChainId = _wormholeCctp.chainId();
     }
 
+    /// @inheritdoc IState
     function getDeployer() external view returns (address) {
         return _deployer;
     }
 
+    /// @inheritdoc IState
     function getRouter(uint16 chain) public view returns (bytes32) {
         return getRouterEndpoint().endpoints[chain];
     }
 
+    /// @inheritdoc IState
     function isFillRedeemed(bytes32 fillHash) external view returns (bool) {
         return _wormholeCctp.isMessageConsumed(fillHash);
     }
 
+    /// @inheritdoc IState
     function orderToken() external view returns (IERC20) {
         return _orderToken;
     }
 
+    /// @inheritdoc IState
     function wormholeCctp() external view returns (ICircleIntegration) {
         return _wormholeCctp;
     }
 
+    /// @inheritdoc IState
     function wormholeChainId() external view returns (uint16) {
         return _wormholeChainId;
     }
