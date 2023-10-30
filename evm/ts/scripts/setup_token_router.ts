@@ -1,7 +1,7 @@
-import { getConfig, ZERO_ADDRESS } from "./helpers";
+import { getConfig, ZERO_BYTES32 } from "./helpers";
 import { tryHexToNativeString } from "@certusone/wormhole-sdk";
-import { IOrderRouter__factory } from "../src/types/factories/IOrderRouter__factory";
-import { IOrderRouter, RouterInfoStruct } from "../src/types/ITokenRouter";
+import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__factory";
+import { ITokenRouter } from "../src/types/ITokenRouter";
 import { ethers } from "ethers";
 
 export function getArgs() {
@@ -23,22 +23,13 @@ export function getArgs() {
     };
 }
 
-function createRouterInfo(config: object): RouterInfoStruct {
-    const router = config as RouterInfoStruct;
-    if (router.endpoint === ZERO_ADDRESS) {
-        throw Error("Invalid router address");
-    }
-    return router;
-}
-
 async function addRouterInfo(
     chainId: string,
     tokenRouter: ITokenRouter,
-    routerInfo: RouterInfoStruct
+    routerEndpoint: string
 ): Promise<void> {
-    console.log(`Adding router info for chain ${chainId}`);
-    console.log(routerInfo);
-    const tx = await tokenRouter.addRouterInfo(chainId, routerInfo);
+    console.log(`Adding router endpoint for chain ${chainId}`);
+    const tx = await tokenRouter.addRouterEndpoint(chainId, routerEndpoint);
     const receipt = await tx.wait();
     if (receipt.status === 1) {
         console.log(`Txn succeeded chainId=${chainId}, txHash=${tx.hash}`);
@@ -49,7 +40,7 @@ async function addRouterInfo(
 
 async function main() {
     const { network, chain, rpc, key } = getArgs();
-    const config = getConfig(network, "tokenRouter")["routerInfo"];
+    const config = getConfig(network, "tokenRouter")["routers"];
 
     // Setup ethers wallet.
     const provider = new ethers.providers.StaticJsonRpcProvider(rpc);
@@ -57,7 +48,7 @@ async function main() {
 
     // Setup token router contract.
     const tokenRouter = ITokenRouter__factory.connect(
-        ethers.utils.getAddress(tryHexToNativeString(config[chain].endpoint, chain)),
+        ethers.utils.getAddress(tryHexToNativeString(config[chain].substring(2), chain)),
         wallet
     );
 
@@ -66,8 +57,11 @@ async function main() {
         if (chainId == chain) {
             continue;
         }
-        const routerInfo = createRouterInfo(config[chainId]);
-        await addRouterInfo(chainId, tokenRouter, routerInfo);
+        if (config[chainId].endpoint == ZERO_BYTES32) {
+            throw Error(`Invalid endpoint for chain ${chainId}`);
+        }
+
+        await addRouterInfo(chainId, tokenRouter, config[chainId]);
     }
 }
 
