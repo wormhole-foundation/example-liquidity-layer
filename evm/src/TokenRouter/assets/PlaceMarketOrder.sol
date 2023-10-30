@@ -19,23 +19,40 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     using BytesParsing for bytes;
     using Messages for *;
 
+    /// @inheritdoc IPlaceMarketOrder
     function placeMarketOrder(
         PlaceMarketOrderArgs calldata args
     ) external payable notPaused returns (uint64 sequence) {
-        sequence = _placeMarketOrder(args);
+        if (args.refundAddress == address(0)) {
+            revert ErrInvalidRefundAddress();
+        }
+        sequence = _handleOrder(args);
     }
 
-    function _placeMarketOrder(
-        PlaceMarketOrderArgs calldata args
+    /// @inheritdoc IPlaceMarketOrder
+    function placeMarketOrder(
+        PlaceCctpMarketOrderArgs calldata args
+    ) external payable notPaused returns (uint64 sequence) {
+        sequence = _handleOrder(
+            PlaceMarketOrderArgs({
+                amountIn: args.amountIn,
+                minAmountOut: 0,
+                targetChain: args.targetChain,
+                redeemer: args.redeemer,
+                redeemerMessage: args.redeemerMessage,
+                refundAddress: address(0)
+            })
+        );
+    }
+
+    function _handleOrder(
+        PlaceMarketOrderArgs memory args
     ) private returns (uint64 sequence) {
         if (args.amountIn == 0) {
             revert ErrInsufficientAmount();
         }
         if (args.redeemer == bytes32(0)) {
             revert ErrInvalidRedeemerAddress();
-        }
-        if (args.refundAddress == address(0)) {
-            revert ErrInvalidRefundAddress();
         }
 
         bytes32 dstEndpoint = getRouter(args.targetChain);
@@ -44,15 +61,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         }
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
-
-        // Handle regular CCTP -> CCTP transfers.
-        sequence = _handleTransfer(args, dstEndpoint);
-    }
-
-    function _handleTransfer(
-        PlaceMarketOrderArgs calldata args,
-        bytes32 dstEndpoint
-    ) private returns (uint64 sequence) {
         SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
 
         sequence = _wormholeCctp.transferTokensWithPayload{value: msg.value}(

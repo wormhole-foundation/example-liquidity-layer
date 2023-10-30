@@ -11,6 +11,13 @@ export type PlaceMarketOrderArgs = {
     refundAddress: string;
 };
 
+export type PlaceCctpMarketOrderArgs = {
+    amountIn: bigint;
+    targetChain: number;
+    redeemer: Buffer | Uint8Array;
+    redeemerMessage: Buffer | Uint8Array;
+};
+
 export type OrderResponse = {
     encodedWormholeMessage: Buffer | Uint8Array;
     circleBridgeMessage: Buffer | Uint8Array;

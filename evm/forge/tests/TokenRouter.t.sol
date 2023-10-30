@@ -500,6 +500,57 @@ contract TokenRouterTest is Test {
         );
     }
 
+    function testPlaceMarketOrderWithCctpInterface(uint256 amountIn) public {
+        amountIn = bound(amountIn, 1, _cctpBurnLimit());
+
+        _dealAndApproveUsdc(router, amountIn);
+
+        Messages.Fill memory expectedFill = Messages.Fill({
+            sourceChain: router.wormholeChainId(),
+            orderSender: toUniversalAddress(address(this)),
+            redeemer: TEST_REDEEMER,
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        uint256 balanceBefore = IERC20(USDC_ADDRESS).balanceOf(address(this));
+
+        bytes memory wormholeCctpPayload = _placeCctpMarketOrder(
+            router,
+            PlaceCctpMarketOrderArgs({
+                amountIn: amountIn,
+                targetChain: ARB_CHAIN,
+                redeemer: TEST_REDEEMER,
+                redeemerMessage: bytes("All your base are belong to us")
+            })
+        );
+
+        ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp
+            .decodeDepositWithPayload(wormholeCctpPayload);
+
+        // Check that the market order is encoded correctly.
+        assertEq(deposit.payload, expectedFill.encode());
+
+        // And check that the transfer is encoded correctly.
+        ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
+            .DepositWithPayload({
+                token: toUniversalAddress(USDC_ADDRESS),
+                amount: amountIn,
+                sourceDomain: wormholeCctp.localDomain(),
+                targetDomain: wormholeCctp.getDomainFromChainId(ARB_CHAIN),
+                nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+                fromAddress: toUniversalAddress(address(router)),
+                mintRecipient: router.getRouter(ARB_CHAIN),
+                payload: deposit.payload
+            });
+        assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
+
+        assertEq(
+            IERC20(USDC_ADDRESS).balanceOf(address(this)),
+            balanceBefore - amountIn,
+            "Incorrect balance after market order."
+        );
+    }
+
     function testCannotRedeemFillInvalidSourceRouter() public {
         bytes32 invalidRouter = toUniversalAddress(makeAddr("notArbRouter"));
 
@@ -629,6 +680,32 @@ contract TokenRouterTest is Test {
     function _placeMarketOrder(
         ITokenRouter _router,
         PlaceMarketOrderArgs memory args
+    ) internal returns (bytes memory) {
+        // Grab balance.
+        uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
+
+        // Record logs for placeMarketOrder.
+        vm.recordLogs();
+
+        // Place the order.
+        _router.placeMarketOrder(args);
+
+        // Fetch the logs for Wormhole message.
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertGt(logs.length, 0);
+
+        // Finally balance check.
+        assertEq(_router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
+
+        return
+            wormholeSimulator
+                .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[0])
+                .payload;
+    }
+
+    function _placeCctpMarketOrder(
+        ITokenRouter _router,
+        PlaceCctpMarketOrderArgs memory args
     ) internal returns (bytes memory) {
         // Grab balance.
         uint256 balanceBefore = _router.orderToken().balanceOf(address(this));

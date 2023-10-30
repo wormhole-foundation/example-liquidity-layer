@@ -1,6 +1,6 @@
 import { ChainId } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
-import { OrderResponse, TokenRouter, PlaceMarketOrderArgs } from ".";
+import { OrderResponse, TokenRouter, PlaceMarketOrderArgs, PlaceCctpMarketOrderArgs } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {
     ICircleIntegration,
@@ -30,8 +30,14 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         return this.contract.address;
     }
 
-    placeMarketOrder(args: PlaceMarketOrderArgs) {
-        return this.contract.placeMarketOrder(args);
+    placeMarketOrder(args: PlaceMarketOrderArgs | PlaceCctpMarketOrderArgs) {
+        if ("minAmountOut" in args) {
+            return this.contract[
+                "placeMarketOrder((uint256,uint256,uint16,bytes32,bytes,address))"
+            ](args);
+        } else {
+            return this.contract["placeMarketOrder((uint256,uint16,bytes32,bytes))"](args);
+        }
     }
 
     redeemFill(response: OrderResponse) {
