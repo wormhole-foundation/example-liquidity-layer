@@ -8,7 +8,7 @@ import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 
 import {BytesLib} from "wormhole-solidity/BytesLib.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
-import {IOrderRouter, PlaceMarketOrderArgs, OrderResponse, RedeemedFill} from "liquidity-layer/IOrderRouter.sol";
+import {ITokenRouter, PlaceMarketOrderArgs, OrderResponse, RedeemedFill} from "liquidity-layer/ITokenRouter.sol";
 import {IWETH} from "wormhole-solidity/IWETH.sol";
 
 import "./interfaces/IUniswap.sol";
@@ -37,14 +37,12 @@ contract NativeSwapV3 is NativeSwapBase {
     function swapExactNativeInAndTransfer(
         ExactInParameters calldata swapParams,
         address[] calldata path,
-        uint16 targetChainId,
-        uint256 wormholeSlippage
+        uint16 targetChainId
     ) external payable {
         (bytes32 targetContract, uint256 targetChainRelayerFee) = _verifyInput(
             path,
             swapParams.amountOutMinimum,
-            targetChainId,
-            wormholeSlippage
+            targetChainId
         );
 
         // cache wormhole fee and check msg.value
@@ -63,14 +61,14 @@ contract NativeSwapV3 is NativeSwapBase {
         // approve USDC integration contract to spend USDC
         SafeERC20.safeIncreaseAllowance(
             IERC20(USDC_ADDRESS),
-            address(ORDER_ROUTER),
+            address(TOKEN_ROUTER),
             amountOut
         );
 
-        ORDER_ROUTER.placeMarketOrder{value: wormholeFee}(
+        TOKEN_ROUTER.placeMarketOrder{value: wormholeFee}(
             PlaceMarketOrderArgs({
                 amountIn: amountOut,
-                minAmountOut: swapParams.amountOutMinimum - wormholeSlippage,
+                minAmountOut: 0, // Ignore parameter.
                 targetChain: targetChainId,
                 redeemer: targetContract,
                 redeemerMessage: encodeSwapInParameters(swapParams, path, targetChainRelayerFee),

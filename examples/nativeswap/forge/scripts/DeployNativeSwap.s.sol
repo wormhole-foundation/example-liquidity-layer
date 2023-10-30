@@ -13,7 +13,7 @@ contract DeployNativeSwap is Script {
     address immutable _wormhole = vm.envAddress("WORMHOLE");
     address immutable _usdc = vm.envAddress("USDC");
     address immutable _weth = vm.envAddress("WETH");
-    address immutable _orderRouter = vm.envAddress("ORDER_ROUTER");
+    address immutable _tokenRouter = vm.envAddress("TOKEN_ROUTER");
     bool immutable _isV3 = vm.envBool("IS_V3");
 
     function deploy() public {
@@ -23,7 +23,7 @@ contract DeployNativeSwap is Script {
                 new NativeSwapV3(
                     _swapRouter,
                     _wormhole,
-                    _orderRouter,
+                    _tokenRouter,
                     _usdc,
                     _weth
                 )
@@ -33,7 +33,7 @@ contract DeployNativeSwap is Script {
                 new NativeSwapV2(
                     _swapRouter,
                     _wormhole,
-                    _orderRouter,
+                    _tokenRouter,
                     _usdc,
                     _weth
                 )

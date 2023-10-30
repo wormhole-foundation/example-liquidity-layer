@@ -6,11 +6,11 @@ import "forge-std/Script.sol";
 import "forge-std/console2.sol";
 
 import {INativeSwap} from "../../src/interfaces/INativeSwap.sol";
-import {IOrderRouter} from "liquidity-layer/IOrderRouter.sol";
+import {ITokenRouter} from "liquidity-layer/ITokenRouter.sol";
 
 contract TestSwap is Script {
     address immutable _deployed = vm.envAddress("DEPLOYED");
-    address immutable _orderRouter = vm.envAddress("ORDER_ROUTER");
+    address immutable _tokenRouter = vm.envAddress("TOKEN_ROUTER");
     address immutable _usdc = vm.envAddress("USDC");
     address immutable _wrappedNative = vm.envAddress("WETH");
 
@@ -35,7 +35,7 @@ contract TestSwap is Script {
 
     function swap() public {
         // Compute liquidity layer slippage.
-        uint256 liquidityLayerMinAmountOut = IOrderRouter(_orderRouter).computeMinAmountOut(
+        uint256 liquidityLayerMinAmountOut = ITokenRouter(_tokenRouter).computeMinAmountOut(
             _amountOutMinimum,
             _targetChain,
             0, // Use default slippage

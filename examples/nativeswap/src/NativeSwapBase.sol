@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {IWETH} from "wormhole-solidity/IWETH.sol";
 import {BytesLib} from "wormhole-solidity/BytesLib.sol";
-import {IOrderRouter, OrderResponse, RedeemedFill} from "liquidity-layer/IOrderRouter.sol";
+import {ITokenRouter, OrderResponse, RedeemedFill} from "liquidity-layer/ITokenRouter.sol";
 
 abstract contract NativeSwapBase {
     using SafeERC20 for IERC20;
@@ -21,7 +21,7 @@ abstract contract NativeSwapBase {
     // immutables
     address public immutable deployer;
     IWormhole public immutable WORMHOLE;
-    IOrderRouter public immutable ORDER_ROUTER;
+    ITokenRouter public immutable TOKEN_ROUTER;
     address public immutable USDC_ADDRESS;
     address public immutable WRAPPED_NATIVE_ADDRESS;
 
@@ -63,25 +63,12 @@ abstract contract NativeSwapBase {
     ) {
         deployer = msg.sender;
         WORMHOLE = IWormhole(_wormholeAddress);
-        ORDER_ROUTER = IOrderRouter(_orderRouterAddress);
+        TOKEN_ROUTER = ITokenRouter(_orderRouterAddress);
         USDC_ADDRESS = _usdcAddress;
         WRAPPED_NATIVE_ADDRESS = _wrappedNativeAddress;
     }
 
     // ------------------------------ Public ------------------------------ //
-
-    function handleOrderRevert(OrderResponse calldata response) external {
-        // This pattern is relatively safe considering that the USDC address
-        // is allowlisted. The only way that this could fail is if the USDC
-        // contract is malicious. If that's the case, we have bigger problems.
-        IERC20 usdc = IERC20(USDC_ADDRESS);
-        uint256 balanceBefore = usdc.balanceOf(address(this));
-        (, address refundAddress) = ORDER_ROUTER.redeemOrderRevert(response);
-        uint256 balanceAfter = usdc.balanceOf(address(this));
-
-        // refund the USDC to the refund address
-        usdc.safeTransfer(refundAddress, balanceAfter - balanceBefore);
-    }
 
     function encodeSwapInParameters(
         ExactInParameters memory swapParams,
@@ -148,8 +135,7 @@ abstract contract NativeSwapBase {
     function _verifyInput(
         address[] calldata path,
         uint256 amountOutMinimum,
-        uint16 targetChainId,
-        uint256 wormholeSlippage
+        uint16 targetChainId
     ) internal view returns (bytes32 targetContract, uint256 relayerFee) {
         require(path.length == 4, "invalid path");
         require(
@@ -164,7 +150,7 @@ abstract contract NativeSwapBase {
         // relayer fee in USDC terms
         relayerFee = relayerFees[targetChainId];
         require(
-            amountOutMinimum > relayerFee + wormholeSlippage,
+            amountOutMinimum > relayerFee,
             "insufficient amountOutMinimum"
         );
 
@@ -182,7 +168,7 @@ abstract contract NativeSwapBase {
         // is allowlisted. The only way that this could fail is if the USDC
         // contract is malicious. If that's the case, we have bigger problems.
         uint256 balanceBefore = IERC20(USDC_ADDRESS).balanceOf(address(this));
-        RedeemedFill memory fill = ORDER_ROUTER.redeemFill(orderResponse);
+        RedeemedFill memory fill = TOKEN_ROUTER.redeemFill(orderResponse);
         swapAmount = IERC20(USDC_ADDRESS).balanceOf(address(this)) - balanceBefore;
 
         // verify that the sender is a registered contract

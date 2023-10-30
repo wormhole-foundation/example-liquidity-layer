@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.19;
 
-import {OrderResponse, RedeemedFill} from "liquidity-layer/IOrderRouter.sol";
+import {OrderResponse, RedeemedFill} from "liquidity-layer/ITokenRouter.sol";
 
 interface INativeSwap {
     struct ExactInParameters {
@@ -26,15 +26,12 @@ interface INativeSwap {
     function swapExactNativeInAndTransfer(
         ExactInParameters calldata swapParams,
         address[] calldata path,
-        uint16 targetChainId,
-        uint256 wormholeSlippage
+        uint16 targetChainId
     ) external payable;
 
     function recvAndSwapExactNativeIn(
         OrderResponse calldata orderResponse
     ) external payable returns (uint256[] memory amounts);
-
-    function handleOrderRevert(OrderResponse calldata response) external;
 
     function setRelayerFee(uint16 chainId, uint256 fee) external;
 
