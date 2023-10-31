@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache 2
 
-pragma solidity 0.8.19;
+pragma solidity ^0.8.19;
 
 struct RouterEndpoints {
     // Mapping of chain ID to router address in Wormhole universal format.
