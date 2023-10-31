@@ -1,5 +1,5 @@
 import { getConfig, ZERO_BYTES32 } from "./helpers";
-import { tryHexToNativeString } from "@certusone/wormhole-sdk";
+import { coalesceChainId, tryHexToNativeString } from "@certusone/wormhole-sdk";
 import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__factory";
 import { ITokenRouter } from "../src/types/ITokenRouter";
 import { ethers } from "ethers";
@@ -46,15 +46,19 @@ async function main() {
     const provider = new ethers.providers.StaticJsonRpcProvider(rpc);
     const wallet = new ethers.Wallet(key, provider);
 
+    const routerChainId = coalesceChainId(chain);
+
     // Setup token router contract.
     const tokenRouter = ITokenRouter__factory.connect(
-        ethers.utils.getAddress(tryHexToNativeString(config[chain].substring(2), chain)),
+        ethers.utils.getAddress(
+            tryHexToNativeString(config[routerChainId].substring(2), routerChainId)
+        ),
         wallet
     );
 
     // Add router info.
     for (const chainId of Object.keys(config)) {
-        if (chainId == chain) {
+        if (chainId == routerChainId.toString()) {
             continue;
         }
         if (config[chainId].endpoint == ZERO_BYTES32) {
