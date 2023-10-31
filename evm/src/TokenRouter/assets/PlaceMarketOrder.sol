@@ -12,6 +12,7 @@ import {fromUniversalAddress, toUniversalAddress} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
+import {getFastTransferParametersState, FastTransferParameters} from "./Storage.sol";
 
 import "../../interfaces/IPlaceMarketOrder.sol";
 
@@ -45,20 +46,33 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         );
     }
 
+    function placeFastMarketOrder(
+        PlaceMarketOrderArgs calldata args
+    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
+        (sequence, fastSequence) = _handleFastOrder(args);
+    }
+
+    function placeFastMarketOrder(
+        PlaceCctpMarketOrderArgs calldata args
+    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
+        (sequence, fastSequence) = _handleFastOrder(
+            PlaceMarketOrderArgs({
+                amountIn: args.amountIn,
+                minAmountOut: 0,
+                targetChain: args.targetChain,
+                redeemer: args.redeemer,
+                redeemerMessage: args.redeemerMessage,
+                refundAddress: address(0)
+            })
+        );
+    }
+
+    // ---------------------------------------- private -------------------------------------------
+
     function _handleOrder(
         PlaceMarketOrderArgs memory args
     ) private returns (uint64 sequence) {
-        if (args.amountIn == 0) {
-            revert ErrInsufficientAmount();
-        }
-        if (args.redeemer == bytes32(0)) {
-            revert ErrInvalidRedeemerAddress();
-        }
-
-        bytes32 dstEndpoint = getRouter(args.targetChain);
-        if (dstEndpoint == bytes32(0)) {
-            revert ErrUnsupportedChain(args.targetChain);
-        }
+        bytes32 targetRouter = _verifyOrder(args.amountIn, args.redeemer, args.targetChain);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
         SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
@@ -68,7 +82,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 token: address(_orderToken),
                 amount: args.amountIn,
                 targetChain: args.targetChain,
-                mintRecipient: dstEndpoint
+                mintRecipient: targetRouter
             }),
             NONCE,
             Messages
@@ -80,5 +94,31 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 })
                 .encode()
         );
+    }
+
+    function _handleFastOrder(
+        PlaceMarketOrderArgs memory args
+    ) private returns (uint64 sequence, uint64 fastSequence) {
+        //bytes32 targetRouter = _verifyOrder(args.amountIn, args.redeemer, args.targetChain);
+
+        return (sequence, fastSequence);
+    }
+
+    function _verifyOrder(
+        uint256 amountIn,
+        bytes32 redeemer,
+        uint16 targetChain
+    ) private view returns (bytes32 targetRouter) {
+        if (amountIn == 0) {
+            revert ErrInsufficientAmount();
+        }
+        if (redeemer == bytes32(0)) {
+            revert ErrInvalidRedeemerAddress();
+        }
+
+        targetRouter = getRouter(targetChain);
+        if (targetRouter == bytes32(0)) {
+            revert ErrUnsupportedChain(targetChain);
+        }
     }
 }

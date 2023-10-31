@@ -8,7 +8,7 @@ import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {IState} from "../../interfaces/IState.sol";
 
 import "./Errors.sol";
-import {getRouterEndpoint} from "./Storage.sol";
+import {getRouterEndpointState} from "./Storage.sol";
 
 abstract contract State is IState {
     // Immutable state.
@@ -37,7 +37,7 @@ abstract contract State is IState {
 
     /// @inheritdoc IState
     function getRouter(uint16 chain) public view returns (bytes32) {
-        return getRouterEndpoint().endpoints[chain];
+        return getRouterEndpointState().endpoints[chain];
     }
 
     /// @inheritdoc IState
