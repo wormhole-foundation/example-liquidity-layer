@@ -1,0 +1,25 @@
+[profile.default]
+solc_version = "0.8.19"
+optimizer = true
+optimizer_runs = 200
+via_ir = true
+extra_output = ["metadata", "storageLayout", "evm.deployedBytecode.immutableReferences"]
+
+test = "forge/tests"
+
+libs = [
+    "lib",
+    "node_modules"
+]
+
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "forge-std/=lib/forge-std/src/",
+    "wormhole-solidity/=modules/wormhole/",
+    "cctp-solidity/=modules/circle/",
+    "liquidity-layer/=modules/liquidity-layer/"
+]
+
+gas_limit = "18446744073709551615"
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config

@@ -1,0 +1,15 @@
+.anvil
+.env
+.vscode
+cache
+/lib
+/bin
+node_modules
+out
+out.log
+broadcast
+forge-scripts/deploy.out
+ts/lib
+ts/src/types
+dist
+ts-types
