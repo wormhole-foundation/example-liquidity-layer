@@ -1,7 +1,7 @@
 .anvil
 .env
 cache
-/lib
+lib
 modules
 node_modules
 out
