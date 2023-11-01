@@ -131,6 +131,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             redeemer: args.redeemer,
             sender: toUniversalAddress(msg.sender),
             refundAddress: toUniversalAddress(args.refundAddress),
+            slowSequence: 0, // Only used by the fast transfer message.
             transferFee: baseFee,
             redeemerMessage: args.redeemerMessage
         });
@@ -149,9 +150,13 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
         // Update the `transferFee` to the encoded minimum transfer fee for fast orders.
         fastOrder.transferFee = fastTransferFee;
-        _wormhole.publishMessage{value: messageFee}(NONCE, fastOrder.encode(), FAST_FINALITY);
+        fastOrder.slowSequence = sequence;
 
-        return (sequence, fastSequence);
+        fastSequence = _wormhole.publishMessage{value: messageFee}(
+            NONCE,
+            fastOrder.encode(),
+            FAST_FINALITY
+        );
     }
 
     function _verifyFastOrderParams(
