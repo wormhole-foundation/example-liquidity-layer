@@ -52,6 +52,10 @@ contract TokenRouterTest is Test {
     ITokenRouter router;
     bytes32 immutable ARB_ROUTER = toUniversalAddress(makeAddr("arbRouter"));
 
+    // Matching engine.
+    uint16 immutable matchingEngineChain = 6;
+    bytes32 immutable matchingEngineAddress = toUniversalAddress(makeAddr("ME"));
+
     // Integrating contract helpers.
     SigningWormholeSimulator wormholeSimulator;
     CircleSimulator circleSimulator;
@@ -66,7 +70,9 @@ contract TokenRouterTest is Test {
         // Deploy Implementation.
         TokenRouterImplementation implementation = new TokenRouterImplementation(
             _token,
-            _wormholeCircle
+            _wormholeCircle,
+            matchingEngineChain,
+            matchingEngineAddress
         );
 
         // Deploy Setup.
@@ -116,7 +122,9 @@ contract TokenRouterTest is Test {
         // Deploy new implementation.
         MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
             USDC_ADDRESS,
-            address(wormholeCctp)
+            address(wormholeCctp),
+            matchingEngineChain,
+            matchingEngineAddress
         );
 
         // Upgrade the contract.
@@ -135,7 +143,9 @@ contract TokenRouterTest is Test {
         // Deploy new implementation.
         MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
             USDC_ADDRESS,
-            address(wormholeCctp)
+            address(wormholeCctp),
+            matchingEngineChain,
+            matchingEngineAddress
         );
 
         vm.startPrank(makeAddr("owner"));

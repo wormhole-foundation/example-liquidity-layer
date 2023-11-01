@@ -6,7 +6,7 @@ import {Admin} from "../../shared/Admin.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
-import {getRouterEndpoint} from "./Storage.sol";
+import {getRouterEndpointState, getFastTransferParametersState, FastTransferParameters} from "./Storage.sol";
 
 import {ITokenRouterAdmin} from "../../interfaces/ITokenRouterAdmin.sol";
 
@@ -25,6 +25,24 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
             revert ErrInvalidEndpoint(bytes32(0));
         }
 
-        getRouterEndpoint().endpoints[chain] = router;
+        getRouterEndpointState().endpoints[chain] = router;
+    }
+
+    function updateFastTransferParameters(
+        FastTransferParameters memory newParams
+    ) external onlyOwnerOrAssistant {
+        FastTransferParameters storage params = getFastTransferParametersState();
+
+        if (newParams.feeInBps > MAX_BPS_FEE || newParams.feeInBps == 0) {
+            revert ErrInvalidFeeInBps();
+        }
+
+        params.feeInBps = newParams.feeInBps;
+        params.baseFee = newParams.baseFee;
+        params.maxAmount = newParams.maxAmount;
+    }
+
+    function disableFastTransfers() external onlyOwnerOrAssistant {
+        getFastTransferParametersState().feeInBps = 0;
     }
 }

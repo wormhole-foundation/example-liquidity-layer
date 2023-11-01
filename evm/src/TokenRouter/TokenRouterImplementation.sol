@@ -23,11 +23,15 @@ contract TokenRouterImplementation is
 
     constructor(
         address token_,
-        address wormholeCircle_
+        address wormholeCircle_,
+        uint16 matchingEngineChain_,
+        bytes32 matchingEngineAddress_
     )
         State(
             token_,
-            wormholeCircle_
+            wormholeCircle_,
+            matchingEngineChain_,
+            matchingEngineAddress_
         )
     {}
 

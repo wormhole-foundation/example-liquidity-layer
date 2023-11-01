@@ -19,3 +19,11 @@ error ErrInvalidSourceRouter(bytes32 sender, bytes32 expected);
 error ErrInvalidChain(uint16 chain);
 
 error ErrInsufficientAmount();
+
+error ErrInsufficientFastTransferFee();
+
+error ErrAmountTooLarge(uint256 amountIn, uint128 maxAmount);
+
+error ErrFastTransferFeeUnset();
+
+error ErrInvalidFeeInBps();
