@@ -33,7 +33,7 @@ contract TokenRouterTest is Test {
     address constant WORMHOLE_CCTP_ADDRESS = 0x09Fb06A271faFf70A651047395AaEb6265265F13;
     address constant TOKEN_BRIDGE_ADDRESS = 0x0e082F06FF657D94310cB8cE8B0D9a04541d8052;
     uint16 constant ARB_CHAIN = 23;
-    uint16 constant AVAX_CHAIN = 6;
+    uint16 constant AVAX_CHAIN = 6; 
 
     // Environment variables.
     uint256 immutable TESTING_SIGNER = uint256(vm.envBytes32("TESTING_DEVNET_GUARDIAN"));
@@ -52,6 +52,10 @@ contract TokenRouterTest is Test {
     ITokenRouter router;
     bytes32 immutable ARB_ROUTER = toUniversalAddress(makeAddr("arbRouter"));
 
+    // Matching engine.
+    uint16 immutable matchingEngineChain = 6;
+    bytes32 immutable matchingEngineAddress = toUniversalAddress(makeAddr("ME"));
+
     // Integrating contract helpers.
     SigningWormholeSimulator wormholeSimulator;
     CircleSimulator circleSimulator;
@@ -66,7 +70,9 @@ contract TokenRouterTest is Test {
         // Deploy Implementation.
         TokenRouterImplementation implementation = new TokenRouterImplementation(
             _token,
-            _wormholeCircle
+            _wormholeCircle,
+            matchingEngineChain,
+            matchingEngineAddress
         );
 
         // Deploy Setup.
@@ -116,7 +122,9 @@ contract TokenRouterTest is Test {
         // Deploy new implementation.
         MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
             USDC_ADDRESS,
-            address(wormholeCctp)
+            address(wormholeCctp),
+            matchingEngineChain,
+            matchingEngineAddress
         );
 
         // Upgrade the contract.
@@ -135,7 +143,9 @@ contract TokenRouterTest is Test {
         // Deploy new implementation.
         MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
             USDC_ADDRESS,
-            address(wormholeCctp)
+            address(wormholeCctp),
+            matchingEngineChain,
+            matchingEngineAddress
         );
 
         vm.startPrank(makeAddr("owner"));

@@ -9,6 +9,7 @@ library Messages {
 
     // Payload IDs.
     uint8 private constant FILL = 0x1;
+    uint8 private constant FAST_MARKET_ORDER = 0x20; 
 
     // VAA fields.
     uint256 private constant SIG_COUNT_OFFSET = 5;
@@ -22,6 +23,16 @@ library Messages {
         uint16 sourceChain;
         bytes32 orderSender;
         bytes32 redeemer;
+        bytes redeemerMessage;
+    }
+
+    struct FastMarketOrder {
+        uint256 minAmountOut;
+        uint16 targetChain;
+        bytes32 redeemer;
+        bytes32 sender;
+        bytes32 refundAddress;
+        uint256 transferFee;
         bytes redeemerMessage;
     }
 
@@ -42,6 +53,36 @@ library Messages {
         (fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
         (fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
         (fill.redeemerMessage, offset) = _decodeBytes(encoded, offset);
+
+        _checkLength(encoded, offset);
+    }
+
+    function encode(FastMarketOrder memory order) internal pure returns (bytes memory encoded) {
+        encoded = abi.encodePacked(
+            FAST_MARKET_ORDER,
+            order.minAmountOut,
+            order.targetChain,
+            order.redeemer,
+            order.sender,
+            order.refundAddress,
+            order.transferFee,
+            _encodeBytes(order.redeemerMessage)
+        );
+    }
+
+    function decodeMarketOrder(
+        bytes memory encoded
+    ) internal pure returns (FastMarketOrder memory order) {
+        uint256 offset = _checkPayloadId(encoded, 0, FAST_MARKET_ORDER);
+
+        // Parse the encoded message.
+        (order.minAmountOut, offset) = encoded.asUint256Unchecked(offset);
+        (order.targetChain, offset) = encoded.asUint16Unchecked(offset);
+        (order.redeemer, offset) = encoded.asBytes32Unchecked(offset);
+        (order.sender, offset) = encoded.asBytes32Unchecked(offset);
+        (order.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
+        (order.transferFee, offset) = encoded.asUint256Unchecked(offset);
+        (order.redeemerMessage, offset) = _decodeBytes(encoded, offset);
 
         _checkLength(encoded, offset);
     }

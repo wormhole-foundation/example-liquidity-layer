@@ -15,11 +15,15 @@ interface IMockTokenRouter is ITokenRouter {
 contract MockTokenRouterImplementation is TokenRouterImplementation {
     constructor(
         address _token,
-        address _wormholeCircle
+        address _wormholeCircle,
+        uint16 _matchingEngineChain,
+        bytes32 _matchingEngineAddress
     )
         TokenRouterImplementation(
             _token,
-            _wormholeCircle
+            _wormholeCircle,
+            _matchingEngineChain,
+            _matchingEngineAddress
         )
     {}
 

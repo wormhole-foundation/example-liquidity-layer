@@ -49,6 +49,9 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function placeFastMarketOrder(
         PlaceMarketOrderArgs calldata args
     ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
+        if (args.refundAddress == address(0)) {
+            revert ErrInvalidRefundAddress();
+        }
         (sequence, fastSequence) = _handleFastOrder(args);
     }
 
@@ -72,8 +75,18 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _handleOrder(
         PlaceMarketOrderArgs memory args
     ) private returns (uint64 sequence) {
-        bytes32 targetRouter = _verifyOrder(args.amountIn, args.redeemer, args.targetChain);
+        if (args.amountIn == 0) {
+            revert ErrInsufficientAmount();
+        }
+        if (args.redeemer == bytes32(0)) {
+            revert ErrInvalidRedeemerAddress();
+        }
 
+        bytes32 targetRouter = getRouter(args.targetChain);
+        if (targetRouter == bytes32(0)) {
+            revert ErrUnsupportedChain(args.targetChain);
+        }
+        
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
         SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
 
@@ -99,26 +112,79 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _handleFastOrder(
         PlaceMarketOrderArgs memory args
     ) private returns (uint64 sequence, uint64 fastSequence) {
-        //bytes32 targetRouter = _verifyOrder(args.amountIn, args.redeemer, args.targetChain);
+        if (args.redeemer == bytes32(0)) {
+            revert ErrInvalidRedeemerAddress();
+        }
+
+        (uint256 fastTransferFee, uint256 baseFee) = _verifyFastOrderParams(args.amountIn);
+
+        SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
+        SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
+
+        // User needs to send enough value to pay for two Wormhole messages.
+        uint256 messageFee = msg.value / 2; 
+
+        // Cache the `FastMarketOrder` struct.
+        Messages.FastMarketOrder memory fastOrder = Messages.FastMarketOrder({
+            minAmountOut: args.minAmountOut,
+            targetChain: args.targetChain,
+            redeemer: args.redeemer, 
+            sender: toUniversalAddress(msg.sender),
+            refundAddress: toUniversalAddress(args.refundAddress),
+            transferFee: baseFee,
+            redeemerMessage: args.redeemerMessage
+        });
+
+        // Send the slow CCTP transfer with the `baseFee` as the `transferFee`.
+        sequence = _wormholeCctp.transferTokensWithPayload{value: messageFee}(
+            ICircleIntegration.TransferParameters({
+                token: address(_orderToken),
+                amount: args.amountIn,
+                targetChain: _matchingEngineChain,
+                mintRecipient: _matchingEngineAddress
+            }),
+            NONCE,
+            fastOrder.encode()
+        ); 
+
+        // Update the `transferFee` to the encoded minimum transfer fee for fast orders.
+        fastOrder.transferFee = fastTransferFee; 
+        _wormhole.publishMessage{value: messageFee}(NONCE, fastOrder.encode(), FAST_FINALITY);
 
         return (sequence, fastSequence);
     }
 
-    function _verifyOrder(
-        uint256 amountIn,
-        bytes32 redeemer,
-        uint16 targetChain
-    ) private view returns (bytes32 targetRouter) {
-        if (amountIn == 0) {
-            revert ErrInsufficientAmount();
-        }
-        if (redeemer == bytes32(0)) {
-            revert ErrInvalidRedeemerAddress();
+    function _verifyFastOrderParams(
+        uint256 amountIn
+    ) private pure returns (uint256, uint256) {
+        FastTransferParameters memory fastParams = getFastTransferParametersState();
+        uint256 baseFee = uint256(fastParams.baseFee);
+        uint256 feeInBps = uint256(fastParams.feeInBps);
+
+        // The operator of this protocol can disable fast transfers by 
+        // setting `feeInBps` to zero.
+        if (feeInBps == 0) {
+            revert ErrFastTransferFeeUnset();
         }
 
-        targetRouter = getRouter(targetChain);
-        if (targetRouter == bytes32(0)) {
-            revert ErrUnsupportedChain(targetChain);
+        if (amountIn > fastParams.maxAmount) {
+            revert ErrAmountTooLarge(amountIn, fastParams.maxAmount);
+        } 
+
+        // This check is necessary to prevent an underflow in the unchecked block below.
+        if (amountIn < baseFee) {
+            revert ErrInsufficientAmount();
+        }
+
+        unchecked {
+            // The fee should not be applied to the `baseFee` amount.
+            uint256 fastTransferFee = (amountIn - baseFee) * feeInBps / MAX_BPS_FEE;
+
+            if (fastTransferFee == 0) {
+                revert ErrInsufficientFastTransferFee();
+            }
+            
+            return (fastTransferFee, baseFee);
         }
     }
 }
