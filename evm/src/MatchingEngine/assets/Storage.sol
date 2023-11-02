@@ -16,24 +16,48 @@ function getRouterEndpointState() pure returns (RouterEndpoints storage state) {
     }
 }
 
-struct AuctionData {
-    uint128 startBlock;
-    uint128 bidPrice;
-    address bidder;
+enum AuctionStatus {
+    None,
+    Active,
+    Completed
+}
+
+struct LiveAuctionData {
+    AuctionStatus status; 
+    uint88 startBlock;
+    address highestBidder; 
+    uint256 amount;
+    uint128 maxFee;
+    uint128 bidPrice; 
+}
+
+struct LiveAuctionInfo {
+    mapping(bytes32 auctionId => LiveAuctionData data) auctions;
+}
+
+// TODO: recompute this slot. 
+// keccak256("LiveAuctionInfo") - 1
+bytes32 constant LIVE_AUCTION_INFO_STORAGE_SLOT = 0x19a5671aa715beae8ca8e3276cd84c5ad56586ae71b06cc98cfa0aee85e37e9c;
+
+function getLiveAuctionInfo() pure returns (LiveAuctionInfo storage state) {
+    assembly ("memory-safe") {
+        state.slot := LIVE_AUCTION_INFO_STORAGE_SLOT
+    }
+}
+
+struct InitialAuctionInfo {
+    address initialBidder;
     uint16 sourceChain;
     uint64 slowSequence;
-    bytes32 sourceRouter;
+    bytes32 sourceRouter; 
 }
 
-struct AuctionInfo {
-    mapping(bytes32 vmHash => AuctionData data) auctions;
-}
+// TODO: recompute this slot.
+// keccak256(InintialAuctionInfo) - 1
+bytes32 constant INITIAL_AUCTION_INFO_STORAGE_SLOT = 0xb1fa150fa2d3e80815752aa4c585f31e33f15929e28258e784b10ef8d0560996;
 
-// keccak256("AuctionInfo") - 1
-bytes32 constant AUCTION_INFO_STORAGE_SLOT = 0x19a5671aa715beae8ca8e3276cd84c5ad56586ae71b06cc98cfa0aee85e37e9c;
-
-function getAuctionInfo() pure returns (AuctionInfo storage state) {
+function getInitialAuctionInfo() pure returns (InitialAuctionInfo storage state) {
     assembly ("memory-safe") {
-        state.slot := AUCTION_INFO_STORAGE_SLOT
+        state.slot := INITIAL_AUCTION_INFO_STORAGE_SLOT
     }
 }

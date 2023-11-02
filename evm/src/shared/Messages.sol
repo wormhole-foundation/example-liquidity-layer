@@ -34,7 +34,8 @@ library Messages {
         bytes32 sender;
         bytes32 refundAddress;
         uint64 slowSequence;
-        uint256 transferFee;
+        uint128 maxFee;
+        uint128 initAuctionFee;
         bytes redeemerMessage;
     }
 
@@ -69,7 +70,8 @@ library Messages {
             order.sender,
             order.refundAddress,
             order.slowSequence,
-            order.transferFee,
+            order.maxFee,
+            order.initAuctionFee,
             _encodeBytes(order.redeemerMessage)
         );
     }
@@ -87,7 +89,8 @@ library Messages {
         (order.sender, offset) = encoded.asBytes32Unchecked(offset);
         (order.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
         (order.slowSequence, offset) = encoded.asUint64(offset);
-        (order.transferFee, offset) = encoded.asUint256Unchecked(offset);
+        (order.maxFee, offset) = encoded.asUint128Unchecked(offset);
+        (order.initAuctionFee, offset) = encoded.asUint128Unchecked(offset);
         (order.redeemerMessage, offset) = _decodeBytes(encoded, offset);
 
         _checkLength(encoded, offset);

@@ -15,3 +15,7 @@ error ErrInvalidSourceRouter(bytes32 sender, bytes32 expected);
 error ErrBidPriceTooHigh(uint128 bidPrice, uint256 maxPrice);
 
 error ErrAuctionPeriodExpired();
+
+error ErrAuctionAlreadyStarted();
+
+error ErrAuctionNotActive(bytes32 auctionId);

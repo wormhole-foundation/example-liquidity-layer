@@ -18,6 +18,7 @@ abstract contract State {
 
     // Consts.
     uint256 constant AUCTION_DURATION = 2; // 2 blocks == ~6 seconds
+    uint256 constant AUCTION_GRACE_PERIOD = 4; // 4 blocks == ~12 seconds
 
     constructor(address wormholeCctp_, address cctpToken_) {
         assert(wormholeCctp_ != address(0));

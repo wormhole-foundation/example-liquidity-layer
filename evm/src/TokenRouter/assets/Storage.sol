@@ -21,8 +21,9 @@ function getRouterEndpointState() pure returns (RouterEndpoints storage state) {
 
 struct FastTransferParameters {
     uint24 feeInBps;
-    uint104 baseFee;
     uint128 maxAmount;
+    uint128 baseFee;
+    uint128 initAuctionFee;
 }
 
 // keccak256("FastTransferParameters") - 1

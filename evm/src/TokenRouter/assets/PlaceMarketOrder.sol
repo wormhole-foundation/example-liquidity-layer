@@ -116,7 +116,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             revert ErrInvalidRedeemerAddress();
         }
 
-        (uint256 fastTransferFee, uint256 baseFee) = _verifyFastOrderParams(args.amountIn);
+        (uint128 maxFastTransferFee, uint128 baseFee, uint128 initAuctionFee) = 
+            _verifyFastOrderParams(args.amountIn);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
         SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
@@ -133,7 +134,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             sender: toUniversalAddress(msg.sender),
             refundAddress: toUniversalAddress(args.refundAddress),
             slowSequence: 0, // Only used by the fast transfer message.
-            transferFee: baseFee,
+            maxFee: baseFee,
+            initAuctionFee: 0, // Only used by the fast transfer message.
             redeemerMessage: args.redeemerMessage
         });
 
@@ -149,8 +151,9 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             fastOrder.encode()
         );
 
-        // Update the `transferFee` to the encoded minimum transfer fee for fast orders.
-        fastOrder.transferFee = fastTransferFee;
+        // Update the fees and sequence for the fast transfer message.
+        fastOrder.maxFee = maxFastTransferFee + baseFee;
+        fastOrder.initAuctionFee = initAuctionFee;
         fastOrder.slowSequence = sequence;
 
         fastSequence = _wormhole.publishMessage{value: messageFee}(
@@ -162,10 +165,9 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     function _verifyFastOrderParams(
         uint256 amountIn
-    ) private pure returns (uint256, uint256) {
+    ) private pure returns (uint128, uint128, uint128) {
         FastTransferParameters memory fastParams = getFastTransferParametersState();
-        uint256 baseFee = uint256(fastParams.baseFee);
-        uint256 feeInBps = uint256(fastParams.feeInBps);
+        uint128 feeInBps = uint128(fastParams.feeInBps);
 
         // The operator of this protocol can disable fast transfers by
         // setting `feeInBps` to zero.
@@ -178,19 +180,26 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         }
 
         // This check is necessary to prevent an underflow in the unchecked block below.
-        if (amountIn < baseFee) {
+        if (amountIn < fastParams.baseFee + fastParams.initAuctionFee) {
             revert ErrInsufficientAmount();
         }
 
         unchecked {
-            // The fee should not be applied to the `baseFee` amount.
-            uint256 fastTransferFee = (amountIn - baseFee) * feeInBps / MAX_BPS_FEE;
+            /** 
+             * The fee should not be applied to the `baseFee` or `initAuctionFee`. Also, we can 
+             * safely cast the result to `uint128` because we know that `amountIn` is less than
+             * or equal to `fastParams.maxAmount` which is a uint128.
+             */ 
+            uint128 maxFastTransferFee = uint128(
+                (amountIn - fastParams.baseFee - fastParams.initAuctionFee) * 
+                feeInBps / MAX_BPS_FEE
+            );
 
-            if (fastTransferFee == 0) {
+            if (maxFastTransferFee == 0) {
                 revert ErrInsufficientFastTransferFee();
             }
 
-            return (fastTransferFee, baseFee);
+            return (maxFastTransferFee, fastParams.baseFee, fastParams.initAuctionFee);
         }
     }
 }

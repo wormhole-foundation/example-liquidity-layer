@@ -40,6 +40,7 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
         params.feeInBps = newParams.feeInBps;
         params.baseFee = newParams.baseFee;
         params.maxAmount = newParams.maxAmount;
+        params.initAuctionFee = newParams.initAuctionFee;
     }
 
     function disableFastTransfers() external onlyOwnerOrAssistant {

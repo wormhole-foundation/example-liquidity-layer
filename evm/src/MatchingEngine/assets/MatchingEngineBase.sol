@@ -10,7 +10,7 @@ import {Messages} from "../../shared/Messages.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
-import {getRouterEndpointState, AuctionData, getAuctionInfo} from "./Storage.sol";
+import {getRouterEndpointState, LiveAuctionData, getLiveAuctionInfo, InitialAuctionInfo, getInitialAuctionInfo, AuctionStatus} from "./Storage.sol";
 
 abstract contract MatchingEngine is State {
     using BytesParsing for bytes;
@@ -24,58 +24,27 @@ abstract contract MatchingEngine is State {
     );
     event NewBid(bytes32 indexed auctionId, uint256 newBid, uint256 oldBid, address bidder);
 
-    // TODO: change encoded relayer fee to uint128
-    // TODO: should we only verify the first message to save gas? Or should all 
-    // bidders have to pay the gas to make the playing field even? 
-    // TODO: should we save the escrow amount and transfer amount in the auction data, 
-    // and then let folks participate by using the auction ID? First person get's hosed.
     // TODO: Do we need to protect against reentrancy, even though the `_token` is allow listed?
-
-    function placeBid(bytes calldata fastTransferVaa, uint128 feeBid) external {
-        (
-            IWormhole.VM memory vm, 
-            bool valid, 
-            string memory reason
-        ) = _wormhole.parseAndVerifyVM(fastTransferVaa);
+    // TODO: Should there be a minTickSize for new bids? 
+    function placeInitialBid(bytes calldata fastTransferVaa, uint128 feeBid) external {
+        (IWormhole.VM memory vm, bool valid, string memory reason) = 
+            _wormhole.parseAndVerifyVM(fastTransferVaa);
 
         if (!valid) {
             revert ErrInvalidWormholeMessage(reason);
         } 
 
-        // Decode the order, which confirms that the VAA is a fast market order type. 
-        Messages.FastMarketOrder memory order = fastTransferVaa.decodeFastMarketOrder();
+        Messages.FastMarketOrder memory order = fastTransferVaa.decodeFastMarketOrder(); 
 
-        // Verify that the to and from routers are registered with this contract. 
         _verifyRouterPath(vm.emitterChainId, vm.emitterAddress, order.targetChain);
-        
-        // Fetch auction information, if it exists.
-        AuctionData storage auction = getAuctionInfo().auctions[vm.hash];
 
-        // If this is the first bid, initialize the auction.
-        if (auction.startBlock == 0) {
-            _handleNewAuction(vm, order, auction, feeBid); 
-        } else {
-           _handleNewBid(vm, order, auction, feeBid); 
+        // Confirm the auction hasn't started yet. 
+        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vm.hash];
+        if (auction.startBlock != 0) {
+            revert ErrAuctionAlreadyStarted();
         }
-    } 
-
-    function executeFastOrder(bytes calldata fastTransferVaa) external {
-        // * Check to see if the timer has expired
-        // * Make sure it's within grace period
-        // * Divide up funds based on grace period
-        // * Execute if caller 
-    }
-
-    // ------------------------------- Private ---------------------------------
-
-    function _handleNewAuction(
-        IWormhole.VM memory vm, 
-        Messages.FastMarketOrder memory order,
-        AuctionData storage auction,
-        uint128 feeBid
-    ) private {
-        if (feeBid > order.transferFee) {
-            revert ErrBidPriceTooHigh(feeBid, order.transferFee);
+        if (feeBid > order.maxFee) {
+            revert ErrBidPriceTooHigh(feeBid, order.maxFee);
         }
 
         /**
@@ -90,27 +59,39 @@ abstract contract MatchingEngine is State {
             _token, 
             msg.sender, 
             address(this), 
-            order.amountIn + feeBid + order.transferFee
+            order.amountIn + feeBid + order.maxFee
         );
 
-        // Set the auction data.
-        auction.startBlock = uint128(block.number);
+        // Set the live auction data.
+        auction.status = AuctionStatus.Active;
+        auction.startBlock = uint88(block.number);
+        auction.highestBidder = msg.sender;
+        auction.amount = order.amountIn;
+        auction.maxFee = order.maxFee;
         auction.bidPrice = feeBid;
-        auction.bidder = msg.sender;
-        auction.sourceChain = vm.emitterChainId; 
-        auction.sourceRouter = vm.emitterAddress;
-        auction.slowSequence = order.slowSequence;  
+        
+        /**
+         * Set the initial auction data. The initial bidder will receive an 
+         * additional fee once the auction is completed for initializing the auction
+         * and incurring the gas costs of verifying the VAA and setting initial state. 
+         */
+        InitialAuctionInfo storage initialAuction = getInitialAuctionInfo();
+        initialAuction.initialBidder = msg.sender;
+        initialAuction.sourceChain = vm.emitterChainId;
+        initialAuction.sourceRouter = vm.emitterAddress;
+        initialAuction.slowSequence = order.slowSequence;
 
         emit AuctionStarted(vm.hash, order.amountIn, feeBid, msg.sender);
     }
 
-    function _handleNewBid(
-        IWormhole.VM memory vm, 
-        Messages.FastMarketOrder memory order,
-        AuctionData storage auction,
-        uint128 feeBid
-    ) private {
-        if (uint128(block.number) - auction.startBlock > AUCTION_DURATION) {
+    function improveBid(bytes32 auctionId, uint128 feeBid) public { 
+        // Fetch auction information, if it exists.
+        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[auctionId];
+
+        if (auction.status != AuctionStatus.Active) {
+            revert ErrAuctionNotActive(auctionId);
+        }
+        if (uint88(block.number) - auction.startBlock > AUCTION_DURATION) {
             revert ErrAuctionPeriodExpired();
         }
         if (feeBid >= auction.bidPrice) {
@@ -122,22 +103,34 @@ abstract contract MatchingEngine is State {
             _token, 
             msg.sender, 
             address(this), 
-            order.amountIn + feeBid + order.transferFee
+            auction.amount + feeBid + auction.maxFee
         );
 
         // Refund the previous bidder.
         SafeERC20.safeTransfer(
             _token, 
-            auction.bidder, 
-            order.amountIn + auction.bidPrice + order.transferFee
+            auction.highestBidder, 
+            auction.amount + auction.bidPrice + auction.maxFee
         );
 
         // Update the auction data. 
         auction.bidPrice = feeBid;
-        auction.bidder = msg.sender;
+        auction.highestBidder = msg.sender;
 
-        emit NewBid(vm.hash, feeBid, auction.bidPrice, msg.sender);
+        emit NewBid(auctionId, feeBid, auction.bidPrice, msg.sender);
     }
+
+    function executeFastOrder(bytes calldata fastTransferVaa) external {
+        // * Check to see if the timer has expired
+        // * Make sure it's within grace period
+        // * Divide up funds based on grace period
+        // * Execute if caller 
+        // * VM hash must == auction key
+    }
+
+    function snipeFastOrderFee(bytes calldata fastTransferVaa) external {}
+
+    // ------------------------------- Private ---------------------------------
 
     function _verifyRouterPath(uint16 chain, bytes32 fromRouter, uint16 targetChain) private view {
         bytes32 expectedRouter = getRouterEndpointState().endpoints[chain];
