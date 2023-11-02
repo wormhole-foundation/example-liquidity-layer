@@ -10,9 +10,23 @@ import "./Errors.sol";
 
 abstract contract State {
     // Immutable state.
-    address immutable _deployer;
+    address immutable _deployer; 
+    uint16 immutable _wormholeChainId;
+    IWormhole immutable _wormhole;
+    ICircleIntegration immutable _wormholeCctp;
+    IERC20 immutable _token;
 
-    constructor() {
+    // Consts.
+    uint256 constant AUCTION_DURATION = 2; // 2 blocks == ~6 seconds
+
+    constructor(address wormholeCctp_, address cctpToken_) {
+        assert(wormholeCctp_ != address(0));
+        assert(cctpToken_ != address(0));
+
         _deployer = msg.sender;
+        _wormholeCctp = ICircleIntegration(wormholeCctp_);
+        _wormholeChainId = _wormholeCctp.chainId();
+        _wormhole = _wormholeCctp.wormhole();
+        _token = IERC20(cctpToken_);
     }
 }

@@ -17,8 +17,8 @@ contract MatchingEngineImplementation is
 {
     error AlreadyInitialized();
 
-    constructor()
-        State()
+    constructor(address wormholeCctp_, address cctpToken_)
+        State(wormholeCctp_, cctpToken_)
     {}
 
     function initialize() public virtual initializer {

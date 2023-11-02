@@ -126,6 +126,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
         // Cache the `FastMarketOrder` struct.
         Messages.FastMarketOrder memory fastOrder = Messages.FastMarketOrder({
+            amountIn: args.amountIn,
             minAmountOut: args.minAmountOut,
             targetChain: args.targetChain,
             redeemer: args.redeemer,

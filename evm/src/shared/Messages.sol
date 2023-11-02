@@ -27,6 +27,7 @@ library Messages {
     }
 
     struct FastMarketOrder {
+        uint256 amountIn;
         uint256 minAmountOut;
         uint16 targetChain;
         bytes32 redeemer;
@@ -61,6 +62,7 @@ library Messages {
     function encode(FastMarketOrder memory order) internal pure returns (bytes memory encoded) {
         encoded = abi.encodePacked(
             FAST_MARKET_ORDER,
+            order.amountIn,
             order.minAmountOut,
             order.targetChain,
             order.redeemer,
@@ -72,12 +74,13 @@ library Messages {
         );
     }
 
-    function decodeMarketOrder(
+    function decodeFastMarketOrder(
         bytes memory encoded
     ) internal pure returns (FastMarketOrder memory order) {
         uint256 offset = _checkPayloadId(encoded, 0, FAST_MARKET_ORDER);
 
         // Parse the encoded message.
+        (order.amountIn, offset) = encoded.asUint256Unchecked(offset);
         (order.minAmountOut, offset) = encoded.asUint256Unchecked(offset);
         (order.targetChain, offset) = encoded.asUint16Unchecked(offset);
         (order.redeemer, offset) = encoded.asBytes32Unchecked(offset);
