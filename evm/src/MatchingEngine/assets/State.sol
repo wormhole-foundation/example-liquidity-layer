@@ -17,8 +17,9 @@ abstract contract State {
     IERC20 immutable _token;
 
     // Consts.
-    uint256 constant AUCTION_DURATION = 2; // 2 blocks == ~6 seconds
-    uint256 constant AUCTION_GRACE_PERIOD = 4; // 4 blocks == ~12 seconds
+    uint32 constant NONCE = 0;
+    uint8 constant AUCTION_DURATION = 2; // 2 blocks == ~6 seconds
+    uint8 constant AUCTION_GRACE_PERIOD = 6; // Includes AUCTION_DURATION.
 
     constructor(address wormholeCctp_, address cctpToken_) {
         assert(wormholeCctp_ != address(0));

@@ -45,11 +45,15 @@ function getLiveAuctionInfo() pure returns (LiveAuctionInfo storage state) {
     }
 }
 
-struct InitialAuctionInfo {
+struct InitialAuctionData {
     address initialBidder;
     uint16 sourceChain;
     uint64 slowSequence;
     bytes32 sourceRouter; 
+}
+
+struct InitialAuctionInfo {
+    mapping(bytes32 auctionId => InitialAuctionData data) auctions;
 }
 
 // TODO: recompute this slot.
