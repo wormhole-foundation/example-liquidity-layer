@@ -10,7 +10,7 @@ import "./Errors.sol";
 
 abstract contract State {
     // Immutable state.
-    address immutable _deployer; 
+    address immutable _deployer;
     uint16 immutable _wormholeChainId;
     IWormhole immutable _wormhole;
     ICircleIntegration immutable _wormholeCctp;
@@ -18,8 +18,11 @@ abstract contract State {
 
     // Consts.
     uint32 constant NONCE = 0;
+    uint24 constant INITIAL_PENALTY_BPS = 100000; // 1000.00 bps (10%)
+    uint24 constant MAX_BPS_FEE = 1000000; // 10,000.00 bps (100%)
     uint8 constant AUCTION_DURATION = 2; // 2 blocks == ~6 seconds
-    uint8 constant AUCTION_GRACE_PERIOD = 6; // Includes AUCTION_DURATION.
+    uint8 constant AUCTION_GRACE_PERIOD = 6; // includes AUCTION_DURATION
+    uint8 constant PENALTY_BLOCKS = 20;
 
     constructor(address wormholeCctp_, address cctpToken_) {
         assert(wormholeCctp_ != address(0));
