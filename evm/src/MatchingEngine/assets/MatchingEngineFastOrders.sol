@@ -13,7 +13,7 @@ import "./Errors.sol";
 import {State} from "./State.sol";
 import {getRouterEndpointState, LiveAuctionData, getLiveAuctionInfo, InitialAuctionData, getInitialAuctionInfo, AuctionStatus} from "./Storage.sol";
 
-abstract contract MatchingEngine is State {
+abstract contract MatchingEngineFastOrders is State {
     using BytesParsing for bytes;
     using Messages for *;
 
@@ -142,7 +142,8 @@ abstract contract MatchingEngine is State {
             uint256 penalty = basePenalty +
                 _calculateDynamicPenalty(auction.maxFee - basePenalty, blocksElapsed);
 
-            // Give the penalty amount to the liquidater.
+            // Give the penalty amount to the liquidater and return the remaining
+            // security deposit to the highest bidder.
             SafeERC20.safeTransfer(_token, msg.sender, penalty);
             SafeERC20.safeTransfer(_token, auction.highestBidder, auction.maxFee - penalty);
         } else {
@@ -188,6 +189,14 @@ abstract contract MatchingEngine is State {
         );
 
         auction.status = AuctionStatus.Completed;
+    }
+
+    function executeOrder() external payable {
+        // Check if the auction was ever started
+        // Check if the fast transfer auction is completed
+        // Check if the fast transfer auction is live (which means it was never completed)
+        // Do something different for all three of these scenarios.
+        // Pay the relayer the base fee if there was no auction.
     }
 
     // ------------------------------- Private ---------------------------------
