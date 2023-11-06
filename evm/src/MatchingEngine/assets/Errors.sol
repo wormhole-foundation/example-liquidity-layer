@@ -23,3 +23,5 @@ error ErrAuctionNotActive(bytes32 auctionId);
 error ErrAuctionPeriodNotComplete();
 
 error ErrNotHighestBidder();
+
+error ErrVaaMismatch();

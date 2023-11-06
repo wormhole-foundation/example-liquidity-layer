@@ -27,7 +27,7 @@ struct LiveAuctionData {
     uint88 startBlock;
     address highestBidder; 
     uint256 amount;
-    uint128 maxFee;
+    uint128 securityDeposit;
     uint128 bidPrice; 
 }
 
