@@ -7,3 +7,10 @@ struct OrderResponse {
     bytes circleBridgeMessage;
     bytes circleAttestation;
 }
+
+struct FastTransferParameters {
+    uint24 feeInBps;
+    uint128 maxAmount;
+    uint128 baseFee;
+    uint128 initAuctionFee;
+}

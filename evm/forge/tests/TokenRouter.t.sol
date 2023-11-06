@@ -24,6 +24,7 @@ import {Messages} from "../../src/shared/Messages.sol";
 import {fromUniversalAddress, toUniversalAddress} from "../../src/shared/Utils.sol";
 
 import "../../src/interfaces/ITokenRouter.sol";
+import {FastTransferParameters} from "../../src/interfaces/Types.sol";
 
 contract TokenRouterTest is Test {
     using Messages for *;
@@ -48,12 +49,18 @@ contract TokenRouterTest is Test {
 
     bytes32 immutable TEST_REDEEMER = toUniversalAddress(makeAddr("TEST_REDEEMER"));
 
+    // Fast transfer parameters.
+    uint24 immutable FAST_TRANSFER_FEE_IN_BPS = 25000; // 0.25%.
+    uint128 immutable FAST_TRANSFER_MAX_AMOUNT = 500000e6; // 500,000 USDC.
+    uint128 immutable FAST_TRANSFER_BASE_FEE = 1e6; // 1 USDC.
+    uint128 immutable FAST_TRANSFER_INIT_AUCTION_FEE = 1e6; // 1 USDC.
+
     // Test routers.
     ITokenRouter router;
     bytes32 immutable ARB_ROUTER = toUniversalAddress(makeAddr("arbRouter"));
 
     // Matching engine.
-    uint16 immutable matchingEngineChain = 6;
+    uint16 immutable matchingEngineChain = 2; // Let's pretend the matching engine is on ETH.
     bytes32 immutable matchingEngineAddress = toUniversalAddress(makeAddr("ME"));
 
     // Integrating contract helpers.
@@ -98,6 +105,16 @@ contract TokenRouterTest is Test {
 
         // Register target chain endpoints.
         router.addRouterEndpoint(ARB_CHAIN, ARB_ROUTER);
+
+        // Set the fast transfer parameters for Arbitrum.
+        router.updateFastTransferParameters(
+            FastTransferParameters({
+                feeInBps: FAST_TRANSFER_FEE_IN_BPS,
+                maxAmount: FAST_TRANSFER_MAX_AMOUNT,
+                baseFee: FAST_TRANSFER_BASE_FEE,
+                initAuctionFee: FAST_TRANSFER_INIT_AUCTION_FEE
+            })
+        );
 
         vm.stopPrank();
 
@@ -376,6 +393,113 @@ contract TokenRouterTest is Test {
         router.addRouterEndpoint(chain, routerEndpoint);
     }
 
+    function testUpdateFastTransferParameters() public {
+        FastTransferParameters memory newParams = FastTransferParameters({
+            feeInBps: 69,
+            maxAmount: 420,
+            baseFee: 100,
+            initAuctionFee: 10
+        });
+
+        // Fetch current parameters.
+        FastTransferParameters memory currentParams = router.getFastTransferParameters();
+        assertEq(currentParams.feeInBps, FAST_TRANSFER_FEE_IN_BPS);
+        assertEq(currentParams.maxAmount, FAST_TRANSFER_MAX_AMOUNT);
+        assertEq(currentParams.baseFee, FAST_TRANSFER_BASE_FEE);
+        assertEq(currentParams.initAuctionFee, FAST_TRANSFER_INIT_AUCTION_FEE);
+
+        // Update to the new params.
+        vm.prank(makeAddr("owner"));
+        router.updateFastTransferParameters(newParams);
+
+        FastTransferParameters memory params = router.getFastTransferParameters();
+        assertEq(params.feeInBps, newParams.feeInBps);
+        assertEq(params.maxAmount, newParams.maxAmount);
+        assertEq(params.baseFee, newParams.baseFee);
+        assertEq(params.initAuctionFee, newParams.initAuctionFee);
+    }
+
+    function testCannotUpdateFastTransferParametersZeroFeeInBps() public {
+        // Set `feeInBps` to zero.
+        FastTransferParameters memory newParams = FastTransferParameters({
+            feeInBps: 0,
+            maxAmount: 420,
+            baseFee: 100,
+            initAuctionFee: 10
+        });
+
+        // Update to the new params.
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidFeeInBps()"));
+        router.updateFastTransferParameters(newParams);
+    }
+
+    function testCannotUpdateFastTransferParametersFeeInBpsTooLarge() public {
+        // Set `feeInBps` to one larger than the max (defined in `State.sol`).
+        FastTransferParameters memory newParams = FastTransferParameters({
+            feeInBps: 1000001,
+            maxAmount: 420,
+            baseFee: 100,
+            initAuctionFee: 10
+        });
+
+        // Update to the new params.
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidFeeInBps()"));
+        router.updateFastTransferParameters(newParams);
+    }
+
+    function testCannotUpdateFastTransferParametersInvalidMaxAmount() public {
+        // Set `feeInBps` to one larger than the max (defined in `State.sol`).
+        FastTransferParameters memory newParams = FastTransferParameters({
+            feeInBps: 69,
+            maxAmount: 200,
+            baseFee: 101,
+            initAuctionFee: 101
+        });
+
+        // Update to the new params.
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidFastTransferParameters()"));
+        router.updateFastTransferParameters(newParams);
+    }
+
+    function testCannotUpdateFastTransferParametersOnlyOwnerOrAssistant() public {
+        // Set `feeInBps` to one larger than the max (defined in `State.sol`).
+        FastTransferParameters memory newParams = FastTransferParameters({
+            feeInBps: 1000,
+            maxAmount: 100,
+            baseFee: 50,
+            initAuctionFee: 25
+        });
+
+        // Update to the new params.
+        vm.prank(makeAddr("robber"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
+        router.updateFastTransferParameters(newParams);
+    }
+
+    function testDisableFastTransfers() public {
+        // Fetch current parameters.
+        FastTransferParameters memory currentParams = router.getFastTransferParameters();
+        assertEq(currentParams.feeInBps, FAST_TRANSFER_FEE_IN_BPS);
+        assertEq(currentParams.maxAmount, FAST_TRANSFER_MAX_AMOUNT);
+        assertEq(currentParams.baseFee, FAST_TRANSFER_BASE_FEE);
+        assertEq(currentParams.initAuctionFee, FAST_TRANSFER_INIT_AUCTION_FEE);
+
+        vm.prank(makeAddr("owner"));
+        router.disableFastTransfers();
+
+        FastTransferParameters memory params = router.getFastTransferParameters();
+        assertEq(params.feeInBps, 0);
+    }
+
+    function testCannotDisableFastTransfersOnlyOwnerOrAssistant() public {
+        vm.prank(makeAddr("robber"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
+        router.disableFastTransfers();
+    }
+
     /**
      * MESSAGES TESTS
      */
@@ -404,8 +528,50 @@ contract TokenRouterTest is Test {
         assertEq(decoded.redeemerMessage, fill.redeemerMessage);
     }
 
+    function testEncodeAndDecodeFastMarketOrder(
+        uint256 amountIn,
+        uint256 minAmountOut,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes32 sender,
+        bytes32 refundAddress,
+        uint64 slowSequence,
+        uint128 maxFee,
+        uint128 initAuctionFee,
+        bytes memory redeemerMessage
+    ) public {
+        Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
+            amountIn: amountIn,
+            minAmountOut: minAmountOut,
+            targetChain: targetChain,
+            redeemer: redeemer,
+            sender: sender,
+            refundAddress: refundAddress,
+            slowSequence: slowSequence,
+            maxFee: maxFee,
+            initAuctionFee: initAuctionFee,
+            redeemerMessage: redeemerMessage
+        });
+
+        // Encode and decode the order.
+        bytes memory encoded = order.encode();
+
+        Messages.FastMarketOrder memory decoded = Messages.decodeFastMarketOrder(encoded);
+
+        assertEq(decoded.amountIn, order.amountIn);
+        assertEq(decoded.minAmountOut, order.minAmountOut);
+        assertEq(decoded.targetChain, order.targetChain);
+        assertEq(decoded.redeemer, order.redeemer);
+        assertEq(decoded.sender, order.sender);
+        assertEq(decoded.refundAddress, order.refundAddress);
+        assertEq(decoded.slowSequence, order.slowSequence);
+        assertEq(decoded.maxFee, order.maxFee);
+        assertEq(decoded.initAuctionFee, order.initAuctionFee);
+        assertEq(decoded.redeemerMessage, order.redeemerMessage);
+    }
+
     /**
-     * BUSINESS LOGIC TESTS
+     * SLOW TRANSFER TESTS
      */
 
     function testCannotPlaceMarketOrderErrInsufficientAmount() public {
@@ -479,8 +645,6 @@ contract TokenRouterTest is Test {
             redeemerMessage: bytes("All your base are belong to us")
         });
 
-        uint256 balanceBefore = IERC20(USDC_ADDRESS).balanceOf(address(this));
-
         bytes memory wormholeCctpPayload = _placeMarketOrder(router, amountIn, ARB_CHAIN, expectedFill);
 
         ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp
@@ -502,12 +666,6 @@ contract TokenRouterTest is Test {
                 payload: deposit.payload
             });
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
-
-        assertEq(
-            IERC20(USDC_ADDRESS).balanceOf(address(this)),
-            balanceBefore - amountIn,
-            "Incorrect balance after market order."
-        );
     }
 
     function testPlaceMarketOrderWithCctpInterface(uint256 amountIn) public {
@@ -521,8 +679,6 @@ contract TokenRouterTest is Test {
             redeemer: TEST_REDEEMER,
             redeemerMessage: bytes("All your base are belong to us")
         });
-
-        uint256 balanceBefore = IERC20(USDC_ADDRESS).balanceOf(address(this));
 
         bytes memory wormholeCctpPayload = _placeCctpMarketOrder(
             router,
@@ -553,13 +709,144 @@ contract TokenRouterTest is Test {
                 payload: deposit.payload
             });
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
-
-        assertEq(
-            IERC20(USDC_ADDRESS).balanceOf(address(this)),
-            balanceBefore - amountIn,
-            "Incorrect balance after market order."
-        );
     }
+
+    /**
+     * FAST TRANSFER TESTS
+     */
+
+    function testCalculateMaxTransferFee() public {
+        // Test using the default parameters.
+        {
+            uint256 amountIn = 1000e6; // 1000 USDC.
+            uint256 expectedFee = 2595e4; // 2.5 USDC.
+
+            uint256 fee = router.calculateMaxTransferFee(amountIn);
+            assertEq(fee, expectedFee);
+        }
+    }
+
+    function testPlaceFastMarketOrder(uint256 amountIn) public {
+        amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
+
+        _dealAndApproveUsdc(router, amountIn);
+
+        // The slow message is sent first.
+        uint64 slowSequence = wormholeSimulator.nextSequence(WORMHOLE_CCTP_ADDRESS);
+
+        // Create a fast market order, this is actually the payload that will be encoded
+        // in the "slow message".
+        Messages.FastMarketOrder memory expectedFastMarketOrder = Messages.FastMarketOrder({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: ARB_CHAIN,
+            redeemer: TEST_REDEEMER,
+            sender: toUniversalAddress(address(this)),
+            refundAddress: toUniversalAddress(address(this)),
+            slowSequence: 0,
+            maxFee: router.getBaseFee(),
+            initAuctionFee: 0,
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        // Place the fast market order and store the two VAA payloads that were emitted.
+        (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
+            _placeFastMarketOrder(router, expectedFastMarketOrder);
+
+        ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp
+            .decodeDepositWithPayload(wormholeCctpMessage);
+
+        // Check that the fast market order is encoded correclty.
+        assertEq(deposit.payload, expectedFastMarketOrder.encode());
+
+        // And check that the transfer is encoded correctly.
+        ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
+            .DepositWithPayload({
+                token: toUniversalAddress(USDC_ADDRESS),
+                amount: amountIn,
+                sourceDomain: wormholeCctp.localDomain(),
+                targetDomain: wormholeCctp.getDomainFromChainId(matchingEngineChain),
+                nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+                fromAddress: toUniversalAddress(address(router)),
+                mintRecipient: matchingEngineAddress,
+                payload: deposit.payload
+            });
+        assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
+
+        // Now verify the fast message.
+        expectedFastMarketOrder.maxFee = router.calculateMaxTransferFee(amountIn);
+        expectedFastMarketOrder.initAuctionFee = router.getInitialAuctionFee();
+        expectedFastMarketOrder.slowSequence = slowSequence;
+
+        assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
+    }
+
+    function testPlaceFastMarketOrderWithCctpInterface(uint256 amountIn) public {
+        amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
+
+        _dealAndApproveUsdc(router, amountIn);
+
+        // The slow message is sent first.
+        uint64 slowSequence = wormholeSimulator.nextSequence(WORMHOLE_CCTP_ADDRESS);
+
+        // Create a fast market order, this is actually the payload that will be encoded
+        // in the "slow message".
+        Messages.FastMarketOrder memory expectedFastMarketOrder = Messages.FastMarketOrder({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: ARB_CHAIN,
+            redeemer: TEST_REDEEMER,
+            sender: toUniversalAddress(address(this)),
+            refundAddress: bytes32(0),
+            slowSequence: 0,
+            maxFee: router.getBaseFee(),
+            initAuctionFee: 0,
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        // Place the fast market order and store the two VAA payloads that were emitted.
+        (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
+            _placeCctpFastMarketOrder(
+                router,
+                PlaceCctpMarketOrderArgs({
+                    amountIn: expectedFastMarketOrder.amountIn,
+                    targetChain: expectedFastMarketOrder.targetChain,
+                    redeemer: expectedFastMarketOrder.redeemer,
+                    redeemerMessage: expectedFastMarketOrder.redeemerMessage
+                })
+            );
+
+        ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp
+            .decodeDepositWithPayload(wormholeCctpMessage);
+
+        // Check that the fast market order is encoded correclty.
+        assertEq(deposit.payload, expectedFastMarketOrder.encode());
+
+        // And check that the transfer is encoded correctly.
+        ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
+            .DepositWithPayload({
+                token: toUniversalAddress(USDC_ADDRESS),
+                amount: amountIn,
+                sourceDomain: wormholeCctp.localDomain(),
+                targetDomain: wormholeCctp.getDomainFromChainId(matchingEngineChain),
+                nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+                fromAddress: toUniversalAddress(address(router)),
+                mintRecipient: matchingEngineAddress,
+                payload: deposit.payload
+            });
+        assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
+
+        // Now verify the fast message.
+        expectedFastMarketOrder.maxFee = router.calculateMaxTransferFee(amountIn);
+        expectedFastMarketOrder.initAuctionFee = router.getInitialAuctionFee();
+        expectedFastMarketOrder.slowSequence = slowSequence;
+
+        assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
+    }
+
+    /**
+     * FILL REDEMPTION TESTS
+     */
 
     function testCannotRedeemFillInvalidSourceRouter() public {
         bytes32 invalidRouter = toUniversalAddress(makeAddr("notArbRouter"));
@@ -641,19 +928,11 @@ contract TokenRouterTest is Test {
             message: bytes("Somebody set up us the bomb")
         });
 
-        uint256 balanceBefore = IERC20(USDC_ADDRESS).balanceOf(address(this));
-
         _redeemWormholeCctpFill(
             router,
             expectedRedeemed,
             ARB_ROUTER,
             ARB_CHAIN
-        );
-
-        assertEq(
-            IERC20(USDC_ADDRESS).balanceOf(address(this)),
-            balanceBefore + amount,
-            "Incorrect balance after redeem."
         );
     }
 
@@ -737,6 +1016,74 @@ contract TokenRouterTest is Test {
             wormholeSimulator
                 .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[0])
                 .payload;
+    }
+
+
+    function _placeFastMarketOrder(
+        ITokenRouter _router,
+        Messages.FastMarketOrder memory expectedOrder
+    ) internal returns (bytes memory slowMessage, bytes memory fastMessage) {
+        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+            amountIn: expectedOrder.amountIn,
+            minAmountOut: expectedOrder.minAmountOut,
+            targetChain: expectedOrder.targetChain,
+            redeemer: expectedOrder.redeemer,
+            redeemerMessage: expectedOrder.redeemerMessage,
+            refundAddress: fromUniversalAddress(expectedOrder.refundAddress)
+        });
+
+        // Grab balance.
+        uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
+
+        // Record logs for placeMarketOrder.
+        vm.recordLogs();
+
+        // Place the order.
+        _router.placeFastMarketOrder(args);
+
+        // Fetch the logs for Wormhole message. There should be two messages.
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertGt(logs.length, 1);
+
+        slowMessage = wormholeSimulator
+            .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[0])
+            .payload;
+
+        fastMessage = wormholeSimulator
+            .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[1])
+            .payload;
+
+        // Finally balance check.
+        assertEq(_router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
+    }
+
+    function _placeCctpFastMarketOrder(
+        ITokenRouter _router,
+        PlaceCctpMarketOrderArgs memory args
+    ) internal returns (bytes memory slowMessage, bytes memory fastMessage) {
+        // Grab balance.
+        uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
+
+        // Record logs for placeMarketOrder.
+        vm.recordLogs();
+
+        // Place the order.
+        _router.placeFastMarketOrder(args);
+
+        // Fetch the logs for Wormhole message. There should be two messages.
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertGt(logs.length, 1);
+
+        slowMessage = wormholeSimulator
+            .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[0])
+            .payload;
+
+        fastMessage = wormholeSimulator
+            .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[1])
+            .payload;
+
+        // Finally balance check.
+        assertEq(_router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
     }
 
     function _createSignedVaa(

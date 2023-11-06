@@ -10,9 +10,12 @@ import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
 import {fromUniversalAddress, toUniversalAddress} from "../../shared/Utils.sol";
 
+import "forge-std/console.sol";
+
 import "./Errors.sol";
 import {State} from "./State.sol";
-import {getFastTransferParametersState, FastTransferParameters} from "./Storage.sol";
+import {FastTransferParameters} from "../../interfaces/Types.sol";
+import {getFastTransferParametersState} from "./Storage.sol";
 
 import "../../interfaces/IPlaceMarketOrder.sol";
 
@@ -75,12 +78,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _handleOrder(
         PlaceMarketOrderArgs memory args
     ) private returns (uint64 sequence) {
-        if (args.amountIn == 0) {
-            revert ErrInsufficientAmount();
-        }
-        if (args.redeemer == bytes32(0)) {
-            revert ErrInvalidRedeemerAddress();
-        }
+        _verifyInputArguments(args);
 
         bytes32 targetRouter = getRouter(args.targetChain);
         if (targetRouter == bytes32(0)) {
@@ -112,11 +110,9 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _handleFastOrder(
         PlaceMarketOrderArgs memory args
     ) private returns (uint64 sequence, uint64 fastSequence) {
-        if (args.redeemer == bytes32(0)) {
-            revert ErrInvalidRedeemerAddress();
-        }
+        _verifyInputArguments(args);
 
-        (uint128 maxFastTransferFee, uint128 baseFee, uint128 initAuctionFee) = 
+        (uint128 dynamicFastTransferFee, uint128 baseFee, uint128 initAuctionFee) =
             _verifyFastOrderParams(args.amountIn);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
@@ -139,6 +135,9 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             redeemerMessage: args.redeemerMessage
         });
 
+        console.log(_matchingEngineChain);
+        console.logBytes32(_matchingEngineAddress);
+
         // Send the slow CCTP transfer with the `baseFee` as the `transferFee`.
         sequence = _wormholeCctp.transferTokensWithPayload{value: messageFee}(
             ICircleIntegration.TransferParameters({
@@ -152,7 +151,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         );
 
         // Update the fees and sequence for the fast transfer message.
-        fastOrder.maxFee = maxFastTransferFee + baseFee;
+        fastOrder.maxFee = dynamicFastTransferFee + baseFee;
         fastOrder.initAuctionFee = initAuctionFee;
         fastOrder.slowSequence = sequence;
 
@@ -162,6 +161,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             FAST_FINALITY
         );
     }
+
+    // ---------------------------------------- private -------------------------------------------
 
     function _verifyFastOrderParams(
         uint256 amountIn
@@ -180,26 +181,33 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         }
 
         // This check is necessary to prevent an underflow in the unchecked block below.
-        if (amountIn < fastParams.baseFee + fastParams.initAuctionFee) {
+        if (amountIn <= fastParams.baseFee + fastParams.initAuctionFee) {
             revert ErrInsufficientAmount();
         }
 
         unchecked {
-            /** 
-             * The fee should not be applied to the `baseFee` or `initAuctionFee`. Also, we can 
+            /**
+             * The fee should not be applied to the `baseFee` or `initAuctionFee`. Also, we can
              * safely cast the result to `uint128` because we know that `amountIn` is less than
              * or equal to `fastParams.maxAmount` which is a uint128.
-             */ 
-            uint128 maxFastTransferFee = uint128(
-                (amountIn - fastParams.baseFee - fastParams.initAuctionFee) * 
+             */
+            uint128 dynamicFastTransferFee = uint128(
+                (amountIn - fastParams.baseFee - fastParams.initAuctionFee) *
                 feeInBps / MAX_BPS_FEE
             );
 
-            if (maxFastTransferFee == 0) {
-                revert ErrInsufficientFastTransferFee();
-            }
+            return (dynamicFastTransferFee, fastParams.baseFee, fastParams.initAuctionFee);
+        }
+    }
 
-            return (maxFastTransferFee, fastParams.baseFee, fastParams.initAuctionFee);
+    function _verifyInputArguments(
+        PlaceMarketOrderArgs memory args
+    ) private pure {
+        if (args.amountIn == 0) {
+            revert ErrInsufficientAmount();
+        }
+        if (args.redeemer == bytes32(0)) {
+            revert ErrInvalidRedeemerAddress();
         }
     }
 }

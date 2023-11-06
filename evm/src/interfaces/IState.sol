@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
+import "./Types.sol";
 
 interface IState {
     /**
@@ -38,4 +39,18 @@ interface IState {
      * @dev This is not the `owner` of the contracts.
      */
     function getDeployer() external view returns (address);
+
+    function fastTransfersEnabled() external view returns (bool);
+
+    function getFastTransferParameters() external view returns (FastTransferParameters memory);
+
+    function getMinTransferAmount() external view returns (uint256);
+
+    function getMaxTransferAmount() external view returns (uint128);
+
+    function getInitialAuctionFee() external view returns (uint128);
+
+    function getBaseFee() external view returns (uint128);
+
+    function calculateMaxTransferFee(uint256 amount) external view returns (uint128);
 }

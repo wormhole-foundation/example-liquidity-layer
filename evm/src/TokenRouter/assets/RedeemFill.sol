@@ -32,10 +32,11 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
 
         Messages.Fill memory fill = deposit.payload.decodeFill();
 
-        bytes32 fromRouter = getRouter(response.encodedWormholeMessage.unsafeEmitterChainFromVaa());
-        if (deposit.fromAddress != fromRouter) {
-            revert ErrInvalidSourceRouter(deposit.fromAddress, fromRouter);
-        }
+        // Verify the sender.
+        _verifyFromAddress(
+            response.encodedWormholeMessage.unsafeEmitterChainFromVaa(),
+            deposit.fromAddress
+        );
 
         // Make sure the redeemer is who we expect.
         bytes32 redeemer = toUniversalAddress(msg.sender);
@@ -53,5 +54,18 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
             amount: deposit.amount,
             message: fill.redeemerMessage
         });
+    }
+
+    function _verifyFromAddress(uint16 fromChain, bytes32 fromAddress) private view {
+        if (fromChain == _matchingEngineChain) {
+            if (fromAddress != _matchingEngineAddress) {
+                revert ErrInvalidMatchingEngineSender(fromAddress, _matchingEngineAddress);
+            }
+        } else {
+            bytes32 fromRouter = getRouter(fromChain);
+            if (fromAddress != fromRouter) {
+                revert ErrInvalidSourceRouter(fromAddress, fromRouter);
+            }
+        }
     }
 }

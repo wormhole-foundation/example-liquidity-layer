@@ -68,4 +68,12 @@ interface IPlaceMarketOrder {
     function placeMarketOrder(
         PlaceCctpMarketOrderArgs calldata args
     ) external payable returns (uint64 sequence);
+
+    function placeFastMarketOrder(
+        PlaceMarketOrderArgs calldata args
+    ) external payable returns (uint64 sequence, uint64 fastSequence);
+
+    function placeFastMarketOrder(
+        PlaceCctpMarketOrderArgs calldata args
+    ) external payable returns (uint64 sequence, uint64 fastSequence);
 }

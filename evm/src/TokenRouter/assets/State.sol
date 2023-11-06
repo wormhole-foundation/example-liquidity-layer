@@ -8,6 +8,7 @@ import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {IState} from "../../interfaces/IState.sol";
 
 import "./Errors.sol";
+import {FastTransferParameters} from "../../interfaces/Types.sol";
 import {getRouterEndpointState, getFastTransferParametersState} from "./Storage.sol";
 
 abstract contract State is IState {
@@ -19,8 +20,8 @@ abstract contract State is IState {
     IWormhole immutable _wormhole;
 
     // Matching engine info.
-    uint16 _matchingEngineChain;
-    bytes32 _matchingEngineAddress;
+    uint16 immutable _matchingEngineChain;
+    bytes32 immutable _matchingEngineAddress;
 
     // Consts.
     uint32 constant NONCE = 0;
@@ -35,6 +36,7 @@ abstract contract State is IState {
     ) {
         assert(token_ != address(0));
         assert(wormholeCctp_ != address(0));
+        assert(matchingEngineChain_ != 0);
         assert(matchingEngineAddress_ != bytes32(0));
 
         _deployer = msg.sender;
@@ -78,5 +80,43 @@ abstract contract State is IState {
 
     function fastTransfersEnabled() external view returns (bool) {
         return getFastTransferParametersState().maxAmount > 0;
+    }
+
+    function getFastTransferParameters() external pure returns (FastTransferParameters memory) {
+        return getFastTransferParametersState();
+    }
+
+    function getMinTransferAmount() external pure returns (uint256) {
+        FastTransferParameters memory params = getFastTransferParametersState();
+
+        return params.baseFee + params.initAuctionFee;
+    }
+
+    function getMaxTransferAmount() external view returns (uint128) {
+        return getFastTransferParametersState().maxAmount;
+    }
+
+    function getInitialAuctionFee() external view returns (uint128) {
+        return getFastTransferParametersState().initAuctionFee;
+    }
+
+    function getBaseFee() external view returns (uint128) {
+        return getFastTransferParametersState().baseFee;
+    }
+
+    function calculateMaxTransferFee(uint256 amount) external pure returns (uint128) {
+        FastTransferParameters memory fastParams = getFastTransferParametersState();
+        uint128 feeInBps = uint128(fastParams.feeInBps);
+
+        if (amount < fastParams.baseFee + fastParams.initAuctionFee) {
+            revert ErrInsufficientAmount();
+        }
+
+        uint128 transferFee = uint128(
+            (amount - fastParams.baseFee - fastParams.initAuctionFee) *
+            feeInBps / MAX_BPS_FEE
+        );
+
+        return transferFee + fastParams.baseFee;
     }
 }

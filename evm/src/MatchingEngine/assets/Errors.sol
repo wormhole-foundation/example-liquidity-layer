@@ -25,3 +25,5 @@ error ErrAuctionPeriodNotComplete();
 error ErrNotHighestBidder();
 
 error ErrVaaMismatch();
+
+error ErrInvalidAuctionStatus();

@@ -2,6 +2,8 @@
 
 pragma solidity ^0.8.19;
 
+import {FastTransferParameters} from "../../interfaces/Types.sol";
+
 struct RouterEndpoints {
     // Mapping of chain ID to router address in Wormhole universal format.
     mapping(uint16 chain => bytes32 endpoint) endpoints;
@@ -17,13 +19,6 @@ function getRouterEndpointState() pure returns (RouterEndpoints storage state) {
     assembly ("memory-safe") {
         state.slot := ROUTER_ENDPOINT_STORAGE_SLOT
     }
-}
-
-struct FastTransferParameters {
-    uint24 feeInBps;
-    uint128 maxAmount;
-    uint128 baseFee;
-    uint128 initAuctionFee;
 }
 
 // keccak256("FastTransferParameters") - 1

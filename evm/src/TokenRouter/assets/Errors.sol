@@ -16,6 +16,8 @@ error ErrChainNotAllowed(uint16 chain);
 
 error ErrInvalidSourceRouter(bytes32 sender, bytes32 expected);
 
+error ErrInvalidMatchingEngineSender(bytes32 sender, bytes32 expected);
+
 error ErrInvalidChain(uint16 chain);
 
 error ErrInsufficientAmount();
@@ -27,3 +29,5 @@ error ErrAmountTooLarge(uint256 amountIn, uint128 maxAmount);
 error ErrFastTransferFeeUnset();
 
 error ErrInvalidFeeInBps();
+
+error ErrInvalidFastTransferParameters();

@@ -37,6 +37,10 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
             revert ErrInvalidFeeInBps();
         }
 
+        if (newParams.maxAmount < newParams.baseFee + newParams.initAuctionFee) {
+            revert ErrInvalidFastTransferParameters();
+        }
+
         params.feeInBps = newParams.feeInBps;
         params.baseFee = newParams.baseFee;
         params.maxAmount = newParams.maxAmount;

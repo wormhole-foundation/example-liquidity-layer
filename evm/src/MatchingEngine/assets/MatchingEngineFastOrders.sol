@@ -237,6 +237,8 @@ abstract contract MatchingEngineFastOrders is State {
 
             // Complete the transfer and give the highest bidder their funds back.
             SafeERC20.safeTransfer(_token, auction.highestBidder, auction.amount);
+        } else {
+            revert ErrInvalidAuctionStatus();
         }
     }
 
