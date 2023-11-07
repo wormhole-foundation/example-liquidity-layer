@@ -17,6 +17,7 @@ abstract contract State {
     IERC20 immutable _token;
 
     // Consts.
+    uint8 constant FINALITY = 1;
     uint32 constant NONCE = 0;
     uint24 constant INITIAL_PENALTY_BPS = 100000; // 1000.00 bps (10%)
     uint24 constant MAX_BPS_FEE = 1000000; // 10,000.00 bps (100%)

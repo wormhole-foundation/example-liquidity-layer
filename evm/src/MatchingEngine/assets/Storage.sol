@@ -8,7 +8,8 @@ struct RouterEndpoints {
 }
 
 // keccak256("RouterEndpoints") - 1
-bytes32 constant ROUTER_ENDPOINT_STORAGE_SLOT = 0x3627fcf6b5d29b232a423d0b586326756a413529bc2286eb687a1a7d4123d9ff;
+bytes32 constant ROUTER_ENDPOINT_STORAGE_SLOT =
+    0x3627fcf6b5d29b232a423d0b586326756a413529bc2286eb687a1a7d4123d9ff;
 
 function getRouterEndpointState() pure returns (RouterEndpoints storage state) {
     assembly ("memory-safe") {
@@ -23,21 +24,22 @@ enum AuctionStatus {
 }
 
 struct LiveAuctionData {
-    AuctionStatus status; 
+    AuctionStatus status;
     uint88 startBlock;
-    address highestBidder; 
+    address highestBidder;
     uint256 amount;
     uint128 securityDeposit;
-    uint128 bidPrice; 
+    uint128 bidPrice;
 }
 
 struct LiveAuctionInfo {
     mapping(bytes32 auctionId => LiveAuctionData data) auctions;
 }
 
-// TODO: recompute this slot. 
+// TODO: recompute this slot.
 // keccak256("LiveAuctionInfo") - 1
-bytes32 constant LIVE_AUCTION_INFO_STORAGE_SLOT = 0x19a5671aa715beae8ca8e3276cd84c5ad56586ae71b06cc98cfa0aee85e37e9c;
+bytes32 constant LIVE_AUCTION_INFO_STORAGE_SLOT =
+    0x19a5671aa715beae8ca8e3276cd84c5ad56586ae71b06cc98cfa0aee85e37e9c;
 
 function getLiveAuctionInfo() pure returns (LiveAuctionInfo storage state) {
     assembly ("memory-safe") {
@@ -49,7 +51,7 @@ struct InitialAuctionData {
     address initialBidder;
     uint16 sourceChain;
     uint64 slowSequence;
-    bytes32 sourceRouter; 
+    bytes32 sourceRouter;
 }
 
 struct InitialAuctionInfo {
@@ -58,10 +60,26 @@ struct InitialAuctionInfo {
 
 // TODO: recompute this slot.
 // keccak256(InintialAuctionInfo) - 1
-bytes32 constant INITIAL_AUCTION_INFO_STORAGE_SLOT = 0xb1fa150fa2d3e80815752aa4c585f31e33f15929e28258e784b10ef8d0560996;
+bytes32 constant INITIAL_AUCTION_INFO_STORAGE_SLOT =
+    0xb1fa150fa2d3e80815752aa4c585f31e33f15929e28258e784b10ef8d0560996;
 
 function getInitialAuctionInfo() pure returns (InitialAuctionInfo storage state) {
     assembly ("memory-safe") {
         state.slot := INITIAL_AUCTION_INFO_STORAGE_SLOT
+    }
+}
+
+struct FastFills {
+    mapping(bytes32 vaaHash => bool redeemed) redeemed;
+}
+
+// TODO: recompute this slot.
+// keccak256("FastFills") - 1
+bytes32 constant TRANSFER_RECEIPTS_STORAGE_SLOT =
+    0xe0d7de83355819ec48567c9575427f66d299f4da899dc243b8f38c1e1387a76b;
+
+function getFastFillsState() pure returns (FastFills storage state) {
+    assembly ("memory-safe") {
+        state.slot := TRANSFER_RECEIPTS_STORAGE_SLOT
     }
 }

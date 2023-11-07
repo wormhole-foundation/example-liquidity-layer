@@ -19,12 +19,7 @@ contract MockTokenRouterImplementation is TokenRouterImplementation {
         uint16 _matchingEngineChain,
         bytes32 _matchingEngineAddress
     )
-        TokenRouterImplementation(
-            _token,
-            _wormholeCircle,
-            _matchingEngineChain,
-            _matchingEngineAddress
-        )
+        TokenRouterImplementation(_token, _wormholeCircle, _matchingEngineChain, _matchingEngineAddress)
     {}
 
     function isUpgraded() external pure returns (bool) {

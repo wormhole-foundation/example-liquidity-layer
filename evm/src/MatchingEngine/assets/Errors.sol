@@ -27,3 +27,7 @@ error ErrNotHighestBidder();
 error ErrVaaMismatch();
 
 error ErrInvalidAuctionStatus();
+
+error ErrInvalidEmitterForFastFill();
+
+error ErrFastFillAlreadyRedeemed();

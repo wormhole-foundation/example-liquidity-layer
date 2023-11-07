@@ -13,9 +13,7 @@ interface ITokenRouterAdmin {
      */
     function addRouterEndpoint(uint16 chain, bytes32 router) external;
 
-    function updateFastTransferParameters(
-        FastTransferParameters memory newParams
-    ) external;
+    function updateFastTransferParameters(FastTransferParameters memory newParams) external;
 
     function disableFastTransfers() external;
 }

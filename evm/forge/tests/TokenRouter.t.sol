@@ -14,7 +14,10 @@ import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {IMockTokenRouter, MockTokenRouterImplementation} from "./helpers/mock/MockTokenRouterImplementation.sol";
+import {
+    IMockTokenRouter,
+    MockTokenRouterImplementation
+} from "./helpers/mock/MockTokenRouterImplementation.sol";
 
 import "../../src/TokenRouter/assets/Errors.sol";
 import {TokenRouterImplementation} from "../../src/TokenRouter/TokenRouterImplementation.sol";
@@ -42,8 +45,7 @@ contract TokenRouterTest is Test {
     bytes32 immutable CIRCLE_BRIDGE = toUniversalAddress(vm.envAddress("AVAX_CIRCLE_BRIDGE"));
     address immutable MESSAGE_TRANSMITTER = vm.envAddress("AVAX_MESSAGE_TRANSMITTER");
 
-    bytes32 immutable FOREIGN_CIRCLE_BRIDGE =
-        toUniversalAddress(vm.envAddress("ARB_CIRCLE_BRIDGE"));
+    bytes32 immutable FOREIGN_CIRCLE_BRIDGE = toUniversalAddress(vm.envAddress("ARB_CIRCLE_BRIDGE"));
     bytes32 immutable FOREIGN_WORMHOLE_CCTP =
         toUniversalAddress(vm.envAddress("ARB_CIRCLE_INTEGRATION"));
 
@@ -70,10 +72,7 @@ contract TokenRouterTest is Test {
     // Convenient interfaces.
     ICircleIntegration wormholeCctp;
 
-    function deployProxy(
-        address _token,
-        address _wormholeCircle
-    ) internal returns (ITokenRouter) {
+    function deployProxy(address _token, address _wormholeCircle) internal returns (ITokenRouter) {
         // Deploy Implementation.
         TokenRouterImplementation implementation = new TokenRouterImplementation(
             _token,
@@ -85,10 +84,7 @@ contract TokenRouterTest is Test {
         // Deploy Setup.
         TokenRouterSetup setup = new TokenRouterSetup();
 
-        address proxy = setup.deployProxy(
-            address(implementation),
-            makeAddr("ownerAssistant")
-        );
+        address proxy = setup.deployProxy(address(implementation), makeAddr("ownerAssistant"));
 
         return ITokenRouter(proxy);
     }
@@ -98,10 +94,7 @@ contract TokenRouterTest is Test {
 
         // Set up token routers. These routers will represent the different outbound paths.
         vm.startPrank(makeAddr("owner"));
-        router = deployProxy(
-            USDC_ADDRESS,
-            address(wormholeCctp)
-        );
+        router = deployProxy(USDC_ADDRESS, address(wormholeCctp));
 
         // Register target chain endpoints.
         router.addRouterEndpoint(ARB_CHAIN, ARB_ROUTER);
@@ -394,12 +387,8 @@ contract TokenRouterTest is Test {
     }
 
     function testUpdateFastTransferParameters() public {
-        FastTransferParameters memory newParams = FastTransferParameters({
-            feeInBps: 69,
-            maxAmount: 420,
-            baseFee: 100,
-            initAuctionFee: 10
-        });
+        FastTransferParameters memory newParams =
+            FastTransferParameters({feeInBps: 69, maxAmount: 420, baseFee: 100, initAuctionFee: 10});
 
         // Fetch current parameters.
         FastTransferParameters memory currentParams = router.getFastTransferParameters();
@@ -421,12 +410,8 @@ contract TokenRouterTest is Test {
 
     function testCannotUpdateFastTransferParametersZeroFeeInBps() public {
         // Set `feeInBps` to zero.
-        FastTransferParameters memory newParams = FastTransferParameters({
-            feeInBps: 0,
-            maxAmount: 420,
-            baseFee: 100,
-            initAuctionFee: 10
-        });
+        FastTransferParameters memory newParams =
+            FastTransferParameters({feeInBps: 0, maxAmount: 420, baseFee: 100, initAuctionFee: 10});
 
         // Update to the new params.
         vm.prank(makeAddr("owner"));
@@ -645,10 +630,11 @@ contract TokenRouterTest is Test {
             redeemerMessage: bytes("All your base are belong to us")
         });
 
-        bytes memory wormholeCctpPayload = _placeMarketOrder(router, amountIn, ARB_CHAIN, expectedFill);
+        bytes memory wormholeCctpPayload =
+            _placeMarketOrder(router, amountIn, ARB_CHAIN, expectedFill);
 
-        ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp
-            .decodeDepositWithPayload(wormholeCctpPayload);
+        ICircleIntegration.DepositWithPayload memory deposit =
+            wormholeCctp.decodeDepositWithPayload(wormholeCctpPayload);
 
         // Check that the market order is encoded correctly.
         assertEq(deposit.payload, expectedFill.encode());
@@ -656,15 +642,15 @@ contract TokenRouterTest is Test {
         // And check that the transfer is encoded correctly.
         ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
             .DepositWithPayload({
-                token: toUniversalAddress(USDC_ADDRESS),
-                amount: amountIn,
-                sourceDomain: wormholeCctp.localDomain(),
-                targetDomain: wormholeCctp.getDomainFromChainId(ARB_CHAIN),
-                nonce: deposit.nonce, // This nonce comes from Circle's bridge.
-                fromAddress: toUniversalAddress(address(router)),
-                mintRecipient: router.getRouter(ARB_CHAIN),
-                payload: deposit.payload
-            });
+            token: toUniversalAddress(USDC_ADDRESS),
+            amount: amountIn,
+            sourceDomain: wormholeCctp.localDomain(),
+            targetDomain: wormholeCctp.getDomainFromChainId(ARB_CHAIN),
+            nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+            fromAddress: toUniversalAddress(address(router)),
+            mintRecipient: router.getRouter(ARB_CHAIN),
+            payload: deposit.payload
+        });
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
     }
 
@@ -690,8 +676,8 @@ contract TokenRouterTest is Test {
             })
         );
 
-        ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp
-            .decodeDepositWithPayload(wormholeCctpPayload);
+        ICircleIntegration.DepositWithPayload memory deposit =
+            wormholeCctp.decodeDepositWithPayload(wormholeCctpPayload);
 
         // Check that the market order is encoded correctly.
         assertEq(deposit.payload, expectedFill.encode());
@@ -699,15 +685,15 @@ contract TokenRouterTest is Test {
         // And check that the transfer is encoded correctly.
         ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
             .DepositWithPayload({
-                token: toUniversalAddress(USDC_ADDRESS),
-                amount: amountIn,
-                sourceDomain: wormholeCctp.localDomain(),
-                targetDomain: wormholeCctp.getDomainFromChainId(ARB_CHAIN),
-                nonce: deposit.nonce, // This nonce comes from Circle's bridge.
-                fromAddress: toUniversalAddress(address(router)),
-                mintRecipient: router.getRouter(ARB_CHAIN),
-                payload: deposit.payload
-            });
+            token: toUniversalAddress(USDC_ADDRESS),
+            amount: amountIn,
+            sourceDomain: wormholeCctp.localDomain(),
+            targetDomain: wormholeCctp.getDomainFromChainId(ARB_CHAIN),
+            nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+            fromAddress: toUniversalAddress(address(router)),
+            mintRecipient: router.getRouter(ARB_CHAIN),
+            payload: deposit.payload
+        });
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
     }
 
@@ -728,13 +714,13 @@ contract TokenRouterTest is Test {
         // Increase the amountIn.
         {
             uint256 amountIn = 1000000e6; // 1000 USDC.
-            uint256 expectedFee = 2500095e4; 
+            uint256 expectedFee = 2500095e4;
 
             uint256 fee = router.calculateMaxTransferFee(amountIn);
             assertEq(fee, expectedFee);
         }
 
-        // Increase the dynamic fee. 
+        // Increase the dynamic fee.
         {
             // Set the dynamic fee to 0.01%.
             vm.prank(makeAddr("owner"));
@@ -784,7 +770,7 @@ contract TokenRouterTest is Test {
 
     function testCannotPlaceFastMarketOrderErrInvalidRefundAddress() public {
         PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 69, 
+            amountIn: 69,
             minAmountOut: 0,
             targetChain: ARB_CHAIN,
             redeemer: TEST_REDEEMER,
@@ -812,10 +798,10 @@ contract TokenRouterTest is Test {
 
     function testCannotPlaceFastMarketOrderErrInvalidRedeemerAddress() public {
         PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 69, 
+            amountIn: 69,
             minAmountOut: 0,
             targetChain: ARB_CHAIN,
-            redeemer: bytes32(0), // Invalid address. 
+            redeemer: bytes32(0), // Invalid address.
             redeemerMessage: bytes("All your base are belong to us."),
             refundAddress: address(this)
         });
@@ -828,7 +814,7 @@ contract TokenRouterTest is Test {
         uint16 unsupportedChain = 2;
 
         PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 690000, 
+            amountIn: 690000,
             minAmountOut: 0,
             targetChain: unsupportedChain,
             redeemer: TEST_REDEEMER,
@@ -838,11 +824,11 @@ contract TokenRouterTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(ErrUnsupportedChain.selector, unsupportedChain));
         router.placeFastMarketOrder(args);
-    } 
+    }
 
     function testCannotPlaceFastMarketOrderErrFastTransferFeeUnset() public {
         PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 690000, 
+            amountIn: 690000,
             minAmountOut: 0,
             targetChain: ARB_CHAIN,
             redeemer: TEST_REDEEMER,
@@ -859,7 +845,7 @@ contract TokenRouterTest is Test {
 
     function testCannotPlaceFastMarketOrderErrAmountTooLarge() public {
         PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: FAST_TRANSFER_MAX_AMOUNT + 1, 
+            amountIn: FAST_TRANSFER_MAX_AMOUNT + 1,
             minAmountOut: 0,
             targetChain: ARB_CHAIN,
             redeemer: TEST_REDEEMER,
@@ -869,17 +855,15 @@ contract TokenRouterTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSelector(
-                ErrAmountTooLarge.selector,
-                FAST_TRANSFER_MAX_AMOUNT + 1, 
-                FAST_TRANSFER_MAX_AMOUNT
+                ErrAmountTooLarge.selector, FAST_TRANSFER_MAX_AMOUNT + 1, FAST_TRANSFER_MAX_AMOUNT
             )
         );
         router.placeFastMarketOrder(args);
-    } 
+    }
 
     function testCannotPlaceFastMarketOrderTransferAmountTooSmall() public {
         PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: router.getMinTransferAmount() - 1, 
+            amountIn: router.getMinTransferAmount() - 1,
             minAmountOut: 0,
             targetChain: ARB_CHAIN,
             redeemer: TEST_REDEEMER,
@@ -889,11 +873,11 @@ contract TokenRouterTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(ErrInsufficientAmount.selector));
         router.placeFastMarketOrder(args);
-    }  
+    }
 
     function testCannotPlaceFastMarketOrderContractPaused() public {
         PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: router.getMinTransferAmount(), 
+            amountIn: router.getMinTransferAmount(),
             minAmountOut: 0,
             targetChain: ARB_CHAIN,
             redeemer: TEST_REDEEMER,
@@ -906,7 +890,7 @@ contract TokenRouterTest is Test {
 
         vm.expectRevert(abi.encodeWithSignature("ContractPaused()"));
         router.placeFastMarketOrder(args);
-    } 
+    }
 
     function testPlaceFastMarketOrder(uint256 amountIn) public {
         amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
@@ -935,8 +919,8 @@ contract TokenRouterTest is Test {
         (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
             _placeFastMarketOrder(router, expectedFastMarketOrder);
 
-        ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp
-            .decodeDepositWithPayload(wormholeCctpMessage);
+        ICircleIntegration.DepositWithPayload memory deposit =
+            wormholeCctp.decodeDepositWithPayload(wormholeCctpMessage);
 
         // Check that the fast market order is encoded correclty.
         assertEq(deposit.payload, expectedFastMarketOrder.encode());
@@ -944,15 +928,15 @@ contract TokenRouterTest is Test {
         // And check that the transfer is encoded correctly.
         ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
             .DepositWithPayload({
-                token: toUniversalAddress(USDC_ADDRESS),
-                amount: amountIn,
-                sourceDomain: wormholeCctp.localDomain(),
-                targetDomain: wormholeCctp.getDomainFromChainId(matchingEngineChain),
-                nonce: deposit.nonce, // This nonce comes from Circle's bridge.
-                fromAddress: toUniversalAddress(address(router)),
-                mintRecipient: matchingEngineAddress,
-                payload: deposit.payload
-            });
+            token: toUniversalAddress(USDC_ADDRESS),
+            amount: amountIn,
+            sourceDomain: wormholeCctp.localDomain(),
+            targetDomain: wormholeCctp.getDomainFromChainId(matchingEngineChain),
+            nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+            fromAddress: toUniversalAddress(address(router)),
+            mintRecipient: matchingEngineAddress,
+            payload: deposit.payload
+        });
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
 
         // Now verify the fast message.
@@ -988,18 +972,18 @@ contract TokenRouterTest is Test {
 
         // Place the fast market order and store the two VAA payloads that were emitted.
         (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
-            _placeCctpFastMarketOrder(
-                router,
-                PlaceCctpMarketOrderArgs({
-                    amountIn: expectedFastMarketOrder.amountIn,
-                    targetChain: expectedFastMarketOrder.targetChain,
-                    redeemer: expectedFastMarketOrder.redeemer,
-                    redeemerMessage: expectedFastMarketOrder.redeemerMessage
-                })
-            );
+        _placeCctpFastMarketOrder(
+            router,
+            PlaceCctpMarketOrderArgs({
+                amountIn: expectedFastMarketOrder.amountIn,
+                targetChain: expectedFastMarketOrder.targetChain,
+                redeemer: expectedFastMarketOrder.redeemer,
+                redeemerMessage: expectedFastMarketOrder.redeemerMessage
+            })
+        );
 
-        ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp
-            .decodeDepositWithPayload(wormholeCctpMessage);
+        ICircleIntegration.DepositWithPayload memory deposit =
+            wormholeCctp.decodeDepositWithPayload(wormholeCctpMessage);
 
         // Check that the fast market order is encoded correclty.
         assertEq(deposit.payload, expectedFastMarketOrder.encode());
@@ -1007,15 +991,15 @@ contract TokenRouterTest is Test {
         // And check that the transfer is encoded correctly.
         ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
             .DepositWithPayload({
-                token: toUniversalAddress(USDC_ADDRESS),
-                amount: amountIn,
-                sourceDomain: wormholeCctp.localDomain(),
-                targetDomain: wormholeCctp.getDomainFromChainId(matchingEngineChain),
-                nonce: deposit.nonce, // This nonce comes from Circle's bridge.
-                fromAddress: toUniversalAddress(address(router)),
-                mintRecipient: matchingEngineAddress,
-                payload: deposit.payload
-            });
+            token: toUniversalAddress(USDC_ADDRESS),
+            amount: amountIn,
+            sourceDomain: wormholeCctp.localDomain(),
+            targetDomain: wormholeCctp.getDomainFromChainId(matchingEngineChain),
+            nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+            fromAddress: toUniversalAddress(address(router)),
+            mintRecipient: matchingEngineAddress,
+            payload: deposit.payload
+        });
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
 
         // Now verify the fast message.
@@ -1034,12 +1018,12 @@ contract TokenRouterTest is Test {
         // The slow message is sent first.
         uint64 slowSequence = wormholeSimulator.nextSequence(WORMHOLE_CCTP_ADDRESS);
 
-        // Register a router for the matching engine chain. 
+        // Register a router for the matching engine chain.
         uint16 targetChain = matchingEngineChain;
         bytes32 targetRouter = toUniversalAddress(makeAddr("targetRouter"));
 
         vm.prank(makeAddr("owner"));
-        router.addRouterEndpoint(targetChain, targetRouter); 
+        router.addRouterEndpoint(targetChain, targetRouter);
 
         // Create a fast market order, this is actually the payload that will be encoded
         // in the "slow message".
@@ -1060,8 +1044,8 @@ contract TokenRouterTest is Test {
         (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
             _placeFastMarketOrder(router, expectedFastMarketOrder);
 
-        ICircleIntegration.DepositWithPayload memory deposit = wormholeCctp
-            .decodeDepositWithPayload(wormholeCctpMessage);
+        ICircleIntegration.DepositWithPayload memory deposit =
+            wormholeCctp.decodeDepositWithPayload(wormholeCctpMessage);
 
         // Check that the fast market order is encoded correclty.
         assertEq(deposit.payload, expectedFastMarketOrder.encode());
@@ -1069,15 +1053,15 @@ contract TokenRouterTest is Test {
         // And check that the transfer is encoded correctly.
         ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
             .DepositWithPayload({
-                token: toUniversalAddress(USDC_ADDRESS),
-                amount: amountIn,
-                sourceDomain: wormholeCctp.localDomain(),
-                targetDomain: wormholeCctp.getDomainFromChainId(matchingEngineChain),
-                nonce: deposit.nonce, // This nonce comes from Circle's bridge.
-                fromAddress: toUniversalAddress(address(router)),
-                mintRecipient: matchingEngineAddress,
-                payload: deposit.payload
-            });
+            token: toUniversalAddress(USDC_ADDRESS),
+            amount: amountIn,
+            sourceDomain: wormholeCctp.localDomain(),
+            targetDomain: wormholeCctp.getDomainFromChainId(matchingEngineChain),
+            nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+            fromAddress: toUniversalAddress(address(router)),
+            mintRecipient: matchingEngineAddress,
+            payload: deposit.payload
+        });
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
 
         // Now verify the fast message.
@@ -1111,11 +1095,7 @@ contract TokenRouterTest is Test {
         );
 
         vm.expectRevert(
-            abi.encodeWithSelector(
-                ErrInvalidSourceRouter.selector,
-                invalidRouter,
-                ARB_ROUTER
-            )
+            abi.encodeWithSelector(ErrInvalidSourceRouter.selector, invalidRouter, ARB_ROUTER)
         );
         router.redeemFill(
             OrderResponse({
@@ -1147,9 +1127,7 @@ contract TokenRouterTest is Test {
         vm.prank(fromUniversalAddress(invalidRedeemer));
         vm.expectRevert(
             abi.encodeWithSelector(
-                ErrInvalidRedeemer.selector,
-                invalidRedeemer,
-                toUniversalAddress(address(this))
+                ErrInvalidRedeemer.selector, invalidRedeemer, toUniversalAddress(address(this))
             )
         );
         router.redeemFill(
@@ -1172,12 +1150,7 @@ contract TokenRouterTest is Test {
             message: bytes("Somebody set up us the bomb")
         });
 
-        _redeemWormholeCctpFill(
-            router,
-            expectedRedeemed,
-            ARB_ROUTER,
-            ARB_CHAIN
-        );
+        _redeemWormholeCctpFill(router, expectedRedeemed, ARB_ROUTER, ARB_CHAIN);
     }
 
     function _dealAndApproveUsdc(ITokenRouter _router, uint256 amount) internal {
@@ -1210,10 +1183,10 @@ contract TokenRouterTest is Test {
         return _placeMarketOrder(_router, args);
     }
 
-    function _placeMarketOrder(
-        ITokenRouter _router,
-        PlaceMarketOrderArgs memory args
-    ) internal returns (bytes memory) {
+    function _placeMarketOrder(ITokenRouter _router, PlaceMarketOrderArgs memory args)
+        internal
+        returns (bytes memory)
+    {
         // Grab balance.
         uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
 
@@ -1230,16 +1203,15 @@ contract TokenRouterTest is Test {
         // Finally balance check.
         assertEq(_router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
 
-        return
-            wormholeSimulator
-                .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[0])
-                .payload;
+        return wormholeSimulator.parseVMFromLogs(
+            wormholeSimulator.fetchWormholeMessageFromLog(logs)[0]
+        ).payload;
     }
 
-    function _placeCctpMarketOrder(
-        ITokenRouter _router,
-        PlaceCctpMarketOrderArgs memory args
-    ) internal returns (bytes memory) {
+    function _placeCctpMarketOrder(ITokenRouter _router, PlaceCctpMarketOrderArgs memory args)
+        internal
+        returns (bytes memory)
+    {
         // Grab balance.
         uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
 
@@ -1256,12 +1228,10 @@ contract TokenRouterTest is Test {
         // Finally balance check.
         assertEq(_router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
 
-        return
-            wormholeSimulator
-                .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[0])
-                .payload;
+        return wormholeSimulator.parseVMFromLogs(
+            wormholeSimulator.fetchWormholeMessageFromLog(logs)[0]
+        ).payload;
     }
-
 
     function _placeFastMarketOrder(
         ITokenRouter _router,
@@ -1289,22 +1259,22 @@ contract TokenRouterTest is Test {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertGt(logs.length, 1);
 
-        slowMessage = wormholeSimulator
-            .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[0])
-            .payload;
+        slowMessage = wormholeSimulator.parseVMFromLogs(
+            wormholeSimulator.fetchWormholeMessageFromLog(logs)[0]
+        ).payload;
 
-        fastMessage = wormholeSimulator
-            .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[1])
-            .payload;
+        fastMessage = wormholeSimulator.parseVMFromLogs(
+            wormholeSimulator.fetchWormholeMessageFromLog(logs)[1]
+        ).payload;
 
         // Finally balance check.
         assertEq(_router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
     }
 
-    function _placeCctpFastMarketOrder(
-        ITokenRouter _router,
-        PlaceCctpMarketOrderArgs memory args
-    ) internal returns (bytes memory slowMessage, bytes memory fastMessage) {
+    function _placeCctpFastMarketOrder(ITokenRouter _router, PlaceCctpMarketOrderArgs memory args)
+        internal
+        returns (bytes memory slowMessage, bytes memory fastMessage)
+    {
         // Grab balance.
         uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
 
@@ -1318,23 +1288,23 @@ contract TokenRouterTest is Test {
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertGt(logs.length, 1);
 
-        slowMessage = wormholeSimulator
-            .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[0])
-            .payload;
+        slowMessage = wormholeSimulator.parseVMFromLogs(
+            wormholeSimulator.fetchWormholeMessageFromLog(logs)[0]
+        ).payload;
 
-        fastMessage = wormholeSimulator
-            .parseVMFromLogs(wormholeSimulator.fetchWormholeMessageFromLog(logs)[1])
-            .payload;
+        fastMessage = wormholeSimulator.parseVMFromLogs(
+            wormholeSimulator.fetchWormholeMessageFromLog(logs)[1]
+        ).payload;
 
         // Finally balance check.
         assertEq(_router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
     }
 
-    function _createSignedVaa(
-        uint16 emitterChainId,
-        bytes32 emitterAddress,
-        bytes memory payload
-    ) internal view returns (bytes memory) {
+    function _createSignedVaa(uint16 emitterChainId, bytes32 emitterAddress, bytes memory payload)
+        internal
+        view
+        returns (bytes memory)
+    {
         IWormhole.VM memory vaa = IWormhole.VM({
             version: 1,
             timestamp: 1234567,
@@ -1362,22 +1332,19 @@ contract TokenRouterTest is Test {
         bytes32 emitterAddress = wormholeCctp.getRegisteredEmitter(fromChain);
         assertNotEq(emitterAddress, bytes32(0));
 
-        ICircleIntegration.DepositWithPayload memory deposit = ICircleIntegration
-            .DepositWithPayload({
-                token: toUniversalAddress(ARBITRUM_USDC_ADDRESS),
-                amount: amount,
-                sourceDomain: wormholeCctp.getDomainFromChainId(fromChain),
-                targetDomain: wormholeCctp.localDomain(),
-                nonce: 2 ** 64 - 1,
-                fromAddress: fromAddress,
-                mintRecipient: toUniversalAddress(address(_router)),
-                payload: encodedMessage
-            });
+        ICircleIntegration.DepositWithPayload memory deposit = ICircleIntegration.DepositWithPayload({
+            token: toUniversalAddress(ARBITRUM_USDC_ADDRESS),
+            amount: amount,
+            sourceDomain: wormholeCctp.getDomainFromChainId(fromChain),
+            targetDomain: wormholeCctp.localDomain(),
+            nonce: 2 ** 64 - 1,
+            fromAddress: fromAddress,
+            mintRecipient: toUniversalAddress(address(_router)),
+            payload: encodedMessage
+        });
 
         bytes memory encodedVaa = _createSignedVaa(
-            fromChain,
-            emitterAddress,
-            wormholeCctp.encodeDepositWithPayload(deposit)
+            fromChain, emitterAddress, wormholeCctp.encodeDepositWithPayload(deposit)
         );
 
         bytes memory circleMessage = circleSimulator.encodeBurnMessageLog(
@@ -1396,12 +1363,11 @@ contract TokenRouterTest is Test {
             })
         );
 
-        return
-            ICircleIntegration.RedeemParameters({
-                encodedWormholeMessage: encodedVaa,
-                circleBridgeMessage: circleMessage,
-                circleAttestation: circleSimulator.attestCircleMessage(circleMessage)
-            });
+        return ICircleIntegration.RedeemParameters({
+            encodedWormholeMessage: encodedVaa,
+            circleBridgeMessage: circleMessage,
+            circleAttestation: circleSimulator.attestCircleMessage(circleMessage)
+        });
     }
 
     function _redeemWormholeCctpFill(
@@ -1418,11 +1384,7 @@ contract TokenRouterTest is Test {
         });
 
         ICircleIntegration.RedeemParameters memory redeemParams = _craftWormholeCctpRedeemParams(
-            _router,
-            expectedRedeemed.amount,
-            fromAddress,
-            fromChain,
-            fill.encode()
+            _router, expectedRedeemed.amount, fromAddress, fromChain, fill.encode()
         );
 
         uint256 balanceBefore = _router.orderToken().balanceOf(address(this));

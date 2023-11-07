@@ -11,17 +11,24 @@ import {Messages} from "../../shared/Messages.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
-import {getRouterEndpointState, LiveAuctionData, getLiveAuctionInfo, InitialAuctionData, getInitialAuctionInfo, AuctionStatus} from "./Storage.sol";
+import {toUniversalAddress} from "../../shared/Utils.sol";
+import {
+    getRouterEndpointState,
+    LiveAuctionData,
+    getLiveAuctionInfo,
+    InitialAuctionData,
+    getInitialAuctionInfo,
+    AuctionStatus,
+    getFastFillsState,
+    FastFills
+} from "./Storage.sol";
 
 abstract contract MatchingEngineFastOrders is State {
     using BytesParsing for bytes;
     using Messages for *;
 
     event AuctionStarted(
-        bytes32 indexed auctionId,
-        uint256 transferAmount,
-        uint256 startingBid,
-        address bidder
+        bytes32 indexed auctionId, uint256 transferAmount, uint256 startingBid, address bidder
     );
     event NewBid(bytes32 indexed auctionId, uint256 newBid, uint256 oldBid, address bidder);
 
@@ -29,7 +36,6 @@ abstract contract MatchingEngineFastOrders is State {
     // TODO: Should there be a minTickSize for new bids?
     // TODO: Should we give the user some chunk of the penalty?
     // TODO: Should we include the fee amount in the penalty calculation?
-    // NOTE: Need to protect against starting a bid for an old fast VAA that was never completed.
     // TODO: How does the replay protection effect a fast transfer roll back and same
     // hash is created again?
     function placeInitialBid(bytes calldata fastTransferVaa, uint128 feeBid) external {
@@ -59,12 +65,7 @@ abstract contract MatchingEngineFastOrders is State {
          *
          * - NOTE we do this before setting state in case the transfer fails.
          */
-        SafeERC20.safeTransferFrom(
-            _token,
-            msg.sender,
-            address(this),
-            order.amountIn + order.maxFee
-        );
+        SafeERC20.safeTransferFrom(_token, msg.sender, address(this), order.amountIn + order.maxFee);
 
         // Set the live auction data.
         auction.status = AuctionStatus.Active;
@@ -95,9 +96,11 @@ abstract contract MatchingEngineFastOrders is State {
         _improveBid(auctionId, auction, feeBid);
     }
 
-    function executeFastOrder(
-        bytes calldata fastTransferVaa
-    ) external payable returns (uint64 sequence) {
+    function executeFastOrder(bytes calldata fastTransferVaa)
+        external
+        payable
+        returns (uint64 sequence)
+    {
         IWormhole.VM memory vm = _verifyWormholeMessage(fastTransferVaa);
 
         LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vm.hash];
@@ -122,9 +125,7 @@ abstract contract MatchingEngineFastOrders is State {
             // security deposit to the highest bidder.
             SafeERC20.safeTransfer(_token, msg.sender, penalty); // Should always be nonzero.
             SafeERC20.safeTransfer(
-                _token,
-                auction.highestBidder,
-                auction.bidPrice + auction.securityDeposit - penalty
+                _token, auction.highestBidder, auction.bidPrice + auction.securityDeposit - penalty
             );
         } else {
             if (auction.highestBidder != msg.sender) {
@@ -133,24 +134,18 @@ abstract contract MatchingEngineFastOrders is State {
 
             // Return the security deposit and the fee to the highest bidder.
             SafeERC20.safeTransfer(
-                _token,
-                auction.highestBidder,
-                auction.bidPrice + auction.securityDeposit
+                _token, auction.highestBidder, auction.bidPrice + auction.securityDeposit
             );
         }
 
         // Transfer funds to the recipient on the target chain.
         sequence = _handleCctpTransfer(
-            auction.amount - auction.bidPrice - order.initAuctionFee,
-            vm.emitterChainId,
-            order
+            auction.amount - auction.bidPrice - order.initAuctionFee, vm.emitterChainId, order
         );
 
         // Pay the auction initiator their fee.
         SafeERC20.safeTransfer(
-            _token,
-            getInitialAuctionInfo().auctions[vm.hash].initialBidder,
-            order.initAuctionFee
+            _token, getInitialAuctionInfo().auctions[vm.hash].initialBidder, order.initAuctionFee
         );
 
         auction.status = AuctionStatus.Completed;
@@ -174,11 +169,7 @@ abstract contract MatchingEngineFastOrders is State {
         LiveAuctionData storage auction = getLiveAuctionInfo().auctions[auctionId];
 
         if (auction.status == AuctionStatus.None) {
-            sequence = _handleCctpTransfer(
-                order.amountIn - order.maxFee,
-                emitterChainId,
-                order
-            );
+            sequence = _handleCctpTransfer(order.amountIn - order.maxFee, emitterChainId, order);
 
             // Pay the relayer the base fee if there was no auction.
             SafeERC20.safeTransfer(_token, msg.sender, order.maxFee);
@@ -202,24 +193,17 @@ abstract contract MatchingEngineFastOrders is State {
             // the bidder and (potentially) take a penalty for not fulfilling their
             // obligation.
             uint256 penalty = _calculateDynamicPenalty(
-                auction.securityDeposit,
-                uint88(block.number) - auction.startBlock
+                auction.securityDeposit, uint88(block.number) - auction.startBlock
             );
 
             // Transfer the penalty amount to the caller. Then transfer the
             // auction's highest bidder their funds back (security deposit - penalty).
             SafeERC20.safeTransfer(_token, msg.sender, penalty + order.maxFee);
             SafeERC20.safeTransfer(
-                _token,
-                auction.highestBidder,
-                auction.amount + auction.securityDeposit - penalty
+                _token, auction.highestBidder, auction.amount + auction.securityDeposit - penalty
             );
 
-            sequence = _handleCctpTransfer(
-                auction.amount - order.maxFee,
-                emitterChainId,
-                order
-            );
+            sequence = _handleCctpTransfer(auction.amount - order.maxFee, emitterChainId, order);
 
             // Everyone's whole, set the auction as completed.
             auction.status = AuctionStatus.Completed;
@@ -242,6 +226,38 @@ abstract contract MatchingEngineFastOrders is State {
         }
     }
 
+    function redeemFastFill(bytes calldata fastFillVaa)
+        external
+        returns (Messages.FastFill memory)
+    {
+        IWormhole.VM memory vm = _verifyWormholeMessage(fastFillVaa);
+        if (
+            vm.emitterChainId != _wormholeChainId
+                || vm.emitterAddress != toUniversalAddress(address(this))
+        ) {
+            revert ErrInvalidEmitterForFastFill();
+        }
+
+        // Only the TokenRouter from this chain (_wormholeChainId) can redeem this message type.
+        bytes32 expectedRouter = getRouterEndpointState().endpoints[_wormholeChainId];
+        bytes32 callingRouter = toUniversalAddress(msg.sender);
+        if (expectedRouter != callingRouter) {
+            revert ErrInvalidSourceRouter(callingRouter, expectedRouter);
+        }
+
+        FastFills storage fastFills = getFastFillsState();
+        if (fastFills.redeemed[vm.hash]) {
+            revert ErrFastFillAlreadyRedeemed();
+        }
+        fastFills.redeemed[vm.hash] = true;
+
+        Messages.FastFill memory fastFill = vm.payload.decodeFastFill();
+
+        SafeERC20.safeTransfer(_token, msg.sender, fastFill.fillAmount);
+
+        return fastFill;
+    }
+
     // ------------------------------- Private ---------------------------------
 
     function _handleCctpTransfer(
@@ -249,32 +265,45 @@ abstract contract MatchingEngineFastOrders is State {
         uint16 sourceChain,
         Messages.FastMarketOrder memory order
     ) private returns (uint64 sequence) {
-       SafeERC20.safeIncreaseAllowance(_token, address(_wormholeCctp), amount);
+        if (order.targetChain == _wormholeChainId) {
+            // Emit fast transfer fill for the token router on this chain.
+            sequence = _wormhole.publishMessage{value: msg.value}(
+                NONCE,
+                Messages.FastFill({
+                    fill: Messages.Fill({
+                        sourceChain: sourceChain,
+                        orderSender: order.sender,
+                        redeemer: order.redeemer,
+                        redeemerMessage: order.redeemerMessage
+                    }),
+                    fillAmount: amount
+                }).encode(),
+                FINALITY
+            );
+        } else {
+            SafeERC20.safeIncreaseAllowance(_token, address(_wormholeCctp), amount);
 
-        sequence = _wormholeCctp.transferTokensWithPayload{value: msg.value}(
-        ICircleIntegration.TransferParameters({
-            token: address(_token),
-            amount: amount,
-            targetChain: order.targetChain,
-            mintRecipient: getRouterEndpointState().endpoints[order.targetChain]
-        }),
-        NONCE,
-        Messages
-            .Fill({
-                sourceChain: sourceChain,
-                orderSender: order.sender,
-                redeemer: order.redeemer,
-                redeemerMessage: order.redeemerMessage
-            })
-            .encode()
-        );
+            sequence = _wormholeCctp.transferTokensWithPayload{value: msg.value}(
+                ICircleIntegration.TransferParameters({
+                    token: address(_token),
+                    amount: amount,
+                    targetChain: order.targetChain,
+                    mintRecipient: getRouterEndpointState().endpoints[order.targetChain]
+                }),
+                NONCE,
+                Messages.Fill({
+                    sourceChain: sourceChain,
+                    orderSender: order.sender,
+                    redeemer: order.redeemer,
+                    redeemerMessage: order.redeemerMessage
+                }).encode()
+            );
+        }
     }
 
-    function _improveBid(
-        bytes32 auctionId,
-        LiveAuctionData storage auction,
-        uint128 feeBid
-    ) private {
+    function _improveBid(bytes32 auctionId, LiveAuctionData storage auction, uint128 feeBid)
+        private
+    {
         /**
          * SECURITY: This is a very important security check, and it
          * should not be removed. `placeInitialBid` will call this method
@@ -294,10 +323,7 @@ abstract contract MatchingEngineFastOrders is State {
         // Transfer the funds from the new highest bidder to the old highest bidder.
         // This contract's balance shouldn't change.
         SafeERC20.safeTransferFrom(
-            _token,
-            msg.sender,
-            auction.highestBidder,
-            auction.amount + auction.securityDeposit
+            _token, msg.sender, auction.highestBidder, auction.amount + auction.securityDeposit
         );
 
         // Update the auction data.
@@ -315,18 +341,19 @@ abstract contract MatchingEngineFastOrders is State {
     ) private view {
         InitialAuctionData memory initialAuction = getInitialAuctionInfo().auctions[auctionId];
         if (
-            initialAuction.sourceChain != emitterChainId ||
-            initialAuction.sourceRouter != emitterAddress ||
-            initialAuction.slowSequence != sequence
+            initialAuction.sourceChain != emitterChainId
+                || initialAuction.sourceRouter != emitterAddress
+                || initialAuction.slowSequence != sequence
         ) {
             revert ErrVaaMismatch();
         }
     }
 
-    function _calculateDynamicPenalty(
-        uint256 amount,
-        uint256 blocksElapsed
-    ) private pure returns (uint256 penalty) {
+    function _calculateDynamicPenalty(uint256 amount, uint256 blocksElapsed)
+        private
+        pure
+        returns (uint256 penalty)
+    {
         if (blocksElapsed <= AUCTION_GRACE_PERIOD) {
             return 0;
         }
@@ -352,9 +379,12 @@ abstract contract MatchingEngineFastOrders is State {
         }
     }
 
-    function _verifyWormholeMessage(bytes calldata vaa) private view returns (IWormhole.VM memory) {
-        (IWormhole.VM memory vm, bool valid, string memory reason) =
-            _wormhole.parseAndVerifyVM(vaa);
+    function _verifyWormholeMessage(bytes calldata vaa)
+        private
+        view
+        returns (IWormhole.VM memory)
+    {
+        (IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(vaa);
 
         if (!valid) {
             revert ErrInvalidWormholeMessage(reason);

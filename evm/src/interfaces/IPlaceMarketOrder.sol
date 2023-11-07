@@ -51,9 +51,10 @@ interface IPlaceMarketOrder {
      * If you plan to support non-CCTP enabled chains in the future, use this
      * interface.
      */
-    function placeMarketOrder(
-        PlaceMarketOrderArgs calldata args
-    ) external payable returns (uint64 sequence);
+    function placeMarketOrder(PlaceMarketOrderArgs calldata args)
+        external
+        payable
+        returns (uint64 sequence);
 
     /**
      * @notice Place an "order" to transfer USDC to a CCTP-enabled blockchain.
@@ -65,15 +66,18 @@ interface IPlaceMarketOrder {
      * support non-CCTP enabled chains in the future, use the other `placeMarketOrder`
      * interface which includes a `minAmountOut` and `refundAddress` parameter.
      */
-    function placeMarketOrder(
-        PlaceCctpMarketOrderArgs calldata args
-    ) external payable returns (uint64 sequence);
+    function placeMarketOrder(PlaceCctpMarketOrderArgs calldata args)
+        external
+        payable
+        returns (uint64 sequence);
 
-    function placeFastMarketOrder(
-        PlaceMarketOrderArgs calldata args
-    ) external payable returns (uint64 sequence, uint64 fastSequence);
+    function placeFastMarketOrder(PlaceMarketOrderArgs calldata args)
+        external
+        payable
+        returns (uint64 sequence, uint64 fastSequence);
 
-    function placeFastMarketOrder(
-        PlaceCctpMarketOrderArgs calldata args
-    ) external payable returns (uint64 sequence, uint64 fastSequence);
+    function placeFastMarketOrder(PlaceCctpMarketOrderArgs calldata args)
+        external
+        payable
+        returns (uint64 sequence, uint64 fastSequence);
 }

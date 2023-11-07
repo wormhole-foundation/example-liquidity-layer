@@ -15,10 +15,11 @@ import {MatchingEngineImplementation} from "../MatchingEngine/MatchingEngineImpl
 contract MatchingEngineSetup is ERC1967Upgrade, Context {
     error AlreadyDeployed();
 
-    function deployProxy(
-        address implementation,
-        address ownerAssistant
-    ) public payable returns (address) {
+    function deployProxy(address implementation, address ownerAssistant)
+        public
+        payable
+        returns (address)
+    {
         if (_getAdmin() != address(0)) {
             revert AlreadyDeployed();
         }
@@ -36,11 +37,7 @@ contract MatchingEngineSetup is ERC1967Upgrade, Context {
         return address(proxy);
     }
 
-    function setup(
-        address admin,
-        address implementation,
-        address ownerAssistant
-    ) public {
+    function setup(address admin, address implementation, address ownerAssistant) public {
         assert(implementation != address(0));
         assert(ownerAssistant != address(0));
         assert(IMatchingEngine(implementation).getDeployer() == admin);
@@ -53,9 +50,8 @@ contract MatchingEngineSetup is ERC1967Upgrade, Context {
         _upgradeTo(implementation);
 
         // Call initialize function of the new implementation.
-        (bool success, bytes memory reason) = implementation.delegatecall(
-            abi.encodeCall(MatchingEngineImplementation.initialize, ())
-        );
+        (bool success, bytes memory reason) =
+            implementation.delegatecall(abi.encodeCall(MatchingEngineImplementation.initialize, ()));
         require(success, string(reason));
     }
 }

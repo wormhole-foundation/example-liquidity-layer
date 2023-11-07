@@ -17,15 +17,18 @@ import {getFastTransferParametersState} from "./Storage.sol";
 
 import "../../interfaces/IPlaceMarketOrder.sol";
 
-// TODO: How to handle fast transfers to hub chain? 
+// TODO: How to handle fast transfers to hub chain?
 abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     using BytesParsing for bytes;
     using Messages for *;
 
     /// @inheritdoc IPlaceMarketOrder
-    function placeMarketOrder(
-        PlaceMarketOrderArgs calldata args
-    ) external payable notPaused returns (uint64 sequence) {
+    function placeMarketOrder(PlaceMarketOrderArgs calldata args)
+        external
+        payable
+        notPaused
+        returns (uint64 sequence)
+    {
         if (args.refundAddress == address(0)) {
             revert ErrInvalidRefundAddress();
         }
@@ -33,9 +36,12 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     }
 
     /// @inheritdoc IPlaceMarketOrder
-    function placeMarketOrder(
-        PlaceCctpMarketOrderArgs calldata args
-    ) external payable notPaused returns (uint64 sequence) {
+    function placeMarketOrder(PlaceCctpMarketOrderArgs calldata args)
+        external
+        payable
+        notPaused
+        returns (uint64 sequence)
+    {
         sequence = _handleOrder(
             PlaceMarketOrderArgs({
                 amountIn: args.amountIn,
@@ -48,18 +54,24 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         );
     }
 
-    function placeFastMarketOrder(
-        PlaceMarketOrderArgs calldata args
-    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
+    function placeFastMarketOrder(PlaceMarketOrderArgs calldata args)
+        external
+        payable
+        notPaused
+        returns (uint64 sequence, uint64 fastSequence)
+    {
         if (args.refundAddress == address(0)) {
             revert ErrInvalidRefundAddress();
         }
         (sequence, fastSequence) = _handleFastOrder(args);
     }
 
-    function placeFastMarketOrder(
-        PlaceCctpMarketOrderArgs calldata args
-    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
+    function placeFastMarketOrder(PlaceCctpMarketOrderArgs calldata args)
+        external
+        payable
+        notPaused
+        returns (uint64 sequence, uint64 fastSequence)
+    {
         (sequence, fastSequence) = _handleFastOrder(
             PlaceMarketOrderArgs({
                 amountIn: args.amountIn,
@@ -74,10 +86,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     // ---------------------------------------- private -------------------------------------------
 
-    function _handleOrder(
-        PlaceMarketOrderArgs memory args
-    ) private returns (uint64 sequence) {
-        bytes32 targetRouter = _verifyInputArguments(args); 
+    function _handleOrder(PlaceMarketOrderArgs memory args) private returns (uint64 sequence) {
+        bytes32 targetRouter = _verifyInputArguments(args);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
         SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
@@ -90,21 +100,20 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 mintRecipient: targetRouter
             }),
             NONCE,
-            Messages
-                .Fill({
-                    sourceChain: _wormholeChainId,
-                    orderSender: toUniversalAddress(msg.sender),
-                    redeemer: args.redeemer,
-                    redeemerMessage: args.redeemerMessage
-                })
-                .encode()
+            Messages.Fill({
+                sourceChain: _wormholeChainId,
+                orderSender: toUniversalAddress(msg.sender),
+                redeemer: args.redeemer,
+                redeemerMessage: args.redeemerMessage
+            }).encode()
         );
     }
 
-    function _handleFastOrder(
-        PlaceMarketOrderArgs memory args
-    ) private returns (uint64 sequence, uint64 fastSequence) {
-        // The Matching Engine chain is a fast finality chain already, 
+    function _handleFastOrder(PlaceMarketOrderArgs memory args)
+        private
+        returns (uint64 sequence, uint64 fastSequence)
+    {
+        // The Matching Engine chain is a fast finality chain already,
         // so we don't need to send a fast transfer message.
         if (_wormholeChainId == _matchingEngineChain) {
             revert ErrFastTransferNotSupported();
@@ -152,18 +161,17 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         fastOrder.initAuctionFee = initAuctionFee;
         fastOrder.slowSequence = sequence;
 
-        fastSequence = _wormhole.publishMessage{value: messageFee}(
-            NONCE,
-            fastOrder.encode(),
-            FAST_FINALITY
-        );
+        fastSequence =
+            _wormhole.publishMessage{value: messageFee}(NONCE, fastOrder.encode(), FAST_FINALITY);
     }
 
     // ---------------------------------------- private -------------------------------------------
 
-    function _verifyFastOrderParams(
-        uint256 amountIn
-    ) private pure returns (uint128, uint128, uint128) {
+    function _verifyFastOrderParams(uint256 amountIn)
+        private
+        pure
+        returns (uint128, uint128, uint128)
+    {
         FastTransferParameters memory fastParams = getFastTransferParametersState();
         uint128 feeInBps = uint128(fastParams.feeInBps);
 
@@ -189,17 +197,18 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
              * safely cast the result to `uint128` because we know that `amountIn` is less than
              * or equal to `fastParams.maxAmount` which is a uint128.
              */
-            uint128 dynamicFastTransferFee = uint128(
-                (amountIn - staticFee) * feeInBps / MAX_BPS_FEE
-            );
+            uint128 dynamicFastTransferFee =
+                uint128((amountIn - staticFee) * feeInBps / MAX_BPS_FEE);
 
             return (dynamicFastTransferFee, fastParams.baseFee, fastParams.initAuctionFee);
         }
     }
 
-    function _verifyInputArguments(
-        PlaceMarketOrderArgs memory args
-    ) private view returns (bytes32 targetRouter) {
+    function _verifyInputArguments(PlaceMarketOrderArgs memory args)
+        private
+        view
+        returns (bytes32 targetRouter)
+    {
         if (args.amountIn == 0) {
             revert ErrInsufficientAmount();
         }
@@ -210,5 +219,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         targetRouter = getRouter(args.targetChain);
         if (targetRouter == bytes32(0)) {
             revert ErrUnsupportedChain(args.targetChain);
-        }}
+        }
+    }
 }

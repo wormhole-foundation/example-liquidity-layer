@@ -9,6 +9,7 @@ library Messages {
 
     // Payload IDs.
     uint8 private constant FILL = 0x1;
+    uint8 private constant FAST_FILL = 0x2;
     uint8 private constant FAST_MARKET_ORDER = 0x20;
 
     // VAA fields.
@@ -24,6 +25,11 @@ library Messages {
         bytes32 orderSender;
         bytes32 redeemer;
         bytes redeemerMessage;
+    }
+
+    struct FastFill {
+        Fill fill;
+        uint256 fillAmount;
     }
 
     struct FastMarketOrder {
@@ -76,9 +82,11 @@ library Messages {
         );
     }
 
-    function decodeFastMarketOrder(
-        bytes memory encoded
-    ) internal pure returns (FastMarketOrder memory order) {
+    function decodeFastMarketOrder(bytes memory encoded)
+        internal
+        pure
+        returns (FastMarketOrder memory order)
+    {
         uint256 offset = _checkPayloadId(encoded, 0, FAST_MARKET_ORDER);
 
         // Parse the encoded message.
@@ -96,12 +104,41 @@ library Messages {
         _checkLength(encoded, offset);
     }
 
+    function encode(FastFill memory fastFill) internal pure returns (bytes memory encoded) {
+        encoded = abi.encodePacked(
+            FAST_FILL,
+            fastFill.fill.sourceChain,
+            fastFill.fill.orderSender,
+            fastFill.fill.redeemer,
+            _encodeBytes(fastFill.fill.redeemerMessage),
+            fastFill.fillAmount
+        );
+    }
+
+    function decodeFastFill(bytes memory encoded)
+        internal
+        pure
+        returns (FastFill memory fastFill)
+    {
+        uint256 offset = _checkPayloadId(encoded, 0, FAST_FILL);
+
+        // Parse the encoded message.
+        (fastFill.fill.sourceChain, offset) = encoded.asUint16Unchecked(offset);
+        (fastFill.fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
+        (fastFill.fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
+        (fastFill.fill.redeemerMessage, offset) = _decodeBytes(encoded, offset);
+        (fastFill.fillAmount, offset) = encoded.asUint256Unchecked(offset);
+
+        _checkLength(encoded, offset);
+    }
+
     // ---------------------------------------- private -------------------------------------------
 
-    function _decodeBytes(
-        bytes memory encoded,
-        uint256 startOffset
-    ) private pure returns (bytes memory payload, uint256 offset) {
+    function _decodeBytes(bytes memory encoded, uint256 startOffset)
+        private
+        pure
+        returns (bytes memory payload, uint256 offset)
+    {
         uint32 payloadLength;
         (payloadLength, offset) = encoded.asUint32Unchecked(startOffset);
         (payload, offset) = encoded.sliceUnchecked(offset, payloadLength);
@@ -119,11 +156,11 @@ library Messages {
         }
     }
 
-    function _checkPayloadId(
-        bytes memory encoded,
-        uint256 startOffset,
-        uint8 expectedPayloadId
-    ) private pure returns (uint256 offset) {
+    function _checkPayloadId(bytes memory encoded, uint256 startOffset, uint8 expectedPayloadId)
+        private
+        pure
+        returns (uint256 offset)
+    {
         uint8 parsedPayloadId;
         (parsedPayloadId, offset) = encoded.asUint8Unchecked(startOffset);
         if (parsedPayloadId != expectedPayloadId) {
@@ -136,27 +173,22 @@ library Messages {
     function unsafeEmitterChainFromVaa(bytes memory encoded) internal pure returns (uint16) {
         // Skip the payload ID and guardian set index.
         (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
-        (uint16 emitterChain, ) = encoded.asUint16Unchecked(
-            offset + SIG_LENGTH * numSignatures + 8
-        );
+        (uint16 emitterChain,) = encoded.asUint16Unchecked(offset + SIG_LENGTH * numSignatures + 8);
         return emitterChain;
     }
 
     function unsafeEmitterAddressFromVaa(bytes memory encoded) internal pure returns (bytes32) {
         // Skip the payload ID and guardian set index.
         (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
-        (bytes32 emitterAddress, ) = encoded.asBytes32Unchecked(
-            offset + SIG_LENGTH * numSignatures + 10
-        );
+        (bytes32 emitterAddress,) =
+            encoded.asBytes32Unchecked(offset + SIG_LENGTH * numSignatures + 10);
         return emitterAddress;
     }
 
     function unsafeSequenceFromVaa(bytes memory encoded) internal pure returns (uint64) {
         // Skip the payload ID and guardian set index.
         (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
-        (uint64 sequence, ) = encoded.asUint64Unchecked(
-            offset + SIG_LENGTH * numSignatures + 42
-        );
+        (uint64 sequence,) = encoded.asUint64Unchecked(offset + SIG_LENGTH * numSignatures + 42);
         return sequence;
     }
 }

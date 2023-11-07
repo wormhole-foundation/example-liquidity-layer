@@ -12,14 +12,10 @@ import {getImplementationState, Implementation} from "../shared/Admin.sol";
 import {MatchingEngineAdmin} from "./assets/MatchingEngineAdmin.sol";
 import {State} from "./assets/State.sol";
 
-contract MatchingEngineImplementation is
-    MatchingEngineAdmin
-{
+contract MatchingEngineImplementation is MatchingEngineAdmin {
     error AlreadyInitialized();
 
-    constructor(address wormholeCctp_, address cctpToken_)
-        State(wormholeCctp_, cctpToken_)
-    {}
+    constructor(address wormholeCctp_, address cctpToken_) State(wormholeCctp_, cctpToken_) {}
 
     function initialize() public virtual initializer {
         // this function needs to be exposed for an upgrade to pass

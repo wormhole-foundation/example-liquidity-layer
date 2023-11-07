@@ -113,8 +113,7 @@ abstract contract State is IState {
         }
 
         uint128 transferFee = uint128(
-            (amount - fastParams.baseFee - fastParams.initAuctionFee) *
-            feeInBps / MAX_BPS_FEE
+            (amount - fastParams.baseFee - fastParams.initAuctionFee) * feeInBps / MAX_BPS_FEE
         );
 
         return transferFee + fastParams.baseFee;

@@ -7,8 +7,11 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
+import {IMatchingEngine} from "../../interfaces/IMatchingEngine.sol";
+
 import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
+import {fromUniversalAddress} from "../../shared/Utils.sol";
 import {toUniversalAddress} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
@@ -21,22 +24,30 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
 
     /// @inheritdoc IRedeemFill
     function redeemFill(OrderResponse calldata response) external returns (RedeemedFill memory) {
-        ICircleIntegration.DepositWithPayload memory deposit = _wormholeCctp
-            .redeemTokensWithPayload(
-                ICircleIntegration.RedeemParameters({
-                    encodedWormholeMessage: response.encodedWormholeMessage,
-                    circleBridgeMessage: response.circleBridgeMessage,
-                    circleAttestation: response.circleAttestation
-                })
-            );
+        uint16 emitterChain = response.encodedWormholeMessage.unsafeEmitterChainFromVaa();
+        bytes32 emitterAddress = response.encodedWormholeMessage.unsafeEmitterAddressFromVaa();
+
+        // If the emitter is the matching engine, and this TokenRouter is on the same chain
+        // as the matching engine, then this is a fast fill.
+        if (
+            (emitterChain == _matchingEngineChain && _wormholeChainId == _matchingEngineChain)
+                && emitterAddress == _matchingEngineAddress
+        ) {
+            return _handleFastFill(response.encodedWormholeMessage);
+        }
+
+        ICircleIntegration.DepositWithPayload memory deposit = _wormholeCctp.redeemTokensWithPayload(
+            ICircleIntegration.RedeemParameters({
+                encodedWormholeMessage: response.encodedWormholeMessage,
+                circleBridgeMessage: response.circleBridgeMessage,
+                circleAttestation: response.circleAttestation
+            })
+        );
 
         Messages.Fill memory fill = deposit.payload.decodeFill();
 
         // Verify the sender.
-        _verifyFromAddress(
-            response.encodedWormholeMessage.unsafeEmitterChainFromVaa(),
-            deposit.fromAddress
-        );
+        _verifyFromAddress(emitterChain, deposit.fromAddress);
 
         // Make sure the redeemer is who we expect.
         bytes32 redeemer = toUniversalAddress(msg.sender);
@@ -53,6 +64,21 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
             token: address(_orderToken),
             amount: deposit.amount,
             message: fill.redeemerMessage
+        });
+    }
+
+    function _handleFastFill(bytes calldata fastFillVaa) private returns (RedeemedFill memory) {
+        // Call the Matching Engine to redeem the fill directly.
+        Messages.FastFill memory fastFill = IMatchingEngine(
+            fromUniversalAddress(_matchingEngineAddress)
+        ).redeemFastFill(fastFillVaa);
+
+        return RedeemedFill({
+            sender: fastFill.fill.orderSender,
+            senderChain: fastFill.fill.sourceChain,
+            token: address(_orderToken),
+            amount: fastFill.fillAmount,
+            message: fastFill.fill.redeemerMessage
         });
     }
 
