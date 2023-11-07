@@ -112,7 +112,7 @@ contract TokenRouterTest is Test {
         vm.stopPrank();
 
         wormholeSimulator = new SigningWormholeSimulator(
-            ITokenBridge(TOKEN_BRIDGE_ADDRESS).wormhole(),
+            wormholeCctp.wormhole(),
             TESTING_SIGNER
         );
 

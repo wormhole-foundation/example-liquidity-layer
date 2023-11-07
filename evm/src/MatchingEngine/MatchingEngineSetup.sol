@@ -12,6 +12,8 @@ import {IMatchingEngine} from "../interfaces/IMatchingEngine.sol";
 
 import {MatchingEngineImplementation} from "../MatchingEngine/MatchingEngineImplementation.sol";
 
+import "forge-std/console.sol";
+
 contract MatchingEngineSetup is ERC1967Upgrade, Context {
     error AlreadyDeployed();
 

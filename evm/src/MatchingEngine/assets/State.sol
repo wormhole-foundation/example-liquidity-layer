@@ -5,10 +5,11 @@ pragma solidity ^0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
+import {IMatchingEngineState} from "../../interfaces/IMatchingEngineState.sol";
 
 import "./Errors.sol";
 
-abstract contract State {
+abstract contract State is IMatchingEngineState {
     // Immutable state.
     address immutable _deployer;
     uint16 immutable _wormholeChainId;
@@ -34,5 +35,10 @@ abstract contract State {
         _wormholeChainId = _wormholeCctp.chainId();
         _wormhole = _wormholeCctp.wormhole();
         _token = IERC20(cctpToken_);
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function getDeployer() external view returns (address) {
+        return _deployer;
     }
 }
