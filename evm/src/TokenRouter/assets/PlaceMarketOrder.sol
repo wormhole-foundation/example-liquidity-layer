@@ -10,8 +10,6 @@ import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
 import {fromUniversalAddress, toUniversalAddress} from "../../shared/Utils.sol";
 
-import "forge-std/console.sol";
-
 import "./Errors.sol";
 import {State} from "./State.sol";
 import {FastTransferParameters} from "../../interfaces/Types.sol";
@@ -19,6 +17,7 @@ import {getFastTransferParametersState} from "./Storage.sol";
 
 import "../../interfaces/IPlaceMarketOrder.sol";
 
+// TODO: How to handle fast transfers to hub chain? 
 abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     using BytesParsing for bytes;
     using Messages for *;
@@ -78,12 +77,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _handleOrder(
         PlaceMarketOrderArgs memory args
     ) private returns (uint64 sequence) {
-        _verifyInputArguments(args);
-
-        bytes32 targetRouter = getRouter(args.targetChain);
-        if (targetRouter == bytes32(0)) {
-            revert ErrUnsupportedChain(args.targetChain);
-        }
+        bytes32 targetRouter = _verifyInputArguments(args); 
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
         SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
@@ -110,6 +104,12 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _handleFastOrder(
         PlaceMarketOrderArgs memory args
     ) private returns (uint64 sequence, uint64 fastSequence) {
+        // The Matching Engine chain is a fast finality chain already, 
+        // so we don't need to send a fast transfer message.
+        if (_wormholeChainId == _matchingEngineChain) {
+            revert ErrFastTransferNotSupported();
+        }
+
         _verifyInputArguments(args);
 
         (uint128 dynamicFastTransferFee, uint128 baseFee, uint128 initAuctionFee) =
@@ -134,9 +134,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             initAuctionFee: 0, // Only used by the fast transfer message.
             redeemerMessage: args.redeemerMessage
         });
-
-        console.log(_matchingEngineChain);
-        console.logBytes32(_matchingEngineAddress);
 
         // Send the slow CCTP transfer with the `baseFee` as the `transferFee`.
         sequence = _wormholeCctp.transferTokensWithPayload{value: messageFee}(
@@ -181,7 +178,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         }
 
         // This check is necessary to prevent an underflow in the unchecked block below.
-        if (amountIn <= fastParams.baseFee + fastParams.initAuctionFee) {
+        uint128 staticFee = fastParams.baseFee + fastParams.initAuctionFee;
+        if (amountIn <= staticFee) {
             revert ErrInsufficientAmount();
         }
 
@@ -192,8 +190,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
              * or equal to `fastParams.maxAmount` which is a uint128.
              */
             uint128 dynamicFastTransferFee = uint128(
-                (amountIn - fastParams.baseFee - fastParams.initAuctionFee) *
-                feeInBps / MAX_BPS_FEE
+                (amountIn - staticFee) * feeInBps / MAX_BPS_FEE
             );
 
             return (dynamicFastTransferFee, fastParams.baseFee, fastParams.initAuctionFee);
@@ -202,12 +199,16 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     function _verifyInputArguments(
         PlaceMarketOrderArgs memory args
-    ) private pure {
+    ) private view returns (bytes32 targetRouter) {
         if (args.amountIn == 0) {
             revert ErrInsufficientAmount();
         }
         if (args.redeemer == bytes32(0)) {
             revert ErrInvalidRedeemerAddress();
         }
-    }
+
+        targetRouter = getRouter(args.targetChain);
+        if (targetRouter == bytes32(0)) {
+            revert ErrUnsupportedChain(args.targetChain);
+        }}
 }

@@ -31,3 +31,5 @@ error ErrFastTransferFeeUnset();
 error ErrInvalidFeeInBps();
 
 error ErrInvalidFastTransferParameters();
+
+error ErrFastTransferNotSupported();

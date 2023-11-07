@@ -89,7 +89,7 @@ abstract contract State is IState {
     function getMinTransferAmount() external pure returns (uint256) {
         FastTransferParameters memory params = getFastTransferParametersState();
 
-        return params.baseFee + params.initAuctionFee;
+        return params.baseFee + params.initAuctionFee + 1;
     }
 
     function getMaxTransferAmount() external view returns (uint128) {
