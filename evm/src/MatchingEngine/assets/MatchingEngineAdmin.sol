@@ -10,10 +10,6 @@ import {getRouterEndpointState} from "./Storage.sol";
 
 abstract contract MatchingEngineAdmin is Admin, State {
     function addRouterEndpoint(uint16 chain, bytes32 router) external onlyOwnerOrAssistant {
-        if (chain == _wormholeChainId) {
-            revert ErrChainNotAllowed(chain);
-        }
-
         if (chain == 0) {
             revert ErrChainNotAllowed(chain);
         }

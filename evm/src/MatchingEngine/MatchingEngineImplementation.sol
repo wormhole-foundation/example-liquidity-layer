@@ -10,9 +10,10 @@ import {Messages} from "../shared/Messages.sol";
 import {getImplementationState, Implementation} from "../shared/Admin.sol";
 
 import {MatchingEngineAdmin} from "./assets/MatchingEngineAdmin.sol";
+import {MatchingEngineFastOrders} from "./assets/MatchingEngineFastOrders.sol";
 import {State} from "./assets/State.sol";
 
-contract MatchingEngineImplementation is MatchingEngineAdmin {
+contract MatchingEngineImplementation is MatchingEngineFastOrders, MatchingEngineAdmin {
     error AlreadyInitialized();
 
     constructor(address wormholeCctp_, address cctpToken_) State(wormholeCctp_, cctpToken_) {}

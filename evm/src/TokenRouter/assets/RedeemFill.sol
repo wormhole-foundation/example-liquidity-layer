@@ -19,6 +19,8 @@ import {State} from "./State.sol";
 
 import "../../interfaces/IRedeemFill.sol";
 
+import "forge-std/console.sol";
+
 abstract contract RedeemFill is IRedeemFill, Admin, State {
     using Messages for *;
 
@@ -34,8 +36,14 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
                 && emitterAddress == _matchingEngineAddress
         ) {
             return _handleFastFill(response.encodedWormholeMessage);
+        } else {
+            return _handleFill(emitterChain, response);
         }
+    }
 
+    // ------------------------------- Private ---------------------------------
+
+    function _handleFill(uint16 emitterChain, OrderResponse calldata response) private returns (RedeemedFill memory) {
         ICircleIntegration.DepositWithPayload memory deposit = _wormholeCctp.redeemTokensWithPayload(
             ICircleIntegration.RedeemParameters({
                 encodedWormholeMessage: response.encodedWormholeMessage,
@@ -46,14 +54,8 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
 
         Messages.Fill memory fill = deposit.payload.decodeFill();
 
-        // Verify the sender.
         _verifyFromAddress(emitterChain, deposit.fromAddress);
-
-        // Make sure the redeemer is who we expect.
-        bytes32 redeemer = toUniversalAddress(msg.sender);
-        if (redeemer != fill.redeemer) {
-            revert ErrInvalidRedeemer(redeemer, fill.redeemer);
-        }
+        _verifyRedeemer(fill.redeemer);
 
         // Transfer token amount to redeemer.
         SafeERC20.safeTransfer(_orderToken, msg.sender, deposit.amount);
@@ -73,6 +75,11 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
             fromUniversalAddress(_matchingEngineAddress)
         ).redeemFastFill(fastFillVaa);
 
+        _verifyRedeemer(fastFill.fill.redeemer);
+
+        // Transfer token amount to redeemer.
+        SafeERC20.safeTransfer(_orderToken, msg.sender, fastFill.fillAmount);
+
         return RedeemedFill({
             sender: fastFill.fill.orderSender,
             senderChain: fastFill.fill.sourceChain,
@@ -80,6 +87,14 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
             amount: fastFill.fillAmount,
             message: fastFill.fill.redeemerMessage
         });
+    }
+
+    function _verifyRedeemer(bytes32 expectedRedeemer) private view {
+        // Make sure the redeemer is who we expect.
+        bytes32 redeemer = toUniversalAddress(msg.sender);
+        if (redeemer != expectedRedeemer) {
+            revert ErrInvalidRedeemer(redeemer, expectedRedeemer);
+        }
     }
 
     function _verifyFromAddress(uint16 fromChain, bytes32 fromAddress) private view {

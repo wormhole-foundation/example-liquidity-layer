@@ -5,6 +5,7 @@ pragma solidity ^0.8.0;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import "./Types.sol";
+import "../MatchingEngine/assets/Storage.sol";
 
 interface IMatchingEngineState {
     /**
@@ -12,4 +13,27 @@ interface IMatchingEngineState {
      * @dev This is not the `owner` of the contracts.
      */
     function getDeployer() external view returns (address);
+
+    /**
+     * @notice Returns the router address for a given chain ID.
+     * @param chain The Wormhole chain ID.
+     */
+    function getRouter(uint16 chain) external view returns (bytes32);
+
+    function maxBpsFee() external pure returns (uint24);
+
+    function liveAuctionInfo(bytes32 auctionId) external view returns (LiveAuctionData memory);
+
+    function getAuctionStatus(bytes32 auctionId) external view returns (AuctionStatus);
+
+    function initialAuctionInfo(bytes32 auctionId)
+        external
+        view
+        returns (InitialAuctionData memory);
+
+    function getAuctionDuration() external pure returns (uint8);
+
+    function getAuctionGracePeriod() external pure returns (uint8);
+
+    function getAuctionPenaltyBlocks() external pure returns (uint8);
 }

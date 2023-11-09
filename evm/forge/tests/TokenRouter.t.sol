@@ -1153,6 +1153,10 @@ contract TokenRouterTest is Test {
         _redeemWormholeCctpFill(router, expectedRedeemed, ARB_ROUTER, ARB_CHAIN);
     }
 
+    /**
+     * TEST HELPERS
+     */
+
     function _dealAndApproveUsdc(ITokenRouter _router, uint256 amount) internal {
         deal(USDC_ADDRESS, address(this), amount);
         IERC20(USDC_ADDRESS).approve(address(_router), amount);

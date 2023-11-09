@@ -17,7 +17,6 @@ import {getFastTransferParametersState} from "./Storage.sol";
 
 import "../../interfaces/IPlaceMarketOrder.sol";
 
-// TODO: How to handle fast transfers to hub chain?
 abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     using BytesParsing for bytes;
     using Messages for *;
@@ -164,8 +163,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         fastSequence =
             _wormhole.publishMessage{value: messageFee}(NONCE, fastOrder.encode(), FAST_FINALITY);
     }
-
-    // ---------------------------------------- private -------------------------------------------
 
     function _verifyFastOrderParams(uint256 amountIn)
         private

@@ -8,6 +8,7 @@ import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 import {Messages} from "../../shared/Messages.sol";
+import {IMatchingEngineFastOrders} from "../../interfaces/IMatchingEngineFastOrders.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
@@ -23,7 +24,16 @@ import {
     FastFills
 } from "./Storage.sol";
 
-abstract contract MatchingEngineFastOrders is State {
+// TODO: Do we need to protect against reentrancy, even though the `_token` is allow listed?
+// TODO: Should there be a minTickSize for new bids?
+// TODO: Should we give the user some chunk of the penalty? Currently, the penalty is sent
+// directly to the liquidator. Which should entice liquidators to participate.
+// TODO: Should we include the fee amount in the penalty calculation?
+// TODO: How does the replay protection effect a fast transfer roll back and same
+// hash is created again?
+// TODO: Add governance method for setting the auction period and penalties.
+
+abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     using BytesParsing for bytes;
     using Messages for *;
 
@@ -32,16 +42,10 @@ abstract contract MatchingEngineFastOrders is State {
     );
     event NewBid(bytes32 indexed auctionId, uint256 newBid, uint256 oldBid, address bidder);
 
-    // TODO: Do we need to protect against reentrancy, even though the `_token` is allow listed?
-    // TODO: Should there be a minTickSize for new bids?
-    // TODO: Should we give the user some chunk of the penalty?
-    // TODO: Should we include the fee amount in the penalty calculation?
-    // TODO: How does the replay protection effect a fast transfer roll back and same
-    // hash is created again?
     function placeInitialBid(bytes calldata fastTransferVaa, uint128 feeBid) external {
         IWormhole.VM memory vm = _verifyWormholeMessage(fastTransferVaa);
 
-        Messages.FastMarketOrder memory order = fastTransferVaa.decodeFastMarketOrder();
+        Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
 
         _verifyRouterPath(vm.emitterChainId, vm.emitterAddress, order.targetChain);
 
@@ -79,11 +83,14 @@ abstract contract MatchingEngineFastOrders is State {
          * Set the initial auction data. The initial bidder will receive an
          * additional fee once the auction is completed for initializing the auction
          * and incurring the gas costs of verifying the VAA and setting initial state.
+         *
+         * We need to save the expected slow VAA emitter information so that we can
+         * verify the slow VAA when it comes in.
          */
         InitialAuctionData storage initialAuction = getInitialAuctionInfo().auctions[vm.hash];
         initialAuction.initialBidder = msg.sender;
-        initialAuction.sourceChain = vm.emitterChainId;
-        initialAuction.sourceRouter = vm.emitterAddress;
+        initialAuction.slowChain = vm.emitterChainId;
+        initialAuction.slowEmitter = _wormholeCctp.getRegisteredEmitter(vm.emitterChainId);
         initialAuction.slowSequence = order.slowSequence;
 
         emit AuctionStarted(vm.hash, order.amountIn, feeBid, msg.sender);
@@ -114,16 +121,19 @@ abstract contract MatchingEngineFastOrders is State {
             revert ErrAuctionPeriodNotComplete();
         }
 
-        Messages.FastMarketOrder memory order = fastTransferVaa.decodeFastMarketOrder();
+        Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
 
         _verifyRouterPath(vm.emitterChainId, vm.emitterAddress, order.targetChain);
 
         if (blocksElapsed > AUCTION_GRACE_PERIOD) {
             uint256 penalty = _calculateDynamicPenalty(auction.securityDeposit, blocksElapsed);
 
-            // Give the penalty amount to the liquidater and return the remaining
-            // security deposit to the highest bidder.
-            SafeERC20.safeTransfer(_token, msg.sender, penalty); // Should always be nonzero.
+            /**
+             * Give the penalty amount to the liquidator and return the remaining
+             * security deposit to the highest bidder. The penalty should always be
+             * nonzero in this branch.
+             */
+            SafeERC20.safeTransfer(_token, msg.sender, penalty);
             SafeERC20.safeTransfer(
                 _token, auction.highestBidder, auction.bidPrice + auction.securityDeposit - penalty
             );
@@ -164,7 +174,7 @@ abstract contract MatchingEngineFastOrders is State {
         uint16 emitterChainId = params.encodedWormholeMessage.unsafeEmitterChainFromVaa();
         bytes32 emitterAddress = params.encodedWormholeMessage.unsafeEmitterAddressFromVaa();
 
-        _verifyRouterPath(emitterChainId, emitterAddress, order.targetChain);
+        _verifyRouterPath(emitterChainId, deposit.fromAddress, order.targetChain);
 
         LiveAuctionData storage auction = getLiveAuctionInfo().auctions[auctionId];
 
@@ -175,7 +185,7 @@ abstract contract MatchingEngineFastOrders is State {
             SafeERC20.safeTransfer(_token, msg.sender, order.maxFee);
 
             /*
-             * SECURITY: this is a necessary secuity check. The will prevent a relayer from
+             * SECURITY: this is a necessary security check. This will prevent a relayer from
              * starting an auction with the fast transfer VAA, even though the slow
              * relayer already delivered the slow VAA. Not setting this could lead
              * to trapped funds (which would require an upgrade to fix).
@@ -189,9 +199,12 @@ abstract contract MatchingEngineFastOrders is State {
                 params.encodedWormholeMessage.unsafeSequenceFromVaa()
             );
 
-            // This means the slow message beat the fast message. We need to refund
-            // the bidder and (potentially) take a penalty for not fulfilling their
-            // obligation.
+            /**
+             * This means the slow message beat the fast message. We need to refund
+             * the bidder and (potentially) take a penalty for not fulfilling their
+             * obligation. The `penalty` CAN be zero in this case, since the auction
+             * grace period might not have ended yet.
+             */
             uint256 penalty = _calculateDynamicPenalty(
                 auction.securityDeposit, uint88(block.number) - auction.startBlock
             );
@@ -341,8 +354,8 @@ abstract contract MatchingEngineFastOrders is State {
     ) private view {
         InitialAuctionData memory initialAuction = getInitialAuctionInfo().auctions[auctionId];
         if (
-            initialAuction.sourceChain != emitterChainId
-                || initialAuction.sourceRouter != emitterAddress
+            initialAuction.slowChain != emitterChainId
+                || initialAuction.slowEmitter != emitterAddress
                 || initialAuction.slowSequence != sequence
         ) {
             revert ErrVaaMismatch();
@@ -358,6 +371,8 @@ abstract contract MatchingEngineFastOrders is State {
             return 0;
         }
 
+        // This means that if the `PENALTY_BLOCKS` state variable is set to
+        // zero, the entire security deposit is taken as a penalty.
         uint256 penaltyPeriod = blocksElapsed - AUCTION_GRACE_PERIOD;
         if (penaltyPeriod > PENALTY_BLOCKS) {
             return amount;

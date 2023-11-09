@@ -9,6 +9,15 @@ import {IMatchingEngineState} from "../../interfaces/IMatchingEngineState.sol";
 
 import "./Errors.sol";
 
+import {
+    getRouterEndpointState,
+    getInitialAuctionInfo,
+    getLiveAuctionInfo,
+    LiveAuctionData,
+    InitialAuctionData,
+    AuctionStatus
+} from "./Storage.sol";
+
 abstract contract State is IMatchingEngineState {
     // Immutable state.
     address immutable _deployer;
@@ -40,5 +49,42 @@ abstract contract State is IMatchingEngineState {
     /// @inheritdoc IMatchingEngineState
     function getDeployer() external view returns (address) {
         return _deployer;
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function getRouter(uint16 chain) public view returns (bytes32) {
+        return getRouterEndpointState().endpoints[chain];
+    }
+
+    function maxBpsFee() public pure returns (uint24) {
+        return MAX_BPS_FEE;
+    }
+
+    function getAuctionDuration() public pure returns (uint8) {
+        return AUCTION_DURATION;
+    }
+
+    function getAuctionGracePeriod() public pure returns (uint8) {
+        return AUCTION_GRACE_PERIOD;
+    }
+
+    function getAuctionPenaltyBlocks() public pure returns (uint8) {
+        return PENALTY_BLOCKS;
+    }
+
+    function liveAuctionInfo(bytes32 auctionId) public view returns (LiveAuctionData memory) {
+        return getLiveAuctionInfo().auctions[auctionId];
+    }
+
+    function getAuctionStatus(bytes32 auctionId) public view returns (AuctionStatus) {
+        return getLiveAuctionInfo().auctions[auctionId].status;
+    }
+
+    function initialAuctionInfo(bytes32 auctionId)
+        public
+        view
+        returns (InitialAuctionData memory)
+    {
+        return getInitialAuctionInfo().auctions[auctionId];
     }
 }
