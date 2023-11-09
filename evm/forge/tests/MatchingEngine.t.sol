@@ -229,6 +229,80 @@ contract MatchingEngineTest is Test {
         engine.addRouterEndpoint(chain, routerEndpoint);
     }
 
+    function testCannotSetAuctionConfigInvalidAuctionDuration() public {
+        AuctionConfig memory config = AuctionConfig({
+            auctionDuration: 0, // Set to zero.
+            auctionGracePeriod: 6,
+            penaltyBlocks: 20,
+            userPenaltyRewardBps: 250000,
+            initialPenaltyBps: 100000
+        });
+
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidAuctionDuration()"));
+        engine.setAuctionConfig(config);
+    }
+
+    function testCannotSetAuctionConfigInvalidAuctionGracePeriod() public {
+        AuctionConfig memory config = AuctionConfig({
+            auctionDuration: 2,
+            auctionGracePeriod: 1, // Less than auction duration.
+            penaltyBlocks: 20,
+            userPenaltyRewardBps: 250000,
+            initialPenaltyBps: 100000
+        });
+
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ErrInvalidAuctionGracePeriod(uint8)", config.auctionGracePeriod
+            )
+        );
+        engine.setAuctionConfig(config);
+    }
+
+    function testCannotSetAuctionConfigInvalidUserPenaltyBps() public {
+        AuctionConfig memory config = AuctionConfig({
+            auctionDuration: 2,
+            auctionGracePeriod: 6,
+            penaltyBlocks: 20,
+            userPenaltyRewardBps: engine.maxBpsFee() + 1,
+            initialPenaltyBps: 100000
+        });
+
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidUserPenaltyRewardBps()"));
+        engine.setAuctionConfig(config);
+    }
+
+    function testCannotSetAuctionConfigInvalidInitialPenalty() public {
+        AuctionConfig memory config = AuctionConfig({
+            auctionDuration: 2,
+            auctionGracePeriod: 6,
+            penaltyBlocks: 20,
+            userPenaltyRewardBps: 6900,
+            initialPenaltyBps: engine.maxBpsFee() + 1
+        });
+
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidInitialPenaltyBps()"));
+        engine.setAuctionConfig(config);
+    }
+
+    function testCannotSetAuctionConfigOnlyOwnerOrAssistant() public {
+        AuctionConfig memory config = AuctionConfig({
+            auctionDuration: 2,
+            auctionGracePeriod: 6,
+            penaltyBlocks: 20,
+            userPenaltyRewardBps: 6900,
+            initialPenaltyBps: 6900
+        });
+
+        vm.prank(makeAddr("robber"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
+        engine.setAuctionConfig(config);
+    }
+
     /**
      * AUCTION TESTS
      */

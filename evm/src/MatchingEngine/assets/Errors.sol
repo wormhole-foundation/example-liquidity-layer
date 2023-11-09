@@ -32,12 +32,10 @@ error ErrInvalidEmitterForFastFill();
 
 error ErrFastFillAlreadyRedeemed();
 
-error ErrInvalidAuctionDuration(uint8 duration);
+error ErrInvalidAuctionDuration();
 
 error ErrInvalidAuctionGracePeriod(uint8 gracePeriod);
 
-error ErrInvalidPenaltyBlocks(uint8 penaltyBlocks);
+error ErrInvalidUserPenaltyRewardBps();
 
-error ErrInvalidUserPenaltyRewardBps(uint24 userPenaltyRewardBps);
-
-error ErrInvalidInitialPenaltyBps(uint24 initialPenaltyBps);
+error ErrInvalidInitialPenaltyBps();

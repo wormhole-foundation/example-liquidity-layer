@@ -23,7 +23,7 @@ abstract contract MatchingEngineAdmin is Admin, State {
 
     function setAuctionConfig(AuctionConfig calldata newConfig) external onlyOwnerOrAssistant {
         if (newConfig.auctionDuration == 0) {
-            revert ErrInvalidAuctionDuration(newConfig.auctionDuration);
+            revert ErrInvalidAuctionDuration();
         }
 
         if (newConfig.auctionGracePeriod <= newConfig.auctionDuration) {
@@ -31,11 +31,11 @@ abstract contract MatchingEngineAdmin is Admin, State {
         }
 
         if (newConfig.userPenaltyRewardBps > MAX_BPS_FEE) {
-            revert ErrInvalidUserPenaltyRewardBps(newConfig.userPenaltyRewardBps);
+            revert ErrInvalidUserPenaltyRewardBps();
         }
 
         if (newConfig.initialPenaltyBps > MAX_BPS_FEE) {
-            revert ErrInvalidInitialPenaltyBps(newConfig.initialPenaltyBps);
+            revert ErrInvalidInitialPenaltyBps();
         }
 
         // Update the config with the new parameters.
