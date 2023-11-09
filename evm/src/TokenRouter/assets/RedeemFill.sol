@@ -43,7 +43,10 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
 
     // ------------------------------- Private ---------------------------------
 
-    function _handleFill(uint16 emitterChain, OrderResponse calldata response) private returns (RedeemedFill memory) {
+    function _handleFill(uint16 emitterChain, OrderResponse calldata response)
+        private
+        returns (RedeemedFill memory)
+    {
         ICircleIntegration.DepositWithPayload memory deposit = _wormholeCctp.redeemTokensWithPayload(
             ICircleIntegration.RedeemParameters({
                 encodedWormholeMessage: response.encodedWormholeMessage,

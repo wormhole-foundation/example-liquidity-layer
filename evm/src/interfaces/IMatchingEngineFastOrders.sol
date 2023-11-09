@@ -24,4 +24,9 @@ interface IMatchingEngineFastOrders {
     function redeemFastFill(bytes calldata fastFillVaa)
         external
         returns (Messages.FastFill memory);
+
+    function calculateDynamicPenalty(uint256 amount, uint256 blocksElapsed)
+        external
+        pure
+        returns (uint256, uint256);
 }

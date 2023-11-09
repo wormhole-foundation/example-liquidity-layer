@@ -236,6 +236,48 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, feeBid, PLAYER_ONE);
     }
 
+    /**
+     * @notice This test demonstrates how the contract does not revert if
+     * two players are racing to place the initial bid. Instead, `_improveBid`
+     * is called and the highest bidder is updated.
+     */
+    function testPlaceInitialBidAgain(uint256 amountIn, uint128 newBid) public {
+        uint64 slowMessageSequence = 69;
+        amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+
+        // Place initial bid for the max fee with player one.
+        _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+
+        // Create a bid that is lower than the current bid.
+        newBid = uint128(bound(newBid, 0, order.maxFee));
+
+        _dealAndApproveUsdc(engine, order.amountIn + order.maxFee, PLAYER_TWO);
+
+        uint256 newBalanceBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO);
+        uint256 oldBalanceBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE);
+
+        // Call `placeInitialBid` as player two.
+        vm.prank(PLAYER_TWO);
+        engine.placeInitialBid(fastMessage, newBid);
+
+        assertEq(
+            newBalanceBefore - IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO),
+            order.amountIn + order.maxFee
+        );
+        assertEq(
+            IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE) - oldBalanceBefore,
+            order.amountIn + order.maxFee
+        );
+
+        // Validate state and balance changes.
+        IWormhole.VM memory _vm = wormholeCctp.wormhole().parseVM(fastMessage);
+
+        _verifyAuctionState(order, _vm, newBid, PLAYER_TWO, PLAYER_ONE, _vm.hash);
+    }
+
     function testImproveBid(uint256 amountIn, uint128 newBid) public {
         uint64 slowMessageSequence = 69;
         amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
@@ -305,6 +347,73 @@ contract MatchingEngineTest is Test {
             .DepositWithPayload({
             token: toUniversalAddress(USDC_ADDRESS),
             amount: amountIn - newBid - FAST_TRANSFER_INIT_AUCTION_FEE,
+            sourceDomain: wormholeCctp.localDomain(),
+            targetDomain: wormholeCctp.getDomainFromChainId(ETH_CHAIN),
+            nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+            fromAddress: toUniversalAddress(address(engine)),
+            mintRecipient: ETH_ROUTER,
+            payload: deposit.payload
+        });
+        assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
+    }
+
+    function testExecuteFastOrderWithPenalty(uint256 amountIn, uint8 penaltyBlocks) public {
+        uint64 slowMessageSequence = 69;
+        amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+
+        // Place initial bid for the max fee with player one.
+        uint128 bidPrice = order.maxFee - 1;
+        _placeInitialBid(order, fastMessage, bidPrice, PLAYER_ONE);
+
+        IWormhole.VM memory _vm = wormholeCctp.wormhole().parseVM(fastMessage);
+
+        // Warp the block into the penalty period.
+        penaltyBlocks = uint8(bound(penaltyBlocks, 1, engine.getAuctionPenaltyBlocks()));
+        uint88 startBlock = engine.liveAuctionInfo(_vm.hash).startBlock;
+        vm.roll(startBlock + engine.getAuctionGracePeriod() + penaltyBlocks);
+
+        // Calculate the expected penalty and reward.
+        (uint256 expectedPenalty, uint256 expectedReward) =
+            engine.calculateDynamicPenalty(order.maxFee, uint256(block.number - startBlock));
+
+        // Execute the fast order, the highest bidder should receive some of their security deposit
+        // (less penalties).
+        uint256 bidderBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE);
+        uint256 liquidatorBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO);
+
+        // Execute the fast order using the "liquidator".
+        bytes memory cctpPayload = _executeFastOrder(fastMessage, PLAYER_TWO);
+
+        // PLAYER_ONE also gets the init fee for creating the auction.
+        assertEq(
+            IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE) - bidderBefore,
+            bidPrice + order.maxFee - (expectedPenalty + expectedReward)
+                + FAST_TRANSFER_INIT_AUCTION_FEE
+        );
+        assertEq(IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO) - liquidatorBefore, expectedPenalty);
+        assertEq(uint8(engine.getAuctionStatus(_vm.hash)), uint8(AuctionStatus.Completed));
+
+        // Verify that the correct amount was sent in the CCTP order.
+        ICircleIntegration.DepositWithPayload memory deposit =
+            wormholeCctp.decodeDepositWithPayload(cctpPayload);
+
+        assertEq(
+            deposit.payload,
+            Messages.Fill({
+                sourceChain: _vm.emitterChainId,
+                orderSender: toUniversalAddress(address(this)),
+                redeemer: order.redeemer,
+                redeemerMessage: order.redeemerMessage
+            }).encode()
+        );
+
+        ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
+            .DepositWithPayload({
+            token: toUniversalAddress(USDC_ADDRESS),
+            amount: amountIn - bidPrice - FAST_TRANSFER_INIT_AUCTION_FEE + expectedReward,
             sourceDomain: wormholeCctp.localDomain(),
             targetDomain: wormholeCctp.getDomainFromChainId(ETH_CHAIN),
             nonce: deposit.nonce, // This nonce comes from Circle's bridge.
@@ -455,7 +564,8 @@ contract MatchingEngineTest is Test {
     ) internal {
         _dealAndApproveUsdc(engine, order.amountIn + order.maxFee, newBidder);
 
-        uint256 balanceBefore = IERC20(USDC_ADDRESS).balanceOf(newBidder);
+        uint256 newBalanceBefore = IERC20(USDC_ADDRESS).balanceOf(newBidder);
+        uint256 oldBalanceBefore = IERC20(USDC_ADDRESS).balanceOf(initialBidder);
 
         // Validate state and balance changes.
         IWormhole.VM memory _vm = wormholeCctp.wormhole().parseVM(fastMessage);
@@ -465,7 +575,12 @@ contract MatchingEngineTest is Test {
         engine.improveBid(_vm.hash, newBid);
 
         assertEq(
-            balanceBefore - IERC20(USDC_ADDRESS).balanceOf(newBidder), order.amountIn + order.maxFee
+            newBalanceBefore - IERC20(USDC_ADDRESS).balanceOf(newBidder),
+            order.amountIn + order.maxFee
+        );
+        assertEq(
+            IERC20(USDC_ADDRESS).balanceOf(initialBidder) - oldBalanceBefore,
+            order.amountIn + order.maxFee
         );
 
         _verifyAuctionState(order, _vm, newBid, newBidder, initialBidder, _vm.hash);

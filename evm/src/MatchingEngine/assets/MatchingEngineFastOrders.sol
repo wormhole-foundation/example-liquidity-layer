@@ -3,6 +3,7 @@
 pragma solidity ^0.8.19;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
@@ -26,8 +27,6 @@ import {
 
 // TODO: Do we need to protect against reentrancy, even though the `_token` is allow listed?
 // TODO: Should there be a minTickSize for new bids?
-// TODO: Should we give the user some chunk of the penalty? Currently, the penalty is sent
-// directly to the liquidator. Which should entice liquidators to participate.
 // TODO: Should we include the fee amount in the penalty calculation?
 // TODO: How does the replay protection effect a fast transfer roll back and same
 // hash is created again?
@@ -126,19 +125,30 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         _verifyRouterPath(vm.emitterChainId, vm.emitterAddress, order.targetChain);
 
         if (blocksElapsed > AUCTION_GRACE_PERIOD) {
-            uint256 penalty = _calculateDynamicPenalty(auction.securityDeposit, blocksElapsed);
+            (uint256 penalty, uint256 userReward) =
+                calculateDynamicPenalty(auction.securityDeposit, blocksElapsed);
 
             /**
              * Give the penalty amount to the liquidator and return the remaining
              * security deposit to the highest bidder. The penalty should always be
-             * nonzero in this branch.
+             * nonzero in this branch. Also, pay the user a `reward` for having to
+             * wait longer than the auction grace period.
              */
             SafeERC20.safeTransfer(_token, msg.sender, penalty);
             SafeERC20.safeTransfer(
-                _token, auction.highestBidder, auction.bidPrice + auction.securityDeposit - penalty
+                _token,
+                auction.highestBidder,
+                auction.bidPrice + auction.securityDeposit - (penalty + userReward)
+            );
+
+            // Transfer funds to the recipient on the target chain.
+            sequence = _handleCctpTransfer(
+                auction.amount - auction.bidPrice - order.initAuctionFee + userReward,
+                vm.emitterChainId,
+                order
             );
         } else {
-            if (auction.highestBidder != msg.sender) {
+            if (msg.sender != auction.highestBidder) {
                 revert ErrNotHighestBidder();
             }
 
@@ -146,12 +156,12 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             SafeERC20.safeTransfer(
                 _token, auction.highestBidder, auction.bidPrice + auction.securityDeposit
             );
-        }
 
-        // Transfer funds to the recipient on the target chain.
-        sequence = _handleCctpTransfer(
-            auction.amount - auction.bidPrice - order.initAuctionFee, vm.emitterChainId, order
-        );
+            // Transfer funds to the recipient on the target chain.
+            sequence = _handleCctpTransfer(
+                auction.amount - auction.bidPrice - order.initAuctionFee, vm.emitterChainId, order
+            );
+        }
 
         // Pay the auction initiator their fee.
         SafeERC20.safeTransfer(
@@ -205,7 +215,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
              * obligation. The `penalty` CAN be zero in this case, since the auction
              * grace period might not have ended yet.
              */
-            uint256 penalty = _calculateDynamicPenalty(
+            (uint256 penalty, uint256 userReward) = calculateDynamicPenalty(
                 auction.securityDeposit, uint88(block.number) - auction.startBlock
             );
 
@@ -213,10 +223,14 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             // auction's highest bidder their funds back (security deposit - penalty).
             SafeERC20.safeTransfer(_token, msg.sender, penalty + order.maxFee);
             SafeERC20.safeTransfer(
-                _token, auction.highestBidder, auction.amount + auction.securityDeposit - penalty
+                _token,
+                auction.highestBidder,
+                auction.amount + auction.securityDeposit - penalty - userReward
             );
 
-            sequence = _handleCctpTransfer(auction.amount - order.maxFee, emitterChainId, order);
+            sequence = _handleCctpTransfer(
+                auction.amount + userReward - order.maxFee, emitterChainId, order
+            );
 
             // Everyone's whole, set the auction as completed.
             auction.status = AuctionStatus.Completed;
@@ -269,6 +283,30 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         SafeERC20.safeTransfer(_token, msg.sender, fastFill.fillAmount);
 
         return fastFill;
+    }
+
+    function calculateDynamicPenalty(uint256 amount, uint256 blocksElapsed)
+        public
+        pure
+        returns (uint256, uint256)
+    {
+        if (blocksElapsed <= AUCTION_GRACE_PERIOD) {
+            return (0, 0);
+        }
+
+        // If the `PENALTY_BLOCKS` state variable is set to zero,
+        // the entire security deposit is taken as a penalty.
+        uint256 penaltyPeriod = blocksElapsed - AUCTION_GRACE_PERIOD;
+        if (penaltyPeriod > PENALTY_BLOCKS) {
+            uint256 userReward = amount * USER_PENALTY_REWARD_BPS / MAX_BPS_FEE;
+            return (amount - userReward, userReward);
+        }
+
+        uint256 basePenalty = amount * INITIAL_PENALTY_BPS / MAX_BPS_FEE;
+        uint256 penalty = basePenalty + ((amount - basePenalty) * penaltyPeriod / PENALTY_BLOCKS);
+        uint256 userReward = penalty * USER_PENALTY_REWARD_BPS / MAX_BPS_FEE;
+
+        return (penalty - userReward, userReward);
     }
 
     // ------------------------------- Private ---------------------------------
@@ -360,27 +398,6 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         ) {
             revert ErrVaaMismatch();
         }
-    }
-
-    function _calculateDynamicPenalty(uint256 amount, uint256 blocksElapsed)
-        private
-        pure
-        returns (uint256 penalty)
-    {
-        if (blocksElapsed <= AUCTION_GRACE_PERIOD) {
-            return 0;
-        }
-
-        // This means that if the `PENALTY_BLOCKS` state variable is set to
-        // zero, the entire security deposit is taken as a penalty.
-        uint256 penaltyPeriod = blocksElapsed - AUCTION_GRACE_PERIOD;
-        if (penaltyPeriod > PENALTY_BLOCKS) {
-            return amount;
-        }
-
-        uint256 basePenalty = amount * INITIAL_PENALTY_BPS / MAX_BPS_FEE;
-
-        return basePenalty + ((amount - basePenalty) * penaltyPeriod / PENALTY_BLOCKS);
     }
 
     function _verifyRouterPath(uint16 chain, bytes32 fromRouter, uint16 targetChain) private view {

@@ -29,7 +29,8 @@ abstract contract State is IMatchingEngineState {
     // Consts.
     uint8 constant FINALITY = 1;
     uint32 constant NONCE = 0;
-    uint24 constant INITIAL_PENALTY_BPS = 100000; // 1000.00 bps (10%)
+    uint24 constant USER_PENALTY_REWARD_BPS = 250000; // 25%
+    uint24 constant INITIAL_PENALTY_BPS = 100000; // 10%
     uint24 constant MAX_BPS_FEE = 1000000; // 10,000.00 bps (100%)
     uint8 constant AUCTION_DURATION = 2; // 2 blocks == ~6 seconds
     uint8 constant AUCTION_GRACE_PERIOD = 6; // includes AUCTION_DURATION
