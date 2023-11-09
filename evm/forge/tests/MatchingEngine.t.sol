@@ -60,7 +60,7 @@ contract MatchingEngineTest is Test {
 
     bytes32 immutable TEST_REDEEMER = toUniversalAddress(makeAddr("TEST_REDEEMER"));
 
-    // Fast transfer parameters.
+    // Fast transfer outbound parameters.
     uint24 immutable FAST_TRANSFER_FEE_IN_BPS = 25000; // 0.25%.
     uint128 immutable FAST_TRANSFER_MAX_AMOUNT = 500000e6; // 500,000 USDC.
     uint128 immutable FAST_TRANSFER_BASE_FEE = 1e6; // 1 USDC.
@@ -112,6 +112,17 @@ contract MatchingEngineTest is Test {
         // Set up the router endpoints.
         engine.addRouterEndpoint(ARB_CHAIN, ARB_ROUTER);
         engine.addRouterEndpoint(ETH_CHAIN, ETH_ROUTER);
+
+        // Set the auction config.
+        engine.setAuctionConfig(
+            AuctionConfig({
+                auctionDuration: 2, // Two blocks ~6 seconds.
+                auctionGracePeriod: 6, // Includes the auction duration.
+                penaltyBlocks: 20,
+                userPenaltyRewardBps: 250000, // 25%
+                initialPenaltyBps: 100000 // 10%
+            })
+        );
 
         vm.stopPrank();
 

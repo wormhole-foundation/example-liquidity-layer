@@ -15,7 +15,9 @@ import {
     getLiveAuctionInfo,
     LiveAuctionData,
     InitialAuctionData,
-    AuctionStatus
+    AuctionStatus,
+    AuctionConfig,
+    getAuctionConfig
 } from "./Storage.sol";
 
 abstract contract State is IMatchingEngineState {
@@ -29,12 +31,7 @@ abstract contract State is IMatchingEngineState {
     // Consts.
     uint8 constant FINALITY = 1;
     uint32 constant NONCE = 0;
-    uint24 constant USER_PENALTY_REWARD_BPS = 250000; // 25%
-    uint24 constant INITIAL_PENALTY_BPS = 100000; // 10%
     uint24 constant MAX_BPS_FEE = 1000000; // 10,000.00 bps (100%)
-    uint8 constant AUCTION_DURATION = 2; // 2 blocks == ~6 seconds
-    uint8 constant AUCTION_GRACE_PERIOD = 6; // includes AUCTION_DURATION
-    uint8 constant PENALTY_BLOCKS = 20;
 
     constructor(address wormholeCctp_, address cctpToken_) {
         assert(wormholeCctp_ != address(0));
@@ -61,24 +58,28 @@ abstract contract State is IMatchingEngineState {
         return MAX_BPS_FEE;
     }
 
-    function getAuctionDuration() public pure returns (uint8) {
-        return AUCTION_DURATION;
+    function getAuctionDuration() public view returns (uint8) {
+        return getAuctionConfig().auctionDuration;
     }
 
-    function getAuctionGracePeriod() public pure returns (uint8) {
-        return AUCTION_GRACE_PERIOD;
+    function getAuctionGracePeriod() public view returns (uint8) {
+        return getAuctionConfig().auctionGracePeriod;
     }
 
-    function getAuctionPenaltyBlocks() public pure returns (uint8) {
-        return PENALTY_BLOCKS;
+    function getAuctionPenaltyBlocks() public view returns (uint8) {
+        return getAuctionConfig().penaltyBlocks;
     }
 
-    function liveAuctionInfo(bytes32 auctionId) public view returns (LiveAuctionData memory) {
-        return getLiveAuctionInfo().auctions[auctionId];
+    function auctionConfig() public pure returns (AuctionConfig memory) {
+        return getAuctionConfig();
     }
 
     function getAuctionStatus(bytes32 auctionId) public view returns (AuctionStatus) {
         return getLiveAuctionInfo().auctions[auctionId].status;
+    }
+
+    function liveAuctionInfo(bytes32 auctionId) public view returns (LiveAuctionData memory) {
+        return getLiveAuctionInfo().auctions[auctionId];
     }
 
     function initialAuctionInfo(bytes32 auctionId)

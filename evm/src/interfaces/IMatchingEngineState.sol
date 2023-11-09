@@ -31,9 +31,11 @@ interface IMatchingEngineState {
         view
         returns (InitialAuctionData memory);
 
-    function getAuctionDuration() external pure returns (uint8);
+    function getAuctionDuration() external view returns (uint8);
 
-    function getAuctionGracePeriod() external pure returns (uint8);
+    function getAuctionGracePeriod() external view returns (uint8);
 
-    function getAuctionPenaltyBlocks() external pure returns (uint8);
+    function getAuctionPenaltyBlocks() external view returns (uint8);
+
+    function auctionConfig() external pure returns (AuctionConfig memory);
 }

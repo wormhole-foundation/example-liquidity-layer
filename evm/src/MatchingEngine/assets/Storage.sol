@@ -80,3 +80,21 @@ function getFastFillsState() pure returns (FastFills storage state) {
         state.slot := TRANSFER_RECEIPTS_STORAGE_SLOT
     }
 }
+
+struct AuctionConfig {
+    uint24 userPenaltyRewardBps;
+    uint24 initialPenaltyBps;
+    uint8 auctionDuration;
+    uint8 auctionGracePeriod;
+    uint8 penaltyBlocks;
+}
+
+// keccak256("AuctionConfig") - 1
+bytes32 constant AUCTION_CONFIG_STORAGE_SLOT =
+    0xa320c769f09a94dd6faf0389ca772db7dfcc947c2488fc9922d32847a96d0c92;
+
+function getAuctionConfig() pure returns (AuctionConfig storage state) {
+    assembly ("memory-safe") {
+        state.slot := AUCTION_CONFIG_STORAGE_SLOT
+    }
+}

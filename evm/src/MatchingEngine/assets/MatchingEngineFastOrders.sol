@@ -22,7 +22,9 @@ import {
     getInitialAuctionInfo,
     AuctionStatus,
     getFastFillsState,
-    FastFills
+    FastFills,
+    AuctionConfig,
+    getAuctionConfig
 } from "./Storage.sol";
 
 // TODO: Do we need to protect against reentrancy, even though the `_token` is allow listed?
@@ -30,7 +32,6 @@ import {
 // TODO: Should we include the fee amount in the penalty calculation?
 // TODO: How does the replay protection effect a fast transfer roll back and same
 // hash is created again?
-// TODO: Add governance method for setting the auction period and penalties.
 
 abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     using BytesParsing for bytes;
@@ -115,8 +116,11 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             revert ErrAuctionNotActive(vm.hash);
         }
 
+        // Read the auction config from storage.
+        AuctionConfig memory config = getAuctionConfig();
+
         uint256 blocksElapsed = uint88(block.number) - auction.startBlock;
-        if (blocksElapsed <= AUCTION_DURATION) {
+        if (blocksElapsed <= config.auctionDuration) {
             revert ErrAuctionPeriodNotComplete();
         }
 
@@ -124,9 +128,9 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
         _verifyRouterPath(vm.emitterChainId, vm.emitterAddress, order.targetChain);
 
-        if (blocksElapsed > AUCTION_GRACE_PERIOD) {
+        if (blocksElapsed > config.auctionGracePeriod) {
             (uint256 penalty, uint256 userReward) =
-                calculateDynamicPenalty(auction.securityDeposit, blocksElapsed);
+                _calculateDynamicPenalty(config, auction.securityDeposit, blocksElapsed);
 
             /**
              * Give the penalty amount to the liquidator and return the remaining
@@ -202,6 +206,9 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
              */
             auction.status = AuctionStatus.Completed;
         } else if (auction.status == AuctionStatus.Active) {
+            // TODO: handle the init auction fee.
+            // TODO: this branch has not been tested yet, it's likely buggy.
+
             _assertVaaMatch(
                 auctionId,
                 emitterChainId,
@@ -215,21 +222,27 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
              * obligation. The `penalty` CAN be zero in this case, since the auction
              * grace period might not have ended yet.
              */
-            (uint256 penalty, uint256 userReward) = calculateDynamicPenalty(
-                auction.securityDeposit, uint88(block.number) - auction.startBlock
+            (uint256 penalty, uint256 userReward) = _calculateDynamicPenalty(
+                getAuctionConfig(),
+                auction.securityDeposit,
+                uint88(block.number) - auction.startBlock
             );
 
-            // Transfer the penalty amount to the caller. Then transfer the
-            // auction's highest bidder their funds back (security deposit - penalty).
-            SafeERC20.safeTransfer(_token, msg.sender, penalty + order.maxFee);
+            // The `order.maxFee` is the base relayer fee since were taking information
+            // from the slow VAA.
+            uint128 baseTransferFee = order.maxFee;
+
+            // Transfer the penalty amount to the caller. The caller also earns the base
+            // fee for relaying the slow VAA.
+            SafeERC20.safeTransfer(_token, msg.sender, penalty + baseTransferFee);
             SafeERC20.safeTransfer(
                 _token,
                 auction.highestBidder,
-                auction.amount + auction.securityDeposit - penalty - userReward
+                auction.amount + auction.securityDeposit - (penalty + userReward)
             );
 
             sequence = _handleCctpTransfer(
-                auction.amount + userReward - order.maxFee, emitterChainId, order
+                auction.amount - baseTransferFee + userReward, emitterChainId, order
             );
 
             // Everyone's whole, set the auction as completed.
@@ -286,30 +299,39 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     }
 
     function calculateDynamicPenalty(uint256 amount, uint256 blocksElapsed)
-        public
+        external
         pure
-        returns (uint256, uint256)
+        returns (uint256 penalty, uint256 userReward)
     {
-        if (blocksElapsed <= AUCTION_GRACE_PERIOD) {
+        return _calculateDynamicPenalty(getAuctionConfig(), amount, blocksElapsed);
+    }
+
+    // ------------------------------- Private ---------------------------------
+
+    function _calculateDynamicPenalty(
+        AuctionConfig memory config,
+        uint256 amount,
+        uint256 blocksElapsed
+    ) private pure returns (uint256, uint256) {
+        if (blocksElapsed <= config.auctionGracePeriod) {
             return (0, 0);
         }
 
         // If the `PENALTY_BLOCKS` state variable is set to zero,
         // the entire security deposit is taken as a penalty.
-        uint256 penaltyPeriod = blocksElapsed - AUCTION_GRACE_PERIOD;
-        if (penaltyPeriod > PENALTY_BLOCKS) {
-            uint256 userReward = amount * USER_PENALTY_REWARD_BPS / MAX_BPS_FEE;
+        uint256 penaltyPeriod = blocksElapsed - config.auctionGracePeriod;
+        if (penaltyPeriod > config.penaltyBlocks) {
+            uint256 userReward = amount * config.userPenaltyRewardBps / MAX_BPS_FEE;
             return (amount - userReward, userReward);
         }
 
-        uint256 basePenalty = amount * INITIAL_PENALTY_BPS / MAX_BPS_FEE;
-        uint256 penalty = basePenalty + ((amount - basePenalty) * penaltyPeriod / PENALTY_BLOCKS);
-        uint256 userReward = penalty * USER_PENALTY_REWARD_BPS / MAX_BPS_FEE;
+        uint256 basePenalty = amount * config.initialPenaltyBps / MAX_BPS_FEE;
+        uint256 penalty =
+            basePenalty + ((amount - basePenalty) * penaltyPeriod / config.penaltyBlocks);
+        uint256 userReward = penalty * config.userPenaltyRewardBps / MAX_BPS_FEE;
 
         return (penalty - userReward, userReward);
     }
-
-    // ------------------------------- Private ---------------------------------
 
     function _handleCctpTransfer(
         uint256 amount,
@@ -364,7 +386,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         if (auction.status != AuctionStatus.Active) {
             revert ErrAuctionNotActive(auctionId);
         }
-        if (uint88(block.number) - auction.startBlock > AUCTION_DURATION) {
+        if (uint88(block.number) - auction.startBlock > getAuctionDuration()) {
             revert ErrAuctionPeriodExpired();
         }
         if (feeBid >= auction.bidPrice) {

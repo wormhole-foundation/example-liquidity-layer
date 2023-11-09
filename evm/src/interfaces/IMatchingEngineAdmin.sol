@@ -2,6 +2,8 @@
 
 pragma solidity ^0.8.0;
 
+import {AuctionConfig} from "../MatchingEngine/assets/Storage.sol";
+
 interface IMatchingEngineAdmin {
     /**
      * @notice Add a `router` endpoint for the specified Wormhole `chain`.
@@ -10,4 +12,6 @@ interface IMatchingEngineAdmin {
      * @dev This function is only callable by the contract owner or assistant.
      */
     function addRouterEndpoint(uint16 chain, bytes32 router) external;
+
+    function setAuctionConfig(AuctionConfig calldata newConfig) external;
 }
