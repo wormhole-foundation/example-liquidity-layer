@@ -32,6 +32,10 @@ import {
 // TODO: Should we include the fee amount in the penalty calculation?
 // TODO: How does the replay protection effect a fast transfer roll back and same
 // hash is created again?
+// TODO: Encode the expected emitter in the fastMarketOrder.
+// TODO: Whitelist protocol relayer.
+// TODO: Use protocol relayer to start auctions. Log the block, and decay maxFee
+// based on the number of blocks elapsed between initilization and first bid.
 
 abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     using BytesParsing for bytes;
