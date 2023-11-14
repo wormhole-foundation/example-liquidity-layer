@@ -74,6 +74,7 @@ contract MatchingEngineTest is Test {
     address immutable PLAYER_ONE = makeAddr("player one");
     address immutable PLAYER_TWO = makeAddr("player two");
     address immutable PLAYER_THREE = makeAddr("player three");
+    address immutable RELAYER = makeAddr("relayer");
 
     // Test engines.
     IMatchingEngine engine;
@@ -307,6 +308,121 @@ contract MatchingEngineTest is Test {
      * AUCTION TESTS
      */
 
+    function testCalculateDynamicPenalty() public {
+        // Auction config set to:
+        //     auctionDuration: 2, // Two blocks ~6 seconds.
+        //     auctionGracePeriod: 6, // Includes the auction duration.
+        //     penaltyBlocks: 20,
+        //     userPenaltyRewardBps: 250000, // 25%
+        //     initialPenaltyBps: 100000 // 10%
+        AuctionConfig memory config = engine.auctionConfig();
+
+        vm.startPrank(makeAddr("owner"));
+
+        // Still in grace period.
+        {
+            uint256 amount = 10000000;
+            (uint256 penalty, uint256 reward) =
+                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod - 1);
+            assertEq(penalty, 0);
+            assertEq(reward, 0);
+        }
+
+        // Penalty period is over.
+        {
+            uint256 amount = 10000000;
+            (uint256 penalty, uint256 reward) = engine.calculateDynamicPenalty(
+                amount, config.penaltyBlocks + config.auctionGracePeriod
+            );
+            assertEq(penalty, 7500000);
+            assertEq(reward, 2500000);
+        }
+
+        // One block into the penalty period.
+        {
+            uint256 amount = 10000000;
+            (uint256 penalty, uint256 reward) =
+                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 1);
+            assertEq(penalty, 1087500);
+            assertEq(reward, 362500);
+        }
+
+        // 50% of the way through the penalty period.
+        {
+            uint256 amount = 10000000;
+            (uint256 penalty, uint256 reward) =
+                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 10);
+            assertEq(penalty, 4125000);
+            assertEq(reward, 1375000);
+        }
+
+        // Penalty period boundary (19/20)
+        {
+            uint256 amount = 10000000;
+            (uint256 penalty, uint256 reward) =
+                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 19);
+            assertEq(penalty, 7162500);
+            assertEq(reward, 2387500);
+        }
+
+        // Update the initial penalty to 0%. 50% of the way through the penalty period.
+        {
+            engine.setAuctionConfig(
+                AuctionConfig({
+                    auctionDuration: config.auctionDuration,
+                    auctionGracePeriod: config.auctionGracePeriod,
+                    penaltyBlocks: config.penaltyBlocks,
+                    userPenaltyRewardBps: config.userPenaltyRewardBps,
+                    initialPenaltyBps: 0
+                })
+            );
+
+            uint256 amount = 10000000;
+            (uint256 penalty, uint256 reward) =
+                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 10);
+            assertEq(penalty, 3750000);
+            assertEq(reward, 1250000);
+        }
+
+        // Set the user reward to 0%
+        {
+            engine.setAuctionConfig(
+                AuctionConfig({
+                    auctionDuration: config.auctionDuration,
+                    auctionGracePeriod: config.auctionGracePeriod,
+                    penaltyBlocks: config.penaltyBlocks,
+                    userPenaltyRewardBps: 0,
+                    initialPenaltyBps: 0
+                })
+            );
+
+            uint256 amount = 10000000;
+            (uint256 penalty, uint256 reward) =
+                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 10);
+            assertEq(penalty, 5000000);
+            assertEq(reward, 0);
+        }
+
+        // Set the initial penalty to 100%
+        {
+            engine.setAuctionConfig(
+                AuctionConfig({
+                    auctionDuration: config.auctionDuration,
+                    auctionGracePeriod: config.auctionGracePeriod,
+                    penaltyBlocks: config.penaltyBlocks,
+                    userPenaltyRewardBps: engine.maxBpsFee() / 2, // 50%
+                    initialPenaltyBps: engine.maxBpsFee()
+                })
+            );
+
+            uint256 amount = 10000000;
+            (uint256 penalty, uint256 reward) =
+                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 5);
+            assertEq(penalty, 5000000);
+            assertEq(reward, 5000000);
+        }
+    }
+
     function testPlaceInitialBid(uint256 amountIn, uint128 feeBid) public {
         uint64 slowMessageSequence = 69;
         amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
@@ -405,6 +521,10 @@ contract MatchingEngineTest is Test {
 
         bytes memory cctpPayload = _executeFastOrder(fastMessage, PLAYER_TWO);
 
+        _verifyOutboundCctpTransfer(
+            order, amountIn - newBid - FAST_TRANSFER_INIT_AUCTION_FEE, cctpPayload
+        );
+
         assertEq(
             IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO) - highBidderBefore, order.maxFee + newBid
         );
@@ -413,33 +533,6 @@ contract MatchingEngineTest is Test {
             FAST_TRANSFER_INIT_AUCTION_FEE
         );
         assertEq(uint8(engine.getAuctionStatus(_vm.hash)), uint8(AuctionStatus.Completed));
-
-        // Verify that the correct amount was sent in the CCTP order.
-        ICircleIntegration.DepositWithPayload memory deposit =
-            wormholeCctp.decodeDepositWithPayload(cctpPayload);
-
-        assertEq(
-            deposit.payload,
-            Messages.Fill({
-                sourceChain: _vm.emitterChainId,
-                orderSender: toUniversalAddress(address(this)),
-                redeemer: order.redeemer,
-                redeemerMessage: order.redeemerMessage
-            }).encode()
-        );
-
-        ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
-            .DepositWithPayload({
-            token: toUniversalAddress(USDC_ADDRESS),
-            amount: amountIn - newBid - FAST_TRANSFER_INIT_AUCTION_FEE,
-            sourceDomain: wormholeCctp.localDomain(),
-            targetDomain: wormholeCctp.getDomainFromChainId(ETH_CHAIN),
-            nonce: deposit.nonce, // This nonce comes from Circle's bridge.
-            fromAddress: toUniversalAddress(address(engine)),
-            mintRecipient: ETH_ROUTER,
-            payload: deposit.payload
-        });
-        assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
     }
 
     function testExecuteFastOrderWithPenalty(uint256 amountIn, uint8 penaltyBlocks) public {
@@ -456,7 +549,7 @@ contract MatchingEngineTest is Test {
         IWormhole.VM memory _vm = wormholeCctp.wormhole().parseVM(fastMessage);
 
         // Warp the block into the penalty period.
-        penaltyBlocks = uint8(bound(penaltyBlocks, 1, engine.getAuctionPenaltyBlocks()));
+        penaltyBlocks = uint8(bound(penaltyBlocks, 1, engine.getAuctionPenaltyBlocks() + 1));
         uint88 startBlock = engine.liveAuctionInfo(_vm.hash).startBlock;
         vm.roll(startBlock + engine.getAuctionGracePeriod() + penaltyBlocks);
 
@@ -472,6 +565,12 @@ contract MatchingEngineTest is Test {
         // Execute the fast order using the "liquidator".
         bytes memory cctpPayload = _executeFastOrder(fastMessage, PLAYER_TWO);
 
+        _verifyOutboundCctpTransfer(
+            order,
+            amountIn - bidPrice - FAST_TRANSFER_INIT_AUCTION_FEE + expectedReward,
+            cctpPayload
+        );
+
         // PLAYER_ONE also gets the init fee for creating the auction.
         assertEq(
             IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE) - bidderBefore,
@@ -480,33 +579,6 @@ contract MatchingEngineTest is Test {
         );
         assertEq(IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO) - liquidatorBefore, expectedPenalty);
         assertEq(uint8(engine.getAuctionStatus(_vm.hash)), uint8(AuctionStatus.Completed));
-
-        // Verify that the correct amount was sent in the CCTP order.
-        ICircleIntegration.DepositWithPayload memory deposit =
-            wormholeCctp.decodeDepositWithPayload(cctpPayload);
-
-        assertEq(
-            deposit.payload,
-            Messages.Fill({
-                sourceChain: _vm.emitterChainId,
-                orderSender: toUniversalAddress(address(this)),
-                redeemer: order.redeemer,
-                redeemerMessage: order.redeemerMessage
-            }).encode()
-        );
-
-        ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
-            .DepositWithPayload({
-            token: toUniversalAddress(USDC_ADDRESS),
-            amount: amountIn - bidPrice - FAST_TRANSFER_INIT_AUCTION_FEE + expectedReward,
-            sourceDomain: wormholeCctp.localDomain(),
-            targetDomain: wormholeCctp.getDomainFromChainId(ETH_CHAIN),
-            nonce: deposit.nonce, // This nonce comes from Circle's bridge.
-            fromAddress: toUniversalAddress(address(engine)),
-            mintRecipient: ETH_ROUTER,
-            payload: deposit.payload
-        });
-        assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
     }
 
     function testExecuteSlowOrderAndRedeem(uint256 amountIn, uint128 newBid) public {
@@ -544,6 +616,144 @@ contract MatchingEngineTest is Test {
         engine.executeSlowOrderAndRedeem(auctionId, params);
 
         assertEq(IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO) - balanceBefore, order.amountIn);
+    }
+
+    function testExecuteSlowOrderAndRedeemAuctionNotStarted(uint256 amountIn) public {
+        uint64 slowMessageSequence = 69;
+        amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+
+        // NOTE: We skip starting the auction on purpose.
+
+        bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+        // Update the order, since the `maxFee` is the `baseFee` for slow messages.
+        order.slowSequence = 0;
+        order.maxFee = FAST_TRANSFER_BASE_FEE;
+        order.initAuctionFee = 0;
+        order.slowEmitter = bytes32(0);
+
+        ICircleIntegration.RedeemParameters memory params =
+            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowMessageSequence);
+
+        // Execute the slow order, the highest bidder should receive their initial deposit.
+        uint256 relayerBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO);
+        uint256 contractBefore = IERC20(USDC_ADDRESS).balanceOf(address(engine));
+
+        // Since the auction was never started, the relayer should receive the base fee,
+        // and the contract's balance shouldn't change (no funds were custodied).
+        bytes memory cctpPayload = _executeSlowOrder(auctionId, params, RELAYER);
+
+        _verifyOutboundCctpTransfer(order, amountIn - FAST_TRANSFER_BASE_FEE, cctpPayload);
+
+        assertEq(IERC20(USDC_ADDRESS).balanceOf(RELAYER) - relayerBefore, FAST_TRANSFER_BASE_FEE);
+        assertEq(IERC20(USDC_ADDRESS).balanceOf(address(engine)), contractBefore);
+        assertEq(uint8(engine.getAuctionStatus(auctionId)), uint8(AuctionStatus.Completed));
+    }
+
+    function testExecuteSlowOrderAndRedeemAuctionStillActive(uint256 amountIn, uint128 newBid)
+        public
+    {
+        uint64 slowMessageSequence = 69;
+        amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+
+        // Cache security deposit for later use.
+        uint256 securityDeposit = order.maxFee;
+
+        // Start the auction and make some bids.
+        _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+        _improveBid(
+            order, fastMessage, uint128(bound(newBid, 0, order.maxFee)), PLAYER_ONE, PLAYER_TWO
+        );
+
+        bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+        // Warp the block into the grace period and execute the fast order, but DO NOT
+        // execute the fast order.
+        vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+
+        // Update the order, since the `maxFee` is the `baseFee` for slow messages.
+        order.slowSequence = 0;
+        order.maxFee = FAST_TRANSFER_BASE_FEE;
+        order.initAuctionFee = 0;
+        order.slowEmitter = bytes32(0);
+
+        ICircleIntegration.RedeemParameters memory params =
+            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowMessageSequence);
+
+        uint256 relayerBefore = IERC20(USDC_ADDRESS).balanceOf(RELAYER);
+        uint256 playerBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO);
+
+        bytes memory cctpPayload = _executeSlowOrder(auctionId, params, RELAYER);
+
+        _verifyOutboundCctpTransfer(order, amountIn - FAST_TRANSFER_BASE_FEE, cctpPayload);
+
+        assertEq(IERC20(USDC_ADDRESS).balanceOf(RELAYER) - relayerBefore, FAST_TRANSFER_BASE_FEE);
+        assertEq(
+            IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO) - playerBefore,
+            order.amountIn + securityDeposit
+        );
+    }
+
+    function testExecuteSlowOrderAndRedeemAuctionStillActiveWithPenalty(
+        uint256 amountIn,
+        uint8 penaltyBlocks
+    ) public {
+        uint64 slowMessageSequence = 69;
+        amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+
+        // Cache security deposit for later use.
+        uint256 securityDeposit = order.maxFee;
+
+        // Place initial bid for the max fee with player one.
+        uint128 bidPrice = order.maxFee - 1;
+        _placeInitialBid(order, fastMessage, bidPrice, PLAYER_ONE);
+
+        bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+        // Warp the block into the penalty period.
+        penaltyBlocks = uint8(bound(penaltyBlocks, 1, engine.getAuctionPenaltyBlocks() + 1));
+        uint88 startBlock = engine.liveAuctionInfo(auctionId).startBlock;
+        vm.roll(startBlock + engine.getAuctionGracePeriod() + penaltyBlocks);
+
+        // Calculate the expected penalty and reward.
+        (uint256 expectedPenalty, uint256 expectedReward) =
+            engine.calculateDynamicPenalty(order.maxFee, uint256(block.number - startBlock));
+
+        // Update the order, since the `maxFee` is the `baseFee` for slow messages.
+        order.slowSequence = 0;
+        order.maxFee = FAST_TRANSFER_BASE_FEE;
+        order.initAuctionFee = 0;
+        order.slowEmitter = bytes32(0);
+
+        ICircleIntegration.RedeemParameters memory params =
+            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowMessageSequence);
+
+        uint256 relayerBefore = IERC20(USDC_ADDRESS).balanceOf(RELAYER);
+        uint256 playerBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE);
+
+        bytes memory cctpPayload = _executeSlowOrder(auctionId, params, RELAYER);
+
+        _verifyOutboundCctpTransfer(
+            order, amountIn - FAST_TRANSFER_BASE_FEE + expectedReward, cctpPayload
+        );
+
+        assertEq(
+            IERC20(USDC_ADDRESS).balanceOf(RELAYER) - relayerBefore,
+            FAST_TRANSFER_BASE_FEE + expectedPenalty
+        );
+        assertEq(
+            IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE) - playerBefore,
+            order.amountIn + securityDeposit - (expectedPenalty + expectedReward)
+        );
     }
 
     function testRedeemFastFill(uint256 amountIn, uint128 newBid) public {
@@ -708,6 +918,26 @@ contract MatchingEngineTest is Test {
         }
     }
 
+    function _executeSlowOrder(
+        bytes32 auctionId,
+        ICircleIntegration.RedeemParameters memory params,
+        address caller
+    ) internal returns (bytes memory message) {
+        // Record logs for placeMarketOrder.
+        vm.recordLogs();
+
+        vm.prank(caller);
+        engine.executeSlowOrderAndRedeem(auctionId, params);
+
+        // Fetch the logs for Wormhole message. There should be two messages.
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        assertGt(logs.length, 1);
+
+        message = wormholeSimulator.parseVMFromLogs(
+            wormholeSimulator.fetchWormholeMessageFromLog(logs)[0]
+        ).payload;
+    }
+
     function _verifyAuctionState(
         Messages.FastMarketOrder memory order,
         IWormhole.VM memory _vm,
@@ -729,6 +959,39 @@ contract MatchingEngineTest is Test {
         assertEq(initialAuction.slowChain, _vm.emitterChainId);
         assertEq(initialAuction.slowSequence, order.slowSequence);
         assertEq(initialAuction.slowEmitter, wormholeCctp.getRegisteredEmitter(_vm.emitterChainId));
+    }
+
+    function _verifyOutboundCctpTransfer(
+        Messages.FastMarketOrder memory order,
+        uint256 transferAmount,
+        bytes memory cctpPayload
+    ) internal {
+        // Verify that the correct amount was sent in the CCTP order.
+        ICircleIntegration.DepositWithPayload memory deposit =
+            wormholeCctp.decodeDepositWithPayload(cctpPayload);
+
+        assertEq(
+            deposit.payload,
+            Messages.Fill({
+                sourceChain: ARB_CHAIN,
+                orderSender: toUniversalAddress(address(this)),
+                redeemer: order.redeemer,
+                redeemerMessage: order.redeemerMessage
+            }).encode()
+        );
+
+        ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
+            .DepositWithPayload({
+            token: toUniversalAddress(USDC_ADDRESS),
+            amount: transferAmount,
+            sourceDomain: wormholeCctp.localDomain(),
+            targetDomain: wormholeCctp.getDomainFromChainId(ETH_CHAIN),
+            nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+            fromAddress: toUniversalAddress(address(engine)),
+            mintRecipient: ETH_ROUTER,
+            payload: deposit.payload
+        });
+        assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
     }
 
     function _getFastMarketOrder(uint256 amountIn, uint64 slowSequence)

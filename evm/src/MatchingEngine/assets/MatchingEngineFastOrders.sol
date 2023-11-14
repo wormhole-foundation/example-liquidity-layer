@@ -209,9 +209,6 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
              */
             auction.status = AuctionStatus.Completed;
         } else if (auction.status == AuctionStatus.Active) {
-            // TODO: handle the init auction fee.
-            // TODO: this branch has not been tested yet, it's likely buggy.
-
             _assertVaaMatch(
                 auctionId,
                 emitterChainId,
@@ -320,10 +317,8 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             return (0, 0);
         }
 
-        // If the `PENALTY_BLOCKS` state variable is set to zero,
-        // the entire security deposit is taken as a penalty.
         uint256 penaltyPeriod = blocksElapsed - config.auctionGracePeriod;
-        if (penaltyPeriod > config.penaltyBlocks) {
+        if (penaltyPeriod > config.penaltyBlocks || config.initialPenaltyBps == MAX_BPS_FEE) {
             uint256 userReward = amount * config.userPenaltyRewardBps / MAX_BPS_FEE;
             return (amount - userReward, userReward);
         }
