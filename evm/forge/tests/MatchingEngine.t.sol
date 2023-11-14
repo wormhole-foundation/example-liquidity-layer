@@ -423,6 +423,10 @@ contract MatchingEngineTest is Test {
         }
     }
 
+    /**
+     * PLACE INITIAL BID TESTS
+     */
+
     function testPlaceInitialBid(uint256 amountIn, uint128 feeBid) public {
         uint64 slowMessageSequence = 69;
         amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
@@ -435,6 +439,130 @@ contract MatchingEngineTest is Test {
 
         // Place initial bid with player one and verify the state changes.
         _placeInitialBid(order, fastMessage, feeBid, PLAYER_ONE);
+    }
+
+    function testCannotPlaceInitialBidInvalidWormholeMessage() public {
+        uint64 slowMessageSequence = 69;
+
+        (, bytes memory fastMessage) =
+            _getFastMarketOrder(_getMinTransferAmount(), slowMessageSequence);
+
+        // Modify the vaa.
+        fastMessage[5] = 0x00;
+
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidWormholeMessage(string)", "no quorum"));
+        engine.placeInitialBid(fastMessage, 69);
+    }
+
+    function testCannotPlaceInitialBidInvalidRouterPath() public {
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+        uint128 bid = 420;
+        uint16 invalidChain = 69;
+
+        Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: ETH_CHAIN,
+            redeemer: TEST_REDEEMER,
+            sender: toUniversalAddress(address(this)),
+            refundAddress: toUniversalAddress(address(this)),
+            slowSequence: 69,
+            slowEmitter: wormholeCctp.getRegisteredEmitter(ARB_CHAIN),
+            maxFee: _calculateFastTransferFee(amountIn),
+            initAuctionFee: FAST_TRANSFER_INIT_AUCTION_FEE,
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        // Use an emitter chain that is not registered.
+        bytes memory fastMessage = _createSignedVaa(invalidChain, ARB_ROUTER, 0, order.encode());
+
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ErrInvalidSourceRouter(bytes32,bytes32)", ARB_ROUTER, bytes32(0)
+            )
+        );
+        engine.placeInitialBid(fastMessage, bid);
+    }
+
+    function testCannotPlaceInitialBidInvalidTargetRouter() public {
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+        uint128 bid = 420;
+        uint16 invalidChain = 69;
+
+        // Use an invalid target chain.
+        Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: invalidChain,
+            redeemer: TEST_REDEEMER,
+            sender: toUniversalAddress(address(this)),
+            refundAddress: toUniversalAddress(address(this)),
+            slowSequence: 69,
+            slowEmitter: wormholeCctp.getRegisteredEmitter(ARB_CHAIN),
+            maxFee: _calculateFastTransferFee(amountIn),
+            initAuctionFee: FAST_TRANSFER_INIT_AUCTION_FEE,
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        // Use an emitter chain that is not registered.
+        bytes memory fastMessage = _createSignedVaa(ARB_CHAIN, ARB_ROUTER, 0, order.encode());
+
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ErrInvalidTargetRouter(uint16)", invalidChain
+            )
+        );
+        engine.placeInitialBid(fastMessage, bid);
+    }
+
+    function testCannotPlaceInitialBidPriceTooHigh() public {
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+        uint128 transferFee = _calculateFastTransferFee(amountIn);
+
+        Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: ETH_CHAIN,
+            redeemer: TEST_REDEEMER,
+            sender: toUniversalAddress(address(this)),
+            refundAddress: toUniversalAddress(address(this)),
+            slowSequence: 69,
+            slowEmitter: wormholeCctp.getRegisteredEmitter(ARB_CHAIN),
+            maxFee: transferFee,
+            initAuctionFee: FAST_TRANSFER_INIT_AUCTION_FEE,
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        // Use an emitter chain that is not registered.
+        bytes memory fastMessage = _createSignedVaa(ARB_CHAIN, ARB_ROUTER, 0, order.encode());
+
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ErrBidPriceTooHigh(uint128,uint128)", transferFee + 1, transferFee
+            )
+        );
+        engine.placeInitialBid(fastMessage, transferFee + 1);
+    }
+
+    function testCannotPlaceInitialBidAuctionNotActive() public {
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+        uint64 slowMessageSequence = 69;
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+        bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+        // Complete a successful auction.
+        {
+            _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+            vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+            _executeFastOrder(fastMessage, PLAYER_ONE);
+        }
+
+        // Attempt to place a bid on a completed auction.
+        vm.expectRevert(abi.encodeWithSignature("ErrAuctionNotActive(bytes32)", auctionId));
+        engine.placeInitialBid(fastMessage, order.maxFee);
+
     }
 
     /**
@@ -479,6 +607,10 @@ contract MatchingEngineTest is Test {
         _verifyAuctionState(order, _vm, newBid, PLAYER_TWO, PLAYER_ONE, _vm.hash);
     }
 
+    /**
+     * IMPROVE BID TESTS
+     */
+
     function testImproveBid(uint256 amountIn, uint128 newBid) public {
         uint64 slowMessageSequence = 69;
         amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
@@ -494,6 +626,77 @@ contract MatchingEngineTest is Test {
 
         _improveBid(order, fastMessage, newBid, PLAYER_ONE, PLAYER_TWO);
     }
+
+    function testCannotImproveBidAuctionAlreadyCompleted() public {
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+        uint64 slowMessageSequence = 69;
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+        bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+        // Complete a successful auction.
+        {
+            _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+            vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+            _executeFastOrder(fastMessage, PLAYER_ONE);
+        }
+
+        // Attempt to improve a bid on a completed auction.
+        vm.expectRevert(abi.encodeWithSignature("ErrAuctionNotActive(bytes32)", auctionId));
+        engine.improveBid(auctionId, order.maxFee - 1);
+
+    }
+
+    function testCannotImproveBidAuctionNotActive() public {
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+        uint64 slowMessageSequence = 69;
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+        bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+        // Attempt to improve a bid on an auction that hasn't started.
+        vm.expectRevert(abi.encodeWithSignature("ErrAuctionNotActive(bytes32)", auctionId));
+        engine.improveBid(auctionId, order.maxFee - 1);
+    }
+
+    function testCannotImproveBidAuctionExpired() public {
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+        uint64 slowMessageSequence = 69;
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+        bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+        _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+
+        // Warp the block into the grace period.
+        vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+
+        // Attempt to improve a bid on an auction that has expired.
+        vm.expectRevert(abi.encodeWithSignature("ErrAuctionPeriodExpired()"));
+        engine.improveBid(auctionId, order.maxFee - 1);
+    }
+
+    function testCannotImproveBidPriceTooHigh() public {
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+        uint64 slowMessageSequence = 69;
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+        bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+        _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+
+        // Try to place a bid with the same price.
+        vm.expectRevert(abi.encodeWithSignature("ErrBidPriceTooHigh(uint128,uint128)", order.maxFee, order.maxFee));
+        engine.improveBid(auctionId, order.maxFee);
+    }
+
+    /**
+     * EXECUTE FAST ORDER TESTS
+     */
 
     function testExecuteFastOrder(uint256 amountIn, uint128 newBid) public {
         uint64 slowMessageSequence = 69;
