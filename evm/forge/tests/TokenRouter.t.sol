@@ -521,6 +521,7 @@ contract TokenRouterTest is Test {
         bytes32 sender,
         bytes32 refundAddress,
         uint64 slowSequence,
+        bytes32 slowEmitter,
         uint128 maxFee,
         uint128 initAuctionFee,
         bytes memory redeemerMessage
@@ -533,6 +534,7 @@ contract TokenRouterTest is Test {
             sender: sender,
             refundAddress: refundAddress,
             slowSequence: slowSequence,
+            slowEmitter: slowEmitter,
             maxFee: maxFee,
             initAuctionFee: initAuctionFee,
             redeemerMessage: redeemerMessage
@@ -550,6 +552,7 @@ contract TokenRouterTest is Test {
         assertEq(decoded.sender, order.sender);
         assertEq(decoded.refundAddress, order.refundAddress);
         assertEq(decoded.slowSequence, order.slowSequence);
+        assertEq(decoded.slowEmitter, order.slowEmitter);
         assertEq(decoded.maxFee, order.maxFee);
         assertEq(decoded.initAuctionFee, order.initAuctionFee);
         assertEq(decoded.redeemerMessage, order.redeemerMessage);
@@ -910,6 +913,7 @@ contract TokenRouterTest is Test {
             sender: toUniversalAddress(address(this)),
             refundAddress: toUniversalAddress(address(this)),
             slowSequence: 0,
+            slowEmitter: bytes32(0),
             maxFee: router.getBaseFee(),
             initAuctionFee: 0,
             redeemerMessage: bytes("All your base are belong to us")
@@ -943,6 +947,7 @@ contract TokenRouterTest is Test {
         expectedFastMarketOrder.maxFee = router.calculateMaxTransferFee(amountIn);
         expectedFastMarketOrder.initAuctionFee = router.getInitialAuctionFee();
         expectedFastMarketOrder.slowSequence = slowSequence;
+        expectedFastMarketOrder.slowEmitter = toUniversalAddress(WORMHOLE_CCTP_ADDRESS);
 
         assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
     }
@@ -965,6 +970,7 @@ contract TokenRouterTest is Test {
             sender: toUniversalAddress(address(this)),
             refundAddress: bytes32(0),
             slowSequence: 0,
+            slowEmitter: bytes32(0),
             maxFee: router.getBaseFee(),
             initAuctionFee: 0,
             redeemerMessage: bytes("All your base are belong to us")
@@ -1006,6 +1012,7 @@ contract TokenRouterTest is Test {
         expectedFastMarketOrder.maxFee = router.calculateMaxTransferFee(amountIn);
         expectedFastMarketOrder.initAuctionFee = router.getInitialAuctionFee();
         expectedFastMarketOrder.slowSequence = slowSequence;
+        expectedFastMarketOrder.slowEmitter = toUniversalAddress(WORMHOLE_CCTP_ADDRESS);
 
         assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
     }
@@ -1035,6 +1042,7 @@ contract TokenRouterTest is Test {
             sender: toUniversalAddress(address(this)),
             refundAddress: toUniversalAddress(address(this)),
             slowSequence: 0,
+            slowEmitter: bytes32(0),
             maxFee: router.getBaseFee(),
             initAuctionFee: 0,
             redeemerMessage: bytes("All your base are belong to us")
@@ -1068,6 +1076,7 @@ contract TokenRouterTest is Test {
         expectedFastMarketOrder.maxFee = router.calculateMaxTransferFee(amountIn);
         expectedFastMarketOrder.initAuctionFee = router.getInitialAuctionFee();
         expectedFastMarketOrder.slowSequence = slowSequence;
+        expectedFastMarketOrder.slowEmitter = toUniversalAddress(WORMHOLE_CCTP_ADDRESS);
 
         assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
     }

@@ -532,6 +532,7 @@ contract MatchingEngineTest is Test {
         order.slowSequence = 0;
         order.maxFee = FAST_TRANSFER_BASE_FEE;
         order.initAuctionFee = 0;
+        order.slowEmitter = bytes32(0);
 
         ICircleIntegration.RedeemParameters memory params =
             _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowMessageSequence);
@@ -751,6 +752,7 @@ contract MatchingEngineTest is Test {
             sender: toUniversalAddress(address(this)),
             refundAddress: toUniversalAddress(address(this)),
             slowSequence: slowSequence,
+            slowEmitter: wormholeCctp.getRegisteredEmitter(ARB_CHAIN),
             maxFee: _calculateFastTransferFee(amountIn),
             initAuctionFee: FAST_TRANSFER_INIT_AUCTION_FEE,
             redeemerMessage: bytes("All your base are belong to us")

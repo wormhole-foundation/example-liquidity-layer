@@ -138,6 +138,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             sender: toUniversalAddress(msg.sender),
             refundAddress: toUniversalAddress(args.refundAddress),
             slowSequence: 0, // Only used by the fast transfer message.
+            slowEmitter: bytes32(0), // Only used by the fast transfer message.
             maxFee: baseFee,
             initAuctionFee: 0, // Only used by the fast transfer message.
             redeemerMessage: args.redeemerMessage
@@ -159,6 +160,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         fastOrder.maxFee = dynamicFastTransferFee + baseFee;
         fastOrder.initAuctionFee = initAuctionFee;
         fastOrder.slowSequence = sequence;
+        fastOrder.slowEmitter = toUniversalAddress(address(_wormholeCctp));
 
         fastSequence =
             _wormhole.publishMessage{value: messageFee}(NONCE, fastOrder.encode(), FAST_FINALITY);

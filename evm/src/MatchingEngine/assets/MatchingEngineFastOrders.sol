@@ -32,7 +32,6 @@ import {
 // TODO: Should we include the fee amount in the penalty calculation?
 // TODO: How does the replay protection effect a fast transfer roll back and same
 // hash is created again?
-// TODO: Encode the expected emitter in the fastMarketOrder.
 // TODO: Whitelist protocol relayer.
 // TODO: Use protocol relayer to start auctions. Log the block, and decay maxFee
 // based on the number of blocks elapsed between initilization and first bid.
@@ -94,7 +93,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         InitialAuctionData storage initialAuction = getInitialAuctionInfo().auctions[vm.hash];
         initialAuction.initialBidder = msg.sender;
         initialAuction.slowChain = vm.emitterChainId;
-        initialAuction.slowEmitter = _wormholeCctp.getRegisteredEmitter(vm.emitterChainId);
+        initialAuction.slowEmitter = order.slowEmitter;
         initialAuction.slowSequence = order.slowSequence;
 
         emit AuctionStarted(vm.hash, order.amountIn, feeBid, msg.sender);
