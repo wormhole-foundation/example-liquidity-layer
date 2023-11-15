@@ -182,15 +182,16 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
         Messages.FastMarketOrder memory order = deposit.payload.decodeFastMarketOrder();
 
-        // Parse the VAA and verify it's valid.
+        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[auctionId];
+
         uint16 emitterChainId = params.encodedWormholeMessage.unsafeEmitterChainFromVaa();
         bytes32 emitterAddress = params.encodedWormholeMessage.unsafeEmitterAddressFromVaa();
 
-        _verifyRouterPath(emitterChainId, deposit.fromAddress, order.targetChain);
-
-        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[auctionId];
-
         if (auction.status == AuctionStatus.None) {
+            // We need to verify the router path, since an auction was never created
+            // and this check is done in `placeInitialBid`.
+            _verifyRouterPath(emitterChainId, deposit.fromAddress, order.targetChain);
+
             sequence = _handleCctpTransfer(order.amountIn - order.maxFee, emitterChainId, order);
 
             // Pay the relayer the base fee if there was no auction.
@@ -249,10 +250,6 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
                 emitterAddress,
                 params.encodedWormholeMessage.unsafeSequenceFromVaa()
             );
-
-            if (msg.sender != auction.highestBidder) {
-                revert ErrNotHighestBidder();
-            }
 
             // Complete the transfer and give the highest bidder their funds back.
             SafeERC20.safeTransfer(_token, auction.highestBidder, auction.amount);

@@ -1015,6 +1015,124 @@ contract MatchingEngineTest is Test {
         );
     }
 
+    function testCannotExecuteSlowOrderAndRedeemInvalidSourceRouterNoAuction() public {
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+
+        Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: ETH_CHAIN,
+            redeemer: TEST_REDEEMER,
+            sender: toUniversalAddress(address(this)),
+            refundAddress: toUniversalAddress(address(this)),
+            slowSequence: 0,
+            slowEmitter: bytes32(0),
+            maxFee: FAST_TRANSFER_BASE_FEE,
+            initAuctionFee: 0,
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        ICircleIntegration.RedeemParameters memory params =
+            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), 0);
+
+        // Change the address for the arb router.
+        vm.prank(makeAddr("owner"));
+        engine.addRouterEndpoint(ARB_CHAIN, bytes32("deadbeef"));
+
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ErrInvalidSourceRouter(bytes32,bytes32)", ARB_ROUTER, bytes32("deadbeef")
+            )
+        );
+        engine.executeSlowOrderAndRedeem(bytes32(0), params);
+    }
+
+    function testCannotExecuteSlowOrderAndRedeemInvalidTargetRouter() public {
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+        uint16 invalidTargetChain = 69;
+
+        Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: invalidTargetChain,
+            redeemer: TEST_REDEEMER,
+            sender: toUniversalAddress(address(this)),
+            refundAddress: toUniversalAddress(address(this)),
+            slowSequence: 0,
+            slowEmitter: bytes32(0),
+            maxFee: FAST_TRANSFER_BASE_FEE,
+            initAuctionFee: 0,
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        ICircleIntegration.RedeemParameters memory params =
+            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), 0);
+
+        vm.expectRevert(
+            abi.encodeWithSignature("ErrInvalidTargetRouter(uint16)", invalidTargetChain)
+        );
+        engine.executeSlowOrderAndRedeem(bytes32(0), params);
+    }
+
+    function testCannotExecuteSlowOrderAndRedeemVaaMismatchCompletedAuction() public {
+        uint64 slowMessageSequence = 69;
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+        bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+        _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+        vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+        _executeFastOrder(fastMessage, PLAYER_TWO);
+
+        // Update the order, since the `maxFee` is the `baseFee` for slow messages.
+        order.slowSequence = 0;
+        order.maxFee = FAST_TRANSFER_BASE_FEE;
+        order.initAuctionFee = 0;
+        order.slowEmitter = bytes32(0);
+
+        // NOTE: Create slow VAA with a different sequence number.
+        ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
+            engine, amountIn, order.encode(), slowMessageSequence + 1
+        );
+
+        vm.expectRevert(abi.encodeWithSignature("ErrVaaMismatch()"));
+        engine.executeSlowOrderAndRedeem(auctionId, params);
+    }
+
+    function testCannotExecuteSlowOrderAndRedeemVaaMismatchActiveAuction() public {
+        uint64 slowMessageSequence = 69;
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+        bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+        _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+        vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+
+        // NOTE: We do not execute the fast order on purpose.
+
+        // Update the order, since the `maxFee` is the `baseFee` for slow messages.
+        order.slowSequence = 0;
+        order.maxFee = FAST_TRANSFER_BASE_FEE;
+        order.initAuctionFee = 0;
+        order.slowEmitter = bytes32(0);
+
+        // NOTE: Create slow VAA with a different sequence number.
+        ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
+            engine, amountIn, order.encode(), slowMessageSequence + 1
+        );
+
+        vm.expectRevert(abi.encodeWithSignature("ErrVaaMismatch()"));
+        engine.executeSlowOrderAndRedeem(auctionId, params);
+    }
+
+    /**
+     * FAST FILL TESTS
+     */
+
     function testRedeemFastFill(uint256 amountIn, uint128 newBid) public {
         uint64 slowMessageSequence = 69;
         amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
