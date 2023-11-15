@@ -106,6 +106,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         _improveBid(auctionId, auction, feeBid);
     }
 
+    /// @dev We do not verify the router path here since we already did it in `placeInitialBid`.
     function executeFastOrder(bytes calldata fastTransferVaa)
         external
         payable
@@ -128,8 +129,6 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         }
 
         Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
-
-        _verifyRouterPath(vm.emitterChainId, vm.emitterAddress, order.targetChain);
 
         if (blocksElapsed > config.auctionGracePeriod) {
             (uint256 penalty, uint256 userReward) =
@@ -155,10 +154,6 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
                 order
             );
         } else {
-            if (msg.sender != auction.highestBidder) {
-                revert ErrNotHighestBidder();
-            }
-
             // Return the security deposit and the fee to the highest bidder.
             SafeERC20.safeTransfer(
                 _token, auction.highestBidder, auction.bidPrice + auction.securityDeposit
