@@ -129,21 +129,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         // User needs to send enough value to pay for two Wormhole messages.
         uint256 messageFee = msg.value / 2;
 
-        // Cache the `FastMarketOrder` struct.
-        Messages.FastMarketOrder memory fastOrder = Messages.FastMarketOrder({
-            amountIn: args.amountIn,
-            minAmountOut: args.minAmountOut,
-            targetChain: args.targetChain,
-            redeemer: args.redeemer,
-            sender: toUniversalAddress(msg.sender),
-            refundAddress: toUniversalAddress(args.refundAddress),
-            slowSequence: 0, // Only used by the fast transfer message.
-            slowEmitter: bytes32(0), // Only used by the fast transfer message.
-            maxFee: baseFee,
-            initAuctionFee: 0, // Only used by the fast transfer message.
-            redeemerMessage: args.redeemerMessage
-        });
-
         // Send the slow CCTP transfer with the `baseFee` as the `transferFee`.
         sequence = _wormholeCctp.transferTokensWithPayload{value: messageFee}(
             ICircleIntegration.TransferParameters({
@@ -153,17 +138,27 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 mintRecipient: _matchingEngineAddress
             }),
             NONCE,
-            fastOrder.encode()
+            Messages.SlowOrderResponse({baseFee: baseFee}).encode()
         );
 
-        // Update the fees and sequence for the fast transfer message.
-        fastOrder.maxFee = dynamicFastTransferFee + baseFee;
-        fastOrder.initAuctionFee = initAuctionFee;
-        fastOrder.slowSequence = sequence;
-        fastOrder.slowEmitter = toUniversalAddress(address(_wormholeCctp));
-
-        fastSequence =
-            _wormhole.publishMessage{value: messageFee}(NONCE, fastOrder.encode(), FAST_FINALITY);
+        // Send the faster-than-finality message.
+        fastSequence = _wormhole.publishMessage{value: messageFee}(
+            NONCE,
+            Messages.FastMarketOrder({
+                amountIn: args.amountIn,
+                minAmountOut: args.minAmountOut,
+                targetChain: args.targetChain,
+                redeemer: args.redeemer,
+                sender: toUniversalAddress(msg.sender),
+                refundAddress: toUniversalAddress(args.refundAddress),
+                slowSequence: sequence,
+                slowEmitter: toUniversalAddress(address(_wormholeCctp)),
+                maxFee: dynamicFastTransferFee + baseFee,
+                initAuctionFee: initAuctionFee,
+                redeemerMessage: args.redeemerMessage
+            }).encode(),
+            FAST_FINALITY
+        );
     }
 
     function _verifyFastOrderParams(uint256 amountIn)

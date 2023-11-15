@@ -912,10 +912,10 @@ contract TokenRouterTest is Test {
             redeemer: TEST_REDEEMER,
             sender: toUniversalAddress(address(this)),
             refundAddress: toUniversalAddress(address(this)),
-            slowSequence: 0,
-            slowEmitter: bytes32(0),
-            maxFee: router.getBaseFee(),
-            initAuctionFee: 0,
+            slowSequence: slowSequence,
+            slowEmitter: toUniversalAddress(WORMHOLE_CCTP_ADDRESS),
+            maxFee: router.calculateMaxTransferFee(amountIn),
+            initAuctionFee: router.getInitialAuctionFee(),
             redeemerMessage: bytes("All your base are belong to us")
         });
 
@@ -923,11 +923,16 @@ contract TokenRouterTest is Test {
         (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
             _placeFastMarketOrder(router, expectedFastMarketOrder);
 
+        // Verify fast message payload.
+        assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
+
         ICircleIntegration.DepositWithPayload memory deposit =
             wormholeCctp.decodeDepositWithPayload(wormholeCctpMessage);
 
         // Check that the fast market order is encoded correclty.
-        assertEq(deposit.payload, expectedFastMarketOrder.encode());
+        assertEq(
+            deposit.payload, Messages.SlowOrderResponse({baseFee: router.getBaseFee()}).encode()
+        );
 
         // And check that the transfer is encoded correctly.
         ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
@@ -942,14 +947,6 @@ contract TokenRouterTest is Test {
             payload: deposit.payload
         });
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
-
-        // Now verify the fast message.
-        expectedFastMarketOrder.maxFee = router.calculateMaxTransferFee(amountIn);
-        expectedFastMarketOrder.initAuctionFee = router.getInitialAuctionFee();
-        expectedFastMarketOrder.slowSequence = slowSequence;
-        expectedFastMarketOrder.slowEmitter = toUniversalAddress(WORMHOLE_CCTP_ADDRESS);
-
-        assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
     }
 
     function testPlaceFastMarketOrderWithCctpInterface(uint256 amountIn) public {
@@ -969,10 +966,10 @@ contract TokenRouterTest is Test {
             redeemer: TEST_REDEEMER,
             sender: toUniversalAddress(address(this)),
             refundAddress: bytes32(0),
-            slowSequence: 0,
-            slowEmitter: bytes32(0),
-            maxFee: router.getBaseFee(),
-            initAuctionFee: 0,
+            slowSequence: slowSequence,
+            slowEmitter: toUniversalAddress(WORMHOLE_CCTP_ADDRESS),
+            maxFee: router.calculateMaxTransferFee(amountIn),
+            initAuctionFee: router.getInitialAuctionFee(),
             redeemerMessage: bytes("All your base are belong to us")
         });
 
@@ -988,11 +985,16 @@ contract TokenRouterTest is Test {
             })
         );
 
+        // Verify fast message payload.
+        assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
+
         ICircleIntegration.DepositWithPayload memory deposit =
             wormholeCctp.decodeDepositWithPayload(wormholeCctpMessage);
 
         // Check that the fast market order is encoded correclty.
-        assertEq(deposit.payload, expectedFastMarketOrder.encode());
+        assertEq(
+            deposit.payload, Messages.SlowOrderResponse({baseFee: router.getBaseFee()}).encode()
+        );
 
         // And check that the transfer is encoded correctly.
         ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
@@ -1007,14 +1009,6 @@ contract TokenRouterTest is Test {
             payload: deposit.payload
         });
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
-
-        // Now verify the fast message.
-        expectedFastMarketOrder.maxFee = router.calculateMaxTransferFee(amountIn);
-        expectedFastMarketOrder.initAuctionFee = router.getInitialAuctionFee();
-        expectedFastMarketOrder.slowSequence = slowSequence;
-        expectedFastMarketOrder.slowEmitter = toUniversalAddress(WORMHOLE_CCTP_ADDRESS);
-
-        assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
     }
 
     function testPlaceFastMarketOrderTargetIsMatchingEngine(uint256 amountIn) public {
@@ -1041,10 +1035,10 @@ contract TokenRouterTest is Test {
             redeemer: TEST_REDEEMER,
             sender: toUniversalAddress(address(this)),
             refundAddress: toUniversalAddress(address(this)),
-            slowSequence: 0,
-            slowEmitter: bytes32(0),
-            maxFee: router.getBaseFee(),
-            initAuctionFee: 0,
+            slowSequence: slowSequence,
+            slowEmitter: toUniversalAddress(WORMHOLE_CCTP_ADDRESS),
+            maxFee: router.calculateMaxTransferFee(amountIn),
+            initAuctionFee: router.getInitialAuctionFee(),
             redeemerMessage: bytes("All your base are belong to us")
         });
 
@@ -1052,11 +1046,16 @@ contract TokenRouterTest is Test {
         (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
             _placeFastMarketOrder(router, expectedFastMarketOrder);
 
+        // Verify fast message payload.
+        assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
+
         ICircleIntegration.DepositWithPayload memory deposit =
             wormholeCctp.decodeDepositWithPayload(wormholeCctpMessage);
 
         // Check that the fast market order is encoded correclty.
-        assertEq(deposit.payload, expectedFastMarketOrder.encode());
+        assertEq(
+            deposit.payload, Messages.SlowOrderResponse({baseFee: router.getBaseFee()}).encode()
+        );
 
         // And check that the transfer is encoded correctly.
         ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
@@ -1071,14 +1070,6 @@ contract TokenRouterTest is Test {
             payload: deposit.payload
         });
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
-
-        // Now verify the fast message.
-        expectedFastMarketOrder.maxFee = router.calculateMaxTransferFee(amountIn);
-        expectedFastMarketOrder.initAuctionFee = router.getInitialAuctionFee();
-        expectedFastMarketOrder.slowSequence = slowSequence;
-        expectedFastMarketOrder.slowEmitter = toUniversalAddress(WORMHOLE_CCTP_ADDRESS);
-
-        assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
     }
 
     /**

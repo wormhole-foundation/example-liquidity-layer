@@ -859,14 +859,12 @@ contract MatchingEngineTest is Test {
         vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
         _executeFastOrder(fastMessage, PLAYER_TWO);
 
-        // Update the order, since the `maxFee` is the `baseFee` for slow messages.
-        order.slowSequence = 0;
-        order.maxFee = FAST_TRANSFER_BASE_FEE;
-        order.initAuctionFee = 0;
-        order.slowEmitter = bytes32(0);
-
-        ICircleIntegration.RedeemParameters memory params =
-            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowMessageSequence);
+        ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
+            engine,
+            amountIn,
+            Messages.SlowOrderResponse({baseFee: FAST_TRANSFER_BASE_FEE}).encode(),
+            slowMessageSequence
+        );
 
         // Execute the slow order, the highest bidder should receive their initial deposit.
         uint256 balanceBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO);
@@ -888,14 +886,12 @@ contract MatchingEngineTest is Test {
 
         bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
 
-        // Update the order, since the `maxFee` is the `baseFee` for slow messages.
-        order.slowSequence = 0;
-        order.maxFee = FAST_TRANSFER_BASE_FEE;
-        order.initAuctionFee = 0;
-        order.slowEmitter = bytes32(0);
-
-        ICircleIntegration.RedeemParameters memory params =
-            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowMessageSequence);
+        ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
+            engine,
+            amountIn,
+            Messages.SlowOrderResponse({baseFee: FAST_TRANSFER_BASE_FEE}).encode(),
+            slowMessageSequence
+        );
 
         // Execute the slow order, the highest bidder should receive their initial deposit.
         uint256 relayerBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO);
@@ -936,14 +932,12 @@ contract MatchingEngineTest is Test {
         // execute the fast order.
         vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
 
-        // Update the order, since the `maxFee` is the `baseFee` for slow messages.
-        order.slowSequence = 0;
-        order.maxFee = FAST_TRANSFER_BASE_FEE;
-        order.initAuctionFee = 0;
-        order.slowEmitter = bytes32(0);
-
-        ICircleIntegration.RedeemParameters memory params =
-            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowMessageSequence);
+        ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
+            engine,
+            amountIn,
+            Messages.SlowOrderResponse({baseFee: FAST_TRANSFER_BASE_FEE}).encode(),
+            slowMessageSequence
+        );
 
         uint256 relayerBefore = IERC20(USDC_ADDRESS).balanceOf(RELAYER);
         uint256 playerBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO);
@@ -987,14 +981,12 @@ contract MatchingEngineTest is Test {
         (uint256 expectedPenalty, uint256 expectedReward) =
             engine.calculateDynamicPenalty(order.maxFee, uint256(block.number - startBlock));
 
-        // Update the order, since the `maxFee` is the `baseFee` for slow messages.
-        order.slowSequence = 0;
-        order.maxFee = FAST_TRANSFER_BASE_FEE;
-        order.initAuctionFee = 0;
-        order.slowEmitter = bytes32(0);
-
-        ICircleIntegration.RedeemParameters memory params =
-            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowMessageSequence);
+        ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
+            engine,
+            amountIn,
+            Messages.SlowOrderResponse({baseFee: FAST_TRANSFER_BASE_FEE}).encode(),
+            slowMessageSequence
+        );
 
         uint256 relayerBefore = IERC20(USDC_ADDRESS).balanceOf(RELAYER);
         uint256 playerBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE);
@@ -1028,14 +1020,19 @@ contract MatchingEngineTest is Test {
             refundAddress: toUniversalAddress(address(this)),
             slowSequence: slowSequence,
             slowEmitter: wormholeCctp.getRegisteredEmitter(ARB_CHAIN),
-            maxFee: FAST_TRANSFER_BASE_FEE,
-            initAuctionFee: 0,
+            maxFee: _calculateFastTransferFee(amountIn),
+            initAuctionFee: FAST_TRANSFER_INIT_AUCTION_FEE,
             redeemerMessage: bytes("All your base are belong to us")
         });
-        bytes memory fastMessage = _createSignedVaa(ARB_CHAIN, ARB_ROUTER, slowSequence, order.encode());
+        bytes memory fastMessage =
+            _createSignedVaa(ARB_CHAIN, ARB_ROUTER, slowSequence, order.encode());
 
-        ICircleIntegration.RedeemParameters memory params =
-            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowSequence);
+        ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
+            engine,
+            amountIn,
+            Messages.SlowOrderResponse({baseFee: FAST_TRANSFER_BASE_FEE}).encode(),
+            slowSequence
+        );
 
         // Change the address for the arb router.
         vm.prank(makeAddr("owner"));
@@ -1063,14 +1060,19 @@ contract MatchingEngineTest is Test {
             refundAddress: toUniversalAddress(address(this)),
             slowSequence: slowSequence,
             slowEmitter: wormholeCctp.getRegisteredEmitter(ARB_CHAIN),
-            maxFee: FAST_TRANSFER_BASE_FEE,
-            initAuctionFee: 0,
+            maxFee: _calculateFastTransferFee(amountIn),
+            initAuctionFee: FAST_TRANSFER_INIT_AUCTION_FEE,
             redeemerMessage: bytes("All your base are belong to us")
         });
-        bytes memory fastMessage = _createSignedVaa(ARB_CHAIN, ARB_ROUTER, slowSequence, order.encode());
+        bytes memory fastMessage =
+            _createSignedVaa(ARB_CHAIN, ARB_ROUTER, slowSequence, order.encode());
 
-        ICircleIntegration.RedeemParameters memory params =
-            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowSequence);
+        ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
+            engine,
+            amountIn,
+            Messages.SlowOrderResponse({baseFee: FAST_TRANSFER_BASE_FEE}).encode(),
+            slowSequence
+        );
 
         vm.expectRevert(
             abi.encodeWithSignature("ErrInvalidTargetRouter(uint16)", invalidTargetChain)

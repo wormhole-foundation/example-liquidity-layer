@@ -34,8 +34,6 @@ import {
 // TODO: Use protocol relayer to start auctions. Log the block, and decay maxFee
 // based on the number of blocks elapsed between initilization and first bid.
 
-import "forge-std/console.sol";
-
 abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     using BytesParsing for bytes;
     using Messages for *;
@@ -163,41 +161,40 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         bytes calldata fastTransferVaa,
         ICircleIntegration.RedeemParameters calldata params
     ) external payable returns (uint64 sequence) {
-        // Verify the fast transfer VAA.
         IWormhole.VM memory vm = _verifyWormholeMessage(fastTransferVaa);
 
         // Redeem the slow CCTP transfer.
         ICircleIntegration.DepositWithPayload memory deposit =
             _wormholeCctp.redeemTokensWithPayload(params);
 
-        Messages.FastMarketOrder memory fastOrder = vm.payload.decodeFastMarketOrder();
+        Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
 
-        uint16 cctpEmitterChain = params.encodedWormholeMessage.unsafeEmitterChainFromVaa();
-        bytes32 cctpEmitterAddress = params.encodedWormholeMessage.unsafeEmitterAddressFromVaa();
+        // Parse the VAA key from the slow CCTP message payload.
+        (uint16 cctpEmitterChain, bytes32 cctpEmitterAddress, uint64 cctpSequence) =
+            params.encodedWormholeMessage.unsafeVaaKeyFromVaa();
 
         // Confirm that the fast transfer VAA is associated with the slow transfer VAA.
         if (
-            vm.emitterChainId != cctpEmitterChain || fastOrder.slowEmitter != cctpEmitterAddress
-                || fastOrder.slowSequence != params.encodedWormholeMessage.unsafeSequenceFromVaa()
+            vm.emitterChainId != cctpEmitterChain || order.slowEmitter != cctpEmitterAddress
+                || order.slowSequence != cctpSequence
         ) {
             revert ErrVaaMismatch();
         }
 
-        //  We need to parse the `FastMarketOrder` payload from the slow VAA, since the
-        // `maxFee` field is overwritten with the `baseFee`.
-        Messages.FastMarketOrder memory slowOrder = deposit.payload.decodeFastMarketOrder();
+        // Parse the `maxFee` from the slow VAA.
+        uint128 baseFee = deposit.payload.decodeSlowOrderResponse().baseFee;
 
         LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vm.hash];
 
         if (auction.status == AuctionStatus.None) {
-            // We need to verify the router path, since an auction was never created
+            // SECURITY: We need to verify the router path, since an auction was never created
             // and this check is done in `placeInitialBid`.
-            _verifyRouterPath(cctpEmitterChain, deposit.fromAddress, slowOrder.targetChain);
+            _verifyRouterPath(cctpEmitterChain, deposit.fromAddress, order.targetChain);
 
-            sequence = _handleCctpTransfer(slowOrder.amountIn - slowOrder.maxFee, cctpEmitterChain, slowOrder);
+            sequence = _handleCctpTransfer(order.amountIn - baseFee, cctpEmitterChain, order);
 
             // Pay the relayer the base fee if there was no auction.
-            SafeERC20.safeTransfer(_token, msg.sender, slowOrder.maxFee);
+            SafeERC20.safeTransfer(_token, msg.sender, baseFee);
 
             /*
              * SECURITY: this is a necessary security check. This will prevent a relayer from
@@ -219,22 +216,17 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
                 uint88(block.number) - auction.startBlock
             );
 
-            // The `order.maxFee` is the base relayer fee since were taking information
-            // from the slow VAA.
-            uint128 baseTransferFee = slowOrder.maxFee;
-
             // Transfer the penalty amount to the caller. The caller also earns the base
             // fee for relaying the slow VAA.
-            SafeERC20.safeTransfer(_token, msg.sender, penalty + baseTransferFee);
+            SafeERC20.safeTransfer(_token, msg.sender, penalty + baseFee);
             SafeERC20.safeTransfer(
                 _token,
                 auction.highestBidder,
                 auction.amount + auction.securityDeposit - (penalty + userReward)
             );
 
-            sequence = _handleCctpTransfer(
-                auction.amount - baseTransferFee + userReward, cctpEmitterChain, slowOrder
-            );
+            sequence =
+                _handleCctpTransfer(auction.amount - baseFee + userReward, cctpEmitterChain, order);
 
             // Everyone's whole, set the auction as completed.
             auction.status = AuctionStatus.Completed;

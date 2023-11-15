@@ -11,6 +11,7 @@ library Messages {
     uint8 private constant FILL = 0x1;
     uint8 private constant FAST_FILL = 0x2;
     uint8 private constant FAST_MARKET_ORDER = 0x20;
+    uint8 private constant SLOW_ORDER_RESPONSE = 0x21;
 
     // VAA fields.
     uint256 private constant SIG_COUNT_OFFSET = 5;
@@ -44,6 +45,10 @@ library Messages {
         uint128 maxFee;
         uint128 initAuctionFee;
         bytes redeemerMessage;
+    }
+
+    struct SlowOrderResponse {
+        uint128 baseFee;
     }
 
     function encode(Fill memory fill) internal pure returns (bytes memory encoded) {
@@ -135,6 +140,27 @@ library Messages {
         _checkLength(encoded, offset);
     }
 
+    function encode(SlowOrderResponse memory response)
+        internal
+        pure
+        returns (bytes memory encoded)
+    {
+        encoded = abi.encodePacked(SLOW_ORDER_RESPONSE, response.baseFee);
+    }
+
+    function decodeSlowOrderResponse(bytes memory encoded)
+        internal
+        pure
+        returns (SlowOrderResponse memory response)
+    {
+        uint256 offset = _checkPayloadId(encoded, 0, SLOW_ORDER_RESPONSE);
+
+        // Parse the encoded message.
+        (response.baseFee, offset) = encoded.asUint128Unchecked(offset);
+
+        _checkLength(encoded, offset);
+    }
+
     // ---------------------------------------- private -------------------------------------------
 
     function _decodeBytes(bytes memory encoded, uint256 startOffset)
@@ -193,5 +219,20 @@ library Messages {
         (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
         (uint64 sequence,) = encoded.asUint64Unchecked(offset + SIG_LENGTH * numSignatures + 42);
         return sequence;
+    }
+
+    function unsafeVaaKeyFromVaa(bytes memory encoded)
+        internal
+        pure
+        returns (uint16, bytes32, uint64)
+    {
+        // Skip the payload ID and guardian set index.
+        (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
+        (uint16 emitterChain,) = encoded.asUint16Unchecked(offset + SIG_LENGTH * numSignatures + 8);
+        (bytes32 emitterAddress,) =
+            encoded.asBytes32Unchecked(offset + SIG_LENGTH * numSignatures + 10);
+        (uint64 sequence,) = encoded.asUint64Unchecked(offset + SIG_LENGTH * numSignatures + 42);
+
+        return (emitterChain, emitterAddress, sequence);
     }
 }
