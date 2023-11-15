@@ -18,8 +18,6 @@ import {
     getRouterEndpointState,
     LiveAuctionData,
     getLiveAuctionInfo,
-    InitialAuctionData,
-    getInitialAuctionInfo,
     AuctionStatus,
     getFastFillsState,
     FastFills,
@@ -35,6 +33,8 @@ import {
 // TODO: Whitelist protocol relayer.
 // TODO: Use protocol relayer to start auctions. Log the block, and decay maxFee
 // based on the number of blocks elapsed between initilization and first bid.
+
+import "forge-std/console.sol";
 
 abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     using BytesParsing for bytes;
@@ -78,23 +78,10 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         auction.status = AuctionStatus.Active;
         auction.startBlock = uint88(block.number);
         auction.highestBidder = msg.sender;
+        auction.initialBidder = msg.sender;
         auction.amount = order.amountIn;
         auction.securityDeposit = order.maxFee;
         auction.bidPrice = feeBid;
-
-        /**
-         * Set the initial auction data. The initial bidder will receive an
-         * additional fee once the auction is completed for initializing the auction
-         * and incurring the gas costs of verifying the VAA and setting initial state.
-         *
-         * We need to save the expected slow VAA emitter information so that we can
-         * verify the slow VAA when it comes in.
-         */
-        InitialAuctionData storage initialAuction = getInitialAuctionInfo().auctions[vm.hash];
-        initialAuction.initialBidder = msg.sender;
-        initialAuction.slowChain = vm.emitterChainId;
-        initialAuction.slowEmitter = order.slowEmitter;
-        initialAuction.slowSequence = order.slowSequence;
 
         emit AuctionStarted(vm.hash, order.amountIn, feeBid, msg.sender);
     }
@@ -166,36 +153,51 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         }
 
         // Pay the auction initiator their fee.
-        SafeERC20.safeTransfer(
-            _token, getInitialAuctionInfo().auctions[vm.hash].initialBidder, order.initAuctionFee
-        );
+        SafeERC20.safeTransfer(_token, auction.initialBidder, order.initAuctionFee);
 
+        // Set the auction as completed.
         auction.status = AuctionStatus.Completed;
     }
 
     function executeSlowOrderAndRedeem(
-        bytes32 auctionId,
+        bytes calldata fastTransferVaa,
         ICircleIntegration.RedeemParameters calldata params
     ) external payable returns (uint64 sequence) {
+        // Verify the fast transfer VAA.
+        IWormhole.VM memory vm = _verifyWormholeMessage(fastTransferVaa);
+
+        // Redeem the slow CCTP transfer.
         ICircleIntegration.DepositWithPayload memory deposit =
             _wormholeCctp.redeemTokensWithPayload(params);
 
-        Messages.FastMarketOrder memory order = deposit.payload.decodeFastMarketOrder();
+        Messages.FastMarketOrder memory fastOrder = vm.payload.decodeFastMarketOrder();
 
-        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[auctionId];
+        uint16 cctpEmitterChain = params.encodedWormholeMessage.unsafeEmitterChainFromVaa();
+        bytes32 cctpEmitterAddress = params.encodedWormholeMessage.unsafeEmitterAddressFromVaa();
 
-        uint16 emitterChainId = params.encodedWormholeMessage.unsafeEmitterChainFromVaa();
-        bytes32 emitterAddress = params.encodedWormholeMessage.unsafeEmitterAddressFromVaa();
+        // Confirm that the fast transfer VAA is associated with the slow transfer VAA.
+        if (
+            vm.emitterChainId != cctpEmitterChain || fastOrder.slowEmitter != cctpEmitterAddress
+                || fastOrder.slowSequence != params.encodedWormholeMessage.unsafeSequenceFromVaa()
+        ) {
+            revert ErrVaaMismatch();
+        }
+
+        //  We need to parse the `FastMarketOrder` payload from the slow VAA, since the
+        // `maxFee` field is overwritten with the `baseFee`.
+        Messages.FastMarketOrder memory slowOrder = deposit.payload.decodeFastMarketOrder();
+
+        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vm.hash];
 
         if (auction.status == AuctionStatus.None) {
             // We need to verify the router path, since an auction was never created
             // and this check is done in `placeInitialBid`.
-            _verifyRouterPath(emitterChainId, deposit.fromAddress, order.targetChain);
+            _verifyRouterPath(cctpEmitterChain, deposit.fromAddress, slowOrder.targetChain);
 
-            sequence = _handleCctpTransfer(order.amountIn - order.maxFee, emitterChainId, order);
+            sequence = _handleCctpTransfer(slowOrder.amountIn - slowOrder.maxFee, cctpEmitterChain, slowOrder);
 
             // Pay the relayer the base fee if there was no auction.
-            SafeERC20.safeTransfer(_token, msg.sender, order.maxFee);
+            SafeERC20.safeTransfer(_token, msg.sender, slowOrder.maxFee);
 
             /*
              * SECURITY: this is a necessary security check. This will prevent a relayer from
@@ -205,13 +207,6 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
              */
             auction.status = AuctionStatus.Completed;
         } else if (auction.status == AuctionStatus.Active) {
-            _assertVaaMatch(
-                auctionId,
-                emitterChainId,
-                emitterAddress,
-                params.encodedWormholeMessage.unsafeSequenceFromVaa()
-            );
-
             /**
              * This means the slow message beat the fast message. We need to refund
              * the bidder and (potentially) take a penalty for not fulfilling their
@@ -226,7 +221,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
             // The `order.maxFee` is the base relayer fee since were taking information
             // from the slow VAA.
-            uint128 baseTransferFee = order.maxFee;
+            uint128 baseTransferFee = slowOrder.maxFee;
 
             // Transfer the penalty amount to the caller. The caller also earns the base
             // fee for relaying the slow VAA.
@@ -238,20 +233,13 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             );
 
             sequence = _handleCctpTransfer(
-                auction.amount - baseTransferFee + userReward, emitterChainId, order
+                auction.amount - baseTransferFee + userReward, cctpEmitterChain, slowOrder
             );
 
             // Everyone's whole, set the auction as completed.
             auction.status = AuctionStatus.Completed;
         } else if (auction.status == AuctionStatus.Completed) {
-            _assertVaaMatch(
-                auctionId,
-                emitterChainId,
-                emitterAddress,
-                params.encodedWormholeMessage.unsafeSequenceFromVaa()
-            );
-
-            // Complete the transfer and give the highest bidder their funds back.
+            // Transfer the funds back to the highest bidder.
             SafeERC20.safeTransfer(_token, auction.highestBidder, auction.amount);
         } else {
             revert ErrInvalidAuctionStatus();
@@ -394,22 +382,6 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         auction.highestBidder = msg.sender;
 
         emit NewBid(auctionId, feeBid, auction.bidPrice, msg.sender);
-    }
-
-    function _assertVaaMatch(
-        bytes32 auctionId,
-        uint16 emitterChainId,
-        bytes32 emitterAddress,
-        uint64 sequence
-    ) private view {
-        InitialAuctionData memory initialAuction = getInitialAuctionInfo().auctions[auctionId];
-        if (
-            initialAuction.slowChain != emitterChainId
-                || initialAuction.slowEmitter != emitterAddress
-                || initialAuction.slowSequence != sequence
-        ) {
-            revert ErrVaaMismatch();
-        }
     }
 
     function _verifyRouterPath(uint16 chain, bytes32 fromRouter, uint16 targetChain) private view {

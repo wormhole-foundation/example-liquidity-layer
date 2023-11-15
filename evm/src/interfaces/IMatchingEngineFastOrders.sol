@@ -17,7 +17,7 @@ interface IMatchingEngineFastOrders {
         returns (uint64 sequence);
 
     function executeSlowOrderAndRedeem(
-        bytes32 auctionId,
+        bytes calldata fastFillVaa,
         ICircleIntegration.RedeemParameters calldata params
     ) external payable returns (uint64 sequence);
 

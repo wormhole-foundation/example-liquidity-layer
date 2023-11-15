@@ -11,10 +11,8 @@ import "./Errors.sol";
 
 import {
     getRouterEndpointState,
-    getInitialAuctionInfo,
     getLiveAuctionInfo,
     LiveAuctionData,
-    InitialAuctionData,
     AuctionStatus,
     AuctionConfig,
     getAuctionConfig
@@ -80,13 +78,5 @@ abstract contract State is IMatchingEngineState {
 
     function liveAuctionInfo(bytes32 auctionId) public view returns (LiveAuctionData memory) {
         return getLiveAuctionInfo().auctions[auctionId];
-    }
-
-    function initialAuctionInfo(bytes32 auctionId)
-        public
-        view
-        returns (InitialAuctionData memory)
-    {
-        return getInitialAuctionInfo().auctions[auctionId];
     }
 }

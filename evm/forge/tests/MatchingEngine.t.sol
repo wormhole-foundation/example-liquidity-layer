@@ -599,7 +599,7 @@ contract MatchingEngineTest is Test {
         // Validate state and balance changes.
         IWormhole.VM memory _vm = wormholeCctp.wormhole().parseVM(fastMessage);
 
-        _verifyAuctionState(order, _vm, newBid, PLAYER_TWO, PLAYER_ONE, _vm.hash);
+        _verifyAuctionState(order, newBid, PLAYER_TWO, PLAYER_ONE, _vm.hash);
     }
 
     /**
@@ -872,7 +872,7 @@ contract MatchingEngineTest is Test {
         uint256 balanceBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO);
 
         vm.prank(PLAYER_TWO);
-        engine.executeSlowOrderAndRedeem(auctionId, params);
+        engine.executeSlowOrderAndRedeem(fastMessage, params);
 
         assertEq(IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO) - balanceBefore, order.amountIn);
     }
@@ -903,7 +903,7 @@ contract MatchingEngineTest is Test {
 
         // Since the auction was never started, the relayer should receive the base fee,
         // and the contract's balance shouldn't change (no funds were custodied).
-        bytes memory cctpPayload = _executeSlowOrder(auctionId, params, RELAYER);
+        bytes memory cctpPayload = _executeSlowOrder(fastMessage, params, RELAYER);
 
         _verifyOutboundCctpTransfer(order, amountIn - FAST_TRANSFER_BASE_FEE, cctpPayload);
 
@@ -948,7 +948,7 @@ contract MatchingEngineTest is Test {
         uint256 relayerBefore = IERC20(USDC_ADDRESS).balanceOf(RELAYER);
         uint256 playerBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO);
 
-        bytes memory cctpPayload = _executeSlowOrder(auctionId, params, RELAYER);
+        bytes memory cctpPayload = _executeSlowOrder(fastMessage, params, RELAYER);
 
         _verifyOutboundCctpTransfer(order, amountIn - FAST_TRANSFER_BASE_FEE, cctpPayload);
 
@@ -999,7 +999,7 @@ contract MatchingEngineTest is Test {
         uint256 relayerBefore = IERC20(USDC_ADDRESS).balanceOf(RELAYER);
         uint256 playerBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE);
 
-        bytes memory cctpPayload = _executeSlowOrder(auctionId, params, RELAYER);
+        bytes memory cctpPayload = _executeSlowOrder(fastMessage, params, RELAYER);
 
         _verifyOutboundCctpTransfer(
             order, amountIn - FAST_TRANSFER_BASE_FEE + expectedReward, cctpPayload
@@ -1017,6 +1017,7 @@ contract MatchingEngineTest is Test {
 
     function testCannotExecuteSlowOrderAndRedeemInvalidSourceRouterNoAuction() public {
         uint256 amountIn = _getMinTransferAmount() + 6900;
+        uint64 slowSequence = 69;
 
         Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
             amountIn: amountIn,
@@ -1025,15 +1026,16 @@ contract MatchingEngineTest is Test {
             redeemer: TEST_REDEEMER,
             sender: toUniversalAddress(address(this)),
             refundAddress: toUniversalAddress(address(this)),
-            slowSequence: 0,
-            slowEmitter: bytes32(0),
+            slowSequence: slowSequence,
+            slowEmitter: wormholeCctp.getRegisteredEmitter(ARB_CHAIN),
             maxFee: FAST_TRANSFER_BASE_FEE,
             initAuctionFee: 0,
             redeemerMessage: bytes("All your base are belong to us")
         });
+        bytes memory fastMessage = _createSignedVaa(ARB_CHAIN, ARB_ROUTER, slowSequence, order.encode());
 
         ICircleIntegration.RedeemParameters memory params =
-            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), 0);
+            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowSequence);
 
         // Change the address for the arb router.
         vm.prank(makeAddr("owner"));
@@ -1044,12 +1046,13 @@ contract MatchingEngineTest is Test {
                 "ErrInvalidSourceRouter(bytes32,bytes32)", ARB_ROUTER, bytes32("deadbeef")
             )
         );
-        engine.executeSlowOrderAndRedeem(bytes32(0), params);
+        engine.executeSlowOrderAndRedeem(fastMessage, params);
     }
 
     function testCannotExecuteSlowOrderAndRedeemInvalidTargetRouter() public {
         uint256 amountIn = _getMinTransferAmount() + 6900;
         uint16 invalidTargetChain = 69;
+        uint64 slowSequence = 69;
 
         Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
             amountIn: amountIn,
@@ -1058,20 +1061,21 @@ contract MatchingEngineTest is Test {
             redeemer: TEST_REDEEMER,
             sender: toUniversalAddress(address(this)),
             refundAddress: toUniversalAddress(address(this)),
-            slowSequence: 0,
-            slowEmitter: bytes32(0),
+            slowSequence: slowSequence,
+            slowEmitter: wormholeCctp.getRegisteredEmitter(ARB_CHAIN),
             maxFee: FAST_TRANSFER_BASE_FEE,
             initAuctionFee: 0,
             redeemerMessage: bytes("All your base are belong to us")
         });
+        bytes memory fastMessage = _createSignedVaa(ARB_CHAIN, ARB_ROUTER, slowSequence, order.encode());
 
         ICircleIntegration.RedeemParameters memory params =
-            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), 0);
+            _craftWormholeCctpRedeemParams(engine, amountIn, order.encode(), slowSequence);
 
         vm.expectRevert(
             abi.encodeWithSignature("ErrInvalidTargetRouter(uint16)", invalidTargetChain)
         );
-        engine.executeSlowOrderAndRedeem(bytes32(0), params);
+        engine.executeSlowOrderAndRedeem(fastMessage, params);
     }
 
     function testCannotExecuteSlowOrderAndRedeemVaaMismatchCompletedAuction() public {
@@ -1086,19 +1090,13 @@ contract MatchingEngineTest is Test {
         vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
         _executeFastOrder(fastMessage, PLAYER_TWO);
 
-        // Update the order, since the `maxFee` is the `baseFee` for slow messages.
-        order.slowSequence = 0;
-        order.maxFee = FAST_TRANSFER_BASE_FEE;
-        order.initAuctionFee = 0;
-        order.slowEmitter = bytes32(0);
-
         // NOTE: Create slow VAA with a different sequence number.
         ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
             engine, amountIn, order.encode(), slowMessageSequence + 1
         );
 
         vm.expectRevert(abi.encodeWithSignature("ErrVaaMismatch()"));
-        engine.executeSlowOrderAndRedeem(auctionId, params);
+        engine.executeSlowOrderAndRedeem(fastMessage, params);
     }
 
     function testCannotExecuteSlowOrderAndRedeemVaaMismatchActiveAuction() public {
@@ -1111,14 +1109,7 @@ contract MatchingEngineTest is Test {
 
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
         vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
-
-        // NOTE: We do not execute the fast order on purpose.
-
-        // Update the order, since the `maxFee` is the `baseFee` for slow messages.
-        order.slowSequence = 0;
-        order.maxFee = FAST_TRANSFER_BASE_FEE;
-        order.initAuctionFee = 0;
-        order.slowEmitter = bytes32(0);
+        // Do not execute the fast order.
 
         // NOTE: Create slow VAA with a different sequence number.
         ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
@@ -1126,7 +1117,23 @@ contract MatchingEngineTest is Test {
         );
 
         vm.expectRevert(abi.encodeWithSignature("ErrVaaMismatch()"));
-        engine.executeSlowOrderAndRedeem(auctionId, params);
+        engine.executeSlowOrderAndRedeem(fastMessage, params);
+    }
+
+    function testCannotExecuteSlowOrderAndRedeemVaaMismatchAuctionNotStarted() public {
+        uint64 slowMessageSequence = 69;
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+
+        // NOTE: Create slow VAA with a different sequence number.
+        ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
+            engine, amountIn, order.encode(), slowMessageSequence + 1
+        );
+
+        vm.expectRevert(abi.encodeWithSignature("ErrVaaMismatch()"));
+        engine.executeSlowOrderAndRedeem(fastMessage, params);
     }
 
     /**
@@ -1380,7 +1387,7 @@ contract MatchingEngineTest is Test {
             balanceBefore - IERC20(USDC_ADDRESS).balanceOf(bidder), order.amountIn + order.maxFee
         );
 
-        _verifyAuctionState(order, _vm, feeBid, bidder, bidder, _vm.hash);
+        _verifyAuctionState(order, feeBid, bidder, bidder, _vm.hash);
     }
 
     function _improveBid(
@@ -1411,7 +1418,7 @@ contract MatchingEngineTest is Test {
             order.amountIn + order.maxFee
         );
 
-        _verifyAuctionState(order, _vm, newBid, newBidder, initialBidder, _vm.hash);
+        _verifyAuctionState(order, newBid, newBidder, initialBidder, _vm.hash);
     }
 
     function _executeFastOrder(bytes memory fastMessage, address caller)
@@ -1451,7 +1458,7 @@ contract MatchingEngineTest is Test {
     }
 
     function _executeSlowOrder(
-        bytes32 auctionId,
+        bytes memory fastTransferVaa,
         ICircleIntegration.RedeemParameters memory params,
         address caller
     ) internal returns (bytes memory message) {
@@ -1459,7 +1466,7 @@ contract MatchingEngineTest is Test {
         vm.recordLogs();
 
         vm.prank(caller);
-        engine.executeSlowOrderAndRedeem(auctionId, params);
+        engine.executeSlowOrderAndRedeem(fastTransferVaa, params);
 
         // Fetch the logs for Wormhole message. There should be two messages.
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -1472,7 +1479,6 @@ contract MatchingEngineTest is Test {
 
     function _verifyAuctionState(
         Messages.FastMarketOrder memory order,
-        IWormhole.VM memory _vm,
         uint256 feeBid,
         address currentBidder,
         address initialBidder,
@@ -1482,15 +1488,10 @@ contract MatchingEngineTest is Test {
         assertEq(uint8(auction.status), uint8(AuctionStatus.Active));
         assertEq(auction.startBlock, uint88(block.number));
         assertEq(auction.highestBidder, currentBidder);
+        assertEq(auction.initialBidder, initialBidder);
         assertEq(auction.amount, order.amountIn);
         assertEq(auction.securityDeposit, order.maxFee);
         assertEq(auction.bidPrice, feeBid);
-
-        InitialAuctionData memory initialAuction = engine.initialAuctionInfo(vmHash);
-        assertEq(initialAuction.initialBidder, initialBidder);
-        assertEq(initialAuction.slowChain, _vm.emitterChainId);
-        assertEq(initialAuction.slowSequence, order.slowSequence);
-        assertEq(initialAuction.slowEmitter, wormholeCctp.getRegisteredEmitter(_vm.emitterChainId));
     }
 
     function _verifyOutboundCctpTransfer(

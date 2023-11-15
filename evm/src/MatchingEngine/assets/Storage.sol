@@ -27,6 +27,7 @@ struct LiveAuctionData {
     AuctionStatus status;
     uint88 startBlock;
     address highestBidder;
+    address initialBidder;
     uint256 amount;
     uint128 securityDeposit;
     uint128 bidPrice;
@@ -43,27 +44,6 @@ bytes32 constant LIVE_AUCTION_INFO_STORAGE_SLOT =
 function getLiveAuctionInfo() pure returns (LiveAuctionInfo storage state) {
     assembly ("memory-safe") {
         state.slot := LIVE_AUCTION_INFO_STORAGE_SLOT
-    }
-}
-
-struct InitialAuctionData {
-    address initialBidder;
-    uint16 slowChain;
-    uint64 slowSequence;
-    bytes32 slowEmitter;
-}
-
-struct InitialAuctionInfo {
-    mapping(bytes32 auctionId => InitialAuctionData data) auctions;
-}
-
-// keccak256(InitialAuctionInfo) - 1
-bytes32 constant INITIAL_AUCTION_INFO_STORAGE_SLOT =
-    0x7c50e6c562fa9530af4687c4a8df815cac20a9021410cd934198cfffd9717d7c;
-
-function getInitialAuctionInfo() pure returns (InitialAuctionInfo storage state) {
-    assembly ("memory-safe") {
-        state.slot := INITIAL_AUCTION_INFO_STORAGE_SLOT
     }
 }
 
