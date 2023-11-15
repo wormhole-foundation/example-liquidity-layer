@@ -270,18 +270,18 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             revert ErrInvalidEmitterForFastFill();
         }
 
+        FastFills storage fastFills = getFastFillsState();
+        if (fastFills.redeemed[vm.hash]) {
+            revert ErrFastFillAlreadyRedeemed();
+        }
+        fastFills.redeemed[vm.hash] = true;
+
         // Only the TokenRouter from this chain (_wormholeChainId) can redeem this message type.
         bytes32 expectedRouter = getRouterEndpointState().endpoints[_wormholeChainId];
         bytes32 callingRouter = toUniversalAddress(msg.sender);
         if (expectedRouter != callingRouter) {
             revert ErrInvalidSourceRouter(callingRouter, expectedRouter);
         }
-
-        FastFills storage fastFills = getFastFillsState();
-        if (fastFills.redeemed[vm.hash]) {
-            revert ErrFastFillAlreadyRedeemed();
-        }
-        fastFills.redeemed[vm.hash] = true;
 
         Messages.FastFill memory fastFill = vm.payload.decodeFastFill();
 

@@ -1180,6 +1180,161 @@ contract MatchingEngineTest is Test {
         assertEq(fill.message, order.redeemerMessage);
     }
 
+    function testCannotRedeemFastFillInvalidEmitterChain() public {
+        uint64 slowMessageSequence = 69;
+        uint256 amountIn = _getMinTransferAmount() + 69;
+        uint16 invalidEmitterChain = 69;
+
+        // Deploy the avax token router and register it.
+        ITokenRouter avaxRouter = _deployAndRegisterAvaxRouter();
+
+        // Complete a successful auction.
+        bytes memory fastFill;
+        {
+            (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN);
+            bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+            _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+            vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+            fastFill = _executeFastOrder(
+                fastMessage, PLAYER_ONE, true, invalidEmitterChain, address(engine)
+            );
+        }
+
+        // Call the matching engine directly for this test. This is because the
+        // TokenRouter does an emitter check and will not redeem the fast fill.
+        vm.prank(address(avaxRouter));
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidEmitterForFastFill()"));
+        IMatchingEngine(address(engine)).redeemFastFill(fastFill);
+    }
+
+    function testCannotRedeemFastFillInvalidEmitterAddress() public {
+        uint64 slowMessageSequence = 69;
+        uint256 amountIn = _getMinTransferAmount() + 69;
+        address invalidEmitterAddress = makeAddr("invalidEmitter");
+
+        // Deploy the avax token router and register it.
+        ITokenRouter avaxRouter = _deployAndRegisterAvaxRouter();
+
+        // Complete a successful auction.
+        bytes memory fastFill;
+        {
+            (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN);
+            bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+            _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+            vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+            fastFill =
+                _executeFastOrder(fastMessage, PLAYER_ONE, true, AVAX_CHAIN, invalidEmitterAddress);
+        }
+
+        // Call the matching engine directly for this test. This is because the
+        // TokenRouter does an emitter check and will not redeem the fast fill.
+        vm.prank(address(avaxRouter));
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidEmitterForFastFill()"));
+        IMatchingEngine(address(engine)).redeemFastFill(fastFill);
+    }
+
+    function testCannotRedeemFastFillInvalidSourceRouter() public {
+        uint64 slowMessageSequence = 69;
+        uint256 amountIn = _getMinTransferAmount() + 69;
+        address invalidRouter = makeAddr("invalidRouter");
+
+        // Deploy the avax token router and register it.
+        ITokenRouter avaxRouter = _deployAndRegisterAvaxRouter();
+
+        // Complete a successful auction.
+        bytes memory fastFill;
+        {
+            (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN);
+            bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+            _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+            vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+            fastFill = _executeFastOrder(fastMessage, PLAYER_ONE, true, AVAX_CHAIN, address(engine));
+        }
+
+        // Call the matching engine directly for this test. This is because the
+        // TokenRouter does an emitter check and will not redeem the fast fill.
+        vm.prank(invalidRouter);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ErrInvalidSourceRouter(bytes32,bytes32)",
+                toUniversalAddress(invalidRouter),
+                toUniversalAddress(address(avaxRouter))
+            )
+        );
+        IMatchingEngine(address(engine)).redeemFastFill(fastFill);
+    }
+
+    function testCannotRedeemFastFillAgain() public {
+        uint64 slowMessageSequence = 69;
+        uint256 amountIn = _getMinTransferAmount() + 69;
+
+        // Deploy the avax token router and register it.
+        ITokenRouter avaxRouter = _deployAndRegisterAvaxRouter();
+
+        // Complete a successful auction.
+        bytes memory fastFill;
+        {
+            (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN);
+            bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+            _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+            vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+            fastFill = _executeFastOrder(fastMessage, PLAYER_ONE, true, AVAX_CHAIN, address(engine));
+        }
+
+        // Successfull redeem the fill.
+        vm.startPrank(address(avaxRouter));
+        IMatchingEngine(address(engine)).redeemFastFill(fastFill);
+
+        // Now try again.
+        vm.expectRevert(abi.encodeWithSignature("ErrFastFillAlreadyRedeemed()"));
+        IMatchingEngine(address(engine)).redeemFastFill(fastFill);
+    }
+
+    function testCannotRedeemFastFillInvalidRedeemer() public {
+        uint64 slowMessageSequence = 69;
+        uint256 amountIn = _getMinTransferAmount() + 69420;
+        address invalidRedeemer = makeAddr("invalidRedeemer");
+
+        // Deploy the avax token router and register it.
+        ITokenRouter avaxRouter = _deployAndRegisterAvaxRouter();
+
+        // Complete a successful auction.
+        bytes memory fastFill;
+        {
+            (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN);
+            bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
+
+            _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+            vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+            fastFill = _executeFastOrder(fastMessage, PLAYER_ONE, true, AVAX_CHAIN, address(engine));
+        }
+
+        vm.prank(invalidRedeemer);
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "ErrInvalidRedeemer(bytes32,bytes32)",
+                toUniversalAddress(invalidRedeemer),
+                TEST_REDEEMER
+            )
+        );
+        avaxRouter.redeemFill(
+            OrderResponse({
+                encodedWormholeMessage: fastFill,
+                circleBridgeMessage: bytes(""),
+                circleAttestation: bytes("")
+            })
+        );
+    }
+
     /**
      * TEST HELPERS
      */
