@@ -14,19 +14,25 @@ import {TokenRouterImplementation} from "../../src/TokenRouter/TokenRouterImplem
 
 import {CheckWormholeContracts} from "./helpers/CheckWormholeContracts.sol";
 
+import {toUniversalAddress} from "../../src/shared/Utils.sol";
+
 contract DeployTokenRouterContracts is CheckWormholeContracts, Script {
     uint16 immutable _chainId = uint16(vm.envUint("RELEASE_CHAIN_ID"));
 
     address immutable _token = vm.envAddress("RELEASE_TOKEN_ADDRESS");
     address immutable _wormholeCctpAddress = vm.envAddress("RELEASE_WORMHOLE_CCTP_ADDRESS");
     address immutable _ownerAssistantAddress = vm.envAddress("RELEASE_OWNER_ASSISTANT_ADDRESS");
+    address immutable _matchingEngineAddress = vm.envAddress("RELEASE_MATCHING_ENGINE_ADDRESS");
+    uint16 immutable _matchingEngineChain = uint16(vm.envUint("RELEASE_MATCHING_ENGINE_CHAIN"));
 
     function deploy() public {
         requireValidChain(_chainId, _wormholeCctpAddress);
 
         TokenRouterImplementation implementation = new TokenRouterImplementation(
             _token,
-            _wormholeCctpAddress
+            _wormholeCctpAddress,
+            _matchingEngineChain,
+            toUniversalAddress(_matchingEngineAddress)
         );
 
         TokenRouterSetup setup = new TokenRouterSetup();

@@ -15,7 +15,8 @@ import {
     LiveAuctionData,
     AuctionStatus,
     AuctionConfig,
-    getAuctionConfig
+    getAuctionConfig,
+    getFastFillsState
 } from "./Storage.sol";
 
 abstract contract State is IMatchingEngineState {
@@ -52,6 +53,18 @@ abstract contract State is IMatchingEngineState {
         return getRouterEndpointState().endpoints[chain];
     }
 
+    function wormholeCctp() external view returns (ICircleIntegration) {
+        return _wormholeCctp;
+    }
+
+    function wormholeChainId() external view returns (uint16) {
+        return _wormholeChainId;
+    }
+
+    function token() external view returns (IERC20) {
+        return _token;
+    }
+
     function maxBpsFee() public pure returns (uint24) {
         return MAX_BPS_FEE;
     }
@@ -72,11 +85,19 @@ abstract contract State is IMatchingEngineState {
         return getAuctionConfig();
     }
 
+    function getAuctionBlocksElapsed(bytes32 auctionId) public view returns (uint256) {
+        return block.number - getLiveAuctionInfo().auctions[auctionId].startBlock;
+    }
+
     function getAuctionStatus(bytes32 auctionId) public view returns (AuctionStatus) {
         return getLiveAuctionInfo().auctions[auctionId].status;
     }
 
     function liveAuctionInfo(bytes32 auctionId) public view returns (LiveAuctionData memory) {
         return getLiveAuctionInfo().auctions[auctionId];
+    }
+
+    function isFastFillRedeemed(bytes32 vaaHash) public view returns (bool) {
+        return getFastFillsState().redeemed[vaaHash];
     }
 }

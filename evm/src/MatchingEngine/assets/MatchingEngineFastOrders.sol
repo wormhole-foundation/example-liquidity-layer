@@ -25,14 +25,10 @@ import {
     getAuctionConfig
 } from "./Storage.sol";
 
-// TODO: Do we need to protect against reentrancy, even though the `_token` is allow listed?
-// TODO: Should there be a minTickSize for new bids?
-// TODO: Should we include the fee amount in the penalty calculation?
-// TODO: How does the replay protection effect a fast transfer roll back and same
-// hash is created again?
-// TODO: Whitelist protocol relayer.
+
+// TODO: Whitelist protocol relayer
 // TODO: Use protocol relayer to start auctions. Log the block, and decay maxFee
-// based on the number of blocks elapsed between initilization and first bid.
+// based on the number of blocks elapsed between initilization and first bid. - more discussion necessary
 
 abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     using BytesParsing for bytes;
@@ -276,6 +272,17 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         returns (uint256 penalty, uint256 userReward)
     {
         return _calculateDynamicPenalty(getAuctionConfig(), amount, blocksElapsed);
+    }
+
+    function calculateDynamicPenalty(bytes32 auctionId)
+        external
+        view
+        returns (uint256 penalty, uint256 userReward)
+    {
+        LiveAuctionData memory auction = getLiveAuctionInfo().auctions[auctionId];
+        return _calculateDynamicPenalty(
+            getAuctionConfig(), auction.securityDeposit, uint88(block.number) - auction.startBlock
+        );
     }
 
     // ------------------------------- Private ---------------------------------

@@ -57,7 +57,12 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
 
         Messages.Fill memory fill = deposit.payload.decodeFill();
 
-        _verifyFromAddress(emitterChain, deposit.fromAddress);
+        // Verify that the sender is a known router.
+        bytes32 fromRouter = getRouter(emitterChain);
+        if (deposit.fromAddress != fromRouter) {
+            revert ErrInvalidSourceRouter(deposit.fromAddress, fromRouter);
+        }
+
         _verifyRedeemer(fill.redeemer);
 
         // Transfer token amount to redeemer.
@@ -97,19 +102,6 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
         bytes32 redeemer = toUniversalAddress(msg.sender);
         if (redeemer != expectedRedeemer) {
             revert ErrInvalidRedeemer(redeemer, expectedRedeemer);
-        }
-    }
-
-    function _verifyFromAddress(uint16 fromChain, bytes32 fromAddress) private view {
-        if (fromChain == _matchingEngineChain) {
-            if (fromAddress != _matchingEngineAddress) {
-                revert ErrInvalidMatchingEngineSender(fromAddress, _matchingEngineAddress);
-            }
-        } else {
-            bytes32 fromRouter = getRouter(fromChain);
-            if (fromAddress != fromRouter) {
-                revert ErrInvalidSourceRouter(fromAddress, fromRouter);
-            }
         }
     }
 }
