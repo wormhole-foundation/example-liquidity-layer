@@ -895,6 +895,41 @@ contract TokenRouterTest is Test {
         router.placeFastMarketOrder(args);
     }
 
+    function testCannotPlaceFastMarketOrderInsufficientFeeOverride() public {
+        uint256 amountIn = router.getMinTransferAmount() + 69420;
+        uint128 maxFee = router.calculateMaxTransferFee(amountIn);
+        uint128 feeOverride = maxFee - 1;
+
+        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: ARB_CHAIN,
+            redeemer: TEST_REDEEMER,
+            redeemerMessage: bytes("All your base are belong to us."),
+            refundAddress: address(this)
+        });
+
+        vm.expectRevert(abi.encodeWithSignature("ErrInsufficientFeeOverride()"));
+        router.placeFastMarketOrder(args, feeOverride);
+    }
+
+    function testCannotPlaceFastMarketOrderFeeOverrideMoreThanAmount() public {
+        uint256 amountIn = router.getMinTransferAmount() + 69420;
+        uint128 feeOverride = uint128(amountIn) + 1;
+
+        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: ARB_CHAIN,
+            redeemer: TEST_REDEEMER,
+            redeemerMessage: bytes("All your base are belong to us."),
+            refundAddress: address(this)
+        });
+
+        vm.expectRevert(abi.encodeWithSignature("ErrInsufficientFeeOverride()"));
+        router.placeFastMarketOrder(args, feeOverride);
+    }
+
     function testPlaceFastMarketOrder(uint256 amountIn) public {
         amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
 
@@ -922,6 +957,64 @@ contract TokenRouterTest is Test {
         // Place the fast market order and store the two VAA payloads that were emitted.
         (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
             _placeFastMarketOrder(router, expectedFastMarketOrder);
+
+        // Verify fast message payload.
+        assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
+
+        ICircleIntegration.DepositWithPayload memory deposit =
+            wormholeCctp.decodeDepositWithPayload(wormholeCctpMessage);
+
+        // Check that the fast market order is encoded correclty.
+        assertEq(
+            deposit.payload, Messages.SlowOrderResponse({baseFee: router.getBaseFee()}).encode()
+        );
+
+        // And check that the transfer is encoded correctly.
+        ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
+            .DepositWithPayload({
+            token: toUniversalAddress(USDC_ADDRESS),
+            amount: amountIn,
+            sourceDomain: wormholeCctp.localDomain(),
+            targetDomain: wormholeCctp.getDomainFromChainId(matchingEngineChain),
+            nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+            fromAddress: toUniversalAddress(address(router)),
+            mintRecipient: matchingEngineAddress,
+            payload: deposit.payload
+        });
+        assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
+    }
+
+    function testPlaceFastMarketOrderWithFeeOverride(uint256 amountIn, uint128 feeOverride)
+        public
+    {
+        amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
+        uint128 maxFee = router.calculateMaxTransferFee(amountIn);
+        feeOverride = uint128(bound(feeOverride, maxFee + 1, amountIn - 1));
+
+        _dealAndApproveUsdc(router, amountIn);
+
+        // The slow message is sent first.
+        uint64 slowSequence = wormholeSimulator.nextSequence(WORMHOLE_CCTP_ADDRESS);
+
+        // Create a fast market order, this is actually the payload that will be encoded
+        // in the "slow message".
+        Messages.FastMarketOrder memory expectedFastMarketOrder = Messages.FastMarketOrder({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: ARB_CHAIN,
+            redeemer: TEST_REDEEMER,
+            sender: toUniversalAddress(address(this)),
+            refundAddress: toUniversalAddress(address(this)),
+            slowSequence: slowSequence,
+            slowEmitter: toUniversalAddress(WORMHOLE_CCTP_ADDRESS),
+            maxFee: feeOverride,
+            initAuctionFee: router.getInitialAuctionFee(),
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        // Place the fast market order and store the two VAA payloads that were emitted.
+        (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
+            _placeFastMarketOrder(router, expectedFastMarketOrder, feeOverride);
 
         // Verify fast message payload.
         assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
@@ -983,6 +1076,74 @@ contract TokenRouterTest is Test {
                 redeemer: expectedFastMarketOrder.redeemer,
                 redeemerMessage: expectedFastMarketOrder.redeemerMessage
             })
+        );
+
+        // Verify fast message payload.
+        assertEq(fastTransferMessage, expectedFastMarketOrder.encode());
+
+        ICircleIntegration.DepositWithPayload memory deposit =
+            wormholeCctp.decodeDepositWithPayload(wormholeCctpMessage);
+
+        // Check that the fast market order is encoded correclty.
+        assertEq(
+            deposit.payload, Messages.SlowOrderResponse({baseFee: router.getBaseFee()}).encode()
+        );
+
+        // And check that the transfer is encoded correctly.
+        ICircleIntegration.DepositWithPayload memory expectedDeposit = ICircleIntegration
+            .DepositWithPayload({
+            token: toUniversalAddress(USDC_ADDRESS),
+            amount: amountIn,
+            sourceDomain: wormholeCctp.localDomain(),
+            targetDomain: wormholeCctp.getDomainFromChainId(matchingEngineChain),
+            nonce: deposit.nonce, // This nonce comes from Circle's bridge.
+            fromAddress: toUniversalAddress(address(router)),
+            mintRecipient: matchingEngineAddress,
+            payload: deposit.payload
+        });
+        assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
+    }
+
+    function testPlaceFastMarketOrderWithCctpInterfaceWithFeeOverride(
+        uint256 amountIn,
+        uint128 feeOverride
+    ) public {
+        amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
+        uint128 maxFee = router.calculateMaxTransferFee(amountIn);
+        feeOverride = uint128(bound(feeOverride, maxFee + 1, amountIn - 1));
+
+        _dealAndApproveUsdc(router, amountIn);
+
+        // The slow message is sent first.
+        uint64 slowSequence = wormholeSimulator.nextSequence(WORMHOLE_CCTP_ADDRESS);
+
+        // Create a fast market order, this is actually the payload that will be encoded
+        // in the "slow message".
+        Messages.FastMarketOrder memory expectedFastMarketOrder = Messages.FastMarketOrder({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: ARB_CHAIN,
+            redeemer: TEST_REDEEMER,
+            sender: toUniversalAddress(address(this)),
+            refundAddress: bytes32(0),
+            slowSequence: slowSequence,
+            slowEmitter: toUniversalAddress(WORMHOLE_CCTP_ADDRESS),
+            maxFee: feeOverride,
+            initAuctionFee: router.getInitialAuctionFee(),
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        // Place the fast market order and store the two VAA payloads that were emitted.
+        (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
+        _placeCctpFastMarketOrder(
+            router,
+            PlaceCctpMarketOrderArgs({
+                amountIn: expectedFastMarketOrder.amountIn,
+                targetChain: expectedFastMarketOrder.targetChain,
+                redeemer: expectedFastMarketOrder.redeemer,
+                redeemerMessage: expectedFastMarketOrder.redeemerMessage
+            }),
+            feeOverride
         );
 
         // Verify fast message payload.
@@ -1241,6 +1402,14 @@ contract TokenRouterTest is Test {
         ITokenRouter _router,
         Messages.FastMarketOrder memory expectedOrder
     ) internal returns (bytes memory slowMessage, bytes memory fastMessage) {
+        return _placeFastMarketOrder(_router, expectedOrder, 0);
+    }
+
+    function _placeFastMarketOrder(
+        ITokenRouter _router,
+        Messages.FastMarketOrder memory expectedOrder,
+        uint128 maxFeeOverride
+    ) internal returns (bytes memory slowMessage, bytes memory fastMessage) {
         PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
             amountIn: expectedOrder.amountIn,
             minAmountOut: expectedOrder.minAmountOut,
@@ -1257,7 +1426,11 @@ contract TokenRouterTest is Test {
         vm.recordLogs();
 
         // Place the order.
-        _router.placeFastMarketOrder(args);
+        if (maxFeeOverride > 0) {
+            _router.placeFastMarketOrder(args, maxFeeOverride);
+        } else {
+            _router.placeFastMarketOrder(args);
+        }
 
         // Fetch the logs for Wormhole message. There should be two messages.
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -1279,6 +1452,14 @@ contract TokenRouterTest is Test {
         internal
         returns (bytes memory slowMessage, bytes memory fastMessage)
     {
+        return _placeCctpFastMarketOrder(_router, args, 0);
+    }
+
+    function _placeCctpFastMarketOrder(
+        ITokenRouter _router,
+        PlaceCctpMarketOrderArgs memory args,
+        uint128 maxFeeOverride
+    ) internal returns (bytes memory slowMessage, bytes memory fastMessage) {
         // Grab balance.
         uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
 
@@ -1286,7 +1467,11 @@ contract TokenRouterTest is Test {
         vm.recordLogs();
 
         // Place the order.
-        _router.placeFastMarketOrder(args);
+        if (maxFeeOverride > 0) {
+            _router.placeFastMarketOrder(args, maxFeeOverride);
+        } else {
+            _router.placeFastMarketOrder(args);
+        }
 
         // Fetch the logs for Wormhole message. There should be two messages.
         Vm.Log[] memory logs = vm.getRecordedLogs();

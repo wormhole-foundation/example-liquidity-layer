@@ -62,7 +62,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         if (args.refundAddress == address(0)) {
             revert ErrInvalidRefundAddress();
         }
-        (sequence, fastSequence) = _handleFastOrder(args);
+        (sequence, fastSequence) = _handleFastOrder(args, 0);
     }
 
     function placeFastMarketOrder(PlaceCctpMarketOrderArgs calldata args)
@@ -79,7 +79,39 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 redeemer: args.redeemer,
                 redeemerMessage: args.redeemerMessage,
                 refundAddress: address(0)
-            })
+            }),
+            0 // maxFeeOverride
+        );
+    }
+
+    function placeFastMarketOrder(PlaceMarketOrderArgs calldata args, uint128 maxFeeOverride)
+        external
+        payable
+        notPaused
+        returns (uint64 sequence, uint64 fastSequence)
+    {
+        if (args.refundAddress == address(0)) {
+            revert ErrInvalidRefundAddress();
+        }
+        (sequence, fastSequence) = _handleFastOrder(args, maxFeeOverride);
+    }
+
+    function placeFastMarketOrder(PlaceCctpMarketOrderArgs calldata args, uint128 maxFeeOverride)
+        external
+        payable
+        notPaused
+        returns (uint64 sequence, uint64 fastSequence)
+    {
+        (sequence, fastSequence) = _handleFastOrder(
+            PlaceMarketOrderArgs({
+                amountIn: args.amountIn,
+                minAmountOut: 0,
+                targetChain: args.targetChain,
+                redeemer: args.redeemer,
+                redeemerMessage: args.redeemerMessage,
+                refundAddress: address(0)
+            }),
+            maxFeeOverride
         );
     }
 
@@ -108,7 +140,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         );
     }
 
-    function _handleFastOrder(PlaceMarketOrderArgs memory args)
+    function _handleFastOrder(PlaceMarketOrderArgs memory args, uint128 maxFeeOverride)
         private
         returns (uint64 sequence, uint64 fastSequence)
     {
@@ -120,8 +152,20 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
         _verifyInputArguments(args);
 
+        // Verify fast transfer input parameters and also calculate the fast transfer fees.
         (uint128 dynamicFastTransferFee, uint128 baseFee, uint128 initAuctionFee) =
             _verifyFastOrderParams(args.amountIn);
+
+        // Override the maxTransferFee if the `maxFeeOverride` is large enough. The `baseFee`
+        // should be baked into the `maxFeeOverride` value.
+        uint128 maxTransferFee = dynamicFastTransferFee + baseFee;
+        if (maxFeeOverride != 0) {
+            if ((maxTransferFee > maxFeeOverride) || maxFeeOverride >= args.amountIn) {
+                revert ErrInsufficientFeeOverride();
+            } else {
+                maxTransferFee = maxFeeOverride;
+            }
+        }
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
         SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
@@ -153,7 +197,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 refundAddress: toUniversalAddress(args.refundAddress),
                 slowSequence: sequence,
                 slowEmitter: toUniversalAddress(address(_wormholeCctp)),
-                maxFee: dynamicFastTransferFee + baseFee,
+                maxFee: maxTransferFee,
                 initAuctionFee: initAuctionFee,
                 redeemerMessage: args.redeemerMessage
             }).encode(),

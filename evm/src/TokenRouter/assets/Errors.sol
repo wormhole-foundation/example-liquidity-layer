@@ -33,3 +33,5 @@ error ErrInvalidFeeInBps();
 error ErrInvalidFastTransferParameters();
 
 error ErrFastTransferNotSupported();
+
+error ErrInsufficientFeeOverride();
