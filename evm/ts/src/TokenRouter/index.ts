@@ -18,6 +18,13 @@ export type PlaceCctpMarketOrderArgs = {
     redeemerMessage: Buffer | Uint8Array;
 };
 
+export type FastTransferParameters = {
+    feeInBps: number;
+    maxAmount: bigint;
+    baseFee: bigint;
+    initAuctionFee: bigint;
+};
+
 export type OrderResponse = {
     encodedWormholeMessage: Buffer | Uint8Array;
     circleBridgeMessage: Buffer | Uint8Array;
@@ -32,6 +39,12 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
     abstract redeemFill(response: OrderResponse): Promise<PreparedTransactionType>;
 
     abstract addRouterEndpoint(chain: number, info: string): Promise<PreparedTransactionType>;
+
+    abstract updateFastTransferParameters(
+        newParams: FastTransferParameters
+    ): Promise<PreparedTransactionType>;
+
+    abstract disableFastTransfer(): Promise<PreparedTransactionType>;
 
     abstract getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult>;
 }

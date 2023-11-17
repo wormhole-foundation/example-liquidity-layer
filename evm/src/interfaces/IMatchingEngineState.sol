@@ -20,6 +20,16 @@ interface IMatchingEngineState {
      */
     function getRouter(uint16 chain) external view returns (bytes32);
 
+    /**
+     * @notice Returns the Wormhole Circle integration contract interface.
+     */
+    function wormholeCctp() external view returns (ICircleIntegration);
+
+    /**
+     * @notice Returns the Wormhole chain ID.
+     */
+    function wormholeChainId() external view returns (uint16);
+
     function maxBpsFee() external pure returns (uint24);
 
     function liveAuctionInfo(bytes32 auctionId) external view returns (LiveAuctionData memory);

@@ -1,24 +1,18 @@
 import { ChainId } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
-import {
-    OrderResponse,
-    TokenRouter,
-    PlaceMarketOrderArgs,
-    PlaceCctpMarketOrderArgs,
-    FastTransferParameters,
-} from ".";
+import { AuctionConfig, MatchingEngine } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {
     ICircleIntegration,
     ICircleIntegration__factory,
-    ITokenRouter,
-    ITokenRouter__factory,
+    IMatchingEngine,
+    IMatchingEngine__factory,
     IWormhole,
     IWormhole__factory,
 } from "../types";
 
-export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
-    contract: ITokenRouter;
+export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransaction> {
+    contract: IMatchingEngine;
 
     // Cached contracts.
     cache?: {
@@ -29,41 +23,19 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
     };
 
     constructor(connection: ethers.Signer | ethers.providers.Provider, contractAddress: string) {
-        this.contract = ITokenRouter__factory.connect(contractAddress, connection);
+        this.contract = IMatchingEngine__factory.connect(contractAddress, connection);
     }
 
     get address(): string {
         return this.contract.address;
     }
 
-    placeMarketOrder(args: PlaceMarketOrderArgs | PlaceCctpMarketOrderArgs) {
-        if ("minAmountOut" in args) {
-            return this.contract[
-                "placeMarketOrder((uint256,uint256,uint16,bytes32,bytes,address))"
-            ](args);
-        } else {
-            return this.contract["placeMarketOrder((uint256,uint16,bytes32,bytes))"](args);
-        }
+    async addRouterEndpoint(chain: number, router: string): Promise<ethers.ContractTransaction> {
+        return this.contract.addRouterEndpoint(chain, router);
     }
 
-    redeemFill(response: OrderResponse) {
-        return this.contract.redeemFill(response);
-    }
-
-    addRouterEndpoint(chain: number, info: string) {
-        return this.contract.addRouterEndpoint(chain, info);
-    }
-
-    updateFastTransferParameters(newParams: FastTransferParameters) {
-        return this.contract.updateFastTransferParameters(newParams);
-    }
-
-    disableFastTransfer() {
-        return this.contract.disableFastTransfers();
-    }
-
-    async getRouter(chain: number): Promise<string> {
-        return this.contract.getRouter(chain);
+    async setAuctionConfig(config: AuctionConfig): Promise<ethers.ContractTransaction> {
+        return this.contract.setAuctionConfig(config);
     }
 
     async getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult> {
