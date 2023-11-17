@@ -5,13 +5,13 @@ pragma solidity ^0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
-import {IState} from "../../interfaces/IState.sol";
+import {ITokenRouterState} from "../../interfaces/ITokenRouterState.sol";
 
 import "./Errors.sol";
 import {FastTransferParameters} from "../../interfaces/Types.sol";
 import {getRouterEndpointState, getFastTransferParametersState} from "./Storage.sol";
 
-abstract contract State is IState {
+abstract contract State is ITokenRouterState {
     // Immutable state.
     address immutable _deployer;
     IERC20 immutable _orderToken;
@@ -48,62 +48,69 @@ abstract contract State is IState {
         _wormhole = _wormholeCctp.wormhole();
     }
 
-    /// @inheritdoc IState
+    /// @inheritdoc ITokenRouterState
     function getDeployer() external view returns (address) {
         return _deployer;
     }
 
-    /// @inheritdoc IState
+    /// @inheritdoc ITokenRouterState
     function getRouter(uint16 chain) public view returns (bytes32) {
         return getRouterEndpointState().endpoints[chain];
     }
 
-    /// @inheritdoc IState
+    /// @inheritdoc ITokenRouterState
     function isFillRedeemed(bytes32 fillHash) external view returns (bool) {
         return _wormholeCctp.isMessageConsumed(fillHash);
     }
 
-    /// @inheritdoc IState
+    /// @inheritdoc ITokenRouterState
     function orderToken() external view returns (IERC20) {
         return _orderToken;
     }
 
-    /// @inheritdoc IState
+    /// @inheritdoc ITokenRouterState
     function wormholeCctp() external view returns (ICircleIntegration) {
         return _wormholeCctp;
     }
 
-    /// @inheritdoc IState
+    /// @inheritdoc ITokenRouterState
     function wormholeChainId() external view returns (uint16) {
         return _wormholeChainId;
     }
 
+    /// @inheritdoc ITokenRouterState
     function fastTransfersEnabled() external view returns (bool) {
         return getFastTransferParametersState().maxAmount > 0;
     }
 
+    /// @inheritdoc ITokenRouterState
     function getFastTransferParameters() external pure returns (FastTransferParameters memory) {
         return getFastTransferParametersState();
     }
 
+    /// @inheritdoc ITokenRouterState
     function getMinTransferAmount() external pure returns (uint256) {
         FastTransferParameters memory params = getFastTransferParametersState();
 
         return params.baseFee + params.initAuctionFee + 1;
     }
 
+    /// @inheritdoc ITokenRouterState
     function getMaxTransferAmount() external view returns (uint128) {
         return getFastTransferParametersState().maxAmount;
     }
 
+    /// @inheritdoc ITokenRouterState
     function getInitialAuctionFee() external view returns (uint128) {
         return getFastTransferParametersState().initAuctionFee;
     }
 
+    /// @inheritdoc ITokenRouterState
     function getBaseFee() external view returns (uint128) {
         return getFastTransferParametersState().baseFee;
     }
 
+    /// @inheritdoc ITokenRouterState
     function calculateMaxTransferFee(uint256 amount) external pure returns (uint128) {
         FastTransferParameters memory fastParams = getFastTransferParametersState();
         uint128 feeInBps = uint128(fastParams.feeInBps);
