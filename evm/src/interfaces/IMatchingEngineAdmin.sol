@@ -14,4 +14,6 @@ interface IMatchingEngineAdmin {
     function addRouterEndpoint(uint16 chain, bytes32 router) external;
 
     function setAuctionConfig(AuctionConfig calldata newConfig) external;
+
+    function updateFeeRecipient(address newFeeRecipient) external;
 }

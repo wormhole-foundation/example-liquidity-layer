@@ -7,6 +7,7 @@ import {ERC1967Upgrade} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgra
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
 import {getOwnerState, getOwnerAssistantState} from "../shared/Admin.sol";
+import {getFeeRecipientState} from "./assets/Storage.sol";
 
 import {IMatchingEngine} from "../interfaces/IMatchingEngine.sol";
 
@@ -17,7 +18,7 @@ import "forge-std/console.sol";
 contract MatchingEngineSetup is ERC1967Upgrade, Context {
     error AlreadyDeployed();
 
-    function deployProxy(address implementation, address ownerAssistant)
+    function deployProxy(address implementation, address ownerAssistant, address feeRecipient)
         public
         payable
         returns (address)
@@ -32,21 +33,30 @@ contract MatchingEngineSetup is ERC1967Upgrade, Context {
             address(this),
             abi.encodeCall(
                 this.setup,
-                (_getAdmin(), implementation, ownerAssistant)
+                (_getAdmin(), implementation, ownerAssistant, feeRecipient)
             )
         );
 
         return address(proxy);
     }
 
-    function setup(address admin, address implementation, address ownerAssistant) public {
+    function setup(
+        address admin,
+        address implementation,
+        address ownerAssistant,
+        address feeRecipient
+    ) public {
         assert(implementation != address(0));
         assert(ownerAssistant != address(0));
+        assert(feeRecipient != address(0));
         assert(IMatchingEngine(implementation).getDeployer() == admin);
 
         // Set the owner.
         getOwnerState().owner = admin;
         getOwnerAssistantState().ownerAssistant = ownerAssistant;
+
+        // Set the fee recipient.
+        getFeeRecipientState().recipient = feeRecipient;
 
         // Set implementation.
         _upgradeTo(implementation);

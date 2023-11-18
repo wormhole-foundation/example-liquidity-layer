@@ -6,7 +6,12 @@ import {Admin} from "../../shared/Admin.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
-import {getRouterEndpointState, AuctionConfig, getAuctionConfig} from "./Storage.sol";
+import {
+    getRouterEndpointState,
+    AuctionConfig,
+    getAuctionConfig,
+    getFeeRecipientState
+} from "./Storage.sol";
 
 abstract contract MatchingEngineAdmin is Admin, State {
     function addRouterEndpoint(uint16 chain, bytes32 router) external onlyOwnerOrAssistant {
@@ -46,5 +51,13 @@ abstract contract MatchingEngineAdmin is Admin, State {
         config.penaltyBlocks = newConfig.penaltyBlocks;
         config.userPenaltyRewardBps = newConfig.userPenaltyRewardBps;
         config.initialPenaltyBps = newConfig.initialPenaltyBps;
+    }
+
+    function updateFeeRecipient(address newFeeRecipient) public onlyOwnerOrAssistant {
+        if (newFeeRecipient == address(0)) {
+            revert InvalidAddress();
+        }
+
+        getFeeRecipientState().recipient = newFeeRecipient;
     }
 }

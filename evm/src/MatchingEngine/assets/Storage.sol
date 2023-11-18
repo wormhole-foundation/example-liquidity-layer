@@ -2,6 +2,21 @@
 
 pragma solidity ^0.8.19;
 
+struct FeeRecipient {
+    address recipient;
+}
+
+// keccak256("FeeRecipient") - 1
+// TODO: need to recompute this.
+bytes32 constant FEE_RECIPIENT_STORAGE_SLOT =
+    0x3627fcf6b5d29b232a423d0b586326756a413529bc2286eb687a1a7ddeadbeef;
+
+function getFeeRecipientState() pure returns (FeeRecipient storage state) {
+    assembly ("memory-safe") {
+        state.slot := FEE_RECIPIENT_STORAGE_SLOT
+    }
+}
+
 struct RouterEndpoints {
     // Mapping of chain ID to router address in Wormhole universal format.
     mapping(uint16 chain => bytes32 endpoint) endpoints;

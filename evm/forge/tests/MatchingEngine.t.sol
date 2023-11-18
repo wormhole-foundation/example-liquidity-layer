@@ -75,6 +75,7 @@ contract MatchingEngineTest is Test {
     address immutable PLAYER_TWO = makeAddr("player two");
     address immutable PLAYER_THREE = makeAddr("player three");
     address immutable RELAYER = makeAddr("relayer");
+    address immutable FEE_RECIPIENT = makeAddr("feeRecipient");
 
     // Test engines.
     IMatchingEngine engine;
@@ -99,7 +100,8 @@ contract MatchingEngineTest is Test {
         // Deploy Setup.
         MatchingEngineSetup setup = new MatchingEngineSetup();
 
-        address proxy = setup.deployProxy(address(implementation), makeAddr("ownerAssistant"));
+        address proxy =
+            setup.deployProxy(address(implementation), makeAddr("ownerAssistant"), FEE_RECIPIENT);
 
         return IMatchingEngine(proxy);
     }
@@ -302,6 +304,27 @@ contract MatchingEngineTest is Test {
         vm.prank(makeAddr("robber"));
         vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
         engine.setAuctionConfig(config);
+    }
+
+    function testUpdateFeeRecipient() public {
+        assertEq(engine.feeRecipient(), FEE_RECIPIENT);
+
+        vm.prank(makeAddr("owner"));
+        engine.updateFeeRecipient(PLAYER_ONE);
+
+        assertEq(engine.feeRecipient(), PLAYER_ONE);
+    }
+
+    function testCannotUpdateFeeRecipientInvalidAddress() public {
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
+        engine.updateFeeRecipient(address(0));
+    }
+
+    function testCannotUpdateFeeRecipientOnlyOwnerOrAssistant() public {
+        vm.prank(makeAddr("robber"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
+        engine.updateFeeRecipient(PLAYER_ONE);
     }
 
     /**
@@ -894,7 +917,10 @@ contract MatchingEngineTest is Test {
         );
 
         // Execute the slow order, the highest bidder should receive their initial deposit.
-        uint256 relayerBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO);
+        // The fee recipient should receive the base fee, even though the caller isn't
+        // the same address.
+        uint256 relayerBefore = IERC20(USDC_ADDRESS).balanceOf(RELAYER);
+        uint256 feeRecipientBefore = IERC20(USDC_ADDRESS).balanceOf(FEE_RECIPIENT);
         uint256 contractBefore = IERC20(USDC_ADDRESS).balanceOf(address(engine));
 
         // Since the auction was never started, the relayer should receive the base fee,
@@ -903,7 +929,11 @@ contract MatchingEngineTest is Test {
 
         _verifyOutboundCctpTransfer(order, amountIn - FAST_TRANSFER_BASE_FEE, cctpPayload);
 
-        assertEq(IERC20(USDC_ADDRESS).balanceOf(RELAYER) - relayerBefore, FAST_TRANSFER_BASE_FEE);
+        assertEq(IERC20(USDC_ADDRESS).balanceOf(RELAYER) - relayerBefore, 0);
+        assertEq(
+            IERC20(USDC_ADDRESS).balanceOf(FEE_RECIPIENT) - feeRecipientBefore,
+            FAST_TRANSFER_BASE_FEE
+        );
         assertEq(IERC20(USDC_ADDRESS).balanceOf(address(engine)), contractBefore);
         assertEq(uint8(engine.getAuctionStatus(auctionId)), uint8(AuctionStatus.Completed));
     }

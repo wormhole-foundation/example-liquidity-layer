@@ -16,7 +16,8 @@ import {
     AuctionStatus,
     AuctionConfig,
     getAuctionConfig,
-    getFastFillsState
+    getFastFillsState,
+    getFeeRecipientState
 } from "./Storage.sol";
 
 abstract contract State is IMatchingEngineState {
@@ -51,6 +52,10 @@ abstract contract State is IMatchingEngineState {
     /// @inheritdoc IMatchingEngineState
     function getRouter(uint16 chain) public view returns (bytes32) {
         return getRouterEndpointState().endpoints[chain];
+    }
+
+    function feeRecipient() public view returns (address) {
+        return getFeeRecipientState().recipient;
     }
 
     function wormholeCctp() external view returns (ICircleIntegration) {

@@ -21,6 +21,7 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
     address immutable _token = vm.envAddress("RELEASE_TOKEN_ADDRESS");
     address immutable _wormholeCctpAddress = vm.envAddress("RELEASE_WORMHOLE_CCTP_ADDRESS");
     address immutable _ownerAssistantAddress = vm.envAddress("RELEASE_OWNER_ASSISTANT_ADDRESS");
+    address immutable _feeRecipientAddress = vm.envAddress("RELEASE_FEE_RECIPIENT_ADDRESS");
 
     function deploy() public {
         requireValidChain(_chainId, _wormholeCctpAddress);
@@ -31,7 +32,8 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
         );
 
         MatchingEngineSetup setup = new MatchingEngineSetup();
-        address proxy = setup.deployProxy(address(implementation), _ownerAssistantAddress);
+        address proxy =
+            setup.deployProxy(address(implementation), _ownerAssistantAddress, _feeRecipientAddress);
 
         console2.log("Deployed MatchingEngine (chain=%s): %s", _chainId, proxy);
     }

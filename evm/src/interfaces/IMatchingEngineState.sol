@@ -30,6 +30,8 @@ interface IMatchingEngineState {
      */
     function wormholeChainId() external view returns (uint16);
 
+    function feeRecipient() external view returns (address);
+
     function maxBpsFee() external pure returns (uint24);
 
     function liveAuctionInfo(bytes32 auctionId) external view returns (LiveAuctionData memory);

@@ -25,11 +25,6 @@ import {
     getAuctionConfig
 } from "./Storage.sol";
 
-
-// TODO: Whitelist protocol relayer
-// TODO: Use protocol relayer to start auctions. Log the block, and decay maxFee
-// based on the number of blocks elapsed between initilization and first bid. - more discussion necessary
-
 abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     using BytesParsing for bytes;
     using Messages for *;
@@ -189,8 +184,12 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
             sequence = _handleCctpTransfer(order.amountIn - baseFee, cctpEmitterChain, order);
 
-            // Pay the relayer the base fee if there was no auction.
-            SafeERC20.safeTransfer(_token, msg.sender, baseFee);
+            /**
+             * Pay the `feeRecipient` the `baseFee`. This ensures that the protocol relayer
+             * is paid for relaying slow VAAs that do not have an associated auction.
+             * This prevents the protocol relayer from any MEV attacks.
+             */
+            SafeERC20.safeTransfer(_token, feeRecipient(), baseFee);
 
             /*
              * SECURITY: this is a necessary security check. This will prevent a relayer from
