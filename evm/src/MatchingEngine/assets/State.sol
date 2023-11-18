@@ -33,9 +33,9 @@ abstract contract State is IMatchingEngineState {
     uint32 constant NONCE = 0;
     uint24 constant MAX_BPS_FEE = 1000000; // 10,000.00 bps (100%)
 
-    constructor(address wormholeCctp_, address cctpToken_) {
-        assert(wormholeCctp_ != address(0));
+    constructor(address cctpToken_, address wormholeCctp_) {
         assert(cctpToken_ != address(0));
+        assert(wormholeCctp_ != address(0));
 
         _deployer = msg.sender;
         _wormholeCctp = ICircleIntegration(wormholeCctp_);

@@ -43,5 +43,5 @@ fi
 
 npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json  $ROOT/[0-9]*.ts
 
-# Nuke.
+# # Nuke.
 pkill anvil

@@ -93,8 +93,8 @@ contract MatchingEngineTest is Test {
     {
         // Deploy Implementation.
         MatchingEngineImplementation implementation = new MatchingEngineImplementation(
-            _wormholeCircle,
-            _token
+            _token,
+            _wormholeCircle 
         );
 
         // Deploy Setup.
@@ -149,8 +149,8 @@ contract MatchingEngineTest is Test {
     function testUpgradeContract() public {
         // Deploy new implementation.
         MockMatchingEngineImplementation newImplementation = new MockMatchingEngineImplementation(
-            address(wormholeCctp),
-            USDC_ADDRESS
+            USDC_ADDRESS,
+            address(wormholeCctp) 
         );
 
         // Upgrade the contract.
@@ -168,8 +168,8 @@ contract MatchingEngineTest is Test {
     function testCannotUpgradeContractAgain() public {
         // Deploy new implementation.
         MockMatchingEngineImplementation newImplementation = new MockMatchingEngineImplementation(
-            address(wormholeCctp),
-            USDC_ADDRESS
+            USDC_ADDRESS,
+            address(wormholeCctp) 
         );
 
         vm.startPrank(makeAddr("owner"));

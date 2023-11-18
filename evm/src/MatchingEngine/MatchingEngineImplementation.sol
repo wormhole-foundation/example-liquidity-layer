@@ -16,7 +16,7 @@ import {State} from "./assets/State.sol";
 contract MatchingEngineImplementation is MatchingEngineFastOrders, MatchingEngineAdmin {
     error AlreadyInitialized();
 
-    constructor(address wormholeCctp_, address cctpToken_) State(wormholeCctp_, cctpToken_) {}
+    constructor(address cctpToken_, address wormholeCctp_) State(cctpToken_, wormholeCctp_) {}
 
     function initialize() public virtual initializer {
         // this function needs to be exposed for an upgrade to pass
