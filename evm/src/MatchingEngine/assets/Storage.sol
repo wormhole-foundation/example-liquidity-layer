@@ -7,9 +7,8 @@ struct FeeRecipient {
 }
 
 // keccak256("FeeRecipient") - 1
-// TODO: need to recompute this.
 bytes32 constant FEE_RECIPIENT_STORAGE_SLOT =
-    0x3627fcf6b5d29b232a423d0b586326756a413529bc2286eb687a1a7ddeadbeef;
+    0x8743f91cd3aa128615946fad71e2f5cfe95e4c35cccb2afbc7ecaa9a9b7f137f;
 
 function getFeeRecipientState() pure returns (FeeRecipient storage state) {
     assembly ("memory-safe") {

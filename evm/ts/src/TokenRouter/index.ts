@@ -1,5 +1,5 @@
 import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
-
+import { ethers } from "ethers";
 export * from "./evm";
 
 export type PlaceMarketOrderArgs = {
@@ -34,7 +34,14 @@ export type OrderResponse = {
 export abstract class TokenRouter<PreparedTransactionType extends PreparedInstruction> {
     abstract get address(): string;
 
-    abstract placeMarketOrder(args: PlaceMarketOrderArgs): Promise<PreparedTransactionType>;
+    abstract placeMarketOrder(
+        args: PlaceMarketOrderArgs | PlaceCctpMarketOrderArgs
+    ): Promise<PreparedTransactionType>;
+
+    abstract placeFastMarketOrder(
+        args: PlaceMarketOrderArgs | PlaceCctpMarketOrderArgs,
+        maxFeeOverride?: bigint
+    ): Promise<PreparedTransactionType>;
 
     abstract redeemFill(response: OrderResponse): Promise<PreparedTransactionType>;
 
@@ -45,6 +52,8 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
     ): Promise<PreparedTransactionType>;
 
     abstract disableFastTransfer(): Promise<PreparedTransactionType>;
+
+    abstract getInitialAuctionFee(): Promise<ethers.BigNumber>;
 
     abstract getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult>;
 }

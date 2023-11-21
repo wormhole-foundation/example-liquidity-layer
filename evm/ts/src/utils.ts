@@ -7,6 +7,25 @@ import {
     tryNativeToUint8Array,
 } from "@certusone/wormhole-sdk";
 
+export function parseEvmEvents(
+    txReceipt: ethers.ContractReceipt,
+    contractAddress: string,
+    eventInterface: string
+) {
+    let wormholeLogs: ethers.utils.Result[] = [];
+    for (const txLog of txReceipt.logs) {
+        if (txLog.address === contractAddress) {
+            const iface = new ethers.utils.Interface([`event ${eventInterface}`]);
+            wormholeLogs.push(iface.parseLog(txLog).args);
+        }
+    }
+    if (wormholeLogs.length === 0) {
+        throw new Error("contract address not found");
+    }
+
+    return wormholeLogs;
+}
+
 export function parseEvmEvent(
     txReceipt: ethers.ContractReceipt,
     contractAddress: string,
@@ -75,10 +94,16 @@ export type LiquidityLayerObservation = {
 export class LiquidityLayerTransactionResult {
     wormhole: LiquidityLayerObservation;
     circleMessage?: Buffer;
+    fastMessage?: LiquidityLayerObservation;
 
-    constructor(observation: LiquidityLayerObservation, circleMessage?: Buffer) {
+    constructor(
+        observation: LiquidityLayerObservation,
+        circleMessage?: Buffer,
+        fastMessage?: LiquidityLayerObservation
+    ) {
         this.wormhole = observation;
         this.circleMessage = circleMessage;
+        this.fastMessage = fastMessage;
     }
 
     targetChain() {
@@ -92,50 +117,77 @@ export class LiquidityLayerTransactionResult {
 
     static fromEthersTransactionReceipt(
         chain: ChainId | ChainName,
+        contractAddress: string,
         coreBridgeAddress: string,
         wormholeCctpAddress: string,
         txReceipt: ethers.ContractReceipt,
         circleTransmitterAddress?: string
     ) {
         // First get Wormhole message.
-        const logMessagePublished = parseEvmEvent(
+        const publishedMessages = parseEvmEvents(
             txReceipt,
             coreBridgeAddress,
             "LogMessagePublished(address indexed sender, uint64 sequence, uint32 nonce, bytes payload, uint8 consistencyLevel)"
         );
-        const {
-            sender: evmEmitterAddress,
-            sequence: ethersSequence,
-            nonce,
-            payload: payloadByteslike,
-            consistencyLevel,
-        } = logMessagePublished;
 
-        const emitterAddress = Buffer.from(tryNativeToUint8Array(evmEmitterAddress, chain));
-        const sequence = BigInt(ethersSequence.toString());
-        const encodedMessage = bufferfy(payloadByteslike);
+        let circleMessage: Buffer | undefined;
+        let fastMessage: LiquidityLayerObservation | undefined;
+        let wormhole: LiquidityLayerObservation | undefined;
 
-        if (evmEmitterAddress === wormholeCctpAddress) {
-            // This should never happen.
-            if (circleTransmitterAddress === undefined) {
-                throw new Error("Circle transmitter address is undefined");
-            }
-
-            const wormhole = {
-                emitterAddress,
-                sequence,
+        for (const message of publishedMessages) {
+            const {
+                sender: evmEmitterAddress,
+                sequence: ethersSequence,
                 nonce,
+                payload: payloadByteslike,
                 consistencyLevel,
-                message: MessageDecoder.unsafeDecodeWormholeCctpPayload(encodedMessage),
-            };
+            } = message;
 
-            const circleMessage = bufferfy(
-                parseEvmEvent(txReceipt, circleTransmitterAddress, "MessageSent(bytes message)")
-                    .message
-            );
-            return new LiquidityLayerTransactionResult(wormhole, circleMessage);
-        } else {
-            throw new Error("Unrecognized emitter address.");
+            const emitterAddress = Buffer.from(tryNativeToUint8Array(evmEmitterAddress, chain));
+            const sequence = BigInt(ethersSequence.toString());
+            const encodedMessage = bufferfy(payloadByteslike);
+
+            if (evmEmitterAddress === wormholeCctpAddress) {
+                // This should never happen.
+                if (circleTransmitterAddress === undefined) {
+                    throw new Error("Circle transmitter address is undefined");
+                }
+
+                wormhole = {
+                    emitterAddress,
+                    sequence,
+                    nonce,
+                    consistencyLevel,
+                    message: MessageDecoder.unsafeDecodeWormholeCctpPayload(encodedMessage),
+                };
+
+                circleMessage = bufferfy(
+                    parseEvmEvent(txReceipt, circleTransmitterAddress, "MessageSent(bytes message)")
+                        .message
+                );
+            } else if (evmEmitterAddress == contractAddress) {
+                fastMessage = {
+                    emitterAddress,
+                    sequence,
+                    nonce,
+                    consistencyLevel,
+                    message: MessageDecoder.unsafeDecodeFastMarketOrderPayload(encodedMessage),
+                };
+            } else {
+                console.log(
+                    evmEmitterAddress,
+                    contractAddress,
+                    coreBridgeAddress,
+                    wormholeCctpAddress
+                );
+                throw new Error("Unrecognized emitter address.");
+            }
         }
+
+        if (wormhole === undefined) {
+            throw new Error("Wormhole message not found");
+        }
+
+        return new LiquidityLayerTransactionResult(wormhole, circleMessage, fastMessage);
     }
 }

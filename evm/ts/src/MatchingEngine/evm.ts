@@ -1,6 +1,6 @@
 import { ChainId } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
-import { AuctionConfig, MatchingEngine } from ".";
+import { AuctionConfig, LiveAuctionData, MatchingEngine, RedeemParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {
     ICircleIntegration,
@@ -30,12 +30,51 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         return this.contract.address;
     }
 
+    connect(connection: ethers.Signer | ethers.providers.Provider): EvmMatchingEngine {
+        return new EvmMatchingEngine(connection, this.address);
+    }
+
     async addRouterEndpoint(chain: number, router: string): Promise<ethers.ContractTransaction> {
         return this.contract.addRouterEndpoint(chain, router);
     }
 
     async setAuctionConfig(config: AuctionConfig): Promise<ethers.ContractTransaction> {
         return this.contract.setAuctionConfig(config);
+    }
+
+    async placeInitialBid(
+        fastTransferVaa: Buffer | Uint8Array,
+        feeBid: bigint | ethers.BigNumberish
+    ): Promise<ethers.ContractTransaction> {
+        return this.contract.placeInitialBid(fastTransferVaa, feeBid);
+    }
+
+    async improveBid(
+        auctionId: Buffer | Uint8Array,
+        feeBid: bigint | ethers.BigNumberish
+    ): Promise<ethers.ContractTransaction> {
+        return this.contract.improveBid(auctionId, feeBid);
+    }
+
+    async executeFastOrder(
+        fastTransferVaa: Buffer | Uint8Array
+    ): Promise<ethers.ContractTransaction> {
+        return this.contract.executeFastOrder(fastTransferVaa);
+    }
+
+    async executeSlowOrderAndRedeem(
+        fastTransferVaa: Buffer | Uint8Array,
+        params: RedeemParameters
+    ): Promise<ethers.ContractTransaction> {
+        return this.contract.executeSlowOrderAndRedeem(fastTransferVaa, params);
+    }
+
+    async liveAuctionInfo(auctionId: Buffer | Uint8Array): Promise<LiveAuctionData> {
+        return this.contract.liveAuctionInfo(auctionId);
+    }
+
+    async getAuctionGracePeriod(): Promise<number> {
+        return this.contract.getAuctionGracePeriod();
     }
 
     async getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult> {
@@ -48,6 +87,7 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
             .then((txReceipt) =>
                 LiquidityLayerTransactionResult.fromEthersTransactionReceipt(
                     chainId,
+                    this.address,
                     coreBridge.address,
                     wormholeCctp.address,
                     txReceipt,

@@ -62,12 +62,10 @@ export class WormholeCctpDepositHeader {
     }
 }
 
-export enum RevertType {
-    SwapFailed,
-}
-
 export type LiquidityLayerMessageBody = {
     fill?: Fill;
+    slowOrderResponse?: SlowOrderResponse;
+    fastMarketOrder?: FastMarketOrder;
 };
 
 export type CoreBridgeLiquidityLayerMessage = {
@@ -89,6 +87,12 @@ export class MessageDecoder {
         switch (payloadId) {
             case Fill.ID: {
                 return { fill: Fill.decode(payload) };
+            }
+            case FastMarketOrder.ID: {
+                return { fastMarketOrder: FastMarketOrder.decode(payload) };
+            }
+            case SlowOrderResponse.ID: {
+                return { slowOrderResponse: SlowOrderResponse.decode(payload) };
             }
             default: {
                 throw new Error(`Invalid payload ID: ${payloadId}`);
@@ -128,6 +132,16 @@ export class MessageDecoder {
             body: this.decode(payload),
         };
     }
+
+    static unsafeDecodeFastMarketOrderPayload(
+        fastMarketOrderMessage: Buffer
+    ): CoreBridgeLiquidityLayerMessage {
+        const payload = Buffer.from(fastMarketOrderMessage);
+        return {
+            header: {},
+            body: this.decode(payload),
+        };
+    }
 }
 
 export class Fill {
@@ -159,9 +173,103 @@ export class Fill {
         const orderSender = buf.subarray(2, 34);
         const redeemer = buf.subarray(34, 66);
         const redeemerMsgLen = buf.readUInt32BE(66);
-        const redeemerMessage = buf.subarray(72, 72 + redeemerMsgLen);
+        const redeemerMessage = buf.subarray(70, 70 + redeemerMsgLen);
 
         return new Fill(sourceChain, orderSender, redeemer, redeemerMessage);
+    }
+}
+
+export class FastMarketOrder {
+    amountIn: bigint;
+    minAmountOut: bigint;
+    targetChain: number;
+    redeemer: Buffer;
+    sender: Buffer;
+    refundAddress: Buffer;
+    slowSequence: number;
+    slowEmitter: Buffer;
+    maxFee: bigint;
+    initAuctionFee: bigint;
+    redeemerMessage: Buffer;
+
+    constructor(
+        amountIn: bigint,
+        minAmountOut: bigint,
+        targetChain: number,
+        redeemer: Buffer,
+        sender: Buffer,
+        refundAddress: Buffer,
+        slowSequence: number,
+        slowEmitter: Buffer,
+        maxFee: bigint,
+        initAuctionFee: bigint,
+        redeemerMessage: Buffer
+    ) {
+        this.amountIn = amountIn;
+        this.minAmountOut = minAmountOut;
+        this.targetChain = targetChain;
+        this.redeemer = redeemer;
+        this.sender = sender;
+        this.refundAddress = refundAddress;
+        this.slowSequence = slowSequence;
+        this.slowEmitter = slowEmitter;
+        this.maxFee = maxFee;
+        this.initAuctionFee = initAuctionFee;
+        this.redeemerMessage = redeemerMessage;
+    }
+
+    static get ID(): number {
+        return 32; // 0x20
+    }
+
+    static decode(payload: Buffer): FastMarketOrder {
+        const buf = takePayloadId(payload, this.ID);
+
+        const amountIn = BigInt(ethers.BigNumber.from(buf.subarray(0, 32)).toString());
+        const minAmountOut = BigInt(ethers.BigNumber.from(buf.subarray(32, 64)).toString());
+        const targetChain = buf.readUInt16BE(64);
+        const redeemer = buf.subarray(66, 98);
+        const sender = buf.subarray(98, 130);
+        const refundAddress = buf.subarray(130, 162);
+        const slowSequence = buf.readBigUint64BE(162);
+        const slowEmitter = buf.subarray(170, 202);
+        const maxFee = BigInt(ethers.BigNumber.from(buf.subarray(202, 218)).toString());
+        const initAuctionFee = BigInt(ethers.BigNumber.from(buf.subarray(218, 234)).toString());
+        const redeemerMsgLen = buf.readUInt32BE(234);
+        const redeemerMessage = buf.subarray(238, 238 + redeemerMsgLen);
+        return new FastMarketOrder(
+            amountIn,
+            minAmountOut,
+            targetChain,
+            redeemer,
+            sender,
+            refundAddress,
+            Number(slowSequence),
+            slowEmitter,
+            maxFee,
+            initAuctionFee,
+            redeemerMessage
+        );
+    }
+}
+
+export class SlowOrderResponse {
+    baseFee: bigint;
+
+    constructor(baseFee: bigint) {
+        this.baseFee = baseFee;
+    }
+
+    static get ID(): number {
+        return 33; // 0x21
+    }
+
+    static decode(payload: Buffer): SlowOrderResponse {
+        const buf = takePayloadId(payload, this.ID);
+
+        const baseFee = BigInt(ethers.BigNumber.from(buf.subarray(0, 16)).toString());
+
+        return new SlowOrderResponse(baseFee);
     }
 }
 

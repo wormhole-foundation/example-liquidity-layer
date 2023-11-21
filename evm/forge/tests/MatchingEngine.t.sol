@@ -8,6 +8,7 @@ import "forge-std/console.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CircleSimulator} from "cctp-solidity/CircleSimulator.sol";
+import {IUSDC} from "cctp-solidity/IUSDC.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
@@ -1614,10 +1615,18 @@ contract MatchingEngineTest is Test {
     }
 
     function _dealAndApproveUsdc(IMatchingEngine _engine, uint256 amount, address owner) internal {
-        deal(USDC_ADDRESS, owner, amount);
+        mintUSDC(amount, owner);
 
         vm.prank(owner);
         IERC20(USDC_ADDRESS).approve(address(_engine), amount);
+    }
+
+    function mintUSDC(uint256 amount, address receiver) public {
+        IUSDC usdc = IUSDC(USDC_ADDRESS);
+        require(amount <= type(uint256).max - usdc.totalSupply(), "total supply overflow");
+        vm.prank(usdc.masterMinter());
+        usdc.configureMinter(address(this), type(uint256).max);
+        usdc.mint(receiver, amount);
     }
 
     function _createSignedVaa(

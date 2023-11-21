@@ -46,6 +46,31 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         }
     }
 
+    placeFastMarketOrder(
+        args: PlaceMarketOrderArgs | PlaceCctpMarketOrderArgs,
+        maxFeeOverride?: bigint
+    ) {
+        if (maxFeeOverride !== undefined) {
+            if ("minAmountOut" in args) {
+                return this.contract[
+                    "placeFastMarketOrder((uint256,uint256,uint16,bytes32,bytes,address),uint128)"
+                ](args, maxFeeOverride);
+            } else {
+                return this.contract[
+                    "placeFastMarketOrder((uint256,uint16,bytes32,bytes),uint128)"
+                ](args, maxFeeOverride);
+            }
+        } else {
+            if ("minAmountOut" in args) {
+                return this.contract[
+                    "placeFastMarketOrder((uint256,uint256,uint16,bytes32,bytes,address))"
+                ](args);
+            } else {
+                return this.contract["placeFastMarketOrder((uint256,uint16,bytes32,bytes))"](args);
+            }
+        }
+    }
+
     redeemFill(response: OrderResponse) {
         return this.contract.redeemFill(response);
     }
@@ -66,6 +91,10 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         return this.contract.getRouter(chain);
     }
 
+    async getInitialAuctionFee(): Promise<ethers.BigNumber> {
+        return this.contract.getInitialAuctionFee();
+    }
+
     async getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult> {
         // Check cached contracts.
         const { chainId, wormholeCctp, coreBridge, circleTransmitterAddress } =
@@ -76,6 +105,7 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
             .then((txReceipt) =>
                 LiquidityLayerTransactionResult.fromEthersTransactionReceipt(
                     chainId,
+                    this.address,
                     coreBridge.address,
                     wormholeCctp.address,
                     txReceipt,

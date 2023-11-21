@@ -57,10 +57,12 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
 
         Messages.Fill memory fill = deposit.payload.decodeFill();
 
-        // Verify that the sender is a known router.
-        bytes32 fromRouter = getRouter(emitterChain);
-        if (deposit.fromAddress != fromRouter) {
-            revert ErrInvalidSourceRouter(deposit.fromAddress, fromRouter);
+        // Verify that the sender is a known router or the matching engine.
+        if (deposit.fromAddress != _matchingEngineAddress || emitterChain != _matchingEngineChain) {
+            bytes32 fromRouter = getRouter(emitterChain);
+            if (deposit.fromAddress != fromRouter) {
+                revert ErrInvalidSourceRouter(deposit.fromAddress, fromRouter);
+            }
         }
 
         _verifyRedeemer(fill.redeemer);
