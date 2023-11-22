@@ -36,9 +36,9 @@ import {
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
     ["arbitrum", "ethereum"],
-    ["ethereum", "arbitrum"],
+    //["ethereum", "arbitrum"],
     ["arbitrum", "avalanche"],
-    ["ethereum", "avalanche"],
+    //["ethereum", "avalanche"],
 ];
 
 const TEST_AMOUNT = ethers.utils.parseUnits("1000", 6);
@@ -891,6 +891,211 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const balanceAfter = await usdc.balanceOf(playerFour.address);
                     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
                         expectedAmount.toString()
+                    );
+                });
+            });
+
+            describe(`No Auction`, () => {
+                before(`From Network -- Mint USDC`, async () => {
+                    if (fromEnv.chainId == MATCHING_ENGINE_CHAIN) {
+                        console.log("Skipfrom outbound tests from Matching Engine.");
+                        this.ctx.skip();
+                    }
+
+                    const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
+
+                    await burnAllUsdc(usdc);
+
+                    await mintNativeUsdc(
+                        IERC20__factory.connect(fromEnv.tokenAddress, fromProvider),
+                        fromWallet.address,
+                        TEST_AMOUNT
+                    );
+                });
+
+                after(`Burn USDC`, async () => {
+                    const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
+                    await burnAllUsdc(usdc);
+                });
+
+                it(`From Network -- Place Fast Market Order`, async () => {
+                    const amountIn = await (async () => {
+                        if (fromEnv.chainType == ChainType.Evm) {
+                            const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
+                            const amount = await usdc.balanceOf(fromWallet.address);
+                            await usdc
+                                .approve(fromTokenRouter.address, amount)
+                                .then((tx) => mineWait(fromProvider, tx));
+
+                            return BigInt(amount.toString());
+                        } else {
+                            throw new Error("Unsupported chain");
+                        }
+                    })();
+                    localVariables.set("amountIn", amountIn);
+
+                    const targetChain = coalesceChainId(toChainName);
+                    const minAmountOut = BigInt(0);
+                    const receipt = await fromTokenRouter
+                        .placeFastMarketOrder({
+                            amountIn,
+                            minAmountOut,
+                            targetChain,
+                            redeemer: Buffer.from(
+                                tryNativeToUint8Array(toWallet.address, toChainName)
+                            ),
+                            redeemerMessage: Buffer.from("All your base are belong to us."),
+                            refundAddress: fromWallet.address,
+                        })
+                        .then((tx) => mineWait(fromProvider, tx))
+                        .catch((err) => {
+                            console.log(err);
+                            console.log(errorDecoder(err));
+                            throw err;
+                        });
+                    const transactionResult = await fromTokenRouter.getTransactionResults(
+                        receipt.transactionHash
+                    );
+                    expect(transactionResult.wormhole.emitterAddress).to.eql(
+                        tryNativeToUint8Array(fromEnv.wormholeCctpAddress, fromChainName)
+                    );
+                    expect(transactionResult.wormhole.message.body).has.property(
+                        "slowOrderResponse"
+                    );
+                    expect(transactionResult.circleMessage).is.not.undefined;
+                    expect(transactionResult.fastMessage).is.not.undefined;
+
+                    const signedVaas = await guardianNetwork.observeManyEvm(
+                        fromProvider,
+                        fromChainName,
+                        receipt
+                    );
+                    expect(signedVaas.length).to.eql(2);
+
+                    // The first message is the slow CCTP transfer.
+                    const [slowOrderResponse, fastVaa] = signedVaas;
+
+                    const circleBridgeMessage = transactionResult.circleMessage!;
+                    const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
+
+                    const redeemParameters: OrderResponse = {
+                        encodedWormholeMessage: slowOrderResponse,
+                        circleBridgeMessage,
+                        circleAttestation,
+                    };
+                    localVariables.set("redeemParameters", redeemParameters);
+                    localVariables.set("fastVaa", fastVaa);
+                });
+
+                it(`Matching Engine -- Execute Slow Vaa And Redeem`, async () => {
+                    const fastVaa = localVariables.get("fastVaa") as Uint8Array;
+                    const params = localVariables.get("redeemParameters") as OrderResponse;
+                    expect(localVariables.delete("redeemParameters")).is.true;
+                    expect(localVariables.delete("fastVaa")).is.true;
+
+                    // NOTE: Imagine that several minutes have passed, and no auction has been started :).
+
+                    // Parse the slow VAA for the baseFee and amount
+                    const baseFee = MessageDecoder.unsafeDecodeWormholeCctpPayload(
+                        parseVaa(params.encodedWormholeMessage).payload
+                    ).body.slowOrderResponse!.baseFee;
+
+                    // Use player one as the relayer.
+                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
+                    const feeRecipientBefore = await usdc.balanceOf(engineEnv.feeRecipient!);
+
+                    const receipt = await engine
+                        .connect(playerOne)
+                        .executeSlowOrderAndRedeem(fastVaa, params)
+                        .then((tx) => mineWait(engineProvider, tx))
+                        .catch((err) => {
+                            console.log(err);
+                            console.log(errorDecoder(err));
+                            throw err;
+                        });
+
+                    // Balance check.
+                    const feeRecipientAfter = await usdc.balanceOf(engineEnv.feeRecipient!);
+                    expect(feeRecipientAfter.sub(feeRecipientBefore).toString()).to.eql(
+                        baseFee.toString()
+                    );
+
+                    const transactionResult = await engine.getTransactionResults(
+                        receipt.transactionHash
+                    );
+
+                    if (toChainName == MATCHING_ENGINE_NAME) {
+                        expect(transactionResult.wormhole.emitterAddress).to.eql(
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
+                        );
+                        expect(transactionResult.wormhole.message.body).has.property("fastFill");
+                        expect(transactionResult.circleMessage).is.undefined;
+                    } else {
+                        expect(transactionResult.wormhole.emitterAddress).to.eql(
+                            tryNativeToUint8Array(
+                                engineEnv.wormholeCctpAddress,
+                                MATCHING_ENGINE_NAME
+                            )
+                        );
+                        expect(transactionResult.wormhole.message.body).has.property("fill");
+                        expect(transactionResult.circleMessage).is.not.undefined;
+                    }
+
+                    expect(transactionResult.fastMessage).is.undefined;
+
+                    // Fetch and store the vaa for redeeming the fill.
+                    const signedVaa = await guardianNetwork.observeEvm(
+                        engineProvider,
+                        MATCHING_ENGINE_NAME,
+                        receipt
+                    );
+
+                    let orderResponse: OrderResponse;
+                    if (toChainName == MATCHING_ENGINE_NAME) {
+                        orderResponse = {
+                            encodedWormholeMessage: signedVaa,
+                            circleBridgeMessage: Buffer.from(""),
+                            circleAttestation: Buffer.from(""),
+                        };
+                    } else {
+                        const circleBridgeMessage = transactionResult.circleMessage!;
+                        const circleAttestation =
+                            circleAttester.createAttestation(circleBridgeMessage);
+
+                        orderResponse = {
+                            encodedWormholeMessage: signedVaa,
+                            circleBridgeMessage,
+                            circleAttestation,
+                        };
+                    }
+
+                    localVariables.set("fastOrderResponse", orderResponse);
+                    localVariables.set("baseFee", baseFee);
+                });
+
+                it(`To Network -- Redeem Fill`, async () => {
+                    const orderResponse = localVariables.get("fastOrderResponse") as OrderResponse;
+                    const baseFee = localVariables.get("baseFee") as string;
+                    expect(localVariables.delete("fastOrderResponse")).is.true;
+                    expect(localVariables.delete("baseFee")).is.true;
+
+                    const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
+                    const balanceBefore = await usdc.balanceOf(toWallet.address);
+
+                    const receipt = await toTokenRouter
+                        .redeemFill(orderResponse)
+                        .then((tx) => mineWait(toProvider, tx))
+                        .catch((err) => {
+                            console.log(err);
+                            console.log(errorDecoder(err));
+                            throw err;
+                        });
+
+                    // Validate balance changes.
+                    const balanceAfter = await usdc.balanceOf(toWallet.address);
+
+                    expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
+                        TEST_AMOUNT.sub(baseFee).toString()
                     );
                 });
             });

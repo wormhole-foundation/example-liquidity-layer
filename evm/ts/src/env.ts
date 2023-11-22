@@ -33,12 +33,12 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
         "WORMHOLE_CCTP_ADDRESS",
         "OWNER_ASSISTANT_ADDRESS",
         "TOKEN_ROUTER_ADDRESS",
-        "FEE_RECIPIENT",
+        "FEE_RECIPIENT_ADDRESS",
         "MATCHING_ENGINE_CHAIN",
         "MATCHING_ENGINE_ADDRESS",
     ];
     for (const key of keys) {
-        if (!contents[key] && key != "FEE_RECIPIENT") {
+        if (!contents[key] && key != "FEE_RECIPIENT_ADDRESS") {
             throw new Error(`no ${key}`);
         }
     }
@@ -50,7 +50,7 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
         wormholeCctpAddress: contents.WORMHOLE_CCTP_ADDRESS,
         ownerAssistantAddress: contents.OWNER_ASSISTANT_ADDRESS,
         tokenRouterAddress: contents.TOKEN_ROUTER_ADDRESS,
-        feeRecipient: contents.FEE_RECIPIENT,
+        feeRecipient: contents.FEE_RECIPIENT_ADDRESS,
         matchingEngineChain: contents.MATCHING_ENGINE_CHAIN,
         matchingEngineAddress: contents.MATCHING_ENGINE_ADDRESS,
     };

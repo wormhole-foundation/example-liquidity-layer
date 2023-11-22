@@ -16,7 +16,15 @@ export function parseEvmEvents(
     for (const txLog of txReceipt.logs) {
         if (txLog.address === contractAddress) {
             const iface = new ethers.utils.Interface([`event ${eventInterface}`]);
-            wormholeLogs.push(iface.parseLog(txLog).args);
+            try {
+                const iface = new ethers.utils.Interface([`event ${eventInterface}`]);
+                const event = iface.parseLog(txLog).args;
+                wormholeLogs.push(event);
+            } catch (e: any) {
+                if (e.reason === "no matching event") {
+                    continue;
+                }
+            }
         }
     }
     if (wormholeLogs.length === 0) {
@@ -33,8 +41,14 @@ export function parseEvmEvent(
 ) {
     for (const txLog of txReceipt.logs) {
         if (txLog.address === contractAddress) {
-            const iface = new ethers.utils.Interface([`event ${eventInterface}`]);
-            return iface.parseLog(txLog).args;
+            try {
+                const iface = new ethers.utils.Interface([`event ${eventInterface}`]);
+                return iface.parseLog(txLog).args;
+            } catch (e: any) {
+                if (e.reason === "no matching event") {
+                    continue;
+                }
+            }
         }
     }
 
