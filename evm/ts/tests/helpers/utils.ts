@@ -35,6 +35,20 @@ export async function mineToGracePeriod(
     await mineMany(provider, blocksToMine);
 }
 
+export async function mineToPenaltyPeriod(
+    auctionId: Uint8Array,
+    engine: EvmMatchingEngine,
+    provider: ethers.providers.StaticJsonRpcProvider,
+    penaltyBlocks: number
+) {
+    const startBlock = await engine.liveAuctionInfo(auctionId).then((info) => info.startBlock);
+    const gracePeriod = await engine.getAuctionGracePeriod();
+    const currentBlock = await provider.getBlockNumber();
+
+    const blocksToMine = gracePeriod - (currentBlock - Number(startBlock)) + penaltyBlocks;
+    await mineMany(provider, blocksToMine);
+}
+
 export async function mineWait(
     provider: ethers.providers.StaticJsonRpcProvider,
     tx: ethers.ContractTransaction

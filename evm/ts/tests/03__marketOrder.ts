@@ -23,10 +23,10 @@ import {
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
     ["ethereum", "avalanche"],
     ["avalanche", "ethereum"],
-    // ["ethereum", "arbitrum"],
-    // ["arbitrum", "ethereum"],
-    // ["avalanche", "arbitrum"],
-    // ["arbitrum", "avalanche"],
+    ["ethereum", "arbitrum"],
+    ["arbitrum", "ethereum"],
+    ["avalanche", "arbitrum"],
+    ["arbitrum", "avalanche"],
 ];
 
 const TEST_AMOUNT = ethers.utils.parseUnits("1000", 6);

@@ -69,12 +69,30 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         return this.contract.executeSlowOrderAndRedeem(fastTransferVaa, params);
     }
 
+    async calculateDynamicPenalty(
+        auctionId?: Buffer | Uint8Array,
+        amount?: bigint | ethers.BigNumberish,
+        blocksElapsed?: bigint | ethers.BigNumberish
+    ): Promise<[ethers.BigNumberish, ethers.BigNumberish]> {
+        if (auctionId !== undefined) {
+            return this.contract["calculateDynamicPenalty(bytes32)"](auctionId);
+        } else if (amount !== undefined && blocksElapsed !== undefined) {
+            return this.contract["calculateDynamicPenalty(uint256,uint256)"](amount, blocksElapsed);
+        } else {
+            throw new Error("Invalid arguments");
+        }
+    }
+
     async liveAuctionInfo(auctionId: Buffer | Uint8Array): Promise<LiveAuctionData> {
         return this.contract.liveAuctionInfo(auctionId);
     }
 
     async getAuctionGracePeriod(): Promise<number> {
         return this.contract.getAuctionGracePeriod();
+    }
+
+    async getAuctionConfig(): Promise<AuctionConfig> {
+        return this.contract.auctionConfig();
     }
 
     async wormhole(): Promise<string> {

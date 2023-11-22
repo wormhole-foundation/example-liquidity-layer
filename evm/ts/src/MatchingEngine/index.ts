@@ -55,7 +55,15 @@ export abstract class MatchingEngine<PreparedTransactionType extends PreparedIns
         params: RedeemParameters
     ): Promise<PreparedTransactionType>;
 
+    abstract calculateDynamicPenalty(
+        auctionId?: Buffer | Uint8Array,
+        amount?: bigint,
+        blocksElapsed?: bigint
+    ): Promise<[ethers.BigNumberish, ethers.BigNumberish]>;
+
     abstract getAuctionGracePeriod(): Promise<number>;
+
+    abstract getAuctionConfig(): Promise<AuctionConfig>;
 
     abstract wormhole(): Promise<string>;
 
