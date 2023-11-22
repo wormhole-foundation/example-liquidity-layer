@@ -166,20 +166,22 @@ export class LiquidityLayerTransactionResult {
                         .message
                 );
             } else if (evmEmitterAddress == contractAddress) {
-                fastMessage = {
+                // Handles FastFills and FastMarketOrders.
+                const message = {
                     emitterAddress,
                     sequence,
                     nonce,
                     consistencyLevel,
-                    message: MessageDecoder.unsafeDecodeFastMarketOrderPayload(encodedMessage),
+                    message: MessageDecoder.unsafeDecodeFastPayload(encodedMessage),
                 };
+
+                // Override `wormhole` if it's a FastFill.
+                if (message.message.body.fastMarketOrder !== undefined) {
+                    fastMessage = message;
+                } else {
+                    wormhole = message;
+                }
             } else {
-                console.log(
-                    evmEmitterAddress,
-                    contractAddress,
-                    coreBridgeAddress,
-                    wormholeCctpAddress
-                );
                 throw new Error("Unrecognized emitter address.");
             }
         }

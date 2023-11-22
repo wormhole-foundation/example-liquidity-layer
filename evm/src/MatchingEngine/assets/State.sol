@@ -62,6 +62,10 @@ abstract contract State is IMatchingEngineState {
         return _wormholeCctp;
     }
 
+    function wormhole() external view returns (IWormhole) {
+        return _wormhole;
+    }
+
     function wormholeChainId() external view returns (uint16) {
         return _wormholeChainId;
     }

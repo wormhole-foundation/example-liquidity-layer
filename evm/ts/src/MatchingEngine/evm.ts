@@ -77,6 +77,10 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         return this.contract.getAuctionGracePeriod();
     }
 
+    async wormhole(): Promise<string> {
+        return this.contract.wormhole();
+    }
+
     async getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult> {
         // Check cached contracts.
         const { chainId, wormholeCctp, coreBridge, circleTransmitterAddress } =

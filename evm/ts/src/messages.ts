@@ -64,6 +64,7 @@ export class WormholeCctpDepositHeader {
 
 export type LiquidityLayerMessageBody = {
     fill?: Fill;
+    fastFill?: FastFill;
     slowOrderResponse?: SlowOrderResponse;
     fastMarketOrder?: FastMarketOrder;
 };
@@ -93,6 +94,9 @@ export class MessageDecoder {
             }
             case SlowOrderResponse.ID: {
                 return { slowOrderResponse: SlowOrderResponse.decode(payload) };
+            }
+            case FastFill.ID: {
+                return { fastFill: FastFill.decode(payload) };
             }
             default: {
                 throw new Error(`Invalid payload ID: ${payloadId}`);
@@ -133,10 +137,8 @@ export class MessageDecoder {
         };
     }
 
-    static unsafeDecodeFastMarketOrderPayload(
-        fastMarketOrderMessage: Buffer
-    ): CoreBridgeLiquidityLayerMessage {
-        const payload = Buffer.from(fastMarketOrderMessage);
+    static unsafeDecodeFastPayload(vaa: Buffer): CoreBridgeLiquidityLayerMessage {
+        const payload = Buffer.from(vaa);
         return {
             header: {},
             body: this.decode(payload),
@@ -176,6 +178,48 @@ export class Fill {
         const redeemerMessage = buf.subarray(70, 70 + redeemerMsgLen);
 
         return new Fill(sourceChain, orderSender, redeemer, redeemerMessage);
+    }
+}
+
+export class FastFill {
+    sourceChain: number;
+    orderSender: Buffer;
+    redeemer: Buffer;
+    redeemerMessage: Buffer;
+    fillAmount: bigint;
+
+    constructor(
+        sourceChain: number,
+        orderSender: Buffer,
+        redeemer: Buffer,
+        redeemerMessage: Buffer,
+        fillAmount: bigint
+    ) {
+        this.sourceChain = sourceChain;
+        this.orderSender = orderSender;
+        this.redeemer = redeemer;
+        this.redeemerMessage = redeemerMessage;
+        this.fillAmount = fillAmount;
+    }
+
+    static get ID(): number {
+        return 2; // 0x2
+    }
+
+    static decode(payload: Buffer): FastFill {
+        const buf = takePayloadId(payload, this.ID);
+
+        const sourceChain = buf.readUInt16BE(0);
+        const orderSender = buf.subarray(2, 34);
+        const redeemer = buf.subarray(34, 66);
+        const redeemerMsgLen = buf.readUInt32BE(66);
+        const endMessage = 70 + redeemerMsgLen;
+        const redeemerMessage = buf.subarray(70, endMessage);
+        const fillAmount = BigInt(
+            ethers.BigNumber.from(buf.subarray(endMessage, endMessage + 32)).toString()
+        );
+
+        return new FastFill(sourceChain, orderSender, redeemer, redeemerMessage, fillAmount);
     }
 }
 

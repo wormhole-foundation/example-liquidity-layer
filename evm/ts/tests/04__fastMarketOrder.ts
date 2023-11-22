@@ -32,7 +32,10 @@ import {
     mineToGracePeriod,
 } from "./helpers";
 
-const CHAIN_PATHWAYS: ValidNetwork[][] = [["arbitrum", "ethereum"]];
+const CHAIN_PATHWAYS: ValidNetwork[][] = [
+    ["arbitrum", "ethereum"],
+    ["ethereum", "avalanche"],
+];
 
 const TEST_AMOUNT = ethers.utils.parseUnits("1000", 6);
 
@@ -66,380 +69,417 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
         const localVariables = new Map<string, any>();
 
         describe(`${fromChainName} <> ${toChainName}`, () => {
-            // From setup.
-            const fromProvider = new ethers.providers.StaticJsonRpcProvider(
-                LOCALHOSTS[fromChainName]
-            );
-            const fromWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], fromProvider);
-
-            const fromEnv = parseLiquidityLayerEnvFile(`${envPath}/${fromChainName}.env`);
-            const fromTokenRouter = (() => {
-                if (fromEnv.chainType === ChainType.Evm) {
-                    return new EvmTokenRouter(fromWallet, fromEnv.tokenRouterAddress);
-                } else {
-                    throw new Error("Unsupported chain");
-                }
-            })();
-
-            // To setup.
-            const toProvider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[toChainName]);
-            const toWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], toProvider);
-
-            const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName}.env`);
-            const toTokenRouter = (() => {
-                if (toEnv.chainType === ChainType.Evm) {
-                    return new EvmTokenRouter(toWallet, toEnv.tokenRouterAddress);
-                } else {
-                    throw new Error("Unsupported chain");
-                }
-            })();
-
-            before(`From Network -- Mint USDC`, async () => {
-                if (fromEnv.chainId == MATCHING_ENGINE_CHAIN) {
-                    console.log("Skipfrom outbound tests from Matching Engine.");
-                    this.ctx.skip();
-                }
-
-                const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
-
-                await burnAllUsdc(usdc);
-
-                await mintNativeUsdc(
-                    IERC20__factory.connect(fromEnv.tokenAddress, fromProvider),
-                    fromWallet.address,
-                    TEST_AMOUNT
+            describe(`Successful Auction`, () => {
+                // From setup.
+                const fromProvider = new ethers.providers.StaticJsonRpcProvider(
+                    LOCALHOSTS[fromChainName]
                 );
-            });
+                const fromWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], fromProvider);
 
-            after(`Burn USDC`, async () => {
-                const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
-                await burnAllUsdc(usdc);
-            });
-
-            it(`From Network -- Place Fast Market Order`, async () => {
-                const amountIn = await (async () => {
-                    if (fromEnv.chainType == ChainType.Evm) {
-                        const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
-                        const amount = await usdc.balanceOf(fromWallet.address);
-                        await usdc
-                            .approve(fromTokenRouter.address, amount)
-                            .then((tx) => mineWait(fromProvider, tx));
-
-                        return BigInt(amount.toString());
+                const fromEnv = parseLiquidityLayerEnvFile(`${envPath}/${fromChainName}.env`);
+                const fromTokenRouter = (() => {
+                    if (fromEnv.chainType === ChainType.Evm) {
+                        return new EvmTokenRouter(fromWallet, fromEnv.tokenRouterAddress);
                     } else {
                         throw new Error("Unsupported chain");
                     }
                 })();
-                localVariables.set("amountIn", amountIn);
 
-                const targetChain = coalesceChainId(toChainName);
-                const minAmountOut = BigInt(0);
-                const receipt = await fromTokenRouter
-                    .placeFastMarketOrder({
-                        amountIn,
-                        minAmountOut,
-                        targetChain,
-                        redeemer: Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
-                        redeemerMessage: Buffer.from("All your base are belong to us."),
-                        refundAddress: fromWallet.address,
-                    })
-                    .then((tx) => mineWait(fromProvider, tx))
-                    .catch((err) => {
-                        console.log(err);
-                        console.log(errorDecoder(err));
-                        throw err;
-                    });
-                const transactionResult = await fromTokenRouter.getTransactionResults(
-                    receipt.transactionHash
+                // To setup.
+                const toProvider = new ethers.providers.StaticJsonRpcProvider(
+                    LOCALHOSTS[toChainName]
                 );
-                expect(transactionResult.wormhole.emitterAddress).to.eql(
-                    tryNativeToUint8Array(fromEnv.wormholeCctpAddress, fromChainName)
-                );
-                expect(transactionResult.wormhole.message.body).has.property("slowOrderResponse");
-                expect(transactionResult.circleMessage).is.not.undefined;
-                expect(transactionResult.fastMessage).is.not.undefined;
+                const toWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], toProvider);
 
-                const signedVaas = await guardianNetwork.observeManyEvm(
-                    fromProvider,
-                    fromChainName,
-                    receipt
-                );
-                expect(signedVaas.length).to.eql(2);
+                const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName}.env`);
+                const toTokenRouter = (() => {
+                    if (toEnv.chainType === ChainType.Evm) {
+                        return new EvmTokenRouter(toWallet, toEnv.tokenRouterAddress);
+                    } else {
+                        throw new Error("Unsupported chain");
+                    }
+                })();
 
-                // The first message is the slow CCTP transfer.
-                const [slowOrderResponse, fastVaa] = signedVaas;
+                before(`From Network -- Mint USDC`, async () => {
+                    if (fromEnv.chainId == MATCHING_ENGINE_CHAIN) {
+                        console.log("Skipfrom outbound tests from Matching Engine.");
+                        this.ctx.skip();
+                    }
 
-                const circleBridgeMessage = transactionResult.circleMessage!;
-                const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
+                    const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
 
-                const redeemParameters: OrderResponse = {
-                    encodedWormholeMessage: slowOrderResponse,
-                    circleBridgeMessage,
-                    circleAttestation,
-                };
-                localVariables.set("redeemParameters", redeemParameters);
-                localVariables.set("fastVaa", fastVaa);
-            });
+                    await burnAllUsdc(usdc);
 
-            it(`Matching Engine -- Start Fast Order Auction`, async () => {
-                const fastVaa = localVariables.get("fastVaa") as Uint8Array;
+                    await mintNativeUsdc(
+                        IERC20__factory.connect(fromEnv.tokenAddress, fromProvider),
+                        fromWallet.address,
+                        TEST_AMOUNT
+                    );
+                });
 
-                // Parse the vaa, we will need the hash for later.
-                const parsedFastVaa = parseVaa(fastVaa);
-                localVariables.set("auctionId", keccak256(parsedFastVaa.hash));
-                const fastOrder = MessageDecoder.unsafeDecodeFastMarketOrderPayload(
-                    parsedFastVaa.payload
-                ).body.fastMarketOrder;
+                after(`Burn USDC`, async () => {
+                    const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
+                    await burnAllUsdc(usdc);
+                });
 
-                if (fastOrder === undefined) {
-                    throw new Error("Fast order undefined");
-                }
+                it(`From Network -- Place Fast Market Order`, async () => {
+                    const amountIn = await (async () => {
+                        if (fromEnv.chainType == ChainType.Evm) {
+                            const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
+                            const amount = await usdc.balanceOf(fromWallet.address);
+                            await usdc
+                                .approve(fromTokenRouter.address, amount)
+                                .then((tx) => mineWait(fromProvider, tx));
 
-                // Security deposit amount of the initial bid.
-                const initialDeposit = fastOrder.amountIn + fastOrder.maxFee;
+                            return BigInt(amount.toString());
+                        } else {
+                            throw new Error("Unsupported chain");
+                        }
+                    })();
+                    localVariables.set("amountIn", amountIn);
 
-                // Prepare usdc for the auction.
-                const usdc = IERC20__factory.connect(engineEnv.tokenAddress, playerOne);
-                await mintNativeUsdc(usdc, playerOne.address, initialDeposit);
-                await usdc.approve(engine.address, initialDeposit);
+                    const targetChain = coalesceChainId(toChainName);
+                    const minAmountOut = BigInt(0);
+                    const receipt = await fromTokenRouter
+                        .placeFastMarketOrder({
+                            amountIn,
+                            minAmountOut,
+                            targetChain,
+                            redeemer: Buffer.from(
+                                tryNativeToUint8Array(toWallet.address, toChainName)
+                            ),
+                            redeemerMessage: Buffer.from("All your base are belong to us."),
+                            refundAddress: fromWallet.address,
+                        })
+                        .then((tx) => mineWait(fromProvider, tx))
+                        .catch((err) => {
+                            console.log(err);
+                            console.log(errorDecoder(err));
+                            throw err;
+                        });
+                    const transactionResult = await fromTokenRouter.getTransactionResults(
+                        receipt.transactionHash
+                    );
+                    expect(transactionResult.wormhole.emitterAddress).to.eql(
+                        tryNativeToUint8Array(fromEnv.wormholeCctpAddress, fromChainName)
+                    );
+                    expect(transactionResult.wormhole.message.body).has.property(
+                        "slowOrderResponse"
+                    );
+                    expect(transactionResult.circleMessage).is.not.undefined;
+                    expect(transactionResult.fastMessage).is.not.undefined;
 
-                const balanceBefore = await usdc.balanceOf(playerOne.address);
+                    const signedVaas = await guardianNetwork.observeManyEvm(
+                        fromProvider,
+                        fromChainName,
+                        receipt
+                    );
+                    expect(signedVaas.length).to.eql(2);
 
-                const receipt = await engine
-                    .connect(playerOne)
-                    .placeInitialBid(fastVaa, fastOrder.maxFee)
-                    .then((tx) => mineWait(engineProvider, tx))
-                    .catch((err) => {
-                        console.log(err);
-                        console.log(errorDecoder(err));
-                        throw err;
-                    });
+                    // The first message is the slow CCTP transfer.
+                    const [slowOrderResponse, fastVaa] = signedVaas;
 
-                const balanceAfter = await usdc.balanceOf(playerOne.address);
-                expect(balanceBefore.sub(balanceAfter).toString()).to.eql(
-                    initialDeposit.toString()
-                );
+                    const circleBridgeMessage = transactionResult.circleMessage!;
+                    const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
-                // Validate state changes.
-                const auctionData = await engine.liveAuctionInfo(localVariables.get("auctionId"));
+                    const redeemParameters: OrderResponse = {
+                        encodedWormholeMessage: slowOrderResponse,
+                        circleBridgeMessage,
+                        circleAttestation,
+                    };
+                    localVariables.set("redeemParameters", redeemParameters);
+                    localVariables.set("fastVaa", fastVaa);
+                });
 
-                expect(auctionData.status).to.eql(1);
-                expect(auctionData.startBlock.toString()).to.eql(receipt.blockNumber.toString());
-                expect(auctionData.highestBidder).to.eql(playerOne.address);
-                expect(auctionData.initialBidder).to.eql(playerOne.address);
-                expect(auctionData.amount.toString()).to.eql(fastOrder.amountIn.toString());
-                expect(auctionData.securityDeposit.toString()).to.eql(fastOrder.maxFee.toString());
-                expect(auctionData.bidPrice.toString()).to.eql(fastOrder.maxFee.toString());
-            });
+                it(`Matching Engine -- Start Fast Order Auction`, async () => {
+                    const fastVaa = localVariables.get("fastVaa") as Uint8Array;
 
-            it(`Matching Engine -- Fast Order Auction Period`, async () => {
-                const auctionId = localVariables.get("auctionId") as Uint8Array;
+                    // Parse the vaa, we will need the hash for later.
+                    const parsedFastVaa = parseVaa(fastVaa);
+                    localVariables.set("auctionId", keccak256(parsedFastVaa.hash));
+                    const fastOrder = MessageDecoder.unsafeDecodeFastPayload(parsedFastVaa.payload)
+                        .body.fastMarketOrder;
 
-                const auctionInfoBefore = await engine.liveAuctionInfo(auctionId);
-                const startingBid = ethers.BigNumber.from(auctionInfoBefore.bidPrice);
-                const initialDeposit = ethers.BigNumber.from(auctionInfoBefore.amount).add(
-                    ethers.BigNumber.from(auctionInfoBefore.securityDeposit)
-                );
-                expect(startingBid.gt(0) && initialDeposit.gt(0)).is.true;
+                    if (fastOrder === undefined) {
+                        throw new Error("Fast order undefined");
+                    }
 
-                // Create array of test bids. This structure should not change, otherwise
-                // the following tests will fail.
-                const bids: ScoreKeeper[] = [
-                    {
-                        player: playerTwo,
-                        bid: startingBid.sub(1),
-                        balance: ethers.BigNumber.from(0),
-                    },
-                    {
-                        player: playerThree,
-                        bid: startingBid.div(2),
-                        balance: ethers.BigNumber.from(0),
-                    },
-                    {
-                        player: playerFour,
-                        bid: startingBid.div(3),
-                        balance: ethers.BigNumber.from(0),
-                    },
-                ];
+                    // Security deposit amount of the initial bid.
+                    const initialDeposit = fastOrder.amountIn + fastOrder.maxFee;
 
-                // Loop through and make multiple bids in the same block.
-                for (let i = 0; i < bids.length; i++) {
-                    const player = bids[i].player;
-                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, player);
-                    await mintNativeUsdc(usdc, player.address, initialDeposit, false);
+                    // Prepare usdc for the auction.
+                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, playerOne);
+                    await mintNativeUsdc(usdc, playerOne.address, initialDeposit);
                     await usdc.approve(engine.address, initialDeposit);
 
-                    bids[i].balance = await usdc.balanceOf(player.address);
+                    const balanceBefore = await usdc.balanceOf(playerOne.address);
 
-                    // Improve the bid.
-                    await engine.connect(player).improveBid(auctionId, bids[i].bid);
-                }
+                    const receipt = await engine
+                        .connect(playerOne)
+                        .placeInitialBid(fastVaa, fastOrder.maxFee)
+                        .then((tx) => mineWait(engineProvider, tx))
+                        .catch((err) => {
+                            console.log(err);
+                            console.log(errorDecoder(err));
+                            throw err;
+                        });
 
-                // Mine the block.
-                await mine(engineProvider);
+                    const balanceAfter = await usdc.balanceOf(playerOne.address);
+                    expect(balanceBefore.sub(balanceAfter).toString()).to.eql(
+                        initialDeposit.toString()
+                    );
 
-                // Validate balance changes. The lowest bid should have zero balance, the others
-                // should've been refunded.
-                for (let i = 0; i < bids.length; i++) {
-                    const player = bids[i].player;
-                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, player);
-                    const balanceAfter = await usdc.balanceOf(player.address);
+                    // Validate state changes.
+                    const auctionData = await engine.liveAuctionInfo(
+                        localVariables.get("auctionId")
+                    );
 
-                    if (i == 2) {
-                        expect(balanceAfter.sub(bids[i].balance).toString()).to.eql("0");
-                    } else {
-                        expect(balanceAfter.toString()).to.eql(
-                            bids[i].balance.add(initialDeposit).toString()
-                        );
+                    expect(auctionData.status).to.eql(1);
+                    expect(auctionData.startBlock.toString()).to.eql(
+                        receipt.blockNumber.toString()
+                    );
+                    expect(auctionData.highestBidder).to.eql(playerOne.address);
+                    expect(auctionData.initialBidder).to.eql(playerOne.address);
+                    expect(auctionData.amount.toString()).to.eql(fastOrder.amountIn.toString());
+                    expect(auctionData.securityDeposit.toString()).to.eql(
+                        fastOrder.maxFee.toString()
+                    );
+                    expect(auctionData.bidPrice.toString()).to.eql(fastOrder.maxFee.toString());
+                });
+
+                it(`Matching Engine -- Fast Order Auction Period`, async () => {
+                    const auctionId = localVariables.get("auctionId") as Uint8Array;
+
+                    const auctionInfoBefore = await engine.liveAuctionInfo(auctionId);
+                    const startingBid = ethers.BigNumber.from(auctionInfoBefore.bidPrice);
+                    const initialDeposit = ethers.BigNumber.from(auctionInfoBefore.amount).add(
+                        ethers.BigNumber.from(auctionInfoBefore.securityDeposit)
+                    );
+                    expect(startingBid.gt(0) && initialDeposit.gt(0)).is.true;
+
+                    // Create array of test bids. This structure should not change, otherwise
+                    // the following tests will fail.
+                    const bids: ScoreKeeper[] = [
+                        {
+                            player: playerTwo,
+                            bid: startingBid.sub(1),
+                            balance: ethers.BigNumber.from(0),
+                        },
+                        {
+                            player: playerThree,
+                            bid: startingBid.div(2),
+                            balance: ethers.BigNumber.from(0),
+                        },
+                        {
+                            player: playerFour,
+                            bid: startingBid.div(3),
+                            balance: ethers.BigNumber.from(0),
+                        },
+                    ];
+
+                    // Loop through and make multiple bids in the same block.
+                    for (let i = 0; i < bids.length; i++) {
+                        const player = bids[i].player;
+                        const usdc = IERC20__factory.connect(engineEnv.tokenAddress, player);
+                        await mintNativeUsdc(usdc, player.address, initialDeposit, false);
+                        await usdc.approve(engine.address, initialDeposit);
+
+                        bids[i].balance = await usdc.balanceOf(player.address);
+
+                        // Improve the bid.
+                        await engine.connect(player).improveBid(auctionId, bids[i].bid);
                     }
-                }
 
-                // Validate state changes.
-                const auctionInfoAfter = await engine.liveAuctionInfo(auctionId);
+                    // Mine the block.
+                    await mine(engineProvider);
 
-                expect(auctionInfoAfter.status).to.eql(1);
-                expect(auctionInfoAfter.startBlock.toString()).to.eql(
-                    auctionInfoBefore.startBlock.toString()
-                );
-                expect(auctionInfoAfter.highestBidder).to.eql(playerFour.address);
-                expect(auctionInfoAfter.initialBidder).to.eql(auctionInfoBefore.initialBidder);
-                expect(auctionInfoAfter.amount.toString()).to.eql(
-                    auctionInfoBefore.amount.toString()
-                );
-                expect(auctionInfoAfter.securityDeposit.toString()).to.eql(
-                    auctionInfoBefore.securityDeposit.toString()
-                );
-                expect(auctionInfoAfter.bidPrice.toString()).to.eql(bids[2].bid.toString());
-            });
+                    // Validate balance changes. The lowest bid should have zero balance, the others
+                    // should've been refunded.
+                    for (let i = 0; i < bids.length; i++) {
+                        const player = bids[i].player;
+                        const usdc = IERC20__factory.connect(engineEnv.tokenAddress, player);
+                        const balanceAfter = await usdc.balanceOf(player.address);
 
-            it(`Matching Engine -- Execute Fast Order Within Grace Period`, async () => {
-                const auctionId = localVariables.get("auctionId") as Uint8Array;
+                        if (i == 2) {
+                            expect(balanceAfter.sub(bids[i].balance).toString()).to.eql("0");
+                        } else {
+                            expect(balanceAfter.toString()).to.eql(
+                                bids[i].balance.add(initialDeposit).toString()
+                            );
+                        }
+                    }
 
-                await mineToGracePeriod(auctionId, engine, engineProvider);
+                    // Validate state changes.
+                    const auctionInfoAfter = await engine.liveAuctionInfo(auctionId);
 
-                // Fetch the initial bidder so we can do a balance check.
-                const auctionInfo = await engine.liveAuctionInfo(auctionId);
+                    expect(auctionInfoAfter.status).to.eql(1);
+                    expect(auctionInfoAfter.startBlock.toString()).to.eql(
+                        auctionInfoBefore.startBlock.toString()
+                    );
+                    expect(auctionInfoAfter.highestBidder).to.eql(playerFour.address);
+                    expect(auctionInfoAfter.initialBidder).to.eql(auctionInfoBefore.initialBidder);
+                    expect(auctionInfoAfter.amount.toString()).to.eql(
+                        auctionInfoBefore.amount.toString()
+                    );
+                    expect(auctionInfoAfter.securityDeposit.toString()).to.eql(
+                        auctionInfoBefore.securityDeposit.toString()
+                    );
+                    expect(auctionInfoAfter.bidPrice.toString()).to.eql(bids[2].bid.toString());
+                });
 
-                const usdc = IERC20__factory.connect(engineEnv.tokenAddress, playerFour);
-                const balanceBefore = await usdc.balanceOf(playerFour.address);
-                const initialBidderBefore = await usdc.balanceOf(auctionInfo.initialBidder);
+                it(`Matching Engine -- Execute Fast Order Within Grace Period`, async () => {
+                    const auctionId = localVariables.get("auctionId") as Uint8Array;
 
-                const receipt = await engine
-                    .connect(playerFour)
-                    .executeFastOrder(localVariables.get("fastVaa"))
-                    .then((tx) => mineWait(engineProvider, tx))
-                    .catch((err) => {
-                        console.log(err);
-                        console.log(errorDecoder(err));
-                        throw err;
-                    });
+                    await mineToGracePeriod(auctionId, engine, engineProvider);
 
-                const transactionResult = await engine.getTransactionResults(
-                    receipt.transactionHash
-                );
-                expect(transactionResult.wormhole.emitterAddress).to.eql(
-                    tryNativeToUint8Array(engineEnv.wormholeCctpAddress, MATCHING_ENGINE_NAME)
-                );
-                expect(transactionResult.wormhole.message.body).has.property("fill");
-                expect(transactionResult.circleMessage).is.not.undefined;
-                expect(transactionResult.fastMessage).is.undefined;
+                    // Fetch the initial bidder so we can do a balance check.
+                    const auctionInfo = await engine.liveAuctionInfo(auctionId);
 
-                // Validate state and balance changes.
-                const balanceAfter = await usdc.balanceOf(playerFour.address);
-                const initialBidderAfter = await usdc.balanceOf(auctionInfo.initialBidder);
-                const initAuctionFee = await fromTokenRouter.getInitialAuctionFee();
+                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, playerFour);
+                    const balanceBefore = await usdc.balanceOf(playerFour.address);
+                    const initialBidderBefore = await usdc.balanceOf(auctionInfo.initialBidder);
 
-                expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                    ethers.BigNumber.from(auctionInfo.bidPrice)
-                        .add(ethers.BigNumber.from(auctionInfo.securityDeposit))
-                        .toString()
-                );
-                expect(initialBidderAfter.sub(initialBidderBefore).eq(initAuctionFee)).is.true;
+                    const receipt = await engine
+                        .connect(playerFour)
+                        .executeFastOrder(localVariables.get("fastVaa"))
+                        .then((tx) => mineWait(engineProvider, tx))
+                        .catch((err) => {
+                            console.log(err);
+                            console.log(errorDecoder(err));
+                            throw err;
+                        });
 
-                // Auction status should be complete (2).
-                const auctionStatus = await engine
-                    .liveAuctionInfo(auctionId)
-                    .then((info) => info.status);
-                expect(auctionStatus).to.eql(2);
+                    const transactionResult = await engine.getTransactionResults(
+                        receipt.transactionHash
+                    );
 
-                // Fetch and store the vaa for redeeming the fill.
-                const signedVaa = await guardianNetwork.observeEvm(
-                    engineProvider,
-                    MATCHING_ENGINE_NAME,
-                    receipt
-                );
+                    if (toChainName == MATCHING_ENGINE_NAME) {
+                        expect(transactionResult.wormhole.emitterAddress).to.eql(
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
+                        );
+                        expect(transactionResult.wormhole.message.body).has.property("fastFill");
+                        expect(transactionResult.circleMessage).is.undefined;
+                    } else {
+                        expect(transactionResult.wormhole.emitterAddress).to.eql(
+                            tryNativeToUint8Array(
+                                engineEnv.wormholeCctpAddress,
+                                MATCHING_ENGINE_NAME
+                            )
+                        );
+                        expect(transactionResult.wormhole.message.body).has.property("fill");
+                        expect(transactionResult.circleMessage).is.not.undefined;
+                    }
 
-                const circleBridgeMessage = transactionResult.circleMessage!;
-                const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
+                    expect(transactionResult.fastMessage).is.undefined;
 
-                const orderResponse: OrderResponse = {
-                    encodedWormholeMessage: signedVaa,
-                    circleBridgeMessage,
-                    circleAttestation,
-                };
-                localVariables.set("fastOrderResponse", orderResponse);
-            });
+                    // Validate state and balance changes.
+                    const balanceAfter = await usdc.balanceOf(playerFour.address);
+                    const initialBidderAfter = await usdc.balanceOf(auctionInfo.initialBidder);
+                    const initAuctionFee = await fromTokenRouter.getInitialAuctionFee();
 
-            it(`To Network -- Redeem Fill`, async () => {
-                const auctionId = localVariables.get("auctionId") as Uint8Array;
-                const orderResponse = localVariables.get("fastOrderResponse") as OrderResponse;
-                expect(localVariables.delete("fastOrderResponse")).is.true;
+                    expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
+                        ethers.BigNumber.from(auctionInfo.bidPrice)
+                            .add(ethers.BigNumber.from(auctionInfo.securityDeposit))
+                            .toString()
+                    );
+                    expect(initialBidderAfter.sub(initialBidderBefore).eq(initAuctionFee)).is.true;
 
-                const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
-                const balanceBefore = await usdc.balanceOf(toWallet.address);
+                    // Auction status should be complete (2).
+                    const auctionStatus = await engine
+                        .liveAuctionInfo(auctionId)
+                        .then((info) => info.status);
+                    expect(auctionStatus).to.eql(2);
 
-                const receipt = await toTokenRouter
-                    .redeemFill(orderResponse)
-                    .then((tx) => mineWait(toProvider, tx))
-                    .catch((err) => {
-                        console.log(err);
-                        console.log(errorDecoder(err));
-                        throw err;
-                    });
+                    // Fetch and store the vaa for redeeming the fill.
+                    const signedVaa = await guardianNetwork.observeEvm(
+                        engineProvider,
+                        MATCHING_ENGINE_NAME,
+                        receipt
+                    );
 
-                // Validate balance changes.
-                const [bidPrice, amount] = await engine
-                    .liveAuctionInfo(auctionId)
-                    .then((info) => [
-                        ethers.BigNumber.from(info.bidPrice),
-                        ethers.BigNumber.from(info.amount),
-                    ]);
-                const initAuctionFee = await fromTokenRouter.getInitialAuctionFee();
-                const balanceAfter = await usdc.balanceOf(toWallet.address);
+                    let orderResponse: OrderResponse;
+                    if (toChainName == MATCHING_ENGINE_NAME) {
+                        orderResponse = {
+                            encodedWormholeMessage: signedVaa,
+                            circleBridgeMessage: Buffer.from(""),
+                            circleAttestation: Buffer.from(""),
+                        };
+                    } else {
+                        const circleBridgeMessage = transactionResult.circleMessage!;
+                        const circleAttestation =
+                            circleAttester.createAttestation(circleBridgeMessage);
 
-                expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                    amount.sub(bidPrice).sub(initAuctionFee).toString()
-                );
-            });
+                        orderResponse = {
+                            encodedWormholeMessage: signedVaa,
+                            circleBridgeMessage,
+                            circleAttestation,
+                        };
+                    }
 
-            it(`Matching Engine -- Execute Slow Vaa And Redeem`, async () => {
-                const auctionId = localVariables.get("auctionId") as Uint8Array;
-                const fastVaa = localVariables.get("fastVaa") as Uint8Array;
-                const params = localVariables.get("redeemParameters") as OrderResponse;
-                expect(localVariables.delete("redeemParameters")).is.true;
-                expect(localVariables.delete("fastVaa")).is.true;
-                expect(localVariables.delete("auctionId")).is.true;
+                    localVariables.set("fastOrderResponse", orderResponse);
+                });
 
-                // Fetch balance of player four since they were the highest bidder.
-                const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
-                const balanceBefore = await usdc.balanceOf(playerFour.address);
-                const expectedAmount = await engine
-                    .liveAuctionInfo(auctionId)
-                    .then((info) => info.amount);
+                it(`To Network -- Redeem Fill`, async () => {
+                    const auctionId = localVariables.get("auctionId") as Uint8Array;
+                    const orderResponse = localVariables.get("fastOrderResponse") as OrderResponse;
+                    expect(localVariables.delete("fastOrderResponse")).is.true;
 
-                const receipt = await engine
-                    .executeSlowOrderAndRedeem(fastVaa, params)
-                    .then((tx) => mineWait(engineProvider, tx))
-                    .catch((err) => {
-                        console.log(err);
-                        console.log(errorDecoder(err));
-                        throw err;
-                    });
+                    const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
+                    const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                const balanceAfter = await usdc.balanceOf(playerFour.address);
-                expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                    expectedAmount.toString()
-                );
+                    const receipt = await toTokenRouter
+                        .redeemFill(orderResponse)
+                        .then((tx) => mineWait(toProvider, tx))
+                        .catch((err) => {
+                            console.log(err);
+                            console.log(errorDecoder(err));
+                            throw err;
+                        });
+
+                    // Validate balance changes.
+                    const [bidPrice, amount] = await engine
+                        .liveAuctionInfo(auctionId)
+                        .then((info) => [
+                            ethers.BigNumber.from(info.bidPrice),
+                            ethers.BigNumber.from(info.amount),
+                        ]);
+                    const initAuctionFee = await fromTokenRouter.getInitialAuctionFee();
+                    const balanceAfter = await usdc.balanceOf(toWallet.address);
+
+                    expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
+                        amount.sub(bidPrice).sub(initAuctionFee).toString()
+                    );
+                });
+
+                // it(`Matching Engine -- Execute Slow Vaa And Redeem`, async () => {
+                //     const auctionId = localVariables.get("auctionId") as Uint8Array;
+                //     const fastVaa = localVariables.get("fastVaa") as Uint8Array;
+                //     const params = localVariables.get("redeemParameters") as OrderResponse;
+                //     expect(localVariables.delete("redeemParameters")).is.true;
+                //     expect(localVariables.delete("fastVaa")).is.true;
+                //     expect(localVariables.delete("auctionId")).is.true;
+
+                //     // Fetch balance of player four since they were the highest bidder.
+                //     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
+                //     const balanceBefore = await usdc.balanceOf(playerFour.address);
+                //     const expectedAmount = await engine
+                //         .liveAuctionInfo(auctionId)
+                //         .then((info) => info.amount);
+
+                //     const receipt = await engine
+                //         .executeSlowOrderAndRedeem(fastVaa, params)
+                //         .then((tx) => mineWait(engineProvider, tx))
+                //         .catch((err) => {
+                //             console.log(err);
+                //             console.log(errorDecoder(err));
+                //             throw err;
+                //         });
+
+                //     const balanceAfter = await usdc.balanceOf(playerFour.address);
+                //     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
+                //         expectedAmount.toString()
+                //     );
+                // });
             });
         });
     }

@@ -3,6 +3,7 @@
 pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import "./Types.sol";
 import "../MatchingEngine/assets/Storage.sol";
@@ -24,6 +25,11 @@ interface IMatchingEngineState {
      * @notice Returns the Wormhole Circle integration contract interface.
      */
     function wormholeCctp() external view returns (ICircleIntegration);
+
+    /**
+     * @notice Returns the Wormhole contract interface.
+     */
+    function wormhole() external view returns (IWormhole);
 
     /**
      * @notice Returns the Wormhole chain ID.

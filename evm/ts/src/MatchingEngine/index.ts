@@ -57,5 +57,7 @@ export abstract class MatchingEngine<PreparedTransactionType extends PreparedIns
 
     abstract getAuctionGracePeriod(): Promise<number>;
 
+    abstract wormhole(): Promise<string>;
+
     abstract getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult>;
 }
