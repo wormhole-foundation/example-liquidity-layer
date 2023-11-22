@@ -64,10 +64,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
     })();
 
     // Auction participants.
-    const playerOne = new ethers.Wallet(WALLET_PRIVATE_KEYS[3], engineProvider);
-    const playerTwo = new ethers.Wallet(WALLET_PRIVATE_KEYS[4], engineProvider);
-    const playerThree = new ethers.Wallet(WALLET_PRIVATE_KEYS[5], engineProvider);
-    const playerFour = new ethers.Wallet(WALLET_PRIVATE_KEYS[6], engineProvider);
+    const initialBidder = new ethers.Wallet(WALLET_PRIVATE_KEYS[3], engineProvider);
+    const bidderTwo = new ethers.Wallet(WALLET_PRIVATE_KEYS[4], engineProvider);
+    const bidderThree = new ethers.Wallet(WALLET_PRIVATE_KEYS[5], engineProvider);
+    const highestBidder = new ethers.Wallet(WALLET_PRIVATE_KEYS[6], engineProvider);
+    const liquidator = new ethers.Wallet(WALLET_PRIVATE_KEYS[7], engineProvider);
 
     for (const [fromChainName, toChainName] of CHAIN_PATHWAYS) {
         const localVariables = new Map<string, any>();
@@ -210,14 +211,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const initialDeposit = fastOrder.amountIn + fastOrder.maxFee;
 
                     // Prepare usdc for the auction.
-                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, playerOne);
-                    await mintNativeUsdc(usdc, playerOne.address, initialDeposit);
+                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, initialBidder);
+                    await mintNativeUsdc(usdc, initialBidder.address, initialDeposit);
                     await usdc.approve(engine.address, initialDeposit);
 
-                    const balanceBefore = await usdc.balanceOf(playerOne.address);
+                    const balanceBefore = await usdc.balanceOf(initialBidder.address);
 
                     const receipt = await engine
-                        .connect(playerOne)
+                        .connect(initialBidder)
                         .placeInitialBid(fastVaa, fastOrder.maxFee)
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
@@ -226,7 +227,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             throw err;
                         });
 
-                    const balanceAfter = await usdc.balanceOf(playerOne.address);
+                    const balanceAfter = await usdc.balanceOf(initialBidder.address);
                     expect(balanceBefore.sub(balanceAfter).toString()).to.eql(
                         initialDeposit.toString()
                     );
@@ -240,8 +241,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(auctionData.startBlock.toString()).to.eql(
                         receipt.blockNumber.toString()
                     );
-                    expect(auctionData.highestBidder).to.eql(playerOne.address);
-                    expect(auctionData.initialBidder).to.eql(playerOne.address);
+                    expect(auctionData.highestBidder).to.eql(initialBidder.address);
+                    expect(auctionData.initialBidder).to.eql(initialBidder.address);
                     expect(auctionData.amount.toString()).to.eql(fastOrder.amountIn.toString());
                     expect(auctionData.securityDeposit.toString()).to.eql(
                         fastOrder.maxFee.toString()
@@ -263,17 +264,17 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // the following tests will fail.
                     const bids: ScoreKeeper[] = [
                         {
-                            player: playerTwo,
+                            player: bidderTwo,
                             bid: startingBid.sub(1),
                             balance: ethers.BigNumber.from(0),
                         },
                         {
-                            player: playerThree,
+                            player: bidderThree,
                             bid: startingBid.div(2),
                             balance: ethers.BigNumber.from(0),
                         },
                         {
-                            player: playerFour,
+                            player: highestBidder,
                             bid: startingBid.div(3),
                             balance: ethers.BigNumber.from(0),
                         },
@@ -318,7 +319,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(auctionInfoAfter.startBlock.toString()).to.eql(
                         auctionInfoBefore.startBlock.toString()
                     );
-                    expect(auctionInfoAfter.highestBidder).to.eql(playerFour.address);
+                    expect(auctionInfoAfter.highestBidder).to.eql(highestBidder.address);
                     expect(auctionInfoAfter.initialBidder).to.eql(auctionInfoBefore.initialBidder);
                     expect(auctionInfoAfter.amount.toString()).to.eql(
                         auctionInfoBefore.amount.toString()
@@ -337,12 +338,12 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // Fetch the initial bidder so we can do a balance check.
                     const auctionInfo = await engine.liveAuctionInfo(auctionId);
 
-                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, playerFour);
-                    const balanceBefore = await usdc.balanceOf(playerFour.address);
+                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, highestBidder);
+                    const balanceBefore = await usdc.balanceOf(highestBidder.address);
                     const initialBidderBefore = await usdc.balanceOf(auctionInfo.initialBidder);
 
                     const receipt = await engine
-                        .connect(playerFour)
+                        .connect(highestBidder)
                         .executeFastOrder(localVariables.get("fastVaa"))
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
@@ -375,7 +376,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(transactionResult.fastMessage).is.undefined;
 
                     // Validate state and balance changes.
-                    const balanceAfter = await usdc.balanceOf(playerFour.address);
+                    const balanceAfter = await usdc.balanceOf(highestBidder.address);
                     const initialBidderAfter = await usdc.balanceOf(auctionInfo.initialBidder);
                     const initAuctionFee = await fromTokenRouter.getInitialAuctionFee();
 
@@ -463,7 +464,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     // Fetch balance of player four since they were the highest bidder.
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
-                    const balanceBefore = await usdc.balanceOf(playerFour.address);
+                    const balanceBefore = await usdc.balanceOf(highestBidder.address);
                     const expectedAmount = await engine
                         .liveAuctionInfo(auctionId)
                         .then((info) => info.amount);
@@ -477,7 +478,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             throw err;
                         });
 
-                    const balanceAfter = await usdc.balanceOf(playerFour.address);
+                    const balanceAfter = await usdc.balanceOf(highestBidder.address);
                     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
                         expectedAmount.toString()
                     );
@@ -593,14 +594,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const initialDeposit = fastOrder.amountIn + fastOrder.maxFee;
 
                     // Prepare usdc for the auction.
-                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, playerOne);
-                    await mintNativeUsdc(usdc, playerOne.address, initialDeposit);
+                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, initialBidder);
+                    await mintNativeUsdc(usdc, initialBidder.address, initialDeposit);
                     await usdc.approve(engine.address, initialDeposit);
 
-                    const balanceBefore = await usdc.balanceOf(playerOne.address);
+                    const balanceBefore = await usdc.balanceOf(initialBidder.address);
 
                     const receipt = await engine
-                        .connect(playerOne)
+                        .connect(initialBidder)
                         .placeInitialBid(fastVaa, fastOrder.maxFee)
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
@@ -609,7 +610,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             throw err;
                         });
 
-                    const balanceAfter = await usdc.balanceOf(playerOne.address);
+                    const balanceAfter = await usdc.balanceOf(initialBidder.address);
                     expect(balanceBefore.sub(balanceAfter).toString()).to.eql(
                         initialDeposit.toString()
                     );
@@ -623,8 +624,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(auctionData.startBlock.toString()).to.eql(
                         receipt.blockNumber.toString()
                     );
-                    expect(auctionData.highestBidder).to.eql(playerOne.address);
-                    expect(auctionData.initialBidder).to.eql(playerOne.address);
+                    expect(auctionData.highestBidder).to.eql(initialBidder.address);
+                    expect(auctionData.initialBidder).to.eql(initialBidder.address);
                     expect(auctionData.amount.toString()).to.eql(fastOrder.amountIn.toString());
                     expect(auctionData.securityDeposit.toString()).to.eql(
                         fastOrder.maxFee.toString()
@@ -646,17 +647,17 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // the following tests will fail.
                     const bids: ScoreKeeper[] = [
                         {
-                            player: playerTwo,
+                            player: bidderTwo,
                             bid: startingBid.sub(1),
                             balance: ethers.BigNumber.from(0),
                         },
                         {
-                            player: playerThree,
+                            player: bidderThree,
                             bid: startingBid.div(2),
                             balance: ethers.BigNumber.from(0),
                         },
                         {
-                            player: playerFour,
+                            player: highestBidder,
                             bid: startingBid.div(3),
                             balance: ethers.BigNumber.from(0),
                         },
@@ -701,7 +702,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(auctionInfoAfter.startBlock.toString()).to.eql(
                         auctionInfoBefore.startBlock.toString()
                     );
-                    expect(auctionInfoAfter.highestBidder).to.eql(playerFour.address);
+                    expect(auctionInfoAfter.highestBidder).to.eql(highestBidder.address);
                     expect(auctionInfoAfter.initialBidder).to.eql(auctionInfoBefore.initialBidder);
                     expect(auctionInfoAfter.amount.toString()).to.eql(
                         auctionInfoBefore.amount.toString()
@@ -730,18 +731,13 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // Fetch the initial bidder so we can do a balance check.
                     const auctionInfo = await engine.liveAuctionInfo(auctionId);
 
-                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, playerFour);
-                    const balanceBefore = await usdc.balanceOf(playerFour.address);
-                    const balanceLiquidatorBefore = await usdc.balanceOf(playerTwo.address);
+                    const usdc = IERC20__factory.connect(engineEnv.tokenAddress, highestBidder);
+                    const balanceBefore = await usdc.balanceOf(highestBidder.address);
+                    const balanceLiquidatorBefore = await usdc.balanceOf(liquidator.address);
                     const initialBidderBefore = await usdc.balanceOf(auctionInfo.initialBidder);
 
-                    // Use the playerTwo wallet instead of player four (the auction winner) as
-                    // the `liquidator`.
-                    expect(auctionInfo.highestBidder).to.eql(playerFour.address);
-                    expect(auctionInfo.initialBidder).to.eql(playerOne.address);
-
                     const receipt = await engine
-                        .connect(playerTwo)
+                        .connect(liquidator)
                         .executeFastOrder(localVariables.get("fastVaa"))
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
@@ -776,9 +772,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(transactionResult.fastMessage).is.undefined;
 
                     // Validate state and balance changes.
-                    const balanceAfter = await usdc.balanceOf(playerFour.address);
+                    const balanceAfter = await usdc.balanceOf(highestBidder.address);
                     const initialBidderAfter = await usdc.balanceOf(auctionInfo.initialBidder);
-                    const balanceLiquidatorAfter = await usdc.balanceOf(playerTwo.address);
+                    const balanceLiquidatorAfter = await usdc.balanceOf(liquidator.address);
                     const initAuctionFee = await fromTokenRouter.getInitialAuctionFee();
 
                     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
@@ -874,7 +870,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     // Fetch balance of player four since they were the highest bidder.
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
-                    const balanceBefore = await usdc.balanceOf(playerFour.address);
+                    const balanceBefore = await usdc.balanceOf(highestBidder.address);
                     const expectedAmount = await engine
                         .liveAuctionInfo(auctionId)
                         .then((info) => info.amount);
@@ -888,7 +884,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             throw err;
                         });
 
-                    const balanceAfter = await usdc.balanceOf(playerFour.address);
+                    const balanceAfter = await usdc.balanceOf(highestBidder.address);
                     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
                         expectedAmount.toString()
                     );
@@ -1005,7 +1001,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const feeRecipientBefore = await usdc.balanceOf(engineEnv.feeRecipient!);
 
                     const receipt = await engine
-                        .connect(playerOne)
+                        .connect(initialBidder)
                         .executeSlowOrderAndRedeem(fastVaa, params)
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
