@@ -36,9 +36,9 @@ import {
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
     ["arbitrum", "ethereum"],
-    //["ethereum", "arbitrum"],
+    ["ethereum", "arbitrum"],
     ["arbitrum", "avalanche"],
-    //["ethereum", "avalanche"],
+    ["ethereum", "avalanche"],
 ];
 
 const TEST_AMOUNT = ethers.utils.parseUnits("1000", 6);
@@ -1064,6 +1064,13 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             circleAttestation,
                         };
                     }
+
+                    // Confirm that the auction was market as complete.
+                    const auctionId = keccak256(parseVaa(fastVaa).hash);
+                    const auctionStatus = await engine
+                        .liveAuctionInfo(auctionId)
+                        .then((info) => info.status);
+                    expect(auctionStatus).to.eql(2);
 
                     localVariables.set("fastOrderResponse", orderResponse);
                     localVariables.set("baseFee", baseFee);
