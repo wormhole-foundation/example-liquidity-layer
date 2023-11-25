@@ -14,6 +14,7 @@ import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
 import {
     IMockTokenRouter,
@@ -31,6 +32,7 @@ import "../../src/interfaces/ITokenRouter.sol";
 import {FastTransferParameters} from "../../src/interfaces/Types.sol";
 
 contract TokenRouterTest is Test {
+    using BytesParsing for bytes;
     using Messages for *;
 
     address constant USDC_ADDRESS = 0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E;
@@ -564,62 +566,54 @@ contract TokenRouterTest is Test {
      */
 
     function testCannotPlaceMarketOrderErrInsufficientAmount() public {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 0, // Zero amount.
-            minAmountOut: 0,
-            targetChain: 2,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
-
         vm.expectRevert(abi.encodeWithSelector(ErrInsufficientAmount.selector));
-        router.placeMarketOrder(args);
+        router.placeMarketOrder(
+            0, // Zero amount - amountIn.
+            0, // minAmountOut
+            2, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this) // refundAddress
+        );
     }
 
     function testCannotPlaceMarketOrderErrInvalidRefundAddress() public {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 10,
-            minAmountOut: 0,
-            targetChain: 2,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(0) // Invalid address.
-        });
-
         vm.expectRevert(abi.encodeWithSelector(ErrInvalidRefundAddress.selector));
-        router.placeMarketOrder(args);
+        router.placeMarketOrder(
+            10, // amountIn.
+            0, // minAmountOut
+            2, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(0) // Invalid address - refundAddress.
+        );
     }
 
     function testCannotPlaceMarketOrderErrInvalidRedeemer() public {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 10,
-            minAmountOut: 0,
-            targetChain: 2,
-            redeemer: bytes32(0), // Invalid redeemer.
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
-
         vm.expectRevert(abi.encodeWithSelector(ErrInvalidRedeemerAddress.selector));
-        router.placeMarketOrder(args);
+        router.placeMarketOrder(
+            10, // amountIn.
+            0, // minAmountOut
+            2, // targetChain
+            bytes32(0), // Invalid redeemer.
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this) // refundAddress
+        );
     }
 
     function testCannotPlaceMarketOrderErrUnsupportedChain() public {
         uint256 amountIn = 69;
-
         uint16 targetChain = 2;
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: amountIn,
-            minAmountOut: amountIn,
-            targetChain: targetChain,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
 
         vm.expectRevert(abi.encodeWithSelector(ErrUnsupportedChain.selector, targetChain));
-        router.placeMarketOrder(args);
+        router.placeMarketOrder(
+            amountIn,
+            amountIn,
+            targetChain,
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this) // refundAddress
+        );
     }
 
     function testPlaceMarketOrder(uint256 amountIn) public {
@@ -671,13 +665,7 @@ contract TokenRouterTest is Test {
         });
 
         bytes memory wormholeCctpPayload = _placeCctpMarketOrder(
-            router,
-            PlaceCctpMarketOrderArgs({
-                amountIn: amountIn,
-                targetChain: ARB_CHAIN,
-                redeemer: TEST_REDEEMER,
-                redeemerMessage: bytes("All your base are belong to us")
-            })
+            router, amountIn, ARB_CHAIN, TEST_REDEEMER, bytes("All your base are belong to us")
         );
 
         ICircleIntegration.DepositWithPayload memory deposit =
@@ -773,127 +761,115 @@ contract TokenRouterTest is Test {
     }
 
     function testCannotPlaceFastMarketOrderErrInvalidRefundAddress() public {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 69,
-            minAmountOut: 0,
-            targetChain: ARB_CHAIN,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(0) // Invalid address.
-        });
-
         vm.expectRevert(abi.encodeWithSelector(ErrInvalidRefundAddress.selector));
-        router.placeFastMarketOrder(args);
+        router.placeFastMarketOrder(
+            69, // amountIn.
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(0) // Invalid address - refundAddress.
+        );
     }
 
     function testCannotPlaceFastMarketOrderErrInsufficientAmount() public {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 0, // Zero amount.
-            minAmountOut: 0,
-            targetChain: ARB_CHAIN,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
-
         vm.expectRevert(abi.encodeWithSelector(ErrInsufficientAmount.selector));
-        router.placeFastMarketOrder(args);
+        router.placeFastMarketOrder(
+            0, // amountIn.
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this) // refundAddress.
+        );
     }
 
     function testCannotPlaceFastMarketOrderErrInvalidRedeemerAddress() public {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 69,
-            minAmountOut: 0,
-            targetChain: ARB_CHAIN,
-            redeemer: bytes32(0), // Invalid address.
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
-
         vm.expectRevert(abi.encodeWithSelector(ErrInvalidRedeemerAddress.selector));
-        router.placeFastMarketOrder(args);
+        router.placeFastMarketOrder(
+            69, // amountIn.
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            bytes32(0), // Invalid address.
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this) // Invalid address - refundAddress.
+        );
     }
 
     function testCannotPlaceFastMarketOrderErrUnsupportedChain() public {
         uint16 unsupportedChain = 2;
 
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 690000,
-            minAmountOut: 0,
-            targetChain: unsupportedChain,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
-
         vm.expectRevert(abi.encodeWithSelector(ErrUnsupportedChain.selector, unsupportedChain));
-        router.placeFastMarketOrder(args);
+        router.placeFastMarketOrder(
+            69, // amountIn.
+            0, // minAmountOut
+            unsupportedChain, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this) // refundAddress
+        );
     }
 
     function testCannotPlaceFastMarketOrderErrFastTransferFeeUnset() public {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: 690000,
-            minAmountOut: 0,
-            targetChain: ARB_CHAIN,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
-
         vm.prank(makeAddr("owner"));
         router.disableFastTransfers();
 
         vm.expectRevert(abi.encodeWithSelector(ErrFastTransferFeeUnset.selector));
-        router.placeFastMarketOrder(args);
+        router.placeFastMarketOrder(
+            690000, // amountIn.
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this) // refundAddress
+        );
     }
 
     function testCannotPlaceFastMarketOrderErrAmountTooLarge() public {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: FAST_TRANSFER_MAX_AMOUNT + 1,
-            minAmountOut: 0,
-            targetChain: ARB_CHAIN,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
-
         vm.expectRevert(
             abi.encodeWithSelector(
                 ErrAmountTooLarge.selector, FAST_TRANSFER_MAX_AMOUNT + 1, FAST_TRANSFER_MAX_AMOUNT
             )
         );
-        router.placeFastMarketOrder(args);
+        router.placeFastMarketOrder(
+            FAST_TRANSFER_MAX_AMOUNT + 1,
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this) // refundAddress
+        );
     }
 
     function testCannotPlaceFastMarketOrderTransferAmountTooSmall() public {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: router.getMinTransferAmount() - 1,
-            minAmountOut: 0,
-            targetChain: ARB_CHAIN,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
-
-        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientAmount.selector));
-        router.placeFastMarketOrder(args);
+        bytes memory encodedSignature = abi.encodeWithSignature(
+            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address)",
+            router.getMinTransferAmount() - 1,
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this) // refundAddress
+        );
+        expectRevert(
+            address(router), encodedSignature, abi.encodeWithSignature("ErrInsufficientAmount()")
+        );
     }
 
     function testCannotPlaceFastMarketOrderContractPaused() public {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: router.getMinTransferAmount(),
-            minAmountOut: 0,
-            targetChain: ARB_CHAIN,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
-
         vm.prank(makeAddr("owner"));
         router.setPause(true);
 
-        vm.expectRevert(abi.encodeWithSignature("ContractPaused()"));
-        router.placeFastMarketOrder(args);
+        bytes memory encodedSignature = abi.encodeWithSignature(
+            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address)",
+            router.getMinTransferAmount(),
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this) // refundAddress
+        );
+        expectRevert(address(router), encodedSignature, abi.encodeWithSignature("ContractPaused()"));
     }
 
     function testCannotPlaceFastMarketOrderInsufficientFeeOverride() public {
@@ -901,34 +877,32 @@ contract TokenRouterTest is Test {
         uint128 maxFee = router.calculateMaxTransferFee(amountIn);
         uint128 feeOverride = maxFee - 1;
 
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: amountIn,
-            minAmountOut: 0,
-            targetChain: ARB_CHAIN,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
-
         vm.expectRevert(abi.encodeWithSignature("ErrInsufficientFeeOverride()"));
-        router.placeFastMarketOrder(args, feeOverride);
+        router.placeFastMarketOrder(
+            amountIn,
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this), // refundAddress
+            feeOverride
+        );
     }
 
     function testCannotPlaceFastMarketOrderFeeOverrideMoreThanAmount() public {
         uint256 amountIn = router.getMinTransferAmount() + 69420;
         uint128 feeOverride = uint128(amountIn) + 1;
 
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: amountIn,
-            minAmountOut: 0,
-            targetChain: ARB_CHAIN,
-            redeemer: TEST_REDEEMER,
-            redeemerMessage: bytes("All your base are belong to us."),
-            refundAddress: address(this)
-        });
-
         vm.expectRevert(abi.encodeWithSignature("ErrInsufficientFeeOverride()"));
-        router.placeFastMarketOrder(args, feeOverride);
+        router.placeFastMarketOrder(
+            amountIn,
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this), // refundAddress
+            feeOverride
+        );
     }
 
     function testPlaceFastMarketOrderOne(uint256 amountIn) public {
@@ -1071,12 +1045,10 @@ contract TokenRouterTest is Test {
         (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
         _placeCctpFastMarketOrder(
             router,
-            PlaceCctpMarketOrderArgs({
-                amountIn: expectedFastMarketOrder.amountIn,
-                targetChain: expectedFastMarketOrder.targetChain,
-                redeemer: expectedFastMarketOrder.redeemer,
-                redeemerMessage: expectedFastMarketOrder.redeemerMessage
-            })
+            expectedFastMarketOrder.amountIn,
+            expectedFastMarketOrder.targetChain,
+            expectedFastMarketOrder.redeemer,
+            expectedFastMarketOrder.redeemerMessage
         );
 
         // Verify fast message payload.
@@ -1138,12 +1110,10 @@ contract TokenRouterTest is Test {
         (bytes memory wormholeCctpMessage, bytes memory fastTransferMessage) =
         _placeCctpFastMarketOrder(
             router,
-            PlaceCctpMarketOrderArgs({
-                amountIn: expectedFastMarketOrder.amountIn,
-                targetChain: expectedFastMarketOrder.targetChain,
-                redeemer: expectedFastMarketOrder.redeemer,
-                redeemerMessage: expectedFastMarketOrder.redeemerMessage
-            }),
+            expectedFastMarketOrder.amountIn,
+            expectedFastMarketOrder.targetChain,
+            expectedFastMarketOrder.redeemer,
+            expectedFastMarketOrder.redeemerMessage,
             feeOverride
         );
 
@@ -1345,22 +1315,26 @@ contract TokenRouterTest is Test {
         uint16 targetChain,
         Messages.Fill memory expectedFill
     ) internal returns (bytes memory) {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: amountIn,
-            minAmountOut: amountIn,
-            targetChain: targetChain,
-            redeemer: expectedFill.redeemer,
-            redeemerMessage: expectedFill.redeemerMessage,
-            refundAddress: makeAddr("Where's my money?")
-        });
-
-        return _placeMarketOrder(_router, args);
+        return _placeMarketOrder(
+            _router,
+            amountIn,
+            amountIn,
+            targetChain,
+            expectedFill.redeemer,
+            expectedFill.redeemerMessage,
+            makeAddr("Where's my money?")
+        );
     }
 
-    function _placeMarketOrder(ITokenRouter _router, PlaceMarketOrderArgs memory args)
-        internal
-        returns (bytes memory)
-    {
+    function _placeMarketOrder(
+        ITokenRouter _router,
+        uint256 amountIn,
+        uint256 minAmountOut,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes memory redeemerMessage,
+        address refundAddress
+    ) internal returns (bytes memory) {
         // Grab balance.
         uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
 
@@ -1368,24 +1342,29 @@ contract TokenRouterTest is Test {
         vm.recordLogs();
 
         // Place the order.
-        _router.placeMarketOrder(args);
+        _router.placeMarketOrder(
+            amountIn, minAmountOut, targetChain, redeemer, redeemerMessage, refundAddress
+        );
 
         // Fetch the logs for Wormhole message.
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertGt(logs.length, 0);
 
         // Finally balance check.
-        assertEq(_router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
+        assertEq(_router.orderToken().balanceOf(address(this)) + amountIn, balanceBefore);
 
         return wormholeSimulator.parseVMFromLogs(
             wormholeSimulator.fetchWormholeMessageFromLog(logs)[0]
         ).payload;
     }
 
-    function _placeCctpMarketOrder(ITokenRouter _router, PlaceCctpMarketOrderArgs memory args)
-        internal
-        returns (bytes memory)
-    {
+    function _placeCctpMarketOrder(
+        ITokenRouter _router,
+        uint256 amountIn,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes memory redeemerMessage
+    ) internal returns (bytes memory) {
         // Grab balance.
         uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
 
@@ -1393,14 +1372,14 @@ contract TokenRouterTest is Test {
         vm.recordLogs();
 
         // Place the order.
-        _router.placeMarketOrder(args);
+        _router.placeMarketOrder(amountIn, targetChain, redeemer, redeemerMessage);
 
         // Fetch the logs for Wormhole message.
         Vm.Log[] memory logs = vm.getRecordedLogs();
         assertGt(logs.length, 0);
 
         // Finally balance check.
-        assertEq(_router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
+        assertEq(_router.orderToken().balanceOf(address(this)) + amountIn, balanceBefore);
 
         return wormholeSimulator.parseVMFromLogs(
             wormholeSimulator.fetchWormholeMessageFromLog(logs)[0]
@@ -1419,15 +1398,6 @@ contract TokenRouterTest is Test {
         Messages.FastMarketOrder memory expectedOrder,
         uint128 maxFeeOverride
     ) internal returns (bytes memory slowMessage, bytes memory fastMessage) {
-        PlaceMarketOrderArgs memory args = PlaceMarketOrderArgs({
-            amountIn: expectedOrder.amountIn,
-            minAmountOut: expectedOrder.minAmountOut,
-            targetChain: expectedOrder.targetChain,
-            redeemer: expectedOrder.redeemer,
-            redeemerMessage: expectedOrder.redeemerMessage,
-            refundAddress: fromUniversalAddress(expectedOrder.refundAddress)
-        });
-
         // Grab balance.
         uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
 
@@ -1436,9 +1406,24 @@ contract TokenRouterTest is Test {
 
         // Place the order.
         if (maxFeeOverride > 0) {
-            _router.placeFastMarketOrder(args, maxFeeOverride);
+            _router.placeFastMarketOrder(
+                expectedOrder.amountIn,
+                expectedOrder.minAmountOut,
+                expectedOrder.targetChain,
+                expectedOrder.redeemer,
+                expectedOrder.redeemerMessage,
+                fromUniversalAddress(expectedOrder.refundAddress),
+                maxFeeOverride
+            );
         } else {
-            _router.placeFastMarketOrder(args);
+            _router.placeFastMarketOrder(
+                expectedOrder.amountIn,
+                expectedOrder.minAmountOut,
+                expectedOrder.targetChain,
+                expectedOrder.redeemer,
+                expectedOrder.redeemerMessage,
+                fromUniversalAddress(expectedOrder.refundAddress)
+            );
         }
 
         // Fetch the logs for Wormhole message. There should be two messages.
@@ -1454,19 +1439,28 @@ contract TokenRouterTest is Test {
         ).payload;
 
         // Finally balance check.
-        assertEq(_router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
-    }
-
-    function _placeCctpFastMarketOrder(ITokenRouter _router, PlaceCctpMarketOrderArgs memory args)
-        internal
-        returns (bytes memory slowMessage, bytes memory fastMessage)
-    {
-        return _placeCctpFastMarketOrder(_router, args, 0);
+        assertEq(
+            _router.orderToken().balanceOf(address(this)) + expectedOrder.amountIn, balanceBefore
+        );
     }
 
     function _placeCctpFastMarketOrder(
         ITokenRouter _router,
-        PlaceCctpMarketOrderArgs memory args,
+        uint256 amountIn,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes memory redeemerMessage
+    ) internal returns (bytes memory slowMessage, bytes memory fastMessage) {
+        return
+            _placeCctpFastMarketOrder(_router, amountIn, targetChain, redeemer, redeemerMessage, 0);
+    }
+
+    function _placeCctpFastMarketOrder(
+        ITokenRouter _router,
+        uint256 amountIn,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes memory redeemerMessage,
         uint128 maxFeeOverride
     ) internal returns (bytes memory slowMessage, bytes memory fastMessage) {
         // Grab balance.
@@ -1477,9 +1471,11 @@ contract TokenRouterTest is Test {
 
         // Place the order.
         if (maxFeeOverride > 0) {
-            _router.placeFastMarketOrder(args, maxFeeOverride);
+            _router.placeFastMarketOrder(
+                amountIn, targetChain, redeemer, redeemerMessage, maxFeeOverride
+            );
         } else {
-            _router.placeFastMarketOrder(args);
+            _router.placeFastMarketOrder(amountIn, targetChain, redeemer, redeemerMessage);
         }
 
         // Fetch the logs for Wormhole message. There should be two messages.
@@ -1495,7 +1491,7 @@ contract TokenRouterTest is Test {
         ).payload;
 
         // Finally balance check.
-        assertEq(_router.orderToken().balanceOf(address(this)) + args.amountIn, balanceBefore);
+        assertEq(_router.orderToken().balanceOf(address(this)) + amountIn, balanceBefore);
     }
 
     function _createSignedVaa(uint16 emitterChainId, bytes32 emitterAddress, bytes memory payload)
@@ -1601,5 +1597,16 @@ contract TokenRouterTest is Test {
     function _cctpMintLimit() internal returns (uint256 limit) {
         // This is a hack, assuming the burn limit == mint limit.
         return _cctpBurnLimit();
+    }
+
+    function expectRevert(
+        address contractAddress,
+        bytes memory encodedSignature,
+        bytes memory expectedRevert
+    ) internal {
+        (bool success, bytes memory result) = contractAddress.call(encodedSignature);
+        require(!success, "call did not revert");
+
+        require(keccak256(result) == keccak256(expectedRevert), "call did not revert as expected");
     }
 }

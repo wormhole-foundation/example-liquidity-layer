@@ -22,153 +22,166 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     using Messages for *;
 
     /// @inheritdoc IPlaceMarketOrder
-    function placeMarketOrder(PlaceMarketOrderArgs calldata args)
-        external
-        payable
-        notPaused
-        returns (uint64 sequence)
-    {
-        if (args.refundAddress == address(0)) {
+    function placeMarketOrder(
+        uint256 amountIn,
+        uint256 minAmountOut,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes calldata redeemerMessage,
+        address refundAddress
+    ) external payable notPaused returns (uint64 sequence) {
+        if (refundAddress == address(0)) {
             revert ErrInvalidRefundAddress();
         }
-        sequence = _handleOrder(args);
-    }
-
-    /// @inheritdoc IPlaceMarketOrder
-    function placeMarketOrder(PlaceCctpMarketOrderArgs calldata args)
-        external
-        payable
-        notPaused
-        returns (uint64 sequence)
-    {
         sequence = _handleOrder(
-            PlaceMarketOrderArgs({
-                amountIn: args.amountIn,
-                minAmountOut: 0,
-                targetChain: args.targetChain,
-                redeemer: args.redeemer,
-                redeemerMessage: args.redeemerMessage,
-                refundAddress: address(0)
-            })
+            amountIn, minAmountOut, targetChain, redeemer, redeemerMessage, refundAddress
         );
     }
 
-    function placeFastMarketOrder(PlaceMarketOrderArgs calldata args)
-        external
-        payable
-        notPaused
-        returns (uint64 sequence, uint64 fastSequence)
-    {
-        if (args.refundAddress == address(0)) {
-            revert ErrInvalidRefundAddress();
-        }
-        (sequence, fastSequence) = _handleFastOrder(args, 0);
+    /// @inheritdoc IPlaceMarketOrder
+    function placeMarketOrder(
+        uint256 amountIn,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes calldata redeemerMessage
+    ) external payable notPaused returns (uint64 sequence) {
+        sequence = _handleOrder(amountIn, 0, targetChain, redeemer, redeemerMessage, address(0));
     }
 
-    function placeFastMarketOrder(PlaceCctpMarketOrderArgs calldata args)
-        external
-        payable
-        notPaused
-        returns (uint64 sequence, uint64 fastSequence)
-    {
+    function placeFastMarketOrder(
+        uint256 amountIn,
+        uint256 minAmountOut,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes calldata redeemerMessage,
+        address refundAddress
+    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
+        if (refundAddress == address(0)) {
+            revert ErrInvalidRefundAddress();
+        }
         (sequence, fastSequence) = _handleFastOrder(
-            PlaceMarketOrderArgs({
-                amountIn: args.amountIn,
-                minAmountOut: 0,
-                targetChain: args.targetChain,
-                redeemer: args.redeemer,
-                redeemerMessage: args.redeemerMessage,
-                refundAddress: address(0)
-            }),
+            amountIn, minAmountOut, targetChain, redeemer, redeemerMessage, refundAddress, 0
+        );
+    }
+
+    function placeFastMarketOrder(
+        uint256 amountIn,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes calldata redeemerMessage
+    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
+        (sequence, fastSequence) = _handleFastOrder(
+            amountIn,
+            0,
+            targetChain,
+            redeemer,
+            redeemerMessage,
+            address(0),
             0 // maxFeeOverride
         );
     }
 
-    function placeFastMarketOrder(PlaceMarketOrderArgs calldata args, uint128 maxFeeOverride)
-        external
-        payable
-        notPaused
-        returns (uint64 sequence, uint64 fastSequence)
-    {
-        if (args.refundAddress == address(0)) {
+    function placeFastMarketOrder(
+        uint256 amountIn,
+        uint256 minAmountOut,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes calldata redeemerMessage,
+        address refundAddress,
+        uint128 maxFeeOverride
+    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
+        if (refundAddress == address(0)) {
             revert ErrInvalidRefundAddress();
         }
-        (sequence, fastSequence) = _handleFastOrder(args, maxFeeOverride);
+        (sequence, fastSequence) = _handleFastOrder(
+            amountIn,
+            minAmountOut,
+            targetChain,
+            redeemer,
+            redeemerMessage,
+            refundAddress,
+            maxFeeOverride
+        );
     }
 
-    function placeFastMarketOrder(PlaceCctpMarketOrderArgs calldata args, uint128 maxFeeOverride)
-        external
-        payable
-        notPaused
-        returns (uint64 sequence, uint64 fastSequence)
-    {
+    function placeFastMarketOrder(
+        uint256 amountIn,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes calldata redeemerMessage,
+        uint128 maxFeeOverride
+    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
         (sequence, fastSequence) = _handleFastOrder(
-            PlaceMarketOrderArgs({
-                amountIn: args.amountIn,
-                minAmountOut: 0,
-                targetChain: args.targetChain,
-                redeemer: args.redeemer,
-                redeemerMessage: args.redeemerMessage,
-                refundAddress: address(0)
-            }),
-            maxFeeOverride
+            amountIn, 0, targetChain, redeemer, redeemerMessage, address(0), maxFeeOverride
         );
     }
 
     // ---------------------------------------- private -------------------------------------------
 
-    function _handleOrder(PlaceMarketOrderArgs memory args) private returns (uint64 sequence) {
-        bytes32 targetRouter = _verifyInputArguments(args);
+    function _handleOrder(
+        uint256 amountIn,
+        uint256 minAmountOut,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes calldata redeemerMessage,
+        address refundAddress
+    ) private returns (uint64 sequence) {
+        bytes32 targetRouter = _verifyInputArguments(amountIn, targetChain, redeemer);
 
-        SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
-        SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
+        SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), amountIn);
+        SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), amountIn);
 
         sequence = _wormholeCctp.transferTokensWithPayload{value: msg.value}(
             ICircleIntegration.TransferParameters({
                 token: address(_orderToken),
-                amount: args.amountIn,
-                targetChain: args.targetChain,
+                amount: amountIn,
+                targetChain: targetChain,
                 mintRecipient: targetRouter
             }),
             NONCE,
             Messages.Fill({
                 sourceChain: _wormholeChainId,
                 orderSender: toUniversalAddress(msg.sender),
-                redeemer: args.redeemer,
-                redeemerMessage: args.redeemerMessage
+                redeemer: redeemer,
+                redeemerMessage: redeemerMessage
             }).encode()
         );
     }
 
-    function _handleFastOrder(PlaceMarketOrderArgs memory args, uint128 maxFeeOverride)
-        private
-        returns (uint64 sequence, uint64 fastSequence)
-    {
+    function _handleFastOrder(
+        uint256 amountIn,
+        uint256 minAmountOut,
+        uint16 targetChain,
+        bytes32 redeemer,
+        bytes calldata redeemerMessage,
+        address refundAddress,
+        uint128 maxFeeOverride
+    ) private returns (uint64 sequence, uint64 fastSequence) {
         // The Matching Engine chain is a fast finality chain already,
         // so we don't need to send a fast transfer message.
         if (_wormholeChainId == _matchingEngineChain) {
             revert ErrFastTransferNotSupported();
         }
 
-        _verifyInputArguments(args);
+        _verifyInputArguments(amountIn, targetChain, redeemer);
 
         // Verify fast transfer input parameters and also calculate the fast transfer fees.
         (uint128 dynamicFastTransferFee, uint128 baseFee, uint128 initAuctionFee) =
-            _verifyFastOrderParams(args.amountIn);
+            _verifyFastOrderParams(amountIn);
 
         // Override the maxTransferFee if the `maxFeeOverride` is large enough. The `baseFee`
         // should be baked into the `maxFeeOverride` value.
         uint128 maxTransferFee = dynamicFastTransferFee + baseFee;
         if (maxFeeOverride != 0) {
-            if ((maxTransferFee > maxFeeOverride) || maxFeeOverride >= args.amountIn) {
+            if ((maxTransferFee > maxFeeOverride) || maxFeeOverride >= amountIn) {
                 revert ErrInsufficientFeeOverride();
             } else {
                 maxTransferFee = maxFeeOverride;
             }
         }
 
-        SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), args.amountIn);
-        SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), args.amountIn);
+        SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), amountIn);
+        SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), amountIn);
 
         // User needs to send enough value to pay for two Wormhole messages.
         uint256 messageFee = msg.value / 2;
@@ -177,7 +190,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         sequence = _wormholeCctp.transferTokensWithPayload{value: messageFee}(
             ICircleIntegration.TransferParameters({
                 token: address(_orderToken),
-                amount: args.amountIn,
+                amount: amountIn,
                 targetChain: _matchingEngineChain,
                 mintRecipient: _matchingEngineAddress
             }),
@@ -189,17 +202,17 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         fastSequence = _wormhole.publishMessage{value: messageFee}(
             NONCE,
             Messages.FastMarketOrder({
-                amountIn: args.amountIn,
-                minAmountOut: args.minAmountOut,
-                targetChain: args.targetChain,
-                redeemer: args.redeemer,
+                amountIn: amountIn,
+                minAmountOut: minAmountOut,
+                targetChain: targetChain,
+                redeemer: redeemer,
                 sender: toUniversalAddress(msg.sender),
-                refundAddress: toUniversalAddress(args.refundAddress),
+                refundAddress: toUniversalAddress(refundAddress),
                 slowSequence: sequence,
                 slowEmitter: toUniversalAddress(address(_wormholeCctp)),
                 maxFee: maxTransferFee,
                 initAuctionFee: initAuctionFee,
-                redeemerMessage: args.redeemerMessage
+                redeemerMessage: redeemerMessage
             }).encode(),
             FAST_FINALITY
         );
@@ -242,21 +255,21 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         }
     }
 
-    function _verifyInputArguments(PlaceMarketOrderArgs memory args)
+    function _verifyInputArguments(uint256 amountIn, uint16 targetChain, bytes32 redeemer)
         private
         view
         returns (bytes32 targetRouter)
     {
-        if (args.amountIn == 0) {
+        if (amountIn == 0) {
             revert ErrInsufficientAmount();
         }
-        if (args.redeemer == bytes32(0)) {
+        if (redeemer == bytes32(0)) {
             revert ErrInvalidRedeemerAddress();
         }
 
-        targetRouter = getRouter(args.targetChain);
+        targetRouter = getRouter(targetChain);
         if (targetRouter == bytes32(0)) {
-            revert ErrUnsupportedChain(args.targetChain);
+            revert ErrUnsupportedChain(targetChain);
         }
     }
 }

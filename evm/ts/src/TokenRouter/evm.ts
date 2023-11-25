@@ -1,12 +1,6 @@
 import { ChainId } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
-import {
-    OrderResponse,
-    TokenRouter,
-    PlaceMarketOrderArgs,
-    PlaceCctpMarketOrderArgs,
-    FastTransferParameters,
-} from ".";
+import { OrderResponse, TokenRouter, FastTransferParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {
     ICircleIntegration,
@@ -36,37 +30,76 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         return this.contract.address;
     }
 
-    placeMarketOrder(args: PlaceMarketOrderArgs | PlaceCctpMarketOrderArgs) {
-        if ("minAmountOut" in args) {
-            return this.contract[
-                "placeMarketOrder((uint256,uint256,uint16,bytes32,bytes,address))"
-            ](args);
+    placeMarketOrder(
+        amountIn: bigint,
+        targetChain: number,
+        redeemer: Buffer | Uint8Array,
+        redeemerMessage: Buffer | Uint8Array,
+        minAmountOut?: bigint,
+        refundAddress?: string
+    ) {
+        if (minAmountOut !== undefined && refundAddress !== undefined) {
+            return this.contract["placeMarketOrder(uint256,uint256,uint16,bytes32,bytes,address)"](
+                amountIn,
+                minAmountOut,
+                targetChain,
+                redeemer,
+                redeemerMessage,
+                refundAddress
+            );
         } else {
-            return this.contract["placeMarketOrder((uint256,uint16,bytes32,bytes))"](args);
+            return this.contract["placeMarketOrder(uint256,uint16,bytes32,bytes)"](
+                amountIn,
+                targetChain,
+                redeemer,
+                redeemerMessage
+            );
         }
     }
 
     placeFastMarketOrder(
-        args: PlaceMarketOrderArgs | PlaceCctpMarketOrderArgs,
+        amountIn: bigint,
+        targetChain: number,
+        redeemer: Buffer | Uint8Array,
+        redeemerMessage: Buffer | Uint8Array,
+        minAmountOut?: bigint,
+        refundAddress?: string,
         maxFeeOverride?: bigint
     ) {
-        if (maxFeeOverride !== undefined) {
-            if ("minAmountOut" in args) {
+        if (minAmountOut !== undefined && refundAddress !== undefined) {
+            if (maxFeeOverride !== undefined) {
                 return this.contract[
-                    "placeFastMarketOrder((uint256,uint256,uint16,bytes32,bytes,address),uint128)"
-                ](args, maxFeeOverride);
+                    "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128)"
+                ](
+                    amountIn,
+                    minAmountOut,
+                    targetChain,
+                    redeemer,
+                    redeemerMessage,
+                    refundAddress,
+                    maxFeeOverride
+                );
             } else {
                 return this.contract[
-                    "placeFastMarketOrder((uint256,uint16,bytes32,bytes),uint128)"
-                ](args, maxFeeOverride);
+                    "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address)"
+                ](amountIn, minAmountOut, targetChain, redeemer, redeemerMessage, refundAddress);
             }
         } else {
-            if ("minAmountOut" in args) {
-                return this.contract[
-                    "placeFastMarketOrder((uint256,uint256,uint16,bytes32,bytes,address))"
-                ](args);
+            if (maxFeeOverride !== undefined) {
+                return this.contract["placeFastMarketOrder(uint256,uint16,bytes32,bytes,uint128)"](
+                    amountIn,
+                    targetChain,
+                    redeemer,
+                    redeemerMessage,
+                    maxFeeOverride
+                );
             } else {
-                return this.contract["placeFastMarketOrder((uint256,uint16,bytes32,bytes))"](args);
+                return this.contract["placeFastMarketOrder(uint256,uint16,bytes32,bytes)"](
+                    amountIn,
+                    targetChain,
+                    redeemer,
+                    redeemerMessage
+                );
             }
         }
     }

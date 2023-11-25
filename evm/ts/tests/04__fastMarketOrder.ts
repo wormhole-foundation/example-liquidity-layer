@@ -144,16 +144,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const targetChain = coalesceChainId(toChainName);
                     const minAmountOut = BigInt(0);
                     const receipt = await fromTokenRouter
-                        .placeFastMarketOrder({
+                        .placeFastMarketOrder(
                             amountIn,
-                            minAmountOut,
                             targetChain,
-                            redeemer: Buffer.from(
-                                tryNativeToUint8Array(toWallet.address, toChainName)
-                            ),
-                            redeemerMessage: Buffer.from("All your base are belong to us."),
-                            refundAddress: fromWallet.address,
-                        })
+                            Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
+                            Buffer.from("All your base are belong to us."),
+                            minAmountOut,
+                            fromWallet.address
+                        )
                         .then((tx) => mineWait(fromProvider, tx))
                         .catch((err) => {
                             console.log(err);
@@ -527,16 +525,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const targetChain = coalesceChainId(toChainName);
                     const minAmountOut = BigInt(0);
                     const receipt = await fromTokenRouter
-                        .placeFastMarketOrder({
+                        .placeFastMarketOrder(
                             amountIn,
-                            minAmountOut,
                             targetChain,
-                            redeemer: Buffer.from(
-                                tryNativeToUint8Array(toWallet.address, toChainName)
-                            ),
-                            redeemerMessage: Buffer.from("All your base are belong to us."),
-                            refundAddress: fromWallet.address,
-                        })
+                            Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
+                            Buffer.from("All your base are belong to us."),
+                            minAmountOut,
+                            fromWallet.address
+                        )
                         .then((tx) => mineWait(fromProvider, tx))
                         .catch((err) => {
                             console.log(err);
@@ -933,16 +929,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const targetChain = coalesceChainId(toChainName);
                     const minAmountOut = BigInt(0);
                     const receipt = await fromTokenRouter
-                        .placeFastMarketOrder({
+                        .placeFastMarketOrder(
                             amountIn,
-                            minAmountOut,
                             targetChain,
-                            redeemer: Buffer.from(
-                                tryNativeToUint8Array(toWallet.address, toChainName)
-                            ),
-                            redeemerMessage: Buffer.from("All your base are belong to us."),
-                            refundAddress: fromWallet.address,
-                        })
+                            Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
+                            Buffer.from("All your base are belong to us."),
+                            minAmountOut,
+                            fromWallet.address
+                        )
                         .then((tx) => mineWait(fromProvider, tx))
                         .catch((err) => {
                             console.log(err);

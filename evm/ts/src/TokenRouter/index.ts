@@ -2,22 +2,6 @@ import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
 import { ethers } from "ethers";
 export * from "./evm";
 
-export type PlaceMarketOrderArgs = {
-    amountIn: bigint;
-    minAmountOut: bigint;
-    targetChain: number;
-    redeemer: Buffer | Uint8Array;
-    redeemerMessage: Buffer | Uint8Array;
-    refundAddress: string;
-};
-
-export type PlaceCctpMarketOrderArgs = {
-    amountIn: bigint;
-    targetChain: number;
-    redeemer: Buffer | Uint8Array;
-    redeemerMessage: Buffer | Uint8Array;
-};
-
 export type FastTransferParameters = {
     feeInBps: number;
     maxAmount: bigint;
@@ -35,11 +19,21 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
     abstract get address(): string;
 
     abstract placeMarketOrder(
-        args: PlaceMarketOrderArgs | PlaceCctpMarketOrderArgs
+        amountIn: bigint,
+        targetChain: number,
+        redeemer: Buffer | Uint8Array,
+        redeemerMessage: Buffer | Uint8Array,
+        minAmountOut?: bigint,
+        refundAddress?: string
     ): Promise<PreparedTransactionType>;
 
     abstract placeFastMarketOrder(
-        args: PlaceMarketOrderArgs | PlaceCctpMarketOrderArgs,
+        amountIn: bigint,
+        targetChain: number,
+        redeemer: Buffer | Uint8Array,
+        redeemerMessage: Buffer | Uint8Array,
+        minAmountOut?: bigint,
+        refundAddress?: string,
         maxFeeOverride?: bigint
     ): Promise<PreparedTransactionType>;
 

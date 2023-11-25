@@ -30,8 +30,5 @@ interface IMatchingEngineFastOrders {
         pure
         returns (uint256, uint256);
 
-    function calculateDynamicPenalty(bytes32 auctionId)
-        external
-        view
-        returns (uint256, uint256);
+    function calculateDynamicPenalty(bytes32 auctionId) external view returns (uint256, uint256);
 }

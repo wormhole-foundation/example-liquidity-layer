@@ -105,14 +105,14 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const targetChain = coalesceChainId(toChainName);
                 const minAmountOut = BigInt(0);
                 const receipt = await fromTokenRouter
-                    .placeMarketOrder({
+                    .placeMarketOrder(
                         amountIn,
-                        minAmountOut,
                         targetChain,
-                        redeemer: Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
-                        redeemerMessage: Buffer.from("All your base are belong to us."),
-                        refundAddress: fromWallet.address,
-                    })
+                        Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
+                        Buffer.from("All your base are belong to us."),
+                        minAmountOut,
+                        fromWallet.address
+                    )
                     .then((tx) => mineWait(fromProvider, tx))
                     .catch((err) => {
                         console.log(err);
