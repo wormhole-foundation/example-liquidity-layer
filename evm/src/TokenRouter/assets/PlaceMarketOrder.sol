@@ -48,6 +48,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         sequence = _handleOrder(amountIn, 0, targetChain, redeemer, redeemerMessage, address(0));
     }
 
+    /// @inheritdoc IPlaceMarketOrder
     function placeFastMarketOrder(
         uint256 amountIn,
         uint256 minAmountOut,
@@ -64,6 +65,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         );
     }
 
+    /// @inheritdoc IPlaceMarketOrder
     function placeFastMarketOrder(
         uint256 amountIn,
         uint16 targetChain,
@@ -81,6 +83,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         );
     }
 
+    /// @inheritdoc IPlaceMarketOrder
     function placeFastMarketOrder(
         uint256 amountIn,
         uint256 minAmountOut,
@@ -104,6 +107,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         );
     }
 
+    /// @inheritdoc IPlaceMarketOrder
     function placeFastMarketOrder(
         uint256 amountIn,
         uint16 targetChain,

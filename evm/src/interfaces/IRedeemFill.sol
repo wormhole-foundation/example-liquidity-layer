@@ -20,8 +20,9 @@ struct RedeemedFill {
 
 interface IRedeemFill {
     /**
-     * @notice Redeems a `Fill` Wormhole message from a registered router. The
-     * `token` and `message` are sent to the `redeemer` contract on the target chain.
+     * @notice Redeems a `Fill` or `FastFill` Wormhole message from a registered router
+     * (or the `MatchingEngine` in the case of a `FastFill`). The `token` and `message`
+     * are sent to the `redeemer` contract on the target chain.
      * @dev The caller must be the encoded `redeemer` in the `Fill` message.
      * @param response The `OrderResponse` struct containing the `Fill` message.
      * @return redeemedFill The `RedeemedFill` struct.

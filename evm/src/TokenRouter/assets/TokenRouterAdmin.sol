@@ -32,6 +32,7 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
         getRouterEndpointState().endpoints[chain] = router;
     }
 
+    /// @inheritdoc ITokenRouterAdmin
     function updateFastTransferParameters(FastTransferParameters memory newParams)
         external
         onlyOwnerOrAssistant
@@ -52,6 +53,7 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
         params.initAuctionFee = newParams.initAuctionFee;
     }
 
+    /// @inheritdoc ITokenRouterAdmin
     function disableFastTransfers() external onlyOwnerOrAssistant {
         getFastTransferParametersState().feeInBps = 0;
     }
