@@ -13,7 +13,10 @@ import {
     getFeeRecipientState
 } from "./Storage.sol";
 
-abstract contract MatchingEngineAdmin is Admin, State {
+import {IMatchingEngineAdmin} from "../../interfaces/IMatchingEngineAdmin.sol";
+
+abstract contract MatchingEngineAdmin is IMatchingEngineAdmin, Admin, State {
+    /// @inheritdoc IMatchingEngineAdmin
     function addRouterEndpoint(uint16 chain, bytes32 router) external onlyOwnerOrAssistant {
         if (chain == 0) {
             revert ErrChainNotAllowed(chain);
@@ -26,6 +29,7 @@ abstract contract MatchingEngineAdmin is Admin, State {
         getRouterEndpointState().endpoints[chain] = router;
     }
 
+    /// @inheritdoc IMatchingEngineAdmin
     function setAuctionConfig(AuctionConfig calldata newConfig) external onlyOwnerOrAssistant {
         if (newConfig.auctionDuration == 0) {
             revert ErrInvalidAuctionDuration();
@@ -53,6 +57,7 @@ abstract contract MatchingEngineAdmin is Admin, State {
         config.initialPenaltyBps = newConfig.initialPenaltyBps;
     }
 
+    /// @inheritdoc IMatchingEngineAdmin
     function updateFeeRecipient(address newFeeRecipient) public onlyOwnerOrAssistant {
         if (newFeeRecipient == address(0)) {
             revert InvalidAddress();

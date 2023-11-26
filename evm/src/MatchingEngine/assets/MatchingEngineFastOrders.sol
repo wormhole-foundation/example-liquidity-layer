@@ -34,6 +34,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     );
     event NewBid(bytes32 indexed auctionId, uint256 newBid, uint256 oldBid, address bidder);
 
+    /// @inheritdoc IMatchingEngineFastOrders
     function placeInitialBid(bytes calldata fastTransferVaa, uint128 feeBid) external {
         IWormhole.VM memory vm = _verifyWormholeMessage(fastTransferVaa);
 
@@ -75,6 +76,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         emit AuctionStarted(vm.hash, order.amountIn, feeBid, msg.sender);
     }
 
+    /// @inheritdoc IMatchingEngineFastOrders
     function improveBid(bytes32 auctionId, uint128 feeBid) public {
         // Fetch auction information, if it exists.
         LiveAuctionData storage auction = getLiveAuctionInfo().auctions[auctionId];
@@ -82,7 +84,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         _improveBid(auctionId, auction, feeBid);
     }
 
-    /// @dev We do not verify the router path here since we already did it in `placeInitialBid`.
+    /// @inheritdoc IMatchingEngineFastOrders
     function executeFastOrder(bytes calldata fastTransferVaa)
         external
         payable
@@ -108,7 +110,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
         if (blocksElapsed > config.auctionGracePeriod) {
             (uint256 penalty, uint256 userReward) =
-                _calculateDynamicPenalty(config, auction.securityDeposit, blocksElapsed);
+                calculateDynamicPenalty(config, auction.securityDeposit, blocksElapsed);
 
             /**
              * Give the penalty amount to the liquidator and return the remaining
@@ -148,6 +150,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         auction.status = AuctionStatus.Completed;
     }
 
+    /// @inheritdoc IMatchingEngineFastOrders
     function executeSlowOrderAndRedeem(
         bytes calldata fastTransferVaa,
         ICircleIntegration.RedeemParameters calldata params
@@ -205,7 +208,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
              * obligation. The `penalty` CAN be zero in this case, since the auction
              * grace period might not have ended yet.
              */
-            (uint256 penalty, uint256 userReward) = _calculateDynamicPenalty(
+            (uint256 penalty, uint256 userReward) = calculateDynamicPenalty(
                 getAuctionConfig(),
                 auction.securityDeposit,
                 uint88(block.number) - auction.startBlock
@@ -265,49 +268,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         return fastFill;
     }
 
-    function calculateDynamicPenalty(uint256 amount, uint256 blocksElapsed)
-        external
-        pure
-        returns (uint256 penalty, uint256 userReward)
-    {
-        return _calculateDynamicPenalty(getAuctionConfig(), amount, blocksElapsed);
-    }
-
-    function calculateDynamicPenalty(bytes32 auctionId)
-        external
-        view
-        returns (uint256 penalty, uint256 userReward)
-    {
-        LiveAuctionData memory auction = getLiveAuctionInfo().auctions[auctionId];
-        return _calculateDynamicPenalty(
-            getAuctionConfig(), auction.securityDeposit, uint88(block.number) - auction.startBlock
-        );
-    }
-
     // ------------------------------- Private ---------------------------------
-
-    function _calculateDynamicPenalty(
-        AuctionConfig memory config,
-        uint256 amount,
-        uint256 blocksElapsed
-    ) private pure returns (uint256, uint256) {
-        if (blocksElapsed <= config.auctionGracePeriod) {
-            return (0, 0);
-        }
-
-        uint256 penaltyPeriod = blocksElapsed - config.auctionGracePeriod;
-        if (penaltyPeriod > config.penaltyBlocks || config.initialPenaltyBps == MAX_BPS_FEE) {
-            uint256 userReward = amount * config.userPenaltyRewardBps / MAX_BPS_FEE;
-            return (amount - userReward, userReward);
-        }
-
-        uint256 basePenalty = amount * config.initialPenaltyBps / MAX_BPS_FEE;
-        uint256 penalty =
-            basePenalty + ((amount - basePenalty) * penaltyPeriod / config.penaltyBlocks);
-        uint256 userReward = penalty * config.userPenaltyRewardBps / MAX_BPS_FEE;
-
-        return (penalty - userReward, userReward);
-    }
 
     function _handleCctpTransfer(
         uint256 amount,
