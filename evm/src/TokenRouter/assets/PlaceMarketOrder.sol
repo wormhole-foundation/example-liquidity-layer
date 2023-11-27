@@ -12,7 +12,7 @@ import {fromUniversalAddress, toUniversalAddress} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
-import {FastTransferParameters} from "../../interfaces/Types.sol";
+import {FastTransferParameters} from "../../interfaces/ITokenRouterTypes.sol";
 import {getFastTransferParametersState} from "./Storage.sol";
 
 import "../../interfaces/IPlaceMarketOrder.sol";

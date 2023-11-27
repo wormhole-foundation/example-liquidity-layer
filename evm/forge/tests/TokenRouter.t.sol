@@ -29,7 +29,7 @@ import {Messages} from "../../src/shared/Messages.sol";
 import {fromUniversalAddress, toUniversalAddress} from "../../src/shared/Utils.sol";
 
 import "../../src/interfaces/ITokenRouter.sol";
-import {FastTransferParameters} from "../../src/interfaces/Types.sol";
+import {FastTransferParameters} from "../../src/interfaces/ITokenRouterTypes.sol";
 
 contract TokenRouterTest is Test {
     using BytesParsing for bytes;

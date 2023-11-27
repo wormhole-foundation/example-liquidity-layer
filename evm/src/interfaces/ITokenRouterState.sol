@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
-import "./Types.sol";
+import "./ITokenRouterTypes.sol";
 
 interface ITokenRouterState {
     /**
@@ -49,7 +49,7 @@ interface ITokenRouterState {
 
     /**
      * @notice Returns the current `FastTransferParameters` struct from storage. See
-     * `Types.sol` for the struct definition.
+     * `ITokenRouterTypes.sol` for the struct definition.
      */
     function getFastTransferParameters() external view returns (FastTransferParameters memory);
 

@@ -19,7 +19,7 @@ contract MatchingEngineImplementation is MatchingEngineFastOrders, MatchingEngin
     constructor(address cctpToken_, address wormholeCctp_) State(cctpToken_, wormholeCctp_) {}
 
     function initialize() public virtual initializer {
-        // this function needs to be exposed for an upgrade to pass
+        // This function needs to be exposed for an upgrade to pass.
     }
 
     modifier initializer() {

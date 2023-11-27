@@ -25,7 +25,7 @@ contract TokenRouterImplementation is TokenRouterAdmin, PlaceMarketOrder, Redeem
     ) State(token_, wormholeCircle_, matchingEngineChain_, matchingEngineAddress_) {}
 
     function initialize() public virtual initializer {
-        // this function needs to be exposed for an upgrade to pass
+        // This function needs to be exposed for an upgrade to pass.
     }
 
     modifier initializer() {

@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
-import {OrderResponse} from "./Types.sol";
+import {OrderResponse} from "./ITokenRouterTypes.sol";
 
 struct RedeemedFill {
     // The address of the `PlaceMarketOrder` caller on the source chain.

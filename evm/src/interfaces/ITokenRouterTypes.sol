@@ -21,3 +21,8 @@ struct FastTransferParameters {
     // The fee paid to the initial bidder of an auction.
     uint128 initAuctionFee;
 }
+
+struct RouterEndpoints {
+    // Mapping of chain ID to router address in Wormhole universal format.
+    mapping(uint16 chain => bytes32 endpoint) endpoints;
+}

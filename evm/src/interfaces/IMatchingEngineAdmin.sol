@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {AuctionConfig} from "../MatchingEngine/assets/Storage.sol";
+import {AuctionConfig} from "./IMatchingEngineTypes.sol";
 
 interface IMatchingEngineAdmin {
     /**

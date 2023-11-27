@@ -8,7 +8,7 @@ import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ITokenRouterState} from "../../interfaces/ITokenRouterState.sol";
 
 import "./Errors.sol";
-import {FastTransferParameters} from "../../interfaces/Types.sol";
+import {FastTransferParameters} from "../../interfaces/ITokenRouterTypes.sol";
 import {getRouterEndpointState, getFastTransferParametersState} from "./Storage.sol";
 
 abstract contract State is ITokenRouterState {

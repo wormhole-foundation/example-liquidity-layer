@@ -25,14 +25,18 @@ import {MatchingEngineImplementation} from
     "../../src/MatchingEngine/MatchingEngineImplementation.sol";
 import {MatchingEngineSetup} from "../../src/MatchingEngine/MatchingEngineSetup.sol";
 
-import "../../src/interfaces/Types.sol";
+import "../../src/interfaces/ITokenRouterTypes.sol";
 import {Messages} from "../../src/shared/Messages.sol";
 import {fromUniversalAddress, toUniversalAddress} from "../../src/shared/Utils.sol";
 
 import {IMatchingEngine} from "../../src/interfaces/IMatchingEngine.sol";
-import {FastTransferParameters} from "../../src/interfaces/Types.sol";
-import "../../src/MatchingEngine/assets/Storage.sol";
+import {
+    AuctionConfig,
+    LiveAuctionData,
+    AuctionStatus
+} from "../../src/interfaces/IMatchingEngineTypes.sol";
 
+import {FastTransferParameters} from "../../src/interfaces/ITokenRouterTypes.sol";
 import {ITokenRouter} from "../../src/interfaces/ITokenRouter.sol";
 import {TokenRouterImplementation} from "../../src/TokenRouter/TokenRouterImplementation.sol";
 import {TokenRouterSetup} from "../../src/TokenRouter/TokenRouterSetup.sol";

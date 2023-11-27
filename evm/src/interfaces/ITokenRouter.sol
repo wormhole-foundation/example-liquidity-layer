@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import "./Types.sol";
+import "./ITokenRouterTypes.sol";
 import "./IPlaceMarketOrder.sol";
 import "./IRedeemFill.sol";
 import "./ITokenRouterState.sol";

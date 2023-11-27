@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.0;
 
-import {FastTransferParameters} from "./Types.sol";
+import {FastTransferParameters} from "./ITokenRouterTypes.sol";
 
 interface ITokenRouterAdmin {
     /**

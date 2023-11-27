@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.0;
 
-import "./Types.sol";
 import "./IMatchingEngineState.sol";
 import "./IMatchingEngineAdmin.sol";
 import "./IMatchingEngineFastOrders.sol";
