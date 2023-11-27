@@ -29,6 +29,7 @@ export function errorDecoder(ethersError: any): DecodedErr {
 
     const selector = data.substring(0, 10);
 
+    // TODO: implement all errors
     switch (selector) {
         case computeSelector("ErrInsufficientAmount()"): {
             return { selector: "ErrInsufficientAmount" };
