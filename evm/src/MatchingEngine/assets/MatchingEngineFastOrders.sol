@@ -236,6 +236,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         }
     }
 
+    /// @inheritdoc IMatchingEngineFastOrders
     function redeemFastFill(bytes calldata fastFillVaa)
         external
         returns (Messages.FastFill memory)
