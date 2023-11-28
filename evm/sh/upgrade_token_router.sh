@@ -6,6 +6,8 @@ while getopts ":n:c:u:k:" opt; do
     ;;
     c) chain="$OPTARG"
     ;;
+    u) rpc="$OPTARG"
+    ;;
     k) private_key="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG" >&2
@@ -46,7 +48,13 @@ FORGE_SCRIPTS=$ROOT/../forge/scripts
 
 . $ENV/$network/$chain.env
 
+# Use the RPC environment variable if rpc isn't set.
+if [ -z ${rpc+x} ];
+then
+    rpc=$RPC
+fi
+
 forge script $FORGE_SCRIPTS/UpgradeTokenRouter.s.sol \
-    --rpc-url $RPC \
+    --rpc-url $rpc \
     --broadcast \
     --private-key $private_key
