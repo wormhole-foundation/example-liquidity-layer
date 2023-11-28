@@ -42,11 +42,9 @@ set -euo pipefail
 
 ROOT=$(dirname $0)
 ENV=$ROOT/../env
-FORGE_SCRIPTS=$ROOT/../forge/scripts
+TARGET=$ROOT/../ts/scripts/setup_matching_engine.ts
 
 . $ENV/$network/$chain.env
 
-forge script $FORGE_SCRIPTS/UpgradeTokenRouter.s.sol \
-    --rpc-url $RPC \
-    --broadcast \
-    --private-key $private_key
+npx ts-node $TARGET --network $network --chain $chain --rpc $RPC --key $private_key
+

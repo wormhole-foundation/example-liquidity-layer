@@ -6,8 +6,6 @@ while getopts ":n:c:u:k:" opt; do
     ;;
     c) chain="$OPTARG"
     ;;
-    u) rpc="$OPTARG"
-    ;;
     k) private_key="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG" >&2
@@ -34,12 +32,6 @@ then
     exit 1
 fi
 
-if [ -z ${rpc+x} ];
-then
-    echo "rpc (-u) is unset" >&2
-    exit 1
-fi
-
 if [ -z ${private_key+x} ];
 then
     echo "private key (-k) is unset" >&2
@@ -55,6 +47,6 @@ FORGE_SCRIPTS=$ROOT/../forge/scripts
 . $ENV/$network/$chain.env
 
 forge script $FORGE_SCRIPTS/DeployTokenRouterContracts.s.sol \
-    --rpc-url $rpc \
+    --rpc-url $RPC \
     --broadcast \
     --private-key $private_key

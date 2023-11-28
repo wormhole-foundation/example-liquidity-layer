@@ -1,7 +1,6 @@
 import { getConfig, ZERO_BYTES32 } from "./helpers";
-import { coalesceChainId, tryHexToNativeString } from "@certusone/wormhole-sdk";
-import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__factory";
-import { ITokenRouter, FastTransferParametersStruct } from "../src/types/ITokenRouter";
+import { ChainId, coalesceChainId, tryHexToNativeString } from "@certusone/wormhole-sdk";
+import { IMatchingEngine__factory, IMatchingEngine } from "../src/types/";
 import { ethers } from "ethers";
 
 export function getArgs() {
@@ -25,11 +24,11 @@ export function getArgs() {
 
 async function addRouterInfo(
     chainId: string,
-    tokenRouter: ITokenRouter,
+    engine: IMatchingEngine,
     routerEndpoint: string
 ): Promise<void> {
     console.log(`Adding router endpoint for chain ${chainId}`);
-    const tx = await tokenRouter.addRouterEndpoint(chainId, routerEndpoint);
+    const tx = await engine.addRouterEndpoint(chainId, routerEndpoint);
     const receipt = await tx.wait();
     if (receipt.status === 1) {
         console.log(`Txn succeeded chainId=${chainId}, txHash=${tx.hash}`);
@@ -41,36 +40,38 @@ async function addRouterInfo(
 async function main() {
     const { network, chain, rpc, key } = getArgs();
     const config = getConfig(network);
+    const matchingEngineConfig = config["matchingEngine"];
     const routers = config["routers"];
 
-    if (routers == null) {
-        throw Error("Invalid routers");
+    if (routers == null || matchingEngineConfig == null) {
+        throw Error("Invalid config");
     }
 
     // Setup ethers wallet.
     const provider = new ethers.providers.StaticJsonRpcProvider(rpc);
     const wallet = new ethers.Wallet(key, provider);
 
-    const routerChainId = coalesceChainId(chain);
+    const engineChainId = coalesceChainId(chain);
+    if (engineChainId != (matchingEngineConfig.chain as ChainId)) {
+        console.log(engineChainId, matchingEngineConfig.chainId);
+        throw Error("Invalid chainId");
+    }
 
     // Setup token router contract.
-    const tokenRouter = ITokenRouter__factory.connect(
+    const engine = IMatchingEngine__factory.connect(
         ethers.utils.getAddress(
-            tryHexToNativeString(routers[routerChainId].substring(2), routerChainId)
+            tryHexToNativeString(matchingEngineConfig["address"].substring(2), engineChainId)
         ),
         wallet
     );
 
     // Add router info.
     for (const chainId of Object.keys(routers)) {
-        if (chainId == routerChainId.toString()) {
-            continue;
-        }
         if (routers[chainId].endpoint == ZERO_BYTES32) {
             throw Error(`Invalid endpoint for chain ${chainId}`);
         }
 
-        await addRouterInfo(chainId, tokenRouter, routers[chainId]);
+        await addRouterInfo(chainId, engine, routers[chainId]);
     }
 }
 

@@ -1,4 +1,4 @@
-import { getConfig, ZERO_BYTES32 } from "./helpers";
+import { getConfig } from "./helpers";
 import { coalesceChainId, tryHexToNativeString } from "@certusone/wormhole-sdk";
 import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__factory";
 import { ITokenRouter, FastTransferParametersStruct } from "../src/types/ITokenRouter";
@@ -23,18 +23,18 @@ export function getArgs() {
     };
 }
 
-async function addRouterInfo(
+async function setFastTransferParams(
     chainId: string,
     tokenRouter: ITokenRouter,
-    routerEndpoint: string
+    params: FastTransferParametersStruct
 ): Promise<void> {
-    console.log(`Adding router endpoint for chain ${chainId}`);
-    const tx = await tokenRouter.addRouterEndpoint(chainId, routerEndpoint);
+    console.log(`Updating fast transfer parameters`);
+    const tx = await tokenRouter.updateFastTransferParameters(params);
     const receipt = await tx.wait();
     if (receipt.status === 1) {
         console.log(`Txn succeeded chainId=${chainId}, txHash=${tx.hash}`);
     } else {
-        console.log(`Failed to add router info for chain ${chainId}`);
+        console.log(`Failed to update fast transfer parameters ${chainId}`);
     }
 }
 
@@ -42,8 +42,9 @@ async function main() {
     const { network, chain, rpc, key } = getArgs();
     const config = getConfig(network);
     const routers = config["routers"];
+    const fastTransferParams: FastTransferParametersStruct = config["fastTransferParameters"];
 
-    if (routers == null) {
+    if (routers == null || fastTransferParams == null) {
         throw Error("Invalid routers");
     }
 
@@ -61,17 +62,7 @@ async function main() {
         wallet
     );
 
-    // Add router info.
-    for (const chainId of Object.keys(routers)) {
-        if (chainId == routerChainId.toString()) {
-            continue;
-        }
-        if (routers[chainId].endpoint == ZERO_BYTES32) {
-            throw Error(`Invalid endpoint for chain ${chainId}`);
-        }
-
-        await addRouterInfo(chainId, tokenRouter, routers[chainId]);
-    }
+    await setFastTransferParams(routerChainId.toString(), tokenRouter, fastTransferParams);
 }
 
 main();

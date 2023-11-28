@@ -1,0 +1,26 @@
+{
+    "matchingEngine": {
+        "chain": 6,
+        "address": "0x41B8309F8411C11f2856eBfd185B0C86f00837c2"
+    },
+    "routers": {
+        "2": "0x000000000000000000000000335b8bFE6Ae4080182F31b44365d43B9B28bDF93",
+        "6": "0x0000000000000000000000006f7df59e444f55C55ACaC23b4E47169DCa90a617",
+        "23": "0x000000000000000000000000c58248631918aFf6280Debc3BeB735ca41af78f5",
+        "24": "0x0000000000000000000000007BBef0B0d3CB2d63e762b289547086D6b1A20f20",
+        "30": "0x000000000000000000000000c1Cf3501ef0b26c8A47759F738832563C7cB014A"
+    },
+    "fastTransferParameters": {
+        "feeInBps": 100000,
+        "maxAmount": 5000000000,
+        "baseFee": 50000,
+        "initAuctionFee": 250000
+    },
+    "auctionConfig": {
+        "userPenaltyRewardBps": 250000,
+        "initialPenaltyBps": 100000,
+        "auctionDuration": 2,
+        "auctionGracePeriod": 6,
+        "penaltyBlocks": 10
+    }
+}
