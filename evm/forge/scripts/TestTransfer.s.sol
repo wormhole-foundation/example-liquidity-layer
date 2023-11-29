@@ -9,7 +9,6 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../../src/interfaces/ITokenRouter.sol";
-import {PlaceMarketOrderArgs} from "../../src/interfaces/IPlaceMarketOrder.sol";
 
 contract TestTransfer is Script {
     uint16 immutable _chainId = uint16(vm.envUint("RELEASE_CHAIN_ID"));
@@ -18,24 +17,29 @@ contract TestTransfer is Script {
 
     // Transfer params.
     uint256 _amountIn = vm.envUint("TEST_AMOUNT_IN");
-    uint256 _amountOut = vm.envUint("TEST_AMOUNT_OUT");
     uint16 _targetChain = uint16(vm.envUint("TEST_TARGET_CHAIN"));
     bytes32 _redeemer = vm.envBytes32("TEST_REDEEMER");
-    address _refundAddress = vm.envAddress("TEST_REFUND_ADDRESS");
+    bool isFast = vm.envBool("TEST_IS_FAST");
     bytes _redeemerMessage = hex"deadbeef";
+
 
     function transfer() public {
         SafeERC20.safeIncreaseAllowance(IERC20(_token), _router, _amountIn);
-        ITokenRouter(_router).placeMarketOrder(
-            PlaceMarketOrderArgs({
-                amountIn: _amountIn,
-                minAmountOut: _amountOut,
-                targetChain: _targetChain,
-                redeemer: _redeemer,
-                refundAddress: _refundAddress,
-                redeemerMessage: _redeemerMessage
-            })
-        );
+        if (isFast) {
+            ITokenRouter(_router).placeFastMarketOrder(
+                _amountIn,
+                _targetChain,
+                _redeemer,
+                _redeemerMessage
+            );
+        } else {
+            ITokenRouter(_router).placeMarketOrder(
+                _amountIn,
+                _targetChain,
+                _redeemer,
+                _redeemerMessage
+            );
+        }
     }
 
     function run() public {
