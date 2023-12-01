@@ -4,9 +4,9 @@ import { ethers } from "ethers";
 export * from "./evm";
 
 export type RedeemParameters = {
-    encodedWormholeMessage: Buffer | Uint8Array;
-    circleBridgeMessage: Buffer | Uint8Array;
-    circleAttestation: Buffer | Uint8Array;
+    encodedWormholeMessage: Buffer | Uint8Array | string;
+    circleBridgeMessage: Buffer | Uint8Array | string;
+    circleAttestation: Buffer | Uint8Array | string;
 };
 
 export type AuctionConfig = {
@@ -36,6 +36,8 @@ export abstract class MatchingEngine<PreparedTransactionType extends PreparedIns
 
     abstract liveAuctionInfo(auctionId: Buffer | Uint8Array): Promise<LiveAuctionData>;
 
+    abstract auctionStatus(auctionId: Buffer | Uint8Array): Promise<number>;
+
     abstract placeInitialBid(
         fastTransferVaa: Buffer | Uint8Array,
         feeBid: bigint
@@ -62,6 +64,8 @@ export abstract class MatchingEngine<PreparedTransactionType extends PreparedIns
     ): Promise<[ethers.BigNumberish, ethers.BigNumberish]>;
 
     abstract getAuctionGracePeriod(): Promise<number>;
+
+    abstract getAuctionDuration(): Promise<number>;
 
     abstract getAuctionConfig(): Promise<AuctionConfig>;
 

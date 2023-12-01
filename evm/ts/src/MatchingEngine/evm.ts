@@ -30,6 +30,18 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         return this.contract.address;
     }
 
+    get signer(): ethers.Signer {
+        return this.contract.signer;
+    }
+
+    get signerAddress(): Promise<string> {
+        return this.contract.signer.getAddress();
+    }
+
+    get provider(): ethers.providers.Provider {
+        return this.contract.provider;
+    }
+
     connect(connection: ethers.Signer | ethers.providers.Provider): EvmMatchingEngine {
         return new EvmMatchingEngine(connection, this.address);
     }
@@ -87,8 +99,16 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         return this.contract.liveAuctionInfo(auctionId);
     }
 
+    async auctionStatus(auctionId: Buffer | Uint8Array): Promise<number> {
+        return this.contract.liveAuctionInfo(auctionId).then((res) => res.status);
+    }
+
     async getAuctionGracePeriod(): Promise<number> {
         return this.contract.getAuctionGracePeriod();
+    }
+
+    async getAuctionDuration(): Promise<number> {
+        return this.contract.getAuctionDuration();
     }
 
     async getAuctionConfig(): Promise<AuctionConfig> {
