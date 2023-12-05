@@ -37,3 +37,5 @@ error ErrInvalidAuctionGracePeriod(uint8 gracePeriod);
 error ErrInvalidUserPenaltyRewardBps();
 
 error ErrInvalidInitialPenaltyBps();
+
+error ErrDeadlineExceeded();

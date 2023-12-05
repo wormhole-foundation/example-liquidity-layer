@@ -65,8 +65,10 @@ contract MatchingEngineTest is Test {
 
     bytes32 immutable TEST_REDEEMER = toUniversalAddress(makeAddr("TEST_REDEEMER"));
 
+    // Used to calculate a theo price for the fast transfer fee.
+    uint128 immutable TEST_TRANSFER_FEE_IN_BPS = 25000; // 0.25%.
+
     // Fast transfer outbound parameters.
-    uint24 immutable FAST_TRANSFER_FEE_IN_BPS = 25000; // 0.25%.
     uint128 immutable FAST_TRANSFER_MAX_AMOUNT = 500000e6; // 500,000 USDC.
     uint128 immutable FAST_TRANSFER_BASE_FEE = 1e6; // 1 USDC.
     uint128 immutable FAST_TRANSFER_INIT_AUCTION_FEE = 1e6; // 1 USDC.
@@ -447,6 +449,7 @@ contract MatchingEngineTest is Test {
         uint64 slowMessageSequence = 69;
         amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
 
+        // This method explicitly sets the deadline to zero.
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn, slowMessageSequence);
 
@@ -455,6 +458,58 @@ contract MatchingEngineTest is Test {
 
         // Place initial bid with player one and verify the state changes.
         _placeInitialBid(order, fastMessage, feeBid, PLAYER_ONE);
+    }
+
+    function testPlaceInitialBidWithDeadline(
+        uint256 amountIn,
+        uint128 feeBid,
+        uint32 timeToDeadline
+    ) public {
+        uint64 slowMessageSequence = 69;
+        amountIn = bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount());
+        timeToDeadline =
+            uint32(bound(timeToDeadline, 5, type(uint32).max - uint32(block.timestamp)));
+        uint32 deadline = uint32(block.timestamp + timeToDeadline);
+
+        // This method explicitly sets the deadline to zero.
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence, deadline);
+
+        // Cap the fee bid.
+        feeBid = uint128(bound(feeBid, 0, order.maxFee));
+
+        // Place initial bid with player one and verify the state changes.
+        _placeInitialBid(order, fastMessage, feeBid, PLAYER_ONE);
+    }
+
+    function testCannotPlaceInitialBidDeadlineExceeded() public {
+        uint256 amountIn = _getMinTransferAmount() + 6900;
+        uint128 transferFee = _calculateFastTransferFee(amountIn);
+        uint32 deadline = uint32(block.timestamp) + 10;
+
+        Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
+            amountIn: amountIn,
+            minAmountOut: 0,
+            targetChain: ETH_CHAIN,
+            redeemer: TEST_REDEEMER,
+            sender: toUniversalAddress(address(this)),
+            refundAddress: toUniversalAddress(address(this)),
+            slowSequence: 69,
+            slowEmitter: wormholeCctp.getRegisteredEmitter(ARB_CHAIN),
+            maxFee: transferFee,
+            initAuctionFee: FAST_TRANSFER_INIT_AUCTION_FEE,
+            deadline: uint32(block.timestamp + 1),
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        // Use an emitter chain that is not registered.
+        bytes memory fastMessage = _createSignedVaa(ARB_CHAIN, ARB_ROUTER, 0, order.encode());
+
+        // Test the deadline by warping the timestamp.
+        vm.warp(deadline + 1);
+
+        vm.expectRevert(abi.encodeWithSignature("ErrDeadlineExceeded()"));
+        engine.placeInitialBid(fastMessage, transferFee);
     }
 
     function testCannotPlaceInitialBidInvalidWormholeMessage() public {
@@ -1178,7 +1233,7 @@ contract MatchingEngineTest is Test {
         ITokenRouter avaxRouter = _deployAndRegisterAvaxRouter();
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
-            _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN);
+            _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN, 0);
 
         // Start the auction and make some bids.
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
@@ -1229,7 +1284,7 @@ contract MatchingEngineTest is Test {
         bytes memory fastFill;
         {
             (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
-                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN);
+                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN, 0);
             bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
 
             _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
@@ -1258,7 +1313,7 @@ contract MatchingEngineTest is Test {
         bytes memory fastFill;
         {
             (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
-                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN);
+                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN, 0);
             bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
 
             _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
@@ -1286,7 +1341,7 @@ contract MatchingEngineTest is Test {
         bytes memory fastFill;
         {
             (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
-                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN);
+                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN, 0);
             bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
 
             _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
@@ -1318,7 +1373,7 @@ contract MatchingEngineTest is Test {
         bytes memory fastFill;
         {
             (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
-                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN);
+                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN, 0);
             bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
 
             _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
@@ -1347,7 +1402,7 @@ contract MatchingEngineTest is Test {
         bytes memory fastFill;
         {
             (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
-                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN);
+                _getFastMarketOrder(amountIn, slowMessageSequence, AVAX_CHAIN, 0);
             bytes32 auctionId = wormholeCctp.wormhole().parseVM(fastMessage).hash;
 
             _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
@@ -1559,14 +1614,23 @@ contract MatchingEngineTest is Test {
         view
         returns (Messages.FastMarketOrder memory order, bytes memory fastMessage)
     {
-        return _getFastMarketOrder(amountIn, slowSequence, ETH_CHAIN);
+        return _getFastMarketOrder(amountIn, slowSequence, ETH_CHAIN, 0);
     }
 
-    function _getFastMarketOrder(uint256 amountIn, uint64 slowSequence, uint16 targetChain)
+    function _getFastMarketOrder(uint256 amountIn, uint64 slowSequence, uint32 deadline)
         internal
         view
         returns (Messages.FastMarketOrder memory order, bytes memory fastMessage)
     {
+        return _getFastMarketOrder(amountIn, slowSequence, ETH_CHAIN, deadline);
+    }
+
+    function _getFastMarketOrder(
+        uint256 amountIn,
+        uint64 slowSequence,
+        uint16 targetChain,
+        uint32 deadline
+    ) internal view returns (Messages.FastMarketOrder memory order, bytes memory fastMessage) {
         order = Messages.FastMarketOrder({
             amountIn: amountIn,
             minAmountOut: 0,
@@ -1578,7 +1642,7 @@ contract MatchingEngineTest is Test {
             slowEmitter: wormholeCctp.getRegisteredEmitter(ARB_CHAIN),
             maxFee: _calculateFastTransferFee(amountIn),
             initAuctionFee: FAST_TRANSFER_INIT_AUCTION_FEE,
-            deadline: 0,
+            deadline: deadline,
             redeemerMessage: bytes("All your base are belong to us")
         });
 
@@ -1595,15 +1659,13 @@ contract MatchingEngineTest is Test {
     }
 
     function _calculateFastTransferFee(uint256 amount) internal view returns (uint128) {
-        uint128 feeInBps = uint128(FAST_TRANSFER_FEE_IN_BPS);
-
         if (amount < FAST_TRANSFER_BASE_FEE + FAST_TRANSFER_INIT_AUCTION_FEE) {
             revert();
         }
 
         uint128 transferFee = uint128(
-            (amount - FAST_TRANSFER_BASE_FEE - FAST_TRANSFER_INIT_AUCTION_FEE) * feeInBps
-                / engine.maxBpsFee()
+            (amount - FAST_TRANSFER_BASE_FEE - FAST_TRANSFER_INIT_AUCTION_FEE)
+                * TEST_TRANSFER_FEE_IN_BPS / engine.maxBpsFee()
         );
 
         return transferFee + FAST_TRANSFER_BASE_FEE;

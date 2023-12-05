@@ -51,6 +51,9 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
             return;
         }
+        if (uint32(block.timestamp) >= order.deadline && order.deadline != 0) {
+            revert ErrDeadlineExceeded();
+        }
         if (feeBid > order.maxFee) {
             revert ErrBidPriceTooHigh(feeBid, order.maxFee);
         }
