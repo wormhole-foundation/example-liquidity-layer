@@ -75,10 +75,4 @@ interface ITokenRouterState {
      * is only paid in the a fast transfer auction does not occur.
      */
     function getBaseFee() external view returns (uint128);
-
-    /**
-     * @notice Returns the maximum fee the sender will pay for a fast transfer.
-     * @param amount The amount of tokens to transfer.
-     */
-    function calculateMaxTransferFee(uint256 amount) external view returns (uint128);
 }

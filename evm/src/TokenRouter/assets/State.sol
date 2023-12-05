@@ -80,7 +80,7 @@ abstract contract State is ITokenRouterState {
 
     /// @inheritdoc ITokenRouterState
     function fastTransfersEnabled() external view returns (bool) {
-        return getFastTransferParametersState().maxAmount > 0;
+        return getFastTransferParametersState().enabled;
     }
 
     /// @inheritdoc ITokenRouterState
@@ -108,21 +108,5 @@ abstract contract State is ITokenRouterState {
     /// @inheritdoc ITokenRouterState
     function getBaseFee() external view returns (uint128) {
         return getFastTransferParametersState().baseFee;
-    }
-
-    /// @inheritdoc ITokenRouterState
-    function calculateMaxTransferFee(uint256 amount) external pure returns (uint128) {
-        FastTransferParameters memory fastParams = getFastTransferParametersState();
-        uint128 feeInBps = uint128(fastParams.feeInBps);
-
-        if (amount < fastParams.baseFee + fastParams.initAuctionFee) {
-            revert ErrInsufficientAmount();
-        }
-
-        uint128 transferFee = uint128(
-            (amount - fastParams.baseFee - fastParams.initAuctionFee) * feeInBps / MAX_BPS_FEE
-        );
-
-        return transferFee + fastParams.baseFee;
     }
 }

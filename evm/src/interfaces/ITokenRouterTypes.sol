@@ -12,8 +12,8 @@ struct OrderResponse {
 }
 
 struct FastTransferParameters {
-    // The fee in basis points (1/100 of a percent) that is charged for fast transfers.
-    uint24 feeInBps;
+    // Determines if fast transfers are enabled.
+    bool enabled;
     // The maximum amount that can be transferred using fast transfers.
     uint128 maxAmount;
     // The `baseFee` which is summed with the `feeInBps` to calculate the total fee.

@@ -55,43 +55,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
-        address refundAddress
-    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
-        if (refundAddress == address(0)) {
-            revert ErrInvalidRefundAddress();
-        }
-        (sequence, fastSequence) = _handleFastOrder(
-            amountIn, minAmountOut, targetChain, redeemer, redeemerMessage, refundAddress, 0
-        );
-    }
-
-    /// @inheritdoc IPlaceMarketOrder
-    function placeFastMarketOrder(
-        uint256 amountIn,
-        uint16 targetChain,
-        bytes32 redeemer,
-        bytes calldata redeemerMessage
-    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
-        (sequence, fastSequence) = _handleFastOrder(
-            amountIn,
-            0,
-            targetChain,
-            redeemer,
-            redeemerMessage,
-            address(0),
-            0 // maxFeeOverride
-        );
-    }
-
-    /// @inheritdoc IPlaceMarketOrder
-    function placeFastMarketOrder(
-        uint256 amountIn,
-        uint256 minAmountOut,
-        uint16 targetChain,
-        bytes32 redeemer,
-        bytes calldata redeemerMessage,
         address refundAddress,
-        uint128 maxFeeOverride
+        uint128 auctionBasePrice
     ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
         if (refundAddress == address(0)) {
             revert ErrInvalidRefundAddress();
@@ -103,7 +68,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             redeemer,
             redeemerMessage,
             refundAddress,
-            maxFeeOverride
+            auctionBasePrice
         );
     }
 
@@ -113,10 +78,10 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
-        uint128 maxFeeOverride
+        uint128 auctionBasePrice
     ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
         (sequence, fastSequence) = _handleFastOrder(
-            amountIn, 0, targetChain, redeemer, redeemerMessage, address(0), maxFeeOverride
+            amountIn, 0, targetChain, redeemer, redeemerMessage, address(0), auctionBasePrice
         );
     }
 
@@ -130,7 +95,11 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes calldata redeemerMessage,
         address refundAddress
     ) private returns (uint64 sequence) {
-        bytes32 targetRouter = _verifyInputArguments(amountIn, targetChain, redeemer);
+        if (amountIn == 0) {
+            revert ErrInsufficientAmount();
+        }
+
+        bytes32 targetRouter = _verifyInputArguments(targetChain, redeemer);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), amountIn);
         SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), amountIn);
@@ -159,7 +128,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress,
-        uint128 maxFeeOverride
+        uint128 auctionBasePrice
     ) private returns (uint64 sequence, uint64 fastSequence) {
         // The Matching Engine chain is a fast finality chain already,
         // so we don't need to send a fast transfer message.
@@ -167,22 +136,20 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             revert ErrFastTransferNotSupported();
         }
 
-        _verifyInputArguments(amountIn, targetChain, redeemer);
+        // Verify the `amountIn` and specified auction price.
+        FastTransferParameters memory fastParams = getFastTransferParametersState();
 
-        // Verify fast transfer input parameters and also calculate the fast transfer fees.
-        (uint128 dynamicFastTransferFee, uint128 baseFee, uint128 initAuctionFee) =
-            _verifyFastOrderParams(amountIn);
-
-        // Override the maxTransferFee if the `maxFeeOverride` is large enough. The `baseFee`
-        // should be baked into the `maxFeeOverride` value.
-        uint128 maxTransferFee = dynamicFastTransferFee + baseFee;
-        if (maxFeeOverride != 0) {
-            if ((maxTransferFee > maxFeeOverride) || maxFeeOverride >= amountIn) {
-                revert ErrInsufficientFeeOverride();
-            } else {
-                maxTransferFee = maxFeeOverride;
-            }
+        if (!fastParams.enabled) {
+            revert ErrFastTransferDisabled();
         }
+        if (amountIn > fastParams.maxAmount) {
+            revert ErrAmountTooLarge(amountIn, fastParams.maxAmount);
+        }
+        if (amountIn <= fastParams.baseFee + fastParams.initAuctionFee + auctionBasePrice) {
+            revert ErrInsufficientAmount();
+        }
+
+        _verifyInputArguments(targetChain, redeemer);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), amountIn);
         SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), amountIn);
@@ -199,7 +166,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 mintRecipient: _matchingEngineAddress
             }),
             NONCE,
-            Messages.SlowOrderResponse({baseFee: baseFee}).encode()
+            Messages.SlowOrderResponse({baseFee: fastParams.baseFee}).encode()
         );
 
         // Send the faster-than-finality message.
@@ -214,59 +181,19 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 refundAddress: toUniversalAddress(refundAddress),
                 slowSequence: sequence,
                 slowEmitter: toUniversalAddress(address(_wormholeCctp)),
-                maxFee: maxTransferFee,
-                initAuctionFee: initAuctionFee,
+                maxFee: auctionBasePrice + fastParams.baseFee,
+                initAuctionFee: fastParams.initAuctionFee,
                 redeemerMessage: redeemerMessage
             }).encode(),
             FAST_FINALITY
         );
     }
 
-    function _verifyFastOrderParams(uint256 amountIn)
-        private
-        pure
-        returns (uint128, uint128, uint128)
-    {
-        FastTransferParameters memory fastParams = getFastTransferParametersState();
-        uint128 feeInBps = uint128(fastParams.feeInBps);
-
-        // The operator of this protocol can disable fast transfers by
-        // setting `feeInBps` to zero.
-        if (feeInBps == 0) {
-            revert ErrFastTransferFeeUnset();
-        }
-
-        if (amountIn > fastParams.maxAmount) {
-            revert ErrAmountTooLarge(amountIn, fastParams.maxAmount);
-        }
-
-        // This check is necessary to prevent an underflow in the unchecked block below.
-        uint128 staticFee = fastParams.baseFee + fastParams.initAuctionFee;
-        if (amountIn <= staticFee) {
-            revert ErrInsufficientAmount();
-        }
-
-        unchecked {
-            /**
-             * The fee should not be applied to the `baseFee` or `initAuctionFee`. Also, we can
-             * safely cast the result to `uint128` because we know that `amountIn` is less than
-             * or equal to `fastParams.maxAmount` which is a uint128.
-             */
-            uint128 dynamicFastTransferFee =
-                uint128((amountIn - staticFee) * feeInBps / MAX_BPS_FEE);
-
-            return (dynamicFastTransferFee, fastParams.baseFee, fastParams.initAuctionFee);
-        }
-    }
-
-    function _verifyInputArguments(uint256 amountIn, uint16 targetChain, bytes32 redeemer)
+    function _verifyInputArguments(uint16 targetChain, bytes32 redeemer)
         private
         view
         returns (bytes32 targetRouter)
     {
-        if (amountIn == 0) {
-            revert ErrInsufficientAmount();
-        }
         if (redeemer == bytes32(0)) {
             revert ErrInvalidRedeemerAddress();
         }

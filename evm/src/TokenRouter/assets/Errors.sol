@@ -34,4 +34,6 @@ error ErrInvalidFastTransferParameters();
 
 error ErrFastTransferNotSupported();
 
-error ErrInsufficientFeeOverride();
+error ErrInvalidFeeOverride();
+
+error ErrFastTransferDisabled();

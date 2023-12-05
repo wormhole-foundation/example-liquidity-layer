@@ -39,22 +39,18 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
     {
         FastTransferParameters storage params = getFastTransferParametersState();
 
-        if (newParams.feeInBps > MAX_BPS_FEE || newParams.feeInBps == 0) {
-            revert ErrInvalidFeeInBps();
-        }
-
         if (newParams.maxAmount < newParams.baseFee + newParams.initAuctionFee) {
             revert ErrInvalidFastTransferParameters();
         }
 
-        params.feeInBps = newParams.feeInBps;
+        params.enabled = newParams.enabled;
         params.baseFee = newParams.baseFee;
         params.maxAmount = newParams.maxAmount;
         params.initAuctionFee = newParams.initAuctionFee;
     }
 
     /// @inheritdoc ITokenRouterAdmin
-    function disableFastTransfers() external onlyOwnerOrAssistant {
-        getFastTransferParametersState().feeInBps = 0;
+    function enableFastTransfers(bool enable) external onlyOwnerOrAssistant {
+        getFastTransferParametersState().enabled = enable;
     }
 }
