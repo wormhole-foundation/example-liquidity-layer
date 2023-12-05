@@ -73,6 +73,9 @@ interface IPlaceMarketOrder {
      * the contract.
      * @param auctionBasePrice The maximum fee that the user is willing to pay to execute
      * a fast transfer, excluding the `baseFee` and `initAuctionFee`.
+     * @param deadline The deadline for the fast transfer auction to start. This timestamp
+     * should be for the `MatchingEngine` chain to avoid any clock drift issues between
+     * different blockchains. Set this value to 0 to opt out of using a deadline.
      * @return sequence The sequence number of the `SlowOrderResponse` Wormhole message.
      * @return fastSequence The sequence number of the `FastMarketOrder` Wormhole message.
      * @dev Currently, the `minAmountOut` and `refundAddress` parameters
@@ -88,7 +91,8 @@ interface IPlaceMarketOrder {
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress,
-        uint128 auctionBasePrice
+        uint128 auctionBasePrice,
+        uint32 deadline
     ) external payable returns (uint64 sequence, uint64 fastSequence);
 
     /**
@@ -106,6 +110,9 @@ interface IPlaceMarketOrder {
      * @param redeemerMessage Arbitrary payload to be sent to the `redeemer`.
      * @param auctionBasePrice The maximum fee that the user is willing to pay to execute
      * a fast transfer, excluding the `baseFee` and `initAuctionFee`.
+     * @param deadline The deadline for the fast transfer auction to start. This timestamp
+     * should be for the `MatchingEngine` chain to avoid any clock drift issues between
+     * different blockchains. Set this value to 0 to opt out of using a deadline.
      * @return sequence The sequence number of the `SlowOrderResponse` Wormhole message.
      * @return fastSequence The sequence number of the `FastMarketOrder` Wormhole message.
      * @dev This interface is for CCTP-enabled chains only. If you plan to
@@ -117,6 +124,7 @@ interface IPlaceMarketOrder {
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
-        uint128 auctionBasePrice
+        uint128 auctionBasePrice,
+        uint32 deadline
     ) external payable returns (uint64 sequence, uint64 fastSequence);
 }

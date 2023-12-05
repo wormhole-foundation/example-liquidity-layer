@@ -77,10 +77,7 @@ contract TokenRouterTest is Test {
     function deployProxy(address _token, address _wormholeCircle) internal returns (ITokenRouter) {
         // Deploy Implementation.
         TokenRouterImplementation implementation = new TokenRouterImplementation(
-            _token,
-            _wormholeCircle,
-            matchingEngineChain,
-            matchingEngineAddress
+            _token, _wormholeCircle, matchingEngineChain, matchingEngineAddress
         );
 
         // Deploy Setup.
@@ -113,16 +110,10 @@ contract TokenRouterTest is Test {
 
         vm.stopPrank();
 
-        wormholeSimulator = new SigningWormholeSimulator(
-            wormholeCctp.wormhole(),
-            TESTING_SIGNER
-        );
+        wormholeSimulator = new SigningWormholeSimulator(wormholeCctp.wormhole(), TESTING_SIGNER);
 
-        circleSimulator = new CircleSimulator(
-            TESTING_SIGNER,
-            MESSAGE_TRANSMITTER,
-            ARBITRUM_USDC_ADDRESS
-        );
+        circleSimulator =
+            new CircleSimulator(TESTING_SIGNER, MESSAGE_TRANSMITTER, ARBITRUM_USDC_ADDRESS);
         circleSimulator.setupCircleAttester();
     }
 
@@ -133,10 +124,7 @@ contract TokenRouterTest is Test {
     function testUpgradeContract() public {
         // Deploy new implementation.
         MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
-            USDC_ADDRESS,
-            address(wormholeCctp),
-            matchingEngineChain,
-            matchingEngineAddress
+            USDC_ADDRESS, address(wormholeCctp), matchingEngineChain, matchingEngineAddress
         );
 
         // Upgrade the contract.
@@ -154,10 +142,7 @@ contract TokenRouterTest is Test {
     function testCannotUpgradeContractAgain() public {
         // Deploy new implementation.
         MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
-            USDC_ADDRESS,
-            address(wormholeCctp),
-            matchingEngineChain,
-            matchingEngineAddress
+            USDC_ADDRESS, address(wormholeCctp), matchingEngineChain, matchingEngineAddress
         );
 
         vm.startPrank(makeAddr("owner"));
@@ -521,6 +506,7 @@ contract TokenRouterTest is Test {
         bytes32 slowEmitter,
         uint128 maxFee,
         uint128 initAuctionFee,
+        uint32 deadline,
         bytes memory redeemerMessage
     ) public {
         Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
@@ -534,6 +520,7 @@ contract TokenRouterTest is Test {
             slowEmitter: slowEmitter,
             maxFee: maxFee,
             initAuctionFee: initAuctionFee,
+            deadline: deadline,
             redeemerMessage: redeemerMessage
         });
 
@@ -692,7 +679,8 @@ contract TokenRouterTest is Test {
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(0), // Invalid address - refundAddress.
-            69
+            69, // auctionBasePrice
+            0 // deadline
         );
     }
 
@@ -705,7 +693,8 @@ contract TokenRouterTest is Test {
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // refundAddress.
-            690001
+            690001, // auctionBasePrice
+            0 // deadline
         );
     }
 
@@ -718,7 +707,8 @@ contract TokenRouterTest is Test {
             bytes32(0), // Invalid address.
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // Invalid address - refundAddress.
-            69
+            69, // auctionBasePrice
+            0 // deadline
         );
     }
 
@@ -733,7 +723,8 @@ contract TokenRouterTest is Test {
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // refundAddress
-            69
+            69, // auctionBasePrice
+            0 // deadline
         );
     }
 
@@ -749,7 +740,8 @@ contract TokenRouterTest is Test {
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // refundAddress
-            69
+            69, // auctionBasePrice
+            0 // deadline
         );
     }
 
@@ -766,20 +758,22 @@ contract TokenRouterTest is Test {
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // refundAddress
-            69
+            69, // auctionBasePrice
+            0 // deadline
         );
     }
 
     function testCannotPlaceFastMarketOrderTransferAmountTooSmall() public {
         bytes memory encodedSignature = abi.encodeWithSignature(
-            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128)",
+            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128,uint32)",
             router.getMinTransferAmount() - 1,
             0, // minAmountOut
             ARB_CHAIN, // targetChain
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // refundAddress
-            0
+            0, // auctionBasePrice
+            0 // deadline
         );
         expectRevert(
             address(router), encodedSignature, abi.encodeWithSignature("ErrInsufficientAmount()")
@@ -791,19 +785,22 @@ contract TokenRouterTest is Test {
         router.setPause(true);
 
         bytes memory encodedSignature = abi.encodeWithSignature(
-            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128)",
+            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128,uint32)",
             router.getMinTransferAmount(),
             0, // minAmountOut
             ARB_CHAIN, // targetChain
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // refundAddress
-            0
+            0, // auctionBasePrice
+            0 // deadline
         );
         expectRevert(address(router), encodedSignature, abi.encodeWithSignature("ContractPaused()"));
     }
 
-    function testPlaceFastMarketOrder(uint256 amountIn, uint128 auctionBasePrice) public {
+    function testPlaceFastMarketOrder(uint256 amountIn, uint128 auctionBasePrice, uint32 deadline)
+        public
+    {
         amountIn = bound(amountIn, router.getMinTransferAmount(), router.getMaxTransferAmount());
         auctionBasePrice =
             uint128(bound(auctionBasePrice, 0, amountIn - router.getMinTransferAmount()));
@@ -826,6 +823,7 @@ contract TokenRouterTest is Test {
             slowEmitter: toUniversalAddress(WORMHOLE_CCTP_ADDRESS),
             maxFee: auctionBasePrice + router.getBaseFee(),
             initAuctionFee: router.getInitialAuctionFee(),
+            deadline: deadline,
             redeemerMessage: bytes("All your base are belong to us")
         });
 
@@ -859,9 +857,11 @@ contract TokenRouterTest is Test {
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
     }
 
-    function testPlaceFastMarketOrderWithCctpInterface(uint256 amountIn, uint128 auctionBasePrice)
-        public
-    {
+    function testPlaceFastMarketOrderWithCctpInterface(
+        uint256 amountIn,
+        uint128 auctionBasePrice,
+        uint32 deadline
+    ) public {
         amountIn = bound(amountIn, router.getMinTransferAmount(), router.getMaxTransferAmount());
         auctionBasePrice =
             uint128(bound(auctionBasePrice, 0, amountIn - router.getMinTransferAmount()));
@@ -884,6 +884,7 @@ contract TokenRouterTest is Test {
             slowEmitter: toUniversalAddress(WORMHOLE_CCTP_ADDRESS),
             maxFee: auctionBasePrice + router.getBaseFee(),
             initAuctionFee: router.getInitialAuctionFee(),
+            deadline: deadline,
             redeemerMessage: bytes("All your base are belong to us")
         });
 
@@ -895,7 +896,8 @@ contract TokenRouterTest is Test {
             expectedFastMarketOrder.targetChain,
             expectedFastMarketOrder.redeemer,
             expectedFastMarketOrder.redeemerMessage,
-            auctionBasePrice
+            auctionBasePrice,
+            expectedFastMarketOrder.deadline
         );
 
         // Verify fast message payload.
@@ -926,7 +928,8 @@ contract TokenRouterTest is Test {
 
     function testPlaceFastMarketOrderTargetIsMatchingEngine(
         uint256 amountIn,
-        uint128 auctionBasePrice
+        uint128 auctionBasePrice,
+        uint32 deadline
     ) public {
         amountIn = bound(amountIn, router.getMinTransferAmount(), router.getMaxTransferAmount());
         auctionBasePrice =
@@ -957,6 +960,7 @@ contract TokenRouterTest is Test {
             slowEmitter: toUniversalAddress(WORMHOLE_CCTP_ADDRESS),
             maxFee: auctionBasePrice + router.getBaseFee(),
             initAuctionFee: router.getInitialAuctionFee(),
+            deadline: deadline,
             redeemerMessage: bytes("All your base are belong to us")
         });
 
@@ -1191,7 +1195,8 @@ contract TokenRouterTest is Test {
             expectedOrder.redeemer,
             expectedOrder.redeemerMessage,
             fromUniversalAddress(expectedOrder.refundAddress),
-            baseAuctionPrice
+            baseAuctionPrice,
+            expectedOrder.deadline
         );
 
         // Fetch the logs for Wormhole message. There should be two messages.
@@ -1218,7 +1223,8 @@ contract TokenRouterTest is Test {
         uint16 targetChain,
         bytes32 redeemer,
         bytes memory redeemerMessage,
-        uint128 baseAuctionPrice
+        uint128 baseAuctionPrice,
+        uint32 deadline
     ) internal returns (bytes memory slowMessage, bytes memory fastMessage) {
         // Grab balance.
         uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
@@ -1228,7 +1234,7 @@ contract TokenRouterTest is Test {
 
         // Place the order.
         _router.placeFastMarketOrder(
-            amountIn, targetChain, redeemer, redeemerMessage, baseAuctionPrice
+            amountIn, targetChain, redeemer, redeemerMessage, baseAuctionPrice, deadline
         );
 
         // Fetch the logs for Wormhole message. There should be two messages.

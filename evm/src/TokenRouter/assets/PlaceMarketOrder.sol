@@ -56,7 +56,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress,
-        uint128 auctionBasePrice
+        uint128 auctionBasePrice,
+        uint32 deadline
     ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
         if (refundAddress == address(0)) {
             revert ErrInvalidRefundAddress();
@@ -68,7 +69,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             redeemer,
             redeemerMessage,
             refundAddress,
-            auctionBasePrice
+            auctionBasePrice,
+            deadline
         );
     }
 
@@ -78,10 +80,18 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
-        uint128 auctionBasePrice
+        uint128 auctionBasePrice,
+        uint32 deadline
     ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
         (sequence, fastSequence) = _handleFastOrder(
-            amountIn, 0, targetChain, redeemer, redeemerMessage, address(0), auctionBasePrice
+            amountIn,
+            0,
+            targetChain,
+            redeemer,
+            redeemerMessage,
+            address(0),
+            auctionBasePrice,
+            deadline
         );
     }
 
@@ -128,7 +138,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress,
-        uint128 auctionBasePrice
+        uint128 auctionBasePrice,
+        uint32 deadline
     ) private returns (uint64 sequence, uint64 fastSequence) {
         // The Matching Engine chain is a fast finality chain already,
         // so we don't need to send a fast transfer message.
@@ -183,6 +194,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 slowEmitter: toUniversalAddress(address(_wormholeCctp)),
                 maxFee: auctionBasePrice + fastParams.baseFee,
                 initAuctionFee: fastParams.initAuctionFee,
+                deadline: deadline,
                 redeemerMessage: redeemerMessage
             }).encode(),
             FAST_FINALITY

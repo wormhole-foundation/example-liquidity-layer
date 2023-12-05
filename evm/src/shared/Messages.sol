@@ -44,6 +44,7 @@ library Messages {
         bytes32 slowEmitter;
         uint128 maxFee;
         uint128 initAuctionFee;
+        uint32 deadline;
         bytes redeemerMessage;
     }
 
@@ -85,6 +86,7 @@ library Messages {
             order.slowEmitter,
             order.maxFee,
             order.initAuctionFee,
+            order.deadline,
             _encodeBytes(order.redeemerMessage)
         );
     }
@@ -107,6 +109,7 @@ library Messages {
         (order.slowEmitter, offset) = encoded.asBytes32Unchecked(offset);
         (order.maxFee, offset) = encoded.asUint128Unchecked(offset);
         (order.initAuctionFee, offset) = encoded.asUint128Unchecked(offset);
+        (order.deadline, offset) = encoded.asUint32Unchecked(offset);
         (order.redeemerMessage, offset) = _decodeBytes(encoded, offset);
 
         _checkLength(encoded, offset);
