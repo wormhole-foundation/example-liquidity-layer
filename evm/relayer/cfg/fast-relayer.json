@@ -1,17 +1,17 @@
 {
-  "matchingEngineAddress": "0x41B8309F8411C11f2856eBfd185B0C86f00837c2",
-  "matchingEngineChain": "6",
-  "usdc": "0x5425890298aed601595a70ab815c96711a31bc65",
-  "routers": {
-    "2": {
-      "router": "0x335b8bFE6Ae4080182F31b44365d43B9B28bDF93",
-      "wormhole": "0x706abc4E45D419950511e474C7B9Ed348A4a716c",
-      "cctp": "0x0a69146716b3a21622287efa1607424c663069a4"
-    },
-    "6": {
-      "router": "0x6f7df59e444f55C55ACaC23b4E47169DCa90a617",
-      "wormhole": "0x7bbcE28e64B3F8b84d876Ab298393c38ad7aac4C",
-      "cctp": "0x58f4c17449c90665891c42e14d34aae7a26a472e"
+    "matchingEngineAddress": "0x6578eF523c49A9098598f64906e1bd45A061b1B3",
+    "matchingEngineChain": "6",
+    "usdc": "0x5425890298aed601595a70ab815c96711a31bc65",
+    "routers": {
+        "2": {
+            "router": "0x5370A9BDc453d1c794E4F9331d5505Fa512ea4B4",
+            "wormhole": "0x706abc4E45D419950511e474C7B9Ed348A4a716c",
+            "cctp": "0x0a69146716b3a21622287efa1607424c663069a4"
+        },
+        "6": {
+            "router": "0x1F892111c5a3FfEcB152320bB5019fdE1D2dAa14",
+            "wormhole": "0x7bbcE28e64B3F8b84d876Ab298393c38ad7aac4C",
+            "cctp": "0x58f4c17449c90665891c42e14d34aae7a26a472e"
+        }
     }
-  }
 }
