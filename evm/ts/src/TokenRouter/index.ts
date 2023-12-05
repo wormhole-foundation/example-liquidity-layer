@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 export * from "./evm";
 
 export type FastTransferParameters = {
-    feeInBps: number;
+    enabled: boolean;
     maxAmount: bigint;
     baseFee: bigint;
     initAuctionFee: bigint;
@@ -32,9 +32,10 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
         targetChain: number,
         redeemer: Buffer | Uint8Array,
         redeemerMessage: Buffer | Uint8Array,
+        baseAuctionPrice: bigint,
+        deadline: number,
         minAmountOut?: bigint,
-        refundAddress?: string,
-        maxFeeOverride?: bigint
+        refundAddress?: string
     ): Promise<PreparedTransactionType>;
 
     abstract redeemFill(response: OrderResponse): Promise<PreparedTransactionType>;
@@ -45,7 +46,7 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
         newParams: FastTransferParameters
     ): Promise<PreparedTransactionType>;
 
-    abstract disableFastTransfer(): Promise<PreparedTransactionType>;
+    abstract enableFastTransfer(enable: boolean): Promise<PreparedTransactionType>;
 
     abstract getInitialAuctionFee(): Promise<ethers.BigNumber>;
 

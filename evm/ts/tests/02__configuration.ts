@@ -55,7 +55,7 @@ describe("Registration", () => {
                     .then((tx) => mineWait(provider, tx));
 
                 const state = await router.getFastTransferParameters();
-                expect(state.feeInBps).to.equal(DEFAULT_FAST_TRANSFER_PARAMS.feeInBps);
+                expect(state.enabled).to.equal(DEFAULT_FAST_TRANSFER_PARAMS.enabled);
                 expect(state.maxAmount.toString()).to.equal(
                     DEFAULT_FAST_TRANSFER_PARAMS.maxAmount.toString()
                 );

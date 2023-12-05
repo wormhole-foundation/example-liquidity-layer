@@ -64,7 +64,7 @@ export const DEFAULT_AUCTION_CONFIG: AuctionConfig = {
 };
 
 export const DEFAULT_FAST_TRANSFER_PARAMS: FastTransferParameters = {
-    feeInBps: 25000,
+    enabled: true,
     maxAmount: BigInt(500000000000),
     baseFee: BigInt(100000),
     initAuctionFee: BigInt(100000),

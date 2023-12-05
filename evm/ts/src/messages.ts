@@ -234,6 +234,7 @@ export class FastMarketOrder {
     slowEmitter: Buffer;
     maxFee: bigint;
     initAuctionFee: bigint;
+    deadline: number;
     redeemerMessage: Buffer;
 
     constructor(
@@ -247,6 +248,7 @@ export class FastMarketOrder {
         slowEmitter: Buffer,
         maxFee: bigint,
         initAuctionFee: bigint,
+        deadline: number,
         redeemerMessage: Buffer
     ) {
         this.amountIn = amountIn;
@@ -259,6 +261,7 @@ export class FastMarketOrder {
         this.slowEmitter = slowEmitter;
         this.maxFee = maxFee;
         this.initAuctionFee = initAuctionFee;
+        this.deadline = deadline;
         this.redeemerMessage = redeemerMessage;
     }
 
@@ -279,8 +282,9 @@ export class FastMarketOrder {
         const slowEmitter = buf.subarray(170, 202);
         const maxFee = BigInt(ethers.BigNumber.from(buf.subarray(202, 218)).toString());
         const initAuctionFee = BigInt(ethers.BigNumber.from(buf.subarray(218, 234)).toString());
-        const redeemerMsgLen = buf.readUInt32BE(234);
-        const redeemerMessage = buf.subarray(238, 238 + redeemerMsgLen);
+        const deadline = buf.readUInt32BE(234);
+        const redeemerMsgLen = buf.readUInt32BE(238);
+        const redeemerMessage = buf.subarray(242, 242 + redeemerMsgLen);
         return new FastMarketOrder(
             amountIn,
             minAmountOut,
@@ -292,6 +296,7 @@ export class FastMarketOrder {
             slowEmitter,
             maxFee,
             initAuctionFee,
+            deadline,
             redeemerMessage
         );
     }

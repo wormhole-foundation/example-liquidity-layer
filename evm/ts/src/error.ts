@@ -17,8 +17,6 @@ export function errorDecoder(ethersError: any): DecodedErr {
         throw new Error("not contract error");
     }
 
-    console.log("reason?", ethersError.error.reason);
-
     const { data } = ethersError.error.error.error as {
         data: string;
     };
@@ -33,6 +31,9 @@ export function errorDecoder(ethersError: any): DecodedErr {
     switch (selector) {
         case computeSelector("ErrInsufficientAmount()"): {
             return { selector: "ErrInsufficientAmount" };
+        }
+        case computeSelector("ErrDeadlineExceeded()"): {
+            return { selector: "ErrDeadlineExceeded" };
         }
         case computeSelector("ErrUnsupportedChain(uint16)"): {
             return {
