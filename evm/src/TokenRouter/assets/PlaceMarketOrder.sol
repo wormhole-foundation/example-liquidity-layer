@@ -109,7 +109,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             revert ErrInsufficientAmount();
         }
 
-        bytes32 targetRouter = _verifyInputArguments(targetChain, redeemer);
+        bytes32 targetRouter = _verifyTarget(targetChain, redeemer);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), amountIn);
         SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), amountIn);
@@ -159,8 +159,11 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         if (amountIn <= fastParams.baseFee + fastParams.initAuctionFee + auctionBasePrice) {
             revert ErrInsufficientAmount();
         }
+        if (auctionBasePrice == 0) {
+            revert ErrInvalidAuctionBasePrice();
+        }
 
-        _verifyInputArguments(targetChain, redeemer);
+        _verifyTarget(targetChain, redeemer);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), amountIn);
         SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), amountIn);
@@ -201,7 +204,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         );
     }
 
-    function _verifyInputArguments(uint16 targetChain, bytes32 redeemer)
+    function _verifyTarget(uint16 targetChain, bytes32 redeemer)
         private
         view
         returns (bytes32 targetRouter)

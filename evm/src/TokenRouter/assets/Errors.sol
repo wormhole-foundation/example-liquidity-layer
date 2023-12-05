@@ -37,3 +37,5 @@ error ErrFastTransferNotSupported();
 error ErrInvalidFeeOverride();
 
 error ErrFastTransferDisabled();
+
+error ErrInvalidAuctionBasePrice();

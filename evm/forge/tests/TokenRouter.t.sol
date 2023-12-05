@@ -687,13 +687,27 @@ contract TokenRouterTest is Test {
     function testCannotPlaceFastMarketOrderErrInsufficientAmount() public {
         vm.expectRevert(abi.encodeWithSelector(ErrInsufficientAmount.selector));
         router.placeFastMarketOrder(
-            690000, // amountIn.
+            10, // amountIn.
             0, // minAmountOut
             ARB_CHAIN, // targetChain
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // refundAddress.
-            690001, // auctionBasePrice
+            1, // auctionBasePrice
+            0 // deadline
+        );
+    }
+
+    function testCannotPlaceFastMarketOrderErrInvalidAuctionBasePrice() public {
+        vm.expectRevert(abi.encodeWithSelector(ErrInvalidAuctionBasePrice.selector));
+        router.placeFastMarketOrder(
+            6900000, // amountIn.
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this), // refundAddress.
+            0, // auctionBasePrice
             0 // deadline
         );
     }
@@ -766,13 +780,13 @@ contract TokenRouterTest is Test {
     function testCannotPlaceFastMarketOrderTransferAmountTooSmall() public {
         bytes memory encodedSignature = abi.encodeWithSignature(
             "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128,uint32)",
-            router.getMinTransferAmount() - 1,
+            router.getMinTransferAmount() - 2,
             0, // minAmountOut
             ARB_CHAIN, // targetChain
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // refundAddress
-            0, // auctionBasePrice
+            1, // auctionBasePrice
             0 // deadline
         );
         expectRevert(
@@ -786,13 +800,13 @@ contract TokenRouterTest is Test {
 
         bytes memory encodedSignature = abi.encodeWithSignature(
             "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128,uint32)",
-            router.getMinTransferAmount(),
+            router.getMinTransferAmount() + 1,
             0, // minAmountOut
             ARB_CHAIN, // targetChain
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // refundAddress
-            0, // auctionBasePrice
+            1, // auctionBasePrice
             0 // deadline
         );
         expectRevert(address(router), encodedSignature, abi.encodeWithSignature("ContractPaused()"));
@@ -801,9 +815,9 @@ contract TokenRouterTest is Test {
     function testPlaceFastMarketOrder(uint256 amountIn, uint128 auctionBasePrice, uint32 deadline)
         public
     {
-        amountIn = bound(amountIn, router.getMinTransferAmount(), router.getMaxTransferAmount());
+        amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
         auctionBasePrice =
-            uint128(bound(auctionBasePrice, 0, amountIn - router.getMinTransferAmount()));
+            uint128(bound(auctionBasePrice, 1, amountIn - router.getMinTransferAmount()));
 
         _dealAndApproveUsdc(router, amountIn);
 
@@ -862,9 +876,9 @@ contract TokenRouterTest is Test {
         uint128 auctionBasePrice,
         uint32 deadline
     ) public {
-        amountIn = bound(amountIn, router.getMinTransferAmount(), router.getMaxTransferAmount());
+        amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
         auctionBasePrice =
-            uint128(bound(auctionBasePrice, 0, amountIn - router.getMinTransferAmount()));
+            uint128(bound(auctionBasePrice, 1, amountIn - router.getMinTransferAmount()));
 
         _dealAndApproveUsdc(router, amountIn);
 
@@ -931,9 +945,9 @@ contract TokenRouterTest is Test {
         uint128 auctionBasePrice,
         uint32 deadline
     ) public {
-        amountIn = bound(amountIn, router.getMinTransferAmount(), router.getMaxTransferAmount());
+        amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
         auctionBasePrice =
-            uint128(bound(auctionBasePrice, 0, amountIn - router.getMinTransferAmount()));
+            uint128(bound(auctionBasePrice, 1, amountIn - router.getMinTransferAmount()));
 
         _dealAndApproveUsdc(router, amountIn);
 
