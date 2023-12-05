@@ -21,23 +21,18 @@ contract TestTransfer is Script {
     bytes32 _redeemer = vm.envBytes32("TEST_REDEEMER");
     bool isFast = vm.envBool("TEST_IS_FAST");
     bytes _redeemerMessage = hex"deadbeef";
-
+    uint128 _baseAuctionPrice = uint128(vm.envUint("TEST_BASE_AUCTION_PRICE"));
+    uint32 _deadline = uint32(vm.envUint("TEST_DEADLINE"));
 
     function transfer() public {
         SafeERC20.safeIncreaseAllowance(IERC20(_token), _router, _amountIn);
         if (isFast) {
             ITokenRouter(_router).placeFastMarketOrder(
-                _amountIn,
-                _targetChain,
-                _redeemer,
-                _redeemerMessage
+                _amountIn, _targetChain, _redeemer, _redeemerMessage, _baseAuctionPrice, _deadline
             );
         } else {
             ITokenRouter(_router).placeMarketOrder(
-                _amountIn,
-                _targetChain,
-                _redeemer,
-                _redeemerMessage
+                _amountIn, _targetChain, _redeemer, _redeemerMessage
             );
         }
     }
