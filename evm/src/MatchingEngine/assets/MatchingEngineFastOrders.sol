@@ -41,8 +41,8 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
 
         /**
-         * This is the only time the router path is verified throughout the life
-         * of an auction. The hash of the vaa is stored as the auction ID,
+         * SECURITY: This is the only time the router path is verified throughout the
+         * life of an auction. The hash of the vaa is stored as the auction ID,
          * so we can trust the router path of a verified VAA with a corresponding
          * hash.
          */
