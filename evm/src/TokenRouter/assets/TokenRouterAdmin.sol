@@ -17,11 +17,7 @@ import {ITokenRouterAdmin} from "../../interfaces/ITokenRouterAdmin.sol";
 abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
     /// @inheritdoc ITokenRouterAdmin
     function addRouterEndpoint(uint16 chain, bytes32 router) external onlyOwnerOrAssistant {
-        if (chain == _wormholeChainId) {
-            revert ErrChainNotAllowed(chain);
-        }
-
-        if (chain == 0) {
+        if (chain == _wormholeChainId || chain == 0) {
             revert ErrChainNotAllowed(chain);
         }
 
@@ -39,7 +35,7 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
     {
         FastTransferParameters storage params = getFastTransferParametersState();
 
-        if (newParams.maxAmount < newParams.baseFee + newParams.initAuctionFee) {
+        if (newParams.maxAmount <= newParams.baseFee + newParams.initAuctionFee) {
             revert ErrInvalidFastTransferParameters();
         }
 

@@ -76,17 +76,17 @@ abstract contract State is IMatchingEngineState {
         }
 
         uint256 penaltyPeriod = blocksElapsed - config.auctionGracePeriod;
-        if (penaltyPeriod > config.penaltyBlocks || config.initialPenaltyBps == MAX_BPS_FEE) {
+        if (penaltyPeriod >= config.penaltyBlocks || config.initialPenaltyBps == MAX_BPS_FEE) {
             uint256 userReward = amount * config.userPenaltyRewardBps / MAX_BPS_FEE;
             return (amount - userReward, userReward);
+        } else {
+            uint256 basePenalty = amount * config.initialPenaltyBps / MAX_BPS_FEE;
+            uint256 penalty =
+                basePenalty + ((amount - basePenalty) * penaltyPeriod / config.penaltyBlocks);
+            uint256 userReward = penalty * config.userPenaltyRewardBps / MAX_BPS_FEE;
+
+            return (penalty - userReward, userReward);
         }
-
-        uint256 basePenalty = amount * config.initialPenaltyBps / MAX_BPS_FEE;
-        uint256 penalty =
-            basePenalty + ((amount - basePenalty) * penaltyPeriod / config.penaltyBlocks);
-        uint256 userReward = penalty * config.userPenaltyRewardBps / MAX_BPS_FEE;
-
-        return (penalty - userReward, userReward);
     }
 
     /// @inheritdoc IMatchingEngineState

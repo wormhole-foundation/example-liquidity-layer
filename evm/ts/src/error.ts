@@ -29,9 +29,6 @@ export function errorDecoder(ethersError: any): DecodedErr {
 
     // TODO: implement all errors
     switch (selector) {
-        case computeSelector("ErrInsufficientAmount()"): {
-            return { selector: "ErrInsufficientAmount" };
-        }
         case computeSelector("ErrDeadlineExceeded()"): {
             return { selector: "ErrDeadlineExceeded" };
         }

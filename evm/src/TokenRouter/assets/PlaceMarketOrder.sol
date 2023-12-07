@@ -106,7 +106,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         address refundAddress
     ) private returns (uint64 sequence) {
         if (amountIn == 0) {
-            revert ErrInsufficientAmount();
+            revert ErrInsufficientAmount(0, 0);
         }
 
         bytes32 targetRouter = _verifyTarget(targetChain, redeemer);
@@ -156,11 +156,13 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         if (amountIn > fastParams.maxAmount) {
             revert ErrAmountTooLarge(amountIn, fastParams.maxAmount);
         }
-        if (amountIn <= fastParams.baseFee + fastParams.initAuctionFee + auctionBasePrice) {
-            revert ErrInsufficientAmount();
-        }
         if (auctionBasePrice == 0) {
             revert ErrInvalidAuctionBasePrice();
+        }
+
+        uint128 minAmountIn = fastParams.baseFee + fastParams.initAuctionFee + auctionBasePrice;
+        if (amountIn <= minAmountIn) {
+            revert ErrInsufficientAmount(amountIn, minAmountIn);
         }
 
         _verifyTarget(targetChain, redeemer);

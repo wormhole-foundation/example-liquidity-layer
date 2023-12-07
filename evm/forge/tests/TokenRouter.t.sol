@@ -547,7 +547,7 @@ contract TokenRouterTest is Test {
      */
 
     function testCannotPlaceMarketOrderErrInsufficientAmount() public {
-        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientAmount.selector));
+        vm.expectRevert(abi.encodeWithSignature("ErrInsufficientAmount(uint256,uint128)", 0, 0));
         router.placeMarketOrder(
             0, // Zero amount - amountIn.
             0, // minAmountOut
@@ -685,15 +685,21 @@ contract TokenRouterTest is Test {
     }
 
     function testCannotPlaceFastMarketOrderErrInsufficientAmount() public {
-        vm.expectRevert(abi.encodeWithSelector(ErrInsufficientAmount.selector));
+        uint256 amountIn = 10;
+        uint128 auctionBasePrice = 10;
+        uint128 amountMin = uint128(router.getMinTransferAmount() + auctionBasePrice - 1); // Add basePrice.
+
+        vm.expectRevert(
+            abi.encodeWithSignature("ErrInsufficientAmount(uint256,uint128)", amountIn, amountMin)
+        );
         router.placeFastMarketOrder(
-            10, // amountIn.
+            amountIn,
             0, // minAmountOut
             ARB_CHAIN, // targetChain
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // refundAddress.
-            1, // auctionBasePrice
+            auctionBasePrice,
             0 // deadline
         );
     }
@@ -790,7 +796,13 @@ contract TokenRouterTest is Test {
             0 // deadline
         );
         expectRevert(
-            address(router), encodedSignature, abi.encodeWithSignature("ErrInsufficientAmount()")
+            address(router),
+            encodedSignature,
+            abi.encodeWithSignature(
+                "ErrInsufficientAmount(uint256,uint128)",
+                router.getMinTransferAmount() - 2,
+                router.getMinTransferAmount()
+            )
         );
     }
 
