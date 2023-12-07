@@ -18,30 +18,6 @@ const CHAIN_PATHWAYS: ValidNetwork[] = ["ethereum", "avalanche", "arbitrum"];
 describe("Registration", () => {
     const envPath = `${__dirname}/../../env/localnet`;
 
-    describe(`Matching Engine Configuration`, () => {
-        const env = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
-        const provider = new ethers.providers.StaticJsonRpcProvider(
-            LOCALHOSTS[MATCHING_ENGINE_NAME]
-        );
-        const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
-        const engine = IMatchingEngine__factory.connect(env.matchingEngineAddress, assistant);
-
-        it(`Set Auction Config`, async () => {
-            await engine
-                .setAuctionConfig(DEFAULT_AUCTION_CONFIG)
-                .then((tx) => mineWait(provider, tx));
-
-            const state = await engine.auctionConfig();
-            expect(state.userPenaltyRewardBps).to.equal(
-                DEFAULT_AUCTION_CONFIG.userPenaltyRewardBps
-            );
-            expect(state.initialPenaltyBps).to.equal(DEFAULT_AUCTION_CONFIG.initialPenaltyBps);
-            expect(state.auctionDuration).to.equal(DEFAULT_AUCTION_CONFIG.auctionDuration);
-            expect(state.auctionGracePeriod).to.equal(DEFAULT_AUCTION_CONFIG.auctionGracePeriod);
-            expect(state.penaltyBlocks).to.equal(DEFAULT_AUCTION_CONFIG.penaltyBlocks);
-        });
-    });
-
     describe("Token Router Configuration", () => {
         for (const chainName of CHAIN_PATHWAYS) {
             const env = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);

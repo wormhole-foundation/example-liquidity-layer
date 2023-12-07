@@ -23,12 +23,24 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
     address immutable _ownerAssistantAddress = vm.envAddress("RELEASE_OWNER_ASSISTANT_ADDRESS");
     address immutable _feeRecipientAddress = vm.envAddress("RELEASE_FEE_RECIPIENT_ADDRESS");
 
+    // Auction parameters.
+    uint24 immutable _userPenaltyRewardBps = uint24(vm.envUint("RELEASE_USER_REWARD_BPS"));
+    uint24 immutable _initialPenaltyBps = uint24(vm.envUint("RELEASE_INIT_PENALTY_BPS"));
+    uint8 immutable _auctionDuration = uint8(vm.envUint("RELEASE_AUCTION_DURATION"));
+    uint8 immutable _auctionGracePeriod = uint8(vm.envUint("RELEASE_GRACE_PERIOD"));
+    uint8 immutable _auctionPenaltyBlocks = uint8(vm.envUint("RELEASE_PENALTY_BLOCKS"));
+
     function deploy() public {
         requireValidChain(_chainId, _wormholeCctpAddress);
 
         MatchingEngineImplementation implementation = new MatchingEngineImplementation(
             _token,
-            _wormholeCctpAddress
+            _wormholeCctpAddress,
+            _userPenaltyRewardBps,
+            _initialPenaltyBps,
+            _auctionDuration,
+            _auctionGracePeriod,
+            _auctionPenaltyBlocks
         );
 
         MatchingEngineSetup setup = new MatchingEngineSetup();

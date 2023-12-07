@@ -17,22 +17,8 @@ interface IMatchingEngineState {
      */
     function calculateDynamicPenalty(uint256 amount, uint256 blocksElapsed)
         external
-        pure
+        view
         returns (uint256 penalty, uint256 userReward);
-
-    /**
-     * @notice Calculates the dynamic penalty for a given amount and number of blocks elapsed.
-     * @param config The auction configuration. See `getAuctionConfig`.
-     * @param amount The amount to calculate the penalty for.
-     * @param blocksElapsed The number of blocks elapsed since the auction started.
-     * @return penalty The penalty amount.
-     * @return userReward The user reward amount.
-     */
-    function calculateDynamicPenalty(
-        AuctionConfig memory config,
-        uint256 amount,
-        uint256 blocksElapsed
-    ) external pure returns (uint256, uint256);
 
     /**
      * @notice Calculates the dynamic penalty for the specified auction.
@@ -115,14 +101,21 @@ interface IMatchingEngineState {
     function getAuctionPenaltyBlocks() external view returns (uint8);
 
     /**
+     * @notice Returns the reward in bps (percentage of security deposit) the user will receive
+     * for a delayed fast transfer.
+     */
+    function getUserPenaltyRewardBps() external view returns (uint24);
+
+    /**
+     * @notice Returns the initial penalty in bps (percentage of security deposit) the highest
+     * bidder will incur for a delayed fast transfer.
+     */
+    function getInitialPenaltyBps() external view returns (uint24);
+
+    /**
      * @notice Returns the number of blocks elapsed since the auction started.
      */
     function getAuctionBlocksElapsed(bytes32 auctionId) external view returns (uint256);
-
-    /**
-     * @notice Returns the `AuctionConfig` for the current chain.
-     */
-    function auctionConfig() external pure returns (AuctionConfig memory);
 
     /**
      * @notice Returns a boolean which indicates whether the specified `FastFill` has been redeemed.

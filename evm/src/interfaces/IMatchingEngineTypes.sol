@@ -40,20 +40,6 @@ struct LiveAuctionInfo {
     mapping(bytes32 auctionId => LiveAuctionData data) auctions;
 }
 
-struct AuctionConfig {
-    // The percentage of the penalty that is awarded to the user when the auction is completed.
-    uint24 userPenaltyRewardBps;
-    // The initial penalty percentage that is incurred once the grace period is over.
-    uint24 initialPenaltyBps;
-    // The duration of the auction in blocks.
-    uint8 auctionDuration;
-    // The grace period of the auction in blocks. This is the number of blocks the highest
-    // bidder has to execute the fast order before incurring a penalty.
-    uint8 auctionGracePeriod;
-    // The `securityDeposit` decays over the `penaltyBlocks` blocks period.
-    uint8 penaltyBlocks;
-}
-
 struct FastFills {
     // Mapping of VAA hash to redemption status.
     mapping(bytes32 vaaHash => bool redeemed) redeemed;

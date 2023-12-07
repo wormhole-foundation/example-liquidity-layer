@@ -9,14 +9,6 @@ export type RedeemParameters = {
     circleAttestation: Buffer | Uint8Array | string;
 };
 
-export type AuctionConfig = {
-    userPenaltyRewardBps: number;
-    initialPenaltyBps: number;
-    auctionDuration: number;
-    auctionGracePeriod: number;
-    penaltyBlocks: number;
-};
-
 export type LiveAuctionData = {
     status: number;
     startBlock: bigint | ethers.BigNumberish;
@@ -31,8 +23,6 @@ export abstract class MatchingEngine<PreparedTransactionType extends PreparedIns
     abstract get address(): string;
 
     abstract addRouterEndpoint(chain: number, router: string): Promise<PreparedTransactionType>;
-
-    abstract setAuctionConfig(config: AuctionConfig): Promise<PreparedTransactionType>;
 
     abstract liveAuctionInfo(auctionId: Buffer | Uint8Array): Promise<LiveAuctionData>;
 
@@ -67,7 +57,11 @@ export abstract class MatchingEngine<PreparedTransactionType extends PreparedIns
 
     abstract getAuctionDuration(): Promise<number>;
 
-    abstract getAuctionConfig(): Promise<AuctionConfig>;
+    abstract getPenaltyBlocks(): Promise<number>;
+
+    abstract getInitialPenaltyBps(): Promise<number>;
+
+    abstract getInitialPenaltyBps(): Promise<number>;
 
     abstract wormhole(): Promise<string>;
 

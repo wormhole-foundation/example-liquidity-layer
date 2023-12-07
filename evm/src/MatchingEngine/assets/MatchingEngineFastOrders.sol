@@ -20,9 +20,7 @@ import {
     getLiveAuctionInfo,
     AuctionStatus,
     getFastFillsState,
-    FastFills,
-    AuctionConfig,
-    getAuctionConfig
+    FastFills
 } from "./Storage.sol";
 
 abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
@@ -107,19 +105,16 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             revert ErrAuctionNotActive(vm.hash);
         }
 
-        // Read the auction config from storage.
-        AuctionConfig memory config = getAuctionConfig();
-
         uint256 blocksElapsed = uint88(block.number) - auction.startBlock;
-        if (blocksElapsed <= config.auctionDuration) {
+        if (blocksElapsed <= _auctionDuration) {
             revert ErrAuctionPeriodNotComplete();
         }
 
         Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
 
-        if (blocksElapsed > config.auctionGracePeriod) {
+        if (blocksElapsed > _auctionGracePeriod) {
             (uint256 penalty, uint256 userReward) =
-                calculateDynamicPenalty(config, auction.securityDeposit, blocksElapsed);
+                calculateDynamicPenalty(auction.securityDeposit, blocksElapsed);
 
             /**
              * Give the penalty amount to the liquidator and return the remaining
@@ -218,9 +213,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
              * grace period might not have ended yet.
              */
             (uint256 penalty, uint256 userReward) = calculateDynamicPenalty(
-                getAuctionConfig(),
-                auction.securityDeposit,
-                uint88(block.number) - auction.startBlock
+                auction.securityDeposit, uint88(block.number) - auction.startBlock
             );
 
             // Transfer the penalty amount to the caller. The caller also earns the base

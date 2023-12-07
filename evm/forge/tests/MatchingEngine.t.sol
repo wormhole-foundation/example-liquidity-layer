@@ -30,11 +30,7 @@ import {Messages} from "../../src/shared/Messages.sol";
 import {fromUniversalAddress, toUniversalAddress} from "../../src/shared/Utils.sol";
 
 import {IMatchingEngine} from "../../src/interfaces/IMatchingEngine.sol";
-import {
-    AuctionConfig,
-    LiveAuctionData,
-    AuctionStatus
-} from "../../src/interfaces/IMatchingEngineTypes.sol";
+import {LiveAuctionData, AuctionStatus} from "../../src/interfaces/IMatchingEngineTypes.sol";
 
 import {FastTransferParameters} from "../../src/interfaces/ITokenRouterTypes.sol";
 import {ITokenRouter} from "../../src/interfaces/ITokenRouter.sol";
@@ -73,6 +69,13 @@ contract MatchingEngineTest is Test {
     uint128 immutable FAST_TRANSFER_BASE_FEE = 1e6; // 1 USDC.
     uint128 immutable FAST_TRANSFER_INIT_AUCTION_FEE = 1e6; // 1 USDC.
 
+    // Initial Auction parameters.
+    uint24 immutable USER_PENALTY_REWARD_BPS = 250000; // 25%.
+    uint24 immutable INITIAL_PENALTY_BPS = 100000; // 10%.
+    uint8 immutable AUCTION_DURATION = 2; // Two blocks ~6 seconds.
+    uint8 immutable AUCTION_GRACE_PERIOD = 6; // Includes the auction duration.
+    uint8 immutable AUCTION_PENALTY_BLOCKS = 20;
+
     // Test router endpoints.
     bytes32 immutable ETH_ROUTER = toUniversalAddress(makeAddr("ETH_ROUTER"));
     bytes32 immutable ARB_ROUTER = toUniversalAddress(makeAddr("ARB_ROUTER"));
@@ -99,8 +102,15 @@ contract MatchingEngineTest is Test {
         returns (IMatchingEngine)
     {
         // Deploy Implementation.
-        MatchingEngineImplementation implementation =
-            new MatchingEngineImplementation(_token, _wormholeCircle);
+        MatchingEngineImplementation implementation = new MatchingEngineImplementation(
+            _token,
+            _wormholeCircle,
+            USER_PENALTY_REWARD_BPS,
+            INITIAL_PENALTY_BPS,
+            AUCTION_DURATION,
+            AUCTION_GRACE_PERIOD,
+            AUCTION_PENALTY_BLOCKS
+        );
 
         // Deploy Setup.
         MatchingEngineSetup setup = new MatchingEngineSetup();
@@ -121,17 +131,6 @@ contract MatchingEngineTest is Test {
         engine.addRouterEndpoint(ARB_CHAIN, ARB_ROUTER);
         engine.addRouterEndpoint(ETH_CHAIN, ETH_ROUTER);
 
-        // Set the auction config.
-        engine.setAuctionConfig(
-            AuctionConfig({
-                auctionDuration: 2, // Two blocks ~6 seconds.
-                auctionGracePeriod: 6, // Includes the auction duration.
-                penaltyBlocks: 20,
-                userPenaltyRewardBps: 250000, // 25%
-                initialPenaltyBps: 100000 // 10%
-            })
-        );
-
         vm.stopPrank();
 
         wormholeSimulator = new SigningWormholeSimulator(wormholeCctp.wormhole(), TESTING_SIGNER);
@@ -147,8 +146,15 @@ contract MatchingEngineTest is Test {
 
     function testUpgradeContract() public {
         // Deploy new implementation.
-        MockMatchingEngineImplementation newImplementation =
-            new MockMatchingEngineImplementation(USDC_ADDRESS, address(wormholeCctp));
+        MockMatchingEngineImplementation newImplementation = new MockMatchingEngineImplementation(
+            USDC_ADDRESS,
+            address(wormholeCctp),
+            USER_PENALTY_REWARD_BPS,
+            INITIAL_PENALTY_BPS,
+            AUCTION_DURATION,
+            AUCTION_GRACE_PERIOD,
+            AUCTION_PENALTY_BLOCKS
+        );
 
         // Upgrade the contract.
         vm.prank(makeAddr("owner"));
@@ -164,8 +170,15 @@ contract MatchingEngineTest is Test {
 
     function testCannotUpgradeContractAgain() public {
         // Deploy new implementation.
-        MockMatchingEngineImplementation newImplementation =
-            new MockMatchingEngineImplementation(USDC_ADDRESS, address(wormholeCctp));
+        MockMatchingEngineImplementation newImplementation = new MockMatchingEngineImplementation(
+            USDC_ADDRESS,
+            address(wormholeCctp),
+            USER_PENALTY_REWARD_BPS,
+            INITIAL_PENALTY_BPS,
+            AUCTION_DURATION,
+            AUCTION_GRACE_PERIOD,
+            AUCTION_PENALTY_BLOCKS
+        );
 
         vm.startPrank(makeAddr("owner"));
 
@@ -227,80 +240,6 @@ contract MatchingEngineTest is Test {
         engine.addRouterEndpoint(chain, routerEndpoint);
     }
 
-    function testCannotSetAuctionConfigInvalidAuctionDuration() public {
-        AuctionConfig memory config = AuctionConfig({
-            auctionDuration: 0, // Set to zero.
-            auctionGracePeriod: 6,
-            penaltyBlocks: 20,
-            userPenaltyRewardBps: 250000,
-            initialPenaltyBps: 100000
-        });
-
-        vm.prank(makeAddr("owner"));
-        vm.expectRevert(abi.encodeWithSignature("ErrInvalidAuctionDuration()"));
-        engine.setAuctionConfig(config);
-    }
-
-    function testCannotSetAuctionConfigInvalidAuctionGracePeriod() public {
-        AuctionConfig memory config = AuctionConfig({
-            auctionDuration: 2,
-            auctionGracePeriod: 1, // Less than auction duration.
-            penaltyBlocks: 20,
-            userPenaltyRewardBps: 250000,
-            initialPenaltyBps: 100000
-        });
-
-        vm.prank(makeAddr("owner"));
-        vm.expectRevert(
-            abi.encodeWithSignature(
-                "ErrInvalidAuctionGracePeriod(uint8)", config.auctionGracePeriod
-            )
-        );
-        engine.setAuctionConfig(config);
-    }
-
-    function testCannotSetAuctionConfigInvalidUserPenaltyBps() public {
-        AuctionConfig memory config = AuctionConfig({
-            auctionDuration: 2,
-            auctionGracePeriod: 6,
-            penaltyBlocks: 20,
-            userPenaltyRewardBps: engine.maxBpsFee() + 1,
-            initialPenaltyBps: 100000
-        });
-
-        vm.prank(makeAddr("owner"));
-        vm.expectRevert(abi.encodeWithSignature("ErrInvalidUserPenaltyRewardBps()"));
-        engine.setAuctionConfig(config);
-    }
-
-    function testCannotSetAuctionConfigInvalidInitialPenalty() public {
-        AuctionConfig memory config = AuctionConfig({
-            auctionDuration: 2,
-            auctionGracePeriod: 6,
-            penaltyBlocks: 20,
-            userPenaltyRewardBps: 6900,
-            initialPenaltyBps: engine.maxBpsFee() + 1
-        });
-
-        vm.prank(makeAddr("owner"));
-        vm.expectRevert(abi.encodeWithSignature("ErrInvalidInitialPenaltyBps()"));
-        engine.setAuctionConfig(config);
-    }
-
-    function testCannotSetAuctionConfigOnlyOwnerOrAssistant() public {
-        AuctionConfig memory config = AuctionConfig({
-            auctionDuration: 2,
-            auctionGracePeriod: 6,
-            penaltyBlocks: 20,
-            userPenaltyRewardBps: 6900,
-            initialPenaltyBps: 6900
-        });
-
-        vm.prank(makeAddr("robber"));
-        vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
-        engine.setAuctionConfig(config);
-    }
-
     function testUpdateFeeRecipient() public {
         assertEq(engine.feeRecipient(), FEE_RECIPIENT);
 
@@ -327,21 +266,11 @@ contract MatchingEngineTest is Test {
      */
 
     function testCalculateDynamicPenalty() public {
-        // Auction config set to:
-        //     auctionDuration: 2, // Two blocks ~6 seconds.
-        //     auctionGracePeriod: 6, // Includes the auction duration.
-        //     penaltyBlocks: 20,
-        //     userPenaltyRewardBps: 250000, // 25%
-        //     initialPenaltyBps: 100000 // 10%
-        AuctionConfig memory config = engine.auctionConfig();
-
-        vm.startPrank(makeAddr("owner"));
-
         // Still in grace period.
         {
             uint256 amount = 10000000;
             (uint256 penalty, uint256 reward) =
-                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod - 1);
+                engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() - 1);
             assertEq(penalty, 0);
             assertEq(reward, 0);
         }
@@ -350,7 +279,7 @@ contract MatchingEngineTest is Test {
         {
             uint256 amount = 10000000;
             (uint256 penalty, uint256 reward) = engine.calculateDynamicPenalty(
-                amount, config.penaltyBlocks + config.auctionGracePeriod
+                amount, engine.getAuctionPenaltyBlocks() + engine.getAuctionGracePeriod()
             );
             assertEq(penalty, 7500000);
             assertEq(reward, 2500000);
@@ -360,7 +289,7 @@ contract MatchingEngineTest is Test {
         {
             uint256 amount = 10000000;
             (uint256 penalty, uint256 reward) =
-                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 1);
+                engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 1);
             assertEq(penalty, 1087500);
             assertEq(reward, 362500);
         }
@@ -369,7 +298,7 @@ contract MatchingEngineTest is Test {
         {
             uint256 amount = 10000000;
             (uint256 penalty, uint256 reward) =
-                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 10);
+                engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 10);
             assertEq(penalty, 4125000);
             assertEq(reward, 1375000);
         }
@@ -378,66 +307,77 @@ contract MatchingEngineTest is Test {
         {
             uint256 amount = 10000000;
             (uint256 penalty, uint256 reward) =
-                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 19);
+                engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 19);
             assertEq(penalty, 7162500);
             assertEq(reward, 2387500);
         }
 
         // Update the initial penalty to 0%. 50% of the way through the penalty period.
         {
-            engine.setAuctionConfig(
-                AuctionConfig({
-                    auctionDuration: config.auctionDuration,
-                    auctionGracePeriod: config.auctionGracePeriod,
-                    penaltyBlocks: config.penaltyBlocks,
-                    userPenaltyRewardBps: config.userPenaltyRewardBps,
-                    initialPenaltyBps: 0
-                })
+            _upgradeWithNewAuctionParams(
+                engine.getUserPenaltyRewardBps(),
+                uint24(0),
+                engine.getAuctionDuration(),
+                engine.getAuctionGracePeriod(),
+                engine.getAuctionPenaltyBlocks()
             );
 
             uint256 amount = 10000000;
             (uint256 penalty, uint256 reward) =
-                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 10);
+                engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 10);
             assertEq(penalty, 3750000);
             assertEq(reward, 1250000);
         }
 
         // Set the user reward to 0%
         {
-            engine.setAuctionConfig(
-                AuctionConfig({
-                    auctionDuration: config.auctionDuration,
-                    auctionGracePeriod: config.auctionGracePeriod,
-                    penaltyBlocks: config.penaltyBlocks,
-                    userPenaltyRewardBps: 0,
-                    initialPenaltyBps: 0
-                })
+            _upgradeWithNewAuctionParams(
+                0,
+                0, // 0% initial penalty.
+                engine.getAuctionDuration(),
+                engine.getAuctionGracePeriod(),
+                engine.getAuctionPenaltyBlocks()
             );
 
             uint256 amount = 10000000;
             (uint256 penalty, uint256 reward) =
-                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 10);
+                engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 10);
             assertEq(penalty, 5000000);
             assertEq(reward, 0);
         }
 
         // Set the initial penalty to 100%
         {
-            engine.setAuctionConfig(
-                AuctionConfig({
-                    auctionDuration: config.auctionDuration,
-                    auctionGracePeriod: config.auctionGracePeriod,
-                    penaltyBlocks: config.penaltyBlocks,
-                    userPenaltyRewardBps: engine.maxBpsFee() / 2, // 50%
-                    initialPenaltyBps: engine.maxBpsFee()
-                })
+            _upgradeWithNewAuctionParams(
+                engine.maxBpsFee() / 2, // 50%
+                engine.maxBpsFee(), // 100%
+                engine.getAuctionDuration(),
+                engine.getAuctionGracePeriod(),
+                engine.getAuctionPenaltyBlocks()
             );
 
             uint256 amount = 10000000;
             (uint256 penalty, uint256 reward) =
-                engine.calculateDynamicPenalty(amount, config.auctionGracePeriod + 5);
+                engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 5);
             assertEq(penalty, 5000000);
             assertEq(reward, 5000000);
+        }
+
+        // Set the user penalty to 100%
+        {
+            _upgradeWithNewAuctionParams(
+                engine.maxBpsFee(), // 100%
+                engine.maxBpsFee() / 2, // 50%
+                engine.getAuctionDuration(),
+                engine.getAuctionGracePeriod(),
+                engine.getAuctionPenaltyBlocks()
+            );
+
+            uint256 amount = 10000000;
+            (uint256 penalty, uint256 reward) =
+                engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 10);
+            assertEq(penalty, 0);
+            assertEq(reward, 7500000);
         }
     }
 
@@ -1767,5 +1707,26 @@ contract MatchingEngineTest is Test {
             circleBridgeMessage: circleMessage,
             circleAttestation: circleSimulator.attestCircleMessage(circleMessage)
         });
+    }
+
+    function _upgradeWithNewAuctionParams(
+        uint24 userPenaltyRewardBps,
+        uint24 initialPenaltyBps,
+        uint8 auctionDuration,
+        uint8 auctionGracePeriod,
+        uint8 auctionPenaltyBlocks
+    ) internal {
+        vm.startPrank(makeAddr("owner"));
+        MatchingEngineImplementation implementation = new MatchingEngineImplementation(
+            USDC_ADDRESS,
+            address(wormholeCctp),
+            userPenaltyRewardBps,
+            initialPenaltyBps,
+            auctionDuration,
+            auctionGracePeriod,
+            auctionPenaltyBlocks
+        );
+
+        engine.upgradeContract(address(implementation));
     }
 }

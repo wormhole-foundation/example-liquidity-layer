@@ -1,6 +1,6 @@
 import { ChainId } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
-import { AuctionConfig, LiveAuctionData, MatchingEngine, RedeemParameters } from ".";
+import { LiveAuctionData, MatchingEngine, RedeemParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {
     ICircleIntegration,
@@ -48,10 +48,6 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
 
     async addRouterEndpoint(chain: number, router: string): Promise<ethers.ContractTransaction> {
         return this.contract.addRouterEndpoint(chain, router);
-    }
-
-    async setAuctionConfig(config: AuctionConfig): Promise<ethers.ContractTransaction> {
-        return this.contract.setAuctionConfig(config);
     }
 
     async placeInitialBid(
@@ -111,8 +107,16 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         return this.contract.getAuctionDuration();
     }
 
-    async getAuctionConfig(): Promise<AuctionConfig> {
-        return this.contract.auctionConfig();
+    async getPenaltyBlocks(): Promise<number> {
+        return this.contract.getAuctionPenaltyBlocks();
+    }
+
+    async getInitialPenaltyBps(): Promise<number> {
+        return this.contract.getInitialPenaltyBps();
+    }
+
+    async getUserPenaltyRewardBps(): Promise<number> {
+        return this.contract.getUserPenaltyRewardBps();
     }
 
     async wormhole(): Promise<string> {

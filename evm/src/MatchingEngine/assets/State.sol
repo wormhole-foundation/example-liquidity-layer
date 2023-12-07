@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Apache 2
-
 pragma solidity ^0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -14,26 +13,48 @@ import {
     getLiveAuctionInfo,
     LiveAuctionData,
     AuctionStatus,
-    AuctionConfig,
-    getAuctionConfig,
     getFastFillsState,
     getFeeRecipientState
 } from "./Storage.sol";
 
 abstract contract State is IMatchingEngineState {
-    // Immutable state.
+    // ------------------------------ Constants -------------------------------------------
+    uint8 constant FINALITY = 1;
+    uint32 constant NONCE = 0;
+    uint24 constant MAX_BPS_FEE = 1000000; // 100%
+
+    // ------------------------------ Immutable State -------------------------------------
     address immutable _deployer;
     uint16 immutable _wormholeChainId;
     IWormhole immutable _wormhole;
     ICircleIntegration immutable _wormholeCctp;
     IERC20 immutable _token;
 
-    // Consts.
-    uint8 constant FINALITY = 1;
-    uint32 constant NONCE = 0;
-    uint24 constant MAX_BPS_FEE = 1000000; // 10,000.00 bps (100%)
+    // ------------------------------ Auction Parameters ----------------------------------
+    // The percentage of the penalty that is awarded to the user when the auction is completed.
+    uint24 immutable _userPenaltyRewardBps;
+    // The initial penalty percentage that is incurred once the grace period is over.
+    uint24 immutable _initialPenaltyBps;
+    // The duration of the auction in blocks. About 6 seconds on Avalanche.
+    uint8 immutable _auctionDuration;
+    /**
+     * The grace period of the auction in blocks. This is the number of blocks the highest bidder
+     * has to execute the fast order before incurring a penalty. About 15 seconds on Avalanche.
+     * This value INCLUDES the `_auctionDuration`.
+     */
+    uint8 immutable _auctionGracePeriod;
+    // The `securityDeposit` decays over the `penaltyBlocks` blocks period.
+    uint8 immutable _auctionPenaltyBlocks;
 
-    constructor(address cctpToken_, address wormholeCctp_) {
+    constructor(
+        address cctpToken_,
+        address wormholeCctp_,
+        uint24 userPenaltyRewardBps_,
+        uint24 initialPenaltyBps_,
+        uint8 auctionDuration_,
+        uint8 auctionGracePeriod_,
+        uint8 auctionPenaltyBlocks_
+    ) {
         assert(cctpToken_ != address(0));
         assert(wormholeCctp_ != address(0));
 
@@ -42,15 +63,26 @@ abstract contract State is IMatchingEngineState {
         _wormholeChainId = _wormholeCctp.chainId();
         _wormhole = _wormholeCctp.wormhole();
         _token = IERC20(cctpToken_);
-    }
 
-    /// @inheritdoc IMatchingEngineState
-    function calculateDynamicPenalty(uint256 amount, uint256 blocksElapsed)
-        external
-        pure
-        returns (uint256 penalty, uint256 userReward)
-    {
-        return calculateDynamicPenalty(getAuctionConfig(), amount, blocksElapsed);
+        // Set the auction parameters, after validating them.
+        if (auctionDuration_ == 0) {
+            revert ErrInvalidAuctionDuration();
+        }
+        if (auctionGracePeriod_ <= auctionDuration_) {
+            revert ErrInvalidAuctionGracePeriod(auctionGracePeriod_);
+        }
+        if (userPenaltyRewardBps_ > MAX_BPS_FEE) {
+            revert ErrInvalidUserPenaltyRewardBps();
+        }
+        if (initialPenaltyBps_ > MAX_BPS_FEE) {
+            revert ErrInvalidInitialPenaltyBps();
+        }
+
+        _userPenaltyRewardBps = userPenaltyRewardBps_;
+        _initialPenaltyBps = initialPenaltyBps_;
+        _auctionDuration = auctionDuration_;
+        _auctionGracePeriod = auctionGracePeriod_;
+        _auctionPenaltyBlocks = auctionPenaltyBlocks_;
     }
 
     /// @inheritdoc IMatchingEngineState
@@ -61,29 +93,29 @@ abstract contract State is IMatchingEngineState {
     {
         LiveAuctionData memory auction = getLiveAuctionInfo().auctions[auctionId];
         return calculateDynamicPenalty(
-            getAuctionConfig(), auction.securityDeposit, uint88(block.number) - auction.startBlock
+            auction.securityDeposit, uint88(block.number) - auction.startBlock
         );
     }
 
     /// @inheritdoc IMatchingEngineState
-    function calculateDynamicPenalty(
-        AuctionConfig memory config,
-        uint256 amount,
-        uint256 blocksElapsed
-    ) public pure returns (uint256, uint256) {
-        if (blocksElapsed <= config.auctionGracePeriod) {
+    function calculateDynamicPenalty(uint256 amount, uint256 blocksElapsed)
+        public
+        view
+        returns (uint256, uint256)
+    {
+        if (blocksElapsed <= _auctionGracePeriod) {
             return (0, 0);
         }
 
-        uint256 penaltyPeriod = blocksElapsed - config.auctionGracePeriod;
-        if (penaltyPeriod >= config.penaltyBlocks || config.initialPenaltyBps == MAX_BPS_FEE) {
-            uint256 userReward = amount * config.userPenaltyRewardBps / MAX_BPS_FEE;
+        uint256 penaltyPeriod = blocksElapsed - _auctionGracePeriod;
+        if (penaltyPeriod >= _auctionPenaltyBlocks || _initialPenaltyBps == MAX_BPS_FEE) {
+            uint256 userReward = amount * _userPenaltyRewardBps / MAX_BPS_FEE;
             return (amount - userReward, userReward);
         } else {
-            uint256 basePenalty = amount * config.initialPenaltyBps / MAX_BPS_FEE;
+            uint256 basePenalty = amount * _initialPenaltyBps / MAX_BPS_FEE;
             uint256 penalty =
-                basePenalty + ((amount - basePenalty) * penaltyPeriod / config.penaltyBlocks);
-            uint256 userReward = penalty * config.userPenaltyRewardBps / MAX_BPS_FEE;
+                basePenalty + ((amount - basePenalty) * penaltyPeriod / _auctionPenaltyBlocks);
+            uint256 userReward = penalty * _userPenaltyRewardBps / MAX_BPS_FEE;
 
             return (penalty - userReward, userReward);
         }
@@ -131,22 +163,25 @@ abstract contract State is IMatchingEngineState {
 
     /// @inheritdoc IMatchingEngineState
     function getAuctionDuration() public view returns (uint8) {
-        return getAuctionConfig().auctionDuration;
+        return _auctionDuration;
     }
 
     /// @inheritdoc IMatchingEngineState
     function getAuctionGracePeriod() public view returns (uint8) {
-        return getAuctionConfig().auctionGracePeriod;
+        return _auctionGracePeriod;
     }
 
     /// @inheritdoc IMatchingEngineState
     function getAuctionPenaltyBlocks() public view returns (uint8) {
-        return getAuctionConfig().penaltyBlocks;
+        return _auctionPenaltyBlocks;
     }
 
-    /// @inheritdoc IMatchingEngineState
-    function auctionConfig() public pure returns (AuctionConfig memory) {
-        return getAuctionConfig();
+    function getUserPenaltyRewardBps() public view returns (uint24) {
+        return _userPenaltyRewardBps;
+    }
+
+    function getInitialPenaltyBps() public view returns (uint24) {
+        return _initialPenaltyBps;
     }
 
     /// @inheritdoc IMatchingEngineState

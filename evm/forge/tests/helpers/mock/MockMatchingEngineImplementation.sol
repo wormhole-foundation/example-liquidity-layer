@@ -14,8 +14,24 @@ interface IMockMatchingEngine is IMatchingEngine {
 }
 
 contract MockMatchingEngineImplementation is MatchingEngineImplementation {
-    constructor(address _token, address _wormholeCircle)
-        MatchingEngineImplementation(_token, _wormholeCircle)
+    constructor(
+        address _token,
+        address _wormholeCircle,
+        uint24 _userPenaltyRewardBps,
+        uint24 _initialPenaltyBps,
+        uint8 _auctionDuration,
+        uint8 _auctionGracePeriod,
+        uint8 _auctionPenaltyBlocks
+    )
+        MatchingEngineImplementation(
+            _token,
+            _wormholeCircle,
+            _userPenaltyRewardBps,
+            _initialPenaltyBps,
+            _auctionDuration,
+            _auctionGracePeriod,
+            _auctionPenaltyBlocks
+        )
     {}
 
     function isUpgraded() external pure returns (bool) {

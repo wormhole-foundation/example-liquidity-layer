@@ -721,14 +721,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     // Mine 50% of the way through the penalty period.
                     await engine
-                        .getAuctionConfig()
-                        .then((config) =>
-                            mineToPenaltyPeriod(
-                                auctionId,
-                                engine,
-                                engineProvider,
-                                config.penaltyBlocks / 2
-                            )
+                        .getPenaltyBlocks()
+                        .then((blocks) =>
+                            mineToPenaltyPeriod(auctionId, engine, engineProvider, blocks / 2)
                         );
 
                     // Fetch the initial bidder so we can do a balance check.
