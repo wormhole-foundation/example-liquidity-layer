@@ -32,7 +32,7 @@ error ErrFastFillAlreadyRedeemed();
 
 error ErrInvalidAuctionDuration();
 
-error ErrInvalidAuctionGracePeriod(uint8 gracePeriod);
+error ErrInvalidAuctionGracePeriod();
 
 error ErrInvalidUserPenaltyRewardBps();
 

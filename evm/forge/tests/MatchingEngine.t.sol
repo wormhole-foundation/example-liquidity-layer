@@ -189,6 +189,66 @@ contract MatchingEngineTest is Test {
         engine.upgradeContract(address(newImplementation));
     }
 
+    function testCannotUpgradeContractInvalidAuctionDuration() public {
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidAuctionDuration()"));
+        new MockMatchingEngineImplementation(
+            USDC_ADDRESS,
+            address(wormholeCctp),
+            USER_PENALTY_REWARD_BPS,
+            INITIAL_PENALTY_BPS,
+            0, // Set the auction duration to zero.
+            AUCTION_GRACE_PERIOD,
+            AUCTION_PENALTY_BLOCKS
+        );
+    }
+
+    function testCannotUpgradeContractInvalidGracePeriod() public {
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidAuctionGracePeriod()"));
+        new MockMatchingEngineImplementation(
+            USDC_ADDRESS,
+            address(wormholeCctp),
+            USER_PENALTY_REWARD_BPS,
+            INITIAL_PENALTY_BPS,
+            AUCTION_DURATION,
+            AUCTION_DURATION, // Set the grace period to the same as the duration.
+            AUCTION_PENALTY_BLOCKS
+        );
+    }
+
+    function revertTestHack(uint24 userPenaltyRewardBps, uint24 initialPenaltyBps) external {
+        new MockMatchingEngineImplementation(
+            USDC_ADDRESS,
+            address(wormholeCctp),
+            userPenaltyRewardBps,
+            initialPenaltyBps,
+            AUCTION_DURATION,
+            AUCTION_GRACE_PERIOD,
+            AUCTION_PENALTY_BLOCKS
+        );
+    }
+
+    function testCannotUpgradeContractInvalidUserPenaltyReward() public {
+        bytes memory encodedSignature = abi.encodeWithSignature(
+            "revertTestHack(uint24,uint24)", engine.maxBpsFee() + 1, INITIAL_PENALTY_BPS
+        );
+        expectRevert(
+            address(this),
+            encodedSignature,
+            abi.encodeWithSignature("ErrInvalidUserPenaltyRewardBps()")
+        );
+    }
+
+    function testCannotUpgradeContractInvalidInitialPenalty() public {
+        bytes memory encodedSignature = abi.encodeWithSignature(
+            "revertTestHack(uint24,uint24)", USER_PENALTY_REWARD_BPS, engine.maxBpsFee() + 1
+        );
+        expectRevert(
+            address(this),
+            encodedSignature,
+            abi.encodeWithSignature("ErrInvalidInitialPenaltyBps()")
+        );
+    }
+
     function testCannotUpgradeContractInvalidAddress() public {
         vm.prank(makeAddr("owner"));
         vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
@@ -1728,5 +1788,16 @@ contract MatchingEngineTest is Test {
         );
 
         engine.upgradeContract(address(implementation));
+    }
+
+    function expectRevert(
+        address contractAddress,
+        bytes memory encodedSignature,
+        bytes memory expectedRevert
+    ) internal {
+        (bool success, bytes memory result) = contractAddress.call(encodedSignature);
+        require(!success, "call did not revert");
+
+        require(keccak256(result) == keccak256(expectedRevert), "call did not revert as expected");
     }
 }

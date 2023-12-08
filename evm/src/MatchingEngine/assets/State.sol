@@ -69,7 +69,7 @@ abstract contract State is IMatchingEngineState {
             revert ErrInvalidAuctionDuration();
         }
         if (auctionGracePeriod_ <= auctionDuration_) {
-            revert ErrInvalidAuctionGracePeriod(auctionGracePeriod_);
+            revert ErrInvalidAuctionGracePeriod();
         }
         if (userPenaltyRewardBps_ > MAX_BPS_FEE) {
             revert ErrInvalidUserPenaltyRewardBps();
