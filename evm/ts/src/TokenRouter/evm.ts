@@ -62,7 +62,7 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         targetChain: number,
         redeemer: Buffer | Uint8Array,
         redeemerMessage: Buffer | Uint8Array,
-        baseAuctionPrice: bigint,
+        maxFee: bigint,
         deadline: number,
         minAmountOut?: bigint,
         refundAddress?: string
@@ -77,13 +77,13 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
                 redeemer,
                 redeemerMessage,
                 refundAddress,
-                baseAuctionPrice,
+                maxFee,
                 deadline
             );
         } else {
             return this.contract[
                 "placeFastMarketOrder(uint256,uint16,bytes32,bytes,uint128,uint32)"
-            ](amountIn, targetChain, redeemer, redeemerMessage, baseAuctionPrice, deadline);
+            ](amountIn, targetChain, redeemer, redeemerMessage, maxFee, deadline);
         }
     }
 

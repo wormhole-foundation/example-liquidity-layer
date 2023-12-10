@@ -56,7 +56,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress,
-        uint128 auctionBasePrice,
+        uint128 maxFee,
         uint32 deadline
     ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
         if (refundAddress == address(0)) {
@@ -69,7 +69,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             redeemer,
             redeemerMessage,
             refundAddress,
-            auctionBasePrice,
+            maxFee,
             deadline
         );
     }
@@ -80,18 +80,11 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
-        uint128 auctionBasePrice,
+        uint128 maxFee,
         uint32 deadline
     ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
         (sequence, fastSequence) = _handleFastOrder(
-            amountIn,
-            0,
-            targetChain,
-            redeemer,
-            redeemerMessage,
-            address(0),
-            auctionBasePrice,
-            deadline
+            amountIn, 0, targetChain, redeemer, redeemerMessage, address(0), maxFee, deadline
         );
     }
 
@@ -138,7 +131,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress,
-        uint128 auctionBasePrice,
+        uint128 maxFee,
         uint32 deadline
     ) private returns (uint64 sequence, uint64 fastSequence) {
         // The Matching Engine chain is a fast finality chain already,
@@ -156,13 +149,12 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         if (amountIn > fastParams.maxAmount) {
             revert ErrAmountTooLarge(amountIn, fastParams.maxAmount);
         }
-        if (auctionBasePrice == 0) {
-            revert ErrInvalidAuctionBasePrice();
+        if (amountIn <= maxFee) {
+            revert ErrInsufficientAmount(amountIn, maxFee);
         }
-
-        uint128 minAmountIn = fastParams.baseFee + fastParams.initAuctionFee + auctionBasePrice;
-        if (amountIn <= minAmountIn) {
-            revert ErrInsufficientAmount(amountIn, minAmountIn);
+        uint128 minimumRequiredFee = fastParams.baseFee + fastParams.initAuctionFee + 1;
+        if (maxFee < minimumRequiredFee) {
+            revert ErrInvalidMaxFee(maxFee, minimumRequiredFee);
         }
 
         _verifyTarget(targetChain, redeemer);
@@ -197,7 +189,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 refundAddress: toUniversalAddress(refundAddress),
                 slowSequence: sequence,
                 slowEmitter: toUniversalAddress(address(_wormholeCctp)),
-                maxFee: auctionBasePrice + fastParams.baseFee,
+                maxFee: maxFee - fastParams.initAuctionFee,
                 initAuctionFee: fastParams.initAuctionFee,
                 deadline: deadline,
                 redeemerMessage: redeemerMessage

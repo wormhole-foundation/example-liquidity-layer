@@ -59,6 +59,12 @@ interface ITokenRouterState {
     function getMinTransferAmount() external view returns (uint256);
 
     /**
+     * @notice Returns the minimum fee for fast transfers. This includes the `baseFee`
+     * and `initialAuctionFee`.
+     */
+    function getMinFee() external pure returns (uint128);
+
+    /**
      * @notice Returns the maximum transfer amount for fast transfers.
      */
     function getMaxTransferAmount() external view returns (uint128);

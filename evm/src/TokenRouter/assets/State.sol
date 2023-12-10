@@ -89,18 +89,6 @@ abstract contract State is ITokenRouterState {
     }
 
     /// @inheritdoc ITokenRouterState
-    function getMinTransferAmount() external pure returns (uint256) {
-        FastTransferParameters memory params = getFastTransferParametersState();
-
-        return params.baseFee + params.initAuctionFee + 1;
-    }
-
-    /// @inheritdoc ITokenRouterState
-    function getMaxTransferAmount() external view returns (uint128) {
-        return getFastTransferParametersState().maxAmount;
-    }
-
-    /// @inheritdoc ITokenRouterState
     function getInitialAuctionFee() external view returns (uint128) {
         return getFastTransferParametersState().initAuctionFee;
     }
@@ -108,5 +96,21 @@ abstract contract State is ITokenRouterState {
     /// @inheritdoc ITokenRouterState
     function getBaseFee() external view returns (uint128) {
         return getFastTransferParametersState().baseFee;
+    }
+
+    /// @inheritdoc ITokenRouterState
+    function getMinFee() public pure returns (uint128) {
+        FastTransferParameters memory params = getFastTransferParametersState();
+        return params.baseFee + params.initAuctionFee + 1;
+    }
+
+    /// @inheritdoc ITokenRouterState
+    function getMinTransferAmount() external pure returns (uint256) {
+        return getMinFee() + 1;
+    }
+
+    /// @inheritdoc ITokenRouterState
+    function getMaxTransferAmount() external view returns (uint128) {
+        return getFastTransferParametersState().maxAmount;
     }
 }

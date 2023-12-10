@@ -32,7 +32,7 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
         targetChain: number,
         redeemer: Buffer | Uint8Array,
         redeemerMessage: Buffer | Uint8Array,
-        baseAuctionPrice: bigint,
+        maxFee: bigint,
         deadline: number,
         minAmountOut?: bigint,
         refundAddress?: string

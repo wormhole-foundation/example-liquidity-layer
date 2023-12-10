@@ -38,4 +38,4 @@ error ErrInvalidFeeOverride();
 
 error ErrFastTransferDisabled();
 
-error ErrInvalidAuctionBasePrice();
+error ErrInvalidMaxFee(uint128 maxFee, uint128 minimumReuiredFee);

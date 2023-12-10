@@ -24,6 +24,9 @@ interface IPlaceMarketOrder {
      * the `MatchingEngine` contract will faciliate transfers of cononical
      * USDC by swapping CCTP USDC for a wrapped alternative. If you plan to
      * support non-CCTP enabled chains in the future, use this interface.
+     *
+     * This function requires the caller to pass in `msg.value` equal to the
+     * amount returned by `messageFee()` on the IWormhole.sol interface.
      */
     function placeMarketOrder(
         uint256 amountIn,
@@ -46,6 +49,9 @@ interface IPlaceMarketOrder {
      * @dev This interface is for CCTP-enabled chains only. If you plan to
      * support non-CCTP enabled chains in the future, use the other `placeMarketOrder`
      * interface which includes a `minAmountOut` and `refundAddress` parameter.
+     *
+     * This function requires the caller to pass in `msg.value` equal to the
+     * amount returned by `messageFee()` on the IWormhole.sol interface.
      */
     function placeMarketOrder(
         uint256 amountIn,
@@ -71,8 +77,8 @@ interface IPlaceMarketOrder {
      * @param refundAddress The address to refund tokens to if the order is reverted. This
      * parameter is currently unused, but is available to future proof
      * the contract.
-     * @param auctionBasePrice The maximum fee that the user is willing to pay to execute
-     * a fast transfer, excluding the `baseFee` and `initAuctionFee`.
+     * @param maxFee The maximum fee that the user is willing to pay to execute
+     * a fast transfer.
      * @param deadline The deadline for the fast transfer auction to start. This timestamp
      * should be for the `MatchingEngine` chain to avoid any clock drift issues between
      * different blockchains. Set this value to 0 to opt out of using a deadline.
@@ -83,6 +89,10 @@ interface IPlaceMarketOrder {
      * the `MatchingEngine` contract will faciliate transfers of cononical
      * USDC by swapping CCTP USDC for a wrapped alternative. If you plan to
      * support non-CCTP enabled chains in the future, use this interface.
+     *
+     * This function requires the caller to pass in `msg.value` equal to two
+     * times the amount returned by `messageFee()` on the IWormhole.sol interface.
+     *
      */
     function placeFastMarketOrder(
         uint256 amountIn,
@@ -91,7 +101,7 @@ interface IPlaceMarketOrder {
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress,
-        uint128 auctionBasePrice,
+        uint128 maxFee,
         uint32 deadline
     ) external payable returns (uint64 sequence, uint64 fastSequence);
 
@@ -108,8 +118,8 @@ interface IPlaceMarketOrder {
      * @param targetChain The chain ID of the chain to transfer tokens to.
      * @param redeemer The address of the redeeming contract on the target chain.
      * @param redeemerMessage Arbitrary payload to be sent to the `redeemer`.
-     * @param auctionBasePrice The maximum fee that the user is willing to pay to execute
-     * a fast transfer, excluding the `baseFee` and `initAuctionFee`.
+     * @param maxFee The maximum fee that the user is willing to pay to execute
+     * a fast transfer.
      * @param deadline The deadline for the fast transfer auction to start. This timestamp
      * should be for the `MatchingEngine` chain to avoid any clock drift issues between
      * different blockchains. Set this value to 0 to opt out of using a deadline.
@@ -118,13 +128,16 @@ interface IPlaceMarketOrder {
      * @dev This interface is for CCTP-enabled chains only. If you plan to
      * support non-CCTP enabled chains in the future, use the other `placeMarketOrder`
      * interface which includes a `minAmountOut` and `refundAddress` parameter.
+     *
+     * This function requires the caller to pass in `msg.value` equal to two
+     * times the amount returned by `messageFee()` on the IWormhole.sol interface.
      */
     function placeFastMarketOrder(
         uint256 amountIn,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
-        uint128 auctionBasePrice,
+        uint128 maxFee,
         uint32 deadline
     ) external payable returns (uint64 sequence, uint64 fastSequence);
 }

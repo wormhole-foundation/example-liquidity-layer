@@ -42,7 +42,7 @@ const CHAIN_PATHWAYS: ValidNetwork[][] = [
 ];
 
 const TEST_AMOUNT = ethers.utils.parseUnits("1000", 6);
-const FEE_AMOUNT = BigInt(ethers.utils.parseUnits("5", 6).toString());
+const FEE_AMOUNT = BigInt(ethers.utils.parseUnits("10", 6).toString());
 
 describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Mocha.Suite) {
     const envPath = `${__dirname}/../../env/localnet`;
