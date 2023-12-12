@@ -28,9 +28,9 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     using Messages for *;
 
     event AuctionStarted(
-        bytes32 indexed auctionId, uint256 transferAmount, uint256 startingBid, address bidder
+        bytes32 indexed auctionId, uint128 transferAmount, uint128 startingBid, address bidder
     );
-    event NewBid(bytes32 indexed auctionId, uint256 newBid, uint256 oldBid, address bidder);
+    event NewBid(bytes32 indexed auctionId, uint128 newBid, uint128 oldBid, address bidder);
 
     /// @inheritdoc IMatchingEngineFastOrders
     function placeInitialBid(bytes calldata fastTransferVaa, uint128 feeBid) external {
@@ -73,7 +73,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
         // Set the live auction data.
         auction.status = AuctionStatus.Active;
-        auction.startBlock = uint88(block.number);
+        auction.startBlock = uint128(block.number);
         auction.highestBidder = msg.sender;
         auction.initialBidder = msg.sender;
         auction.amount = order.amountIn;
@@ -105,7 +105,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             revert ErrAuctionNotActive(vm.hash);
         }
 
-        uint256 blocksElapsed = uint88(block.number) - auction.startBlock;
+        uint128 blocksElapsed = uint128(block.number) - auction.startBlock;
         if (blocksElapsed <= _auctionDuration) {
             revert ErrAuctionPeriodNotComplete();
         }
@@ -113,7 +113,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
 
         if (blocksElapsed > _auctionGracePeriod) {
-            (uint256 penalty, uint256 userReward) =
+            (uint128 penalty, uint128 userReward) =
                 calculateDynamicPenalty(auction.securityDeposit, blocksElapsed);
 
             /**
@@ -212,8 +212,8 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
              * obligation. The `penalty` CAN be zero in this case, since the auction
              * grace period might not have ended yet.
              */
-            (uint256 penalty, uint256 userReward) = calculateDynamicPenalty(
-                auction.securityDeposit, uint88(block.number) - auction.startBlock
+            (uint128 penalty, uint128 userReward) = calculateDynamicPenalty(
+                auction.securityDeposit, uint128(block.number) - auction.startBlock
             );
 
             // Transfer the penalty amount to the caller. The caller also earns the base
@@ -274,7 +274,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     // ------------------------------- Private ---------------------------------
 
     function _handleCctpTransfer(
-        uint256 amount,
+        uint128 amount,
         uint16 sourceChain,
         Messages.FastMarketOrder memory order
     ) private returns (uint64 sequence) {
@@ -326,7 +326,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         if (auction.status != AuctionStatus.Active) {
             revert ErrAuctionNotActive(auctionId);
         }
-        if (uint88(block.number) - auction.startBlock > getAuctionDuration()) {
+        if (uint128(block.number) - auction.startBlock > getAuctionDuration()) {
             revert ErrAuctionPeriodExpired();
         }
         if (feeBid >= auction.bidPrice) {

@@ -105,7 +105,7 @@ abstract contract State is ITokenRouterState {
     }
 
     /// @inheritdoc ITokenRouterState
-    function getMinTransferAmount() external pure returns (uint256) {
+    function getMinTransferAmount() external pure returns (uint128) {
         return getMinFee() + 1;
     }
 

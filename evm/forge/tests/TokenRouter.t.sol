@@ -496,8 +496,8 @@ contract TokenRouterTest is Test {
     }
 
     function testEncodeAndDecodeFastMarketOrder(
-        uint256 amountIn,
-        uint256 minAmountOut,
+        uint128 amountIn,
+        uint128 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes32 sender,
@@ -547,7 +547,7 @@ contract TokenRouterTest is Test {
      */
 
     function testCannotPlaceMarketOrderErrInsufficientAmount() public {
-        vm.expectRevert(abi.encodeWithSignature("ErrInsufficientAmount(uint256,uint128)", 0, 0));
+        vm.expectRevert(abi.encodeWithSignature("ErrInsufficientAmount(uint128,uint128)", 0, 0));
         router.placeMarketOrder(
             0, // Zero amount - amountIn.
             0, // minAmountOut
@@ -583,7 +583,7 @@ contract TokenRouterTest is Test {
     }
 
     function testCannotPlaceMarketOrderErrUnsupportedChain() public {
-        uint256 amountIn = 69;
+        uint128 amountIn = 69;
         uint16 targetChain = 2;
 
         vm.expectRevert(abi.encodeWithSelector(ErrUnsupportedChain.selector, targetChain));
@@ -597,8 +597,8 @@ contract TokenRouterTest is Test {
         );
     }
 
-    function testPlaceMarketOrder(uint256 amountIn) public {
-        amountIn = bound(amountIn, 1, _cctpBurnLimit());
+    function testPlaceMarketOrder(uint128 amountIn) public {
+        amountIn = uint128(bound(amountIn, 1, _cctpBurnLimit()));
 
         _dealAndApproveUsdc(router, amountIn);
 
@@ -633,8 +633,8 @@ contract TokenRouterTest is Test {
         assertEq(keccak256(abi.encode(deposit)), keccak256(abi.encode(expectedDeposit)));
     }
 
-    function testPlaceMarketOrderWithCctpInterface(uint256 amountIn) public {
-        amountIn = bound(amountIn, 1, _cctpBurnLimit());
+    function testPlaceMarketOrderWithCctpInterface(uint128 amountIn) public {
+        amountIn = uint128(bound(amountIn, 1, _cctpBurnLimit()));
 
         _dealAndApproveUsdc(router, amountIn);
 
@@ -672,7 +672,7 @@ contract TokenRouterTest is Test {
 
     function testCannotPlaceFastMarketOrderErrInvalidRefundAddress() public {
         bytes memory encodedSignature = abi.encodeWithSignature(
-            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128,uint32)",
+            "placeFastMarketOrder(uint128,uint128,uint16,bytes32,bytes,address,uint128,uint32)",
             router.getMinTransferAmount(), // amountIn.
             0, // minAmountOut
             ARB_CHAIN, // targetChain
@@ -690,11 +690,11 @@ contract TokenRouterTest is Test {
     }
 
     function testCannotPlaceFastMarketOrderErrInsufficientAmount() public {
-        uint256 amountIn = router.getMinFee();
+        uint128 amountIn = router.getMinFee();
         uint128 maxFee = router.getMinFee();
 
         vm.expectRevert(
-            abi.encodeWithSignature("ErrInsufficientAmount(uint256,uint128)", amountIn, maxFee)
+            abi.encodeWithSignature("ErrInsufficientAmount(uint128,uint128)", amountIn, maxFee)
         );
         router.placeFastMarketOrder(
             amountIn,
@@ -727,7 +727,7 @@ contract TokenRouterTest is Test {
 
     function testCannotPlaceFastMarketOrderErrInvalidRedeemerAddress() public {
         bytes memory encodedSignature = abi.encodeWithSignature(
-            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128,uint32)",
+            "placeFastMarketOrder(uint128,uint128,uint16,bytes32,bytes,address,uint128,uint32)",
             router.getMinTransferAmount(), // amountIn.
             0, // minAmountOut
             ARB_CHAIN, // targetChain
@@ -748,7 +748,7 @@ contract TokenRouterTest is Test {
         uint16 unsupportedChain = 2;
 
         bytes memory encodedSignature = abi.encodeWithSignature(
-            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128,uint32)",
+            "placeFastMarketOrder(uint128,uint128,uint16,bytes32,bytes,address,uint128,uint32)",
             router.getMinTransferAmount(),
             0, // minAmountOut
             unsupportedChain, // targetChain
@@ -770,7 +770,7 @@ contract TokenRouterTest is Test {
         router.enableFastTransfers(false);
 
         bytes memory encodedSignature = abi.encodeWithSignature(
-            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128,uint32)",
+            "placeFastMarketOrder(uint128,uint128,uint16,bytes32,bytes,address,uint128,uint32)",
             router.getMinTransferAmount(),
             0, // minAmountOut
             ARB_CHAIN, // targetChain
@@ -789,7 +789,7 @@ contract TokenRouterTest is Test {
 
     function testCannotPlaceFastMarketOrderErrAmountTooLarge() public {
         bytes memory encodedSignature = abi.encodeWithSignature(
-            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128,uint32)",
+            "placeFastMarketOrder(uint128,uint128,uint16,bytes32,bytes,address,uint128,uint32)",
             router.getMaxTransferAmount() + 1,
             0, // minAmountOut
             ARB_CHAIN, // targetChain
@@ -813,7 +813,7 @@ contract TokenRouterTest is Test {
         router.setPause(true);
 
         bytes memory encodedSignature = abi.encodeWithSignature(
-            "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128,uint32)",
+            "placeFastMarketOrder(uint128,uint128,uint16,bytes32,bytes,address,uint128,uint32)",
             router.getMinTransferAmount(),
             0, // minAmountOut
             ARB_CHAIN, // targetChain
@@ -826,8 +826,10 @@ contract TokenRouterTest is Test {
         expectRevert(address(router), encodedSignature, abi.encodeWithSignature("ContractPaused()"));
     }
 
-    function testPlaceFastMarketOrder(uint256 amountIn, uint128 maxFee, uint32 deadline) public {
-        amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
+    function testPlaceFastMarketOrder(uint128 amountIn, uint128 maxFee, uint32 deadline) public {
+        amountIn = uint128(
+            bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount())
+        );
         maxFee = uint128(bound(maxFee, router.getMinFee(), amountIn - 1));
 
         _dealAndApproveUsdc(router, amountIn);
@@ -883,11 +885,13 @@ contract TokenRouterTest is Test {
     }
 
     function testPlaceFastMarketOrderWithCctpInterface(
-        uint256 amountIn,
+        uint128 amountIn,
         uint128 maxFee,
         uint32 deadline
     ) public {
-        amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
+        amountIn = uint128(
+            bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount())
+        );
         maxFee = uint128(bound(maxFee, router.getMinFee(), amountIn - 1));
 
         _dealAndApproveUsdc(router, amountIn);
@@ -951,11 +955,13 @@ contract TokenRouterTest is Test {
     }
 
     function testPlaceFastMarketOrderTargetIsMatchingEngine(
-        uint256 amountIn,
+        uint128 amountIn,
         uint128 maxFee,
         uint32 deadline
     ) public {
-        amountIn = bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount());
+        amountIn = uint128(
+            bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount())
+        );
         maxFee = uint128(bound(maxFee, router.getMinFee(), amountIn - 1));
 
         _dealAndApproveUsdc(router, amountIn);
@@ -1084,8 +1090,8 @@ contract TokenRouterTest is Test {
         );
     }
 
-    function testRedeemFill(uint256 amount) public {
-        amount = bound(amount, 1, _cctpMintLimit());
+    function testRedeemFill(uint128 amount) public {
+        amount = uint128(bound(amount, 1, _cctpMintLimit()));
 
         RedeemedFill memory expectedRedeemed = RedeemedFill({
             sender: TEST_REDEEMER,
@@ -1102,7 +1108,7 @@ contract TokenRouterTest is Test {
      * TEST HELPERS
      */
 
-    function _dealAndApproveUsdc(ITokenRouter _router, uint256 amount) internal {
+    function _dealAndApproveUsdc(ITokenRouter _router, uint128 amount) internal {
         mintUSDC(amount, address(this));
         IERC20(USDC_ADDRESS).approve(address(_router), amount);
     }
@@ -1124,7 +1130,7 @@ contract TokenRouterTest is Test {
 
     function _placeMarketOrder(
         ITokenRouter _router,
-        uint256 amountIn,
+        uint128 amountIn,
         uint16 targetChain,
         Messages.Fill memory expectedFill
     ) internal returns (bytes memory) {
@@ -1141,8 +1147,8 @@ contract TokenRouterTest is Test {
 
     function _placeMarketOrder(
         ITokenRouter _router,
-        uint256 amountIn,
-        uint256 minAmountOut,
+        uint128 amountIn,
+        uint128 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes memory redeemerMessage,
@@ -1173,7 +1179,7 @@ contract TokenRouterTest is Test {
 
     function _placeCctpMarketOrder(
         ITokenRouter _router,
-        uint256 amountIn,
+        uint128 amountIn,
         uint16 targetChain,
         bytes32 redeemer,
         bytes memory redeemerMessage
@@ -1242,7 +1248,7 @@ contract TokenRouterTest is Test {
 
     function _placeCctpFastMarketOrder(
         ITokenRouter _router,
-        uint256 amountIn,
+        uint128 amountIn,
         uint16 targetChain,
         bytes32 redeemer,
         bytes memory redeemerMessage,

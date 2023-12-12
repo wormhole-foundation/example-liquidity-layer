@@ -15,10 +15,10 @@ interface IMatchingEngineState {
      * @return penalty The penalty amount.
      * @return userReward The user reward amount.
      */
-    function calculateDynamicPenalty(uint256 amount, uint256 blocksElapsed)
+    function calculateDynamicPenalty(uint128 amount, uint128 blocksElapsed)
         external
         view
-        returns (uint256 penalty, uint256 userReward);
+        returns (uint128 penalty, uint128 userReward);
 
     /**
      * @notice Calculates the dynamic penalty for the specified auction.
@@ -29,7 +29,7 @@ interface IMatchingEngineState {
     function calculateDynamicPenalty(bytes32 auctionId)
         external
         view
-        returns (uint256 penalty, uint256 userReward);
+        returns (uint128 penalty, uint128 userReward);
 
     /**
      * @notice Returns the original `deployer` of the contracts.
@@ -80,6 +80,21 @@ interface IMatchingEngineState {
     function liveAuctionInfo(bytes32 auctionId) external view returns (LiveAuctionData memory);
 
     /**
+     * @notice Returns the `highestBidder` for the specified `auctionId`.
+     */
+    function getHighestBidder(bytes32 auctionId) external view returns (address);
+
+    /**
+     * @notice Returns the transfer amount for a particular auction.
+     */
+    function getAuctionAmount(bytes32 auctionId) external view returns (uint128);
+
+    /**
+     * @notice Returns the security deposit for a particular auction.
+     */
+    function getSecurityDeposit(bytes32 auctionId) external view returns (uint128);
+
+    /**
      * @notice Returns the status of the specified `auctionId`.
      */
     function getAuctionStatus(bytes32 auctionId) external view returns (AuctionStatus);
@@ -115,7 +130,7 @@ interface IMatchingEngineState {
     /**
      * @notice Returns the number of blocks elapsed since the auction started.
      */
-    function getAuctionBlocksElapsed(bytes32 auctionId) external view returns (uint256);
+    function getAuctionBlocksElapsed(bytes32 auctionId) external view returns (uint128);
 
     /**
      * @notice Returns a boolean which indicates whether the specified `FastFill` has been redeemed.

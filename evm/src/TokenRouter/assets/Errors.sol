@@ -20,11 +20,11 @@ error ErrInvalidMatchingEngineSender(bytes32 sender, bytes32 expected);
 
 error ErrInvalidChain(uint16 chain);
 
-error ErrInsufficientAmount(uint256 amount, uint128 minAmount);
+error ErrInsufficientAmount(uint128 amount, uint128 minAmount);
 
 error ErrInsufficientFastTransferFee();
 
-error ErrAmountTooLarge(uint256 amountIn, uint128 maxAmount);
+error ErrAmountTooLarge(uint128 amountIn, uint128 maxAmount);
 
 error ErrFastTransferFeeUnset();
 

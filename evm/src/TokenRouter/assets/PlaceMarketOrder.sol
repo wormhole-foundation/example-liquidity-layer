@@ -23,8 +23,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     /// @inheritdoc IPlaceMarketOrder
     function placeMarketOrder(
-        uint256 amountIn,
-        uint256 minAmountOut,
+        uint128 amountIn,
+        uint128 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
@@ -40,7 +40,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     /// @inheritdoc IPlaceMarketOrder
     function placeMarketOrder(
-        uint256 amountIn,
+        uint128 amountIn,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage
@@ -50,8 +50,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     /// @inheritdoc IPlaceMarketOrder
     function placeFastMarketOrder(
-        uint256 amountIn,
-        uint256 minAmountOut,
+        uint128 amountIn,
+        uint128 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
@@ -76,7 +76,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     /// @inheritdoc IPlaceMarketOrder
     function placeFastMarketOrder(
-        uint256 amountIn,
+        uint128 amountIn,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
@@ -91,8 +91,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     // ---------------------------------------- private -------------------------------------------
 
     function _handleOrder(
-        uint256 amountIn,
-        uint256 minAmountOut,
+        uint128 amountIn,
+        uint128 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
@@ -125,8 +125,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     }
 
     function _handleFastOrder(
-        uint256 amountIn,
-        uint256 minAmountOut,
+        uint128 amountIn,
+        uint128 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,

@@ -216,7 +216,7 @@ export class FastFill {
         const endMessage = 70 + redeemerMsgLen;
         const redeemerMessage = buf.subarray(70, endMessage);
         const fillAmount = BigInt(
-            ethers.BigNumber.from(buf.subarray(endMessage, endMessage + 32)).toString()
+            ethers.BigNumber.from(buf.subarray(endMessage, endMessage + 16)).toString()
         );
 
         return new FastFill(sourceChain, orderSender, redeemer, redeemerMessage, fillAmount);
@@ -272,19 +272,19 @@ export class FastMarketOrder {
     static decode(payload: Buffer): FastMarketOrder {
         const buf = takePayloadId(payload, this.ID);
 
-        const amountIn = BigInt(ethers.BigNumber.from(buf.subarray(0, 32)).toString());
-        const minAmountOut = BigInt(ethers.BigNumber.from(buf.subarray(32, 64)).toString());
-        const targetChain = buf.readUInt16BE(64);
-        const redeemer = buf.subarray(66, 98);
-        const sender = buf.subarray(98, 130);
-        const refundAddress = buf.subarray(130, 162);
-        const slowSequence = buf.readBigUint64BE(162);
-        const slowEmitter = buf.subarray(170, 202);
-        const maxFee = BigInt(ethers.BigNumber.from(buf.subarray(202, 218)).toString());
-        const initAuctionFee = BigInt(ethers.BigNumber.from(buf.subarray(218, 234)).toString());
-        const deadline = buf.readUInt32BE(234);
-        const redeemerMsgLen = buf.readUInt32BE(238);
-        const redeemerMessage = buf.subarray(242, 242 + redeemerMsgLen);
+        const amountIn = BigInt(ethers.BigNumber.from(buf.subarray(0, 16)).toString());
+        const minAmountOut = BigInt(ethers.BigNumber.from(buf.subarray(16, 32)).toString());
+        const targetChain = buf.readUInt16BE(32);
+        const redeemer = buf.subarray(34, 66);
+        const sender = buf.subarray(66, 98);
+        const refundAddress = buf.subarray(98, 130);
+        const slowSequence = buf.readBigUint64BE(130);
+        const slowEmitter = buf.subarray(138, 170);
+        const maxFee = BigInt(ethers.BigNumber.from(buf.subarray(170, 186)).toString());
+        const initAuctionFee = BigInt(ethers.BigNumber.from(buf.subarray(186, 202)).toString());
+        const deadline = buf.readUInt32BE(202);
+        const redeemerMsgLen = buf.readUInt32BE(206);
+        const redeemerMessage = buf.subarray(210, 210 + redeemerMsgLen);
         return new FastMarketOrder(
             amountIn,
             minAmountOut,

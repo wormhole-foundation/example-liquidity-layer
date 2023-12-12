@@ -21,14 +21,14 @@ enum AuctionStatus {
 struct LiveAuctionData {
     // The auction status.
     AuctionStatus status;
-    // The block number at which the auction started.
-    uint88 startBlock;
     // The highest bidder of the auction.
     address highestBidder;
     // The initial bidder of the auction.
     address initialBidder;
+    // The block number at which the auction started.
+    uint128 startBlock;
     // The amount of tokens to be sent to the user.
-    uint256 amount;
+    uint128 amount;
     // The additional deposit made by the highest bidder.
     uint128 securityDeposit;
     // The bid price of the highest bidder.

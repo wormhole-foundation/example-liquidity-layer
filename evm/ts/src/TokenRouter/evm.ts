@@ -39,7 +39,7 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         refundAddress?: string
     ) {
         if (minAmountOut !== undefined && refundAddress !== undefined) {
-            return this.contract["placeMarketOrder(uint256,uint256,uint16,bytes32,bytes,address)"](
+            return this.contract["placeMarketOrder(uint128,uint128,uint16,bytes32,bytes,address)"](
                 amountIn,
                 minAmountOut,
                 targetChain,
@@ -48,7 +48,7 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
                 refundAddress
             );
         } else {
-            return this.contract["placeMarketOrder(uint256,uint16,bytes32,bytes)"](
+            return this.contract["placeMarketOrder(uint128,uint16,bytes32,bytes)"](
                 amountIn,
                 targetChain,
                 redeemer,
@@ -69,7 +69,7 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
     ) {
         if (minAmountOut !== undefined && refundAddress !== undefined) {
             return this.contract[
-                "placeFastMarketOrder(uint256,uint256,uint16,bytes32,bytes,address,uint128,uint32)"
+                "placeFastMarketOrder(uint128,uint128,uint16,bytes32,bytes,address,uint128,uint32)"
             ](
                 amountIn,
                 minAmountOut,
@@ -82,7 +82,7 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
             );
         } else {
             return this.contract[
-                "placeFastMarketOrder(uint256,uint16,bytes32,bytes,uint128,uint32)"
+                "placeFastMarketOrder(uint128,uint16,bytes32,bytes,uint128,uint32)"
             ](amountIn, targetChain, redeemer, redeemerMessage, maxFee, deadline);
         }
     }

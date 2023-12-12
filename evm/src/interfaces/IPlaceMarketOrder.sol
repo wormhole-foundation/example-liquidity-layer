@@ -29,8 +29,8 @@ interface IPlaceMarketOrder {
      * amount returned by `messageFee()` on the IWormhole.sol interface.
      */
     function placeMarketOrder(
-        uint256 amountIn,
-        uint256 minAmountOut,
+        uint128 amountIn,
+        uint128 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
@@ -54,7 +54,7 @@ interface IPlaceMarketOrder {
      * amount returned by `messageFee()` on the IWormhole.sol interface.
      */
     function placeMarketOrder(
-        uint256 amountIn,
+        uint128 amountIn,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage
@@ -95,8 +95,8 @@ interface IPlaceMarketOrder {
      *
      */
     function placeFastMarketOrder(
-        uint256 amountIn,
-        uint256 minAmountOut,
+        uint128 amountIn,
+        uint128 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
@@ -133,7 +133,7 @@ interface IPlaceMarketOrder {
      * times the amount returned by `messageFee()` on the IWormhole.sol interface.
      */
     function placeFastMarketOrder(
-        uint256 amountIn,
+        uint128 amountIn,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,

@@ -30,12 +30,12 @@ library Messages {
 
     struct FastFill {
         Fill fill;
-        uint256 fillAmount;
+        uint128 fillAmount;
     }
 
     struct FastMarketOrder {
-        uint256 amountIn;
-        uint256 minAmountOut;
+        uint128 amountIn;
+        uint128 minAmountOut;
         uint16 targetChain;
         bytes32 redeemer;
         bytes32 sender;
@@ -99,8 +99,8 @@ library Messages {
         uint256 offset = _checkPayloadId(encoded, 0, FAST_MARKET_ORDER);
 
         // Parse the encoded message.
-        (order.amountIn, offset) = encoded.asUint256Unchecked(offset);
-        (order.minAmountOut, offset) = encoded.asUint256Unchecked(offset);
+        (order.amountIn, offset) = encoded.asUint128Unchecked(offset);
+        (order.minAmountOut, offset) = encoded.asUint128Unchecked(offset);
         (order.targetChain, offset) = encoded.asUint16Unchecked(offset);
         (order.redeemer, offset) = encoded.asBytes32Unchecked(offset);
         (order.sender, offset) = encoded.asBytes32Unchecked(offset);
@@ -138,7 +138,7 @@ library Messages {
         (fastFill.fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
         (fastFill.fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
         (fastFill.fill.redeemerMessage, offset) = _decodeBytes(encoded, offset);
-        (fastFill.fillAmount, offset) = encoded.asUint256Unchecked(offset);
+        (fastFill.fillAmount, offset) = encoded.asUint128Unchecked(offset);
 
         _checkLength(encoded, offset);
     }

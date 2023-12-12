@@ -89,7 +89,7 @@ abstract contract State is IMatchingEngineState {
     function calculateDynamicPenalty(bytes32 auctionId)
         external
         view
-        returns (uint256 penalty, uint256 userReward)
+        returns (uint128 penalty, uint128 userReward)
     {
         LiveAuctionData memory auction = getLiveAuctionInfo().auctions[auctionId];
         return calculateDynamicPenalty(
@@ -98,24 +98,24 @@ abstract contract State is IMatchingEngineState {
     }
 
     /// @inheritdoc IMatchingEngineState
-    function calculateDynamicPenalty(uint256 amount, uint256 blocksElapsed)
+    function calculateDynamicPenalty(uint128 amount, uint128 blocksElapsed)
         public
         view
-        returns (uint256, uint256)
+        returns (uint128, uint128)
     {
         if (blocksElapsed <= _auctionGracePeriod) {
             return (0, 0);
         }
 
-        uint256 penaltyPeriod = blocksElapsed - _auctionGracePeriod;
+        uint128 penaltyPeriod = blocksElapsed - _auctionGracePeriod;
         if (penaltyPeriod >= _auctionPenaltyBlocks || _initialPenaltyBps == MAX_BPS_FEE) {
-            uint256 userReward = amount * _userPenaltyRewardBps / MAX_BPS_FEE;
+            uint128 userReward = amount * _userPenaltyRewardBps / MAX_BPS_FEE;
             return (amount - userReward, userReward);
         } else {
-            uint256 basePenalty = amount * _initialPenaltyBps / MAX_BPS_FEE;
-            uint256 penalty =
+            uint128 basePenalty = amount * _initialPenaltyBps / MAX_BPS_FEE;
+            uint128 penalty =
                 basePenalty + ((amount - basePenalty) * penaltyPeriod / _auctionPenaltyBlocks);
-            uint256 userReward = penalty * _userPenaltyRewardBps / MAX_BPS_FEE;
+            uint128 userReward = penalty * _userPenaltyRewardBps / MAX_BPS_FEE;
 
             return (penalty - userReward, userReward);
         }
@@ -185,8 +185,8 @@ abstract contract State is IMatchingEngineState {
     }
 
     /// @inheritdoc IMatchingEngineState
-    function getAuctionBlocksElapsed(bytes32 auctionId) public view returns (uint256) {
-        return block.number - getLiveAuctionInfo().auctions[auctionId].startBlock;
+    function getAuctionBlocksElapsed(bytes32 auctionId) public view returns (uint128) {
+        return uint128(block.number) - getLiveAuctionInfo().auctions[auctionId].startBlock;
     }
 
     /// @inheritdoc IMatchingEngineState
@@ -197,6 +197,21 @@ abstract contract State is IMatchingEngineState {
     /// @inheritdoc IMatchingEngineState
     function liveAuctionInfo(bytes32 auctionId) public view returns (LiveAuctionData memory) {
         return getLiveAuctionInfo().auctions[auctionId];
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function getHighestBidder(bytes32 auctionId) public view returns (address) {
+        return getLiveAuctionInfo().auctions[auctionId].highestBidder;
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function getAuctionAmount(bytes32 auctionId) public view returns (uint128) {
+        return getLiveAuctionInfo().auctions[auctionId].amount;
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function getSecurityDeposit(bytes32 auctionId) public view returns (uint128) {
+        return getLiveAuctionInfo().auctions[auctionId].securityDeposit;
     }
 
     /// @inheritdoc IMatchingEngineState
