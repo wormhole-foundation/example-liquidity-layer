@@ -39,3 +39,5 @@ error ErrInvalidUserPenaltyRewardBps();
 error ErrInvalidInitialPenaltyBps();
 
 error ErrDeadlineExceeded();
+
+error ErrInvalidCallbackType();

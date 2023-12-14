@@ -136,4 +136,10 @@ interface IMatchingEngineState {
      * @notice Returns a boolean which indicates whether the specified `FastFill` has been redeemed.
      */
     function isFastFillRedeemed(bytes32 vaaHash) external view returns (bool);
+
+    /**
+     * @notice Returns a boolean which indicates whether the specified address is a registered
+     * market maker smart contract.
+     */
+    function isMarketMaker(address marketMaker) external view returns (bool);
 }

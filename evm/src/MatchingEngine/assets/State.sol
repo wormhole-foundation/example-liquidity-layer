@@ -14,7 +14,8 @@ import {
     LiveAuctionData,
     AuctionStatus,
     getFastFillsState,
-    getFeeRecipientState
+    getFeeRecipientState,
+    getRegisteredMarketMakerState
 } from "./Storage.sol";
 
 abstract contract State is IMatchingEngineState {
@@ -217,5 +218,10 @@ abstract contract State is IMatchingEngineState {
     /// @inheritdoc IMatchingEngineState
     function isFastFillRedeemed(bytes32 vaaHash) public view returns (bool) {
         return getFastFillsState().redeemed[vaaHash];
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function isMarketMaker(address marketMaker) public view returns (bool) {
+        return getRegisteredMarketMakerState().registered[marketMaker];
     }
 }

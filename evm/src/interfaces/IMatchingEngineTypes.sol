@@ -44,3 +44,8 @@ struct FastFills {
     // Mapping of VAA hash to redemption status.
     mapping(bytes32 vaaHash => bool redeemed) redeemed;
 }
+
+struct RegisteredMarketMakers {
+    // Mapping of market maker address to boolean.
+    mapping(address marketMaker => bool registered) registered;
+}

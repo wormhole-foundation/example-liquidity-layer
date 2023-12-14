@@ -10,6 +10,8 @@ import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 import {Messages} from "../../shared/Messages.sol";
 import {IMatchingEngineFastOrders} from "../../interfaces/IMatchingEngineFastOrders.sol";
+import {IMarketMaker} from "../../interfaces/IMarketMaker.sol";
+import "../../interfaces/IMarketMakerTypes.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
@@ -38,6 +40,13 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
         Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
 
+        if (uint32(block.timestamp) >= order.deadline && order.deadline != 0) {
+            revert ErrDeadlineExceeded();
+        }
+        if (feeBid > order.maxFee) {
+            revert ErrBidPriceTooHigh(feeBid, order.maxFee);
+        }
+
         /**
          * SECURITY: This is the only time the router path is verified throughout the
          * life of an auction. The hash of the vaa is stored as the auction ID,
@@ -54,12 +63,6 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             _improveBid(vm.hash, auction, feeBid);
 
             return;
-        }
-        if (uint32(block.timestamp) >= order.deadline && order.deadline != 0) {
-            revert ErrDeadlineExceeded();
-        }
-        if (feeBid > order.maxFee) {
-            revert ErrBidPriceTooHigh(feeBid, order.maxFee);
         }
 
         /**
@@ -112,9 +115,16 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
         Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
 
+        uint128 totalPenalty = 0;
+        address highestBidder = auction.highestBidder;
+
         if (blocksElapsed > _auctionGracePeriod) {
             (uint128 penalty, uint128 userReward) =
                 calculateDynamicPenalty(auction.securityDeposit, blocksElapsed);
+
+            // Set the total penalty amount, this value is only used when
+            // a MarketMaker contract is the higest bidder.
+            totalPenalty = penalty + userReward;
 
             /**
              * Give the penalty amount to the liquidator and return the remaining
@@ -124,9 +134,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
              */
             SafeERC20.safeTransfer(_token, msg.sender, penalty);
             SafeERC20.safeTransfer(
-                _token,
-                auction.highestBidder,
-                auction.bidPrice + auction.securityDeposit - (penalty + userReward)
+                _token, highestBidder, auction.bidPrice + auction.securityDeposit - totalPenalty
             );
 
             // Transfer funds to the recipient on the target chain.
@@ -138,7 +146,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         } else {
             // Return the security deposit and the fee to the highest bidder.
             SafeERC20.safeTransfer(
-                _token, auction.highestBidder, auction.bidPrice + auction.securityDeposit
+                _token, highestBidder, auction.bidPrice + auction.securityDeposit
             );
 
             // Transfer funds to the recipient on the target chain.
@@ -148,10 +156,19 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         }
 
         // Pay the auction initiator their fee.
-        SafeERC20.safeTransfer(_token, auction.initialBidder, order.initAuctionFee);
+        address initialBidder = auction.initialBidder;
+        SafeERC20.safeTransfer(_token, initialBidder, order.initAuctionFee);
 
         // Set the auction as completed.
         auction.status = AuctionStatus.Completed;
+
+        _completeAuctionOnMarketMaker(
+            vm.hash,
+            uint64(totalPenalty),
+            uint64(order.initAuctionFee),
+            initialBidder,
+            highestBidder
+        );
     }
 
     /// @inheritdoc IMatchingEngineFastOrders
@@ -216,13 +233,15 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
                 auction.securityDeposit, uint128(block.number) - auction.startBlock
             );
 
+            // Cache for gas savings.
+            uint128 totalPenalty = penalty + userReward;
+            address highestBidder = auction.highestBidder;
+
             // Transfer the penalty amount to the caller. The caller also earns the base
             // fee for relaying the slow VAA.
             SafeERC20.safeTransfer(_token, msg.sender, penalty + baseFee);
             SafeERC20.safeTransfer(
-                _token,
-                auction.highestBidder,
-                auction.amount + auction.securityDeposit - (penalty + userReward)
+                _token, highestBidder, auction.amount + auction.securityDeposit - totalPenalty
             );
 
             sequence =
@@ -230,9 +249,17 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
             // Everyone's whole, set the auction as completed.
             auction.status = AuctionStatus.Completed;
+
+            _refundMarketMaker(
+                vm.hash, uint64(totalPenalty), highestBidder, Callback.AuctionComplete
+            );
         } else if (auction.status == AuctionStatus.Completed) {
+            address highestBidder = auction.highestBidder;
+
             // Transfer the funds back to the highest bidder.
-            SafeERC20.safeTransfer(_token, auction.highestBidder, auction.amount);
+            SafeERC20.safeTransfer(_token, highestBidder, auction.amount);
+
+            _refundMarketMaker(vm.hash, 0, highestBidder, Callback.Outbid);
         } else {
             revert ErrInvalidAuctionStatus();
         }
@@ -333,15 +360,21 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             revert ErrBidPriceTooHigh(feeBid, auction.bidPrice);
         }
 
-        // Transfer the funds from the new highest bidder to the old highest bidder.
-        // This contract's balance shouldn't change.
-        SafeERC20.safeTransferFrom(
-            _token, msg.sender, auction.highestBidder, auction.amount + auction.securityDeposit
-        );
+        // If the caller is not the current highest bidder, transfer the funds from the
+        // new highest bidder to the old highest bidder.
+        address currentHighestBidder = auction.highestBidder;
+        if (currentHighestBidder != msg.sender) {
+            SafeERC20.safeTransferFrom(
+                _token, msg.sender, currentHighestBidder, auction.amount + auction.securityDeposit
+            );
+            auction.highestBidder = msg.sender;
+            auction.bidPrice = feeBid;
 
-        // Update the auction data.
-        auction.bidPrice = feeBid;
-        auction.highestBidder = msg.sender;
+            _refundMarketMaker(auctionId, 0, currentHighestBidder, Callback.Outbid);
+        } else {
+            // The current higested bidder is just improving their bid here.
+            auction.bidPrice = feeBid;
+        }
 
         emit NewBid(auctionId, feeBid, auction.bidPrice, msg.sender);
     }
@@ -369,5 +402,54 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         }
 
         return vm;
+    }
+
+    function _completeAuctionOnMarketMaker(
+        bytes32 auctionId,
+        uint64 penalty,
+        uint64 initAuctionFee,
+        address initialBidder,
+        address highestBidder
+    ) private {
+        if (initialBidder == highestBidder) {
+            if (isMarketMaker(initialBidder)) {
+                IMarketMaker(initialBidder).updateAuctionStatus(
+                    auctionId, penalty, initAuctionFee, Callback.WonAuction
+                );
+            }
+        } else {
+            if (isMarketMaker(highestBidder)) {
+                IMarketMaker(highestBidder).updateAuctionStatus(
+                    auctionId, penalty, 0, Callback.WonAuction
+                );
+            } else if (isMarketMaker(initialBidder)) {
+                IMarketMaker(initialBidder).updateAuctionStatus(
+                    auctionId, 0, initAuctionFee, Callback.FeeOnly
+                );
+            } else {
+                return;
+            }
+        }
+    }
+
+    function _refundMarketMaker(
+        bytes32 auctionId,
+        uint64 penalty,
+        address highestBidder,
+        Callback callbackType
+    ) private {
+        if (!isMarketMaker(highestBidder)) {
+            return;
+        } else {
+            if (callbackType == Callback.Outbid) {
+                IMarketMaker(highestBidder).updateAuctionStatus(auctionId, 0, 0, Callback.Outbid);
+            } else if (callbackType == Callback.AuctionComplete) {
+                IMarketMaker(highestBidder).updateAuctionStatus(
+                    auctionId, penalty, 0, Callback.AuctionComplete
+                );
+            } else {
+                revert ErrInvalidCallbackType();
+            }
+        }
     }
 }

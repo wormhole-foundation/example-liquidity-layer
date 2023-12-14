@@ -43,3 +43,14 @@ function getFastFillsState() pure returns (FastFills storage state) {
         state.slot := TRANSFER_RECEIPTS_STORAGE_SLOT
     }
 }
+
+// TODO: recompute this slot.
+// keccak256("RegisteredMarketMakers") - 1
+bytes32 constant REGISTERED_MARKET_MAKERS_STORAGE_SLOT =
+    0xe58c46ab8c228ca315cb45e78f52803122060218943a20abb9ffec52c71706cb;
+
+function getRegisteredMarketMakerState() pure returns (RegisteredMarketMakers storage state) {
+    assembly ("memory-safe") {
+        state.slot := REGISTERED_MARKET_MAKERS_STORAGE_SLOT
+    }
+}
