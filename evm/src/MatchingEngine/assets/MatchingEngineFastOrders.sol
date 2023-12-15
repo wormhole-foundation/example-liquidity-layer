@@ -38,6 +38,13 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
         Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
 
+        if (uint32(block.timestamp) >= order.deadline && order.deadline != 0) {
+            revert ErrDeadlineExceeded();
+        }
+        if (feeBid > order.maxFee) {
+            revert ErrBidPriceTooHigh(feeBid, order.maxFee);
+        }
+
         /**
          * SECURITY: This is the only time the router path is verified throughout the
          * life of an auction. The hash of the vaa is stored as the auction ID,
@@ -54,12 +61,6 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             _improveBid(vm.hash, auction, feeBid);
 
             return;
-        }
-        if (uint32(block.timestamp) >= order.deadline && order.deadline != 0) {
-            revert ErrDeadlineExceeded();
-        }
-        if (feeBid > order.maxFee) {
-            revert ErrBidPriceTooHigh(feeBid, order.maxFee);
         }
 
         /**
@@ -333,15 +334,19 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             revert ErrBidPriceTooHigh(feeBid, auction.bidPrice);
         }
 
-        // Transfer the funds from the new highest bidder to the old highest bidder.
-        // This contract's balance shouldn't change.
-        SafeERC20.safeTransferFrom(
-            _token, msg.sender, auction.highestBidder, auction.amount + auction.securityDeposit
-        );
-
-        // Update the auction data.
-        auction.bidPrice = feeBid;
-        auction.highestBidder = msg.sender;
+        // If the caller is not the current highest bidder, transfer the funds from the
+        // new highest bidder to the old highest bidder.
+        address currentHighestBidder = auction.highestBidder;
+        if (currentHighestBidder != msg.sender) {
+            SafeERC20.safeTransferFrom(
+                _token, msg.sender, currentHighestBidder, auction.amount + auction.securityDeposit
+            );
+            auction.highestBidder = msg.sender;
+            auction.bidPrice = feeBid;
+        } else {
+            // The current higested bidder is just improving their bid here.
+            auction.bidPrice = feeBid;
+        }
 
         emit NewBid(auctionId, feeBid, auction.bidPrice, msg.sender);
     }

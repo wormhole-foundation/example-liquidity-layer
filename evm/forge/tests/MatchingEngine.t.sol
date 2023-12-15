@@ -696,6 +696,33 @@ contract MatchingEngineTest is Test {
         _improveBid(order, fastMessage, newBid, PLAYER_ONE, PLAYER_TWO);
     }
 
+    function testImproveBidWithHighestBidder(uint128 amountIn, uint128 newBid) public {
+        uint64 slowMessageSequence = 69;
+        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+
+        (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence);
+
+        // Place initial bid for the max fee with player one.
+        _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
+
+        // Create a bid that is lower than the current bid.
+        newBid = uint128(bound(newBid, 0, order.maxFee));
+
+        IWormhole.VM memory _vm = wormholeCctp.wormhole().parseVM(fastMessage);
+
+        uint256 balanceBefore = IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE);
+
+        // Improve the bid with player one, so we're basically modifying
+        // the existing bid.
+        vm.prank(PLAYER_ONE);
+        engine.improveBid(_vm.hash, newBid);
+
+        assertEq(balanceBefore, IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE));
+
+        _verifyAuctionState(order, newBid, PLAYER_ONE, PLAYER_ONE, _vm.hash);
+    }
+
     function testCannotImproveBidAuctionAlreadyCompleted() public {
         uint128 amountIn = _getMinTransferAmount() + 6900;
         uint64 slowMessageSequence = 69;
@@ -1487,7 +1514,7 @@ contract MatchingEngineTest is Test {
         // Validate state and balance changes.
         IWormhole.VM memory _vm = wormholeCctp.wormhole().parseVM(fastMessage);
 
-        // Place the initial bid as player one.
+        // Place the initial bid as `newBidder`.
         vm.prank(newBidder);
         engine.improveBid(_vm.hash, newBid);
 
