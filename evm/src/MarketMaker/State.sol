@@ -21,7 +21,6 @@ abstract contract State {
     address _relayer;
     Vault _vault;
     mapping(address => Deposit) _deposits;
-    mapping(bytes32 => Auction) _auctions;
 
     constructor(
         address multiSig_,

@@ -29,33 +29,9 @@ abstract contract MarketMaker is State {
 
     // ------------------------------ external -------------------------------------------
 
-    function deposit(uint128 amount) external {
-        if (amount == 0) {
-            revert ErrInvalidDepositAmount(amount);
-        }
+    function deposit(uint128 amount) external {}
 
-        Vault storage vault = _vault;
-        Deposit storage deposited = _deposits[msg.sender];
-
-        /**
-         * Update state for the depositor. We must accrue fees before updating the
-         * amount, otherwise we will overestimate the accrued fees. We also must
-         * update the total fees after accruing fees, otherwise this account
-         * will be attributed extra fees at a later time.
-         */
-        deposited.accruedFees += _calculateAccruedFees(deposited, vault);
-        deposited.totalFees = vault.fees;
-        deposited.amount += amount;
-
-        // Update the total deposits AFTER accruing fees.
-        vault.deposits += amount;
-
-        SafeERC20.safeTransferFrom(_token, msg.sender, address(this), amount);
-    }
-
-    function withdraw(uint128 amount) external {
-        revert();
-    }
+    function withdraw(uint128 amount) external {}
 
     // ------------------------------ Relayer Only -------------------------------------------
 
