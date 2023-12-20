@@ -18,10 +18,10 @@ import {
     Callback
 } from "../interfaces/IMarketMakerTypes.sol";
 
-// TODO: Figure out how to handle relayer withdrawals and when to allow them. 
+// TODO: Figure out how to handle relayer withdrawals and when to allow them.
 // TODO: Account for relayer fees when rolling over positions between campaigns.
-// TODO: Roll over campaign positions in `startCampaign` if noone called `deposit` or `withdraw`. 
-// TODO: Add refund mechanism for delayed slow VAAs. 
+// TODO: Roll over campaign positions in `startCampaign` if noone called `deposit` or `withdraw`.
+// TODO: Add refund mechanism for delayed slow VAAs.
 
 abstract contract MarketMaker is State {
     using BytesParsing for bytes;
@@ -76,7 +76,7 @@ abstract contract MarketMaker is State {
         if (amount == 0) {
             revert ErrInvalidWithdrawalAmount(amount);
         }
-        
+
         address sender = msg.sender;
         if (sender == _relayer) {
             revert ErrRelayerIsCaller();
@@ -104,8 +104,7 @@ abstract contract MarketMaker is State {
             initialCampaign.startBlock = uint32(block.number);
             initialCampaign.endBlock = uint32(block.number + _campaignDuration);
         } else {
-            if (block.timestamp <= _campaigns[_params.currentCampaign].endBlock + _accountingPeriod)
-            {
+            if (block.number <= _campaigns[_params.currentCampaign].endBlock + _accountingPeriod) {
                 revert ErrCannotStartCampaign();
             } else {
                 _updateCampaignIndex();
@@ -255,6 +254,20 @@ abstract contract MarketMaker is State {
         }
     }
 
+    function _calculateRelayerPosition(Campaign memory lastCampaign, uint64 lastCampaignIndex)
+        private
+        view
+        returns (uint64, uint64)
+    {
+        Vault storage relayerVault = _vaults[_relayer];
+        uint64 lastRelayerDeposit = relayerVault.amount[lastCampaignIndex];
+        uint64 newRelayerDeposit = lastRelayerDeposit
+            - uint64(
+                uint256(lastCampaign.outstanding) * uint256(lastRelayerDeposit) / lastCampaign.deposits
+            );
+        return (newRelayerDeposit, lastRelayerDeposit);
+    }
+
     function _handleDeposit(uint64 amount, address sender) private {
         uint64 lastCampaignIndex = _params.currentCampaign;
 
@@ -279,19 +292,13 @@ abstract contract MarketMaker is State {
         } else {
             Campaign memory lastCampaign = _campaigns[lastCampaignIndex];
 
-            Vault storage relayerVault = _vaults[_relayer];
-            uint64 lastRelayerDeposit = relayerVault.amount[lastCampaignIndex];
-
             // Account for relayer's share of losses from the last campaign.
-            uint64 newRelayerDeposit = lastRelayerDeposit
-                - uint64(
-                    uint256(lastCampaign.outstanding) * uint256(lastRelayerDeposit)
-                        / lastCampaign.deposits
-                );
-            uint64 newDeposits = lastCampaign.deposits - lastCampaign.outstanding + amount;
-
+            (uint64 newRelayerDeposit, uint64 lastRelayerDeposit) =
+                _calculateRelayerPosition(lastCampaign, lastCampaignIndex);
+            
             // Compute the utilization ratio with the new deposit and then update the state if
             // it's allowed.
+            uint64 newDeposits = lastCampaign.deposits - lastCampaign.outstanding + amount;
             uint24 newUtilizationRatio = _calculateUtilization(lastRelayerDeposit, newDeposits);
 
             if (newUtilizationRatio >= _params.minUtilizationRatioBps) {
@@ -314,13 +321,39 @@ abstract contract MarketMaker is State {
         uint64 lastUpdateIndex = vault.positionUpdateIndex;
         uint256 updateCount = lastCampaignIndex - lastUpdateIndex;
 
+        // Update the callers overall position if possible.
         if (updateCount > MAX_POSITION_UPDATES) {
             revert ErrPositionTooOutOfSync();
+        } else {
+            if (updateCount > 0) {
+                _updatePosition(lastUpdateIndex, updateCount, vault);
+            }
         }
 
-        _updatePosition(lastUpdateIndex, updateCount, vault);
+        // See if the caller has enough funds to withdraw.
+        uint64 senderPosition = vault.totalDeposited;
+        if (amount > senderPosition) {
+            revert ErrInsufficientFunds(amount, senderPosition);
+        }
 
+        // See if the next campaign has been initialized, if not, do it here.
+        uint64 nextCampaignIndex = lastCampaignIndex + 1;
+        Campaign storage nextCampaign = _campaigns[nextCampaignIndex];
+        uint64 nextCampaignDeposits = nextCampaign.deposits;
 
+        if (nextCampaignDeposits > 0) {
+            nextCampaign.deposits -= amount;
+            vault.totalDeposited -= amount;
+        } else {
+            Campaign memory lastCampaign = _campaigns[lastCampaignIndex];
+
+            // Compute the new relayer position.
+            (uint64 newRelayerDeposit,) = _calculateRelayerPosition(lastCampaign, lastCampaignIndex);
+
+            nextCampaign.deposits = lastCampaign.deposits - lastCampaign.outstanding;
+            _vaults[_relayer].amount[nextCampaignIndex] = newRelayerDeposit;
+            vault.totalDeposited -= amount;
+        }
     }
 
     function _updatePosition(uint256 startIndex, uint256 updateCount, Vault storage vault)
@@ -339,16 +372,17 @@ abstract contract MarketMaker is State {
 
             // Use the previous position to compute fees.
             accruedFees += uint64(
-                uint256(campaign.fees) * uint256(userDepositAmount + newDeposit)
-                    / totalDeposits
+                uint256(campaign.fees) * uint256(userDepositAmount + newDeposit) / totalDeposits
             );
             userDepositAmount -= uint64(
-                uint256(campaign.outstanding)
-                    * uint256(userDepositAmount + newDeposit) / totalDeposits
+                uint256(campaign.outstanding) * uint256(userDepositAmount + newDeposit)
+                    / totalDeposits
             );
             userDepositAmount += newDeposit;
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         // Update the vault state
