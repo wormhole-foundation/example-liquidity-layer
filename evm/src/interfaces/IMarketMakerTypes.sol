@@ -2,37 +2,40 @@
 
 pragma solidity ^0.8.0;
 
-struct Vault {
+struct CampaignParameters {
     uint24 performanceFeeBps;
-    uint24 maxUtilizationRatioBps;
+    uint24 minUtilizationRatioBps;
     uint64 currentCampaign;
-    mapping(uint64 => Campaign) campaigns;
-}
-
-struct Auction {
-    uint128 amount;
-    uint64 auctionFee;
-    uint64 securityDeposit;
-    uint64 returnedDeposit;
-    bool wonAuction;
-    bool fundsReturned;
 }
 
 struct Campaign {
     uint64 fees;
     uint64 deposits;
     uint64 outstanding;
-    mapping(bytes32 => Auction) auctions;
+    uint32 startBlock;
+    uint32 endBlock;
 }
 
-struct Deposit {
+struct Auction {
     uint64 amount;
-    uint64 campaignStart;
+    uint64 auctionFee;
+    uint64 securityDeposit;
+    uint64 returnedDeposit;
+    uint64 campaign;
+    bool wonAuction;
+    bool fundsReturned;
+}
+
+struct Vault {
+    mapping(uint64 campaign => uint64 deposit) amount;
+    uint64 positionUpdateIndex;
+    uint64 totalDeposited;
+    uint64 accruedFees;
 }
 
 struct TransferInfo {
     bytes32 auctionId;
-    uint128 amount;
+    uint64 amount;
     uint64 securityDeposit;
 }
 
