@@ -1,0 +1,127 @@
+[toolchain]
+anchor_version = "0.29.0"   # CLI
+solana_version = "1.16.16"
+
+[features]
+seeds = false
+skip-lint = false
+
+[workspace]
+members = [
+    "programs/token-router"
+]
+
+[programs.localnet]
+token_router = "TokenRouter11111111111111111111111111111111"
+
+[registry]
+url = "https://api.apr.dev"
+
+[provider]
+cluster = "Localnet"
+wallet = "ts/tests/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json"
+
+[scripts]
+test = "npx ts-mocha -p ./tsconfig.json -t 1000000 ts/tests/[0-9]*.ts"
+
+[test]
+startup_wait = 16000
+
+[test.validator]
+url = "https://api.devnet.solana.com"
+
+### Wormhole CCTP Program
+[[test.validator.clone]]
+address = "wCCTPvsyeL9qYqbHTv3DUAyzEfYcyHoYw5c4mgcbBeW"
+
+### Wormhole CCTP PDA -- Custodian
+[[test.validator.account]]
+address = "2LtnJESn3gEmte4pEBjnTjWX4Npb8esKKPeyWTN6cJP9"
+filename = "ts/tests/accounts/wormhole_cctp/custodian.json"
+
+### Wormhole CCTP PDA -- Registered Emitter (Ethereum)
+[[test.validator.account]]
+address = "ERX9PQpfrY7rBJJwA62gY5dMeKmxtMRztwMcxdLJ7Eg8"
+filename = "ts/tests/accounts/wormhole_cctp/ethereum_registered_emitter.json"
+
+### Wormhole CCTP PDA -- Registered Emitter (Avalanche)
+[[test.validator.account]]
+address = "EaSe23XdXyWsKzmrRkwdpdUEWy4AnU5YZ8SSjQJnpji"
+filename = "ts/tests/accounts/wormhole_cctp/avalanche_registered_emitter.json"
+
+### Wormhole Core Bridge Program
+[[test.validator.clone]]
+address = "3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5"
+
+### Circle Message Transmitter Program
+[[test.validator.clone]]
+address = "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
+
+### Circle Token Messenger Minter Program
+[[test.validator.clone]]
+address = "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
+
+### Mint -- USDC
+[[test.validator.account]]
+address = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+filename = "ts/tests/accounts/usdc_mint.json"
+
+### Payer Token Account -- USDC
+[[test.validator.account]]
+address = "6s9vuDVXZsJY1Qp29cFxKgbSmpTH2QWnrjZzPHWmFXCz"
+filename = "ts/tests/accounts/usdc_payer_token.json"
+
+### Circle Token Messenger Minter PDA -- Token Messenger
+[[test.validator.account]]
+address = "Afgq3BHEfCE7d78D2XE9Bfyu2ieDqvE24xX8KDwreBms"
+filename = "ts/tests/accounts/token_messenger_minter/token_messenger.json"
+
+### Circle Token Messenger Minter PDA -- Token Minter
+[[test.validator.account]]
+address = "DBD8hAwLDRQkTsu6EqviaYNGKPnsAMmQonxf7AH8ZcFY"
+filename = "ts/tests/accounts/token_messenger_minter/token_minter.json"
+
+### Circle Token Messenger Minter PDA -- USDC Custody Token Account
+[[test.validator.account]]
+address = "AEfKU8wHGtYgsXpymQ6e1cGHJJeKqCj95pw82iyRUKEs"
+filename = "ts/tests/accounts/token_messenger_minter/usdc_custody_token.json"
+
+### Circle Token Messenger Minter PDA -- USDC Local Token
+[[test.validator.account]]
+address = "4xt9P42CcMHXAgvemTnzineHp6owfGUcrg1xD9V7mdk1"
+filename = "ts/tests/accounts/token_messenger_minter/usdc_local_token.json"
+
+### Circle Token Messenger Minter PDA -- USDC Token Pair
+[[test.validator.account]]
+address = "ADcG1d7znq6wR73BJgEh7dR4vTJcETLLyfXMNZjJVwk4"
+filename = "ts/tests/accounts/token_messenger_minter/usdc_token_pair.json"
+
+### Circle Token Messenger Minter PDA -- Ethereum Remote Token Messenger
+[[test.validator.account]]
+address = "Hazwi3jFQtLKc2ughi7HFXPkpDeso7DQaMR9Ks4afh3j"
+filename = "ts/tests/accounts/token_messenger_minter/ethereum_remote_token_messenger.json"
+
+### Circle Token Messenger Minter PDA -- Base Remote Token Messenger
+[[test.validator.account]]
+address = "BWyFzH6LsnmDAaDWbGsriQ9SiiKq1CF6pbH4Ye3kzSBV"
+filename = "ts/tests/accounts/token_messenger_minter/misconfigured_remote_token_messenger.json"
+
+### Circle Message Transmitter PDA -- Message Transmitter Config
+[[test.validator.account]]
+address = "BWrwSWjbikT3H7qHAkUEbLmwDQoB4ZDJ4wcSEhSPTZCu"
+filename = "ts/tests/accounts/message_transmitter/message_transmitter_config.json"
+
+### Wormhole Core Bridge -- Config
+[[test.validator.account]]
+address = "6bi4JGDoRwUs9TYBuvoA7dUVyikTJDrJsJU1ew6KVLiu"
+filename = "ts/tests/accounts/core_bridge/config.json"
+
+### Wormhole Core Bridge -- Fee Collector
+[[test.validator.account]]
+address = "7s3a1ycs16d6SNDumaRtjcoyMaTDZPavzgsmS3uUZYWX"
+filename = "ts/tests/accounts/core_bridge/fee_collector.json"
+
+### Wormhole Core Bridge -- Guardian Set 0
+[[test.validator.account]]
+address = "dxZtypiKT5D9LYzdPxjvSZER9MgYfeRVU5qpMTMTRs4"
+filename = "ts/tests/accounts/core_bridge/guardian_set_0.json"
