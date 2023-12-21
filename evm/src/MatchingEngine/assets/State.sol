@@ -93,7 +93,7 @@ abstract contract State is IMatchingEngineState {
     {
         LiveAuctionData memory auction = getLiveAuctionInfo().auctions[auctionId];
         return calculateDynamicPenalty(
-            auction.securityDeposit, uint88(block.number) - auction.startBlock
+            auction.securityDeposit, uint128(block.number) - auction.startBlock
         );
     }
 
