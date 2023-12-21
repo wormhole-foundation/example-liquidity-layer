@@ -1155,6 +1155,40 @@ contract MatchingEngineTest is Test {
         engine.executeSlowOrderAndRedeem(fastMessage, params);
     }
 
+    function testCannotExecuteSlowOrderAndRedeemWithRolledBackVaa(uint128 amountIn) public {
+        uint64 slowMessageSequence = 69;
+        uint32 timestampOne = 69;
+        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+
+        // Create two fast orders with the same sequence, but different timestamps to simulate
+        // a rolled back VAA. The fast message that doesn't have a specified timestamp arg
+        // will use the default 1234567, which is also assigned to the slow VAA.
+        (, bytes memory rolledBackMessage) =
+            _getFastMarketOrder(amountIn, slowMessageSequence, ETH_CHAIN, 0, timestampOne);
+        (Messages.FastMarketOrder memory order,) =
+            _getFastMarketOrder(amountIn, slowMessageSequence, ETH_CHAIN, 0);
+
+        // Start the auction and make some bids.
+        _placeInitialBid(order, rolledBackMessage, order.maxFee, PLAYER_ONE);
+
+        bytes32 auctionId = wormholeCctp.wormhole().parseVM(rolledBackMessage).hash;
+
+        // Warp the block into the grace period and execute the fast order.
+        vm.roll(engine.liveAuctionInfo(auctionId).startBlock + engine.getAuctionDuration() + 1);
+        _executeFastOrder(rolledBackMessage, PLAYER_TWO);
+
+        ICircleIntegration.RedeemParameters memory params = _craftWormholeCctpRedeemParams(
+            engine,
+            amountIn,
+            Messages.SlowOrderResponse({baseFee: FAST_TRANSFER_BASE_FEE}).encode(),
+            slowMessageSequence
+        );
+
+        vm.expectRevert(abi.encodeWithSignature("ErrVaaMismatch()"));
+        vm.prank(PLAYER_TWO);
+        engine.executeSlowOrderAndRedeem(rolledBackMessage, params);
+    }
+
     function testCannotExecuteSlowOrderAndRedeemInvalidTargetRouter() public {
         uint128 amountIn = _getMinTransferAmount() + 6900;
         uint16 invalidTargetChain = 69;
@@ -1658,6 +1692,16 @@ contract MatchingEngineTest is Test {
         uint16 targetChain,
         uint32 deadline
     ) internal view returns (Messages.FastMarketOrder memory order, bytes memory fastMessage) {
+        return _getFastMarketOrder(amountIn, slowSequence, targetChain, deadline, 1234567);
+    }
+
+    function _getFastMarketOrder(
+        uint128 amountIn,
+        uint64 slowSequence,
+        uint16 targetChain,
+        uint32 deadline,
+        uint32 vaaTimestamp
+    ) internal view returns (Messages.FastMarketOrder memory order, bytes memory fastMessage) {
         order = Messages.FastMarketOrder({
             amountIn: amountIn,
             minAmountOut: 0,
@@ -1674,7 +1718,7 @@ contract MatchingEngineTest is Test {
         });
 
         // Generate the fast message vaa using the information from the fast order.
-        fastMessage = _createSignedVaa(ARB_CHAIN, ARB_ROUTER, 0, order.encode());
+        fastMessage = _createSignedVaa(ARB_CHAIN, ARB_ROUTER, 0, vaaTimestamp, order.encode());
     }
 
     function _getMinTransferAmount() internal pure returns (uint128) {
@@ -1719,9 +1763,20 @@ contract MatchingEngineTest is Test {
         uint64 sequence,
         bytes memory payload
     ) internal view returns (bytes memory) {
+        uint32 timestamp = 1234567;
+        return _createSignedVaa(emitterChainId, emitterAddress, sequence, timestamp, payload);
+    }
+
+    function _createSignedVaa(
+        uint16 emitterChainId,
+        bytes32 emitterAddress,
+        uint64 sequence,
+        uint32 timestamp,
+        bytes memory payload
+    ) internal view returns (bytes memory) {
         IWormhole.VM memory vaa = IWormhole.VM({
             version: 1,
-            timestamp: 1234567,
+            timestamp: timestamp,
             nonce: 0,
             emitterChainId: emitterChainId,
             emitterAddress: emitterAddress,

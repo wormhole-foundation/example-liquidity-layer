@@ -227,15 +227,17 @@ library Messages {
     function unsafeVaaKeyFromVaa(bytes memory encoded)
         internal
         pure
-        returns (uint16, bytes32, uint64)
+        returns (uint32, uint16, bytes32, uint64)
     {
         // Skip the payload ID and guardian set index.
         (uint256 numSignatures, uint256 offset) = encoded.asUint8Unchecked(SIG_COUNT_OFFSET);
-        (uint16 emitterChain,) = encoded.asUint16Unchecked(offset + SIG_LENGTH * numSignatures + 8);
-        (bytes32 emitterAddress,) =
-            encoded.asBytes32Unchecked(offset + SIG_LENGTH * numSignatures + 10);
-        (uint64 sequence,) = encoded.asUint64Unchecked(offset + SIG_LENGTH * numSignatures + 42);
 
-        return (emitterChain, emitterAddress, sequence);
+        uint256 bodyIndex = offset + SIG_LENGTH * numSignatures;
+        (uint32 timestamp,) = encoded.asUint32Unchecked(bodyIndex);
+        (uint16 emitterChain,) = encoded.asUint16Unchecked(bodyIndex + 8);
+        (bytes32 emitterAddress,) = encoded.asBytes32Unchecked(bodyIndex + 10);
+        (uint64 sequence,) = encoded.asUint64Unchecked(bodyIndex + 42);
+
+        return (timestamp, emitterChain, emitterAddress, sequence);
     }
 }

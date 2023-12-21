@@ -169,13 +169,17 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
 
         // Parse the VAA key from the slow CCTP message payload.
-        (uint16 cctpEmitterChain, bytes32 cctpEmitterAddress, uint64 cctpSequence) =
-            params.encodedWormholeMessage.unsafeVaaKeyFromVaa();
+        (
+            uint32 cctpTimestamp,
+            uint16 cctpEmitterChain,
+            bytes32 cctpEmitterAddress,
+            uint64 cctpSequence
+        ) = params.encodedWormholeMessage.unsafeVaaKeyFromVaa();
 
         // Confirm that the fast transfer VAA is associated with the slow transfer VAA.
         if (
             vm.emitterChainId != cctpEmitterChain || order.slowEmitter != cctpEmitterAddress
-                || order.slowSequence != cctpSequence
+                || order.slowSequence != cctpSequence || vm.timestamp != cctpTimestamp
         ) {
             revert ErrVaaMismatch();
         }
