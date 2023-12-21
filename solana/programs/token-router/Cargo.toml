@@ -1,0 +1,29 @@
+[package]
+name = "token-router"
+version = "0.0.0"
+description = "Example Token Router Program"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+default = ["testnet", "no-idl"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+testnet = ["wormhole-cctp-program/testnet"]
+integration-test = ["testnet"]
+
+[dependencies]
+wormhole-cctp-program.workspace = true
+anchor-lang.workspace = true
+anchor-spl.workspace = true
+solana-program.workspace = true
+hex.workspace = true
+ruint.workspace = true
+cfg-if.workspace = true
+
+[dev-dependencies]
+hex-literal.workspace = true
