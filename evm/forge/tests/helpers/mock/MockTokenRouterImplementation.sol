@@ -15,11 +15,20 @@ interface IMockTokenRouter is ITokenRouter {
 contract MockTokenRouterImplementation is TokenRouterImplementation {
     constructor(
         address _token,
-        address _wormholeCircle,
+        address _wormhole,
+        address _cctpTokenMessenger,
         uint16 _matchingEngineChain,
-        bytes32 _matchingEngineAddress
+        bytes32 _matchingEngineAddress,
+        uint32 _matchingEngineDomain
     )
-        TokenRouterImplementation(_token, _wormholeCircle, _matchingEngineChain, _matchingEngineAddress)
+        TokenRouterImplementation(
+            _token,
+            _wormhole,
+            _cctpTokenMessenger,
+            _matchingEngineChain,
+            _matchingEngineAddress,
+            _matchingEngineDomain
+        )
     {}
 
     function isUpgraded() external pure returns (bool) {

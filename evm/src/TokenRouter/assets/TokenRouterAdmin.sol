@@ -9,6 +9,7 @@ import {State} from "./State.sol";
 import {
     getRouterEndpointState,
     getFastTransferParametersState,
+    getCircleDomainsState,
     FastTransferParameters
 } from "./Storage.sol";
 
@@ -16,8 +17,11 @@ import {ITokenRouterAdmin} from "../../interfaces/ITokenRouterAdmin.sol";
 
 abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
     /// @inheritdoc ITokenRouterAdmin
-    function addRouterEndpoint(uint16 chain, bytes32 router) external onlyOwnerOrAssistant {
-        if (chain == _wormholeChainId || chain == 0) {
+    function addRouterEndpoint(uint16 chain, bytes32 router, uint32 circleDomain)
+        external
+        onlyOwnerOrAssistant
+    {
+        if (chain == _chainId || chain == 0) {
             revert ErrChainNotAllowed(chain);
         }
 
@@ -26,6 +30,7 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
         }
 
         getRouterEndpointState().endpoints[chain] = router;
+        getCircleDomainsState().domains[chain] = circleDomain;
     }
 
     /// @inheritdoc ITokenRouterAdmin
@@ -48,5 +53,10 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
     /// @inheritdoc ITokenRouterAdmin
     function enableFastTransfers(bool enable) external onlyOwnerOrAssistant {
         getFastTransferParametersState().enabled = enable;
+    }
+
+    /// @inheritdoc ITokenRouterAdmin
+    function setCctpAllowance(uint256 amount) public onlyOwnerOrAssistant {
+        setTokenMessengerApproval(address(_orderToken), amount);
     }
 }

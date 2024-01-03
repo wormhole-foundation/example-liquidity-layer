@@ -18,7 +18,8 @@ contract MatchingEngineImplementation is MatchingEngineFastOrders, MatchingEngin
 
     constructor(
         address cctpToken_,
-        address wormholeCctp_,
+        address wormhole_,
+        address cctpTokenMessenger_,
         uint24 userPenaltyRewardBps_,
         uint24 initialPenaltyBps_,
         uint8 auctionDuration_,
@@ -27,7 +28,8 @@ contract MatchingEngineImplementation is MatchingEngineFastOrders, MatchingEngin
     )
         State(
             cctpToken_,
-            wormholeCctp_,
+            wormhole_,
+            cctpTokenMessenger_,
             userPenaltyRewardBps_,
             initialPenaltyBps_,
             auctionDuration_,

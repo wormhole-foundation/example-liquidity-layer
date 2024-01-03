@@ -19,7 +19,8 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
     uint16 immutable _chainId = uint16(vm.envUint("RELEASE_CHAIN_ID"));
 
     address immutable _token = vm.envAddress("RELEASE_TOKEN_ADDRESS");
-    address immutable _wormholeCctpAddress = vm.envAddress("RELEASE_WORMHOLE_CCTP_ADDRESS");
+    address immutable _wormhole = vm.envAddress("RELEASE_WORMHOLE_ADDRESS");
+    address immutable _cctpTokenMessenger = vm.envAddress("RELEASE_TOKEN_MESSENGER_ADDRESS");
     address immutable _ownerAssistantAddress = vm.envAddress("RELEASE_OWNER_ASSISTANT_ADDRESS");
     address immutable _feeRecipientAddress = vm.envAddress("RELEASE_FEE_RECIPIENT_ADDRESS");
 
@@ -31,11 +32,12 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
     uint8 immutable _auctionPenaltyBlocks = uint8(vm.envUint("RELEASE_PENALTY_BLOCKS"));
 
     function deploy() public {
-        requireValidChain(_chainId, _wormholeCctpAddress);
+        requireValidChain(_chainId, _wormhole);
 
         MatchingEngineImplementation implementation = new MatchingEngineImplementation(
             _token,
-            _wormholeCctpAddress,
+            _wormhole,
+            _cctpTokenMessenger,
             _userPenaltyRewardBps,
             _initialPenaltyBps,
             _auctionDuration,

@@ -1,6 +1,8 @@
 import { parseVaa as _parseVaa } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
 
+export const CCTP_DEPOSIT_PAYLOAD = 1;
+
 export class WormholeCctpDepositHeader {
     token: Uint8Array;
     amount: bigint;
@@ -165,7 +167,7 @@ export class Fill {
     }
 
     static get ID(): number {
-        return 1; // 0x1
+        return 11;
     }
 
     static decode(payload: Buffer): Fill {
@@ -203,7 +205,7 @@ export class FastFill {
     }
 
     static get ID(): number {
-        return 2; // 0x2
+        return 12;
     }
 
     static decode(payload: Buffer): FastFill {
@@ -227,6 +229,7 @@ export class FastMarketOrder {
     amountIn: bigint;
     minAmountOut: bigint;
     targetChain: number;
+    targetDomain: number;
     redeemer: Buffer;
     sender: Buffer;
     refundAddress: Buffer;
@@ -241,6 +244,7 @@ export class FastMarketOrder {
         amountIn: bigint,
         minAmountOut: bigint,
         targetChain: number,
+        targetDomain: number,
         redeemer: Buffer,
         sender: Buffer,
         refundAddress: Buffer,
@@ -254,6 +258,7 @@ export class FastMarketOrder {
         this.amountIn = amountIn;
         this.minAmountOut = minAmountOut;
         this.targetChain = targetChain;
+        this.targetDomain = targetDomain;
         this.redeemer = redeemer;
         this.sender = sender;
         this.refundAddress = refundAddress;
@@ -266,7 +271,7 @@ export class FastMarketOrder {
     }
 
     static get ID(): number {
-        return 32; // 0x20
+        return 13;
     }
 
     static decode(payload: Buffer): FastMarketOrder {
@@ -275,20 +280,22 @@ export class FastMarketOrder {
         const amountIn = BigInt(ethers.BigNumber.from(buf.subarray(0, 16)).toString());
         const minAmountOut = BigInt(ethers.BigNumber.from(buf.subarray(16, 32)).toString());
         const targetChain = buf.readUInt16BE(32);
-        const redeemer = buf.subarray(34, 66);
-        const sender = buf.subarray(66, 98);
-        const refundAddress = buf.subarray(98, 130);
-        const slowSequence = buf.readBigUint64BE(130);
-        const slowEmitter = buf.subarray(138, 170);
-        const maxFee = BigInt(ethers.BigNumber.from(buf.subarray(170, 186)).toString());
-        const initAuctionFee = BigInt(ethers.BigNumber.from(buf.subarray(186, 202)).toString());
-        const deadline = buf.readUInt32BE(202);
-        const redeemerMsgLen = buf.readUInt32BE(206);
-        const redeemerMessage = buf.subarray(210, 210 + redeemerMsgLen);
+        const targetDomain = buf.readUInt32BE(34);
+        const redeemer = buf.subarray(38, 70);
+        const sender = buf.subarray(70, 102);
+        const refundAddress = buf.subarray(102, 134);
+        const slowSequence = buf.readBigUint64BE(134);
+        const slowEmitter = buf.subarray(142, 174);
+        const maxFee = BigInt(ethers.BigNumber.from(buf.subarray(174, 190)).toString());
+        const initAuctionFee = BigInt(ethers.BigNumber.from(buf.subarray(190, 206)).toString());
+        const deadline = buf.readUInt32BE(206);
+        const redeemerMsgLen = buf.readUInt32BE(210);
+        const redeemerMessage = buf.subarray(214, 214 + redeemerMsgLen);
         return new FastMarketOrder(
             amountIn,
             minAmountOut,
             targetChain,
+            targetDomain,
             redeemer,
             sender,
             refundAddress,
@@ -310,7 +317,7 @@ export class SlowOrderResponse {
     }
 
     static get ID(): number {
-        return 33; // 0x21
+        return 14;
     }
 
     static decode(payload: Buffer): SlowOrderResponse {

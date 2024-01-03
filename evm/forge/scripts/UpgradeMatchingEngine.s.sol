@@ -19,7 +19,8 @@ import {CheckWormholeContracts} from "./helpers/CheckWormholeContracts.sol";
 contract UpgradeMatchingEngine is CheckWormholeContracts, Script {
     uint16 immutable _chainId = uint16(vm.envUint("RELEASE_CHAIN_ID"));
     address immutable _token = vm.envAddress("RELEASE_TOKEN_ADDRESS");
-    address immutable _wormholeCctpAddress = vm.envAddress("RELEASE_WORMHOLE_CCTP_ADDRESS");
+    address immutable _wormhole = vm.envAddress("RELEASE_WORMHOLE_ADDRESS");
+    address immutable _cctpTokenMessenger = vm.envAddress("RELEASE_TOKEN_MESSENGER_ADDRESS");
     address immutable _matchingEngineAddress = vm.envAddress("RELEASE_MATCHING_ENGINE_ADDRESS");
 
     // Auction parameters.
@@ -30,11 +31,12 @@ contract UpgradeMatchingEngine is CheckWormholeContracts, Script {
     uint8 immutable _auctionPenaltyBlocks = uint8(vm.envUint("RELEASE_PENALTY_BLOCKS"));
 
     function upgrade() public {
-        requireValidChain(_chainId, _wormholeCctpAddress);
+        requireValidChain(_chainId, _wormhole);
 
         MatchingEngineImplementation implementation = new MatchingEngineImplementation(
             _token,
-            _wormholeCctpAddress,
+            _wormhole,
+            _cctpTokenMessenger,
             _userPenaltyRewardBps,
             _initialPenaltyBps,
             _auctionDuration,

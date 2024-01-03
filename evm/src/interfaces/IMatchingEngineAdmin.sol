@@ -17,4 +17,10 @@ interface IMatchingEngineAdmin {
      * @param newFeeRecipient Address of the new `feeRecipient`.
      */
     function updateFeeRecipient(address newFeeRecipient) external;
+
+    /**
+     * @notice Sets the allowance of the CCTP token for the token messenger.
+     * @param amount The new allowance.
+     */
+    function setCctpAllowance(uint256 amount) external;
 }

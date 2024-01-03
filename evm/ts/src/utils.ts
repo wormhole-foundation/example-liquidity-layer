@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { CoreBridgeLiquidityLayerMessage, MessageDecoder } from "./messages";
+import { CCTP_DEPOSIT_PAYLOAD, CoreBridgeLiquidityLayerMessage, MessageDecoder } from "./messages";
 import {
     ChainId,
     ChainName,
@@ -133,9 +133,8 @@ export class LiquidityLayerTransactionResult {
         chain: ChainId | ChainName,
         contractAddress: string,
         coreBridgeAddress: string,
-        wormholeCctpAddress: string,
         txReceipt: ethers.ContractReceipt,
-        circleTransmitterAddress?: string
+        circleTransmitterAddress: string
     ) {
         // First get Wormhole message.
         const publishedMessages = parseEvmEvents(
@@ -161,39 +160,41 @@ export class LiquidityLayerTransactionResult {
             const sequence = BigInt(ethersSequence.toString());
             const encodedMessage = bufferfy(payloadByteslike);
 
-            if (evmEmitterAddress === wormholeCctpAddress) {
-                // This should never happen.
-                if (circleTransmitterAddress === undefined) {
-                    throw new Error("Circle transmitter address is undefined");
-                }
+            const payloadId = encodedMessage.readUInt8(0);
 
-                wormhole = {
-                    emitterAddress,
-                    sequence,
-                    nonce,
-                    consistencyLevel,
-                    message: MessageDecoder.unsafeDecodeWormholeCctpPayload(encodedMessage),
-                };
+            if (evmEmitterAddress == contractAddress) {
+                if (payloadId == CCTP_DEPOSIT_PAYLOAD) {
+                    wormhole = {
+                        emitterAddress,
+                        sequence,
+                        nonce,
+                        consistencyLevel,
+                        message: MessageDecoder.unsafeDecodeWormholeCctpPayload(encodedMessage),
+                    };
 
-                circleMessage = bufferfy(
-                    parseEvmEvent(txReceipt, circleTransmitterAddress, "MessageSent(bytes message)")
-                        .message
-                );
-            } else if (evmEmitterAddress == contractAddress) {
-                // Handles FastFills and FastMarketOrders.
-                const message = {
-                    emitterAddress,
-                    sequence,
-                    nonce,
-                    consistencyLevel,
-                    message: MessageDecoder.unsafeDecodeFastPayload(encodedMessage),
-                };
+                    circleMessage = bufferfy(
+                        parseEvmEvent(
+                            txReceipt,
+                            circleTransmitterAddress,
+                            "MessageSent(bytes message)"
+                        ).message
+                    );
+                } else if (evmEmitterAddress == contractAddress) {
+                    // Handles FastFills and FastMarketOrders.
+                    const message = {
+                        emitterAddress,
+                        sequence,
+                        nonce,
+                        consistencyLevel,
+                        message: MessageDecoder.unsafeDecodeFastPayload(encodedMessage),
+                    };
 
-                // Override `wormhole` if it's a FastFill.
-                if (message.message.body.fastMarketOrder !== undefined) {
-                    fastMessage = message;
-                } else {
-                    wormhole = message;
+                    // Override `wormhole` if it's a FastFill.
+                    if (message.message.body.fastMarketOrder !== undefined) {
+                        fastMessage = message;
+                    } else {
+                        wormhole = message;
+                    }
                 }
             } else {
                 throw new Error("Unrecognized emitter address.");

@@ -44,11 +44,6 @@ interface IMatchingEngineState {
     function getRouter(uint16 chain) external view returns (bytes32);
 
     /**
-     * @notice Returns the Wormhole Circle integration contract interface.
-     */
-    function wormholeCctp() external view returns (ICircleIntegration);
-
-    /**
      * @notice Returns the Wormhole contract interface.
      */
     function wormhole() external view returns (IWormhole);

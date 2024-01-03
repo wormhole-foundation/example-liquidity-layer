@@ -5,9 +5,9 @@ import {
     OWNER_ASSISTANT_PRIVATE_KEY,
     mineWait,
     ValidNetwork,
-    MATCHING_ENGINE_NAME,
-    DEFAULT_AUCTION_CONFIG,
     DEFAULT_FAST_TRANSFER_PARAMS,
+    MATCHING_ENGINE_NAME,
+    MATCHING_ENGINE_CHAIN,
 } from "./helpers";
 import { expect } from "chai";
 
@@ -15,7 +15,7 @@ import { parseLiquidityLayerEnvFile } from "../src";
 
 const CHAIN_PATHWAYS: ValidNetwork[] = ["ethereum", "avalanche", "arbitrum"];
 
-describe("Registration", () => {
+describe("Configuration", () => {
     const envPath = `${__dirname}/../../env/localnet`;
 
     describe("Token Router Configuration", () => {
@@ -42,6 +42,27 @@ describe("Registration", () => {
                     DEFAULT_FAST_TRANSFER_PARAMS.initAuctionFee.toString()
                 );
             });
+
+            it(`Set Infinite Approval For ${chainName}`, async () => {
+                await router
+                    .setCctpAllowance(ethers.constants.MaxUint256)
+                    .then((tx) => mineWait(provider, tx));
+            });
         }
+    });
+
+    describe("Matching Engine Configuration", () => {
+        it("Set Infinite Approval For Matching Engine", async () => {
+            const env = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
+            const provider = new ethers.providers.StaticJsonRpcProvider(
+                LOCALHOSTS[MATCHING_ENGINE_NAME]
+            );
+            const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
+            const engine = IMatchingEngine__factory.connect(env.matchingEngineAddress, assistant);
+
+            await engine
+                .setCctpAllowance(ethers.constants.MaxUint256)
+                .then((tx) => mineWait(provider, tx));
+        });
     });
 });

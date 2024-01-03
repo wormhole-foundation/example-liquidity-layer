@@ -1,4 +1,8 @@
-import { coalesceChainId, tryNativeToUint8Array } from "@certusone/wormhole-sdk";
+import {
+    coalesceChainId,
+    tryNativeToUint8Array,
+    tryUint8ArrayToNative,
+} from "@certusone/wormhole-sdk";
 import { expect } from "chai";
 import { ethers } from "ethers";
 import {
@@ -50,7 +54,11 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
             const fromEnv = parseLiquidityLayerEnvFile(`${envPath}/${fromChainName}.env`);
             const fromTokenRouter = (() => {
                 if (fromEnv.chainType === ChainType.Evm) {
-                    return new EvmTokenRouter(fromWallet, fromEnv.tokenRouterAddress);
+                    return new EvmTokenRouter(
+                        fromWallet,
+                        fromEnv.tokenRouterAddress,
+                        fromEnv.tokenMessengerAddress
+                    );
                 } else {
                     throw new Error("Unsupported chain");
                 }
@@ -63,7 +71,11 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
             const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName}.env`);
             const toTokenRouter = (() => {
                 if (toEnv.chainType === ChainType.Evm) {
-                    return new EvmTokenRouter(toWallet, toEnv.tokenRouterAddress);
+                    return new EvmTokenRouter(
+                        toWallet,
+                        toEnv.tokenRouterAddress,
+                        toEnv.tokenMessengerAddress
+                    );
                 } else {
                     throw new Error("Unsupported chain");
                 }
@@ -122,8 +134,9 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const transactionResult = await fromTokenRouter.getTransactionResults(
                     receipt.transactionHash
                 );
+
                 expect(transactionResult.wormhole.emitterAddress).to.eql(
-                    tryNativeToUint8Array(fromEnv.wormholeCctpAddress, fromChainName)
+                    tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName)
                 );
                 expect(transactionResult.wormhole.message.body).has.property("fill");
                 expect(transactionResult.circleMessage).is.not.undefined;

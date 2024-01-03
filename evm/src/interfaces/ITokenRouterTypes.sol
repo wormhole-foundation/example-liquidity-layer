@@ -26,3 +26,8 @@ struct RouterEndpoints {
     // Mapping of chain ID to router address in Wormhole universal format.
     mapping(uint16 chain => bytes32 endpoint) endpoints;
 }
+
+struct CircleDomains {
+    // Mapping of chain ID to Circle domain.
+    mapping(uint16 chain => uint32 domain) domains;
+}

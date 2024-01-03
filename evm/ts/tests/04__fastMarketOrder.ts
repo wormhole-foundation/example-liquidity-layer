@@ -58,7 +58,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
     const engineEnv = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
     const engine = (() => {
         if (engineEnv.chainType === ChainType.Evm) {
-            return new EvmMatchingEngine(engineWallet, engineEnv.matchingEngineAddress);
+            return new EvmMatchingEngine(
+                engineWallet,
+                engineEnv.matchingEngineAddress,
+                engineEnv.tokenMessengerAddress
+            );
         } else {
             throw new Error("Unsupported chain");
         }
@@ -84,7 +88,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
             const fromEnv = parseLiquidityLayerEnvFile(`${envPath}/${fromChainName}.env`);
             const fromTokenRouter = (() => {
                 if (fromEnv.chainType === ChainType.Evm) {
-                    return new EvmTokenRouter(fromWallet, fromEnv.tokenRouterAddress);
+                    return new EvmTokenRouter(
+                        fromWallet,
+                        fromEnv.tokenRouterAddress,
+                        fromEnv.tokenMessengerAddress
+                    );
                 } else {
                     throw new Error("Unsupported chain");
                 }
@@ -97,7 +105,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
             const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName}.env`);
             const toTokenRouter = (() => {
                 if (toEnv.chainType === ChainType.Evm) {
-                    return new EvmTokenRouter(toWallet, toEnv.tokenRouterAddress);
+                    return new EvmTokenRouter(
+                        toWallet,
+                        toEnv.tokenRouterAddress,
+                        fromEnv.tokenMessengerAddress
+                    );
                 } else {
                     throw new Error("Unsupported chain");
                 }
@@ -166,7 +178,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         receipt.transactionHash
                     );
                     expect(transactionResult.wormhole.emitterAddress).to.eql(
-                        tryNativeToUint8Array(fromEnv.wormholeCctpAddress, fromChainName)
+                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName)
                     );
                     expect(transactionResult.wormhole.message.body).has.property(
                         "slowOrderResponse"
@@ -366,10 +378,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         expect(transactionResult.circleMessage).is.undefined;
                     } else {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(
-                                engineEnv.wormholeCctpAddress,
-                                MATCHING_ENGINE_NAME
-                            )
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fill");
                         expect(transactionResult.circleMessage).is.not.undefined;
@@ -550,7 +559,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         receipt.transactionHash
                     );
                     expect(transactionResult.wormhole.emitterAddress).to.eql(
-                        tryNativeToUint8Array(fromEnv.wormholeCctpAddress, fromChainName)
+                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName)
                     );
                     expect(transactionResult.wormhole.message.body).has.property(
                         "slowOrderResponse"
@@ -758,10 +767,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         expect(transactionResult.circleMessage).is.undefined;
                     } else {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(
-                                engineEnv.wormholeCctpAddress,
-                                MATCHING_ENGINE_NAME
-                            )
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fill");
                         expect(transactionResult.circleMessage).is.not.undefined;
@@ -952,7 +958,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         receipt.transactionHash
                     );
                     expect(transactionResult.wormhole.emitterAddress).to.eql(
-                        tryNativeToUint8Array(fromEnv.wormholeCctpAddress, fromChainName)
+                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName)
                     );
                     expect(transactionResult.wormhole.message.body).has.property(
                         "slowOrderResponse"
@@ -1027,10 +1033,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         expect(transactionResult.circleMessage).is.undefined;
                     } else {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(
-                                engineEnv.wormholeCctpAddress,
-                                MATCHING_ENGINE_NAME
-                            )
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fill");
                         expect(transactionResult.circleMessage).is.not.undefined;
@@ -1169,7 +1172,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         receipt.transactionHash
                     );
                     expect(transactionResult.wormhole.emitterAddress).to.eql(
-                        tryNativeToUint8Array(fromEnv.wormholeCctpAddress, fromChainName)
+                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName)
                     );
                     expect(transactionResult.wormhole.message.body).has.property(
                         "slowOrderResponse"
@@ -1280,10 +1283,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         expect(transactionResult.circleMessage).is.undefined;
                     } else {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(
-                                engineEnv.wormholeCctpAddress,
-                                MATCHING_ENGINE_NAME
-                            )
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fill");
                         expect(transactionResult.circleMessage).is.not.undefined;

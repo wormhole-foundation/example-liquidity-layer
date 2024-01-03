@@ -3,7 +3,7 @@
 pragma solidity ^0.8.0;
 
 import "../shared/Messages.sol";
-
+import {CctpMessage} from "./IMatchingEngineTypes.sol";
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 
 interface IMatchingEngineFastOrders {
@@ -49,10 +49,10 @@ interface IMatchingEngineFastOrders {
      * @return sequence The sequence number of the transfer VAA. Will be the default (0)
      * if no auction occured.
      */
-    function executeSlowOrderAndRedeem(
-        bytes calldata fastFillVaa,
-        ICircleIntegration.RedeemParameters calldata params
-    ) external payable returns (uint64 sequence);
+    function executeSlowOrderAndRedeem(bytes calldata fastFillVaa, CctpMessage calldata params)
+        external
+        payable
+        returns (uint64 sequence);
 
     /**
      * @notice Redeem a `FastFill` VAA. A `FastFill` is generated when the target chain

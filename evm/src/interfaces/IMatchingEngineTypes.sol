@@ -2,6 +2,15 @@
 
 pragma solidity ^0.8.0;
 
+struct CctpMessage {
+    // Signed wormhole message.
+    bytes encodedWormholeMessage;
+    // Message emitted by the CCTP contract when burning USDC.
+    bytes circleBridgeMessage;
+    // Attestation created by the CCTP off-chain process, which is needed to mint USDC.
+    bytes circleAttestation;
+}
+
 struct FeeRecipient {
     // The address that receives the `baseFee` for relaying `SlowOrderResponse` messages.
     address recipient;

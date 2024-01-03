@@ -9,9 +9,10 @@ interface ITokenRouterAdmin {
      * @notice Add a `router` endpoint for the specified Wormhole `chain`.
      * @param chain The Wormhole chain ID.
      * @param router The `router` address in Wormhole universal format.
+     * @param domain The Circle domain for the specified `chain`.
      * @dev This function is only callable by the contract owner or assistant.
      */
-    function addRouterEndpoint(uint16 chain, bytes32 router) external;
+    function addRouterEndpoint(uint16 chain, bytes32 router, uint32 domain) external;
 
     /**
      * @notice Update the fast transfer parameters.
@@ -29,4 +30,11 @@ interface ITokenRouterAdmin {
      * @param enable `true` to enable fast transfers, `false` to disable.
      */
     function enableFastTransfers(bool enable) external;
+
+    /**
+     * @notice Set the allowance for the Circle Bridge to the `amount`.
+     * @param amount The allowance amount.
+     * @dev This function is only callable by the contract owner or assistant.
+     */
+    function setCctpAllowance(uint256 amount) external;
 }

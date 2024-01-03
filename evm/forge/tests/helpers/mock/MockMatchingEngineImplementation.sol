@@ -16,7 +16,8 @@ interface IMockMatchingEngine is IMatchingEngine {
 contract MockMatchingEngineImplementation is MatchingEngineImplementation {
     constructor(
         address _token,
-        address _wormholeCircle,
+        address _wormhole,
+        address _cctpTokenMessenger,
         uint24 _userPenaltyRewardBps,
         uint24 _initialPenaltyBps,
         uint8 _auctionDuration,
@@ -25,7 +26,8 @@ contract MockMatchingEngineImplementation is MatchingEngineImplementation {
     )
         MatchingEngineImplementation(
             _token,
-            _wormholeCircle,
+            _wormhole,
+            _cctpTokenMessenger,
             _userPenaltyRewardBps,
             _initialPenaltyBps,
             _auctionDuration,

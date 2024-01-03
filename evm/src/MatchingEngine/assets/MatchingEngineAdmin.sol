@@ -32,4 +32,9 @@ abstract contract MatchingEngineAdmin is IMatchingEngineAdmin, Admin, State {
 
         getFeeRecipientState().recipient = newFeeRecipient;
     }
+
+    /// @inheritdoc IMatchingEngineAdmin
+    function setCctpAllowance(uint256 amount) public onlyOwnerOrAssistant {
+        setTokenMessengerApproval(address(_token), amount);
+    }
 }

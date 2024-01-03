@@ -8,17 +8,18 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 
 import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
-import {fromUniversalAddress, toUniversalAddress} from "../../shared/Utils.sol";
+import {Utils} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
 import {FastTransferParameters} from "../../interfaces/ITokenRouterTypes.sol";
-import {getFastTransferParametersState} from "./Storage.sol";
+import {getFastTransferParametersState, getCircleDomainsState} from "./Storage.sol";
 
 import "../../interfaces/IPlaceMarketOrder.sol";
 
 abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     using BytesParsing for bytes;
+    using Utils for address;
     using Messages for *;
 
     /// @inheritdoc IPlaceMarketOrder
@@ -29,11 +30,11 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress
-    ) external payable notPaused returns (uint64 sequence) {
+    ) external payable notPaused returns (uint64 sequence, uint64 cctpNonce) {
         if (refundAddress == address(0)) {
             revert ErrInvalidRefundAddress();
         }
-        sequence = _handleOrder(
+        return _handleOrder(
             amountIn, minAmountOut, targetChain, redeemer, redeemerMessage, refundAddress
         );
     }
@@ -44,8 +45,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage
-    ) external payable notPaused returns (uint64 sequence) {
-        sequence = _handleOrder(amountIn, 0, targetChain, redeemer, redeemerMessage, address(0));
+    ) external payable notPaused returns (uint64 sequence, uint64 cctpNonce) {
+        return _handleOrder(amountIn, 0, targetChain, redeemer, redeemerMessage, address(0));
     }
 
     /// @inheritdoc IPlaceMarketOrder
@@ -58,11 +59,11 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         address refundAddress,
         uint128 maxFee,
         uint32 deadline
-    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
+    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence, uint64 cctpNonce) {
         if (refundAddress == address(0)) {
             revert ErrInvalidRefundAddress();
         }
-        (sequence, fastSequence) = _handleFastOrder(
+        return _handleFastOrder(
             amountIn,
             minAmountOut,
             targetChain,
@@ -82,8 +83,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes calldata redeemerMessage,
         uint128 maxFee,
         uint32 deadline
-    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence) {
-        (sequence, fastSequence) = _handleFastOrder(
+    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence, uint64 cctpNonce) {
+        return _handleFastOrder(
             amountIn, 0, targetChain, redeemer, redeemerMessage, address(0), maxFee, deadline
         );
     }
@@ -97,7 +98,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress
-    ) private returns (uint64 sequence) {
+    ) private returns (uint64 sequence, uint64 cctpNonce) {
         if (amountIn == 0) {
             revert ErrInsufficientAmount(0, 0);
         }
@@ -105,22 +106,21 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes32 targetRouter = _verifyTarget(targetChain, redeemer);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), amountIn);
-        SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), amountIn);
 
-        sequence = _wormholeCctp.transferTokensWithPayload{value: msg.value}(
-            ICircleIntegration.TransferParameters({
-                token: address(_orderToken),
-                amount: amountIn,
-                targetChain: targetChain,
-                mintRecipient: targetRouter
-            }),
+        (sequence, cctpNonce) = burnAndPublish(
+            targetRouter,
+            getCircleDomainsState().domains[targetChain],
+            address(_orderToken),
+            amountIn,
+            targetRouter,
             NONCE,
             Messages.Fill({
-                sourceChain: _wormholeChainId,
-                orderSender: toUniversalAddress(msg.sender),
+                sourceChain: _chainId,
+                orderSender: msg.sender.toUniversalAddress(),
                 redeemer: redeemer,
                 redeemerMessage: redeemerMessage
-            }).encode()
+            }).encode(),
+            msg.value
         );
     }
 
@@ -133,10 +133,10 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         address refundAddress,
         uint128 maxFee,
         uint32 deadline
-    ) private returns (uint64 sequence, uint64 fastSequence) {
+    ) private returns (uint64 sequence, uint64 fastSequence, uint64 cctpNonce) {
         // The Matching Engine chain is a fast finality chain already,
         // so we don't need to send a fast transfer message.
-        if (_wormholeChainId == _matchingEngineChain) {
+        if (_chainId == _matchingEngineChain) {
             revert ErrFastTransferNotSupported();
         }
 
@@ -160,21 +160,19 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         _verifyTarget(targetChain, redeemer);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), amountIn);
-        SafeERC20.safeIncreaseAllowance(_orderToken, address(_wormholeCctp), amountIn);
 
         // User needs to send enough value to pay for two Wormhole messages.
         uint256 messageFee = msg.value / 2;
 
-        // Send the slow CCTP transfer with the `baseFee` as the `transferFee`.
-        sequence = _wormholeCctp.transferTokensWithPayload{value: messageFee}(
-            ICircleIntegration.TransferParameters({
-                token: address(_orderToken),
-                amount: amountIn,
-                targetChain: _matchingEngineChain,
-                mintRecipient: _matchingEngineAddress
-            }),
+        (sequence, cctpNonce) = burnAndPublish(
+            _matchingEngineAddress,
+            _matchingEngineDomain,
+            address(_orderToken),
+            amountIn,
+            _matchingEngineAddress,
             NONCE,
-            Messages.SlowOrderResponse({baseFee: fastParams.baseFee}).encode()
+            Messages.SlowOrderResponse({baseFee: fastParams.baseFee}).encode(),
+            messageFee
         );
 
         // Send the faster-than-finality message.
@@ -184,11 +182,12 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 amountIn: amountIn,
                 minAmountOut: minAmountOut,
                 targetChain: targetChain,
+                targetDomain: getCircleDomainsState().domains[targetChain],
                 redeemer: redeemer,
-                sender: toUniversalAddress(msg.sender),
-                refundAddress: toUniversalAddress(refundAddress),
+                sender: msg.sender.toUniversalAddress(),
+                refundAddress: refundAddress.toUniversalAddress(),
                 slowSequence: sequence,
-                slowEmitter: toUniversalAddress(address(_wormholeCctp)),
+                slowEmitter: address(this).toUniversalAddress(),
                 maxFee: maxFee - fastParams.initAuctionFee,
                 initAuctionFee: fastParams.initAuctionFee,
                 deadline: deadline,
@@ -207,6 +206,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             revert ErrInvalidRedeemerAddress();
         }
 
+        // This check also validates that a target domain has been set.
         targetRouter = getRouter(targetChain);
         if (targetRouter == bytes32(0)) {
             revert ErrUnsupportedChain(targetChain);

@@ -29,3 +29,16 @@ function getFastTransferParametersState() pure returns (FastTransferParameters s
         state.slot := FAST_TRANSFER_PARAMETERS_STORAGE_SLOT
     }
 }
+
+// keccak256("CircleDomain") - 1
+bytes32 constant CIRCLE_DOMAIN_STORAGE_SLOT =
+    0x0776d828ae37dc9b71ac8e092e28df60d7af2771b93454a1311c33040591339b;
+
+/**
+ * @notice Returns the CircleDomains mapping.
+ */
+function getCircleDomainsState() pure returns (CircleDomains storage state) {
+    assembly ("memory-safe") {
+        state.slot := CIRCLE_DOMAIN_STORAGE_SLOT
+    }
+}

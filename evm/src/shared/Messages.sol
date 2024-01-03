@@ -7,11 +7,11 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 library Messages {
     using BytesParsing for bytes;
 
-    // Payload IDs.
-    uint8 private constant FILL = 0x1;
-    uint8 private constant FAST_FILL = 0x2;
-    uint8 private constant FAST_MARKET_ORDER = 0x20;
-    uint8 private constant SLOW_ORDER_RESPONSE = 0x21;
+    // Payload IDs. Payload IDs 1-10 are reserved for CCTP deposit messages.
+    uint8 private constant FILL = 11;
+    uint8 private constant FAST_FILL = 12;
+    uint8 private constant FAST_MARKET_ORDER = 13;
+    uint8 private constant SLOW_ORDER_RESPONSE = 14;
 
     // VAA fields.
     uint256 private constant SIG_COUNT_OFFSET = 5;
@@ -37,6 +37,7 @@ library Messages {
         uint128 amountIn;
         uint128 minAmountOut;
         uint16 targetChain;
+        uint32 targetDomain;
         bytes32 redeemer;
         bytes32 sender;
         bytes32 refundAddress;
@@ -79,6 +80,7 @@ library Messages {
             order.amountIn,
             order.minAmountOut,
             order.targetChain,
+            order.targetDomain,
             order.redeemer,
             order.sender,
             order.refundAddress,
@@ -102,6 +104,7 @@ library Messages {
         (order.amountIn, offset) = encoded.asUint128Unchecked(offset);
         (order.minAmountOut, offset) = encoded.asUint128Unchecked(offset);
         (order.targetChain, offset) = encoded.asUint16Unchecked(offset);
+        (order.targetDomain, offset) = encoded.asUint32Unchecked(offset);
         (order.redeemer, offset) = encoded.asBytes32Unchecked(offset);
         (order.sender, offset) = encoded.asBytes32Unchecked(offset);
         (order.refundAddress, offset) = encoded.asBytes32Unchecked(offset);

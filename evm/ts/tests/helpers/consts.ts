@@ -1,4 +1,4 @@
-import { AuctionConfig, FastTransferParameters } from "../../src";
+import { FastTransferParameters } from "../../src";
 
 export type ValidNetwork = "avalanche" | "ethereum" | "arbitrum";
 
@@ -54,14 +54,6 @@ export const OWNER_ASSISTANT_PRIVATE_KEY = WALLET_PRIVATE_KEYS[8];
 
 export const MATCHING_ENGINE_CHAIN = 6;
 export const MATCHING_ENGINE_NAME = "avalanche";
-
-export const DEFAULT_AUCTION_CONFIG: AuctionConfig = {
-    userPenaltyRewardBps: 500000, // 50%
-    initialPenaltyBps: 200000, // 20%
-    auctionDuration: 2,
-    auctionGracePeriod: 6,
-    penaltyBlocks: 20,
-};
 
 export const DEFAULT_FAST_TRANSFER_PARAMS: FastTransferParameters = {
     enabled: true,

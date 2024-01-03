@@ -3,27 +3,32 @@ import { ethers } from "ethers";
 import { LiveAuctionData, MatchingEngine, RedeemParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {
-    ICircleIntegration,
-    ICircleIntegration__factory,
     IMatchingEngine,
     IMatchingEngine__factory,
+    ITokenMessenger,
+    ITokenMessenger__factory,
     IWormhole,
     IWormhole__factory,
 } from "../types";
 
 export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransaction> {
     contract: IMatchingEngine;
+    circle: ITokenMessenger;
 
     // Cached contracts.
     cache?: {
         chainId: ChainId;
-        wormholeCctp: ICircleIntegration;
         coreBridge: IWormhole;
-        circleTransmitterAddress?: string;
+        circleTransmitterAddress: string;
     };
 
-    constructor(connection: ethers.Signer | ethers.providers.Provider, contractAddress: string) {
+    constructor(
+        connection: ethers.Signer | ethers.providers.Provider,
+        contractAddress: string,
+        circleBridge: string
+    ) {
         this.contract = IMatchingEngine__factory.connect(contractAddress, connection);
+        this.circle = ITokenMessenger__factory.connect(circleBridge, connection);
     }
 
     get address(): string {
@@ -43,7 +48,7 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
     }
 
     connect(connection: ethers.Signer | ethers.providers.Provider): EvmMatchingEngine {
-        return new EvmMatchingEngine(connection, this.address);
+        return new EvmMatchingEngine(connection, this.address, this.circle.address);
     }
 
     async addRouterEndpoint(chain: number, router: string): Promise<ethers.ContractTransaction> {
@@ -85,7 +90,7 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         if (auctionId !== undefined) {
             return this.contract["calculateDynamicPenalty(bytes32)"](auctionId);
         } else if (amount !== undefined && blocksElapsed !== undefined) {
-            return this.contract["calculateDynamicPenalty(uint256,uint256)"](amount, blocksElapsed);
+            return this.contract["calculateDynamicPenalty(uint128,uint128)"](amount, blocksElapsed);
         } else {
             throw new Error("Invalid arguments");
         }
@@ -125,8 +130,7 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
 
     async getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult> {
         // Check cached contracts.
-        const { chainId, wormholeCctp, coreBridge, circleTransmitterAddress } =
-            await this._cacheIfNeeded();
+        const { chainId, coreBridge, circleTransmitterAddress } = await this._cacheIfNeeded();
 
         return this.contract.provider
             .getTransactionReceipt(txHash)
@@ -135,7 +139,6 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
                     chainId,
                     this.address,
                     coreBridge.address,
-                    wormholeCctp.address,
                     txReceipt,
                     circleTransmitterAddress
                 )
@@ -145,23 +148,16 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
     private async _cacheIfNeeded() {
         if (this.cache === undefined) {
             const provider = this.contract.provider;
-            const wormholeCctp = await this.contract
-                .wormholeCctp()
-                .then((addr) => ICircleIntegration__factory.connect(addr, provider));
-            const coreBridge = await wormholeCctp
+            const coreBridge = await this.contract
                 .wormhole()
                 .then((addr) => IWormhole__factory.connect(addr, provider));
-            const circleTransmitterAddress =
-                wormholeCctp.address == ethers.constants.AddressZero
-                    ? undefined
-                    : await wormholeCctp.circleTransmitter();
+            const circleTransmitterAddress = await this.circle.localMessageTransmitter();
 
             // If this isn't a recognized ChainId, we have problems.
             const chainId = await coreBridge.chainId();
 
             this.cache = {
                 chainId: chainId as ChainId,
-                wormholeCctp,
                 coreBridge,
                 circleTransmitterAddress,
             };

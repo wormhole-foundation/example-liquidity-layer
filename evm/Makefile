@@ -17,7 +17,7 @@ integration-test: node_modules ts/tests/.env
 test: node_modules ts/tests/.env
 	forge test --fork-url ${AVAX_RPC} -vv
 	bash ts/tests/run_integration_test.sh
-	
+
 .PHONY: build
 build: dependencies
 	forge build

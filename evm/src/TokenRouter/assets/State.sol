@@ -3,25 +3,28 @@
 pragma solidity ^0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ITokenRouterState} from "../../interfaces/ITokenRouterState.sol";
 
 import "./Errors.sol";
 import {FastTransferParameters} from "../../interfaces/ITokenRouterTypes.sol";
-import {getRouterEndpointState, getFastTransferParametersState} from "./Storage.sol";
+import {
+    getRouterEndpointState,
+    getFastTransferParametersState,
+    getCircleDomainsState
+} from "./Storage.sol";
 
-abstract contract State is ITokenRouterState {
+import {WormholeCctpTokenMessenger} from "../../shared/WormholeCctpTokenMessenger.sol";
+
+abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
     // Immutable state.
     address immutable _deployer;
     IERC20 immutable _orderToken;
-    ICircleIntegration immutable _wormholeCctp;
-    uint16 immutable _wormholeChainId;
-    IWormhole immutable _wormhole;
 
     // Matching engine info.
     uint16 immutable _matchingEngineChain;
     bytes32 immutable _matchingEngineAddress;
+    uint32 immutable _matchingEngineDomain;
 
     // Consts.
     uint32 constant NONCE = 0;
@@ -30,12 +33,13 @@ abstract contract State is ITokenRouterState {
 
     constructor(
         address token_,
-        address wormholeCctp_,
+        address wormhole_,
+        address cctpTokenMessenger_,
         uint16 matchingEngineChain_,
-        bytes32 matchingEngineAddress_
-    ) {
+        bytes32 matchingEngineAddress_,
+        uint32 matchingEngineDomain_
+    ) WormholeCctpTokenMessenger(wormhole_, cctpTokenMessenger_) {
         assert(token_ != address(0));
-        assert(wormholeCctp_ != address(0));
         assert(matchingEngineChain_ != 0);
         assert(matchingEngineAddress_ != bytes32(0));
 
@@ -43,9 +47,7 @@ abstract contract State is ITokenRouterState {
         _orderToken = IERC20(token_);
         _matchingEngineChain = matchingEngineChain_;
         _matchingEngineAddress = matchingEngineAddress_;
-        _wormholeCctp = ICircleIntegration(wormholeCctp_);
-        _wormholeChainId = _wormholeCctp.chainId();
-        _wormhole = _wormholeCctp.wormhole();
+        _matchingEngineDomain = matchingEngineDomain_;
     }
 
     /// @inheritdoc ITokenRouterState
@@ -59,8 +61,8 @@ abstract contract State is ITokenRouterState {
     }
 
     /// @inheritdoc ITokenRouterState
-    function isFillRedeemed(bytes32 fillHash) external view returns (bool) {
-        return _wormholeCctp.isMessageConsumed(fillHash);
+    function getDomain(uint16 chain) public view returns (uint32) {
+        return getCircleDomainsState().domains[chain];
     }
 
     /// @inheritdoc ITokenRouterState
@@ -69,13 +71,13 @@ abstract contract State is ITokenRouterState {
     }
 
     /// @inheritdoc ITokenRouterState
-    function wormholeCctp() external view returns (ICircleIntegration) {
-        return _wormholeCctp;
+    function wormhole() external view returns (IWormhole) {
+        return _wormhole;
     }
 
     /// @inheritdoc ITokenRouterState
     function wormholeChainId() external view returns (uint16) {
-        return _wormholeChainId;
+        return _chainId;
     }
 
     /// @inheritdoc ITokenRouterState

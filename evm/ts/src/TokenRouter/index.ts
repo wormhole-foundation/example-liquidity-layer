@@ -40,7 +40,11 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
 
     abstract redeemFill(response: OrderResponse): Promise<PreparedTransactionType>;
 
-    abstract addRouterEndpoint(chain: number, info: string): Promise<PreparedTransactionType>;
+    abstract addRouterEndpoint(
+        chain: number,
+        info: string,
+        domain: number
+    ): Promise<PreparedTransactionType>;
 
     abstract updateFastTransferParameters(
         newParams: FastTransferParameters
