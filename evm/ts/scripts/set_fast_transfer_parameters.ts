@@ -57,7 +57,7 @@ async function main() {
     // Setup token router contract.
     const tokenRouter = ITokenRouter__factory.connect(
         ethers.utils.getAddress(
-            tryHexToNativeString(routers[routerChainId].substring(2), routerChainId)
+            tryHexToNativeString(routers[routerChainId].address.substring(2), routerChainId)
         ),
         wallet
     );

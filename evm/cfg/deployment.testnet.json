@@ -1,27 +1,38 @@
 {
     "matchingEngine": {
         "chain": 6,
-        "address": ""
+        "address": "0x000000000000000000000000e26BDB27d199DD757e28B4F2Ae032b62aF7687d2"
     },
     "routers": {
-        "2": "",
-        "5": "",
-        "6": "",
-        "23": "",
-        "24": "",
-        "30": ""
+        "2": {
+            "address": "0x000000000000000000000000D83120e86Df1310F7415C10790ef5b1067eE38a0",
+            "domain": "0"
+        },
+        "5": {
+            "address": "0x00000000000000000000000027ccA950f7484AF811Cbf9B8f2299aB98ab40B4d",
+            "domain": "7"
+        },
+        "6": {
+            "address": "0x000000000000000000000000B51573D5bEBedbf233B43F7C04b24Ca31E45e16a",
+            "domain": "1"
+        },
+        "23": {
+            "address": "0x000000000000000000000000e26BDB27d199DD757e28B4F2Ae032b62aF7687d2",
+            "domain": "3"
+        },
+        "24": {
+            "address": "0x000000000000000000000000E9eE41944A0eFD65Cd52066fd9857cCD117545d0",
+            "domain": "2"
+        },
+        "30": {
+            "address": "0x0000000000000000000000009585c732DBeA83Fd34E84d9678d71F00F58E0a9d",
+            "domain": "6"
+        }
     },
     "fastTransferParameters": {
         "enabled": true,
         "maxAmount": 5000000000,
         "baseFee": 50000,
         "initAuctionFee": 250000
-    },
-    "auctionConfig": {
-        "userPenaltyRewardBps": 250000,
-        "initialPenaltyBps": 100000,
-        "auctionDuration": 2,
-        "auctionGracePeriod": 6,
-        "penaltyBlocks": 10
     }
 }

@@ -37,6 +37,17 @@ async function addRouterInfo(
     }
 }
 
+async function setCctpAllowance(engine: IMatchingEngine): Promise<void> {
+    console.log(`Setting CCTP allowance`);
+    const tx = await engine.setCctpAllowance(ethers.constants.MaxUint256);
+    const receipt = await tx.wait();
+    if (receipt.status === 1) {
+        console.log(`Txn succeeded txHash=${tx.hash}`);
+    } else {
+        console.log(`Failed to set CCTP allowance`);
+    }
+}
+
 async function main() {
     const { network, chain, rpc, key } = getArgs();
     const config = getConfig(network);
@@ -65,13 +76,16 @@ async function main() {
         wallet
     );
 
+    // Set CCTP allowance.
+    await setCctpAllowance(engine);
+
     // Add router info.
     for (const chainId of Object.keys(routers)) {
-        if (routers[chainId].endpoint == ZERO_BYTES32) {
+        if (routers[chainId].address == ZERO_BYTES32) {
             throw Error(`Invalid endpoint for chain ${chainId}`);
         }
 
-        await addRouterInfo(chainId, engine, routers[chainId]);
+        await addRouterInfo(chainId, engine, routers[chainId].address);
     }
 }
 

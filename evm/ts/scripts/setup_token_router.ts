@@ -1,7 +1,7 @@
 import { getConfig, ZERO_BYTES32 } from "./helpers";
 import { coalesceChainId, tryHexToNativeString } from "@certusone/wormhole-sdk";
 import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__factory";
-import { ITokenRouter, FastTransferParametersStruct } from "../src/types/ITokenRouter";
+import { ITokenRouter } from "../src/types/ITokenRouter";
 import { ethers } from "ethers";
 
 export function getArgs() {
@@ -26,15 +26,27 @@ export function getArgs() {
 async function addRouterInfo(
     chainId: string,
     tokenRouter: ITokenRouter,
-    routerEndpoint: string
+    routerEndpoint: string,
+    domain: string
 ): Promise<void> {
     console.log(`Adding router endpoint for chain ${chainId}`);
-    const tx = await tokenRouter.addRouterEndpoint(chainId, routerEndpoint);
+    const tx = await tokenRouter.addRouterEndpoint(chainId, routerEndpoint, domain);
     const receipt = await tx.wait();
     if (receipt.status === 1) {
         console.log(`Txn succeeded chainId=${chainId}, txHash=${tx.hash}`);
     } else {
         console.log(`Failed to add router info for chain ${chainId}`);
+    }
+}
+
+async function setCctpAllowance(router: ITokenRouter): Promise<void> {
+    console.log(`Setting CCTP allowance`);
+    const tx = await router.setCctpAllowance(ethers.constants.MaxUint256);
+    const receipt = await tx.wait();
+    if (receipt.status === 1) {
+        console.log(`Txn succeeded txHash=${tx.hash}`);
+    } else {
+        console.log(`Failed to set CCTP allowance`);
     }
 }
 
@@ -56,21 +68,29 @@ async function main() {
     // Setup token router contract.
     const tokenRouter = ITokenRouter__factory.connect(
         ethers.utils.getAddress(
-            tryHexToNativeString(routers[routerChainId].substring(2), routerChainId)
+            tryHexToNativeString(routers[routerChainId].address.substring(2), routerChainId)
         ),
         wallet
     );
+
+    // Set CCTP allowance.
+    await setCctpAllowance(tokenRouter);
 
     // Add router info.
     for (const chainId of Object.keys(routers)) {
         if (chainId == routerChainId.toString()) {
             continue;
         }
-        if (routers[chainId].endpoint == ZERO_BYTES32) {
+        if (routers[chainId].address == ZERO_BYTES32) {
             throw Error(`Invalid endpoint for chain ${chainId}`);
         }
 
-        await addRouterInfo(chainId, tokenRouter, routers[chainId]);
+        await addRouterInfo(
+            chainId,
+            tokenRouter,
+            routers[chainId].address,
+            routers[chainId].domain
+        );
     }
 }
 
