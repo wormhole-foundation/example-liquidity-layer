@@ -1,8 +1,12 @@
 [package]
 name = "token-router"
-version = "0.0.0"
 description = "Example Token Router Program"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [lib]
 crate-type = ["cdylib", "lib"]
