@@ -1,9 +1,8 @@
 use crate::{
-    error::TokenRouterError,
+    error::MatchingEngineError,
     state::{Custodian, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
-use wormhole_cctp_program::sdk as wormhole_cctp;
 
 #[derive(Accounts)]
 #[instruction(chain: u16)]
@@ -60,11 +59,11 @@ pub fn add_router_endpoint(
 
 fn check_constraints(args: &AddRouterEndpointArgs) -> Result<()> {
     require!(
-        args.chain != 0 && args.chain != wormhole_cctp::SOLANA_CHAIN,
-        TokenRouterError::ChainNotAllowed
+        args.chain != 0 && args.chain != wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
+        MatchingEngineError::ChainNotAllowed
     );
 
-    require!(args.address != [0; 32], TokenRouterError::InvalidEndpoint);
+    require!(args.address != [0; 32], MatchingEngineError::InvalidEndpoint);
 
     // Done.
     Ok(())

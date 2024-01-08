@@ -1,7 +1,7 @@
 [package]
-name = "token-router"
+name = "matching-engine"
 version = "0.0.0"
-description = "Example Token Router Program"
+description = "Example Matching Engine Program"
 edition = "2021"
 
 [lib]
@@ -13,11 +13,11 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
-testnet = ["wormhole-cctp-program/testnet"]
+testnet = ["wormhole-cctp-solana/testnet"]
 integration-test = ["testnet"]
 
 [dependencies]
-wormhole-cctp-program.workspace = true
+wormhole-cctp-solana = { workspace = true, features = ["cpi"] }
 anchor-lang.workspace = true
 anchor-spl.workspace = true
 solana-program.workspace = true
