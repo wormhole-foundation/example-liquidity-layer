@@ -1,6 +1,6 @@
 include env/testing.env
 
-.PHONY: all unit-test integration-test build dependencies clean
+.PHONY: all unit-test integration-test test build dependencies clean
 
 all: build
 
@@ -11,6 +11,11 @@ unit-test: build
 #integration-test: ts/tests/.env build
 .PHONY: integration-test
 integration-test: node_modules ts/tests/.env
+	bash ts/tests/run_integration_test.sh
+
+.PHONY: test
+test: node_modules ts/tests/.env
+	forge test --fork-url ${AVAX_RPC} -vv
 	bash ts/tests/run_integration_test.sh
 
 .PHONY: build

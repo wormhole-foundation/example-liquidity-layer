@@ -26,10 +26,11 @@ export function getArgs() {
 async function addRouterInfo(
     chainId: string,
     tokenRouter: ITokenRouter,
-    routerEndpoint: string
+    routerEndpoint: string,
+    domain: string
 ): Promise<void> {
     console.log(`Adding router endpoint for chain ${chainId}`);
-    const tx = await tokenRouter.addRouterEndpoint(chainId, routerEndpoint);
+    const tx = await tokenRouter.addRouterEndpoint(chainId, routerEndpoint, domain);
     const receipt = await tx.wait();
     if (receipt.status === 1) {
         console.log(`Txn succeeded chainId=${chainId}, txHash=${tx.hash}`);
@@ -38,9 +39,25 @@ async function addRouterInfo(
     }
 }
 
+async function setCctpAllowance(router: ITokenRouter): Promise<void> {
+    console.log(`Setting CCTP allowance`);
+    const tx = await router.setCctpAllowance(ethers.constants.MaxUint256);
+    const receipt = await tx.wait();
+    if (receipt.status === 1) {
+        console.log(`Txn succeeded txHash=${tx.hash}`);
+    } else {
+        console.log(`Failed to set CCTP allowance`);
+    }
+}
+
 async function main() {
     const { network, chain, rpc, key } = getArgs();
-    const config = getConfig(network, "tokenRouter")["routers"];
+    const config = getConfig(network);
+    const routers = config["routers"];
+
+    if (routers == null) {
+        throw Error("Invalid routers");
+    }
 
     // Setup ethers wallet.
     const provider = new ethers.providers.StaticJsonRpcProvider(rpc);
@@ -51,21 +68,29 @@ async function main() {
     // Setup token router contract.
     const tokenRouter = ITokenRouter__factory.connect(
         ethers.utils.getAddress(
-            tryHexToNativeString(config[routerChainId].substring(2), routerChainId)
+            tryHexToNativeString(routers[routerChainId].address.substring(2), routerChainId)
         ),
         wallet
     );
 
+    // Set CCTP allowance.
+    await setCctpAllowance(tokenRouter);
+
     // Add router info.
-    for (const chainId of Object.keys(config)) {
+    for (const chainId of Object.keys(routers)) {
         if (chainId == routerChainId.toString()) {
             continue;
         }
-        if (config[chainId].endpoint == ZERO_BYTES32) {
+        if (routers[chainId].address == ZERO_BYTES32) {
             throw Error(`Invalid endpoint for chain ${chainId}`);
         }
 
-        await addRouterInfo(chainId, tokenRouter, config[chainId]);
+        await addRouterInfo(
+            chainId,
+            tokenRouter,
+            routers[chainId].address,
+            routers[chainId].domain
+        );
     }
 }
 

@@ -1,49 +1,79 @@
 import { coalesceChainId, tryNativeToUint8Array } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
-import { ITokenRouter__factory } from "../src/types";
-import { LOCALHOSTS, OWNER_ASSISTANT_PRIVATE_KEY, mineWait } from "./helpers";
+import { ITokenRouter__factory, IMatchingEngine__factory } from "../src/types";
+import {
+    LOCALHOSTS,
+    OWNER_ASSISTANT_PRIVATE_KEY,
+    mineWait,
+    ValidNetwork,
+    MATCHING_ENGINE_NAME,
+} from "./helpers";
 import { expect } from "chai";
 
 import { parseLiquidityLayerEnvFile } from "../src";
 
+const CHAIN_PATHWAYS: ValidNetwork[] = ["ethereum", "avalanche", "arbitrum"];
+
 describe("Registration", () => {
     const envPath = `${__dirname}/../../env/localnet`;
 
-    // Avax.
-    const avaxEnv = parseLiquidityLayerEnvFile(`${envPath}/avalanche.env`);
-    const avaxProvider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS.avalanche);
-    const avaxAssistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, avaxProvider);
-    const avaxRouter = ITokenRouter__factory.connect(avaxEnv.tokenRouterAddress, avaxAssistant);
-
-    // Ethereum.
-    const ethEnv = parseLiquidityLayerEnvFile(`${envPath}/ethereum.env`);
-    const ethProvider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS.ethereum);
-    const ethAssistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, ethProvider);
-    const ethRouter = ITokenRouter__factory.connect(ethEnv.tokenRouterAddress, ethAssistant);
-
-    it(`Register Ethereum Order Route On Avalanche`, async () => {
-        const formattedAddress = tryNativeToUint8Array(ethEnv.tokenRouterAddress, "ethereum");
-        const targetChain = coalesceChainId("ethereum");
-        await avaxRouter
-            .addRouterEndpoint(targetChain, formattedAddress)
-            .then((tx) => mineWait(avaxProvider, tx));
-
-        const registeredAddress = await avaxRouter.getRouter(targetChain);
-        expect(registeredAddress.substring(2)).to.equal(
-            Buffer.from(formattedAddress).toString("hex")
+    describe(`Register Token Routers on ${MATCHING_ENGINE_NAME} Matching Engine`, () => {
+        const env = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
+        const provider = new ethers.providers.StaticJsonRpcProvider(
+            LOCALHOSTS[MATCHING_ENGINE_NAME]
         );
+        const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
+        const engine = IMatchingEngine__factory.connect(env.matchingEngineAddress, assistant);
+
+        for (const chainName of CHAIN_PATHWAYS) {
+            it(`Register ${chainName}`, async () => {
+                const targetEnv = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
+                const formattedAddress = tryNativeToUint8Array(
+                    targetEnv.tokenRouterAddress,
+                    chainName
+                );
+                const targetChainId = coalesceChainId(chainName);
+                await engine
+                    .addRouterEndpoint(targetChainId, formattedAddress)
+                    .then((tx) => mineWait(provider, tx));
+
+                const registeredAddress = await engine.getRouter(targetChainId);
+                expect(registeredAddress.substring(2)).to.equal(
+                    Buffer.from(formattedAddress).toString("hex")
+                );
+            });
+        }
     });
 
-    it(`Register Avalanche Order Route On Ethereum`, async () => {
-        const formattedAddress = tryNativeToUint8Array(avaxEnv.tokenRouterAddress, "avalanche");
-        const targetChain = coalesceChainId("avalanche");
-        await ethRouter
-            .addRouterEndpoint(targetChain, formattedAddress)
-            .then((tx) => mineWait(ethProvider, tx));
+    for (const chainName of CHAIN_PATHWAYS) {
+        describe(`Register Token Routers on ${chainName}`, () => {
+            const env = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
+            const provider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[chainName]);
+            const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
+            const router = ITokenRouter__factory.connect(env.tokenRouterAddress, assistant);
 
-        const registeredAddress = await ethRouter.getRouter(targetChain);
-        expect(registeredAddress.substring(2)).to.equal(
-            Buffer.from(formattedAddress).toString("hex")
-        );
-    });
+            for (const targetChain of CHAIN_PATHWAYS) {
+                if (targetChain === chainName) {
+                    continue;
+                }
+
+                it(`Register ${targetChain}`, async () => {
+                    const targetEnv = parseLiquidityLayerEnvFile(`${envPath}/${targetChain}.env`);
+                    const formattedAddress = tryNativeToUint8Array(
+                        targetEnv.tokenRouterAddress,
+                        targetChain
+                    );
+                    const targetChainId = coalesceChainId(targetChain);
+                    await router
+                        .addRouterEndpoint(targetChainId, formattedAddress, targetEnv.domain)
+                        .then((tx) => mineWait(provider, tx));
+
+                    const registeredAddress = await router.getRouter(targetChainId);
+                    expect(registeredAddress.substring(2)).to.equal(
+                        Buffer.from(formattedAddress).toString("hex")
+                    );
+                });
+            }
+        });
+    }
 });

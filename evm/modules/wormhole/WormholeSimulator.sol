@@ -503,4 +503,8 @@ contract SigningWormholeSimulator is WormholeSimulator {
 			body
 		);
 	}
+
+	function nextSequence(address emitter) public view returns (uint64) {
+		return wormhole.nextSequence(emitter);
+	}
 }

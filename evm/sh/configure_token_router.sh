@@ -6,8 +6,6 @@ while getopts ":n:c:u:k:" opt; do
     ;;
     c) chain="$OPTARG"
     ;;
-    u) rpc="$OPTARG"
-    ;;
     k) private_key="$OPTARG"
     ;;
     \?) echo "Invalid option -$OPTARG" >&2
@@ -34,12 +32,6 @@ then
     exit 1
 fi
 
-if [ -z ${rpc+x} ];
-then
-    echo "rpc (-u) is unset" >&2
-    exit 1
-fi
-
 if [ -z ${private_key+x} ];
 then
     echo "private key (-k) is unset" >&2
@@ -49,7 +41,10 @@ fi
 set -euo pipefail
 
 ROOT=$(dirname $0)
+ENV=$ROOT/../env
 TARGET=$ROOT/../ts/scripts/setup_token_router.ts
 
-npx ts-node $TARGET --network $network --chain $chain --rpc $rpc --key $private_key
+. $ENV/$network/$chain.env
+
+npx ts-node $TARGET --network $network --chain $chain --rpc $RPC --key $private_key
 

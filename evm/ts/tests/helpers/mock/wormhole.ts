@@ -7,7 +7,7 @@ import {
 import { MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
 import { ethers } from "ethers";
 import { EvmObserver } from ".";
-import { parseEvmEvent } from "../../../src";
+import { parseEvmEvents, parseEvmEvent } from "../../../src";
 import { GUARDIAN_PRIVATE_KEY, WORMHOLE_GUARDIAN_SET_INDEX } from "../consts";
 
 export class GuardianNetwork implements EvmObserver<Buffer> {
@@ -17,18 +17,12 @@ export class GuardianNetwork implements EvmObserver<Buffer> {
         this.guardians = new MockGuardians(WORMHOLE_GUARDIAN_SET_INDEX, [GUARDIAN_PRIVATE_KEY]);
     }
 
-    async observeEvm(
+    async body(
+        message: ethers.utils.Result,
         provider: ethers.providers.Provider,
         chain: ChainName,
         txReceipt: ethers.ContractReceipt
     ) {
-        const coreBridgeAddress = CONTRACTS.MAINNET[chain].core!;
-        const message = parseEvmEvent(
-            txReceipt,
-            coreBridgeAddress,
-            "LogMessagePublished(address indexed sender, uint64 sequence, uint32 nonce, bytes payload, uint8 consistencyLevel)"
-        );
-
         const {
             sender: emitterAddress,
             sequence,
@@ -49,6 +43,45 @@ export class GuardianNetwork implements EvmObserver<Buffer> {
         body.writeUInt8(consistencyLevel, 50);
         body.set(payload, 51);
 
+        return body;
+    }
+
+    async observeEvm(
+        provider: ethers.providers.Provider,
+        chain: ChainName,
+        txReceipt: ethers.ContractReceipt
+    ) {
+        const coreBridgeAddress = CONTRACTS.MAINNET[chain].core!;
+        const message = parseEvmEvent(
+            txReceipt,
+            coreBridgeAddress,
+            "LogMessagePublished(address indexed sender, uint64 sequence, uint32 nonce, bytes payload, uint8 consistencyLevel)"
+        );
+
+        const body = await this.body(message, provider, chain, txReceipt);
+
         return this.guardians.addSignatures(body, [0]);
+    }
+
+    async observeManyEvm(
+        provider: ethers.providers.Provider,
+        chain: ChainName,
+        txReceipt: ethers.ContractReceipt
+    ) {
+        const coreBridgeAddress = CONTRACTS.MAINNET[chain].core!;
+        const messages = parseEvmEvents(
+            txReceipt,
+            coreBridgeAddress,
+            "LogMessagePublished(address indexed sender, uint64 sequence, uint32 nonce, bytes payload, uint8 consistencyLevel)"
+        );
+
+        const signedMessages = [];
+
+        for (const message of messages) {
+            const body = await this.body(message, provider, chain, txReceipt);
+            signedMessages.push(this.guardians.addSignatures(body, [0]));
+        }
+
+        return signedMessages;
     }
 }

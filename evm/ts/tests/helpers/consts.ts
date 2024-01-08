@@ -1,27 +1,34 @@
-export type ValidNetwork = "avalanche" | "ethereum";
+import { FastTransferParameters } from "../../src";
+
+export type ValidNetwork = "avalanche" | "ethereum" | "arbitrum";
 
 export type NetworkVars<T> = {
     avalanche: T;
     ethereum: T;
+    arbitrum: T;
 };
 
 // Avalanche Mainnet Fork
 export const LOCALHOSTS: NetworkVars<string> = {
     avalanche: "http://localhost:8547",
     ethereum: "http://localhost:8548",
+    arbitrum: "http://localhost:8549",
 };
 
 export const AVALANCHE_USDC_ADDRESS = "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E";
 export const ETHEREUM_USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
+export const ARBITRUM_USDC_ADRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
 
 export const USDC_ADDRESSES: NetworkVars<string> = {
     avalanche: AVALANCHE_USDC_ADDRESS,
     ethereum: ETHEREUM_USDC_ADDRESS,
+    arbitrum: ARBITRUM_USDC_ADRESS,
 };
 
 export const USDC_DECIMALS: NetworkVars<number> = {
     avalanche: 6,
     ethereum: 6,
+    arbitrum: 6,
 };
 
 export const WORMHOLE_MESSAGE_FEE = 0;
@@ -44,3 +51,13 @@ export const WALLET_PRIVATE_KEYS = [
 // Arbitrarily decided.
 export const OWNER_PRIVATE_KEY = WALLET_PRIVATE_KEYS[9];
 export const OWNER_ASSISTANT_PRIVATE_KEY = WALLET_PRIVATE_KEYS[8];
+
+export const MATCHING_ENGINE_CHAIN = 6;
+export const MATCHING_ENGINE_NAME = "avalanche";
+
+export const DEFAULT_FAST_TRANSFER_PARAMS: FastTransferParameters = {
+    enabled: true,
+    maxAmount: BigInt(500000000000),
+    baseFee: BigInt(100000),
+    initAuctionFee: BigInt(100000),
+};
