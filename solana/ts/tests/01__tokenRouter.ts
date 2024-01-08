@@ -18,6 +18,7 @@ describe("Token Router", function () {
     const foreignChain = CHAINS.ethereum;
     const invalidChain = (foreignChain + 1) as ChainId;
     const routerEndpointAddress = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+    const foreignCctpDomain = 0;
     const unregisteredContractAddress = Buffer.alloc(32, "deafbeef", "hex");
     const tokenRouter = new TokenRouterProgram(connection);
 
@@ -340,6 +341,7 @@ describe("Token Router", function () {
             const createAddRouterEndpointIx = (opts?: {
                 sender?: PublicKey;
                 contractAddress?: Array<number>;
+                cctpDomain?: number | null;
             }) =>
                 tokenRouter.addRouterEndpointIx(
                     {
@@ -348,6 +350,7 @@ describe("Token Router", function () {
                     {
                         chain: foreignChain,
                         address: opts?.contractAddress ?? routerEndpointAddress,
+                        cctpDomain: opts?.cctpDomain ?? foreignCctpDomain,
                     }
                 );
 
@@ -386,7 +389,7 @@ describe("Token Router", function () {
                         [
                             await tokenRouter.addRouterEndpointIx(
                                 { ownerOrAssistant: owner.publicKey },
-                                { chain, address: routerEndpointAddress }
+                                { chain, address: routerEndpointAddress, cctpDomain: null }
                             ),
                         ],
                         [owner],
@@ -428,6 +431,7 @@ describe("Token Router", function () {
                     bump: 255,
                     chain: foreignChain,
                     address: contractAddress,
+                    cctpDomain: foreignCctpDomain,
                 } as RouterEndpoint;
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
             });
@@ -450,6 +454,7 @@ describe("Token Router", function () {
                     bump: 255,
                     chain: foreignChain,
                     address: routerEndpointAddress,
+                    cctpDomain: foreignCctpDomain,
                 } as RouterEndpoint;
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
             });

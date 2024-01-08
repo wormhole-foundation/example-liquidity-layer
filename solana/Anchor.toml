@@ -8,10 +8,12 @@ skip-lint = false
 
 [workspace]
 members = [
+    "programs/token-router",
     "programs/matching-engine"
 ]
 
 [programs.localnet]
+token_router = "TokenRouter11111111111111111111111111111111"
 matching_engine = "MatchingEngine11111111111111111111111111111"
 
 [registry]
@@ -22,7 +24,7 @@ cluster = "Localnet"
 wallet = "ts/tests/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json"
 
 [scripts]
-test = "npx ts-mocha -p ./tsconfig.json -t 1000000 ts/tests/[2-9]*.ts"
+test = "npx ts-mocha -p ./tsconfig.json -t 1000000 ts/tests/[0-9]*.ts"
 
 [test]
 startup_wait = 16000

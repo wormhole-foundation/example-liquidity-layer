@@ -8,7 +8,11 @@ import IDL from "../../target/idl/token_router.json";
 import { TokenRouter } from "../../target/types/token_router";
 import { Custodian, PayerSequence, RouterEndpoint } from "./state";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "./utils";
-import { WormholeCctpProgram } from "./wormholeCctp";
+import {
+    MessageTransmitterProgram,
+    TokenMessengerMinterProgram,
+    WormholeCctpProgram,
+} from "./wormholeCctp";
 
 export const PROGRAM_IDS = ["TokenRouter11111111111111111111111111111111"] as const;
 
@@ -24,6 +28,7 @@ export type TransferTokensWithRelayArgs = {
 export type AddRouterEndpointArgs = {
     chain: ChainId;
     address: Array<number>;
+    cctpDomain: number | null;
 };
 
 export type RegisterContractArgs = {
@@ -282,6 +287,7 @@ export class TokenRouterProgram {
             ownerOrAssistant: PublicKey;
             custodian?: PublicKey;
             routerEndpoint?: PublicKey;
+            remoteTokenMessenger?: PublicKey;
         },
         args: AddRouterEndpointArgs
     ): Promise<TransactionInstruction> {
@@ -289,14 +295,20 @@ export class TokenRouterProgram {
             ownerOrAssistant,
             custodian: inputCustodian,
             routerEndpoint: inputRouterEndpoint,
+            remoteTokenMessenger: inputRemoteTokenMessenger,
         } = accounts;
-        const { chain } = args;
+        const { chain, cctpDomain } = args;
+        const derivedRemoteTokenMessenger =
+            cctpDomain === null
+                ? null
+                : this.tokenMessengerMinterProgram().remoteTokenMessengerAddress(cctpDomain);
         return this.program.methods
             .addRouterEndpoint(args)
             .accounts({
                 ownerOrAssistant,
                 custodian: inputCustodian ?? this.custodianAddress(),
                 routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
+                remoteTokenMessenger: inputRemoteTokenMessenger ?? derivedRemoteTokenMessenger,
             })
             .instruction();
     }
@@ -316,8 +328,66 @@ export class TokenRouterProgram {
             })
             .instruction();
     }
+
+    tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
+        switch (this._programId) {
+            case testnet(): {
+                return new TokenMessengerMinterProgram(
+                    this.program.provider.connection,
+                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
+                );
+            }
+            case mainnet(): {
+                return new TokenMessengerMinterProgram(
+                    this.program.provider.connection,
+                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
+                );
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
+    }
+
+    messageTransmitterProgram(): MessageTransmitterProgram {
+        switch (this._programId) {
+            case testnet(): {
+                return new MessageTransmitterProgram(
+                    this.program.provider.connection,
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
+                );
+            }
+            case mainnet(): {
+                return new MessageTransmitterProgram(
+                    this.program.provider.connection,
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
+                );
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
+    }
+
+    coreBridgeProgramId(): PublicKey {
+        switch (this._programId) {
+            case testnet(): {
+                return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
+            }
+            case mainnet(): {
+                return new PublicKey("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
+    }
 }
 
 export function testnet(): ProgramId {
+    return "TokenRouter11111111111111111111111111111111";
+}
+
+export function mainnet(): ProgramId {
     return "TokenRouter11111111111111111111111111111111";
 }
