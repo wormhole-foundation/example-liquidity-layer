@@ -1193,6 +1193,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5e6163cb8c49088c2c36f57875e58ccd8c87c7427f7fbd50ea6710b2f3f2e8f"
 
 [[package]]
+name = "matching-engine"
+version = "0.0.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "cfg-if",
+ "hex",
+ "hex-literal",
+ "ruint",
+ "solana-program",
+ "wormhole-cctp-solana",
+]
+
+[[package]]
 name = "memchr"
 version = "2.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2124,20 +2138,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
-name = "token-router"
-version = "0.0.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "cfg-if",
- "hex",
- "hex-literal",
- "ruint",
- "solana-program",
- "wormhole-cctp-solana",
-]
-
-[[package]]
 name = "toml"
 version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2391,9 +2391,9 @@ dependencies = [
 
 [[package]]
 name = "wormhole-cctp-solana"
-version = "0.0.0-alpha.12"
+version = "0.0.1-alpha.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c68dee99fb7bba33193d5ddebda340b6c7d07fc94de9891abecfa61c8814ad7"
+checksum = "8f7b206512564544ef2fb96f63603de0312d9c8969e1ea16308dee557a426ed2"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -2402,14 +2402,15 @@ dependencies = [
  "ruint",
  "solana-program",
  "wormhole-core-bridge-solana",
+ "wormhole-io",
  "wormhole-raw-vaas",
 ]
 
 [[package]]
 name = "wormhole-core-bridge-solana"
-version = "0.0.1-alpha.3"
+version = "0.0.1-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22222ab2f60cd584afb647a98c53242a772d850d0b1b2b0792b0aa5d59ab8d95"
+checksum = "67e09e0f43aad69344d16abbd9304870bd8aa2d88cc974417aa8be6463e8552c"
 dependencies = [
  "anchor-lang",
  "cfg-if",
@@ -2422,15 +2423,15 @@ dependencies = [
 
 [[package]]
 name = "wormhole-io"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6926b6a0b383df50bbb0d0b11378b6d0cf4f606e8386fb624472b7f9a90e830f"
+checksum = "4965f46f7a99debe3c2cf9337c6e3eb7068da348aecf074a3e35686937f25c65"
 
 [[package]]
 name = "wormhole-raw-vaas"
-version = "0.0.1-alpha.2"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cb59754ad91d99c0e3d7d159fffcbb4087c18a1c13b1b2a945775635ef9bd03"
+checksum = "70807fcb111008fb8db7c5818907940f5b0b3da80d2b42f9b2ce6d3e040a8f03"
 dependencies = [
  "ruint",
  "ruint-macro",

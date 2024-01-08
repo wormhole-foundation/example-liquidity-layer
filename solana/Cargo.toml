@@ -3,10 +3,8 @@ members = [
     "programs/*"
 ]
 
-[workspace.dependencies.wormhole-cctp-program]
-package = "wormhole-cctp-solana"
-version = "0.0.0-alpha.12"
-features = ["cpi"]
+[workspace.dependencies.wormhole-cctp-solana]
+version = "0.0.1-alpha.1"
 default-features = false
 
 [workspace.dependencies.anchor-lang]

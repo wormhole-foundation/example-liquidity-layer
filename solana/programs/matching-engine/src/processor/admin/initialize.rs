@@ -1,6 +1,8 @@
-use crate::{error::TokenRouterError, state::Custodian};
+use crate::{error::MatchingEngineError, state::{Custodian, AuctionConfig}};
+use crate::constants::FEE_PRECISION_MAX;
 use anchor_lang::prelude::*;
 use solana_program::bpf_loader_upgradeable;
+
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -15,18 +17,23 @@ pub struct Initialize<'info> {
         seeds = [Custodian::SEED_PREFIX],
         bump,
     )]
-    /// Sender Config account, which saves program data useful for other
-    /// instructions, specifically for outbound transfers. Also saves the payer
-    /// of the [`initialize`](crate::initialize) instruction as the program's
-    /// owner.
+    /// Custodian account, which saves program data useful for other
+    /// instructions.
     custodian: Account<'info, Custodian>,
 
     /// CHECK: This account must not be the zero pubkey.
     #[account(
         owner = Pubkey::default(),
-        constraint = owner_assistant.key() != Pubkey::default() @ TokenRouterError::AssistantZeroPubkey
+        constraint = owner_assistant.key() != Pubkey::default() @ MatchingEngineError::AssistantZeroPubkey
     )]
     owner_assistant: AccountInfo<'info>,
+
+    /// CHECK: This account must not be the zero pubkey.
+    #[account(
+        owner = Pubkey::default(),
+        constraint = fee_recipient.key() != Pubkey::default() @ MatchingEngineError::FeeRecipientZeroPubkey
+    )]
+    fee_recipient: AccountInfo<'info>,
 
     /// CHECK: BPF Loader Upgradeable program needs to modify this program's data to change the
     /// upgrade authority. We check this PDA address just in case there is another program that this
@@ -49,15 +56,19 @@ pub struct Initialize<'info> {
     system_program: Program<'info, System>,
 }
 
-pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
-    let owner = ctx.accounts.owner.key();
+#[access_control(check_constraints(&config))]
+pub fn initialize(
+    ctx: Context<Initialize>,
+    config: AuctionConfig,
+) -> Result<()> {
+    let owner: Pubkey = ctx.accounts.owner.key();
     ctx.accounts.custodian.set_inner(Custodian {
         bump: ctx.bumps["custodian"],
-        paused: false,
-        paused_set_by: owner,
         owner,
         pending_owner: None,
         owner_assistant: ctx.accounts.owner_assistant.key(),
+        fee_recipient: ctx.accounts.fee_recipient.key(),
+        auction_config: config
     });
 
     #[cfg(not(feature = "integration-test"))]
@@ -72,6 +83,25 @@ pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
             &ctx.accounts.to_account_infos(),
         )?;
     }
+
+    // Done.
+    Ok(())
+}
+
+fn check_constraints(config: &AuctionConfig) -> Result<()> {
+    require!(config.auction_duration > 0, MatchingEngineError::InvalidAuctionDuration);
+    require!(
+        config.auction_grace_period > config.auction_duration,
+        MatchingEngineError::InvalidAuctionGracePeriod
+    );
+    require!(
+        config.user_penalty_reward_bps <= FEE_PRECISION_MAX,
+        MatchingEngineError::ValueLargerThanMaxPrecision
+    );
+    require!(
+        config.initial_penalty_bps <= FEE_PRECISION_MAX,
+        MatchingEngineError::ValueLargerThanMaxPrecision
+    );
 
     // Done.
     Ok(())
