@@ -1,7 +1,7 @@
 [package]
-name = "matching-engine"
+name = "token-router"
 version = "0.0.0"
-description = "Example Matching Engine Program"
+description = "Example Token Router Program"
 edition = "2021"
 
 [lib]
