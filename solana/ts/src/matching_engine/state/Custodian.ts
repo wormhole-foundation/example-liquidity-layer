@@ -10,7 +10,7 @@ export interface AuctionConfig {
 
 export class Custodian {
     bump: number;
-    upgradeAuthorityBump: number;
+    custodyTokenBump: number;
     owner: PublicKey;
     pendingOwner: PublicKey | null;
     ownerAssistant: PublicKey;
@@ -19,7 +19,7 @@ export class Custodian {
 
     constructor(
         bump: number,
-        upgradeAuthorityBump: number,
+        custodyTokenBump: number,
         owner: PublicKey,
         pendingOwner: PublicKey | null,
         ownerAssistant: PublicKey,
@@ -27,7 +27,7 @@ export class Custodian {
         auctionConfig: AuctionConfig
     ) {
         this.bump = bump;
-        this.upgradeAuthorityBump = upgradeAuthorityBump;
+        this.custodyTokenBump = custodyTokenBump;
         this.owner = owner;
         this.pendingOwner = pendingOwner;
         this.ownerAssistant = ownerAssistant;

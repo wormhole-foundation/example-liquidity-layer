@@ -28,6 +28,7 @@ pub struct AuctionConfig {
 #[derive(Debug, InitSpace)]
 pub struct Custodian {
     pub bump: u8,
+    pub custody_token_bump: u8,
 
     /// Program's owner.
     pub owner: Pubkey,
@@ -45,10 +46,6 @@ pub struct Custodian {
 
 impl Custodian {
     pub const SEED_PREFIX: &'static [u8] = b"custodian";
-
-    pub fn is_authorized(&self, key: &Pubkey) -> bool {
-        self.owner == *key || self.owner_assistant == *key
-    }
 }
 
 impl ownable_tools::Ownable for Custodian {
