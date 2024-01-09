@@ -1,13 +1,13 @@
-export * from "./state/";
+export * from "./state";
 
 import { ChainId } from "@certusone/wormhole-sdk";
 import { BN, Program } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import IDL from "../../../target/idl/matching_engine.json";
-import { MatchingEngine } from "../../../target/types/matching_engine";
+import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { AuctionConfig, Custodian, RouterEndpoint } from "./state";
 import { WormholeCctpProgram } from "../wormholeCctp";
+import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 
 export const PROGRAM_IDS = ["MatchingEngine11111111111111111111111111111"] as const;
 
@@ -111,6 +111,8 @@ export class MatchingEngineProgram {
                 owner,
                 custodian: inputCustodian ?? this.custodianAddress(),
                 newOwner,
+                programData: getProgramData(this.ID),
+                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -125,6 +127,8 @@ export class MatchingEngineProgram {
             .accounts({
                 pendingOwner,
                 custodian: inputCustodian ?? this.custodianAddress(),
+                programData: getProgramData(this.ID),
+                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -139,6 +143,8 @@ export class MatchingEngineProgram {
             .accounts({
                 owner,
                 custodian: inputCustodian ?? this.custodianAddress(),
+                programData: getProgramData(this.ID),
+                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
