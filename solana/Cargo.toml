@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "modules/*",
     "programs/*"
 ]
 resolver = "2"
@@ -16,18 +17,20 @@ repository = "https://github.com/wormhole-foundation/example-liquidity-layer"
 version = "0.0.1-alpha.1"
 default-features = false
 
-[workspace.dependencies.anchor-lang]
-version = "0.28.0"
-features = ["derive", "init-if-needed"]
-
 [workspace.dependencies]
 wormhole-io = "0.1.1"
+anchor-lang = "0.28.0"
 anchor-spl = "0.28.0"
 solana-program = "1.16.16"
 hex = "0.4.3"
 ruint = "1.9.0"
 cfg-if = "1.0"
 hex-literal = "0.4.1"
+
+anyhow = "1.0"
+thiserror = "1.0"
+
+ownable-tools = { path = "modules/ownable-tools"}
 
 ### https://github.com/coral-xyz/anchor/issues/2755
 ### This dependency must be added for each program.

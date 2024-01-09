@@ -4,8 +4,7 @@ import { ChainId } from "@certusone/wormhole-sdk";
 import { BN, Program } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import IDL from "../../target/idl/token_router.json";
-import { TokenRouter } from "../../target/types/token_router";
+import { IDL, TokenRouter } from "../../target/types/token_router";
 import { Custodian, PayerSequence, RouterEndpoint } from "./state";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "./utils";
 import {
@@ -56,7 +55,7 @@ export class TokenRouterProgram {
     // TODO: fix this
     constructor(connection: Connection, programId?: ProgramId) {
         this._programId = programId ?? testnet();
-        this.program = new Program(IDL as any, new PublicKey(this._programId), {
+        this.program = new Program(IDL, new PublicKey(this._programId), {
             connection,
         });
     }

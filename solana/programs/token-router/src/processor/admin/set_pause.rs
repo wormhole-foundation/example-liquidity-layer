@@ -1,5 +1,6 @@
-use crate::state::Custodian;
+use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
+use ownable_tools::utils::assistant::only_authorized;
 
 #[derive(Accounts)]
 pub struct SetPause<'info> {
@@ -9,7 +10,7 @@ pub struct SetPause<'info> {
         mut,
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
-        constraint = super::require_owner_or_assistant(&custodian, &owner_or_assistant)?,
+        constraint = only_authorized(&custodian, &owner_or_assistant.key()) @ TokenRouterError::OwnerOrAssistantOnly,
     )]
     /// Sender Config account. This program requires that the `owner` specified
     /// in the context equals the pubkey specified in this account. Mutable.

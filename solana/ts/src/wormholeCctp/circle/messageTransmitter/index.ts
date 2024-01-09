@@ -1,10 +1,9 @@
 import { Program } from "@coral-xyz/anchor";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
-import MessageTransmitterIdl from "../idl/message_transmitter.json";
 import { CctpTokenBurnMessage } from "../messages";
 import { TokenMessengerMinterProgram } from "../tokenMessengerMinter";
-import { MessageTransmitter } from "../types/message_transmitter";
+import { IDL, MessageTransmitter } from "../types/message_transmitter";
 import { MessageTransmitterConfig } from "./MessageTransmitterConfig";
 import { UsedNonses } from "./UsedNonces";
 
@@ -33,7 +32,7 @@ export class MessageTransmitterProgram {
 
     constructor(connection: Connection, programId?: ProgramId) {
         this._programId = programId ?? testnet();
-        this.program = new Program(MessageTransmitterIdl as any, new PublicKey(this._programId), {
+        this.program = new Program(IDL, new PublicKey(this._programId), {
             connection,
         });
     }
@@ -74,7 +73,7 @@ export class MessageTransmitterProgram {
             enabledAttesters.map((addr) => Array.from(addr.toBuffer())),
             BigInt(maxMessageBodySize.toString()),
             BigInt(nextAvailableNonce.toString()),
-            authorityBump,
+            authorityBump
         );
     }
 
@@ -85,7 +84,7 @@ export class MessageTransmitterProgram {
     authorityAddress(): PublicKey {
         return PublicKey.findProgramAddressSync(
             [Buffer.from("message_transmitter_authority")],
-            this.ID,
+            this.ID
         )[0];
     }
 
@@ -94,13 +93,13 @@ export class MessageTransmitterProgram {
             case testnet(): {
                 return new TokenMessengerMinterProgram(
                     this.program.provider.connection,
-                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
+                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
                 );
             }
             case mainnet(): {
                 return new TokenMessengerMinterProgram(
                     this.program.provider.connection,
-                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
+                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
                 );
             }
             default: {
@@ -111,7 +110,7 @@ export class MessageTransmitterProgram {
 
     receiveMessageAccounts(
         mint: PublicKey,
-        circleMessage: CctpTokenBurnMessage | Buffer,
+        circleMessage: CctpTokenBurnMessage | Buffer
     ): ReceiveMessageAccounts {
         const {
             cctp: { sourceDomain, nonce },
