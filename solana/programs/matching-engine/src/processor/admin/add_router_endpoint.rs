@@ -31,8 +31,6 @@ pub struct AddRouterEndpoint<'info> {
     )]
     router_endpoint: Account<'info, RouterEndpoint>,
 
-    remote_token_messenger: Option<AccountInfo<'info>>,
-
     system_program: Program<'info, System>,
 }
 
@@ -61,8 +59,7 @@ pub fn add_router_endpoint(
 
 fn check_constraints(args: &AddRouterEndpointArgs) -> Result<()> {
     require!(
-        args.chain != 0
-            && args.chain != wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
+        args.chain != 0,
         MatchingEngineError::ChainNotAllowed
     );
 

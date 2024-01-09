@@ -6,7 +6,7 @@ import * as splToken from "@solana/spl-token";
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import IDL from "../../../target/idl/matching_engine.json";
 import { MatchingEngine } from "../../../target/types/matching_engine";
-import { AuctionConfig, Custodian } from "./state";
+import { AuctionConfig, Custodian, RouterEndpoint } from "./state";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { WormholeCctpProgram } from "../wormholeCctp";
 
@@ -69,13 +69,13 @@ export class MatchingEngineProgram {
             .catch((_) => new BN(0));
     }
 
-    // routerEndpointAddress(chain: ChainId): PublicKey {
-    //     return RouterEndpoint.address(this.ID, chain);
-    // }
+    routerEndpointAddress(chain: ChainId): PublicKey {
+        return RouterEndpoint.address(this.ID, chain);
+    }
 
-    // async fetchRouterEndpoint(addr: PublicKey): Promise<RouterEndpoint> {
-    //     return this.program.account.routerEndpoint.fetch(addr);
-    // }
+    async fetchRouterEndpoint(addr: PublicKey): Promise<RouterEndpoint> {
+        return this.program.account.routerEndpoint.fetch(addr);
+    }
 
     async initializeIx(
         auctionConfig: AuctionConfig,
@@ -100,29 +100,29 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    // async addRouterEndpointIx(
-    //     accounts: {
-    //         ownerOrAssistant: PublicKey;
-    //         custodian?: PublicKey;
-    //         routerEndpoint?: PublicKey;
-    //     },
-    //     args: AddRouterEndpointArgs
-    // ): Promise<TransactionInstruction> {
-    //     const {
-    //         ownerOrAssistant,
-    //         custodian: inputCustodian,
-    //         routerEndpoint: inputRouterEndpoint,
-    //     } = accounts;
-    //     const { chain } = args;
-    //     return this.program.methods
-    //         .addRouterEndpoint(args)
-    //         .accounts({
-    //             ownerOrAssistant,
-    //             custodian: inputCustodian ?? this.custodianAddress(),
-    //             routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
-    //         })
-    //         .instruction();
-    // }
+    async addRouterEndpointIx(
+        accounts: {
+            ownerOrAssistant: PublicKey;
+            custodian?: PublicKey;
+            routerEndpoint?: PublicKey;
+        },
+        args: AddRouterEndpointArgs
+    ): Promise<TransactionInstruction> {
+        const {
+            ownerOrAssistant,
+            custodian: inputCustodian,
+            routerEndpoint: inputRouterEndpoint,
+        } = accounts;
+        const { chain } = args;
+        return this.program.methods
+            .addRouterEndpoint(args)
+            .accounts({
+                ownerOrAssistant,
+                custodian: inputCustodian ?? this.custodianAddress(),
+                routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
+            })
+            .instruction();
+    }
 }
 
 export function testnet(): ProgramId {
