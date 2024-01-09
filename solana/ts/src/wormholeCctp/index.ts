@@ -23,10 +23,9 @@ import {
     TokenMessengerMinterProgram,
 } from "./circle";
 import { BPF_LOADER_UPGRADEABLE_ID } from "./consts";
-import WormholeCctpSolanaIdl from "./idl/wormhole_cctp_solana.json";
 import { DepositWithPayload } from "./messages";
 import { Custodian, RegisteredEmitter } from "./state";
-import { WormholeCctpSolana } from "./types/wormhole_cctp_solana";
+import { IDL, WormholeCctpSolana } from "./types/wormhole_cctp_solana";
 import { Claim, VaaAccount } from "./wormhole";
 
 export const PROGRAM_IDS = [
@@ -119,7 +118,7 @@ export class WormholeCctpProgram {
 
     constructor(connection: Connection, programId?: ProgramId) {
         this._programId = programId ?? testnet();
-        this.program = new Program(WormholeCctpSolanaIdl as any, new PublicKey(this._programId), {
+        this.program = new Program(IDL, new PublicKey(this._programId), {
             connection,
         });
     }

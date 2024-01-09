@@ -1,5 +1,6 @@
 use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
+use ownable_tools::utils::{assistant, ownable::only_owner};
 
 #[derive(Accounts)]
 pub struct UpdateOwnerAssistant<'info> {
@@ -10,7 +11,7 @@ pub struct UpdateOwnerAssistant<'info> {
         mut,
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
-        has_one = owner @ TokenRouterError::OwnerOnly,
+        constraint = only_owner(&custodian, &owner.key()) @ TokenRouterError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
 
@@ -24,7 +25,10 @@ pub struct UpdateOwnerAssistant<'info> {
 }
 
 pub fn update_owner_assistant(ctx: Context<UpdateOwnerAssistant>) -> Result<()> {
-    ctx.accounts.custodian.owner_assistant = ctx.accounts.new_owner_assistant.key();
+    assistant::transfer_owner_assistant(
+        &mut ctx.accounts.custodian,
+        &ctx.accounts.new_owner_assistant.key(),
+    );
 
     // Done.
     Ok(())

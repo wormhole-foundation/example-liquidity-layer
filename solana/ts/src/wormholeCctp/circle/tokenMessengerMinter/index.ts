@@ -1,9 +1,8 @@
 import { Program } from "@coral-xyz/anchor";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
-import TokenMessengerMinterIdl from "../idl/token_messenger_minter.json";
 import { MessageTransmitterProgram } from "../messageTransmitter";
-import { TokenMessengerMinter } from "../types/token_messenger_minter";
+import { IDL, TokenMessengerMinter } from "../types/token_messenger_minter";
 import { RemoteTokenMessenger } from "./RemoteTokenMessenger";
 
 export const PROGRAM_IDS = ["CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"] as const;
@@ -33,7 +32,7 @@ export class TokenMessengerMinterProgram {
 
     constructor(connection: Connection, programId?: ProgramId) {
         this._programId = programId ?? testnet();
-        this.program = new Program(TokenMessengerMinterIdl as any, new PublicKey(this._programId), {
+        this.program = new Program(IDL, new PublicKey(this._programId), {
             connection,
         });
     }
@@ -53,7 +52,7 @@ export class TokenMessengerMinterProgram {
     custodyTokenAddress(mint: PublicKey): PublicKey {
         return PublicKey.findProgramAddressSync(
             [Buffer.from("custody"), mint.toBuffer()],
-            this.ID,
+            this.ID
         )[0];
     }
 
@@ -64,7 +63,7 @@ export class TokenMessengerMinterProgram {
                 Buffer.from(remoteDomain.toString()),
                 Buffer.from(remoteTokenAddress),
             ],
-            this.ID,
+            this.ID
         )[0];
     }
 
@@ -73,15 +72,16 @@ export class TokenMessengerMinterProgram {
     }
 
     async fetchRemoteTokenMessenger(addr: PublicKey): Promise<RemoteTokenMessenger> {
-        const { domain, tokenMessenger } =
-            await this.program.account.remoteTokenMessenger.fetch(addr);
+        const { domain, tokenMessenger } = await this.program.account.remoteTokenMessenger.fetch(
+            addr
+        );
         return new RemoteTokenMessenger(domain, Array.from(tokenMessenger.toBuffer()));
     }
 
     localTokenAddress(mint: PublicKey): PublicKey {
         return PublicKey.findProgramAddressSync(
             [Buffer.from("local_token"), mint.toBuffer()],
-            this.ID,
+            this.ID
         )[0];
     }
 
@@ -94,13 +94,13 @@ export class TokenMessengerMinterProgram {
             case testnet(): {
                 return new MessageTransmitterProgram(
                     this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
                 );
             }
             case mainnet(): {
                 return new MessageTransmitterProgram(
                     this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
                 );
             }
             default: {
@@ -111,7 +111,7 @@ export class TokenMessengerMinterProgram {
 
     depositForBurnWithCallerAccounts(
         mint: PublicKey,
-        remoteDomain: number,
+        remoteDomain: number
     ): DepositForBurnWithCallerAccounts {
         const messageTransmitterProgram = this.messageTransmitterProgram();
         return {

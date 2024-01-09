@@ -3,6 +3,7 @@ use crate::{
     state::{Custodian, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
+use ownable_tools::utils::assistant::only_authorized;
 use wormhole_cctp_solana::{
     cctp::token_messenger_minter_program::{self, RemoteTokenMessenger},
     utils::ExternalAccount,
@@ -11,15 +12,13 @@ use wormhole_cctp_solana::{
 #[derive(Accounts)]
 #[instruction(chain: u16)]
 pub struct AddRouterEndpoint<'info> {
-    #[account(
-        mut,
-        constraint = super::require_owner_or_assistant(&custodian, &owner_or_assistant)?,
-    )]
+    #[account(mut)]
     owner_or_assistant: Signer<'info>,
 
     #[account(
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
+        constraint = only_authorized(&custodian, &owner_or_assistant.key()) @ TokenRouterError::OwnerOrAssistantOnly,
     )]
     custodian: Account<'info, Custodian>,
 

@@ -24,7 +24,7 @@ integration-test = ["testnet"]
 wormhole-cctp-solana = { workspace = true, features = ["cpi"] }
 wormhole-io.workspace = true
 
-anchor-lang.workspace = true
+anchor-lang = { workspace = true, features = ["derive", "init-if-needed"] }
 anchor-spl.workspace = true
 solana-program.workspace = true
 

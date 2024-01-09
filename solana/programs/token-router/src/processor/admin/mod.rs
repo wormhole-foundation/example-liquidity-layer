@@ -12,18 +12,3 @@ pub use set_pause::*;
 
 mod update;
 pub use update::*;
-
-use crate::{error::TokenRouterError, state::Custodian};
-use anchor_lang::prelude::*;
-
-pub(self) fn require_owner_or_assistant(
-    custodian: &Custodian,
-    caller: &AccountInfo,
-) -> Result<bool> {
-    require!(
-        *caller.key == custodian.owner || *caller.key == custodian.owner_assistant,
-        TokenRouterError::OwnerOrAssistantOnly
-    );
-
-    Ok(true)
-}

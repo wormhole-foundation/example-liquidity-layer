@@ -1,5 +1,6 @@
 use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
+use ownable_tools::utils::{ownable, pending_owner};
 
 #[derive(Accounts)]
 pub struct SubmitOwnershipTransferRequest<'info> {
@@ -10,7 +11,7 @@ pub struct SubmitOwnershipTransferRequest<'info> {
         mut,
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
-        has_one = owner @ TokenRouterError::OwnerOnly,
+        constraint = ownable::only_owner(&custodian, &owner.key()) @ TokenRouterError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
 
@@ -27,7 +28,7 @@ pub struct SubmitOwnershipTransferRequest<'info> {
 pub fn submit_ownership_transfer_request(
     ctx: Context<SubmitOwnershipTransferRequest>,
 ) -> Result<()> {
-    ctx.accounts.custodian.pending_owner = Some(ctx.accounts.new_owner.key());
+    pending_owner::transfer_ownership(&mut ctx.accounts.custodian, &ctx.accounts.new_owner.key());
 
     // Done.
     Ok(())

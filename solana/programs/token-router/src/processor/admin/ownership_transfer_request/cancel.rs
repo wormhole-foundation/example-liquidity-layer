@@ -10,7 +10,7 @@ pub struct CancelOwnershipTransferRequest<'info> {
         mut,
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
-        has_one = owner @ TokenRouterError::OwnerOnly,
+        constraint = ownable_tools::utils::ownable::only_owner(&custodian, &owner.key()) @ TokenRouterError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
 }
@@ -18,7 +18,7 @@ pub struct CancelOwnershipTransferRequest<'info> {
 pub fn cancel_ownership_transfer_request(
     ctx: Context<CancelOwnershipTransferRequest>,
 ) -> Result<()> {
-    ctx.accounts.custodian.pending_owner = None;
+    ownable_tools::utils::pending_owner::cancel_transfer_ownership(&mut ctx.accounts.custodian);
 
     // Done.
     Ok(())

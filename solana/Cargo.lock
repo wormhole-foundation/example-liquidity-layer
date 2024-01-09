@@ -1332,6 +1332,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
+name = "ownable-tools"
+version = "0.0.0"
+dependencies = [
+ "anchor-lang",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2141,6 +2148,7 @@ dependencies = [
  "cfg-if",
  "hex",
  "hex-literal",
+ "ownable-tools",
  "ruint",
  "solana-program",
  "wormhole-cctp-solana",
