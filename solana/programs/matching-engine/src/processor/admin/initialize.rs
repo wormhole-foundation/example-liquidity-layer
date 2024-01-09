@@ -96,11 +96,11 @@ fn check_constraints(config: &AuctionConfig) -> Result<()> {
     );
     require!(
         config.user_penalty_reward_bps <= FEE_PRECISION_MAX,
-        MatchingEngineError::ValueLargerThanMaxPrecision
+        MatchingEngineError::UserPenaltyTooLarge
     );
     require!(
         config.initial_penalty_bps <= FEE_PRECISION_MAX,
-        MatchingEngineError::ValueLargerThanMaxPrecision
+        MatchingEngineError::InitialPenaltyTooLarge
     );
 
     // Done.
