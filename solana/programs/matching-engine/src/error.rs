@@ -44,7 +44,11 @@ pub enum MatchingEngineError {
     /// The auction grace period is less than the `auction_duration`.
     InvalidAuctionGracePeriod,
 
-    #[msg("ValueLargerThanMaxPrecision")]
+    #[msg("UserPenaltyTooLarge")]
     /// The value is larger than the maximum precision constant.
-    ValueLargerThanMaxPrecision,
+    UserPenaltyTooLarge,
+
+    #[msg("InitialPenaltyTooLarge")]
+    /// The value is larger than the maximum precision constant.
+    InitialPenaltyTooLarge,
 }
