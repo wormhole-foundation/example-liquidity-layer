@@ -1196,6 +1196,7 @@ dependencies = [
  "hex-literal",
  "ownable-tools",
  "ruint",
+ "shared-consts",
  "solana-program",
  "wormhole-cctp-solana",
  "wormhole-io",

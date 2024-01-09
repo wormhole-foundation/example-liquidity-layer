@@ -35,7 +35,21 @@ pub struct Initialize<'info> {
     )]
     fee_recipient: AccountInfo<'info>,
 
+    #[account(
+        init,
+        payer = owner,
+        seeds = [crate::constants::CUSTODY_TOKEN_SEED_PREFIX],
+        bump,
+        token::mint = mint,
+        token::authority = custodian
+    )]
+    custody_token: Account<'info, token::TokenAccount>,
+
+    #[account(address = shared_consts::usdc::id())]
+    mint: Account<'info, token::Mint>,
+
     system_program: Program<'info, System>,
+    token_program: Program<'info, token::Token>,
 }
 
 #[access_control(check_constraints(&config))]
@@ -46,6 +60,7 @@ pub fn initialize(
     let owner: Pubkey = ctx.accounts.owner.key();
     ctx.accounts.custodian.set_inner(Custodian {
         bump: ctx.bumps["custodian"],
+        custody_token_bump: ctx.bumps["custody_token"],
         owner,
         pending_owner: None,
         owner_assistant: ctx.accounts.owner_assistant.key(),

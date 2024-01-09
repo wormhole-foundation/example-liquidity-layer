@@ -81,9 +81,10 @@ export class MatchingEngineProgram {
             owner: PublicKey;
             ownerAssistant: PublicKey;
             feeRecipient: PublicKey;
+            mint: PublicKey;
         }
     ): Promise<TransactionInstruction> {
-        const { owner, ownerAssistant, feeRecipient } = accounts;
+        const { owner, ownerAssistant, feeRecipient, mint } = accounts;
 
         return this.program.methods
             .initialize(auctionConfig)
@@ -92,6 +93,8 @@ export class MatchingEngineProgram {
                 custodian: this.custodianAddress(),
                 ownerAssistant,
                 feeRecipient,
+                custodyToken: this.custodyTokenAccountAddress(),
+                mint,
             })
             .instruction();
     }

@@ -8,7 +8,7 @@ import {
     RouterEndpoint,
     MatchingEngineProgram,
 } from "../src/matching_engine";
-import { LOCALHOST, PAYER_KEYPAIR, expectIxErr, expectIxOk } from "./helpers";
+import { LOCALHOST, PAYER_KEYPAIR, expectIxErr, expectIxOk, USDC_MINT_ADDRESS } from "./helpers";
 
 chaiUse(chaiAsPromised);
 
@@ -39,11 +39,13 @@ describe("Matching Engine", function () {
             const createInitializeIx = (opts?: {
                 ownerAssistant?: PublicKey;
                 feeRecipient?: PublicKey;
+                mint?: PublicKey;
             }) =>
                 engine.initializeIx(auctionConfig, {
                     owner: payer.publicKey,
                     ownerAssistant: opts?.ownerAssistant ?? ownerAssistant.publicKey,
                     feeRecipient: opts?.feeRecipient ?? feeRecipient.publicKey,
+                    mint: opts?.mint ?? USDC_MINT_ADDRESS,
                 });
 
             it("Cannot Initialize With Default Owner Assistant", async function () {
@@ -83,6 +85,7 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
+                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -101,6 +104,7 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
+                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -119,6 +123,7 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
+                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -137,6 +142,7 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
+                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -150,6 +156,7 @@ describe("Matching Engine", function () {
                 const custodianData = await engine.fetchCustodian(engine.custodianAddress());
                 const expectedCustodianData = {
                     bump: 255,
+                    custodyTokenBump: 254,
                     owner: payer.publicKey,
                     pendingOwner: null,
                     ownerAssistant: ownerAssistant.publicKey,
