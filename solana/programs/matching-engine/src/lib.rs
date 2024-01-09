@@ -41,40 +41,24 @@ pub mod matching_engine {
         processor::add_router_endpoint(ctx, args)
     }
 
-    /// This instruction sets the `pending_owner` field in the `OwnerConfig`
-    /// account. This instruction is owner-only, meaning that only the owner
-    /// of the program (defined in the [Config] account) can submit an
-    /// ownership transfer request.
     pub fn submit_ownership_transfer_request(
         ctx: Context<SubmitOwnershipTransferRequest>,
     ) -> Result<()> {
         processor::submit_ownership_transfer_request(ctx)
     }
 
-    /// This instruction confirms that the `pending_owner` is the signer of
-    /// the transaction and updates the `owner` field in the `SenderConfig`,
-    /// `RedeemerConfig`, and `OwnerConfig` accounts.
     pub fn confirm_ownership_transfer_request(
         ctx: Context<ConfirmOwnershipTransferRequest>,
     ) -> Result<()> {
         processor::confirm_ownership_transfer_request(ctx)
     }
 
-    /// This instruction cancels the ownership transfer request by setting
-    /// the `pending_owner` field in the `OwnerConfig` account to `None`.
-    /// This instruction is owner-only, meaning that only the owner of the
-    /// program (defined in the [Config] account) can cancel an ownership
-    /// transfer request.
     pub fn cancel_ownership_transfer_request(
         ctx: Context<CancelOwnershipTransferRequest>,
     ) -> Result<()> {
         processor::cancel_ownership_transfer_request(ctx)
     }
 
-    /// This instruction updates the `assistant` field in the `OwnerConfig`
-    /// account. This instruction is owner-only, meaning that only the owner
-    /// of the program (defined in the [Config] account) can update the
-    /// assistant.
     pub fn update_owner_assistant(ctx: Context<UpdateOwnerAssistant>) -> Result<()> {
         processor::update_owner_assistant(ctx)
     }
