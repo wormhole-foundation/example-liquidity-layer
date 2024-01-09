@@ -30,7 +30,8 @@ hex-literal = "0.4.1"
 anyhow = "1.0"
 thiserror = "1.0"
 
-ownable-tools = { path = "modules/ownable-tools"}
+ownable-tools = { path = "modules/ownable-tools" }
+shared-consts = { path = "modules/shared-consts" }
 
 ### https://github.com/coral-xyz/anchor/issues/2755
 ### This dependency must be added for each program.

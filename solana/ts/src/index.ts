@@ -206,16 +206,17 @@ export class TokenRouterProgram {
     async initializeIx(accounts: {
         owner: PublicKey;
         ownerAssistant: PublicKey;
+        mint: PublicKey;
     }): Promise<TransactionInstruction> {
-        const { owner, ownerAssistant } = accounts;
+        const { owner, ownerAssistant, mint } = accounts;
         return this.program.methods
             .initialize()
             .accounts({
                 owner,
                 custodian: this.custodianAddress(),
                 ownerAssistant,
-                programData: getProgramData(this.ID),
-                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+                mint,
+                custodyToken: this.custodyTokenAccountAddress(),
             })
             .instruction();
     }

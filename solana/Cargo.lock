@@ -1757,6 +1757,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "shared-consts"
+version = "0.0.0"
+dependencies = [
+ "anchor-lang",
+ "cfg-if",
+]
+
+[[package]]
 name = "signature"
 version = "1.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2151,6 +2159,7 @@ dependencies = [
  "hex-literal",
  "ownable-tools",
  "ruint",
+ "shared-consts",
  "solana-program",
  "wormhole-cctp-solana",
  "wormhole-io",

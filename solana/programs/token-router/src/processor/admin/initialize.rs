@@ -1,6 +1,6 @@
 use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
-use solana_program::bpf_loader_upgradeable;
+use anchor_spl::token;
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -28,50 +28,34 @@ pub struct Initialize<'info> {
     )]
     owner_assistant: AccountInfo<'info>,
 
-    /// CHECK: BPF Loader Upgradeable program needs to modify this program's data to change the
-    /// upgrade authority. We check this PDA address just in case there is another program that this
-    /// deployer has deployed.
-    ///
-    /// NOTE: Set upgrade authority is scary because any public key can be used to set as the
-    /// authority.
     #[account(
-        mut,
-        seeds = [crate::ID.as_ref()],
+        init,
+        payer = owner,
+        seeds = [crate::constants::CUSTODY_TOKEN_SEED_PREFIX],
         bump,
-        seeds::program = bpf_loader_upgradeable_program,
+        token::mint = mint,
+        token::authority = custodian
     )]
-    program_data: AccountInfo<'info>,
+    custody_token: Account<'info, token::TokenAccount>,
 
-    /// CHECK: The account's pubkey must be the BPF Loader Upgradeable program's.
-    #[account(address = bpf_loader_upgradeable::id())]
-    bpf_loader_upgradeable_program: AccountInfo<'info>,
+    #[account(address = shared_consts::usdc::id())]
+    mint: Account<'info, token::Mint>,
 
     system_program: Program<'info, System>,
+    token_program: Program<'info, token::Token>,
 }
 
 pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
     let owner = ctx.accounts.owner.key();
     ctx.accounts.custodian.set_inner(Custodian {
         bump: ctx.bumps["custodian"],
+        custody_token_bump: ctx.bumps["custody_token"],
         paused: false,
         paused_set_by: owner,
         owner,
         pending_owner: None,
         owner_assistant: ctx.accounts.owner_assistant.key(),
     });
-
-    #[cfg(not(feature = "integration-test"))]
-    {
-        // Make the program immutable.
-        solana_program::program::invoke(
-            &bpf_loader_upgradeable::set_upgrade_authority(
-                &crate::ID,
-                &ctx.accounts.owner.key(),
-                None,
-            ),
-            &ctx.accounts.to_account_infos(),
-        )?;
-    }
 
     // Done.
     Ok(())
