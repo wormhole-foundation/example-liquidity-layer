@@ -1,5 +1,5 @@
 use crate::{error::MatchingEngineError, state::{Custodian, AuctionConfig}};
-use crate::constants::FEE_PRECISION_MAX;
+use crate::{constants::FEE_PRECISION_MAX, constants::UPGRADE_SEED_PREFIX};
 use anchor_lang::prelude::*;
 use solana_program::bpf_loader_upgradeable;
 
@@ -35,6 +35,15 @@ pub struct Initialize<'info> {
     )]
     fee_recipient: AccountInfo<'info>,
 
+    /// CHECK: We need this upgrade authority to invoke the BPF Loader Upgradeable program to
+    /// upgrade this program's executable. We verify this PDA address here out of convenience to get
+    /// the PDA bump seed to invoke the upgrade.
+    #[account(
+        seeds = [UPGRADE_SEED_PREFIX],
+        bump,
+    )]
+    upgrade_authority: AccountInfo<'info>,
+
     /// CHECK: BPF Loader Upgradeable program needs to modify this program's data to change the
     /// upgrade authority. We check this PDA address just in case there is another program that this
     /// deployer has deployed.
@@ -64,6 +73,7 @@ pub fn initialize(
     let owner: Pubkey = ctx.accounts.owner.key();
     ctx.accounts.custodian.set_inner(Custodian {
         bump: ctx.bumps["custodian"],
+        upgrade_authority_bump: ctx.bumps["upgrade_authority"],
         owner,
         pending_owner: None,
         owner_assistant: ctx.accounts.owner_assistant.key(),
@@ -71,16 +81,20 @@ pub fn initialize(
         auction_config: config
     });
 
+    // Finally set the upgrade authority to this program's upgrade PDA.
     #[cfg(not(feature = "integration-test"))]
     {
-        // Make the program immutable.
-        solana_program::program::invoke(
-            &bpf_loader_upgradeable::set_upgrade_authority(
+        solana_program::program::invoke_signed(
+            &bpf_loader_upgradeable::set_upgrade_authority_checked(
                 &crate::ID,
                 &ctx.accounts.owner.key(),
-                None,
+                &ctx.accounts.upgrade_authority.key(),
             ),
             &ctx.accounts.to_account_infos(),
+            &[&[
+                UPGRADE_SEED_PREFIX,
+                &[ctx.accounts.custodian.upgrade_authority_bump],
+            ]],
         )?;
     }
 

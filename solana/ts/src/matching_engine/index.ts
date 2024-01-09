@@ -49,6 +49,10 @@ export class MatchingEngineProgram {
         }
     }
 
+    upgradeAuthorityAddress(): PublicKey {
+        return PublicKey.findProgramAddressSync([Buffer.from("upgrade")], this.ID)[0];
+    }
+
     custodianAddress(): PublicKey {
         return Custodian.address(this.ID);
     }
@@ -93,6 +97,7 @@ export class MatchingEngineProgram {
                 custodian: this.custodianAddress(),
                 ownerAssistant,
                 feeRecipient,
+                upgradeAuthority: this.upgradeAuthorityAddress(),
                 programData: getProgramData(this.ID),
                 bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
