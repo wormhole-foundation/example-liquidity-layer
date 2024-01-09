@@ -8,15 +8,16 @@ pub struct Custodian {
     /// Boolean indicating whether outbound transfers are paused.
     pub paused: bool,
 
+    /// Program's owner.
+    pub owner: Pubkey,
+    pub pending_owner: Option<Pubkey>,
+
+    /// Program's assistant. Can be used to update the relayer fee and swap rate.
+    pub owner_assistant: Pubkey,
+
     /// Indicate who last set the `paused` value. When the program is first initialized, this is set
     /// to the `owner`.
     pub paused_set_by: Pubkey,
-
-    pub owner: Pubkey,
-
-    pub pending_owner: Option<Pubkey>,
-
-    pub owner_assistant: Pubkey,
 }
 
 impl Custodian {
