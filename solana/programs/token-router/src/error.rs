@@ -29,6 +29,10 @@ pub enum TokenRouterError {
     #[msg("InvalidChain")]
     InvalidChain = 0x20c,
 
+    /// Only the program's pending owner is permitted.
+    #[msg("NotPendingOwner")]
+    NotPendingOwner = 0x20e,
+
     #[msg("CctpRemoteTokenMessengerRequired")]
     CctpRemoteTokenMessengerRequired,
 
@@ -42,10 +46,6 @@ pub enum TokenRouterError {
     #[msg("OwnerOrAssistantOnly")]
     // Only the program's owner or assistant is permitted.
     OwnerOrAssistantOnly,
-
-    #[msg("NotPendingOwner")]
-    /// Only the program's pending owner is permitted.
-    NotPendingOwner,
 
     #[msg("AlreadyTheFeeRecipient")]
     /// Specified key is already the program's fee recipient.

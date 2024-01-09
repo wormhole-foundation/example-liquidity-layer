@@ -30,10 +30,7 @@ pub mod matching_engine {
     /// This instruction is be used to generate your program's config.
     /// And for convenience, we will store Wormhole-related PDAs in the
     /// config so we can verify these accounts with a simple == constraint.
-    pub fn initialize(
-        ctx: Context<Initialize>,
-        auction_config: AuctionConfig,
-    ) -> Result<()> {
+    pub fn initialize(ctx: Context<Initialize>, auction_config: AuctionConfig) -> Result<()> {
         processor::initialize(ctx, auction_config)
     }
 
@@ -42,5 +39,47 @@ pub mod matching_engine {
         args: AddRouterEndpointArgs,
     ) -> Result<()> {
         processor::add_router_endpoint(ctx, args)
+    }
+
+    /// This instruction sets the `pending_owner` field in the `OwnerConfig`
+    /// account. This instruction is owner-only, meaning that only the owner
+    /// of the program (defined in the [Config] account) can submit an
+    /// ownership transfer request.
+    pub fn submit_ownership_transfer_request(
+        ctx: Context<SubmitOwnershipTransferRequest>,
+    ) -> Result<()> {
+        processor::submit_ownership_transfer_request(ctx)
+    }
+
+    /// This instruction confirms that the `pending_owner` is the signer of
+    /// the transaction and updates the `owner` field in the `SenderConfig`,
+    /// `RedeemerConfig`, and `OwnerConfig` accounts.
+    pub fn confirm_ownership_transfer_request(
+        ctx: Context<ConfirmOwnershipTransferRequest>,
+    ) -> Result<()> {
+        processor::confirm_ownership_transfer_request(ctx)
+    }
+
+    /// This instruction cancels the ownership transfer request by setting
+    /// the `pending_owner` field in the `OwnerConfig` account to `None`.
+    /// This instruction is owner-only, meaning that only the owner of the
+    /// program (defined in the [Config] account) can cancel an ownership
+    /// transfer request.
+    pub fn cancel_ownership_transfer_request(
+        ctx: Context<CancelOwnershipTransferRequest>,
+    ) -> Result<()> {
+        processor::cancel_ownership_transfer_request(ctx)
+    }
+
+    /// This instruction updates the `assistant` field in the `OwnerConfig`
+    /// account. This instruction is owner-only, meaning that only the owner
+    /// of the program (defined in the [Config] account) can update the
+    /// assistant.
+    pub fn update_owner_assistant(ctx: Context<UpdateOwnerAssistant>) -> Result<()> {
+        processor::update_owner_assistant(ctx)
+    }
+
+    pub fn update_fee_recipient(ctx: Context<UpdateFeeRecipient>) -> Result<()> {
+        processor::update_fee_recipient(ctx)
     }
 }

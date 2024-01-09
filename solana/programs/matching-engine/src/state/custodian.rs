@@ -48,3 +48,33 @@ impl Custodian {
         self.owner == *key || self.owner_assistant == *key
     }
 }
+
+impl ownable_tools::Ownable for Custodian {
+    fn owner(&self) -> &Pubkey {
+        &self.owner
+    }
+
+    fn owner_mut(&mut self) -> &mut Pubkey {
+        &mut self.owner
+    }
+}
+
+impl ownable_tools::PendingOwner for Custodian {
+    fn pending_owner(&self) -> &Option<Pubkey> {
+        &self.pending_owner
+    }
+
+    fn pending_owner_mut(&mut self) -> &mut Option<Pubkey> {
+        &mut self.pending_owner
+    }
+}
+
+impl ownable_tools::OwnerAssistant for Custodian {
+    fn owner_assistant(&self) -> &Pubkey {
+        &self.owner_assistant
+    }
+
+    fn owner_assistant_mut(&mut self) -> &mut Pubkey {
+        &mut self.owner_assistant
+    }
+}

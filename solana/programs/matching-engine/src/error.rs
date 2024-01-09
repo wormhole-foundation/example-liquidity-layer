@@ -1,6 +1,4 @@
-use anchor_lang::prelude::error_code;
-
-#[error_code]
+#[anchor_lang::prelude::error_code]
 pub enum MatchingEngineError {
     #[msg("AssistantZeroPubkey")]
     AssistantZeroPubkey = 0x100,
@@ -12,6 +10,16 @@ pub enum MatchingEngineError {
     #[msg("OwnerOnly")]
     OwnerOnly = 0x200,
 
+    #[msg("InvalidNewOwner")]
+    InvalidNewOwner = 0x202,
+
+    /// Specified key is already the program's owner.
+    #[msg("AlreadyOwner")]
+    AlreadyOwner = 0x204,
+
+    #[msg("NoTransferOwnershipRequest")]
+    NoTransferOwnershipRequest = 0x206,
+
     #[msg("InvalidNewAssistant")]
     InvalidNewAssistant = 0x208,
 
@@ -20,6 +28,10 @@ pub enum MatchingEngineError {
 
     #[msg("InvalidChain")]
     InvalidChain = 0x20c,
+
+    /// Only the program's pending owner is permitted.
+    #[msg("NotPendingOwner")]
+    NotPendingOwner = 0x20e,
 
     #[msg("OwnerOrAssistantOnly")]
     // Only the program's owner or assistant is permitted.

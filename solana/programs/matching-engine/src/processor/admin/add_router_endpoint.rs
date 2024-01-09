@@ -3,13 +3,14 @@ use crate::{
     state::{Custodian, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
+use ownable_tools::utils::assistant::only_authorized;
 
 #[derive(Accounts)]
 #[instruction(chain: u16)]
 pub struct AddRouterEndpoint<'info> {
     #[account(
         mut,
-        constraint = super::require_owner_or_assistant(&custodian, &owner_or_assistant)?,
+        constraint = only_authorized(&custodian, &owner_or_assistant.key()) @ MatchingEngineError::OwnerOrAssistantOnly,
     )]
     owner_or_assistant: Signer<'info>,
 
@@ -58,10 +59,7 @@ pub fn add_router_endpoint(
 }
 
 fn check_constraints(args: &AddRouterEndpointArgs) -> Result<()> {
-    require!(
-        args.chain != 0,
-        MatchingEngineError::ChainNotAllowed
-    );
+    require!(args.chain != 0, MatchingEngineError::ChainNotAllowed);
 
     require!(
         args.address != [0; 32],

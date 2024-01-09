@@ -1194,6 +1194,7 @@ dependencies = [
  "cfg-if",
  "hex",
  "hex-literal",
+ "ownable-tools",
  "ruint",
  "solana-program",
  "wormhole-cctp-solana",
