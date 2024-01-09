@@ -150,7 +150,6 @@ describe("Matching Engine", function () {
                 const custodianData = await engine.fetchCustodian(engine.custodianAddress());
                 const expectedCustodianData = {
                     bump: 255,
-                    upgradeAuthorityBump: 253,
                     owner: payer.publicKey,
                     pendingOwner: null,
                     ownerAssistant: ownerAssistant.publicKey,

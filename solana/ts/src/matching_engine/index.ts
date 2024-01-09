@@ -7,7 +7,6 @@ import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import IDL from "../../../target/idl/matching_engine.json";
 import { MatchingEngine } from "../../../target/types/matching_engine";
 import { AuctionConfig, Custodian, RouterEndpoint } from "./state";
-import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { WormholeCctpProgram } from "../wormholeCctp";
 
 export const PROGRAM_IDS = ["MatchingEngine11111111111111111111111111111"] as const;
@@ -47,10 +46,6 @@ export class MatchingEngineProgram {
                 throw new Error("unsupported network");
             }
         }
-    }
-
-    upgradeAuthorityAddress(): PublicKey {
-        return PublicKey.findProgramAddressSync([Buffer.from("upgrade")], this.ID)[0];
     }
 
     custodianAddress(): PublicKey {
@@ -97,9 +92,6 @@ export class MatchingEngineProgram {
                 custodian: this.custodianAddress(),
                 ownerAssistant,
                 feeRecipient,
-                upgradeAuthority: this.upgradeAuthorityAddress(),
-                programData: getProgramData(this.ID),
-                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }

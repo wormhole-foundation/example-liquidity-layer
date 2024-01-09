@@ -28,7 +28,6 @@ pub struct AuctionConfig {
 #[derive(Debug, InitSpace)]
 pub struct Custodian {
     pub bump: u8,
-    pub upgrade_authority_bump: u8,
 
     /// Program's owner.
     pub owner: Pubkey,
