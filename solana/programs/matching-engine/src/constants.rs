@@ -1,5 +1,9 @@
 use anchor_lang::prelude::constant;
 
+/// Seed for upgrade authority.
+#[constant]
+pub const UPGRADE_SEED_PREFIX: &[u8] = b"upgrade";
+
 /// Seed for custody token account.
 #[constant]
 pub const CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"custody";

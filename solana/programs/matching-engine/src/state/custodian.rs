@@ -22,10 +22,13 @@ pub struct AuctionConfig {
     pub auction_penalty_blocks: u16,
 }
 
+/// TODO: Whitelist USDC mint key.
+
 #[account]
 #[derive(Debug, InitSpace)]
 pub struct Custodian {
     pub bump: u8,
+    pub upgrade_authority_bump: u8,
 
     /// Program's owner.
     pub owner: Pubkey,
