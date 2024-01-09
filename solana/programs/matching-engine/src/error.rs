@@ -44,10 +44,6 @@ pub enum MatchingEngineError {
     /// Specified foreign contract has a bad chain ID or zero address.
     InvalidEndpoint,
 
-    #[msg("AlreadyTheFeeRecipient")]
-    /// The specified account is already the fee recipient.
-    AlreadyTheFeeRecipient,
-
     #[msg("InvalidAuctionDuration")]
     /// The auction duration is zero.
     InvalidAuctionDuration,

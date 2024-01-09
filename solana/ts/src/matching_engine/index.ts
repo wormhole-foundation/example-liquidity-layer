@@ -24,7 +24,6 @@ export class MatchingEngineProgram {
 
     program: Program<MatchingEngine>;
 
-    // TODO: fix this
     constructor(connection: Connection, programId?: ProgramId) {
         this._programId = programId ?? testnet();
         this.program = new Program(IDL as any, new PublicKey(this._programId), {
@@ -100,6 +99,66 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    async submitOwnershipTransferIx(accounts: {
+        owner: PublicKey;
+        newOwner: PublicKey;
+        custodian?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const { owner, newOwner, custodian: inputCustodian } = accounts;
+        return this.program.methods
+            .submitOwnershipTransferRequest()
+            .accounts({
+                owner,
+                custodian: inputCustodian ?? this.custodianAddress(),
+                newOwner,
+            })
+            .instruction();
+    }
+
+    async confirmOwnershipTransferIx(accounts: {
+        pendingOwner: PublicKey;
+        custodian?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const { pendingOwner, custodian: inputCustodian } = accounts;
+        return this.program.methods
+            .confirmOwnershipTransferRequest()
+            .accounts({
+                pendingOwner,
+                custodian: inputCustodian ?? this.custodianAddress(),
+            })
+            .instruction();
+    }
+
+    async cancelOwnershipTransferIx(accounts: {
+        owner: PublicKey;
+        custodian?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const { owner, custodian: inputCustodian } = accounts;
+        return this.program.methods
+            .cancelOwnershipTransferRequest()
+            .accounts({
+                owner,
+                custodian: inputCustodian ?? this.custodianAddress(),
+            })
+            .instruction();
+    }
+
+    async updateOwnerAssistantIx(accounts: {
+        owner: PublicKey;
+        newOwnerAssistant: PublicKey;
+        custodian?: PublicKey;
+    }) {
+        const { owner, newOwnerAssistant, custodian: inputCustodian } = accounts;
+        return this.program.methods
+            .updateOwnerAssistant()
+            .accounts({
+                owner,
+                custodian: inputCustodian ?? this.custodianAddress(),
+                newOwnerAssistant,
+            })
+            .instruction();
+    }
+
     async addRouterEndpointIx(
         accounts: {
             ownerOrAssistant: PublicKey;
@@ -120,6 +179,22 @@ export class MatchingEngineProgram {
                 ownerOrAssistant,
                 custodian: inputCustodian ?? this.custodianAddress(),
                 routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
+            })
+            .instruction();
+    }
+
+    async updateFeeRecipientIx(accounts: {
+        ownerOrAssistant: PublicKey;
+        custodian?: PublicKey;
+        newFeeRecipient: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const { ownerOrAssistant, custodian: inputCustodian, newFeeRecipient } = accounts;
+        return this.program.methods
+            .updateFeeRecipient()
+            .accounts({
+                ownerOrAssistant,
+                custodian: inputCustodian ?? this.custodianAddress(),
+                newFeeRecipient,
             })
             .instruction();
     }

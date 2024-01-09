@@ -11,6 +11,7 @@ pub struct UpdateFeeRecipient<'info> {
     owner_or_assistant: Signer<'info>,
 
     #[account(
+        mut,
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
     )]
@@ -26,12 +27,6 @@ pub struct UpdateFeeRecipient<'info> {
 }
 
 pub fn update_fee_recipient(ctx: Context<UpdateFeeRecipient>) -> Result<()> {
-    // require_keys_neq!(
-    //     new_fee_recipient,
-    //     ctx.accounts.custodian.fee_recipient,
-    //     MatchingEngineError::AlreadyTheFeeRecipient
-    // );
-
     // Update the fee_recipient key.
     ctx.accounts.custodian.fee_recipient = ctx.accounts.new_fee_recipient.key();
 
