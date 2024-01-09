@@ -4,6 +4,7 @@ use anchor_lang::prelude::*;
 #[derive(Debug, InitSpace)]
 pub struct Custodian {
     pub bump: u8,
+    pub custody_token_bump: u8,
 
     /// Boolean indicating whether outbound transfers are paused.
     pub paused: bool,
@@ -22,10 +23,6 @@ pub struct Custodian {
 
 impl Custodian {
     pub const SEED_PREFIX: &'static [u8] = b"custodian";
-
-    // pub fn is_authorized(&self, owner_or_assistant: &Pubkey) -> bool {
-    //     self.owner_config.is_admin(owner_or_assistant)
-    // }
 }
 
 impl ownable_tools::Ownable for Custodian {

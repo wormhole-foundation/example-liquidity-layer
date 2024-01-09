@@ -1,9 +1,10 @@
 import { CHAINS, ChainId } from "@certusone/wormhole-sdk";
+import * as splToken from "@solana/spl-token";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import { Custodian, RouterEndpoint, TokenRouterProgram } from "../src";
-import { LOCALHOST, PAYER_KEYPAIR, expectIxErr, expectIxOk } from "./helpers";
+import { LOCALHOST, PAYER_KEYPAIR, USDC_MINT_ADDRESS, expectIxErr, expectIxOk } from "./helpers";
 
 chaiUse(chaiAsPromised);
 
@@ -24,11 +25,16 @@ describe("Token Router", function () {
 
     describe("Admin", function () {
         describe("Initialize", function () {
-            const createInitializeIx = (opts?: { ownerAssistant?: PublicKey }) =>
+            const createInitializeIx = (opts?: { ownerAssistant?: PublicKey; mint?: PublicKey }) =>
                 tokenRouter.initializeIx({
                     owner: payer.publicKey,
                     ownerAssistant: opts?.ownerAssistant ?? ownerAssistant.publicKey,
+                    mint: opts?.mint ?? USDC_MINT_ADDRESS,
                 });
+
+            it.skip("Cannot Initialize Without USDC Mint", async function () {
+                // TODO
+            });
 
             it("Cannot Initialize With Default Owner Assistant", async function () {
                 await expectIxErr(
@@ -47,6 +53,7 @@ describe("Token Router", function () {
                 );
                 const expectedCustodianData = {
                     bump: 253,
+                    custodyTokenBump: 254,
                     paused: false,
                     owner: payer.publicKey,
                     pendingOwner: null,
@@ -54,6 +61,12 @@ describe("Token Router", function () {
                     pausedSetBy: payer.publicKey,
                 } as Custodian;
                 expect(custodianData).to.eql(expectedCustodianData);
+
+                const custodyToken = await splToken.getAccount(
+                    connection,
+                    tokenRouter.custodyTokenAccountAddress()
+                );
+                expect(custodyToken.amount).to.equal(0n);
             });
 
             it("Cannot Call Instruction Again: initialize", async function () {
