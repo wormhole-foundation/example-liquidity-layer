@@ -1,3 +1,5 @@
+pub mod cpi;
+
 pub mod utils;
 
 use anchor_lang::prelude::Pubkey;

@@ -250,6 +250,8 @@ export class TokenRouterProgram {
                 owner,
                 custodian: inputCustodian ?? this.custodianAddress(),
                 newOwner,
+                programData: getProgramData(this.ID),
+                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -264,6 +266,8 @@ export class TokenRouterProgram {
             .accounts({
                 pendingOwner,
                 custodian: inputCustodian ?? this.custodianAddress(),
+                programData: getProgramData(this.ID),
+                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -278,6 +282,8 @@ export class TokenRouterProgram {
             .accounts({
                 owner,
                 custodian: inputCustodian ?? this.custodianAddress(),
+                programData: getProgramData(this.ID),
+                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }

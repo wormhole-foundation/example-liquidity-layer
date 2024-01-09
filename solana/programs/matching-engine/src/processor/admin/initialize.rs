@@ -1,8 +1,10 @@
-use crate::{error::MatchingEngineError, state::{Custodian, AuctionConfig}};
 use crate::constants::FEE_PRECISION_MAX;
-use anchor_spl::token;
+use crate::{
+    error::MatchingEngineError,
+    state::{AuctionConfig, Custodian},
+};
 use anchor_lang::prelude::*;
-
+use anchor_spl::token;
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -52,11 +54,8 @@ pub struct Initialize<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-#[access_control(check_constraints(&config))]
-pub fn initialize(
-    ctx: Context<Initialize>,
-    config: AuctionConfig,
-) -> Result<()> {
+#[access_control(check_constraints(&auction_config))]
+pub fn initialize(ctx: Context<Initialize>, auction_config: AuctionConfig) -> Result<()> {
     let owner: Pubkey = ctx.accounts.owner.key();
     ctx.accounts.custodian.set_inner(Custodian {
         bump: ctx.bumps["custodian"],
@@ -65,7 +64,7 @@ pub fn initialize(
         pending_owner: None,
         owner_assistant: ctx.accounts.owner_assistant.key(),
         fee_recipient: ctx.accounts.fee_recipient.key(),
-        auction_config: config
+        auction_config,
     });
 
     // Done.
@@ -73,7 +72,10 @@ pub fn initialize(
 }
 
 fn check_constraints(config: &AuctionConfig) -> Result<()> {
-    require!(config.auction_duration > 0, MatchingEngineError::InvalidAuctionDuration);
+    require!(
+        config.auction_duration > 0,
+        MatchingEngineError::InvalidAuctionDuration
+    );
     require!(
         config.auction_grace_period > config.auction_duration,
         MatchingEngineError::InvalidAuctionGracePeriod

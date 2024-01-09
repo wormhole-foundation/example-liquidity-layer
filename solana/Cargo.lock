@@ -1338,6 +1338,7 @@ name = "ownable-tools"
 version = "0.0.0"
 dependencies = [
  "anchor-lang",
+ "solana-program",
 ]
 
 [[package]]
