@@ -14,7 +14,7 @@ homepage = "https://wormhole.com"
 repository = "https://github.com/wormhole-foundation/example-liquidity-layer"
 
 [workspace.dependencies.wormhole-cctp-solana]
-version = "0.0.1-alpha.1"
+version = "0.0.1-alpha.2"
 default-features = false
 
 [workspace.dependencies]
