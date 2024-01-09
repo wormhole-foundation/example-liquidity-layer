@@ -1,4 +1,4 @@
-use crate::{error::TokenRouterError, state::Custodian};
+use crate::{error::MatchingEngineError, state::Custodian};
 use anchor_lang::prelude::*;
 use ownable_tools::utils::{assistant, ownable::only_owner};
 
@@ -11,7 +11,7 @@ pub struct UpdateOwnerAssistant<'info> {
         mut,
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
-        constraint = only_owner(&custodian, &owner.key()) @ TokenRouterError::OwnerOnly,
+        constraint = only_owner(&custodian, &owner.key()) @ MatchingEngineError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
 
@@ -19,7 +19,7 @@ pub struct UpdateOwnerAssistant<'info> {
     ///
     /// CHECK: Must not be zero pubkey.
     #[account(
-        constraint = new_owner_assistant.key() != Pubkey::default() @ TokenRouterError::InvalidNewAssistant,
+        constraint = new_owner_assistant.key() != Pubkey::default() @ MatchingEngineError::InvalidNewAssistant,
     )]
     new_owner_assistant: AccountInfo<'info>,
 }

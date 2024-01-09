@@ -21,6 +21,8 @@ testnet = ["wormhole-cctp-solana/testnet"]
 integration-test = ["testnet"]
 
 [dependencies]
+ownable-tools.workspace = true
+
 wormhole-cctp-solana = { workspace = true, features = ["cpi"] }
 wormhole-io.workspace = true
 
