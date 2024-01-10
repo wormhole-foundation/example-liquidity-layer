@@ -23,6 +23,7 @@ integration-test = ["testnet"]
 [dependencies]
 matching-engine.workspace = true
 
+liquidity-layer-messages.workspace = true
 ownable-tools.workspace = true
 shared-consts.workspace = true
 
