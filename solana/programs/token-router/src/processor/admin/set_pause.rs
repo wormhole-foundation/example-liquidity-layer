@@ -1,6 +1,6 @@
 use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
-use ownable_tools::utils::assistant::only_authorized;
+use common::admin::utils::assistant::only_authorized;
 
 #[derive(Accounts)]
 pub struct SetPause<'info> {

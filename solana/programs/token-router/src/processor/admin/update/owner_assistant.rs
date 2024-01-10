@@ -1,6 +1,6 @@
 use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
-use ownable_tools::utils::{assistant, ownable::only_owner};
+use common::admin::utils::{assistant, ownable::only_owner};
 
 #[derive(Accounts)]
 pub struct UpdateOwnerAssistant<'info> {

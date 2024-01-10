@@ -1,5 +1,6 @@
 use crate::{error::MatchingEngineError, state::Custodian};
 use anchor_lang::prelude::*;
+use common::admin::utils::ownable::only_owner;
 use solana_program::bpf_loader_upgradeable;
 
 #[derive(Accounts)]
@@ -11,7 +12,7 @@ pub struct CancelOwnershipTransferRequest<'info> {
         mut,
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
-        constraint = ownable_tools::utils::ownable::only_owner(&custodian, &owner.key()) @ MatchingEngineError::OwnerOnly,
+        constraint = only_owner(&custodian, &owner.key()) @ MatchingEngineError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
 
@@ -34,17 +35,17 @@ pub struct CancelOwnershipTransferRequest<'info> {
 pub fn cancel_ownership_transfer_request(
     ctx: Context<CancelOwnershipTransferRequest>,
 ) -> Result<()> {
-    ownable_tools::utils::pending_owner::cancel_transfer_ownership(&mut ctx.accounts.custodian);
+    common::admin::utils::pending_owner::cancel_transfer_ownership(&mut ctx.accounts.custodian);
 
     // Finally set the upgrade authority back to the current owner.
     #[cfg(not(feature = "integration-test"))]
     {
-        ownable_tools::cpi::set_upgrade_authority_checked(
+        common::admin::cpi::set_upgrade_authority_checked(
             CpiContext::new_with_signer(
                 ctx.accounts
                     .bpf_loader_upgradeable_program
                     .to_account_info(),
-                ownable_tools::cpi::SetUpgradeAuthorityChecked {
+                common::admin::cpi::SetUpgradeAuthorityChecked {
                     program_data: ctx.accounts.program_data.to_account_info(),
                     current_authority: ctx.accounts.custodian.to_account_info(),
                     new_authority: ctx.accounts.owner.to_account_info(),

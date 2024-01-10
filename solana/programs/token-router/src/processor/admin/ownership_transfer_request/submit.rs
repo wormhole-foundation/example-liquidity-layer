@@ -1,6 +1,6 @@
 use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
-use ownable_tools::utils::{ownable, pending_owner};
+use common::admin::utils::ownable::only_owner;
 use solana_program::bpf_loader_upgradeable;
 
 #[derive(Accounts)]
@@ -12,7 +12,7 @@ pub struct SubmitOwnershipTransferRequest<'info> {
         mut,
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
-        constraint = ownable::only_owner(&custodian, &owner.key()) @ TokenRouterError::OwnerOnly,
+        constraint = only_owner(&custodian, &owner.key()) @ TokenRouterError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
 
@@ -44,18 +44,21 @@ pub struct SubmitOwnershipTransferRequest<'info> {
 pub fn submit_ownership_transfer_request(
     ctx: Context<SubmitOwnershipTransferRequest>,
 ) -> Result<()> {
-    pending_owner::transfer_ownership(&mut ctx.accounts.custodian, &ctx.accounts.new_owner.key());
+    common::admin::utils::pending_owner::transfer_ownership(
+        &mut ctx.accounts.custodian,
+        &ctx.accounts.new_owner.key(),
+    );
 
     // Set the upgrade authority to the custodian for now. It will be set to the new owner once the
     // ownership transfer is confirmed.
     #[cfg(not(feature = "integration-test"))]
     {
-        ownable_tools::cpi::set_upgrade_authority_checked(
+        common::admin::cpi::set_upgrade_authority_checked(
             CpiContext::new_with_signer(
                 ctx.accounts
                     .bpf_loader_upgradeable_program
                     .to_account_info(),
-                ownable_tools::cpi::SetUpgradeAuthorityChecked {
+                common::admin::cpi::SetUpgradeAuthorityChecked {
                     program_data: ctx.accounts.program_data.to_account_info(),
                     current_authority: ctx.accounts.owner.to_account_info(),
                     new_authority: ctx.accounts.custodian.to_account_info(),

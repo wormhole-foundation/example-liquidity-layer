@@ -3,7 +3,7 @@ use crate::{
     state::{Custodian, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
-use ownable_tools::utils::assistant::only_authorized;
+use common::admin::utils::assistant::only_authorized;
 
 #[derive(Accounts)]
 #[instruction(chain: u16)]

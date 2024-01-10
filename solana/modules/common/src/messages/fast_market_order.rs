@@ -1,15 +1,25 @@
-//! Fast Fill
+//! Fast Market Order
 
-use crate::Fill;
 use wormhole_io::{Readable, TypePrefixedPayload, Writeable};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FastFill {
-    pub fill: Fill,
-    pub amount: u128,
+pub struct FastMarketOrder {
+    pub amount_in: u128,
+    pub min_amount_out: u128,
+    pub target_chain: u16,
+    pub destination_cctp_domain: u32,
+    pub redeemer: [u8; 32],
+    pub sender: [u8; 32],
+    pub refund_address: [u8; 32],
+    pub slow_sequence: u64,
+    pub slow_emitter: [u8; 32],
+    pub max_fee: u128,
+    pub init_auction_fee: u128,
+    pub deadline: u32,
+    pub redeemer_message: super::RedeemerMessage,
 }
 
-impl Readable for FastFill {
+impl Readable for FastMarketOrder {
     const SIZE: Option<usize> = None;
 
     fn read<R>(reader: &mut R) -> std::io::Result<Self>
@@ -18,15 +28,26 @@ impl Readable for FastFill {
         R: std::io::Read,
     {
         Ok(Self {
-            fill: Readable::read(reader)?,
-            amount: Readable::read(reader)?,
+            amount_in: Readable::read(reader)?,
+            min_amount_out: Readable::read(reader)?,
+            target_chain: Readable::read(reader)?,
+            destination_cctp_domain: Readable::read(reader)?,
+            redeemer: Readable::read(reader)?,
+            sender: Readable::read(reader)?,
+            refund_address: Readable::read(reader)?,
+            slow_sequence: Readable::read(reader)?,
+            slow_emitter: Readable::read(reader)?,
+            max_fee: Readable::read(reader)?,
+            init_auction_fee: Readable::read(reader)?,
+            deadline: Readable::read(reader)?,
+            redeemer_message: Readable::read(reader)?,
         })
     }
 }
 
-impl Writeable for FastFill {
+impl Writeable for FastMarketOrder {
     fn written_size(&self) -> usize {
-        self.fill.written_size() + 16
+        16 + 16 + 2 + 4 + 32 + 32 + 32 + 8 + 32 + 16 + 16 + 4 + self.redeemer_message.written_size()
     }
 
     fn write<W>(&self, writer: &mut W) -> std::io::Result<()>
@@ -34,14 +55,25 @@ impl Writeable for FastFill {
         Self: Sized,
         W: std::io::Write,
     {
-        self.fill.write(writer)?;
-        self.amount.write(writer)?;
+        self.amount_in.write(writer)?;
+        self.min_amount_out.write(writer)?;
+        self.target_chain.write(writer)?;
+        self.destination_cctp_domain.write(writer)?;
+        self.redeemer.write(writer)?;
+        self.sender.write(writer)?;
+        self.refund_address.write(writer)?;
+        self.slow_sequence.write(writer)?;
+        self.slow_emitter.write(writer)?;
+        self.max_fee.write(writer)?;
+        self.init_auction_fee.write(writer)?;
+        self.deadline.write(writer)?;
+        self.redeemer_message.write(writer)?;
         Ok(())
     }
 }
 
-impl TypePrefixedPayload for FastFill {
-    const TYPE: Option<u8> = Some(12);
+impl TypePrefixedPayload for FastMarketOrder {
+    const TYPE: Option<u8> = Some(13);
 }
 
 #[cfg(test)]

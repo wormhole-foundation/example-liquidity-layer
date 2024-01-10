@@ -17,18 +17,13 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
-testnet = ["shared-consts/testnet", "wormhole-cctp-solana/testnet"]
+testnet = ["common/testnet", "wormhole-cctp-solana/testnet"]
 integration-test = ["testnet"]
 
 [dependencies]
+common.workspace = true
 matching-engine.workspace = true
-
-liquidity-layer-messages.workspace = true
-ownable-tools.workspace = true
-shared-consts.workspace = true
-
 wormhole-cctp-solana = { workspace = true, features = ["cpi"] }
-wormhole-io.workspace = true
 
 anchor-lang = { workspace = true, features = ["derive", "init-if-needed"] }
 anchor-spl.workspace = true

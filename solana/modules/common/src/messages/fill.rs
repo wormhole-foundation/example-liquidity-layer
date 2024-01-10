@@ -1,27 +1,16 @@
-//! Fast Market Order
+//! Fill
 
 use wormhole_io::{Readable, TypePrefixedPayload, Writeable};
 
-use crate::RedeemerMessage;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FastMarketOrder {
-    pub amount_in: u128,
-    pub min_amount_out: u128,
-    pub target_chain: u16,
-    pub destination_cctp_domain: u32,
+pub struct Fill {
+    pub source_chain: u16,
+    pub order_sender: [u8; 32],
     pub redeemer: [u8; 32],
-    pub sender: [u8; 32],
-    pub refund_address: [u8; 32],
-    pub slow_sequence: u64,
-    pub slow_emitter: [u8; 32],
-    pub max_fee: u128,
-    pub init_auction_fee: u128,
-    pub deadline: u32,
-    pub redeemer_message: RedeemerMessage,
+    pub redeemer_message: super::RedeemerMessage,
 }
 
-impl Readable for FastMarketOrder {
+impl Readable for Fill {
     const SIZE: Option<usize> = None;
 
     fn read<R>(reader: &mut R) -> std::io::Result<Self>
@@ -30,26 +19,17 @@ impl Readable for FastMarketOrder {
         R: std::io::Read,
     {
         Ok(Self {
-            amount_in: Readable::read(reader)?,
-            min_amount_out: Readable::read(reader)?,
-            target_chain: Readable::read(reader)?,
-            destination_cctp_domain: Readable::read(reader)?,
+            source_chain: Readable::read(reader)?,
+            order_sender: Readable::read(reader)?,
             redeemer: Readable::read(reader)?,
-            sender: Readable::read(reader)?,
-            refund_address: Readable::read(reader)?,
-            slow_sequence: Readable::read(reader)?,
-            slow_emitter: Readable::read(reader)?,
-            max_fee: Readable::read(reader)?,
-            init_auction_fee: Readable::read(reader)?,
-            deadline: Readable::read(reader)?,
             redeemer_message: Readable::read(reader)?,
         })
     }
 }
 
-impl Writeable for FastMarketOrder {
+impl Writeable for Fill {
     fn written_size(&self) -> usize {
-        16 + 16 + 2 + 4 + 32 + 32 + 32 + 8 + 32 + 16 + 16 + 4 + self.redeemer_message.written_size()
+        2 + 32 + 32 + self.redeemer_message.written_size()
     }
 
     fn write<W>(&self, writer: &mut W) -> std::io::Result<()>
@@ -57,25 +37,16 @@ impl Writeable for FastMarketOrder {
         Self: Sized,
         W: std::io::Write,
     {
-        self.amount_in.write(writer)?;
-        self.min_amount_out.write(writer)?;
-        self.target_chain.write(writer)?;
-        self.destination_cctp_domain.write(writer)?;
+        self.source_chain.write(writer)?;
+        self.order_sender.write(writer)?;
         self.redeemer.write(writer)?;
-        self.sender.write(writer)?;
-        self.refund_address.write(writer)?;
-        self.slow_sequence.write(writer)?;
-        self.slow_emitter.write(writer)?;
-        self.max_fee.write(writer)?;
-        self.init_auction_fee.write(writer)?;
-        self.deadline.write(writer)?;
         self.redeemer_message.write(writer)?;
         Ok(())
     }
 }
 
-impl TypePrefixedPayload for FastMarketOrder {
-    const TYPE: Option<u8> = Some(13);
+impl TypePrefixedPayload for Fill {
+    const TYPE: Option<u8> = Some(11);
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use crate::PendingOwner;
+use crate::admin::PendingOwner;
 use anchor_lang::prelude::*;
 
 pub fn only_pending_owner_unchecked<A>(acct: &Account<A>, pending_owner: &Pubkey) -> bool

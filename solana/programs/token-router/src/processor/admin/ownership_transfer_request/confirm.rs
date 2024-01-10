@@ -1,6 +1,6 @@
 use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
-use ownable_tools::utils::pending_owner;
+use common::admin::utils::pending_owner;
 use solana_program::bpf_loader_upgradeable;
 
 #[derive(Accounts)]
@@ -42,12 +42,12 @@ pub fn confirm_ownership_transfer_request(
     // Finally set the upgrade authority to the pending owner (the new owner).
     #[cfg(not(feature = "integration-test"))]
     {
-        ownable_tools::cpi::set_upgrade_authority_checked(
+        common::admin::cpi::set_upgrade_authority_checked(
             CpiContext::new_with_signer(
                 ctx.accounts
                     .bpf_loader_upgradeable_program
                     .to_account_info(),
-                ownable_tools::cpi::SetUpgradeAuthorityChecked {
+                common::admin::cpi::SetUpgradeAuthorityChecked {
                     program_data: ctx.accounts.program_data.to_account_info(),
                     current_authority: ctx.accounts.custodian.to_account_info(),
                     new_authority: ctx.accounts.pending_owner.to_account_info(),

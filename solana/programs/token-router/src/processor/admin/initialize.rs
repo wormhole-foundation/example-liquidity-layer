@@ -38,7 +38,7 @@ pub struct Initialize<'info> {
     )]
     custody_token: Account<'info, token::TokenAccount>,
 
-    #[account(address = shared_consts::usdc::id())]
+    #[account(address = common::constants::usdc::id())]
     mint: Account<'info, token::Mint>,
 
     system_program: Program<'info, System>,

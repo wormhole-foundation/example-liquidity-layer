@@ -1,18 +1,15 @@
-//! Fill
+//! Fast Fill
 
+use crate::messages::Fill;
 use wormhole_io::{Readable, TypePrefixedPayload, Writeable};
 
-use super::RedeemerMessage;
-
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Fill {
-    pub source_chain: u16,
-    pub order_sender: [u8; 32],
-    pub redeemer: [u8; 32],
-    pub redeemer_message: RedeemerMessage,
+pub struct FastFill {
+    pub fill: Fill,
+    pub amount: u128,
 }
 
-impl Readable for Fill {
+impl Readable for FastFill {
     const SIZE: Option<usize> = None;
 
     fn read<R>(reader: &mut R) -> std::io::Result<Self>
@@ -21,17 +18,15 @@ impl Readable for Fill {
         R: std::io::Read,
     {
         Ok(Self {
-            source_chain: Readable::read(reader)?,
-            order_sender: Readable::read(reader)?,
-            redeemer: Readable::read(reader)?,
-            redeemer_message: Readable::read(reader)?,
+            fill: Readable::read(reader)?,
+            amount: Readable::read(reader)?,
         })
     }
 }
 
-impl Writeable for Fill {
+impl Writeable for FastFill {
     fn written_size(&self) -> usize {
-        2 + 32 + 32 + self.redeemer_message.written_size()
+        self.fill.written_size() + 16
     }
 
     fn write<W>(&self, writer: &mut W) -> std::io::Result<()>
@@ -39,16 +34,14 @@ impl Writeable for Fill {
         Self: Sized,
         W: std::io::Write,
     {
-        self.source_chain.write(writer)?;
-        self.order_sender.write(writer)?;
-        self.redeemer.write(writer)?;
-        self.redeemer_message.write(writer)?;
+        self.fill.write(writer)?;
+        self.amount.write(writer)?;
         Ok(())
     }
 }
 
-impl TypePrefixedPayload for Fill {
-    const TYPE: Option<u8> = Some(11);
+impl TypePrefixedPayload for FastFill {
+    const TYPE: Option<u8> = Some(12);
 }
 
 #[cfg(test)]

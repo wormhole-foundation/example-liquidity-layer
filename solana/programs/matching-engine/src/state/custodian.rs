@@ -48,7 +48,7 @@ impl Custodian {
     pub const SEED_PREFIX: &'static [u8] = b"custodian";
 }
 
-impl ownable_tools::Ownable for Custodian {
+impl common::admin::Ownable for Custodian {
     fn owner(&self) -> &Pubkey {
         &self.owner
     }
@@ -58,7 +58,7 @@ impl ownable_tools::Ownable for Custodian {
     }
 }
 
-impl ownable_tools::PendingOwner for Custodian {
+impl common::admin::PendingOwner for Custodian {
     fn pending_owner(&self) -> &Option<Pubkey> {
         &self.pending_owner
     }
@@ -68,7 +68,7 @@ impl ownable_tools::PendingOwner for Custodian {
     }
 }
 
-impl ownable_tools::OwnerAssistant for Custodian {
+impl common::admin::OwnerAssistant for Custodian {
     fn owner_assistant(&self) -> &Pubkey {
         &self.owner_assistant
     }

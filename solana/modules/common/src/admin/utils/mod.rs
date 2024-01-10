@@ -1,4 +1,3 @@
-#[cfg(feature = "assistant")]
 pub mod assistant;
 
 pub mod ownable;

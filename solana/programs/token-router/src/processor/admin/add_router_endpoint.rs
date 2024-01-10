@@ -3,7 +3,7 @@ use crate::{
     state::{Custodian, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
-use ownable_tools::utils::assistant::only_authorized;
+use common::admin::utils::assistant::only_authorized;
 use wormhole_cctp_solana::{
     cctp::token_messenger_minter_program::{self, RemoteTokenMessenger},
     utils::ExternalAccount,

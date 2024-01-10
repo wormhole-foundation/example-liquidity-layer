@@ -1,4 +1,4 @@
-use crate::OwnerAssistant;
+use crate::admin::OwnerAssistant;
 use anchor_lang::prelude::*;
 
 pub fn only_owner_assistant<A>(acct: &Account<A>, owner_assistant: &Pubkey) -> bool

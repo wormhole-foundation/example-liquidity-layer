@@ -1169,11 +1169,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "liquidity-layer-messages"
+name = "liquidity-layer-common-solana"
 version = "0.0.0"
 dependencies = [
+ "anchor-lang",
+ "cfg-if",
  "hex-literal",
  "ruint",
+ "solana-program",
  "wormhole-io",
 ]
 
@@ -1203,12 +1206,10 @@ dependencies = [
  "cfg-if",
  "hex",
  "hex-literal",
- "ownable-tools",
+ "liquidity-layer-common-solana",
  "ruint",
- "shared-consts",
  "solana-program",
  "wormhole-cctp-solana",
- "wormhole-io",
 ]
 
 [[package]]
@@ -1341,14 +1342,6 @@ name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
-
-[[package]]
-name = "ownable-tools"
-version = "0.0.0"
-dependencies = [
- "anchor-lang",
- "solana-program",
-]
 
 [[package]]
 name = "parking_lot"
@@ -1768,14 +1761,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "shared-consts"
-version = "0.0.0"
-dependencies = [
- "anchor-lang",
- "cfg-if",
-]
-
-[[package]]
 name = "signature"
 version = "1.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2168,14 +2153,11 @@ dependencies = [
  "cfg-if",
  "hex",
  "hex-literal",
- "liquidity-layer-messages",
+ "liquidity-layer-common-solana",
  "matching-engine",
- "ownable-tools",
  "ruint",
- "shared-consts",
  "solana-program",
  "wormhole-cctp-solana",
- "wormhole-io",
 ]
 
 [[package]]
