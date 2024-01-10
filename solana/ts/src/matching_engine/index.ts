@@ -204,6 +204,18 @@ export class MatchingEngineProgram {
             })
             .instruction();
     }
+
+    async placeInitialOfferIx(accounts: { payer: PublicKey; vaa: PublicKey }) {
+        const { payer, vaa } = accounts;
+        return this.program.methods
+            .placeInitialOffer()
+            .accounts({
+                payer,
+                custodian: this.custodianAddress(),
+                vaa,
+            })
+            .instruction();
+    }
 }
 
 export function testnet(): ProgramId {

@@ -1,4 +1,4 @@
-import { CHAINS, ChainId } from "@certusone/wormhole-sdk";
+import { CHAINS } from "@certusone/wormhole-sdk";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
@@ -8,7 +8,16 @@ import {
     RouterEndpoint,
     MatchingEngineProgram,
 } from "../src/matching_engine";
-import { LOCALHOST, PAYER_KEYPAIR, expectIxErr, expectIxOk, USDC_MINT_ADDRESS } from "./helpers";
+import {
+    LOCALHOST,
+    PAYER_KEYPAIR,
+    expectIxErr,
+    expectIxOk,
+    USDC_MINT_ADDRESS,
+    MOCK_GUARDIANS,
+} from "./helpers";
+import { FastMarketOrder, postFastTransferVaa } from "./helpers/matching_engine_utils";
+import { ethers } from "ethers";
 
 chaiUse(chaiAsPromised);
 
@@ -583,6 +592,46 @@ describe("Matching Engine", function () {
 
                 const custodianData = await engine.fetchCustodian(engine.custodianAddress());
                 expect(custodianData.feeRecipient).deep.equals(newFeeRecipient.publicKey);
+            });
+        });
+    });
+
+    describe("Business Logic", function () {
+        describe("Place Initial Offer", function () {
+            let wormholeSequence = 0n;
+
+            const baseFastOrder: FastMarketOrder = {
+                amountIn: 1000000000000000000n,
+                minAmountOut: 1000000000000000000n,
+                targetChain: 1,
+                targetDomain: 5,
+                redeemer: Buffer.from("deadbeef", "hex"),
+                sender: Buffer.from("deadbeef", "hex"),
+                refundAddress: Buffer.from("deadbeef", "hex"),
+                slowSequence: 0n,
+                slowEmitter: Buffer.from("deadbeef", "hex"),
+                maxFee: 10000n,
+                initAuctionFee: 100n,
+                deadline: 0,
+                redeemerMessage: Buffer.from("All your base are belong to us."),
+            };
+
+            it("Place Initial Offer", async function () {
+                const vaa = await postFastTransferVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    "0x" + Buffer.from(routerEndpointAddress).toString("hex")
+                );
+
+                const placeInitialOfferIx = engine.placeInitialOfferIx({
+                    payer: payer.publicKey,
+                    vaa,
+                });
+
+                await expectIxOk(connection, [await placeInitialOfferIx], [payer]);
             });
         });
     });
