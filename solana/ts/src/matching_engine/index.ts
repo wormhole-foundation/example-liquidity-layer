@@ -205,10 +205,10 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async placeInitialOfferIx(accounts: { payer: PublicKey; vaa: PublicKey }) {
+    async placeInitialOfferIx(feeOffer: number, accounts: { payer: PublicKey; vaa: PublicKey }) {
         const { payer, vaa } = accounts;
         return this.program.methods
-            .placeInitialOffer()
+            .placeInitialOffer(new BN(feeOffer))
             .accounts({
                 payer,
                 custodian: this.custodianAddress(),

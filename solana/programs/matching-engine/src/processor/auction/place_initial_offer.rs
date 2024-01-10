@@ -25,8 +25,9 @@ pub struct PlaceInitialOffer<'info> {
     system_program: Program<'info, System>,
 }
 
-pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>) -> Result<()> {
+pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> Result<()> {
     let vaa = core_bridge_program::VaaAccount::load(&ctx.accounts.vaa)?;
+
 
     Ok(())
 }

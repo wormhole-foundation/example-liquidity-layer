@@ -67,7 +67,10 @@ pub mod matching_engine {
         processor::update_fee_recipient(ctx)
     }
 
-    pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>) -> Result<()> {
-        processor::place_initial_offer(ctx)
+    pub fn place_initial_offer(
+        ctx: Context<PlaceInitialOffer>,
+        fee_offer: u64
+    ) -> Result<()> {
+        processor::place_initial_offer(ctx, fee_offer)
     }
 }

@@ -625,8 +625,9 @@ describe("Matching Engine", function () {
                     baseFastOrder,
                     "0x" + Buffer.from(routerEndpointAddress).toString("hex")
                 );
+                const startingOffer = 69000;
 
-                const placeInitialOfferIx = engine.placeInitialOfferIx({
+                const placeInitialOfferIx = engine.placeInitialOfferIx(startingOffer, {
                     payer: payer.publicKey,
                     vaa,
                 });
