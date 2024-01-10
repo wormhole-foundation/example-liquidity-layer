@@ -2159,6 +2159,7 @@ dependencies = [
  "cfg-if",
  "hex",
  "hex-literal",
+ "matching-engine",
  "ownable-tools",
  "ruint",
  "shared-consts",

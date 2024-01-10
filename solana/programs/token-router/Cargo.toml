@@ -21,6 +21,8 @@ testnet = ["shared-consts/testnet", "wormhole-cctp-solana/testnet"]
 integration-test = ["testnet"]
 
 [dependencies]
+matching-engine.workspace = true
+
 ownable-tools.workspace = true
 shared-consts.workspace = true
 
