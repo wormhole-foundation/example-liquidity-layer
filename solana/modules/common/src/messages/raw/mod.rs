@@ -1,7 +1,7 @@
 mod deposit;
 pub use deposit::*;
 
-use wormhole_raw_vaas::Payload;
+use wormhole_raw_vaas::{cctp::Deposit, Payload};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct LiquidityLayerPayload<'a> {
@@ -47,7 +47,7 @@ impl<'a> LiquidityLayerPayload<'a> {
 /// The non-type-flag contents
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum LiquidityLayerMessage<'a> {
-    Deposit(LiquidityLayerDeposit<'a>),
+    Deposit(Deposit<'a>),
     FastMarketOrder(FastMarketOrder<'a>),
 }
 
@@ -73,14 +73,14 @@ impl<'a> LiquidityLayerMessage<'a> {
         self.as_ref()
     }
 
-    pub fn deposit(&self) -> Option<&LiquidityLayerDeposit> {
+    pub fn deposit(&self) -> Option<&Deposit> {
         match self {
             Self::Deposit(inner) => Some(inner),
             _ => None,
         }
     }
 
-    pub fn to_deposit_unchecked(self) -> LiquidityLayerDeposit<'a> {
+    pub fn to_deposit_unchecked(self) -> Deposit<'a> {
         match self {
             Self::Deposit(inner) => inner,
             _ => panic!("LiquidityLayerMessage is not Deposit"),
@@ -107,7 +107,7 @@ impl<'a> LiquidityLayerMessage<'a> {
         }
 
         match span[0] {
-            1 => Ok(Self::Deposit(LiquidityLayerDeposit::parse(&span[1..])?)),
+            1 => Ok(Self::Deposit(Deposit::parse(&span[1..])?)),
             13 => Ok(Self::FastMarketOrder(FastMarketOrder::parse(&span[1..])?)),
             _ => Err("Unknown LiquidityLayerMessage type"),
         }
