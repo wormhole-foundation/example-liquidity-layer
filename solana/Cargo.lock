@@ -1178,6 +1178,7 @@ dependencies = [
  "ruint",
  "solana-program",
  "wormhole-io",
+ "wormhole-raw-vaas",
 ]
 
 [[package]]
@@ -2452,9 +2453,9 @@ checksum = "4965f46f7a99debe3c2cf9337c6e3eb7068da348aecf074a3e35686937f25c65"
 
 [[package]]
 name = "wormhole-raw-vaas"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "70807fcb111008fb8db7c5818907940f5b0b3da80d2b42f9b2ce6d3e040a8f03"
+checksum = "dbdd52bdb8835e72e364a86efaa454b56cda359ae31d196e8429c4566ce025ca"
 dependencies = [
  "ruint",
  "ruint-macro",

@@ -15,6 +15,7 @@ mainnet = []
 
 [dependencies]
 wormhole-io.workspace = true
+wormhole-raw-vaas.workspace = true
 
 anchor-lang.workspace = true
 solana-program.workspace = true

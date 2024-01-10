@@ -7,6 +7,8 @@ pub use fast_market_order::*;
 mod fill;
 pub use fill::*;
 
+pub mod raw;
+
 mod slow_order_response;
 pub use slow_order_response::*;
 

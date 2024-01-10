@@ -24,6 +24,11 @@ path = "programs/matching-engine"
 version = "0.0.1-alpha.2"
 default-features = false
 
+[workspace.dependencies.wormhole-raw-vaas]
+version = "0.1.2"
+features = ["on-chain"]
+default-features = false
+
 [workspace.dependencies]
 wormhole-io = "0.1.1"
 anchor-lang = "0.28.0"
