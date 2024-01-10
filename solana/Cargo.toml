@@ -30,7 +30,7 @@ features = ["on-chain"]
 default-features = false
 
 [workspace.dependencies]
-wormhole-io = "0.1.1"
+wormhole-io = "0.1.2"
 anchor-lang = "0.28.0"
 anchor-spl = "0.28.0"
 solana-program = "1.16.16"

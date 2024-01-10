@@ -1,4 +1,7 @@
-use wormhole_raw_vaas::{cctp::Deposit, Payload};
+mod deposit;
+pub use deposit::*;
+
+use wormhole_raw_vaas::Payload;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub struct LiquidityLayerPayload<'a> {
@@ -44,11 +47,8 @@ impl<'a> LiquidityLayerPayload<'a> {
 /// The non-type-flag contents
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum LiquidityLayerMessage<'a> {
-    Deposit(Deposit<'a>),
-    Fill(Fill<'a>),
-    FastFill(FastFill<'a>),
+    Deposit(LiquidityLayerDeposit<'a>),
     FastMarketOrder(FastMarketOrder<'a>),
-    SlowOrderResponse(SlowOrderResponse<'a>),
 }
 
 impl<'a> TryFrom<Payload<'a>> for LiquidityLayerMessage<'a> {
@@ -59,14 +59,11 @@ impl<'a> TryFrom<Payload<'a>> for LiquidityLayerMessage<'a> {
     }
 }
 
-impl AsRef<[u8]> for LiquidityLayerMessage<'_> {
+impl<'a> AsRef<[u8]> for LiquidityLayerMessage<'a> {
     fn as_ref(&self) -> &[u8] {
         match self {
             Self::Deposit(inner) => inner.as_ref(),
-            Self::Fill(inner) => inner.as_ref(),
-            Self::FastFill(inner) => inner.as_ref(),
             Self::FastMarketOrder(inner) => inner.as_ref(),
-            Self::SlowOrderResponse(inner) => inner.as_ref(),
         }
     }
 }
@@ -76,45 +73,17 @@ impl<'a> LiquidityLayerMessage<'a> {
         self.as_ref()
     }
 
-    pub fn deposit(&self) -> Option<&Deposit> {
+    pub fn deposit(&self) -> Option<&LiquidityLayerDeposit> {
         match self {
             Self::Deposit(inner) => Some(inner),
             _ => None,
         }
     }
 
-    pub fn to_deposit_unchecked(self) -> Deposit<'a> {
+    pub fn to_deposit_unchecked(self) -> LiquidityLayerDeposit<'a> {
         match self {
             Self::Deposit(inner) => inner,
             _ => panic!("LiquidityLayerMessage is not Deposit"),
-        }
-    }
-
-    pub fn fill(&self) -> Option<&Fill> {
-        match self {
-            Self::Fill(inner) => Some(inner),
-            _ => None,
-        }
-    }
-
-    pub fn to_fill_unchecked(self) -> Fill<'a> {
-        match self {
-            Self::Fill(inner) => inner,
-            _ => panic!("LiquidityLayerMessage is not Fill"),
-        }
-    }
-
-    pub fn fast_fill(&self) -> Option<&FastFill> {
-        match self {
-            Self::FastFill(inner) => Some(inner),
-            _ => None,
-        }
-    }
-
-    pub fn to_fast_fill_unchecked(self) -> FastFill<'a> {
-        match self {
-            Self::FastFill(inner) => inner,
-            _ => panic!("LiquidityLayerMessage is not FastFill"),
         }
     }
 
@@ -132,122 +101,16 @@ impl<'a> LiquidityLayerMessage<'a> {
         }
     }
 
-    pub fn slow_order_response(&self) -> Option<&SlowOrderResponse> {
-        match self {
-            Self::SlowOrderResponse(inner) => Some(inner),
-            _ => None,
-        }
-    }
-
-    pub fn to_slow_order_response_unchecked(self) -> SlowOrderResponse<'a> {
-        match self {
-            Self::SlowOrderResponse(inner) => inner,
-            _ => panic!("LiquidityLayerMessage is not SlowOrderResponse"),
-        }
-    }
-
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
         if span.is_empty() {
             return Err("LiquidityLayerMessage span too short. Need at least 1 byte");
         }
 
         match span[0] {
-            1 => Ok(Self::Deposit(Deposit::parse(&span[1..])?)),
-            11 => Ok(Self::Fill(Fill::parse(&span[1..])?)),
-            12 => Ok(Self::FastFill(FastFill::parse(&span[1..])?)),
+            1 => Ok(Self::Deposit(LiquidityLayerDeposit::parse(&span[1..])?)),
             13 => Ok(Self::FastMarketOrder(FastMarketOrder::parse(&span[1..])?)),
-            14 => Ok(Self::SlowOrderResponse(SlowOrderResponse::parse(
-                &span[1..],
-            )?)),
             _ => Err("Unknown LiquidityLayerMessage type"),
         }
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Fill<'a>(&'a [u8]);
-
-impl<'a> AsRef<[u8]> for Fill<'a> {
-    fn as_ref(&self) -> &[u8] {
-        self.0
-    }
-}
-
-impl<'a> Fill<'a> {
-    pub fn source_chain(&self) -> u16 {
-        u16::from_be_bytes(self.0[..2].try_into().unwrap())
-    }
-
-    pub fn order_sender(&self) -> [u8; 32] {
-        self.0[2..34].try_into().unwrap()
-    }
-
-    pub fn redeemer(&self) -> [u8; 32] {
-        self.0[34..66].try_into().unwrap()
-    }
-
-    pub fn redeemer_message_len(&self) -> u32 {
-        u32::from_be_bytes(self.0[66..70].try_into().unwrap())
-    }
-
-    pub fn redeemer_message(&self) -> &[u8] {
-        &self.0[70..]
-    }
-
-    pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
-        if span.len() < 70 {
-            return Err("Fill span too short. Need at least 70 bytes");
-        }
-
-        let fill = Self(span);
-
-        // Check payload length vs actual payload.
-        if fill.redeemer_message().len() != fill.redeemer_message_len().try_into().unwrap() {
-            return Err("Fill payload length mismatch");
-        }
-
-        Ok(fill)
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct FastFill<'a>(&'a [u8]);
-
-impl<'a> AsRef<[u8]> for FastFill<'a> {
-    fn as_ref(&self) -> &[u8] {
-        self.0
-    }
-}
-
-impl<'a> FastFill<'a> {
-    pub fn fill(&'a self) -> Fill<'a> {
-        Fill::parse(&self.0[..70 + usize::try_from(self.redeemer_message_len()).unwrap()]).unwrap()
-    }
-
-    pub fn amount(&self) -> u128 {
-        let len = usize::try_from(self.redeemer_message_len()).unwrap();
-        u128::from_be_bytes(self.0[70 + len..86 + len].try_into().unwrap())
-    }
-
-    // TODO: remove this when encoding changes.
-    fn redeemer_message_len(&self) -> u32 {
-        u32::from_be_bytes(self.0[66..70].try_into().unwrap())
-    }
-
-    pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
-        if span.len() < 86 {
-            return Err("FastFill span too short. Need at least 86 bytes");
-        }
-
-        let fast_fill = Self(span);
-
-        // Check payload length vs actual payload.
-        let fill = fast_fill.fill();
-        if fill.redeemer_message().len() != fill.redeemer_message_len().try_into().unwrap() {
-            return Err("Fill payload length mismatch");
-        }
-
-        Ok(fast_fill)
     }
 }
 

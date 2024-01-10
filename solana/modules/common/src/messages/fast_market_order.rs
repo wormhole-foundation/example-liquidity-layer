@@ -1,6 +1,6 @@
 //! Fast Market Order
 
-use wormhole_io::{Readable, TypePrefixedPayload, Writeable};
+use wormhole_io::{Readable, TypePrefixedPayload, Writeable, WriteableBytes};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FastMarketOrder {
@@ -16,7 +16,7 @@ pub struct FastMarketOrder {
     pub max_fee: u128,
     pub init_auction_fee: u128,
     pub deadline: u32,
-    pub redeemer_message: super::RedeemerMessage,
+    pub redeemer_message: WriteableBytes,
 }
 
 impl Readable for FastMarketOrder {

@@ -1,13 +1,13 @@
 //! Fill
 
-use wormhole_io::{Readable, TypePrefixedPayload, Writeable};
+use wormhole_io::{Readable, TypePrefixedPayload, Writeable, WriteableBytes};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Fill {
     pub source_chain: u16,
     pub order_sender: [u8; 32],
     pub redeemer: [u8; 32],
-    pub redeemer_message: super::RedeemerMessage,
+    pub redeemer_message: WriteableBytes,
 }
 
 impl Readable for Fill {

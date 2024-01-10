@@ -26,6 +26,15 @@ cfg_if::cfg_if! {
 pub mod token_router {
     use super::*;
 
+    pub fn place_market_order_cctp(
+        ctx: Context<PlaceMarketOrderCctp>,
+        args: PlaceMarketOrderCctpArgs,
+    ) -> Result<()> {
+        processor::place_market_order_cctp(ctx, args)
+    }
+
+    // admin
+
     /// This instruction is be used to generate your program's config.
     /// And for convenience, we will store Wormhole-related PDAs in the
     /// config so we can verify these accounts with a simple == constraint.
