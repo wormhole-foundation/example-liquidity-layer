@@ -33,6 +33,7 @@ hex-literal = "0.4.1"
 anyhow = "1.0"
 thiserror = "1.0"
 
+liquidity-layer-messages = { path = "modules/liquidity-layer-messages" }
 ownable-tools = { path = "modules/ownable-tools" }
 shared-consts = { path = "modules/shared-consts" }
 

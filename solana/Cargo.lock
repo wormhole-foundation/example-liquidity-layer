@@ -1169,6 +1169,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "liquidity-layer-messages"
+version = "0.0.0"
+dependencies = [
+ "hex-literal",
+ "ruint",
+ "wormhole-io",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2159,6 +2168,7 @@ dependencies = [
  "cfg-if",
  "hex",
  "hex-literal",
+ "liquidity-layer-messages",
  "matching-engine",
  "ownable-tools",
  "ruint",
