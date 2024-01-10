@@ -2453,9 +2453,9 @@ checksum = "a08bfc5177a40f089539b640b29b7d4520aa3ce465733d10a68eb4e389f77162"
 
 [[package]]
 name = "wormhole-raw-vaas"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbdd52bdb8835e72e364a86efaa454b56cda359ae31d196e8429c4566ce025ca"
+checksum = "d05bc16d11c8eb6f956c5de65bff05759ac2b961b16b054bef3666fe029db7c9"
 dependencies = [
  "ruint",
  "ruint-macro",

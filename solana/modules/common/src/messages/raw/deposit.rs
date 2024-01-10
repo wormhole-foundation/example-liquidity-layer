@@ -5,7 +5,6 @@ pub struct LiquidityLayerDeposit<'a> {
     span: &'a [u8],
 
     deposit: Deposit<'a>,
-    message: DepositMessage<'a>,
 }
 
 impl<'a> AsRef<[u8]> for LiquidityLayerDeposit<'a> {
@@ -31,8 +30,8 @@ impl<'a> LiquidityLayerDeposit<'a> {
         self.deposit
     }
 
-    pub fn message(&self) -> DepositMessage<'a> {
-        self.message
+    pub fn to_message(&'a self) -> Result<DepositMessage<'a>, &'static str> {
+        DepositMessage::try_from(self.deposit.payload())
     }
 
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
@@ -41,13 +40,8 @@ impl<'a> LiquidityLayerDeposit<'a> {
         }
 
         let deposit: Deposit = Deposit::parse(span)?;
-        let message = DepositMessage::parse(span)?;
 
-        Ok(Self {
-            span,
-            deposit,
-            message,
-        })
+        Ok(Self { span, deposit })
     }
 }
 
@@ -166,8 +160,8 @@ impl<'a> Fill<'a> {
         u32::from_be_bytes(self.0[66..70].try_into().unwrap())
     }
 
-    pub fn redeemer_message(&self) -> &[u8] {
-        &self.0[70..]
+    pub fn redeemer_message(&'a self) -> Payload<'a> {
+        Payload::parse(&self.0[70..])
     }
 
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {

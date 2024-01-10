@@ -176,8 +176,8 @@ impl<'a> FastMarketOrder<'a> {
         u32::from_be_bytes(self.0[210..214].try_into().unwrap())
     }
 
-    pub fn redeemer_message(&self) -> &[u8] {
-        &self.0[214..]
+    pub fn redeemer_message(&'a self) -> Payload<'a> {
+        Payload::parse(&self.0[214..])
     }
 
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
@@ -195,28 +195,5 @@ impl<'a> FastMarketOrder<'a> {
         }
 
         Ok(fast_market_order)
-    }
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct SlowOrderResponse<'a>(&'a [u8]);
-
-impl<'a> AsRef<[u8]> for SlowOrderResponse<'a> {
-    fn as_ref(&self) -> &[u8] {
-        self.0
-    }
-}
-
-impl<'a> SlowOrderResponse<'a> {
-    pub fn base_fee(&self) -> u128 {
-        u128::from_be_bytes(self.0[..16].try_into().unwrap())
-    }
-
-    pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
-        if span.len() != 16 {
-            return Err("SlowOrderResponse span too short. Need exactly 16 bytes");
-        }
-
-        Ok(Self(span))
     }
 }
