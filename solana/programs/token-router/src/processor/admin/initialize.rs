@@ -31,7 +31,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = owner,
-        seeds = [crate::constants::CUSTODY_TOKEN_SEED_PREFIX],
+        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
         bump,
         token::mint = mint,
         token::authority = custodian

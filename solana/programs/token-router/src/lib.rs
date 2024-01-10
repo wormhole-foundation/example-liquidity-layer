@@ -1,8 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::result_large_err)]
 
-pub mod constants;
-
 pub mod error;
 
 mod processor;

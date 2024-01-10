@@ -1,13 +1,12 @@
 use crate::{
     error::TokenRouterError,
-    state::{Custodian, RouterEndpoint},
+    state::{Custodian, PayerSequence, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::wormhole_io::TypePrefixedPayload;
 use wormhole_cctp_solana::{
     cctp::{message_transmitter_program, token_messenger_minter_program},
-    utils::ExternalAccount,
     wormhole::core_bridge_program,
 };
 
@@ -16,6 +15,18 @@ use wormhole_cctp_solana::{
 pub struct PlaceMarketOrderCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
+
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = 8 + PayerSequence::INIT_SPACE,
+        seeds = [
+            PayerSequence::SEED_PREFIX,
+            payer.key().as_ref()
+        ],
+        bump,
+    )]
+    payer_sequence: Account<'info, PayerSequence>,
 
     /// This program's Wormhole (Core Bridge) emitter authority.
     ///
@@ -36,15 +47,18 @@ pub struct PlaceMarketOrderCctp<'info> {
     /// Token Messenger Minter program's local token account.
     #[account(
         mut,
-        address = local_token.mint,
+        address = common::constants::usdc::id(),
     )]
     mint: AccountInfo<'info>,
 
     /// Token account where assets are burned from. The CCTP Token Messenger Minter program will
     /// burn the configured [amount](TransferTokensWithPayloadArgs::amount) from this account.
+    ///
+    /// CHECK: This account must have delegated authority or be owned by the
+    /// [burn_source_authority](Self::burn_source_authority). Its mint must be USDC.
     #[account(
         mut,
-        token::mint = mint
+        token::mint = mint,
     )]
     burn_source: Account<'info, token::TokenAccount>,
 
@@ -55,7 +69,7 @@ pub struct PlaceMarketOrderCctp<'info> {
     /// CHECK: Seeds must be \["custody"\].
     #[account(
         mut,
-        seeds = [crate::constants::CUSTODY_TOKEN_SEED_PREFIX],
+        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
         bump = custodian.custody_token_bump,
     )]
     custody_token: AccountInfo<'info>,
@@ -78,9 +92,17 @@ pub struct PlaceMarketOrderCctp<'info> {
     #[account(mut)]
     core_bridge_config: UncheckedAccount<'info>,
 
-    /// CHECK: Mutable signer to create Wormhole message account.
-    #[account(mut)]
-    core_message: Signer<'info>,
+    /// CHECK: Mutable. Seeds must be \["msg", payer, payer_sequence.value\].
+    #[account(
+        mut,
+        seeds = [
+            common::constants::CORE_MESSAGE_SEED_PREFIX,
+            payer.key().as_ref(),
+            payer_sequence.value.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    core_message: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["Sequence"\, custodian] (Wormhole Core Bridge program).
     #[account(mut)]
@@ -109,9 +131,9 @@ pub struct PlaceMarketOrderCctp<'info> {
 
     /// Local token account, which this program uses to validate the `mint` used to burn.
     ///
-    /// Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
+    /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
     #[account(mut)]
-    local_token: Box<Account<'info, ExternalAccount<token_messenger_minter_program::LocalToken>>>,
+    local_token: AccountInfo<'info>,
 
     core_bridge_program: Program<'info, core_bridge_program::CoreBridge>,
     token_messenger_minter_program:
@@ -151,6 +173,9 @@ pub fn place_market_order_cctp(
     ctx: Context<PlaceMarketOrderCctp>,
     args: PlaceMarketOrderCctpArgs,
 ) -> Result<()> {
+    // Set the bump just in case we use this account for anything else.
+    ctx.accounts.payer_sequence.bump = ctx.bumps["payer_sequence"];
+
     let PlaceMarketOrderCctpArgs {
         amount_in: amount,
         redeemer,
@@ -220,7 +245,19 @@ pub fn place_market_order_cctp(
                 clock: ctx.accounts.clock.to_account_info(),
                 rent: ctx.accounts.rent.to_account_info(),
             },
-            &[custodian_seeds],
+            &[
+                custodian_seeds,
+                &[
+                    common::constants::CORE_MESSAGE_SEED_PREFIX,
+                    ctx.accounts.payer.key().as_ref(),
+                    ctx.accounts
+                        .payer_sequence
+                        .take_and_uptick()
+                        .to_be_bytes()
+                        .as_ref(),
+                    &[ctx.bumps["core_message"]]
+                ],
+            ],
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
             burn_source: ctx.accounts.burn_source.key(),

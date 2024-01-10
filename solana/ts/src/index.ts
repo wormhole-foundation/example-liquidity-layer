@@ -17,11 +17,53 @@ export const PROGRAM_IDS = ["TokenRouter11111111111111111111111111111111"] as co
 
 export type ProgramId = (typeof PROGRAM_IDS)[number];
 
-export type TransferTokensWithRelayArgs = {
-    amount: BN;
-    toNativeTokenAmount: BN;
+export type PlaceMarketOrderCctpArgs = {
+    amountIn: bigint;
     targetChain: ChainId;
-    targetRecipientWallet: Array<number>;
+    redeemer: Array<number>;
+    redeemerMessage: Buffer;
+};
+
+export type PublishMessageAccounts = {
+    coreBridgeConfig: PublicKey;
+    coreEmitterSequence: PublicKey;
+    coreFeeCollector: PublicKey;
+    coreBridgeProgram: PublicKey;
+};
+
+export type TokenRouterCommonAccounts = PublishMessageAccounts & {
+    tokenRouterProgram: PublicKey;
+    systemProgram: PublicKey;
+    rent: PublicKey;
+    custodian: PublicKey;
+    custodyToken: PublicKey;
+    tokenMessenger: PublicKey;
+    tokenMinter: PublicKey;
+    tokenMessengerMinterSenderAuthority: PublicKey;
+    tokenMessengerMinterProgram: PublicKey;
+    messageTransmitterAuthority: PublicKey;
+    messageTransmitterConfig: PublicKey;
+    messageTransmitterProgram: PublicKey;
+    tokenProgram: PublicKey;
+    mint?: PublicKey;
+    localToken?: PublicKey;
+    tokenMessengerMinterCustodyToken?: PublicKey;
+};
+
+export type PlaceMarketOrderCctpAccounts = PublishMessageAccounts & {
+    custodian: PublicKey;
+    custodyToken: PublicKey;
+    routerEndpoint: PublicKey;
+    tokenMessengerMinterSenderAuthority: PublicKey;
+    messageTransmitterConfig: PublicKey;
+    tokenMessenger: PublicKey;
+    remoteTokenMessenger: PublicKey;
+    tokenMinter: PublicKey;
+    localToken: PublicKey;
+    coreBridgeProgram: PublicKey;
+    tokenMessengerMinterProgram: PublicKey;
+    messageTransmitterProgram: PublicKey;
+    tokenProgram: PublicKey;
 };
 
 export type AddRouterEndpointArgs = {
@@ -64,20 +106,6 @@ export class TokenRouterProgram {
         return this.program.programId;
     }
 
-    wormholeCctpProgram(): WormholeCctpProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new WormholeCctpProgram(
-                    this.program.provider.connection,
-                    "wCCTPvsyeL9qYqbHTv3DUAyzEfYcyHoYw5c4mgcbBeW"
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
-    }
-
     custodianAddress(): PublicKey {
         return Custodian.address(this.ID);
     }
@@ -90,13 +118,23 @@ export class TokenRouterProgram {
         return PublicKey.findProgramAddressSync([Buffer.from("custody")], this.ID)[0];
     }
 
+    coreMessageAddress(payer: PublicKey, payerSequenceValue: BN): PublicKey {
+        return PublicKey.findProgramAddressSync(
+            [Buffer.from("msg"), payer.toBuffer(), payerSequenceValue.toBuffer("be", 8)],
+            this.ID
+        )[0];
+    }
+
     payerSequenceAddress(payer: PublicKey): PublicKey {
         return PayerSequence.address(this.ID, payer);
     }
 
-    async fetchPayerSequence(addr: PublicKey): Promise<BN> {
-        return this.program.account.payerSequence
-            .fetch(addr)
+    async fetchPayerSequence(addr: PublicKey): Promise<PayerSequence> {
+        return this.program.account.payerSequence.fetch(addr);
+    }
+
+    async fetchPayerSequenceValue(addr: PublicKey): Promise<BN> {
+        return this.fetchPayerSequence(addr)
             .then((acct) => acct.value)
             .catch((_) => new BN(0));
     }
@@ -109,99 +147,140 @@ export class TokenRouterProgram {
         return this.program.account.routerEndpoint.fetch(addr);
     }
 
-    // async transferTokensWithRelayIx(
-    //     accounts: {
-    //         payer: PublicKey;
-    //         fromToken: PublicKey;
-    //         mint?: PublicKey;
-    //         custodian?: PublicKey;
-    //         registeredContract?: PublicKey;
-    //     },
-    //     args: TransferTokensWithRelayArgs
-    // ): Promise<TransactionInstruction> {
-    //     const connection = this.program.provider.connection;
+    async placeMarketOrderCctpAccounts(
+        mint: PublicKey,
+        targetChain: ChainId,
+        overrides: {
+            remoteDomain?: number;
+        } = {}
+    ): Promise<PlaceMarketOrderCctpAccounts> {
+        const { remoteDomain: inputRemoteDomain } = overrides;
 
-    //     const {
-    //         payer,
-    //         fromToken,
-    //         mint: inputMint,
-    //         custodian: inputCustodian,
-    //         registeredContract: inputRegisteredContract,
-    //     } = accounts;
-    //     const { amount, toNativeTokenAmount, targetChain, targetRecipientWallet } = args;
-    //     const mint = await (async () => {
-    //         if (inputMint === undefined) {
-    //             return splToken.getAccount(connection, fromToken).then((acct) => acct.mint);
-    //         } else {
-    //             return inputMint;
-    //         }
-    //     })();
+        const routerEndpoint = this.routerEndpointAddress(targetChain);
+        const remoteDomain = await (async () => {
+            if (inputRemoteDomain !== undefined) {
+                return inputRemoteDomain;
+            } else {
+                const cctpDomain = await this.fetchRouterEndpoint(routerEndpoint).then(
+                    (acct) => acct.cctpDomain
+                );
+                if (cctpDomain === null) {
+                    throw new Error("invalid router endpoint");
+                } else {
+                    return cctpDomain;
+                }
+            }
+        })();
 
-    //     // Fetch the signer sequence.
-    //     const payerSequence = this.payerSequenceAddress(payer);
-    //     const [coreMessage] = await this.program.account.payerSequence
-    //         .fetch(payerSequence)
-    //         .then((acct) => acct.value)
-    //         .catch(() => new BN(0))
-    //         .then((seq) =>
-    //             PublicKey.findProgramAddressSync(
-    //                 [Buffer.from("msg"), payer.toBuffer(), seq.toBuffer("be", 8)],
-    //                 this.ID
-    //             )
-    //         );
+        const {
+            senderAuthority: tokenMessengerMinterSenderAuthority,
+            messageTransmitterConfig,
+            tokenMessenger,
+            remoteTokenMessenger,
+            tokenMinter,
+            localToken,
+            messageTransmitterProgram,
+            tokenMessengerMinterProgram,
+            tokenProgram,
+        } = this.tokenMessengerMinterProgram().depositForBurnWithCallerAccounts(mint, remoteDomain);
 
-    //     const wormholeCctp = this.wormholeCctpProgram();
-    //     const {
-    //         custodian: wormCctpCustodian,
-    //         custodyToken: wormCctpCustodyToken,
-    //         registeredEmitter: wormCctpRegisteredEmitter,
-    //         coreBridgeConfig,
-    //         coreEmitterSequence,
-    //         coreFeeCollector,
-    //         tokenMessengerMinterSenderAuthority: cctpTokenMessengerMinterSenderAuthority,
-    //         messageTransmitterConfig: cctpMessageTransmitterConfig,
-    //         tokenMessenger: cctpTokenMessenger,
-    //         remoteTokenMessenger: cctpRemoteTokenMessenger,
-    //         tokenMinter: cctpTokenMinter,
-    //         localToken: cctpLocalToken,
-    //         tokenProgram,
-    //         coreBridgeProgram,
-    //         tokenMessengerMinterProgram: cctpTokenMessengerMinterProgram,
-    //         messageTransmitterProgram: cctpMessageTransmitterProgram,
-    //     } = await wormholeCctp.transferTokensWithPayloadAccounts(mint, targetChain);
+        const custodian = this.custodianAddress();
+        const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
+            this.publishMessageAccounts(custodian);
 
-    //     return this.program.methods
-    //         .transferTokensWithRelay({ amount, toNativeTokenAmount, targetRecipientWallet })
-    //         .accounts({
-    //             payer,
-    //             custodian: inputCustodian ?? this.custodianAddress(),
-    //             payerSequence,
-    //             registeredContract:
-    //                 inputRegisteredContract ?? this.registeredContractAddress(targetChain),
-    //             mint,
-    //             fromToken,
-    //             coreMessage,
-    //             custodyToken: this.custodyTokenAccountAddress(),
-    //             wormCctpCustodian,
-    //             wormCctpCustodyToken,
-    //             wormCctpRegisteredEmitter,
-    //             coreBridgeConfig,
-    //             coreEmitterSequence,
-    //             coreFeeCollector,
-    //             cctpTokenMessengerMinterSenderAuthority,
-    //             cctpMessageTransmitterConfig,
-    //             cctpTokenMessenger,
-    //             cctpRemoteTokenMessenger,
-    //             cctpTokenMinter,
-    //             cctpLocalToken,
-    //             tokenProgram,
-    //             wormholeCctpProgram: wormholeCctp.ID,
-    //             coreBridgeProgram,
-    //             cctpTokenMessengerMinterProgram,
-    //             cctpMessageTransmitterProgram,
-    //         })
-    //         .instruction();
-    // }
+        return {
+            custodian,
+            custodyToken: this.custodyTokenAccountAddress(),
+            routerEndpoint,
+            coreBridgeConfig,
+            coreEmitterSequence,
+            coreFeeCollector,
+            tokenMessengerMinterSenderAuthority,
+            messageTransmitterConfig,
+            tokenMessenger,
+            remoteTokenMessenger,
+            tokenMinter,
+            localToken,
+            coreBridgeProgram,
+            tokenMessengerMinterProgram,
+            messageTransmitterProgram,
+            tokenProgram,
+        };
+    }
+
+    async placeMarketOrderCctpIx(
+        accounts: {
+            payer: PublicKey;
+            mint: PublicKey;
+            burnSource: PublicKey;
+            burnSourceAuthority?: PublicKey;
+        },
+        args: PlaceMarketOrderCctpArgs
+    ): Promise<TransactionInstruction> {
+        let { payer, burnSource, mint, burnSourceAuthority: inputBurnSourceAuthority } = accounts;
+        const burnSourceAuthority =
+            inputBurnSourceAuthority ??
+            (await splToken
+                .getAccount(this.program.provider.connection, burnSource)
+                .then((token) => token.owner));
+
+        const { amountIn, targetChain, redeemer, redeemerMessage } = args;
+
+        const payerSequence = this.payerSequenceAddress(payer);
+        const coreMessage = await this.fetchPayerSequenceValue(payerSequence).then((value) =>
+            this.coreMessageAddress(payer, value)
+        );
+        const {
+            custodian,
+            custodyToken,
+            routerEndpoint,
+            coreBridgeConfig,
+            coreEmitterSequence,
+            coreFeeCollector,
+            coreBridgeProgram,
+            tokenMessengerMinterSenderAuthority,
+            messageTransmitterConfig,
+            tokenMessenger,
+            remoteTokenMessenger,
+            tokenMinter,
+            localToken,
+            tokenMessengerMinterProgram,
+            messageTransmitterProgram,
+            tokenProgram,
+        } = await this.placeMarketOrderCctpAccounts(mint, targetChain);
+
+        return this.program.methods
+            .placeMarketOrderCctp({
+                amountIn: new BN(amountIn.toString()),
+                redeemer,
+                redeemerMessage,
+            })
+            .accounts({
+                payer,
+                payerSequence,
+                custodian,
+                burnSourceAuthority,
+                mint,
+                burnSource,
+                custodyToken,
+                routerEndpoint,
+                coreBridgeConfig,
+                coreMessage,
+                coreEmitterSequence,
+                coreFeeCollector,
+                tokenMessengerMinterSenderAuthority,
+                messageTransmitterConfig,
+                tokenMessenger,
+                remoteTokenMessenger,
+                tokenMinter,
+                localToken,
+                coreBridgeProgram,
+                tokenMessengerMinterProgram,
+                messageTransmitterProgram,
+                tokenProgram,
+            })
+            .instruction();
+    }
 
     async initializeIx(accounts: {
         owner: PublicKey;
@@ -373,6 +452,26 @@ export class TokenRouterProgram {
                 throw new Error("unsupported network");
             }
         }
+    }
+
+    publishMessageAccounts(emitter: PublicKey): PublishMessageAccounts {
+        const coreBridgeProgram = this.coreBridgeProgramId();
+
+        return {
+            coreBridgeConfig: PublicKey.findProgramAddressSync(
+                [Buffer.from("Bridge")],
+                coreBridgeProgram
+            )[0],
+            coreEmitterSequence: PublicKey.findProgramAddressSync(
+                [Buffer.from("Sequence"), emitter.toBuffer()],
+                coreBridgeProgram
+            )[0],
+            coreFeeCollector: PublicKey.findProgramAddressSync(
+                [Buffer.from("fee_collector")],
+                coreBridgeProgram
+            )[0],
+            coreBridgeProgram,
+        };
     }
 
     coreBridgeProgramId(): PublicKey {

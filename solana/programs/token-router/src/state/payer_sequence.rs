@@ -1,8 +1,9 @@
 use anchor_lang::prelude::*;
 
 #[account]
-#[derive(InitSpace)]
+#[derive(Debug, InitSpace)]
 pub struct PayerSequence {
+    pub bump: u8,
     pub value: u64,
 }
 
@@ -15,13 +16,5 @@ impl PayerSequence {
         self.value += 1;
 
         seq
-    }
-}
-
-impl std::ops::Deref for PayerSequence {
-    type Target = u64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
     }
 }

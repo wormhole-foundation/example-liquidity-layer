@@ -22,7 +22,7 @@ pub struct Custodian {
 }
 
 impl Custodian {
-    pub const SEED_PREFIX: &'static [u8] = b"custodian";
+    pub const SEED_PREFIX: &'static [u8] = b"emitter";
 }
 
 impl common::admin::Ownable for Custodian {

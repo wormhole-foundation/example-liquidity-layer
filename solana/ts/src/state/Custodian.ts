@@ -28,6 +28,6 @@ export class Custodian {
     }
 
     static address(programId: PublicKey) {
-        return PublicKey.findProgramAddressSync([Buffer.from("custodian")], programId)[0];
+        return PublicKey.findProgramAddressSync([Buffer.from("emitter")], programId)[0];
     }
 }
