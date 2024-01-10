@@ -154,6 +154,11 @@ impl<'a> LiquidityLayerMessage<'a> {
         match span[0] {
             1 => Ok(Self::Deposit(Deposit::parse(&span[1..])?)),
             11 => Ok(Self::Fill(Fill::parse(&span[1..])?)),
+            12 => Ok(Self::FastFill(FastFill::parse(&span[1..])?)),
+            13 => Ok(Self::FastMarketOrder(FastMarketOrder::parse(&span[1..])?)),
+            14 => Ok(Self::SlowOrderResponse(SlowOrderResponse::parse(
+                &span[1..],
+            )?)),
             _ => Err("Unknown LiquidityLayerMessage type"),
         }
     }
