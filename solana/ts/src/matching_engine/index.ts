@@ -8,6 +8,8 @@ import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { AuctionConfig, Custodian, RouterEndpoint } from "./state";
 import { WormholeCctpProgram } from "../wormholeCctp";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
+import { AuctionData } from "./state/AuctionData";
+import { USDC_MINT_ADDRESS } from "../../tests/helpers";
 
 export const PROGRAM_IDS = ["MatchingEngine11111111111111111111111111111"] as const;
 
@@ -75,16 +77,23 @@ export class MatchingEngineProgram {
         return this.program.account.routerEndpoint.fetch(addr);
     }
 
+    auctionDataAddress(vaaHash: Buffer): PublicKey {
+        return AuctionData.address(this.ID, vaaHash);
+    }
+
+    async fetchAuctionData(vaaHash: Buffer): Promise<AuctionData> {
+        return this.program.account.auctionData.fetch(this.auctionDataAddress(vaaHash));
+    }
+
     async initializeIx(
         auctionConfig: AuctionConfig,
         accounts: {
             owner: PublicKey;
             ownerAssistant: PublicKey;
             feeRecipient: PublicKey;
-            mint: PublicKey;
         }
     ): Promise<TransactionInstruction> {
-        const { owner, ownerAssistant, feeRecipient, mint } = accounts;
+        const { owner, ownerAssistant, feeRecipient } = accounts;
 
         return this.program.methods
             .initialize(auctionConfig)
@@ -94,7 +103,7 @@ export class MatchingEngineProgram {
                 ownerAssistant,
                 feeRecipient,
                 custodyToken: this.custodyTokenAccountAddress(),
-                mint,
+                mint: USDC_MINT_ADDRESS,
             })
             .instruction();
     }
@@ -205,13 +214,25 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async placeInitialOfferIx(feeOffer: number, accounts: { payer: PublicKey; vaa: PublicKey }) {
+    async placeInitialOfferIx(
+        feeOffer: bigint,
+        fromChain: ChainId,
+        toChain: ChainId,
+        vaaHash: Buffer,
+        accounts: { payer: PublicKey; vaa: PublicKey }
+    ) {
         const { payer, vaa } = accounts;
         return this.program.methods
-            .placeInitialOffer(new BN(feeOffer))
+            .placeInitialOffer(new BN(feeOffer.toString()))
             .accounts({
                 payer,
                 custodian: this.custodianAddress(),
+                auctionData: this.auctionDataAddress(vaaHash),
+                fromRouterEndpoint: this.routerEndpointAddress(fromChain),
+                toRouterEndpoint: this.routerEndpointAddress(toChain),
+                auctioneerToken: splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, payer),
+                custodyToken: this.custodyTokenAccountAddress(),
+                mint: USDC_MINT_ADDRESS,
                 vaa,
             })
             .instruction();

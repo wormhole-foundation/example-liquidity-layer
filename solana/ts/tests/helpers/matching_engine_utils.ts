@@ -1,10 +1,20 @@
 import { coalesceChainId, parseVaa, tryNativeToHexString } from "@certusone/wormhole-sdk";
 import { MockEmitter, MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
+import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
 import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { postVaaSolana, solana as wormSolana } from "@certusone/wormhole-sdk";
-import { WORMHOLE_CONTRACTS } from "../../tests/helpers";
+import { WORMHOLE_CONTRACTS, USDC_MINT_ADDRESS } from "../../tests/helpers";
 import { ethers } from "ethers";
+
+export async function getTokenBalance(connection: Connection, address: PublicKey) {
+    return (
+        await getAccount(
+            connection,
+            await getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, address)
+        )
+    ).amount;
+}
 
 export async function postVaa(
     connection: Connection,
@@ -120,7 +130,7 @@ export async function postFastTransferVaa(
     sequence: bigint,
     fastMessage: FastMarketOrder,
     emitterAddress: string
-) {
+): Promise<[PublicKey, Buffer]> {
     const chainName = "ethereum";
     const foreignEmitter = new MockEmitter(
         tryNativeToHexString(emitterAddress, chainName),
@@ -138,5 +148,5 @@ export async function postFastTransferVaa(
 
     await postVaa(connection, payer, vaaBuf);
 
-    return derivePostedVaaKey(WORMHOLE_CONTRACTS.solana.core, parseVaa(vaaBuf).hash);
+    return [derivePostedVaaKey(WORMHOLE_CONTRACTS.solana.core, parseVaa(vaaBuf).hash), vaaBuf];
 }

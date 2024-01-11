@@ -1,6 +1,12 @@
-import { CHAINS } from "@certusone/wormhole-sdk";
+import { CHAINS, parseVaa, ChainId, keccak256 } from "@certusone/wormhole-sdk";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
+import {
+    mintTo,
+    getAccount,
+    getAssociatedTokenAddressSync,
+    getOrCreateAssociatedTokenAccount,
+} from "@solana/spl-token";
 import chaiAsPromised from "chai-as-promised";
 import {
     AuctionConfig,
@@ -16,8 +22,11 @@ import {
     USDC_MINT_ADDRESS,
     MOCK_GUARDIANS,
 } from "./helpers";
-import { FastMarketOrder, postFastTransferVaa } from "./helpers/matching_engine_utils";
-import { ethers } from "ethers";
+import {
+    FastMarketOrder,
+    getTokenBalance,
+    postFastTransferVaa,
+} from "./helpers/matching_engine_utils";
 
 chaiUse(chaiAsPromised);
 
@@ -30,9 +39,18 @@ describe("Matching Engine", function () {
     const ownerAssistant = Keypair.generate();
     const feeRecipient = Keypair.generate();
     const newFeeRecipient = Keypair.generate();
+    const auctioneerOne = Keypair.generate();
+    const auctioneerTwo = Keypair.generate();
 
-    const foreignChain = CHAINS.ethereum;
-    const routerEndpointAddress = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+    // Foreign endpoints.
+    const ethChain = CHAINS.ethereum;
+    const ethRouter = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+    const ethDomain = 0;
+    const arbChain = CHAINS.arbitrum;
+    const arbRouter = Array.from(Buffer.alloc(32, "bead", "hex"));
+    const arbDomain = 3;
+
+    // Matching Engine program.
     const engine = new MatchingEngineProgram(connection);
 
     describe("Admin", function () {
@@ -54,7 +72,6 @@ describe("Matching Engine", function () {
                     owner: payer.publicKey,
                     ownerAssistant: opts?.ownerAssistant ?? ownerAssistant.publicKey,
                     feeRecipient: opts?.feeRecipient ?? feeRecipient.publicKey,
-                    mint: opts?.mint ?? USDC_MINT_ADDRESS,
                 });
 
             it("Cannot Initialize With Default Owner Assistant", async function () {
@@ -94,7 +111,6 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
-                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -113,7 +129,6 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
-                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -132,7 +147,6 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
-                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -151,7 +165,6 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
-                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -439,6 +452,7 @@ describe("Matching Engine", function () {
         describe("Add Router Endpoint", function () {
             const createAddRouterEndpointIx = (opts?: {
                 sender?: PublicKey;
+                chain?: ChainId;
                 contractAddress?: Array<number>;
             }) =>
                 engine.addRouterEndpointIx(
@@ -446,8 +460,8 @@ describe("Matching Engine", function () {
                         ownerOrAssistant: opts?.sender ?? owner.publicKey,
                     },
                     {
-                        chain: foreignChain,
-                        address: opts?.contractAddress ?? routerEndpointAddress,
+                        chain: ethChain,
+                        address: opts?.contractAddress ?? ethRouter,
                     }
                 );
 
@@ -487,7 +501,7 @@ describe("Matching Engine", function () {
                     [
                         await engine.addRouterEndpointIx(
                             { ownerOrAssistant: owner.publicKey },
-                            { chain, address: routerEndpointAddress }
+                            { chain, address: ethRouter }
                         ),
                     ],
                     [owner],
@@ -522,11 +536,11 @@ describe("Matching Engine", function () {
                 );
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(
-                    engine.routerEndpointAddress(foreignChain)
+                    engine.routerEndpointAddress(ethChain)
                 );
                 const expectedRouterEndpointData = {
                     bump: 255,
-                    chain: foreignChain,
+                    chain: ethChain,
                     address: contractAddress,
                 } as RouterEndpoint;
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
@@ -537,19 +551,19 @@ describe("Matching Engine", function () {
                     connection,
                     [
                         await createAddRouterEndpointIx({
-                            contractAddress: routerEndpointAddress,
+                            contractAddress: ethRouter,
                         }),
                     ],
                     [owner]
                 );
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(
-                    engine.routerEndpointAddress(foreignChain)
+                    engine.routerEndpointAddress(ethChain)
                 );
                 const expectedRouterEndpointData = {
                     bump: 255,
-                    chain: foreignChain,
-                    address: routerEndpointAddress,
+                    chain: ethChain,
+                    address: ethRouter,
                 } as RouterEndpoint;
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
             });
@@ -597,43 +611,153 @@ describe("Matching Engine", function () {
     });
 
     describe("Business Logic", function () {
-        describe("Place Initial Offer", function () {
-            let wormholeSequence = 0n;
+        let wormholeSequence = 0n;
 
-            const baseFastOrder: FastMarketOrder = {
-                amountIn: 1000000000000000000n,
-                minAmountOut: 1000000000000000000n,
-                targetChain: 1,
-                targetDomain: 5,
-                redeemer: Buffer.from("deadbeef", "hex"),
-                sender: Buffer.from("deadbeef", "hex"),
-                refundAddress: Buffer.from("deadbeef", "hex"),
-                slowSequence: 0n,
-                slowEmitter: Buffer.from("deadbeef", "hex"),
-                maxFee: 10000n,
-                initAuctionFee: 100n,
-                deadline: 0,
-                redeemerMessage: Buffer.from("All your base are belong to us."),
-            };
+        const baseFastOrder: FastMarketOrder = {
+            amountIn: 500000000000n,
+            minAmountOut: 0n,
+            targetChain: arbChain,
+            targetDomain: arbDomain,
+            redeemer: Buffer.from("deadbeef", "hex"),
+            sender: Buffer.from("beefdead", "hex"),
+            refundAddress: Buffer.from("deadbeef", "hex"),
+            slowSequence: 0n,
+            slowEmitter: Buffer.from("beefdead", "hex"),
+            maxFee: 10000n,
+            initAuctionFee: 100n,
+            deadline: 0,
+            redeemerMessage: Buffer.from("All your base are belong to us."),
+        };
 
-            it("Place Initial Offer", async function () {
-                const vaa = await postFastTransferVaa(
+        before("Register To Router Endpoint", async function () {
+            await expectIxOk(
+                connection,
+                [
+                    await engine.addRouterEndpointIx(
+                        {
+                            ownerOrAssistant: owner.publicKey,
+                        },
+                        {
+                            chain: arbChain,
+                            address: arbRouter,
+                        }
+                    ),
+                ],
+                [owner]
+            );
+        });
+
+        before("Transfer Lamports to Auctioneers", async function () {
+            await expectIxOk(
+                connection,
+                [
+                    SystemProgram.transfer({
+                        fromPubkey: payer.publicKey,
+                        toPubkey: auctioneerOne.publicKey,
+                        lamports: 1000000000,
+                    }),
+                    SystemProgram.transfer({
+                        fromPubkey: payer.publicKey,
+                        toPubkey: auctioneerTwo.publicKey,
+                        lamports: 1000000000,
+                    }),
+                ],
+                [payer]
+            );
+        });
+
+        before("Create ATAs For Auctioneers", async function () {
+            for (const wallet of [auctioneerOne, auctioneerTwo]) {
+                await getOrCreateAssociatedTokenAccount(
                     connection,
-                    payer,
+                    wallet,
+                    USDC_MINT_ADDRESS,
+                    wallet.publicKey
+                );
+
+                // Mint USDC.
+                const mintAmount = 100000n * 10000000n;
+                const destination = await getAssociatedTokenAddressSync(
+                    USDC_MINT_ADDRESS,
+                    wallet.publicKey
+                );
+
+                await expect(
+                    mintTo(connection, payer, USDC_MINT_ADDRESS, destination, payer, mintAmount)
+                ).to.be.fulfilled;
+
+                const { amount } = await getAccount(connection, destination);
+                expect(amount).equals(mintAmount);
+            }
+        });
+
+        describe("Place Initial Offer", function () {
+            it("Place Initial Offer", async function () {
+                const [vaaKey, signedVaa] = await postFastTransferVaa(
+                    connection,
+                    auctioneerOne,
                     MOCK_GUARDIANS,
                     wormholeSequence++,
                     baseFastOrder,
-                    "0x" + Buffer.from(routerEndpointAddress).toString("hex")
+                    "0x" + Buffer.from(ethRouter).toString("hex")
                 );
-                const startingOffer = 69000;
 
-                const placeInitialOfferIx = engine.placeInitialOfferIx(startingOffer, {
-                    payer: payer.publicKey,
-                    vaa,
-                });
+                // Fetch the balances before.
+                const auctioneerBefore = await getTokenBalance(connection, auctioneerOne.publicKey);
+                const custodyBefore = (
+                    await getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
 
-                await expectIxOk(connection, [await placeInitialOfferIx], [payer]);
+                // Place the initial offer.
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.placeInitialOfferIx(
+                            baseFastOrder.maxFee,
+                            ethChain,
+                            arbChain,
+                            keccak256(parseVaa(signedVaa).hash),
+                            {
+                                payer: auctioneerOne.publicKey,
+                                vaa: vaaKey,
+                            }
+                        ),
+                    ],
+                    [auctioneerOne]
+                );
+
+                // Fetch the balances before.
+                const auctioneerAfter = await getTokenBalance(connection, auctioneerOne.publicKey);
+                const custodyAfter = (
+                    await getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+
+                expect(auctioneerAfter).equals(
+                    auctioneerBefore - baseFastOrder.maxFee - baseFastOrder.amountIn
+                );
+                expect(custodyAfter).equals(
+                    custodyBefore + baseFastOrder.maxFee + baseFastOrder.amountIn
+                );
+
+                // Confirm the auction data.
+                const vaaHash = keccak256(parseVaa(signedVaa).hash);
+                const auctionData = await engine.fetchAuctionData(vaaHash);
+                const slot = await connection.getSlot();
+
+                expect(auctionData.bump).to.equal(255);
+                expect(auctionData.vaaHash).to.eql(Array.from(vaaHash));
+                expect(auctionData.status).to.eql({ active: {} });
+                expect(auctionData.bestOffer).to.eql(auctioneerOne.publicKey);
+                expect(auctionData.initialAuctioneer).to.eql(auctioneerOne.publicKey);
+                expect(auctionData.startSlot.toString()).to.eql(slot.toString());
+                expect(auctionData.amount.toString()).to.eql(baseFastOrder.amountIn.toString());
+                expect(auctionData.securityDeposit.toString()).to.eql(
+                    baseFastOrder.maxFee.toString()
+                );
+                expect(auctionData.offerPrice.toString()).to.eql(baseFastOrder.maxFee.toString());
             });
         });
+
+        describe("Improve Offer", function () {});
     });
 });

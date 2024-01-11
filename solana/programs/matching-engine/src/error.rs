@@ -13,7 +13,6 @@ pub enum MatchingEngineError {
     #[msg("InvalidNewOwner")]
     InvalidNewOwner = 0x202,
 
-    /// Specified key is already the program's owner.
     #[msg("AlreadyOwner")]
     AlreadyOwner = 0x204,
 
@@ -29,34 +28,42 @@ pub enum MatchingEngineError {
     #[msg("InvalidChain")]
     InvalidChain = 0x20c,
 
-    /// Only the program's pending owner is permitted.
     #[msg("NotPendingOwner")]
     NotPendingOwner = 0x20e,
 
     #[msg("OwnerOrAssistantOnly")]
-    // Only the program's owner or assistant is permitted.
     OwnerOrAssistantOnly,
 
     #[msg("ChainNotAllowed")]
     ChainNotAllowed,
 
     #[msg("InvalidEndpoint")]
-    /// Specified foreign contract has a bad chain ID or zero address.
     InvalidEndpoint,
 
     #[msg("InvalidAuctionDuration")]
-    /// The auction duration is zero.
     InvalidAuctionDuration,
 
     #[msg("InvalidAuctionGracePeriod")]
-    /// The auction grace period is less than the `auction_duration`.
     InvalidAuctionGracePeriod,
 
     #[msg("UserPenaltyTooLarge")]
-    /// The value is larger than the maximum precision constant.
     UserPenaltyTooLarge,
 
     #[msg("InitialPenaltyTooLarge")]
-    /// The value is larger than the maximum precision constant.
     InitialPenaltyTooLarge,
+
+    #[msg("InvalidVaa")]
+    InvalidVaa,
+
+    #[msg("NotFastMarketOrder")]
+    NotFastMarketOrder,
+
+    #[msg("FastMarketOrderExpired")]
+    FastMarketOrderExpired,
+
+    #[msg("OfferPriceTooHigh")]
+    OfferPriceTooHigh,
+
+    #[msg("AuctionAlreadyStarted")]
+    AuctionAlreadyStarted,
 }

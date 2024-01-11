@@ -1,24 +1,29 @@
 use anchor_lang::prelude::*;
+use borsh::{BorshDeserialize, BorshSerialize};
 
+#[derive(BorshSerialize, BorshDeserialize, Clone, Copy, Debug, InitSpace, PartialEq, Eq)]
 pub enum AuctionStatus {
-    None,
+    NotStarted,
     Active,
     Completed,
 }
 
 #[account]
 #[derive(Debug, InitSpace)]
-pub struct Custodian {
+pub struct AuctionData {
     pub bump: u8,
+
+    /// VAA hash of the auction.
+    pub vaa_hash: [u8; 32],
 
     /// Auction status.
     pub status: AuctionStatus,
 
     /// The highest bidder of the auction.
-    pub highest_bidder: Pubkey,
+    pub best_offer: Pubkey,
 
     /// The initial bidder of the auction.
-    pub initial_bidder: Pubkey,
+    pub initial_auctioneer: Pubkey,
 
     /// The slot at which the auction started.
     pub start_slot: u64,
@@ -33,6 +38,6 @@ pub struct Custodian {
     pub offer_price: u64,
 }
 
-impl Custodian {
+impl AuctionData {
     pub const SEED_PREFIX: &'static [u8] = b"auction";
 }
