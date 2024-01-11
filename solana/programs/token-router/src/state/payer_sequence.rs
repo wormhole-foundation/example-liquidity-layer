@@ -3,7 +3,6 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(Debug, InitSpace)]
 pub struct PayerSequence {
-    pub bump: u8,
     pub value: u64,
 }
 

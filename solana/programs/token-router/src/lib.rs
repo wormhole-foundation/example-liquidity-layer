@@ -31,6 +31,10 @@ pub mod token_router {
         processor::place_market_order_cctp(ctx, args)
     }
 
+    pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: RedeemFillCctpArgs) -> Result<()> {
+        processor::redeem_fill_cctp(ctx, args)
+    }
+
     // admin
 
     /// This instruction is be used to generate your program's config.

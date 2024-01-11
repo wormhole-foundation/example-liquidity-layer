@@ -2,13 +2,13 @@ use wormhole_raw_vaas::Payload;
 
 /// The non-type-flag contents
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum DepositMessage<'a> {
+pub enum LiquidityLayerDepositMessage<'a> {
     Fill(Fill<'a>),
     FastFill(FastFill<'a>),
     SlowOrderResponse(SlowOrderResponse<'a>),
 }
 
-impl<'a> TryFrom<Payload<'a>> for DepositMessage<'a> {
+impl<'a> TryFrom<Payload<'a>> for LiquidityLayerDepositMessage<'a> {
     type Error = &'static str;
 
     fn try_from(payload: Payload<'a>) -> Result<Self, &'static str> {
@@ -16,7 +16,7 @@ impl<'a> TryFrom<Payload<'a>> for DepositMessage<'a> {
     }
 }
 
-impl<'a> AsRef<[u8]> for DepositMessage<'a> {
+impl<'a> AsRef<[u8]> for LiquidityLayerDepositMessage<'a> {
     fn as_ref(&self) -> &[u8] {
         match self {
             Self::Fill(inner) => inner.as_ref(),
@@ -26,7 +26,7 @@ impl<'a> AsRef<[u8]> for DepositMessage<'a> {
     }
 }
 
-impl<'a> DepositMessage<'a> {
+impl<'a> LiquidityLayerDepositMessage<'a> {
     pub fn span(&self) -> &[u8] {
         self.as_ref()
     }
@@ -41,7 +41,7 @@ impl<'a> DepositMessage<'a> {
     pub fn to_fill_unchecked(self) -> Fill<'a> {
         match self {
             Self::Fill(inner) => inner,
-            _ => panic!("DepositMessage is not Fill"),
+            _ => panic!("LiquidityLayerDepositMessage is not Fill"),
         }
     }
 
@@ -55,7 +55,7 @@ impl<'a> DepositMessage<'a> {
     pub fn to_fast_fill_unchecked(self) -> FastFill<'a> {
         match self {
             Self::FastFill(inner) => inner,
-            _ => panic!("DepositMessage is not FastFill"),
+            _ => panic!("LiquidityLayerDepositMessage is not FastFill"),
         }
     }
 
@@ -69,13 +69,13 @@ impl<'a> DepositMessage<'a> {
     pub fn to_slow_order_response_unchecked(self) -> SlowOrderResponse<'a> {
         match self {
             Self::SlowOrderResponse(inner) => inner,
-            _ => panic!("DepositMessage is not SlowOrderResponse"),
+            _ => panic!("LiquidityLayerDepositMessage is not SlowOrderResponse"),
         }
     }
 
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
         if span.is_empty() {
-            return Err("DepositMessage span too short. Need at least 1 byte");
+            return Err("LiquidityLayerDepositMessage span too short. Need at least 1 byte");
         }
 
         match span[0] {
@@ -84,7 +84,7 @@ impl<'a> DepositMessage<'a> {
             14 => Ok(Self::SlowOrderResponse(SlowOrderResponse::parse(
                 &span[1..],
             )?)),
-            _ => Err("Unknown DepositMessage type"),
+            _ => Err("Unknown LiquidityLayerDepositMessage type"),
         }
     }
 }

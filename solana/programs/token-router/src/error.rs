@@ -46,4 +46,16 @@ pub enum TokenRouterError {
 
     #[msg("RedeemerZeroAddress")]
     RedeemerZeroAddress = 0x102,
+
+    #[msg("UnknownEmitter")]
+    InvalidSourceRouter = 0x200,
+
+    #[msg("InvalidDepositMessage")]
+    InvalidDepositMessage = 0x202,
+
+    #[msg("NotFillMessage")]
+    InvalidPayloadId = 0x204,
+
+    #[msg("InvalidRedeemer")]
+    InvalidRedeemer = 0x206,
 }

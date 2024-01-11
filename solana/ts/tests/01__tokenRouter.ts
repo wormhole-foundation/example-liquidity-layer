@@ -519,7 +519,7 @@ describe("Token Router", function () {
         });
     });
 
-    describe("Outbound Transfers", () => {
+    describe("Place Market Order (CCTP)", () => {
         const payerToken = splToken.getAssociatedTokenAddressSync(
             USDC_MINT_ADDRESS,
             payer.publicKey
@@ -551,7 +551,19 @@ describe("Token Router", function () {
                 }
             );
 
-        it("Place Market Order (CCTP) as Payer", async function () {
+        it.skip("Cannot Place Market Order with Zero Amount", async function () {
+            // TODO
+        });
+
+        it.skip("Cannot Place Market Order with Redeemer as Zero Address", async function () {
+            // TODO
+        });
+
+        it.skip("Cannot Place Market Order with Unregistered Endpoint", async function () {
+            // TODO
+        });
+
+        it("Place Market Order as Payer", async function () {
             const amountIn = 69n;
 
             const balanceBefore = await splToken
@@ -567,6 +579,10 @@ describe("Token Router", function () {
             expect(balanceAfter + amountIn).equals(balanceBefore);
 
             // TODO: check message
+        });
+
+        it.skip("Place Market Order as Another Signer", async function () {
+            // TODO
         });
     });
 });

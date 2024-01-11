@@ -133,7 +133,7 @@ pub struct PlaceMarketOrderCctp<'info> {
     ///
     /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
     #[account(mut)]
-    local_token: AccountInfo<'info>,
+    local_token: UncheckedAccount<'info>,
 
     core_bridge_program: Program<'info, core_bridge_program::CoreBridge>,
     token_messenger_minter_program:
@@ -173,9 +173,6 @@ pub fn place_market_order_cctp(
     ctx: Context<PlaceMarketOrderCctp>,
     args: PlaceMarketOrderCctpArgs,
 ) -> Result<()> {
-    // Set the bump just in case we use this account for anything else.
-    ctx.accounts.payer_sequence.bump = ctx.bumps["payer_sequence"];
-
     let PlaceMarketOrderCctpArgs {
         amount_in: amount,
         redeemer,
@@ -255,7 +252,7 @@ pub fn place_market_order_cctp(
                         .take_and_uptick()
                         .to_be_bytes()
                         .as_ref(),
-                    &[ctx.bumps["core_message"]]
+                    &[ctx.bumps["core_message"]],
                 ],
             ],
         ),
