@@ -6,7 +6,6 @@ import * as splToken from "@solana/spl-token";
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { AuctionConfig, Custodian, RouterEndpoint } from "./state";
-import { WormholeCctpProgram } from "../wormholeCctp";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { AuctionData } from "./state/AuctionData";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
@@ -34,20 +33,6 @@ export class MatchingEngineProgram {
 
     get ID(): PublicKey {
         return this.program.programId;
-    }
-
-    wormholeCctpProgram(): WormholeCctpProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new WormholeCctpProgram(
-                    this.program.provider.connection,
-                    "wCCTPvsyeL9qYqbHTv3DUAyzEfYcyHoYw5c4mgcbBeW"
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
     }
 
     custodianAddress(): PublicKey {

@@ -37,6 +37,14 @@ pub struct RedeemFillCctp<'info> {
     /// CHECK: Signer must be the redeemer encoded in the Deposit Fill message.
     redeemer: Signer<'info>,
 
+    /// Destination token account, which the redeemer may not own. But because the redeemer is a
+    /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
+    /// to any account he chooses (this one).
+    ///
+    /// CHECK: This token account must already exist.
+    #[account(mut)]
+    dst_token: AccountInfo<'info>,
+
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
     /// from its custody account to this account.
@@ -111,6 +119,8 @@ pub struct RedeemFillCctp<'info> {
 ///
 /// See [verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint) for more details.
 pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: super::RedeemFillArgs) -> Result<()> {
+    let custodian_seeds = &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]];
+
     let vaa = wormhole_cctp_solana::cpi::verify_vaa_and_mint(
         &ctx.accounts.vaa,
         CpiContext::new_with_signer(
@@ -144,7 +154,7 @@ pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: super::RedeemFillArg
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
             },
-            &[&[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]]],
+            &[custodian_seeds],
         ),
         ReceiveMessageArgs {
             encoded_message: args.encoded_cctp_message,
@@ -176,6 +186,20 @@ pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: super::RedeemFillArg
         TokenRouterError::InvalidRedeemer
     );
 
-    // Done.
-    Ok(())
+    // Reload the custody token account so we know how much to transfer.
+    ctx.accounts.custody_token.reload()?;
+
+    // Finally transfer tokens to destination.
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            token::Transfer {
+                from: ctx.accounts.custody_token.to_account_info(),
+                to: ctx.accounts.dst_token.to_account_info(),
+                authority: ctx.accounts.custodian.to_account_info(),
+            },
+            &[custodian_seeds],
+        ),
+        ctx.accounts.custody_token.amount,
+    )
 }

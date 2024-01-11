@@ -20,8 +20,9 @@ export const PAYER_KEYPAIR = Keypair.fromSecretKey(
 
 export const GOVERNANCE_EMITTER_ADDRESS = new PublicKey("11111111111111111111111111111115");
 
-export const MOCK_GUARDIANS = new MockGuardians(0, [
-    "cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0",
-]);
+export const GUARDIAN_KEY = "cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0";
+export const MOCK_GUARDIANS = new MockGuardians(0, [GUARDIAN_KEY]);
 
 export const USDC_MINT_ADDRESS = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+
+export const ETHEREUM_USDC_ADDRESS = "0x07865c6e87b9f70255377e024ace6630c1eaa37f";

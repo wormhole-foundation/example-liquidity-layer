@@ -74,10 +74,14 @@ pub struct PlaceMarketOrderCctp<'info> {
     )]
     custody_token: AccountInfo<'info>,
 
-    /// Registered emitter account representing a foreign Circle Integration emitter. This account
-    /// exists only when another CCTP network is registered.
+    /// Registered router endpoint representing a foreign Token Router. This account may have a
+    /// CCTP domain encoded if this route is CCTP-enabled. For this instruction, it is required that
+    /// [RouterEndpoint::cctp_domain] is `Some(value)`.
     ///
     /// Seeds must be \["registered_emitter", target_chain.to_be_bytes()\].
+    ///
+    /// NOTE: In the EVM implementation, if there is no router endpoint then "ErrUnsupportedChain"
+    /// error is thrown (whereas here the account would not exist).
     #[account(
         seeds = [
             RouterEndpoint::SEED_PREFIX,
@@ -279,13 +283,10 @@ pub fn place_market_order_cctp(
 
 fn check_constraints(args: &PlaceMarketOrderCctpArgs) -> Result<()> {
     // Even though CCTP prevents zero amount burns, we prefer to throw an explicit error here.
-    require!(args.amount_in > 0, TokenRouterError::ZeroAmount);
+    require!(args.amount_in > 0, TokenRouterError::InsufficientAmount);
 
     // Cannot send to zero address.
-    require!(
-        args.redeemer != [0; 32],
-        TokenRouterError::RedeemerZeroAddress,
-    );
+    require!(args.redeemer != [0; 32], TokenRouterError::InvalidRedeemer,);
 
     // Done.
     Ok(())

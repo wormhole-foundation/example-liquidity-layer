@@ -1,17 +1,26 @@
+export * from "./cctp";
+export * from "./messages";
 export * from "./state";
 
 import { ChainId } from "@certusone/wormhole-sdk";
 import { BN, Program } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
-import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
-import { IDL, TokenRouter } from "../../target/types/token_router";
-import { Custodian, PayerSequence, RouterEndpoint } from "./state";
-import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "./utils";
 import {
+    Connection,
+    PublicKey,
+    SYSVAR_RENT_PUBKEY,
+    SystemProgram,
+    TransactionInstruction,
+} from "@solana/web3.js";
+import { IDL, TokenRouter } from "../../target/types/token_router";
+import {
+    CctpTokenBurnMessage,
     MessageTransmitterProgram,
     TokenMessengerMinterProgram,
-    WormholeCctpProgram,
-} from "./wormholeCctp";
+} from "./cctp";
+import { Custodian, PayerSequence, RouterEndpoint } from "./state";
+import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "./utils";
+import { VaaAccount } from "./wormhole";
 
 export const PROGRAM_IDS = ["TokenRouter11111111111111111111111111111111"] as const;
 
@@ -61,6 +70,24 @@ export type PlaceMarketOrderCctpAccounts = PublishMessageAccounts & {
     tokenMinter: PublicKey;
     localToken: PublicKey;
     coreBridgeProgram: PublicKey;
+    tokenMessengerMinterProgram: PublicKey;
+    messageTransmitterProgram: PublicKey;
+    tokenProgram: PublicKey;
+};
+
+export type RedeemFillCctpAccounts = {
+    custodian: PublicKey;
+    custodyToken: PublicKey;
+    routerEndpoint: PublicKey;
+    messageTransmitterAuthority: PublicKey;
+    messageTransmitterConfig: PublicKey;
+    usedNonces: PublicKey;
+    tokenMessenger: PublicKey;
+    remoteTokenMessenger: PublicKey;
+    tokenMinter: PublicKey;
+    localToken: PublicKey;
+    tokenPair: PublicKey;
+    tokenMessengerMinterCustodyToken: PublicKey;
     tokenMessengerMinterProgram: PublicKey;
     messageTransmitterProgram: PublicKey;
     tokenProgram: PublicKey;
@@ -145,6 +172,49 @@ export class TokenRouterProgram {
 
     async fetchRouterEndpoint(addr: PublicKey): Promise<RouterEndpoint> {
         return this.program.account.routerEndpoint.fetch(addr);
+    }
+
+    commonAccounts(mint?: PublicKey): TokenRouterCommonAccounts {
+        const custodian = this.custodianAddress();
+        const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
+            this.publishMessageAccounts(custodian);
+
+        const tokenMessengerMinterProgram = this.tokenMessengerMinterProgram();
+        const messageTransmitterProgram = this.messageTransmitterProgram();
+
+        const [localToken, tokenMessengerMinterCustodyToken] = (() => {
+            if (mint === undefined) {
+                return [];
+            } else {
+                return [
+                    tokenMessengerMinterProgram.localTokenAddress(mint),
+                    tokenMessengerMinterProgram.custodyTokenAddress(mint),
+                ];
+            }
+        })();
+
+        return {
+            tokenRouterProgram: this.ID,
+            systemProgram: SystemProgram.programId,
+            rent: SYSVAR_RENT_PUBKEY,
+            custodian,
+            custodyToken: this.custodyTokenAccountAddress(),
+            coreBridgeConfig,
+            coreEmitterSequence,
+            coreFeeCollector,
+            coreBridgeProgram,
+            tokenMessenger: tokenMessengerMinterProgram.tokenMessengerAddress(),
+            tokenMinter: tokenMessengerMinterProgram.tokenMinterAddress(),
+            tokenMessengerMinterSenderAuthority: tokenMessengerMinterProgram.senderAuthority(),
+            tokenMessengerMinterProgram: tokenMessengerMinterProgram.ID,
+            messageTransmitterAuthority: messageTransmitterProgram.authorityAddress(),
+            messageTransmitterConfig: messageTransmitterProgram.messageTransmitterConfigAddress(),
+            messageTransmitterProgram: messageTransmitterProgram.ID,
+            tokenProgram: splToken.TOKEN_PROGRAM_ID,
+            mint,
+            localToken,
+            tokenMessengerMinterCustodyToken,
+        };
     }
 
     async placeMarketOrderCctpAccounts(
@@ -275,6 +345,114 @@ export class TokenRouterProgram {
                 tokenMinter,
                 localToken,
                 coreBridgeProgram,
+                tokenMessengerMinterProgram,
+                messageTransmitterProgram,
+                tokenProgram,
+            })
+            .instruction();
+    }
+
+    async redeemFillCctpAccounts(
+        vaa: PublicKey,
+        cctpMessage: CctpTokenBurnMessage | Buffer
+    ): Promise<RedeemFillCctpAccounts> {
+        const msg = CctpTokenBurnMessage.from(cctpMessage);
+        const custodyToken = this.custodyTokenAccountAddress();
+        //const redeemerToken = new PublicKey(msg.mintRecipient);
+
+        // TODO: hardcode mint as USDC?
+        const { mint } = await splToken.getAccount(this.program.provider.connection, custodyToken);
+
+        const vaaAcct = await VaaAccount.fetch(this.program.provider.connection, vaa);
+        const { chain } = vaaAcct.emitterInfo();
+
+        const messageTransmitterProgram = this.messageTransmitterProgram();
+        const {
+            authority: messageTransmitterAuthority,
+            messageTransmitterConfig,
+            usedNonces,
+            tokenMessengerMinterProgram,
+            tokenMessenger,
+            remoteTokenMessenger,
+            tokenMinter,
+            localToken,
+            tokenPair,
+            custodyToken: tokenMessengerMinterCustodyToken,
+            tokenProgram,
+        } = messageTransmitterProgram.receiveMessageAccounts(mint, msg);
+
+        return {
+            custodian: this.custodianAddress(),
+            custodyToken,
+            routerEndpoint: this.routerEndpointAddress(chain as ChainId), // yikes
+            messageTransmitterAuthority,
+            messageTransmitterConfig,
+            usedNonces,
+            tokenMessenger,
+            remoteTokenMessenger,
+            tokenMinter,
+            localToken,
+            tokenPair,
+            tokenMessengerMinterCustodyToken,
+            tokenMessengerMinterProgram,
+            messageTransmitterProgram: messageTransmitterProgram.ID,
+            tokenProgram,
+        };
+    }
+
+    async redeemFillCctpIx(
+        accounts: {
+            payer: PublicKey;
+            vaa: PublicKey;
+            redeemer: PublicKey;
+            dstToken: PublicKey;
+        },
+        args: {
+            encodedCctpMessage: Buffer;
+            cctpAttestation: Buffer;
+        }
+    ): Promise<TransactionInstruction> {
+        const { payer, vaa, redeemer, dstToken } = accounts;
+
+        const { encodedCctpMessage } = args;
+
+        const {
+            custodian,
+            custodyToken,
+            routerEndpoint,
+            messageTransmitterAuthority,
+            messageTransmitterConfig,
+            usedNonces,
+            tokenMessenger,
+            remoteTokenMessenger,
+            tokenMinter,
+            localToken,
+            tokenPair,
+            tokenMessengerMinterCustodyToken,
+            tokenMessengerMinterProgram,
+            messageTransmitterProgram,
+            tokenProgram,
+        } = await this.redeemFillCctpAccounts(vaa, encodedCctpMessage);
+
+        return this.program.methods
+            .redeemFillCctp(args)
+            .accounts({
+                payer,
+                custodian,
+                vaa,
+                redeemer,
+                dstToken,
+                custodyToken,
+                routerEndpoint,
+                messageTransmitterAuthority,
+                messageTransmitterConfig,
+                usedNonces,
+                tokenMessenger,
+                remoteTokenMessenger,
+                tokenMinter,
+                localToken,
+                tokenPair,
+                tokenMessengerMinterCustodyToken,
                 tokenMessengerMinterProgram,
                 messageTransmitterProgram,
                 tokenProgram,

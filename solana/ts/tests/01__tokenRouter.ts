@@ -1,10 +1,34 @@
-import { CHAINS, ChainId } from "@certusone/wormhole-sdk";
+import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
-import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
+import {
+    AddressLookupTableProgram,
+    ComputeBudgetProgram,
+    Connection,
+    Keypair,
+    PublicKey,
+    SystemProgram,
+} from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
-import { Custodian, RouterEndpoint, TokenRouterProgram } from "../src";
-import { LOCALHOST, PAYER_KEYPAIR, USDC_MINT_ADDRESS, expectIxErr, expectIxOk } from "./helpers";
+import {
+    CctpTokenBurnMessage,
+    Custodian,
+    Fill,
+    LiquidityLayerDeposit,
+    RouterEndpoint,
+    TokenRouterProgram,
+} from "../src";
+import {
+    CircleAttester,
+    ETHEREUM_USDC_ADDRESS,
+    LOCALHOST,
+    MOCK_GUARDIANS,
+    PAYER_KEYPAIR,
+    USDC_MINT_ADDRESS,
+    expectIxErr,
+    expectIxOk,
+    postDepositVaa,
+} from "./helpers";
 
 chaiUse(chaiAsPromised);
 
@@ -16,12 +40,14 @@ describe("Token Router", function () {
     const owner = Keypair.generate();
     const ownerAssistant = Keypair.generate();
 
-    const foreignChain = CHAINS.ethereum;
-    const invalidChain = (foreignChain + 1) as ChainId;
+    const foreignChain = wormholeSdk.CHAINS.ethereum;
+    const invalidChain = (foreignChain + 1) as wormholeSdk.ChainId;
     const routerEndpointAddress = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
     const foreignCctpDomain = 0;
     const unregisteredContractAddress = Buffer.alloc(32, "deafbeef", "hex");
     const tokenRouter = new TokenRouterProgram(connection);
+
+    let lookupTableAddress: PublicKey;
 
     describe("Admin", function () {
         describe("Initialize", function () {
@@ -51,7 +77,7 @@ describe("Token Router", function () {
                 const custodianData = await tokenRouter.fetchCustodian(
                     tokenRouter.custodianAddress()
                 );
-                const expectedCustodianData = {
+                const expectedCustodianData: Custodian = {
                     bump: 253,
                     custodyTokenBump: 254,
                     paused: false,
@@ -59,7 +85,7 @@ describe("Token Router", function () {
                     pendingOwner: null,
                     ownerAssistant: ownerAssistant.publicKey,
                     pausedSetBy: payer.publicKey,
-                } as Custodian;
+                };
                 expect(custodianData).to.eql(expectedCustodianData);
 
                 const custodyToken = await splToken.getAccount(
@@ -80,6 +106,34 @@ describe("Token Router", function () {
                     [payer],
                     "already in use"
                 );
+            });
+
+            after("Setup Lookup Table", async () => {
+                // Create.
+                const [createIx, lookupTable] = await connection.getSlot("finalized").then((slot) =>
+                    AddressLookupTableProgram.createLookupTable({
+                        authority: payer.publicKey,
+                        payer: payer.publicKey,
+                        recentSlot: slot,
+                    })
+                );
+                await expectIxOk(connection, [createIx], [payer]);
+
+                const usdcCommonAccounts = tokenRouter.commonAccounts(USDC_MINT_ADDRESS);
+
+                // Extend.
+                const extendIx = AddressLookupTableProgram.extendLookupTable({
+                    payer: payer.publicKey,
+                    authority: payer.publicKey,
+                    lookupTable,
+                    addresses: Object.values(usdcCommonAccounts).filter((key) => key !== undefined),
+                });
+
+                await expectIxOk(connection, [extendIx], [payer], {
+                    confirmOptions: { commitment: "finalized" },
+                });
+
+                lookupTableAddress = lookupTable;
             });
         });
 
@@ -395,7 +449,7 @@ describe("Token Router", function () {
                 );
             });
 
-            [CHAINS.unset, CHAINS.solana].forEach((chain) =>
+            [wormholeSdk.CHAINS.unset, wormholeSdk.CHAINS.solana].forEach((chain) =>
                 it(`Cannot Register Chain ID == ${chain}`, async function () {
                     await expectIxErr(
                         connection,
@@ -440,12 +494,12 @@ describe("Token Router", function () {
                 const routerEndpointData = await tokenRouter.fetchRouterEndpoint(
                     tokenRouter.routerEndpointAddress(foreignChain)
                 );
-                const expectedRouterEndpointData = {
+                const expectedRouterEndpointData: RouterEndpoint = {
                     bump: 255,
                     chain: foreignChain,
                     address: contractAddress,
                     cctpDomain: foreignCctpDomain,
-                } as RouterEndpoint;
+                };
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
             });
 
@@ -463,12 +517,12 @@ describe("Token Router", function () {
                 const routerEndpointData = await tokenRouter.fetchRouterEndpoint(
                     tokenRouter.routerEndpointAddress(foreignChain)
                 );
-                const expectedRouterEndpointData = {
+                const expectedRouterEndpointData: RouterEndpoint = {
                     bump: 255,
                     chain: foreignChain,
                     address: routerEndpointAddress,
                     cctpDomain: foreignCctpDomain,
-                } as RouterEndpoint;
+                };
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
             });
         });
@@ -532,7 +586,7 @@ describe("Token Router", function () {
                 mint?: PublicKey;
                 burnSource?: PublicKey;
                 burnSourceAuthority?: PublicKey;
-                targetChain?: ChainId;
+                targetChain?: wormholeSdk.ChainId;
                 redeemer?: Array<number>;
             }
         ) =>
@@ -551,11 +605,11 @@ describe("Token Router", function () {
                 }
             );
 
-        it.skip("Cannot Place Market Order with Zero Amount", async function () {
+        it.skip("Cannot Place Market Order with Insufficient Amount", async function () {
             // TODO
         });
 
-        it.skip("Cannot Place Market Order with Redeemer as Zero Address", async function () {
+        it.skip("Cannot Place Market Order with Invalid Redeemer", async function () {
             // TODO
         });
 
@@ -563,26 +617,246 @@ describe("Token Router", function () {
             // TODO
         });
 
-        it("Place Market Order as Payer", async function () {
+        it("Cannot Place Market Order as Invalid Burn Source Authority", async function () {
+            const burnSourceAuthority = Keypair.generate();
+
             const amountIn = 69n;
 
-            const balanceBefore = await splToken
-                .getAccount(connection, payerToken)
-                .then((token) => token.amount);
+            // TODO: use lookup table
+            // NOTE: This error comes from the SPL Token program.
+            await expectIxErr(
+                connection,
+                [
+                    await createPlaceMarketOrderCctpIx(amountIn, {
+                        burnSourceAuthority: burnSourceAuthority.publicKey,
+                    }),
+                ],
+                [payer, burnSourceAuthority],
+                "Error: owner does not match"
+            );
+        });
+
+        it("Place Market Order as Burn Source Authority", async function () {
+            const burnSourceAuthority = Keypair.generate();
+            const burnSource = await splToken.createAccount(
+                connection,
+                payer,
+                USDC_MINT_ADDRESS,
+                burnSourceAuthority.publicKey
+            );
+
+            const amountIn = 69n;
+
+            // Add funds to account.
+            await splToken.mintTo(
+                connection,
+                payer,
+                USDC_MINT_ADDRESS,
+                burnSource,
+                payer,
+                amountIn
+            );
+
+            const { amount: balanceBefore } = await splToken.getAccount(connection, burnSource);
 
             // TODO: use lookup table
-            await expectIxOk(connection, [await createPlaceMarketOrderCctpIx(amountIn)], [payer]);
+            await expectIxOk(
+                connection,
+                [
+                    await createPlaceMarketOrderCctpIx(amountIn, {
+                        burnSource,
+                        burnSourceAuthority: burnSourceAuthority.publicKey,
+                    }),
+                ],
+                [payer, burnSourceAuthority]
+            );
 
-            const balanceAfter = await splToken
-                .getAccount(connection, payerToken)
-                .then((token) => token.amount);
+            const { amount: balanceAfter } = await splToken.getAccount(connection, burnSource);
             expect(balanceAfter + amountIn).equals(balanceBefore);
 
             // TODO: check message
         });
 
-        it.skip("Place Market Order as Another Signer", async function () {
-            // TODO
+        it("Place Market Order as Payer", async function () {
+            const amountIn = 69n;
+
+            const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
+
+            // TODO: use lookup table
+            await expectIxOk(connection, [await createPlaceMarketOrderCctpIx(amountIn)], [payer]);
+
+            const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
+            expect(balanceAfter + amountIn).equals(balanceBefore);
+
+            // TODO: check message
+        });
+    });
+
+    describe("Redeem Fill (CCTP)", () => {
+        const payerToken = splToken.getAssociatedTokenAddressSync(
+            USDC_MINT_ADDRESS,
+            payer.publicKey
+        );
+
+        let testCctpNonce = 2n ** 64n - 1n;
+
+        // Hack to prevent math overflow error when invoking CCTP programs.
+        testCctpNonce -= 2n * 6400n;
+
+        let wormholeSequence = 0n;
+
+        const localVariables = new Map<string, any>();
+
+        const createRedeemFillCctpIx = (
+            vaa: PublicKey,
+            encodedCctpMessage: Buffer,
+            opts?: {
+                sender?: PublicKey;
+                redeemer?: PublicKey;
+                dstToken?: PublicKey;
+                cctpAttestation?: Buffer;
+            }
+        ) =>
+            tokenRouter.redeemFillCctpIx(
+                {
+                    payer: opts?.sender ?? payer.publicKey,
+                    vaa,
+                    redeemer: opts?.redeemer ?? payer.publicKey,
+                    dstToken: opts?.dstToken ?? payerToken,
+                },
+                {
+                    encodedCctpMessage,
+                    cctpAttestation:
+                        opts?.cctpAttestation ??
+                        new CircleAttester().createAttestation(encodedCctpMessage),
+                }
+            );
+
+        it("Redeem Fill", async function () {
+            const redeemer = Keypair.generate();
+
+            const encodedMintRecipient = Array.from(
+                tokenRouter.custodyTokenAccountAddress().toBuffer()
+            );
+            const sourceCctpDomain = 0;
+            const cctpNonce = testCctpNonce++;
+            const amount = 69n;
+
+            // Concoct a Circle message.
+            const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
+            const { destinationCctpDomain, burnMessage, encodedCctpMessage } =
+                await craftCctpTokenBurnMessage(
+                    tokenRouter,
+                    sourceCctpDomain,
+                    cctpNonce,
+                    encodedMintRecipient,
+                    amount,
+                    burnSource
+                );
+
+            const fill: Fill = {
+                sourceChain: foreignChain,
+                orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
+                redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+            };
+            const deposit = new LiquidityLayerDeposit(
+                {
+                    tokenAddress: burnMessage.burnTokenAddress,
+                    amount,
+                    sourceCctpDomain,
+                    destinationCctpDomain,
+                    cctpNonce,
+                    burnSource,
+                    mintRecipient: encodedMintRecipient,
+                },
+                { fill }
+            );
+
+            const vaa = await postDepositVaa(
+                connection,
+                payer,
+                MOCK_GUARDIANS,
+                routerEndpointAddress,
+                wormholeSequence++,
+                deposit
+            );
+
+            const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                units: 250_000,
+            });
+
+            const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
+
+            const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                lookupTableAddress
+            );
+            await expectIxOk(
+                connection,
+                [
+                    computeIx,
+                    await createRedeemFillCctpIx(vaa, encodedCctpMessage, {
+                        redeemer: redeemer.publicKey,
+                    }),
+                ],
+                [payer, redeemer],
+                { addressLookupTableAccounts: [lookupTableAccount!] }
+            );
+
+            const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
+            expect(balanceAfter).equals(balanceBefore + amount);
+
+            // TODO: check message
         });
     });
 });
+
+async function craftCctpTokenBurnMessage(
+    tokenRouter: TokenRouterProgram,
+    sourceCctpDomain: number,
+    cctpNonce: bigint,
+    encodedMintRecipient: number[],
+    amount: bigint,
+    burnSource: number[],
+    overrides: { destinationCctpDomain?: number } = {}
+) {
+    const { destinationCctpDomain: inputDestinationCctpDomain } = overrides;
+
+    const messageTransmitterProgram = tokenRouter.messageTransmitterProgram();
+    const { version, localDomain } = await messageTransmitterProgram.fetchMessageTransmitterConfig(
+        messageTransmitterProgram.messageTransmitterConfigAddress()
+    );
+    const destinationCctpDomain = inputDestinationCctpDomain ?? localDomain;
+
+    const tokenMessengerMinterProgram = tokenRouter.tokenMessengerMinterProgram();
+    const sourceTokenMessenger = await tokenMessengerMinterProgram
+        .fetchRemoteTokenMessenger(
+            tokenMessengerMinterProgram.remoteTokenMessengerAddress(sourceCctpDomain)
+        )
+        .then((remote) => remote.tokenMessenger);
+
+    const burnMessage = new CctpTokenBurnMessage(
+        {
+            version,
+            sourceDomain: sourceCctpDomain,
+            destinationDomain: destinationCctpDomain,
+            nonce: cctpNonce,
+            sender: sourceTokenMessenger,
+            recipient: Array.from(tokenMessengerMinterProgram.ID.toBuffer()), // targetTokenMessenger
+            targetCaller: Array.from(tokenRouter.custodianAddress().toBuffer()), // targetCaller
+        },
+        0,
+        Array.from(wormholeSdk.tryNativeToUint8Array(ETHEREUM_USDC_ADDRESS, "ethereum")), // sourceTokenAddress
+        encodedMintRecipient,
+        amount,
+        burnSource
+    );
+
+    const encodedCctpMessage = burnMessage.encode();
+
+    return {
+        destinationCctpDomain,
+        burnMessage,
+        encodedCctpMessage,
+    };
+}

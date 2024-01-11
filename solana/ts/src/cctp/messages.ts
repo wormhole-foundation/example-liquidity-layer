@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 export type Cctp = {
     version: number;
     sourceDomain: number;
-    targetDomain: number;
+    destinationDomain: number;
     nonce: bigint;
     sender: Array<number>;
     recipient: Array<number>;
@@ -31,24 +31,24 @@ export class CctpMessage {
     static decode(buf: Readonly<Buffer>): CctpMessage {
         const version = buf.readUInt32BE(0);
         const sourceDomain = buf.readUInt32BE(4);
-        const targetDomain = buf.readUInt32BE(8);
+        const destinationDomain = buf.readUInt32BE(8);
         const nonce = buf.readBigUInt64BE(12);
-        const sender = Array.from(buf.slice(20, 52));
-        const recipient = Array.from(buf.slice(52, 84));
-        const targetCaller = Array.from(buf.slice(84, 116));
+        const sender = Array.from(buf.subarray(20, 52));
+        const recipient = Array.from(buf.subarray(52, 84));
+        const targetCaller = Array.from(buf.subarray(84, 116));
         const message = buf.subarray(116);
 
         return new CctpMessage(
             {
                 version,
                 sourceDomain,
-                targetDomain,
+                destinationDomain,
                 nonce,
                 sender,
                 recipient,
                 targetCaller,
             },
-            message,
+            message
         );
     }
 
@@ -72,7 +72,7 @@ export class CctpTokenBurnMessage {
         burnTokenAddress: Array<number>,
         mintRecipient: Array<number>,
         amount: bigint,
-        sender: Array<number>,
+        sender: Array<number>
     ) {
         this.cctp = cctp;
         this.version = version;
@@ -104,7 +104,7 @@ export class CctpTokenBurnMessage {
             burnTokenAddress,
             mintRecipient,
             amount,
-            sender,
+            sender
         );
     }
 
@@ -135,12 +135,13 @@ export class CctpTokenBurnMessage {
 function encodeCctp(cctp: Cctp): Buffer {
     const buf = Buffer.alloc(116);
 
-    const { version, sourceDomain, targetDomain, nonce, sender, recipient, targetCaller } = cctp;
+    const { version, sourceDomain, destinationDomain, nonce, sender, recipient, targetCaller } =
+        cctp;
 
     let offset = 0;
     offset = buf.writeUInt32BE(version, offset);
     offset = buf.writeUInt32BE(sourceDomain, offset);
-    offset = buf.writeUInt32BE(targetDomain, offset);
+    offset = buf.writeUInt32BE(destinationDomain, offset);
     offset = buf.writeBigUInt64BE(nonce, offset);
     buf.set(sender, offset);
     offset += 32;

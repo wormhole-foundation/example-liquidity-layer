@@ -41,11 +41,8 @@ pub enum TokenRouterError {
     #[msg("InvalidCctpEndpoint")]
     InvalidCctpEndpoint = 0x46,
 
-    #[msg("ZeroAmount")]
-    ZeroAmount = 0x100,
-
-    #[msg("RedeemerZeroAddress")]
-    RedeemerZeroAddress = 0x102,
+    #[msg("InsufficientAmount")]
+    InsufficientAmount = 0x100,
 
     #[msg("UnknownEmitter")]
     InvalidSourceRouter = 0x200,
