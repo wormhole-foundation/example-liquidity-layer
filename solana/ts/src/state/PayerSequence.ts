@@ -2,11 +2,9 @@ import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
 export class PayerSequence {
-    bump: number;
     value: BN;
 
-    constructor(bump: number, value: BN) {
-        this.bump = bump;
+    constructor(value: BN) {
         this.value = value;
     }
 

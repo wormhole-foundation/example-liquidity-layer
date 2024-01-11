@@ -66,7 +66,7 @@ pub struct PlaceMarketOrderCctp<'info> {
     /// It just acts as a conduit to allow this program to be the transfer initiator in the CCTP
     /// message.
     ///
-    /// CHECK: Seeds must be \["custody"\].
+    /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
         seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],

@@ -17,12 +17,12 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
-testnet = ["common/testnet", "wormhole-cctp-solana/testnet"]
+testnet = ["common/testnet", "wormhole-cctp-solana/testnet", "matching-engine/testnet"]
 integration-test = ["testnet"]
 
 [dependencies]
 common.workspace = true
-matching-engine.workspace = true
+matching-engine = { workspace = true, features = ["cpi"] }
 wormhole-cctp-solana = { workspace = true, features = ["cpi"] }
 
 anchor-lang = { workspace = true, features = ["derive", "init-if-needed"] }

@@ -32,23 +32,18 @@ pub struct RedeemFillCctp<'info> {
     #[account(owner = core_bridge_program::id())]
     vaa: AccountInfo<'info>,
 
-    /// Account representing that a VAA has been consumed.
-    ///
-    /// CHECK: Seeds must be [emitter_address, emitter_chain, sequence]. These seeds are checked
-    /// when [claim_vaa](core_bridge_program::sdk::claim_vaa) is called.
-    #[account(mut)]
-    claim: AccountInfo<'info>,
-
     /// Redeemer, who owns the token account that will receive the minted tokens.
     ///
-    /// CHECK: Signer who must be the owner of the `mint_recipient` token account.
+    /// CHECK: Signer must be the redeemer encoded in the Deposit Fill message.
     redeemer: Signer<'info>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
     /// from its custody account to this account.
     ///
-    /// NOTE: This account must be owned by the `mint_recipient_authority`.
+    /// Mutable. Seeds must be \["custody"\].
+    ///
+    /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
         seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
@@ -111,21 +106,11 @@ pub struct RedeemFillCctp<'info> {
     system_program: Program<'info, System>,
 }
 
-/// Arguments used to invoke [redeem_fill_cctp].
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct RedeemFillCctpArgs {
-    /// CCTP message.
-    pub encoded_cctp_message: Vec<u8>,
-
-    /// Attestation of [encoded_cctp_message](Self::encoded_cctp_message).
-    pub cctp_attestation: Vec<u8>,
-}
-
 /// This instruction reconciles a Wormhole CCTP deposit message with a CCTP message to mint tokens
 /// for the [mint_recipient](RedeemFillCctp::mint_recipient) token account.
 ///
 /// See [verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint) for more details.
-pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: RedeemFillCctpArgs) -> Result<()> {
+pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: super::RedeemFillArgs) -> Result<()> {
     let vaa = wormhole_cctp_solana::cpi::verify_vaa_and_mint(
         &ctx.accounts.vaa,
         CpiContext::new_with_signer(
@@ -175,6 +160,7 @@ pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: RedeemFillCctpArgs) 
         TokenRouterError::InvalidSourceRouter
     );
 
+    // Wormhole CCTP deposit should be ours, so make sure this is a fill we recognize.
     let deposit = WormholeCctpPayload::try_from(vaa.try_payload().unwrap())
         .unwrap()
         .message()
@@ -190,5 +176,6 @@ pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: RedeemFillCctpArgs) 
         TokenRouterError::InvalidRedeemer
     );
 
+    // Done.
     Ok(())
 }
