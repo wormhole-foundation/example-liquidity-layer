@@ -31,12 +31,12 @@ pub mod token_router {
         processor::place_market_order_cctp(ctx, args)
     }
 
-    pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: RedeemFillArgs) -> Result<()> {
-        processor::redeem_fill_cctp(ctx, args)
+    pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: RedeemFillArgs) -> Result<()> {
+        processor::redeem_cctp_fill(ctx, args)
     }
 
-    pub fn redeem_fill_matching_engine(ctx: Context<RedeemFillMatchingEngine>) -> Result<()> {
-        processor::redeem_fill_matching_engine(ctx)
+    pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
+        processor::redeem_fast_fill(ctx)
     }
 
     // admin

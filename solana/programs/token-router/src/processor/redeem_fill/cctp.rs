@@ -12,9 +12,9 @@ use wormhole_cctp_solana::{
     wormhole::core_bridge_program,
 };
 
-/// Account context to invoke [redeem_fill_cctp].
+/// Account context to invoke [redeem_cctp_fill].
 #[derive(Accounts)]
-pub struct RedeemFillCctp<'info> {
+pub struct RedeemCctpFill<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
@@ -115,10 +115,10 @@ pub struct RedeemFillCctp<'info> {
 }
 
 /// This instruction reconciles a Wormhole CCTP deposit message with a CCTP message to mint tokens
-/// for the [mint_recipient](RedeemFillCctp::mint_recipient) token account.
+/// for the [mint_recipient](RedeemCctpFill::mint_recipient) token account.
 ///
 /// See [verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint) for more details.
-pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: super::RedeemFillArgs) -> Result<()> {
+pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: super::RedeemFillArgs) -> Result<()> {
     let custodian_seeds = &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]];
 
     let vaa = wormhole_cctp_solana::cpi::verify_vaa_and_mint(
@@ -175,6 +175,11 @@ pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: super::RedeemFillArg
         .unwrap()
         .message()
         .to_deposit_unchecked();
+
+    // Save for final transfer.
+    let amount = deposit.amount();
+
+    // Verify as Liquiditiy Layer Deposit message.
     let msg = LiquidityLayerDepositMessage::try_from(deposit.payload())
         .map_err(|_| TokenRouterError::InvalidDepositMessage)?;
 
@@ -185,9 +190,6 @@ pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: super::RedeemFillArg
         ctx.accounts.redeemer.key(),
         TokenRouterError::InvalidRedeemer
     );
-
-    // Reload the custody token account so we know how much to transfer.
-    ctx.accounts.custody_token.reload()?;
 
     // Finally transfer tokens to destination.
     token::transfer(
@@ -200,6 +202,9 @@ pub fn redeem_fill_cctp(ctx: Context<RedeemFillCctp>, args: super::RedeemFillArg
             },
             &[custodian_seeds],
         ),
-        ctx.accounts.custody_token.amount,
+        // This is safe because we know the amount is within u64 range.
+        ruint::aliases::U256::from_be_bytes(amount)
+            .try_into()
+            .unwrap(),
     )
 }

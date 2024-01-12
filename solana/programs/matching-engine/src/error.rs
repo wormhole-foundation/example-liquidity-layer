@@ -66,4 +66,16 @@ pub enum MatchingEngineError {
 
     #[msg("AuctionAlreadyStarted")]
     AuctionAlreadyStarted,
+
+    #[msg("InvalidEmitterForFastFill")]
+    InvalidEmitterForFastFill,
+
+    #[msg("InvalidDeposit")]
+    InvalidDeposit,
+
+    #[msg("InvalidDepositMessage")]
+    InvalidDepositMessage,
+
+    #[msg("InvalidPayloadId")]
+    InvalidPayloadId,
 }

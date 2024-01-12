@@ -717,7 +717,7 @@ describe("Token Router", function () {
                 cctpAttestation?: Buffer;
             }
         ) =>
-            tokenRouter.redeemFillCctpIx(
+            tokenRouter.redeemCctpFillIx(
                 {
                     payer: opts?.sender ?? payer.publicKey,
                     vaa,

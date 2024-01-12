@@ -1,12 +1,12 @@
 mod cctp;
 pub use cctp::*;
 
-mod me;
-pub use me::*;
+mod fast;
+pub use fast::*;
 
 use anchor_lang::prelude::*;
 
-/// Arguments used to invoke [redeem_fill_matching_engine].
+/// Arguments used to invoke [redeem_fast_fill].
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct RedeemFillArgs {
     /// CCTP message.

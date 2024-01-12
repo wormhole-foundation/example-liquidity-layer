@@ -27,6 +27,10 @@ cfg_if::cfg_if! {
 pub mod matching_engine {
     use super::*;
 
+    pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
+        processor::redeem_fast_fill(ctx)
+    }
+
     /// This instruction is be used to generate your program's config.
     /// And for convenience, we will store Wormhole-related PDAs in the
     /// config so we can verify these accounts with a simple == constraint.
@@ -67,10 +71,7 @@ pub mod matching_engine {
         processor::update_fee_recipient(ctx)
     }
 
-    pub fn place_initial_offer(
-        ctx: Context<PlaceInitialOffer>,
-        fee_offer: u64
-    ) -> Result<()> {
+    pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> Result<()> {
         processor::place_initial_offer(ctx, fee_offer)
     }
 }

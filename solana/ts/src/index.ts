@@ -352,7 +352,7 @@ export class TokenRouterProgram {
             .instruction();
     }
 
-    async redeemFillCctpAccounts(
+    async redeemCctpFillAccounts(
         vaa: PublicKey,
         cctpMessage: CctpTokenBurnMessage | Buffer
     ): Promise<RedeemFillCctpAccounts> {
@@ -400,7 +400,7 @@ export class TokenRouterProgram {
         };
     }
 
-    async redeemFillCctpIx(
+    async redeemCctpFillIx(
         accounts: {
             payer: PublicKey;
             vaa: PublicKey;
@@ -432,10 +432,10 @@ export class TokenRouterProgram {
             tokenMessengerMinterProgram,
             messageTransmitterProgram,
             tokenProgram,
-        } = await this.redeemFillCctpAccounts(vaa, encodedCctpMessage);
+        } = await this.redeemCctpFillAccounts(vaa, encodedCctpMessage);
 
         return this.program.methods
-            .redeemFillCctp(args)
+            .redeemCctpFill(args)
             .accounts({
                 payer,
                 custodian,
