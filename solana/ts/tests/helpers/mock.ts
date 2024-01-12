@@ -3,7 +3,7 @@ import { MockEmitter, MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock
 import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import { Connection, Keypair } from "@solana/web3.js";
 import { ethers } from "ethers";
-import { LiquidityLayerDeposit } from "../../src";
+import { LiquidityLayerMessage } from "../../src";
 import { CORE_BRIDGE_PID, GUARDIAN_KEY } from "./consts";
 import { postVaa } from "./utils";
 
@@ -13,7 +13,7 @@ export async function postDepositVaa(
     guardians: MockGuardians,
     foreignEmitterAddress: Array<number>,
     sequence: bigint,
-    deposit: LiquidityLayerDeposit
+    message: LiquidityLayerMessage
 ) {
     const chainName = "ethereum";
     const foreignEmitter = new MockEmitter(
@@ -24,7 +24,7 @@ export async function postDepositVaa(
 
     const published = foreignEmitter.publishMessage(
         0, // nonce,
-        deposit.encode(),
+        message.encode(),
         0, // consistencyLevel
         12345678 // timestamp
     );

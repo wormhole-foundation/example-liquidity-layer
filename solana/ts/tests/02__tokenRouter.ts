@@ -10,7 +10,7 @@ import {
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
-import { CctpTokenBurnMessage, Fill, LiquidityLayerDeposit } from "../src";
+import { CctpTokenBurnMessage, Fill, LiquidityLayerDeposit, LiquidityLayerMessage } from "../src";
 import { Custodian, RouterEndpoint, TokenRouterProgram } from "../src/tokenRouter";
 import {
     CircleAttester,
@@ -754,18 +754,20 @@ describe("Token Router", function () {
                 redeemer: Array.from(redeemer.publicKey.toBuffer()),
                 redeemerMessage: Buffer.from("Somebody set up us the bomb"),
             };
-            const deposit = new LiquidityLayerDeposit(
-                {
-                    tokenAddress: burnMessage.burnTokenAddress,
-                    amount,
-                    sourceCctpDomain,
-                    destinationCctpDomain,
-                    cctpNonce,
-                    burnSource,
-                    mintRecipient: encodedMintRecipient,
-                },
-                { fill }
-            );
+            const message = new LiquidityLayerMessage({
+                deposit: new LiquidityLayerDeposit(
+                    {
+                        tokenAddress: burnMessage.burnTokenAddress,
+                        amount,
+                        sourceCctpDomain,
+                        destinationCctpDomain,
+                        cctpNonce,
+                        burnSource,
+                        mintRecipient: encodedMintRecipient,
+                    },
+                    { fill }
+                ),
+            });
 
             const vaa = await postDepositVaa(
                 connection,
@@ -773,7 +775,7 @@ describe("Token Router", function () {
                 MOCK_GUARDIANS,
                 routerEndpointAddress,
                 wormholeSequence++,
-                deposit
+                message
             );
 
             const computeIx = ComputeBudgetProgram.setComputeUnitLimit({

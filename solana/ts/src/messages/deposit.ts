@@ -1,5 +1,7 @@
 import { ethers } from "ethers";
 
+const FILL_PAYLOAD_ID = 11;
+
 export type DepositHeader = {
     tokenAddress: Array<number>;
     amount: bigint;
@@ -17,26 +19,15 @@ export type Fill = {
     redeemerMessage: Buffer;
 };
 
-export type FastFill = {
-    fill: Fill;
-    amount: bigint;
-};
-
-export type SlowOrderResponse = {
-    baseFee: bigint;
-};
-
-export type DepositMessage = {
+export type LiquidityLayerDepositMessage = {
     fill?: Fill;
-    fastFill?: FastFill;
-    slowOrderResponse?: SlowOrderResponse;
 };
 
 export class LiquidityLayerDeposit {
     deposit: DepositHeader;
-    message: DepositMessage;
+    message: LiquidityLayerDepositMessage;
 
-    constructor(deposit: DepositHeader, message: DepositMessage) {
+    constructor(deposit: DepositHeader, message: LiquidityLayerDepositMessage) {
         this.deposit = deposit;
         this.message = message;
     }
@@ -62,7 +53,7 @@ export class LiquidityLayerDeposit {
 
         const message = (() => {
             switch (payloadId) {
-                case 11: {
+                case FILL_PAYLOAD_ID: {
                     const sourceChain = messageBuf.readUInt16BE(0);
                     const orderSender = Array.from(messageBuf.subarray(2, 34));
                     const redeemer = Array.from(messageBuf.subarray(34, 66));
@@ -71,28 +62,6 @@ export class LiquidityLayerDeposit {
                     return {
                         fill: { sourceChain, orderSender, redeemer, redeemerMessage },
                     };
-                }
-                case 12: {
-                    const sourceChain = messageBuf.readUInt16BE(0);
-                    const orderSender = Array.from(messageBuf.subarray(2, 34));
-                    const redeemer = Array.from(messageBuf.subarray(34, 66));
-                    const redeemerMessageLen = messageBuf.readUInt32BE(66);
-                    const redeemerMessage = messageBuf.subarray(70, 70 + redeemerMessageLen);
-                    const amount = BigInt(
-                        ethers.BigNumber.from(
-                            messageBuf.subarray(70 + redeemerMessageLen, 86 + redeemerMessageLen)
-                        ).toString()
-                    );
-                    return {
-                        fastFill: {
-                            fill: { sourceChain, orderSender, redeemer, redeemerMessage },
-                            amount,
-                        },
-                    };
-                }
-                case 14: {
-                    const baseFee = BigInt(ethers.BigNumber.from(messageBuf).toString());
-                    return { slowOrderResponse: { baseFee } };
                 }
                 default: {
                     throw new Error("Invalid Liquidity Layer deposit message");
@@ -145,7 +114,7 @@ export class LiquidityLayerDeposit {
         buf.set(mintRecipient, offset);
         offset += 32;
 
-        const { fill, fastFill, slowOrderResponse } = message;
+        const { fill } = message;
         const payload = (() => {
             if (fill !== undefined) {
                 const { sourceChain, orderSender, redeemer, redeemerMessage } = fill;
@@ -162,32 +131,7 @@ export class LiquidityLayerDeposit {
                 messageBuf.set(redeemerMessage, 70);
                 offset += redeemerMessage.length;
 
-                return Buffer.concat([Buffer.alloc(1, 11), messageBuf]);
-            } else if (fastFill !== undefined) {
-                const { fill, amount } = fastFill;
-                const { sourceChain, orderSender, redeemer, redeemerMessage } = fill;
-
-                const messageBuf = Buffer.alloc(86 + redeemerMessage.length);
-
-                let offset = 0;
-                offset = messageBuf.writeUInt16BE(sourceChain, offset);
-                messageBuf.set(orderSender, offset);
-                offset += 32;
-                messageBuf.set(redeemer, offset);
-                offset += 32;
-                offset = messageBuf.writeUInt32BE(redeemerMessage.length, offset);
-                messageBuf.set(redeemerMessage, 70);
-                offset += redeemerMessage.length;
-                offset = messageBuf.writeBigUInt64BE(amount, offset);
-
-                return Buffer.concat([Buffer.alloc(1, 12), messageBuf]);
-            } else if (slowOrderResponse !== undefined) {
-                const { baseFee } = slowOrderResponse;
-
-                const messageBuf = Buffer.alloc(8);
-                messageBuf.writeBigUInt64BE(baseFee, 0);
-
-                return Buffer.concat([Buffer.alloc(1, 14), messageBuf]);
+                return Buffer.concat([Buffer.alloc(1, FILL_PAYLOAD_ID), messageBuf]);
             } else {
                 throw new Error("Invalid Liquidity Layer deposit message");
             }
