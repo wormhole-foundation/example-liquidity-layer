@@ -1,14 +1,12 @@
-use anchor_spl::token;
-use anchor_lang::prelude::*;
-
 use crate::{
     error::MatchingEngineError,
-    state::{AuctionData, Custodian, AuctionStatus},
+    state::{AuctionData, AuctionStatus, Custodian},
 };
+use anchor_lang::prelude::*;
+use anchor_spl::token;
 
 #[derive(Accounts)]
 pub struct ImproveOffer<'info> {
-    #[account(mut)]
     payer: Signer<'info>,
 
     /// This program's Wormhole (Core Bridge) emitter authority.
@@ -32,30 +30,24 @@ pub struct ImproveOffer<'info> {
 
     #[account(
         mut,
-        associated_token::mint = mint,
+        associated_token::mint = custody_token.mint,
         associated_token::authority = payer
     )]
     auctioneer_token: Account<'info, token::TokenAccount>,
 
     #[account(
         mut,
-        token::mint = mint,
+        token::mint = custody_token.mint,
     )]
     best_offer_token: Account<'info, token::TokenAccount>,
 
     #[account(
         mut,
-        seeds = [crate::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump,
-        token::mint = mint,
-        token::authority = custodian
+        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
+        bump = custodian.custody_token_bump,
     )]
     custody_token: Account<'info, token::TokenAccount>,
 
-    #[account(address = common::constants::usdc::id())]
-    mint: Account<'info, token::Mint>,
-
-    system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,
 }
 
@@ -91,9 +83,12 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
                     from: ctx.accounts.auctioneer_token.to_account_info(),
                     to: ctx.accounts.best_offer_token.to_account_info(),
                     authority: ctx.accounts.payer.to_account_info(),
-                }
+                },
             ),
-            auction_data.amount.checked_add(auction_data.security_deposit).unwrap()
+            auction_data
+                .amount
+                .checked_add(auction_data.security_deposit)
+                .unwrap(),
         )?;
 
         // Update the `best_offer` token account and `amount` fields.

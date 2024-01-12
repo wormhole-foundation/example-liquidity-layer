@@ -1,8 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::result_large_err)]
 
-pub mod constants;
-
 pub mod error;
 
 mod processor;
@@ -75,10 +73,7 @@ pub mod matching_engine {
         processor::place_initial_offer(ctx, fee_offer)
     }
 
-    pub fn improve_offer(
-        ctx: Context<ImproveOffer>,
-        fee_offer: u64
-    ) -> Result<()> {
+    pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
         processor::improve_offer(ctx, fee_offer)
     }
 }

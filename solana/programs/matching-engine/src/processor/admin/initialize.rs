@@ -1,10 +1,10 @@
-use crate::constants::FEE_PRECISION_MAX;
 use crate::{
     error::MatchingEngineError,
     state::{AuctionConfig, Custodian},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
+use common::constants::FEE_PRECISION_MAX;
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -40,7 +40,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = owner,
-        seeds = [crate::constants::CUSTODY_TOKEN_SEED_PREFIX],
+        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
         bump,
         token::mint = mint,
         token::authority = custodian

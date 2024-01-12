@@ -34,6 +34,8 @@ pub struct AddRouterEndpoint<'info> {
     )]
     router_endpoint: Account<'info, RouterEndpoint>,
 
+    /// If provided, seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP
+    /// Token Messenger Minter program).
     remote_token_messenger: Option<AccountInfo<'info>>,
 
     system_program: Program<'info, System>,

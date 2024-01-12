@@ -99,7 +99,7 @@ impl<'a> LiquidityLayerMessage<'a> {
     pub fn to_fast_fill_unchecked(self) -> FastFill<'a> {
         match self {
             Self::FastFill(inner) => inner,
-            _ => panic!("LiquidityLayerDepositMessage is not FastFill"),
+            _ => panic!("LiquidityLayerMessage is not FastFill"),
         }
     }
 
