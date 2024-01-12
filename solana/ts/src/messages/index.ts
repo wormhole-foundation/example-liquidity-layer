@@ -20,11 +20,11 @@ export type FastMarketOrder = {
     minAmountOut: bigint;
     targetChain: number;
     destinationCctpDomain: number;
-    redeemer: Buffer;
-    sender: Buffer;
-    refundAddress: Buffer;
+    redeemer: Array<number>;
+    sender: Array<number>;
+    refundAddress: Array<number>;
     slowSequence: bigint;
-    slowEmitter: Buffer;
+    slowEmitter: Array<number>;
     // u128
     maxFee: bigint;
     // u128
@@ -54,11 +54,13 @@ export class LiquidityLayerMessage {
         const payloadId = buf.readUInt8(offset);
         offset += 1;
 
-        const message = (() => {
+        const { deposit, fastFill, fastMarketOrder } = (() => {
             switch (payloadId) {
                 case ID_DEPOSIT: {
                     return {
                         deposit: LiquidityLayerDeposit.decode(buf),
+                        fastFill: undefined,
+                        fastMarketOrder: undefined,
                     };
                 }
                 case ID_FAST_FILL: {
@@ -73,16 +75,60 @@ export class LiquidityLayerMessage {
                         new BN(buf.subarray(offset, (offset += 16)), undefined, "be").toString()
                     );
                     return {
+                        deposit: undefined,
                         fastFill: {
                             fill: { sourceChain, orderSender, redeemer, redeemerMessage },
                             amount,
-                        },
+                        } as FastFill,
+                        fastMarketOrder: undefined,
                     };
                 }
                 case ID_FAST_MARKET_ORDER: {
-                    // TODO: Implement
+                    const amountIn = BigInt(
+                        new BN(buf.subarray(offset, (offset += 16)), undefined, "be").toString()
+                    );
+                    const minAmountOut = BigInt(
+                        new BN(buf.subarray(offset, (offset += 16)), undefined, "be").toString()
+                    );
+                    const targetChain = buf.readUInt16BE(offset);
+                    offset += 2;
+                    const destinationCctpDomain = buf.readUInt32BE(offset);
+                    offset += 4;
+                    const redeemer = Array.from(buf.subarray(offset, (offset += 32)));
+                    const sender = Array.from(buf.subarray(offset, (offset += 32)));
+                    const refundAddress = Array.from(buf.subarray(offset, (offset += 32)));
+                    const slowSequence = buf.readBigUInt64BE(offset);
+                    offset += 8;
+                    const slowEmitter = Array.from(buf.subarray(offset, (offset += 32)));
+                    const maxFee = BigInt(
+                        new BN(buf.subarray(offset, (offset += 16)), undefined, "be").toString()
+                    );
+                    const initAuctionFee = BigInt(
+                        new BN(buf.subarray(offset, (offset += 16)), undefined, "be").toString()
+                    );
+                    const deadline = buf.readUInt32BE(offset);
+                    offset += 4;
+                    const redeemerMessageLen = buf.readUInt32BE(offset);
+                    offset += 4;
+                    const redeemerMessage = buf.subarray(offset, (offset += redeemerMessageLen));
                     return {
-                        fastMarketOrder: undefined,
+                        deposit: undefined,
+                        fastFill: undefined,
+                        fastMarketOrder: {
+                            amountIn,
+                            minAmountOut,
+                            targetChain,
+                            destinationCctpDomain,
+                            redeemer,
+                            sender,
+                            refundAddress,
+                            slowSequence,
+                            slowEmitter,
+                            maxFee,
+                            initAuctionFee,
+                            deadline,
+                            redeemerMessage,
+                        } as FastMarketOrder,
                     };
                 }
                 default: {
@@ -91,7 +137,7 @@ export class LiquidityLayerMessage {
             }
         })();
 
-        return new LiquidityLayerMessage(message);
+        return new LiquidityLayerMessage({ deposit, fastFill, fastMarketOrder });
     }
 
     encode(): Buffer {
