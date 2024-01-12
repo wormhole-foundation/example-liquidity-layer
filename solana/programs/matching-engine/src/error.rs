@@ -78,4 +78,12 @@ pub enum MatchingEngineError {
 
     #[msg("InvalidPayloadId")]
     InvalidPayloadId,
+    #[msg("AuctionNotActive")]
+    AuctionNotActive,
+
+    #[msg("AuctionPeriodExpired")]
+    AuctionPeriodExpired,
+
+    #[msg("OfferPriceNotImproved")]
+    OfferPriceNotImproved,
 }

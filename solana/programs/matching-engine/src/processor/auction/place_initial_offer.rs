@@ -58,7 +58,7 @@ pub struct PlaceInitialOffer<'info> {
         associated_token::mint = mint,
         associated_token::authority = payer
     )]
-    pub auctioneer_token: Account<'info, token::TokenAccount>,
+    auctioneer_token: Account<'info, token::TokenAccount>,
 
     #[account(
         mut,

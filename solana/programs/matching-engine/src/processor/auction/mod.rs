@@ -1,5 +1,9 @@
 mod place_initial_offer;
 pub use place_initial_offer::*;
+
+mod improve_offer;
+pub use improve_offer::*;
+
 use anchor_lang::prelude::*;
 
 use crate::{

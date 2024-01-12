@@ -614,7 +614,7 @@ describe("Matching Engine", function () {
         let wormholeSequence = 0n;
 
         const baseFastOrder: FastMarketOrder = {
-            amountIn: 500000000000n,
+            amountIn: 50000000000n,
             minAmountOut: 0n,
             targetChain: arbChain,
             targetDomain: arbDomain,
@@ -676,7 +676,7 @@ describe("Matching Engine", function () {
                 );
 
                 // Mint USDC.
-                const mintAmount = 100000n * 10000000n;
+                const mintAmount = 100000n * 100000000n;
                 const destination = await getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     wallet.publicKey
@@ -744,7 +744,7 @@ describe("Matching Engine", function () {
                 const auctionData = await engine.fetchAuctionData(vaaHash);
                 const slot = await connection.getSlot();
 
-                expect(auctionData.bump).to.equal(255);
+                expect(auctionData.bump).to.equal(254);
                 expect(auctionData.vaaHash).to.eql(Array.from(vaaHash));
                 expect(auctionData.status).to.eql({ active: {} });
                 expect(auctionData.bestOffer).to.eql(auctioneerOne.publicKey);

@@ -74,4 +74,11 @@ pub mod matching_engine {
     pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> Result<()> {
         processor::place_initial_offer(ctx, fee_offer)
     }
+
+    pub fn improve_offer(
+        ctx: Context<ImproveOffer>,
+        fee_offer: u64
+    ) -> Result<()> {
+        processor::improve_offer(ctx, fee_offer)
+    }
 }
