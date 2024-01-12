@@ -1,20 +1,22 @@
+import { BN } from "@coral-xyz/anchor";
 import { ethers } from "ethers";
-import { Fill, LiquidityLayerDeposit } from "./deposit";
-
-const ID_DEPOSIT = 1;
-const ID_FAST_FILL = 12;
-const ID_FAST_MARKET_ORDER = 13;
-const ID_SLOW_ORDER_RESPONSE = 14;
+import { Fill, ID_DEPOSIT, LiquidityLayerDeposit } from "./deposit";
 
 export * from "./deposit";
 
+export const ID_FAST_FILL = 12;
+export const ID_FAST_MARKET_ORDER = 13;
+
 export type FastFill = {
     fill: Fill;
+    // u128
     amount: bigint;
 };
 
 export type FastMarketOrder = {
+    // u128
     amountIn: bigint;
+    // u128
     minAmountOut: bigint;
     targetChain: number;
     destinationCctpDomain: number;
@@ -23,38 +25,34 @@ export type FastMarketOrder = {
     refundAddress: Buffer;
     slowSequence: bigint;
     slowEmitter: Buffer;
+    // u128
     maxFee: bigint;
+    // u128
     initAuctionFee: bigint;
     deadline: number;
     redeemerMessage: Buffer;
-};
-
-export type SlowOrderResponse = {
-    baseFee: bigint;
 };
 
 export class LiquidityLayerMessage {
     deposit?: LiquidityLayerDeposit;
     fastFill?: FastFill;
     fastMarketOrder?: FastMarketOrder;
-    slowOrderResponse?: SlowOrderResponse;
 
     constructor(message: {
         deposit?: LiquidityLayerDeposit;
         fastFill?: FastFill;
         fastMarketOrder?: FastMarketOrder;
-        slowOrderResponse?: SlowOrderResponse;
     }) {
-        const { deposit, fastFill, fastMarketOrder, slowOrderResponse } = message;
+        const { deposit, fastFill, fastMarketOrder } = message;
         this.deposit = deposit;
         this.fastFill = fastFill;
         this.fastMarketOrder = fastMarketOrder;
-        this.slowOrderResponse = slowOrderResponse;
     }
 
     static decode(buf: Buffer): LiquidityLayerMessage {
-        const payloadId = buf.readUInt8(0);
-        buf = buf.subarray(1);
+        let offset = 0;
+        const payloadId = buf.readUInt8(offset);
+        offset += 1;
 
         const message = (() => {
             switch (payloadId) {
@@ -64,15 +62,15 @@ export class LiquidityLayerMessage {
                     };
                 }
                 case ID_FAST_FILL: {
-                    const sourceChain = buf.readUInt16BE(0);
-                    const orderSender = Array.from(buf.subarray(2, 34));
-                    const redeemer = Array.from(buf.subarray(34, 66));
-                    const redeemerMessageLen = buf.readUInt32BE(66);
-                    const redeemerMessage = buf.subarray(70, 70 + redeemerMessageLen);
+                    const sourceChain = buf.readUInt16BE(offset);
+                    offset += 2;
+                    const orderSender = Array.from(buf.subarray(offset, (offset += 32)));
+                    const redeemer = Array.from(buf.subarray(offset, (offset += 32)));
+                    const redeemerMessageLen = buf.readUInt32BE(offset);
+                    offset += 4;
+                    const redeemerMessage = buf.subarray(offset, (offset += redeemerMessageLen));
                     const amount = BigInt(
-                        ethers.BigNumber.from(
-                            buf.subarray(70 + redeemerMessageLen, 86 + redeemerMessageLen)
-                        ).toString()
+                        new BN(buf.subarray(offset, (offset += 16)), undefined, "be").toString()
                     );
                     return {
                         fastFill: {
@@ -87,14 +85,8 @@ export class LiquidityLayerMessage {
                         fastMarketOrder: undefined,
                     };
                 }
-                case ID_SLOW_ORDER_RESPONSE: {
-                    const baseFee = BigInt(ethers.BigNumber.from(buf).toString());
-                    return {
-                        slowOrderResponse: { baseFee },
-                    };
-                }
                 default: {
-                    throw new Error("Invalid Liquidity Layer deposit message");
+                    throw new Error("Invalid Liquidity Layer message");
                 }
             }
         })();
@@ -103,7 +95,7 @@ export class LiquidityLayerMessage {
     }
 
     encode(): Buffer {
-        const { deposit, fastFill, fastMarketOrder, slowOrderResponse } = this;
+        const { deposit, fastFill, fastMarketOrder } = this;
 
         const buf = (() => {
             if (deposit !== undefined) {
@@ -112,32 +104,75 @@ export class LiquidityLayerMessage {
                 const { fill, amount } = fastFill;
                 const { sourceChain, orderSender, redeemer, redeemerMessage } = fill;
 
-                const messageBuf = Buffer.alloc(86 + redeemerMessage.length);
+                const messageBuf = Buffer.alloc(1 + 86 + redeemerMessage.length);
 
                 let offset = 0;
+                offset = messageBuf.writeUInt8(ID_FAST_FILL, offset);
                 offset = messageBuf.writeUInt16BE(sourceChain, offset);
                 messageBuf.set(orderSender, offset);
-                offset += 32;
+                offset += orderSender.length;
                 messageBuf.set(redeemer, offset);
-                offset += 32;
+                offset += redeemer.length;
                 offset = messageBuf.writeUInt32BE(redeemerMessage.length, offset);
-                messageBuf.set(redeemerMessage, 70);
+                messageBuf.set(redeemerMessage, offset);
                 offset += redeemerMessage.length;
-                offset = messageBuf.writeBigUInt64BE(amount, offset);
+                const encodedAmount = new BN(amount.toString()).toBuffer("be", 16);
+                messageBuf.set(encodedAmount, offset);
+                offset += encodedAmount.length;
 
-                return Buffer.concat([Buffer.alloc(1, ID_FAST_FILL), messageBuf]);
+                return messageBuf;
             } else if (fastMarketOrder !== undefined) {
-                // TODO: Implement
-                return Buffer.alloc(1, ID_FAST_MARKET_ORDER);
-            } else if (slowOrderResponse !== undefined) {
-                const { baseFee } = slowOrderResponse;
+                const {
+                    amountIn,
+                    minAmountOut,
+                    targetChain,
+                    destinationCctpDomain,
+                    redeemer,
+                    sender,
+                    refundAddress,
+                    slowSequence,
+                    slowEmitter,
+                    maxFee,
+                    initAuctionFee,
+                    deadline,
+                    redeemerMessage,
+                } = fastMarketOrder;
 
-                const messageBuf = Buffer.alloc(8);
-                messageBuf.writeBigUInt64BE(baseFee, 0);
+                const messageBuf = Buffer.alloc(1 + 214 + redeemerMessage.length);
 
-                return Buffer.concat([Buffer.alloc(1, ID_SLOW_ORDER_RESPONSE), messageBuf]);
+                let offset = 0;
+                offset = messageBuf.writeUInt8(ID_FAST_MARKET_ORDER, offset);
+                const encodedAmountIn = new BN(amountIn.toString()).toBuffer("be", 16);
+                messageBuf.set(encodedAmountIn, offset);
+                offset += encodedAmountIn.length;
+                const encodedMinAmountOut = new BN(minAmountOut.toString()).toBuffer("be", 16);
+                messageBuf.set(encodedMinAmountOut, offset);
+                offset += encodedMinAmountOut.length;
+                offset = messageBuf.writeUInt16BE(targetChain, offset);
+                offset = messageBuf.writeUInt32BE(destinationCctpDomain, offset);
+                messageBuf.set(redeemer, offset);
+                offset += redeemer.length;
+                messageBuf.set(sender, offset);
+                offset += sender.length;
+                messageBuf.set(refundAddress, offset);
+                offset += refundAddress.length;
+                offset = messageBuf.writeBigUInt64BE(slowSequence, offset);
+                messageBuf.set(slowEmitter, offset);
+                offset += slowEmitter.length;
+                const encodedMaxFee = new BN(maxFee.toString()).toBuffer("be", 16);
+                messageBuf.set(encodedMaxFee, offset);
+                offset += encodedMaxFee.length;
+                const encodedInitAuctionFee = new BN(initAuctionFee.toString()).toBuffer("be", 16);
+                messageBuf.set(encodedInitAuctionFee, offset);
+                offset += encodedInitAuctionFee.length;
+                offset = messageBuf.writeUInt32BE(deadline, offset);
+                offset = messageBuf.writeUInt32BE(redeemerMessage.length, offset);
+                messageBuf.set(redeemerMessage, offset);
+                offset += redeemerMessage.length;
+
+                return messageBuf;
             } else {
-                throw new Error("Invalid Liquidity Layer deposit message");
+                throw new Error("Invalid Liquidity Layer message");
             }
         })();
 

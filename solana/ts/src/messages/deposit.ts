@@ -1,6 +1,10 @@
+import { BN } from "@coral-xyz/anchor";
 import { ethers } from "ethers";
 
-const FILL_PAYLOAD_ID = 11;
+export const ID_DEPOSIT = 1;
+
+export const ID_DEPOSIT_FILL = 11;
+export const ID_DEPOSIT_SLOW_ORDER_RESPONSE = 14;
 
 export type DepositHeader = {
     tokenAddress: Array<number>;
@@ -19,8 +23,14 @@ export type Fill = {
     redeemerMessage: Buffer;
 };
 
+export type SlowOrderResponse = {
+    // u128
+    baseFee: bigint;
+};
+
 export type LiquidityLayerDepositMessage = {
     fill?: Fill;
+    slowOrderResponse?: SlowOrderResponse;
 };
 
 export class LiquidityLayerDeposit {
@@ -33,34 +43,56 @@ export class LiquidityLayerDeposit {
     }
 
     static decode(buf: Buffer): LiquidityLayerDeposit {
-        if (buf.readUInt8(0) != 1) {
+        let offset = 0;
+        const payloadId = buf.readUInt8(offset);
+        offset += 1;
+        if (payloadId != 1) {
             throw new Error("Invalid Wormhole CCTP deposit message");
         }
-        buf = buf.subarray(1);
 
-        const tokenAddress = Array.from(buf.subarray(0, 32));
-        const amount = BigInt(ethers.BigNumber.from(buf.subarray(32, 64)).toString());
-        const sourceCctpDomain = buf.readUInt32BE(64);
-        const destinationCctpDomain = buf.readUInt32BE(68);
-        const cctpNonce = buf.readBigUint64BE(72);
-        const burnSource = Array.from(buf.subarray(80, 112));
-        const mintRecipient = Array.from(buf.subarray(112, 144));
-        const payloadLen = buf.readUInt16BE(144);
-        const payload = buf.subarray(146, 146 + payloadLen);
+        const tokenAddress = Array.from(buf.subarray(offset, (offset += 32)));
+        const amount = BigInt(
+            ethers.BigNumber.from(buf.subarray(offset, (offset += 32))).toString()
+        );
+        const sourceCctpDomain = buf.readUInt32BE(offset);
+        offset += 4;
+        const destinationCctpDomain = buf.readUInt32BE(offset);
+        offset += 4;
+        const cctpNonce = buf.readBigUint64BE(offset);
+        offset += 8;
+        const burnSource = Array.from(buf.subarray(offset, (offset += 32)));
+        const mintRecipient = Array.from(buf.subarray(offset, (offset += 32)));
+        const payloadLen = buf.readUInt16BE(offset);
+        offset += 2;
+        const payload = buf.subarray(offset, (offset += payloadLen));
 
-        const payloadId = payload.readUInt8(0);
-        const messageBuf = payload.subarray(1);
+        offset = 0;
+        const depositPayloadId = payload.readUInt8(offset);
+        offset += 1;
 
         const message = (() => {
-            switch (payloadId) {
-                case FILL_PAYLOAD_ID: {
-                    const sourceChain = messageBuf.readUInt16BE(0);
-                    const orderSender = Array.from(messageBuf.subarray(2, 34));
-                    const redeemer = Array.from(messageBuf.subarray(34, 66));
-                    const redeemerMessageLen = messageBuf.readUInt32BE(66);
-                    const redeemerMessage = messageBuf.subarray(70, 70 + redeemerMessageLen);
+            switch (depositPayloadId) {
+                case ID_DEPOSIT_FILL: {
+                    const sourceChain = payload.readUInt16BE(offset);
+                    offset += 2;
+                    const orderSender = Array.from(payload.subarray(offset, (offset += 32)));
+                    const redeemer = Array.from(payload.subarray(offset, (offset += 32)));
+                    const redeemerMessageLen = payload.readUInt32BE(offset);
+                    offset += 4;
+                    const redeemerMessage = payload.subarray(
+                        offset,
+                        (offset += redeemerMessageLen)
+                    );
                     return {
                         fill: { sourceChain, orderSender, redeemer, redeemerMessage },
+                    };
+                }
+                case ID_DEPOSIT_SLOW_ORDER_RESPONSE: {
+                    const baseFee = BigInt(
+                        new BN(buf.subarray(offset, (offset += 16)), undefined, "be").toString()
+                    );
+                    return {
+                        slowOrderResponse: { baseFee },
                     };
                 }
                 default: {
@@ -110,28 +142,40 @@ export class LiquidityLayerDeposit {
         offset = buf.writeUInt32BE(destinationCctpDomain, offset);
         offset = buf.writeBigUInt64BE(cctpNonce, offset);
         buf.set(burnSource, offset);
-        offset += 32;
+        offset += burnSource.length;
         buf.set(mintRecipient, offset);
-        offset += 32;
+        offset += mintRecipient.length;
 
-        const { fill } = message;
+        const { fill, slowOrderResponse } = message;
         const payload = (() => {
             if (fill !== undefined) {
                 const { sourceChain, orderSender, redeemer, redeemerMessage } = fill;
 
-                const messageBuf = Buffer.alloc(70 + redeemerMessage.length);
+                const messageBuf = Buffer.alloc(1 + 70 + redeemerMessage.length);
 
                 let offset = 0;
+                offset = messageBuf.writeUInt8(ID_DEPOSIT_FILL, offset);
                 offset = messageBuf.writeUInt16BE(sourceChain, offset);
                 messageBuf.set(orderSender, offset);
-                offset += 32;
+                offset += orderSender.length;
                 messageBuf.set(redeemer, offset);
-                offset += 32;
+                offset += redeemer.length;
                 offset = messageBuf.writeUInt32BE(redeemerMessage.length, offset);
-                messageBuf.set(redeemerMessage, 70);
+                messageBuf.set(redeemerMessage, offset);
                 offset += redeemerMessage.length;
 
-                return Buffer.concat([Buffer.alloc(1, FILL_PAYLOAD_ID), messageBuf]);
+                return messageBuf;
+            } else if (slowOrderResponse !== undefined) {
+                const { baseFee } = slowOrderResponse;
+
+                const messageBuf = Buffer.alloc(1 + 16);
+                let offset = 0;
+                offset = messageBuf.writeUInt8(ID_DEPOSIT_SLOW_ORDER_RESPONSE, offset);
+                const encodedBaseFee = new BN(baseFee.toString()).toBuffer("be", 16);
+                messageBuf.set(encodedBaseFee, offset);
+                offset += encodedBaseFee.length;
+
+                return messageBuf;
             } else {
                 throw new Error("Invalid Liquidity Layer deposit message");
             }
@@ -140,6 +184,6 @@ export class LiquidityLayerDeposit {
         // Finally write the length.
         buf.writeUInt16BE(payload.length, offset);
 
-        return Buffer.concat([Buffer.alloc(1, 1), buf, payload]);
+        return Buffer.concat([Buffer.alloc(1, ID_DEPOSIT), buf, payload]);
     }
 }
