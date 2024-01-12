@@ -36,9 +36,9 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
     /// @inheritdoc IMatchingEngineFastOrders
     function placeInitialBid(bytes calldata fastTransferVaa, uint128 feeBid) external {
-        IWormhole.VM memory vm = _verifyWormholeMessage(fastTransferVaa);
+        IWormhole.VM memory vaa = _verifyWormholeMessage(fastTransferVaa);
 
-        Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
+        Messages.FastMarketOrder memory order = vaa.payload.decodeFastMarketOrder();
 
         if (uint32(block.timestamp) >= order.deadline && order.deadline != 0) {
             revert ErrDeadlineExceeded();
@@ -53,14 +53,14 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
          * so we can trust the router path of a verified VAA with a corresponding
          * hash.
          */
-        _verifyRouterPath(vm.emitterChainId, vm.emitterAddress, order.targetChain);
+        _verifyRouterPath(vaa.emitterChainId, vaa.emitterAddress, order.targetChain);
 
         // Confirm the auction hasn't started yet.
-        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vm.hash];
+        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vaa.hash];
         if (auction.status != AuctionStatus.None) {
             // Call `improveBid` so that relayers racing to start the auction
             // do not revert and waste gas.
-            _improveBid(vm.hash, auction, feeBid);
+            _improveBid(vaa.hash, auction, feeBid);
 
             return;
         }
@@ -83,7 +83,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         auction.securityDeposit = order.maxFee;
         auction.bidPrice = feeBid;
 
-        emit AuctionStarted(vm.hash, order.amountIn, feeBid, msg.sender);
+        emit AuctionStarted(vaa.hash, order.amountIn, feeBid, msg.sender);
     }
 
     /// @inheritdoc IMatchingEngineFastOrders
@@ -100,12 +100,12 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         payable
         returns (uint64 sequence)
     {
-        IWormhole.VM memory vm = _verifyWormholeMessage(fastTransferVaa);
+        IWormhole.VM memory vaa = _verifyWormholeMessage(fastTransferVaa);
 
-        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vm.hash];
+        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vaa.hash];
 
         if (auction.status != AuctionStatus.Active) {
-            revert ErrAuctionNotActive(vm.hash);
+            revert ErrAuctionNotActive(vaa.hash);
         }
 
         uint128 blocksElapsed = uint128(block.number) - auction.startBlock;
@@ -113,7 +113,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             revert ErrAuctionPeriodNotComplete();
         }
 
-        Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
+        Messages.FastMarketOrder memory order = vaa.payload.decodeFastMarketOrder();
 
         if (blocksElapsed > _auctionGracePeriod) {
             (uint128 penalty, uint128 userReward) =
@@ -135,7 +135,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             // Transfer funds to the recipient on the target chain.
             sequence = _handleCctpTransfer(
                 auction.amount - auction.bidPrice - order.initAuctionFee + userReward,
-                vm.emitterChainId,
+                vaa.emitterChainId,
                 order
             );
         } else {
@@ -146,7 +146,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
             // Transfer funds to the recipient on the target chain.
             sequence = _handleCctpTransfer(
-                auction.amount - auction.bidPrice - order.initAuctionFee, vm.emitterChainId, order
+                auction.amount - auction.bidPrice - order.initAuctionFee, vaa.emitterChainId, order
             );
         }
 
@@ -163,19 +163,19 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         payable
         returns (uint64 sequence)
     {
-        IWormhole.VM memory vm = _verifyWormholeMessage(fastTransferVaa);
+        IWormhole.VM memory vaa = _verifyWormholeMessage(fastTransferVaa);
 
         // Redeem the slow CCTP transfer.
-        (IWormhole.VM memory cctpVm,,,,, bytes memory payload) = verifyVaaAndMint(
+        (IWormhole.VM memory cctpVaa,,,,, bytes memory payload) = verifyVaaAndMint(
             params.circleBridgeMessage, params.circleAttestation, params.encodedWormholeMessage
         );
 
-        Messages.FastMarketOrder memory order = vm.payload.decodeFastMarketOrder();
+        Messages.FastMarketOrder memory order = vaa.payload.decodeFastMarketOrder();
 
         // Confirm that the fast transfer VAA is associated with the slow transfer VAA.
         if (
-            vm.emitterChainId != cctpVm.emitterChainId || order.slowEmitter != cctpVm.emitterAddress
-                || order.slowSequence != cctpVm.sequence || vm.timestamp != cctpVm.timestamp
+            vaa.emitterChainId != cctpVaa.emitterChainId || order.slowEmitter != cctpVaa.emitterAddress
+                || order.slowSequence != cctpVaa.sequence || vaa.timestamp != cctpVaa.timestamp
         ) {
             revert ErrVaaMismatch();
         }
@@ -183,14 +183,14 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         // Parse the `maxFee` from the slow VAA.
         uint128 baseFee = payload.decodeSlowOrderResponse().baseFee;
 
-        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vm.hash];
+        LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vaa.hash];
 
         if (auction.status == AuctionStatus.None) {
             // SECURITY: We need to verify the router path, since an auction was never created
             // and this check is done in `placeInitialBid`.
-            _verifyRouterPath(cctpVm.emitterChainId, cctpVm.emitterAddress, order.targetChain);
+            _verifyRouterPath(cctpVaa.emitterChainId, cctpVaa.emitterAddress, order.targetChain);
 
-            sequence = _handleCctpTransfer(order.amountIn - baseFee, cctpVm.emitterChainId, order);
+            sequence = _handleCctpTransfer(order.amountIn - baseFee, cctpVaa.emitterChainId, order);
 
             /**
              * Pay the `feeRecipient` the `baseFee`. This ensures that the protocol relayer
@@ -227,7 +227,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             );
 
             sequence = _handleCctpTransfer(
-                auction.amount - baseFee + userReward, cctpVm.emitterChainId, order
+                auction.amount - baseFee + userReward, cctpVaa.emitterChainId, order
             );
 
             // Everyone's whole, set the auction as completed.
@@ -245,18 +245,18 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         external
         returns (Messages.FastFill memory)
     {
-        IWormhole.VM memory vm = _verifyWormholeMessage(fastFillVaa);
+        IWormhole.VM memory vaa = _verifyWormholeMessage(fastFillVaa);
         if (
-            vm.emitterChainId != _chainId || vm.emitterAddress != address(this).toUniversalAddress()
+            vaa.emitterChainId != _chainId || vaa.emitterAddress != address(this).toUniversalAddress()
         ) {
             revert ErrInvalidEmitterForFastFill();
         }
 
         FastFills storage fastFills = getFastFillsState();
-        if (fastFills.redeemed[vm.hash]) {
+        if (fastFills.redeemed[vaa.hash]) {
             revert ErrFastFillAlreadyRedeemed();
         }
-        fastFills.redeemed[vm.hash] = true;
+        fastFills.redeemed[vaa.hash] = true;
 
         // Only the TokenRouter from this chain (_chainId) can redeem this message type.
         bytes32 expectedRouter = getRouterEndpointState().endpoints[_chainId];
@@ -265,7 +265,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             revert ErrInvalidSourceRouter(callingRouter, expectedRouter);
         }
 
-        Messages.FastFill memory fastFill = vm.payload.decodeFastFill();
+        Messages.FastFill memory fastFill = vaa.payload.decodeFastFill();
 
         SafeERC20.safeTransfer(_token, msg.sender, fastFill.fillAmount);
 
@@ -363,17 +363,17 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         }
     }
 
-    function _verifyWormholeMessage(bytes calldata vaa)
+    function _verifyWormholeMessage(bytes calldata _vaa)
         private
         view
         returns (IWormhole.VM memory)
     {
-        (IWormhole.VM memory vm, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(vaa);
+        (IWormhole.VM memory vaa, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(_vaa);
 
         if (!valid) {
             revert ErrInvalidWormholeMessage(reason);
         }
 
-        return vm;
+        return vaa;
     }
 }

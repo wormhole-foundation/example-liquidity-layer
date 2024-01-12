@@ -47,7 +47,7 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
         private
         returns (RedeemedFill memory)
     {
-        (IWormhole.VM memory vm,, uint256 amount,,, bytes memory payload) = verifyVaaAndMint(
+        (IWormhole.VM memory vaa,, uint256 amount,,, bytes memory payload) = verifyVaaAndMint(
             response.circleBridgeMessage,
             response.circleAttestation,
             response.encodedWormholeMessage
@@ -56,10 +56,10 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
         Messages.Fill memory fill = payload.decodeFill();
 
         // Verify that the sender is a known router or the matching engine.
-        if (vm.emitterAddress != _matchingEngineAddress || emitterChain != _matchingEngineChain) {
+        if (vaa.emitterAddress != _matchingEngineAddress || emitterChain != _matchingEngineChain) {
             bytes32 fromRouter = getRouter(emitterChain);
-            if (vm.emitterAddress != fromRouter) {
-                revert ErrInvalidSourceRouter(vm.emitterAddress, fromRouter);
+            if (vaa.emitterAddress != fromRouter) {
+                revert ErrInvalidSourceRouter(vaa.emitterAddress, fromRouter);
             }
         }
 
