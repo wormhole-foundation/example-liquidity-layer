@@ -186,8 +186,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 redeemer: redeemer,
                 sender: msg.sender.toUniversalAddress(),
                 refundAddress: refundAddress.toUniversalAddress(),
-                slowSequence: sequence,
-                slowEmitter: address(this).toUniversalAddress(),
                 maxFee: maxFee - fastParams.initAuctionFee,
                 initAuctionFee: fastParams.initAuctionFee,
                 deadline: deadline,

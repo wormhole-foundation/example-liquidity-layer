@@ -233,8 +233,6 @@ export class FastMarketOrder {
     redeemer: Buffer;
     sender: Buffer;
     refundAddress: Buffer;
-    slowSequence: number;
-    slowEmitter: Buffer;
     maxFee: bigint;
     initAuctionFee: bigint;
     deadline: number;
@@ -248,8 +246,6 @@ export class FastMarketOrder {
         redeemer: Buffer,
         sender: Buffer,
         refundAddress: Buffer,
-        slowSequence: number,
-        slowEmitter: Buffer,
         maxFee: bigint,
         initAuctionFee: bigint,
         deadline: number,
@@ -262,8 +258,6 @@ export class FastMarketOrder {
         this.redeemer = redeemer;
         this.sender = sender;
         this.refundAddress = refundAddress;
-        this.slowSequence = slowSequence;
-        this.slowEmitter = slowEmitter;
         this.maxFee = maxFee;
         this.initAuctionFee = initAuctionFee;
         this.deadline = deadline;
@@ -284,13 +278,13 @@ export class FastMarketOrder {
         const redeemer = buf.subarray(38, 70);
         const sender = buf.subarray(70, 102);
         const refundAddress = buf.subarray(102, 134);
-        const slowSequence = buf.readBigUint64BE(134);
-        const slowEmitter = buf.subarray(142, 174);
-        const maxFee = BigInt(ethers.BigNumber.from(buf.subarray(174, 190)).toString());
-        const initAuctionFee = BigInt(ethers.BigNumber.from(buf.subarray(190, 206)).toString());
-        const deadline = buf.readUInt32BE(206);
-        const redeemerMsgLen = buf.readUInt32BE(210);
-        const redeemerMessage = buf.subarray(214, 214 + redeemerMsgLen);
+        //const slowSequence = buf.readBigUint64BE(134);
+        //const slowEmitter = buf.subarray(142, 174);
+        const maxFee = BigInt(ethers.BigNumber.from(buf.subarray(134, 150)).toString());
+        const initAuctionFee = BigInt(ethers.BigNumber.from(buf.subarray(150, 166)).toString());
+        const deadline = buf.readUInt32BE(166);
+        const redeemerMsgLen = buf.readUInt32BE(170);
+        const redeemerMessage = buf.subarray(174, 174 + redeemerMsgLen);
         return new FastMarketOrder(
             amountIn,
             minAmountOut,
@@ -299,8 +293,6 @@ export class FastMarketOrder {
             redeemer,
             sender,
             refundAddress,
-            Number(slowSequence),
-            slowEmitter,
             maxFee,
             initAuctionFee,
             deadline,

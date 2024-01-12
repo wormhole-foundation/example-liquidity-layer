@@ -41,8 +41,6 @@ library Messages {
         bytes32 redeemer;
         bytes32 sender;
         bytes32 refundAddress;
-        uint64 slowSequence;
-        bytes32 slowEmitter;
         uint128 maxFee;
         uint128 initAuctionFee;
         uint32 deadline;
@@ -84,8 +82,6 @@ library Messages {
             order.redeemer,
             order.sender,
             order.refundAddress,
-            order.slowSequence,
-            order.slowEmitter,
             order.maxFee,
             order.initAuctionFee,
             order.deadline,
@@ -108,8 +104,6 @@ library Messages {
         (order.redeemer, offset) = encoded.asBytes32Unchecked(offset);
         (order.sender, offset) = encoded.asBytes32Unchecked(offset);
         (order.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
-        (order.slowSequence, offset) = encoded.asUint64(offset);
-        (order.slowEmitter, offset) = encoded.asBytes32Unchecked(offset);
         (order.maxFee, offset) = encoded.asUint128Unchecked(offset);
         (order.initAuctionFee, offset) = encoded.asUint128Unchecked(offset);
         (order.deadline, offset) = encoded.asUint32Unchecked(offset);

@@ -1,8 +1,4 @@
-import {
-    coalesceChainId,
-    tryNativeToUint8Array,
-    tryUint8ArrayToNative,
-} from "@certusone/wormhole-sdk";
+import { coalesceChainId, tryNativeToUint8Array } from "@certusone/wormhole-sdk";
 import { expect } from "chai";
 import { ethers } from "ethers";
 import {

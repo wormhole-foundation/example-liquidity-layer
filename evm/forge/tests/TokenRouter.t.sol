@@ -546,8 +546,6 @@ contract TokenRouterTest is Test {
         bytes32 redeemer,
         bytes32 sender,
         bytes32 refundAddress,
-        uint64 slowSequence,
-        bytes32 slowEmitter,
         uint128 maxFee,
         uint128 initAuctionFee,
         uint32 deadline,
@@ -561,8 +559,6 @@ contract TokenRouterTest is Test {
             redeemer: redeemer,
             sender: sender,
             refundAddress: refundAddress,
-            slowSequence: slowSequence,
-            slowEmitter: slowEmitter,
             maxFee: maxFee,
             initAuctionFee: initAuctionFee,
             deadline: deadline,
@@ -581,8 +577,6 @@ contract TokenRouterTest is Test {
         assertEq(decoded.redeemer, order.redeemer);
         assertEq(decoded.sender, order.sender);
         assertEq(decoded.refundAddress, order.refundAddress);
-        assertEq(decoded.slowSequence, order.slowSequence);
-        assertEq(decoded.slowEmitter, order.slowEmitter);
         assertEq(decoded.maxFee, order.maxFee);
         assertEq(decoded.initAuctionFee, order.initAuctionFee);
         assertEq(decoded.redeemerMessage, order.redeemerMessage);
@@ -877,9 +871,6 @@ contract TokenRouterTest is Test {
 
         _dealAndApproveUsdc(router, amountIn);
 
-        // The slow message is sent first.
-        uint64 slowSequence = wormholeSimulator.nextSequence(address(router));
-
         // Create a fast market order, this is actually the payload that will be encoded
         // in the "slow message".
         Messages.FastMarketOrder memory expectedFastMarketOrder = Messages.FastMarketOrder({
@@ -890,8 +881,6 @@ contract TokenRouterTest is Test {
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(this).toUniversalAddress(),
-            slowSequence: slowSequence,
-            slowEmitter: address(router).toUniversalAddress(),
             maxFee: maxFee - router.getInitialAuctionFee(),
             initAuctionFee: router.getInitialAuctionFee(),
             deadline: deadline,
@@ -938,9 +927,6 @@ contract TokenRouterTest is Test {
 
         _dealAndApproveUsdc(router, amountIn);
 
-        // The slow message is sent first.
-        uint64 slowSequence = wormholeSimulator.nextSequence(address(router));
-
         // Create a fast market order, this is actually the payload that will be encoded
         // in the "slow message".
         Messages.FastMarketOrder memory expectedFastMarketOrder = Messages.FastMarketOrder({
@@ -951,8 +937,6 @@ contract TokenRouterTest is Test {
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(0).toUniversalAddress(),
-            slowSequence: slowSequence,
-            slowEmitter: address(router).toUniversalAddress(),
             maxFee: maxFee - router.getInitialAuctionFee(),
             initAuctionFee: router.getInitialAuctionFee(),
             deadline: deadline,
@@ -1014,9 +998,6 @@ contract TokenRouterTest is Test {
         vm.prank(makeAddr("owner"));
         router.addRouterEndpoint(targetChain, targetRouter, matchingEngineDomain);
 
-        // The slow message is sent first.
-        uint64 slowSequence = wormholeSimulator.nextSequence(address(router));
-
         // Create a fast market order, this is actually the payload that will be encoded
         // in the "slow message".
         Messages.FastMarketOrder memory expectedFastMarketOrder = Messages.FastMarketOrder({
@@ -1027,8 +1008,6 @@ contract TokenRouterTest is Test {
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(this).toUniversalAddress(),
-            slowSequence: slowSequence,
-            slowEmitter: address(router).toUniversalAddress(),
             maxFee: maxFee - router.getInitialAuctionFee(),
             initAuctionFee: router.getInitialAuctionFee(),
             deadline: deadline,

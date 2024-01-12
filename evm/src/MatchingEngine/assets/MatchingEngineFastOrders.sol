@@ -174,8 +174,8 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
         // Confirm that the fast transfer VAA is associated with the slow transfer VAA.
         if (
-            vaa.emitterChainId != cctpVaa.emitterChainId || order.slowEmitter != cctpVaa.emitterAddress
-                || order.slowSequence != cctpVaa.sequence || vaa.timestamp != cctpVaa.timestamp
+            vaa.emitterChainId != cctpVaa.emitterChainId || vaa.emitterAddress != cctpVaa.emitterAddress
+                || vaa.sequence != cctpVaa.sequence + 1 || vaa.timestamp != cctpVaa.timestamp
         ) {
             revert ErrVaaMismatch();
         }
