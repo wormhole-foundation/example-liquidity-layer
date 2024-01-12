@@ -217,7 +217,6 @@ export class MatchingEngineProgram {
                 toRouterEndpoint: this.routerEndpointAddress(toChain),
                 auctioneerToken: splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, payer),
                 custodyToken: this.custodyTokenAccountAddress(),
-                mint: USDC_MINT_ADDRESS,
                 vaa,
             })
             .instruction();

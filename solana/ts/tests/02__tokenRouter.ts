@@ -10,14 +10,8 @@ import {
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
-import {
-    CctpTokenBurnMessage,
-    Custodian,
-    Fill,
-    LiquidityLayerDeposit,
-    RouterEndpoint,
-    TokenRouterProgram,
-} from "../src";
+import { CctpTokenBurnMessage, Fill, LiquidityLayerDeposit } from "../src";
+import { Custodian, RouterEndpoint, TokenRouterProgram } from "../src/tokenRouter";
 import {
     CircleAttester,
     ETHEREUM_USDC_ADDRESS,
