@@ -5,6 +5,7 @@ import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormh
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { postVaaSolana, solana as wormSolana } from "@certusone/wormhole-sdk";
 import { WORMHOLE_CONTRACTS, USDC_MINT_ADDRESS } from "../../tests/helpers";
+import { MatchingEngineProgram } from "../../src/matchingEngine";
 import { ethers } from "ethers";
 
 export async function getTokenBalance(connection: Connection, address: PublicKey) {
@@ -149,4 +150,11 @@ export async function postFastTransferVaa(
     await postVaa(connection, payer, vaaBuf);
 
     return [derivePostedVaaKey(WORMHOLE_CONTRACTS.solana.core, parseVaa(vaaBuf).hash), vaaBuf];
+}
+
+export async function getBestOfferTokenAccount(
+    engine: MatchingEngineProgram,
+    vaaHash: Buffer
+): Promise<PublicKey> {
+    return (await engine.fetchAuctionData(vaaHash)).bestOffer;
 }

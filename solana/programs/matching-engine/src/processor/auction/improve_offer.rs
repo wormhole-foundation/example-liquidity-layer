@@ -92,11 +92,11 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
         )?;
 
         // Update the `best_offer` token account and `amount` fields.
-        auction_data.best_offer = *ctx.accounts.auctioneer_token.to_account_info().key;
-        auction_data.amount = fee_offer;
+        auction_data.best_offer = ctx.accounts.auctioneer_token.key();
+        auction_data.offer_price = fee_offer;
     } else {
         // Since the auctioneer is already the best offer, we only need to update the `amount`.
-        auction_data.amount = fee_offer;
+        auction_data.offer_price = fee_offer;
     }
 
     Ok(())

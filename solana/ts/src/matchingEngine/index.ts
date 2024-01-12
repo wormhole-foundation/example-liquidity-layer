@@ -221,6 +221,25 @@ export class MatchingEngineProgram {
             })
             .instruction();
     }
+
+    async improveOfferIx(
+        feeOffer: bigint,
+        vaaHash: Buffer,
+        accounts: { payer: PublicKey; bestOfferToken: PublicKey }
+    ) {
+        const { payer, bestOfferToken } = accounts;
+        return this.program.methods
+            .improveOffer(new BN(feeOffer.toString()))
+            .accounts({
+                payer,
+                custodian: this.custodianAddress(),
+                auctionData: this.auctionDataAddress(vaaHash),
+                auctioneerToken: splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, payer),
+                bestOfferToken,
+                custodyToken: this.custodyTokenAccountAddress(),
+            })
+            .instruction();
+    }
 }
 
 export function testnet(): ProgramId {
