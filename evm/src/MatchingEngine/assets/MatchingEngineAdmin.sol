@@ -25,7 +25,7 @@ abstract contract MatchingEngineAdmin is IMatchingEngineAdmin, Admin, State {
     }
 
     /// @inheritdoc IMatchingEngineAdmin
-    function updateFeeRecipient(address newFeeRecipient) public onlyOwnerOrAssistant {
+    function updateFeeRecipient(address newFeeRecipient) external onlyOwnerOrAssistant {
         if (newFeeRecipient == address(0)) {
             revert InvalidAddress();
         }
@@ -34,7 +34,7 @@ abstract contract MatchingEngineAdmin is IMatchingEngineAdmin, Admin, State {
     }
 
     /// @inheritdoc IMatchingEngineAdmin
-    function setCctpAllowance(uint256 amount) public onlyOwnerOrAssistant {
+    function setCctpAllowance(uint256 amount) external onlyOwnerOrAssistant {
         setTokenMessengerApproval(address(_token), amount);
     }
 }

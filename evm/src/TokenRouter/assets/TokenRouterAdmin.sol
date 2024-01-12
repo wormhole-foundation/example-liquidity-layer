@@ -56,7 +56,7 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
     }
 
     /// @inheritdoc ITokenRouterAdmin
-    function setCctpAllowance(uint256 amount) public onlyOwnerOrAssistant {
+    function setCctpAllowance(uint256 amount) external onlyOwnerOrAssistant {
         setTokenMessengerApproval(address(_orderToken), amount);
     }
 }
