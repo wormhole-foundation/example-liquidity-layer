@@ -8,7 +8,6 @@ import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { AuctionConfig, Custodian, RouterEndpoint } from "./state";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { AuctionData } from "./state/AuctionData";
-import { USDC_MINT_ADDRESS } from "../../tests/helpers";
 
 export const PROGRAM_IDS = ["MatchingEngine11111111111111111111111111111"] as const;
 
@@ -76,9 +75,10 @@ export class MatchingEngineProgram {
             owner: PublicKey;
             ownerAssistant: PublicKey;
             feeRecipient: PublicKey;
+            mint: PublicKey;
         }
     ): Promise<TransactionInstruction> {
-        const { owner, ownerAssistant, feeRecipient } = accounts;
+        const { owner, ownerAssistant, feeRecipient, mint } = accounts;
 
         return this.program.methods
             .initialize(auctionConfig)
@@ -88,7 +88,8 @@ export class MatchingEngineProgram {
                 ownerAssistant,
                 feeRecipient,
                 custodyToken: this.custodyTokenAccountAddress(),
-                mint: USDC_MINT_ADDRESS,
+                mint,
+                programData: getProgramData(this.ID),
             })
             .instruction();
     }
@@ -204,9 +205,9 @@ export class MatchingEngineProgram {
         fromChain: ChainId,
         toChain: ChainId,
         vaaHash: Buffer,
-        accounts: { payer: PublicKey; vaa: PublicKey }
+        accounts: { payer: PublicKey; vaa: PublicKey; mint: PublicKey }
     ) {
-        const { payer, vaa } = accounts;
+        const { payer, vaa, mint } = accounts;
         return this.program.methods
             .placeInitialOffer(new BN(feeOffer.toString()))
             .accounts({
@@ -215,7 +216,7 @@ export class MatchingEngineProgram {
                 auctionData: this.auctionDataAddress(vaaHash),
                 fromRouterEndpoint: this.routerEndpointAddress(fromChain),
                 toRouterEndpoint: this.routerEndpointAddress(toChain),
-                auctioneerToken: splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, payer),
+                auctioneerToken: splToken.getAssociatedTokenAddressSync(mint, payer),
                 custodyToken: this.custodyTokenAccountAddress(),
                 vaa,
             })
@@ -228,13 +229,17 @@ export class MatchingEngineProgram {
         accounts: { payer: PublicKey; bestOfferToken: PublicKey }
     ) {
         const { payer, bestOfferToken } = accounts;
+        const { mint } = await splToken.getAccount(
+            this.program.provider.connection,
+            bestOfferToken
+        );
         return this.program.methods
             .improveOffer(new BN(feeOffer.toString()))
             .accounts({
                 payer,
                 custodian: this.custodianAddress(),
                 auctionData: this.auctionDataAddress(vaaHash),
-                auctioneerToken: splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, payer),
+                auctioneerToken: splToken.getAssociatedTokenAddressSync(mint, payer),
                 bestOfferToken,
                 custodyToken: this.custodyTokenAccountAddress(),
             })

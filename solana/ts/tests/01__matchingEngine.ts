@@ -1,10 +1,5 @@
 import { CHAINS, ChainId, keccak256, parseVaa } from "@certusone/wormhole-sdk";
-import {
-    getAccount,
-    getAssociatedTokenAddressSync,
-    getOrCreateAssociatedTokenAccount,
-    mintTo,
-} from "@solana/spl-token";
+import * as splToken from "@solana/spl-token";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
@@ -73,7 +68,19 @@ describe("Matching Engine", function () {
                     owner: payer.publicKey,
                     ownerAssistant: opts?.ownerAssistant ?? ownerAssistant.publicKey,
                     feeRecipient: opts?.feeRecipient ?? feeRecipient.publicKey,
+                    mint: opts?.mint ?? USDC_MINT_ADDRESS,
                 });
+
+            it("Cannot Initialize Without USDC Mint", async function () {
+                const mint = await splToken.createMint(connection, payer, payer.publicKey, null, 6);
+
+                await expectIxErr(
+                    connection,
+                    [await createInitializeIx({ mint })],
+                    [payer],
+                    "NotUsdc"
+                );
+            });
 
             it("Cannot Initialize With Default Owner Assistant", async function () {
                 await expectIxErr(
@@ -112,6 +119,7 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
+                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -130,6 +138,7 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
+                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -148,6 +157,7 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
+                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -166,6 +176,7 @@ describe("Matching Engine", function () {
                             owner: payer.publicKey,
                             ownerAssistant: ownerAssistant.publicKey,
                             feeRecipient: feeRecipient.publicKey,
+                            mint: USDC_MINT_ADDRESS,
                         }),
                     ],
                     [payer],
@@ -669,7 +680,7 @@ describe("Matching Engine", function () {
 
         before("Create ATAs For Auctioneers", async function () {
             for (const wallet of [auctioneerOne, auctioneerTwo]) {
-                await getOrCreateAssociatedTokenAccount(
+                await splToken.getOrCreateAssociatedTokenAccount(
                     connection,
                     wallet,
                     USDC_MINT_ADDRESS,
@@ -678,16 +689,23 @@ describe("Matching Engine", function () {
 
                 // Mint USDC.
                 const mintAmount = 100000n * 100000000n;
-                const destination = await getAssociatedTokenAddressSync(
+                const destination = await splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     wallet.publicKey
                 );
 
                 await expect(
-                    mintTo(connection, payer, USDC_MINT_ADDRESS, destination, payer, mintAmount)
+                    splToken.mintTo(
+                        connection,
+                        payer,
+                        USDC_MINT_ADDRESS,
+                        destination,
+                        payer,
+                        mintAmount
+                    )
                 ).to.be.fulfilled;
 
-                const { amount } = await getAccount(connection, destination);
+                const { amount } = await splToken.getAccount(connection, destination);
                 expect(amount).equals(mintAmount);
             }
         });
@@ -697,7 +715,7 @@ describe("Matching Engine", function () {
                 // Fetch the balances before.
                 const auctioneerBefore = await getTokenBalance(connection, auctioneerOne.publicKey);
                 const custodyBefore = (
-                    await getAccount(connection, engine.custodyTokenAccountAddress())
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
                 ).amount;
 
                 const signedVaa = await placeInitialOfferForTest(
@@ -717,7 +735,7 @@ describe("Matching Engine", function () {
                 // Validate balance changes.
                 const auctioneerAfter = await getTokenBalance(connection, auctioneerOne.publicKey);
                 const custodyAfter = (
-                    await getAccount(connection, engine.custodyTokenAccountAddress())
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
                 ).amount;
 
                 expect(auctioneerAfter).equals(
@@ -731,7 +749,7 @@ describe("Matching Engine", function () {
                 const vaaHash = keccak256(parseVaa(signedVaa).hash);
                 const auctionData = await engine.fetchAuctionData(vaaHash);
                 const slot = await connection.getSlot();
-                const auctioneerToken = await getAssociatedTokenAddressSync(
+                const auctioneerToken = await splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     auctioneerOne.publicKey
                 );
@@ -775,7 +793,7 @@ describe("Matching Engine", function () {
                     auctioneerTwo.publicKey
                 );
                 const custodyBefore = (
-                    await getAccount(connection, engine.custodyTokenAccountAddress())
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
                 ).amount;
 
                 // New Offer from auctioneerTwo.
@@ -805,7 +823,7 @@ describe("Matching Engine", function () {
                     auctioneerTwo.publicKey
                 );
                 const custodyAfter = (
-                    await getAccount(connection, engine.custodyTokenAccountAddress())
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
                 ).amount;
 
                 expect(newAuctioneerAfter).equals(
@@ -818,11 +836,11 @@ describe("Matching Engine", function () {
 
                 // Confirm the auction data.
                 const auctionDataAfter = await engine.fetchAuctionData(vaaHash);
-                const newAuctioneerToken = await getAssociatedTokenAddressSync(
+                const newAuctioneerToken = await splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     auctioneerTwo.publicKey
                 );
-                const initialAuctioneerToken = await getAssociatedTokenAddressSync(
+                const initialAuctioneerToken = await splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     auctioneerOne.publicKey
                 );
@@ -881,6 +899,7 @@ async function placeInitialOfferForTest(
                 {
                     payer: auctioneer.publicKey,
                     vaa: vaaKey,
+                    mint: USDC_MINT_ADDRESS,
                 }
             ),
         ],

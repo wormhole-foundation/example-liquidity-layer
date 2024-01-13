@@ -11,8 +11,14 @@ pub enum TokenRouterError {
     #[msg("AssistantZeroPubkey")]
     AssistantZeroPubkey = 0x20,
 
+    #[msg("ImmutableProgram")]
+    ImmutableProgram = 0x21,
+
     #[msg("InvalidNewOwner")]
     InvalidNewOwner = 0x22,
+
+    #[msg("NotUsdc")]
+    NotUsdc = 0x23,
 
     /// Specified key is already the program's owner.
     #[msg("AlreadyOwner")]

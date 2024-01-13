@@ -472,6 +472,7 @@ export class TokenRouterProgram {
                 ownerAssistant,
                 mint,
                 custodyToken: this.custodyTokenAccountAddress(),
+                programData: getProgramData(this.ID),
             })
             .instruction();
     }

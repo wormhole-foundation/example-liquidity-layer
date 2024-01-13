@@ -1,6 +1,7 @@
 use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
+use solana_program::bpf_loader_upgradeable;
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -38,8 +39,19 @@ pub struct Initialize<'info> {
     )]
     custody_token: Account<'info, token::TokenAccount>,
 
-    #[account(address = common::constants::usdc::id())]
+    #[account(address = common::constants::usdc::id() @ TokenRouterError::NotUsdc)]
     mint: Account<'info, token::Mint>,
+
+    /// We use the program data to make sure this owner is the upgrade authority (the true owner,
+    /// who deployed this program).
+    #[account(
+        mut,
+        seeds = [crate::ID.as_ref()],
+        bump,
+        seeds::program = bpf_loader_upgradeable::id(),
+        constraint = program_data.upgrade_authority_address.is_some() @ TokenRouterError::ImmutableProgram
+    )]
+    program_data: Account<'info, ProgramData>,
 
     system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,
@@ -47,6 +59,17 @@ pub struct Initialize<'info> {
 
 pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
     let owner = ctx.accounts.owner.key();
+
+    // We need to check that the upgrade authority is the owner passed into the account context.
+    #[cfg(not(feature = "integration-test"))]
+    {
+        require_keys_eq!(
+            owner,
+            ctx.accounts.program_data.upgrade_authority_address.unwrap(),
+            TokenRouterError::OwnerOnly
+        );
+    }
+
     ctx.accounts.custodian.set_inner(Custodian {
         bump: ctx.bumps["custodian"],
         custody_token_bump: ctx.bumps["custody_token"],

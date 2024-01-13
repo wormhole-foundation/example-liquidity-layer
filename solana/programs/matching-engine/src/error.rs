@@ -6,6 +6,12 @@ pub enum MatchingEngineError {
     #[msg("FeeRecipientZeroPubkey")]
     FeeRecipientZeroPubkey = 0x101,
 
+    #[msg("ImmutableProgram")]
+    ImmutableProgram = 0x102,
+
+    #[msg("NotUsdc")]
+    NotUsdc = 0x103,
+
     /// Only the program's owner is permitted.
     #[msg("OwnerOnly")]
     OwnerOnly = 0x200,

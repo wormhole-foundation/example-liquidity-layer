@@ -45,28 +45,33 @@ describe("Token Router", function () {
 
     describe("Admin", function () {
         describe("Initialize", function () {
-            const createInitializeIx = (opts?: { ownerAssistant?: PublicKey; mint?: PublicKey }) =>
-                tokenRouter.initializeIx({
-                    owner: payer.publicKey,
-                    ownerAssistant: opts?.ownerAssistant ?? ownerAssistant.publicKey,
-                    mint: opts?.mint ?? USDC_MINT_ADDRESS,
-                });
+            it("Cannot Initialize Without USDC Mint", async function () {
+                const mint = await splToken.createMint(connection, payer, payer.publicKey, null, 6);
 
-            it.skip("Cannot Initialize Without USDC Mint", async function () {
-                // TODO
+                const ix = await tokenRouter.initializeIx({
+                    owner: payer.publicKey,
+                    ownerAssistant: ownerAssistant.publicKey,
+                    mint,
+                });
+                await expectIxErr(connection, [ix], [payer], "NotUsdc");
             });
 
             it("Cannot Initialize With Default Owner Assistant", async function () {
-                await expectIxErr(
-                    connection,
-                    [await createInitializeIx({ ownerAssistant: PublicKey.default })],
-                    [payer],
-                    "AssistantZeroPubkey"
-                );
+                const ix = await tokenRouter.initializeIx({
+                    owner: payer.publicKey,
+                    ownerAssistant: PublicKey.default,
+                    mint: USDC_MINT_ADDRESS,
+                });
+                await expectIxErr(connection, [ix], [payer], "AssistantZeroPubkey");
             });
 
-            it("Finally Initialize Program", async function () {
-                await expectIxOk(connection, [await createInitializeIx()], [payer]);
+            it("Initialize", async function () {
+                const ix = await tokenRouter.initializeIx({
+                    owner: payer.publicKey,
+                    ownerAssistant: ownerAssistant.publicKey,
+                    mint: USDC_MINT_ADDRESS,
+                });
+                await expectIxOk(connection, [ix], [payer]);
 
                 const custodianData = await tokenRouter.fetchCustodian(
                     tokenRouter.custodianAddress()
@@ -89,17 +94,13 @@ describe("Token Router", function () {
                 expect(custodyToken.amount).to.equal(0n);
             });
 
-            it("Cannot Call Instruction Again: initialize", async function () {
-                await expectIxErr(
-                    connection,
-                    [
-                        await createInitializeIx({
-                            ownerAssistant: ownerAssistant.publicKey,
-                        }),
-                    ],
-                    [payer],
-                    "already in use"
-                );
+            it("Cannot Initialize Again", async function () {
+                const ix = await tokenRouter.initializeIx({
+                    owner: payer.publicKey,
+                    ownerAssistant: ownerAssistant.publicKey,
+                    mint: USDC_MINT_ADDRESS,
+                });
+                await expectIxErr(connection, [ix], [payer], "already in use");
             });
 
             after("Setup Lookup Table", async () => {
