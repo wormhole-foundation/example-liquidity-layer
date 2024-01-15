@@ -6,7 +6,7 @@
   "main": "./lib/cjs/index.js",
   "module": "./lib/esm/index.js",
   "dependencies": {
-    "@certusone/wormhole-sdk": "^0.10.5",
+    "@certusone/wormhole-sdk": "^0.10.9",
     "ethers": "^5.7.2"
   },
   "scripts": {
