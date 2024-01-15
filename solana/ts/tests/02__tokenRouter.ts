@@ -53,7 +53,7 @@ describe("Token Router", function () {
                     ownerAssistant: ownerAssistant.publicKey,
                     mint,
                 });
-                await expectIxErr(connection, [ix], [payer], "NotUsdc");
+                await expectIxErr(connection, [ix], [payer], "Error Code: NotUsdc");
             });
 
             it("Cannot Initialize With Default Owner Assistant", async function () {
@@ -62,7 +62,8 @@ describe("Token Router", function () {
                     ownerAssistant: PublicKey.default,
                     mint: USDC_MINT_ADDRESS,
                 });
-                await expectIxErr(connection, [ix], [payer], "AssistantZeroPubkey");
+
+                await expectIxErr(connection, [ix], [payer], "Error Code: AssistantZeroPubkey");
             });
 
             it("Initialize", async function () {
@@ -71,6 +72,7 @@ describe("Token Router", function () {
                     ownerAssistant: ownerAssistant.publicKey,
                     mint: USDC_MINT_ADDRESS,
                 });
+
                 await expectIxOk(connection, [ix], [payer]);
 
                 const custodianData = await tokenRouter.fetchCustodian(
@@ -100,7 +102,15 @@ describe("Token Router", function () {
                     ownerAssistant: ownerAssistant.publicKey,
                     mint: USDC_MINT_ADDRESS,
                 });
-                await expectIxErr(connection, [ix], [payer], "already in use");
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer],
+                    `Allocate: account Address { address: ${tokenRouter
+                        .custodianAddress()
+                        .toString()}, base: None } already in use`
+                );
             });
 
             after("Setup Lookup Table", async () => {
@@ -130,293 +140,8 @@ describe("Token Router", function () {
 
                 lookupTableAddress = lookupTable;
             });
-        });
 
-        describe("Ownership Transfer Request", async function () {
-            // Create the submit ownership transfer instruction, which will be used
-            // to set the pending owner to the `relayer` key.
-            const createSubmitOwnershipTransferIx = (opts?: {
-                sender?: PublicKey;
-                newOwner?: PublicKey;
-            }) =>
-                tokenRouter.submitOwnershipTransferIx({
-                    owner: opts?.sender ?? owner.publicKey,
-                    newOwner: opts?.newOwner ?? relayer.publicKey,
-                });
-
-            // Create the confirm ownership transfer instruction, which will be used
-            // to set the new owner to the `relayer` key.
-            const createConfirmOwnershipTransferIx = (opts?: { sender?: PublicKey }) =>
-                tokenRouter.confirmOwnershipTransferIx({
-                    pendingOwner: opts?.sender ?? relayer.publicKey,
-                });
-
-            // Instruction to cancel an ownership transfer request.
-            const createCancelOwnershipTransferIx = (opts?: { sender?: PublicKey }) =>
-                tokenRouter.cancelOwnershipTransferIx({
-                    owner: opts?.sender ?? owner.publicKey,
-                });
-
-            it("Submit Ownership Transfer Request as Deployer (Payer)", async function () {
-                await expectIxOk(
-                    connection,
-                    [
-                        await createSubmitOwnershipTransferIx({
-                            sender: payer.publicKey,
-                            newOwner: owner.publicKey,
-                        }),
-                    ],
-                    [payer]
-                );
-
-                // Confirm that the pending owner variable is set in the owner config.
-                const custodianData = await tokenRouter.fetchCustodian(
-                    tokenRouter.custodianAddress()
-                );
-
-                expect(custodianData.pendingOwner).deep.equals(owner.publicKey);
-            });
-
-            it("Confirm Ownership Transfer Request as Pending Owner", async function () {
-                await expectIxOk(
-                    connection,
-                    [await createConfirmOwnershipTransferIx({ sender: owner.publicKey })],
-                    [payer, owner]
-                );
-
-                // Confirm that the owner config reflects the current ownership status.
-                {
-                    const custodianData = await tokenRouter.fetchCustodian(
-                        tokenRouter.custodianAddress()
-                    );
-                    expect(custodianData.owner).deep.equals(owner.publicKey);
-                    expect(custodianData.pendingOwner).deep.equals(null);
-                }
-            });
-
-            it("Cannot Submit Ownership Transfer Request (New Owner == Address(0))", async function () {
-                await expectIxErr(
-                    connection,
-                    [
-                        await createSubmitOwnershipTransferIx({
-                            newOwner: PublicKey.default,
-                        }),
-                    ],
-                    [payer, owner],
-                    "InvalidNewOwner"
-                );
-            });
-
-            it("Cannot Submit Ownership Transfer Request (New Owner == Owner)", async function () {
-                await expectIxErr(
-                    connection,
-                    [
-                        await createSubmitOwnershipTransferIx({
-                            newOwner: owner.publicKey,
-                        }),
-                    ],
-                    [payer, owner],
-                    "AlreadyOwner"
-                );
-            });
-
-            it("Cannot Submit Ownership Transfer Request as Non-Owner", async function () {
-                await expectIxErr(
-                    connection,
-                    [
-                        await createSubmitOwnershipTransferIx({
-                            sender: ownerAssistant.publicKey,
-                        }),
-                    ],
-                    [payer, ownerAssistant],
-                    "OwnerOnly"
-                );
-            });
-
-            it("Submit Ownership Transfer Request as Owner", async function () {
-                await expectIxOk(
-                    connection,
-                    [await createSubmitOwnershipTransferIx()],
-                    [payer, owner]
-                );
-
-                // Confirm that the pending owner variable is set in the owner config.
-                const custodianData = await tokenRouter.fetchCustodian(
-                    tokenRouter.custodianAddress()
-                );
-                expect(custodianData.pendingOwner).deep.equals(relayer.publicKey);
-            });
-
-            it("Cannot Confirm Ownership Transfer Request as Non Pending Owner", async function () {
-                await expectIxErr(
-                    connection,
-                    [
-                        await createConfirmOwnershipTransferIx({
-                            sender: ownerAssistant.publicKey,
-                        }),
-                    ],
-                    [payer, ownerAssistant],
-                    "NotPendingOwner"
-                );
-            });
-
-            it("Confirm Ownership Transfer Request as Pending Owner", async function () {
-                await expectIxOk(
-                    connection,
-                    [await createConfirmOwnershipTransferIx()],
-                    [payer, relayer]
-                );
-
-                // Confirm that the owner config reflects the current ownership status.
-                {
-                    const custodianData = await tokenRouter.fetchCustodian(
-                        tokenRouter.custodianAddress()
-                    );
-                    expect(custodianData.owner).deep.equals(relayer.publicKey);
-                    expect(custodianData.pendingOwner).deep.equals(null);
-                }
-
-                // Set the owner back to the payer key.
-                await expectIxOk(
-                    connection,
-                    [
-                        await createSubmitOwnershipTransferIx({
-                            sender: relayer.publicKey,
-                            newOwner: owner.publicKey,
-                        }),
-                    ],
-                    [payer, relayer]
-                );
-
-                await expectIxOk(
-                    connection,
-                    [await createConfirmOwnershipTransferIx({ sender: owner.publicKey })],
-                    [payer, owner]
-                );
-
-                // Confirm that the payer is the owner again.
-                {
-                    const custodianData = await tokenRouter.fetchCustodian(
-                        tokenRouter.custodianAddress()
-                    );
-                    expect(custodianData.owner).deep.equals(owner.publicKey);
-                    expect(custodianData.pendingOwner).deep.equals(null);
-                }
-            });
-
-            it("Cannot Cancel Ownership Request as Non-Owner", async function () {
-                // First, submit the ownership transfer request.
-                await expectIxOk(
-                    connection,
-                    [await createSubmitOwnershipTransferIx()],
-                    [payer, owner]
-                );
-
-                // Confirm that the pending owner variable is set in the owner config.
-                {
-                    const custodianData = await tokenRouter.fetchCustodian(
-                        tokenRouter.custodianAddress()
-                    );
-                    expect(custodianData.pendingOwner).deep.equals(relayer.publicKey);
-                }
-
-                // Confirm that the cancel ownership transfer request fails.
-                await expectIxErr(
-                    connection,
-                    [await createCancelOwnershipTransferIx({ sender: ownerAssistant.publicKey })],
-                    [payer, ownerAssistant],
-                    "OwnerOnly"
-                );
-            });
-
-            it("Cancel Ownership Request as Owner", async function () {
-                await expectIxOk(
-                    connection,
-                    [await createCancelOwnershipTransferIx()],
-                    [payer, owner]
-                );
-
-                // Confirm the pending owner field was reset.
-                const custodianData = await tokenRouter.fetchCustodian(
-                    tokenRouter.custodianAddress()
-                );
-                expect(custodianData.pendingOwner).deep.equals(null);
-            });
-        });
-
-        describe("Update Owner Assistant", async function () {
-            // Create the update owner assistant instruction.
-            const createUpdateOwnerAssistantIx = (opts?: {
-                sender?: PublicKey;
-                newAssistant?: PublicKey;
-            }) =>
-                tokenRouter.updateOwnerAssistantIx({
-                    owner: opts?.sender ?? owner.publicKey,
-                    newOwnerAssistant: opts?.newAssistant ?? relayer.publicKey,
-                });
-
-            it("Cannot Update Assistant (New Assistant == Address(0))", async function () {
-                await expectIxErr(
-                    connection,
-                    [await createUpdateOwnerAssistantIx({ newAssistant: PublicKey.default })],
-                    [payer, owner],
-                    "InvalidNewAssistant"
-                );
-            });
-
-            it("Cannot Update Assistant as Non-Owner", async function () {
-                await expectIxErr(
-                    connection,
-                    [await createUpdateOwnerAssistantIx({ sender: ownerAssistant.publicKey })],
-                    [payer, ownerAssistant],
-                    "OwnerOnly"
-                );
-            });
-
-            it("Update Assistant as Owner", async function () {
-                await expectIxOk(
-                    connection,
-                    [await createUpdateOwnerAssistantIx()],
-                    [payer, owner]
-                );
-
-                // Confirm the assistant field was updated.
-                const custodianData = await tokenRouter.fetchCustodian(
-                    tokenRouter.custodianAddress()
-                );
-                expect(custodianData.ownerAssistant).deep.equals(relayer.publicKey);
-
-                // Set the assistant back to the assistant key.
-                await expectIxOk(
-                    connection,
-                    [
-                        await createUpdateOwnerAssistantIx({
-                            newAssistant: ownerAssistant.publicKey,
-                        }),
-                    ],
-                    [payer, owner]
-                );
-            });
-        });
-
-        describe("Add Router Endpoint", function () {
-            const createAddRouterEndpointIx = (opts?: {
-                sender?: PublicKey;
-                contractAddress?: Array<number>;
-                cctpDomain?: number | null;
-            }) =>
-                tokenRouter.addRouterEndpointIx(
-                    {
-                        ownerOrAssistant: opts?.sender ?? owner.publicKey,
-                    },
-                    {
-                        chain: foreignChain,
-                        address: opts?.contractAddress ?? routerEndpointAddress,
-                        cctpDomain: opts?.cctpDomain ?? foreignCctpDomain,
-                    }
-                );
-
-            before("Transfer Lamports to Owner and Owner Assistant", async function () {
+            after("Transfer Lamports to Owner and Owner Assistant", async function () {
                 await expectIxOk(
                     connection,
                     [
@@ -430,61 +155,239 @@ describe("Token Router", function () {
                             toPubkey: ownerAssistant.publicKey,
                             lamports: 1000000000,
                         }),
+                        SystemProgram.transfer({
+                            fromPubkey: payer.publicKey,
+                            toPubkey: relayer.publicKey,
+                            lamports: 1000000000,
+                        }),
                     ],
                     [payer]
                 );
             });
+        });
 
-            it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
+        describe("Ownership Transfer Request", async function () {
+            it("Submit Ownership Transfer Request as Payer to Owner Pubkey", async function () {
+                const ix = await tokenRouter.submitOwnershipTransferIx({
+                    owner: payer.publicKey,
+                    newOwner: owner.publicKey,
+                });
+
+                await expectIxOk(connection, [ix], [payer]);
+
+                // Confirm that the pending owner variable is set in the owner config.
+                const custodianData = await tokenRouter.fetchCustodian(
+                    tokenRouter.custodianAddress()
+                );
+
+                expect(custodianData.pendingOwner).deep.equals(owner.publicKey);
+            });
+
+            it("Cannot Cancel Ownership Request as Non-Owner", async function () {
+                const ix = await tokenRouter.cancelOwnershipTransferIx({
+                    owner: ownerAssistant.publicKey,
+                });
+
+                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
+            });
+
+            it("Cancel Ownership Request as Payer", async function () {
+                const ix = await tokenRouter.cancelOwnershipTransferIx({
+                    owner: payer.publicKey,
+                });
+
+                await expectIxOk(connection, [ix], [payer]);
+
+                // Confirm the pending owner field was reset.
+                const custodianData = await tokenRouter.fetchCustodian(
+                    tokenRouter.custodianAddress()
+                );
+                expect(custodianData.pendingOwner).deep.equals(null);
+            });
+
+            it("Submit Ownership Transfer Request as Payer Again to Owner Pubkey", async function () {
+                const ix = await tokenRouter.submitOwnershipTransferIx({
+                    owner: payer.publicKey,
+                    newOwner: owner.publicKey,
+                });
+
+                await expectIxOk(connection, [ix], [payer]);
+
+                // Confirm that the pending owner variable is set in the owner config.
+                const custodianData = await tokenRouter.fetchCustodian(
+                    tokenRouter.custodianAddress()
+                );
+
+                expect(custodianData.pendingOwner).deep.equals(owner.publicKey);
+            });
+
+            it("Cannot Confirm Ownership Transfer Request as Non-Pending Owner", async function () {
+                const ix = await tokenRouter.confirmOwnershipTransferIx({
+                    pendingOwner: ownerAssistant.publicKey,
+                });
+
                 await expectIxErr(
                     connection,
-                    [await createAddRouterEndpointIx({ sender: payer.publicKey })],
-                    [payer],
-                    "OwnerOrAssistantOnly"
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: NotPendingOwner"
                 );
+            });
+
+            it("Confirm Ownership Transfer Request as Pending Owner", async function () {
+                const ix = await tokenRouter.confirmOwnershipTransferIx({
+                    pendingOwner: owner.publicKey,
+                });
+
+                await expectIxOk(connection, [ix], [owner]);
+
+                // Confirm that the owner config reflects the current ownership status.
+                {
+                    const custodianData = await tokenRouter.fetchCustodian(
+                        tokenRouter.custodianAddress()
+                    );
+                    expect(custodianData.owner).deep.equals(owner.publicKey);
+                    expect(custodianData.pendingOwner).deep.equals(null);
+                }
+            });
+
+            it("Cannot Submit Ownership Transfer Request to Default Pubkey", async function () {
+                const ix = await tokenRouter.submitOwnershipTransferIx({
+                    owner: owner.publicKey,
+                    newOwner: PublicKey.default,
+                });
+
+                await expectIxErr(connection, [ix], [owner], "Error Code: InvalidNewOwner");
+            });
+
+            it("Cannot Submit Ownership Transfer Request to Himself", async function () {
+                const ix = await tokenRouter.submitOwnershipTransferIx({
+                    owner: owner.publicKey,
+                    newOwner: owner.publicKey,
+                });
+
+                await expectIxErr(connection, [ix], [owner], "Error Code: AlreadyOwner");
+            });
+
+            it("Cannot Submit Ownership Transfer Request as Non-Owner", async function () {
+                const ix = await tokenRouter.submitOwnershipTransferIx({
+                    owner: ownerAssistant.publicKey,
+                    newOwner: relayer.publicKey,
+                });
+
+                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
+            });
+        });
+
+        describe("Update Owner Assistant", async function () {
+            it("Cannot Update Assistant to Default Pubkey", async function () {
+                const ix = await tokenRouter.updateOwnerAssistantIx({
+                    owner: owner.publicKey,
+                    newOwnerAssistant: PublicKey.default,
+                });
+
+                await expectIxErr(connection, [ix], [owner], "Error Code: InvalidNewAssistant");
+            });
+
+            it("Cannot Update Assistant as Non-Owner", async function () {
+                const ix = await tokenRouter.updateOwnerAssistantIx({
+                    owner: ownerAssistant.publicKey,
+                    newOwnerAssistant: relayer.publicKey,
+                });
+                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
+            });
+
+            it("Update Assistant as Owner", async function () {
+                const ix = await tokenRouter.updateOwnerAssistantIx({
+                    owner: owner.publicKey,
+                    newOwnerAssistant: relayer.publicKey,
+                });
+
+                await expectIxOk(connection, [ix], [payer, owner]);
+
+                // Confirm the assistant field was updated.
+                const custodianData = await tokenRouter.fetchCustodian(
+                    tokenRouter.custodianAddress()
+                );
+                expect(custodianData.ownerAssistant).deep.equals(relayer.publicKey);
+
+                // Set the assistant back to the assistant key.
+                await expectIxOk(
+                    connection,
+                    [
+                        await tokenRouter.updateOwnerAssistantIx({
+                            owner: owner.publicKey,
+                            newOwnerAssistant: ownerAssistant.publicKey,
+                        }),
+                    ],
+                    [owner]
+                );
+            });
+        });
+
+        describe("Add Router Endpoint", function () {
+            it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
+                const ix = await tokenRouter.addRouterEndpointIx(
+                    {
+                        ownerOrAssistant: payer.publicKey,
+                    },
+                    {
+                        chain: foreignChain,
+                        address: routerEndpointAddress,
+                        cctpDomain: foreignCctpDomain,
+                    }
+                );
+
+                await expectIxErr(connection, [ix], [payer], "Error Code: OwnerOrAssistantOnly");
             });
 
             [wormholeSdk.CHAINS.unset, wormholeSdk.CHAINS.solana].forEach((chain) =>
                 it(`Cannot Register Chain ID == ${chain}`, async function () {
+                    const ix = await tokenRouter.addRouterEndpointIx(
+                        {
+                            ownerOrAssistant: ownerAssistant.publicKey,
+                        },
+                        { chain, address: routerEndpointAddress, cctpDomain: null }
+                    );
+
                     await expectIxErr(
                         connection,
-                        [
-                            await tokenRouter.addRouterEndpointIx(
-                                { ownerOrAssistant: owner.publicKey },
-                                { chain, address: routerEndpointAddress, cctpDomain: null }
-                            ),
-                        ],
-                        [owner],
-                        "ChainNotAllowed"
+                        [ix],
+                        [ownerAssistant],
+                        "Error Code: ChainNotAllowed"
                     );
                 })
             );
 
             it("Cannot Register Zero Address", async function () {
-                await expectIxErr(
-                    connection,
-                    [
-                        await createAddRouterEndpointIx({
-                            contractAddress: new Array(32).fill(0),
-                        }),
-                    ],
-                    [owner],
-                    "InvalidEndpoint"
+                const ix = await tokenRouter.addRouterEndpointIx(
+                    {
+                        ownerOrAssistant: owner.publicKey,
+                    },
+                    {
+                        chain: foreignChain,
+                        address: new Array(32).fill(0),
+                        cctpDomain: foreignCctpDomain,
+                    }
                 );
+
+                await expectIxErr(connection, [ix], [owner], "Error Code: InvalidEndpoint");
             });
 
             it(`Add Router Endpoint as Owner Assistant`, async function () {
                 const contractAddress = Array.from(Buffer.alloc(32, "fbadc0de", "hex"));
-                await expectIxOk(
-                    connection,
-                    [
-                        await createAddRouterEndpointIx({
-                            sender: ownerAssistant.publicKey,
-                            contractAddress,
-                        }),
-                    ],
-                    [ownerAssistant]
+                const ix = await tokenRouter.addRouterEndpointIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    {
+                        chain: foreignChain,
+                        address: contractAddress,
+                        cctpDomain: null,
+                    }
                 );
+
+                await expectIxOk(connection, [ix], [ownerAssistant]);
 
                 const routerEndpointData = await tokenRouter.fetchRouterEndpoint(
                     tokenRouter.routerEndpointAddress(foreignChain)
@@ -493,21 +396,24 @@ describe("Token Router", function () {
                     bump: 255,
                     chain: foreignChain,
                     address: contractAddress,
-                    cctpDomain: foreignCctpDomain,
+                    cctpDomain: null,
                 };
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
             });
 
             it(`Update Router Endpoint as Owner`, async function () {
-                await expectIxOk(
-                    connection,
-                    [
-                        await createAddRouterEndpointIx({
-                            contractAddress: routerEndpointAddress,
-                        }),
-                    ],
-                    [owner]
+                const ix = await tokenRouter.addRouterEndpointIx(
+                    {
+                        ownerOrAssistant: owner.publicKey,
+                    },
+                    {
+                        chain: foreignChain,
+                        address: routerEndpointAddress,
+                        cctpDomain: foreignCctpDomain,
+                    }
                 );
+
+                await expectIxOk(connection, [ix], [owner]);
 
                 const routerEndpointData = await tokenRouter.fetchRouterEndpoint(
                     tokenRouter.routerEndpointAddress(foreignChain)
@@ -523,45 +429,49 @@ describe("Token Router", function () {
         });
 
         describe("Set Pause", async function () {
-            const createSetPauseIx = (opts?: { sender?: PublicKey; paused?: boolean }) =>
-                tokenRouter.setPauseIx(
+            it("Cannot Set Pause for Transfers as Non-Owner", async function () {
+                const ix = await tokenRouter.setPauseIx(
                     {
-                        ownerOrAssistant: opts?.sender ?? owner.publicKey,
+                        ownerOrAssistant: payer.publicKey,
                     },
-                    opts?.paused ?? true
+                    true // paused
                 );
 
-            it("Cannot Set Pause for Transfers as Non-Owner", async function () {
-                await expectIxErr(
-                    connection,
-                    [await createSetPauseIx({ sender: payer.publicKey })],
-                    [payer],
-                    "OwnerOrAssistantOnly"
-                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: OwnerOrAssistantOnly");
             });
 
             it("Set Paused == true as Owner Assistant", async function () {
                 const paused = true;
-                await expectIxOk(
-                    connection,
-                    [await createSetPauseIx({ sender: ownerAssistant.publicKey, paused })],
-                    [ownerAssistant]
+                const ix = await tokenRouter.setPauseIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    paused
                 );
 
-                const [actualPaused, pausedSetBy] = await tokenRouter
-                    .fetchCustodian(tokenRouter.custodianAddress())
-                    .then((data) => [data.paused, data.pausedSetBy]);
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+
+                const { paused: actualPaused, pausedSetBy } = await tokenRouter.fetchCustodian(
+                    tokenRouter.custodianAddress()
+                );
                 expect(actualPaused).equals(paused);
                 expect(pausedSetBy).eql(ownerAssistant.publicKey);
             });
 
             it("Set Paused == false as Owner", async function () {
                 const paused = false;
-                await expectIxOk(connection, [await createSetPauseIx({ paused })], [owner]);
+                const ix = await tokenRouter.setPauseIx(
+                    {
+                        ownerOrAssistant: owner.publicKey,
+                    },
+                    paused
+                );
 
-                const [actualPaused, pausedSetBy] = await tokenRouter
-                    .fetchCustodian(tokenRouter.custodianAddress())
-                    .then((data) => [data.paused, data.pausedSetBy]);
+                await expectIxOk(connection, [ix], [owner]);
+
+                const { paused: actualPaused, pausedSetBy } = await tokenRouter.fetchCustodian(
+                    tokenRouter.custodianAddress()
+                );
                 expect(actualPaused).equals(paused);
                 expect(pausedSetBy).eql(owner.publicKey);
             });
@@ -573,32 +483,26 @@ describe("Token Router", function () {
             USDC_MINT_ADDRESS,
             payer.publicKey
         );
+        const burnSourceAuthority = Keypair.generate();
 
-        const createPlaceMarketOrderCctpIx = (
-            amountIn: bigint,
-            opts?: {
-                sender?: PublicKey;
-                mint?: PublicKey;
-                burnSource?: PublicKey;
-                burnSourceAuthority?: PublicKey;
-                targetChain?: wormholeSdk.ChainId;
-                redeemer?: Array<number>;
-            }
-        ) =>
-            tokenRouter.placeMarketOrderCctpIx(
-                {
-                    payer: opts?.sender ?? payer.publicKey,
-                    mint: opts?.mint ?? USDC_MINT_ADDRESS,
-                    burnSource: opts?.burnSource ?? payerToken,
-                    burnSourceAuthority: opts?.burnSourceAuthority ?? payer.publicKey,
-                },
-                {
-                    amountIn,
-                    targetChain: opts?.targetChain ?? foreignChain,
-                    redeemer: opts?.redeemer ?? Array.from(Buffer.alloc(32, "deadbeef", "hex")),
-                    redeemerMessage: Buffer.from("All your base are belong to us"),
-                }
+        before("Set Up Arbitrary Burn Source", async function () {
+            const burnSource = await splToken.createAccount(
+                connection,
+                payer,
+                USDC_MINT_ADDRESS,
+                burnSourceAuthority.publicKey
             );
+
+            // Add funds to account.
+            await splToken.mintTo(
+                connection,
+                payer,
+                USDC_MINT_ADDRESS,
+                burnSource,
+                payer,
+                1_000_000_000n // 1,000 USDC
+            );
+        });
 
         it.skip("Cannot Place Market Order with Insufficient Amount", async function () {
             // TODO
@@ -616,55 +520,60 @@ describe("Token Router", function () {
             const burnSourceAuthority = Keypair.generate();
 
             const amountIn = 69n;
+            const ix = await tokenRouter.placeMarketOrderCctpIx(
+                {
+                    payer: payer.publicKey,
+                    mint: USDC_MINT_ADDRESS,
+                    burnSource: payerToken,
+                    burnSourceAuthority: burnSourceAuthority.publicKey,
+                },
+                {
+                    amountIn,
+                    targetChain: foreignChain,
+                    redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
+                    redeemerMessage: Buffer.from("All your base are belong to us"),
+                }
+            );
 
             // TODO: use lookup table
             // NOTE: This error comes from the SPL Token program.
             await expectIxErr(
                 connection,
-                [
-                    await createPlaceMarketOrderCctpIx(amountIn, {
-                        burnSourceAuthority: burnSourceAuthority.publicKey,
-                    }),
-                ],
+                [ix],
                 [payer, burnSourceAuthority],
                 "Error: owner does not match"
             );
         });
 
         it("Place Market Order as Burn Source Authority", async function () {
-            const burnSourceAuthority = Keypair.generate();
-            const burnSource = await splToken.createAccount(
-                connection,
-                payer,
+            const burnSource = splToken.getAssociatedTokenAddressSync(
                 USDC_MINT_ADDRESS,
                 burnSourceAuthority.publicKey
             );
-
             const amountIn = 69n;
-
-            // Add funds to account.
-            await splToken.mintTo(
-                connection,
-                payer,
-                USDC_MINT_ADDRESS,
-                burnSource,
-                payer,
-                amountIn
+            const ix = await tokenRouter.placeMarketOrderCctpIx(
+                {
+                    payer: payer.publicKey,
+                    mint: USDC_MINT_ADDRESS,
+                    burnSource,
+                    burnSourceAuthority: burnSourceAuthority.publicKey,
+                },
+                {
+                    amountIn,
+                    targetChain: foreignChain,
+                    redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
+                    redeemerMessage: Buffer.from("All your base are belong to us"),
+                }
             );
 
             const { amount: balanceBefore } = await splToken.getAccount(connection, burnSource);
 
-            // TODO: use lookup table
-            await expectIxOk(
-                connection,
-                [
-                    await createPlaceMarketOrderCctpIx(amountIn, {
-                        burnSource,
-                        burnSourceAuthority: burnSourceAuthority.publicKey,
-                    }),
-                ],
-                [payer, burnSourceAuthority]
+            const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                lookupTableAddress
             );
+            await expectIxOk(connection, [ix], [payer, burnSourceAuthority], {
+                addressLookupTableAccounts: [lookupTableAccount!],
+            });
 
             const { amount: balanceAfter } = await splToken.getAccount(connection, burnSource);
             expect(balanceAfter + amountIn).equals(balanceBefore);
@@ -672,13 +581,74 @@ describe("Token Router", function () {
             // TODO: check message
         });
 
-        it("Place Market Order as Payer", async function () {
+        it("Cannot Place Market Order when Paused", async function () {
+            // First pause the router.
+            {
+                const ix = await tokenRouter.setPauseIx(
+                    {
+                        ownerOrAssistant: owner.publicKey,
+                    },
+                    true // paused
+                );
+
+                await expectIxOk(connection, [ix], [owner]);
+            }
+
+            const ix = await tokenRouter.placeMarketOrderCctpIx(
+                {
+                    payer: payer.publicKey,
+                    mint: USDC_MINT_ADDRESS,
+                    burnSource: payerToken,
+                    burnSourceAuthority: payer.publicKey,
+                },
+                {
+                    amountIn: 69n,
+                    targetChain: foreignChain,
+                    redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
+                    redeemerMessage: Buffer.from("All your base are belong to us"),
+                }
+            );
+
+            await expectIxErr(connection, [ix], [payer], "Error Code: Paused");
+        });
+
+        it("Place Market Order after Unpaused", async function () {
+            // First unpause the router.
+            {
+                const ix = await tokenRouter.setPauseIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    false // paused
+                );
+
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+            }
+
             const amountIn = 69n;
+            const ix = await tokenRouter.placeMarketOrderCctpIx(
+                {
+                    payer: payer.publicKey,
+                    mint: USDC_MINT_ADDRESS,
+                    burnSource: payerToken,
+                    burnSourceAuthority: payer.publicKey,
+                },
+                {
+                    amountIn,
+                    targetChain: foreignChain,
+                    redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
+                    redeemerMessage: Buffer.from("All your base are belong to us"),
+                }
+            );
 
             const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
 
-            // TODO: use lookup table
-            await expectIxOk(connection, [await createPlaceMarketOrderCctpIx(amountIn)], [payer]);
+            const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                lookupTableAddress
+            );
+            await expectIxOk(connection, [ix], [payer], {
+                addressLookupTableAccounts: [lookupTableAccount!],
+            });
 
             const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
             expect(balanceAfter + amountIn).equals(balanceBefore);
@@ -702,31 +672,6 @@ describe("Token Router", function () {
 
         const localVariables = new Map<string, any>();
 
-        const createRedeemFillCctpIx = (
-            vaa: PublicKey,
-            encodedCctpMessage: Buffer,
-            opts?: {
-                sender?: PublicKey;
-                redeemer?: PublicKey;
-                dstToken?: PublicKey;
-                cctpAttestation?: Buffer;
-            }
-        ) =>
-            tokenRouter.redeemCctpFillIx(
-                {
-                    payer: opts?.sender ?? payer.publicKey,
-                    vaa,
-                    redeemer: opts?.redeemer ?? payer.publicKey,
-                    dstToken: opts?.dstToken ?? payerToken,
-                },
-                {
-                    encodedCctpMessage,
-                    cctpAttestation:
-                        opts?.cctpAttestation ??
-                        new CircleAttester().createAttestation(encodedCctpMessage),
-                }
-            );
-
         it("Redeem Fill", async function () {
             const redeemer = Keypair.generate();
 
@@ -739,7 +684,7 @@ describe("Token Router", function () {
 
             // Concoct a Circle message.
             const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
-            const { destinationCctpDomain, burnMessage, encodedCctpMessage } =
+            const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
                 await craftCctpTokenBurnMessage(
                     tokenRouter,
                     sourceCctpDomain,
@@ -778,6 +723,18 @@ describe("Token Router", function () {
                 wormholeSequence++,
                 message
             );
+            const ix = await tokenRouter.redeemCctpFillIx(
+                {
+                    payer: payer.publicKey,
+                    vaa,
+                    redeemer: redeemer.publicKey,
+                    dstToken: payerToken,
+                },
+                {
+                    encodedCctpMessage,
+                    cctpAttestation,
+                }
+            );
 
             const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
                 units: 250_000,
@@ -788,17 +745,9 @@ describe("Token Router", function () {
             const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                 lookupTableAddress
             );
-            await expectIxOk(
-                connection,
-                [
-                    computeIx,
-                    await createRedeemFillCctpIx(vaa, encodedCctpMessage, {
-                        redeemer: redeemer.publicKey,
-                    }),
-                ],
-                [payer, redeemer],
-                { addressLookupTableAccounts: [lookupTableAccount!] }
-            );
+            await expectIxOk(connection, [computeIx, ix], [payer, redeemer], {
+                addressLookupTableAccounts: [lookupTableAccount!],
+            });
 
             const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
             expect(balanceAfter).equals(balanceBefore + amount);
@@ -826,11 +775,10 @@ async function craftCctpTokenBurnMessage(
     const destinationCctpDomain = inputDestinationCctpDomain ?? localDomain;
 
     const tokenMessengerMinterProgram = tokenRouter.tokenMessengerMinterProgram();
-    const sourceTokenMessenger = await tokenMessengerMinterProgram
-        .fetchRemoteTokenMessenger(
+    const { tokenMessenger: sourceTokenMessenger } =
+        await tokenMessengerMinterProgram.fetchRemoteTokenMessenger(
             tokenMessengerMinterProgram.remoteTokenMessengerAddress(sourceCctpDomain)
-        )
-        .then((remote) => remote.tokenMessenger);
+        );
 
     const burnMessage = new CctpTokenBurnMessage(
         {
@@ -850,10 +798,12 @@ async function craftCctpTokenBurnMessage(
     );
 
     const encodedCctpMessage = burnMessage.encode();
+    const cctpAttestation = new CircleAttester().createAttestation(encodedCctpMessage);
 
     return {
         destinationCctpDomain,
         burnMessage,
         encodedCctpMessage,
+        cctpAttestation,
     };
 }

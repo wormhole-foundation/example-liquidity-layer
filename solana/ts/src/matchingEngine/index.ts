@@ -165,6 +165,7 @@ export class MatchingEngineProgram {
             ownerOrAssistant: PublicKey;
             custodian?: PublicKey;
             routerEndpoint?: PublicKey;
+            tokenRouterProgram?: PublicKey;
         },
         args: AddRouterEndpointArgs
     ): Promise<TransactionInstruction> {
@@ -172,6 +173,7 @@ export class MatchingEngineProgram {
             ownerOrAssistant,
             custodian: inputCustodian,
             routerEndpoint: inputRouterEndpoint,
+            tokenRouterProgram,
         } = accounts;
         const { chain } = args;
         return this.program.methods
@@ -180,6 +182,7 @@ export class MatchingEngineProgram {
                 ownerOrAssistant,
                 custodian: inputCustodian ?? this.custodianAddress(),
                 routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
+                tokenRouterProgram: tokenRouterProgram ?? null,
             })
             .instruction();
     }

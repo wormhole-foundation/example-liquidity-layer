@@ -32,6 +32,11 @@ pub struct AddRouterEndpoint<'info> {
     )]
     router_endpoint: Account<'info, RouterEndpoint>,
 
+    /// If provided, must be the Token Router program to check its emitter versus what is provided
+    /// in the instruction data when the chain ID is Solana's.
+    #[account(executable)]
+    token_router_program: Option<AccountInfo<'info>>,
+
     system_program: Program<'info, System>,
 }
 
@@ -47,6 +52,24 @@ pub fn add_router_endpoint(
     args: AddRouterEndpointArgs,
 ) -> Result<()> {
     let AddRouterEndpointArgs { chain, address } = args;
+
+    // If we are registering Solana's Token Router, we know what the expected emitter is given the
+    // Token Router's program ID, so check it here.
+    if chain == wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN {
+        let token_router_program_id = ctx
+            .accounts
+            .token_router_program
+            .as_ref()
+            .ok_or(MatchingEngineError::TokenRouterProgramIdRequired)
+            .map(|info| info.key())?;
+        let (expected_emitter, _) =
+            Pubkey::find_program_address(&[b"emitter"], &token_router_program_id);
+        require_keys_eq!(
+            Pubkey::from(address),
+            expected_emitter,
+            MatchingEngineError::InvalidEndpoint
+        )
+    }
 
     ctx.accounts.router_endpoint.set_inner(RouterEndpoint {
         bump: ctx.bumps["router_endpoint"],

@@ -34,6 +34,7 @@ pub struct PlaceMarketOrderCctp<'info> {
     #[account(
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
+        constraint = !custodian.paused @ TokenRouterError::Paused,
     )]
     custodian: Account<'info, Custodian>,
 

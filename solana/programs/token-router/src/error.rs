@@ -47,6 +47,9 @@ pub enum TokenRouterError {
     #[msg("InvalidCctpEndpoint")]
     InvalidCctpEndpoint = 0x46,
 
+    #[msg("Paused")]
+    Paused = 0x80,
+
     #[msg("InsufficientAmount")]
     InsufficientAmount = 0x100,
 

@@ -46,6 +46,9 @@ pub enum MatchingEngineError {
     #[msg("InvalidEndpoint")]
     InvalidEndpoint,
 
+    #[msg("TokenRouterProgramIdRequired")]
+    TokenRouterProgramIdRequired,
+
     #[msg("InvalidAuctionDuration")]
     InvalidAuctionDuration,
 
