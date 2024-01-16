@@ -113,8 +113,8 @@ pub mod token_router {
     }
 
     pub fn add_cctp_router_endpoint(
-        ctx: Context<AddRouterEndpoint>,
-        args: AddRouterEndpointArgs,
+        ctx: Context<AddCctpRouterEndpoint>,
+        args: AddCctpRouterEndpointArgs,
     ) -> Result<()> {
         processor::add_cctp_router_endpoint(ctx, args)
     }

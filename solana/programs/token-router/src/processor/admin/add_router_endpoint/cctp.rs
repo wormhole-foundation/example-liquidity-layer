@@ -11,7 +11,7 @@ use wormhole_cctp_solana::{
 
 #[derive(Accounts)]
 #[instruction(chain: u16, cctp_domain: u32)]
-pub struct AddRouterEndpoint<'info> {
+pub struct AddCctpRouterEndpoint<'info> {
     #[account(mut)]
     owner_or_assistant: Signer<'info>,
 
@@ -50,7 +50,7 @@ pub struct AddRouterEndpoint<'info> {
 }
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct AddRouterEndpointArgs {
+pub struct AddCctpRouterEndpointArgs {
     pub chain: u16,
     pub cctp_domain: u32,
     pub address: [u8; 32],
@@ -58,10 +58,10 @@ pub struct AddRouterEndpointArgs {
 
 #[access_control(check_constraints(&args))]
 pub fn add_cctp_router_endpoint(
-    ctx: Context<AddRouterEndpoint>,
-    args: AddRouterEndpointArgs,
+    ctx: Context<AddCctpRouterEndpoint>,
+    args: AddCctpRouterEndpointArgs,
 ) -> Result<()> {
-    let AddRouterEndpointArgs {
+    let AddCctpRouterEndpointArgs {
         chain,
         address,
         cctp_domain: domain,
@@ -78,7 +78,7 @@ pub fn add_cctp_router_endpoint(
     Ok(())
 }
 
-fn check_constraints(args: &AddRouterEndpointArgs) -> Result<()> {
+fn check_constraints(args: &AddCctpRouterEndpointArgs) -> Result<()> {
     require!(
         args.chain != 0
             && args.chain != wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
