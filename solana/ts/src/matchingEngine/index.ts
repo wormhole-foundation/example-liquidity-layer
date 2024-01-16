@@ -9,6 +9,7 @@ import { AuctionConfig, Custodian, RouterEndpoint, PayerSequence } from "./state
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { AuctionData } from "./state/AuctionData";
 import { TokenMessengerMinterProgram } from "../cctp";
+import { USDC_MINT_ADDRESS } from "../../tests/helpers";
 
 export const PROGRAM_IDS = ["MatchingEngine11111111111111111111111111111"] as const;
 
@@ -54,11 +55,8 @@ export class MatchingEngineProgram {
         return PublicKey.findProgramAddressSync([Buffer.from("custody")], this.ID)[0];
     }
 
-    async fetchPayerSequence(addr: PublicKey): Promise<BN> {
-        return this.program.account.payerSequence
-            .fetch(addr)
-            .then((acct) => acct.value)
-            .catch((_) => new BN(0));
+    async fetchPayerSequence(addr: PublicKey): Promise<PayerSequence> {
+        return this.program.account.payerSequence.fetch(addr);
     }
 
     routerEndpointAddress(chain: ChainId): PublicKey {
@@ -79,6 +77,19 @@ export class MatchingEngineProgram {
 
     payerSequenceAddress(payer: PublicKey): PublicKey {
         return PayerSequence.address(this.ID, payer);
+    }
+
+    async fetchPayerSequenceValue(addr: PublicKey): Promise<BN> {
+        return this.fetchPayerSequence(addr)
+            .then((acct) => acct.value)
+            .catch((_) => new BN(0));
+    }
+
+    coreMessageAddress(payer: PublicKey, payerSequenceValue: BN): PublicKey {
+        return PublicKey.findProgramAddressSync(
+            [Buffer.from("msg"), payer.toBuffer(), payerSequenceValue.toBuffer("be", 8)],
+            this.ID
+        )[0];
     }
 
     async initializeIx(
@@ -283,8 +294,8 @@ export class MatchingEngineProgram {
 
     async executeFastOrderIx(
         toChain: ChainId,
-        vaaHash: Buffer,
         remoteDomain: number,
+        vaaHash: Buffer,
         accounts: {
             payer: PublicKey;
             vaa: PublicKey;
@@ -313,6 +324,9 @@ export class MatchingEngineProgram {
         const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
             this.publishMessageAccounts(custodian);
         const payerSequence = this.payerSequenceAddress(payer);
+        const coreMessage = await this.fetchPayerSequenceValue(payerSequence).then((value) =>
+            this.coreMessageAddress(payer, value)
+        );
 
         return this.program.methods
             .executeFastOrder()
@@ -326,6 +340,22 @@ export class MatchingEngineProgram {
                 initialOfferToken,
                 custodyToken: this.custodyTokenAccountAddress(),
                 vaa,
+                mint: USDC_MINT_ADDRESS,
+                payerSequence,
+                coreBridgeConfig,
+                coreMessage,
+                coreEmitterSequence,
+                coreFeeCollector,
+                tokenMessengerMinterSenderAuthority,
+                messageTransmitterConfig,
+                tokenMessenger,
+                remoteTokenMessenger,
+                tokenMinter,
+                localToken,
+                coreBridgeProgram,
+                tokenMessengerMinterProgram,
+                messageTransmitterProgram,
+                tokenProgram,
             })
             .instruction();
     }

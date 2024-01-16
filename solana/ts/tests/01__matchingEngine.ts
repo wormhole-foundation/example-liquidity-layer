@@ -919,7 +919,7 @@ describe("Matching Engine", function () {
                 await expectIxOk(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, vaaHash, {
+                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
                             payer: auctioneerOne.publicKey,
                             vaa: vaaKey,
                             bestOfferToken,
