@@ -751,7 +751,7 @@ describe("Matching Engine", function () {
                 const vaaHash = keccak256(parseVaa(signedVaa).hash);
                 const auctionData = await engine.fetchAuctionData(vaaHash);
                 const slot = await connection.getSlot();
-                const auctioneerToken = await splToken.getAssociatedTokenAddressSync(
+                const offerToken = await splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     auctioneerOne.publicKey
                 );
@@ -759,8 +759,8 @@ describe("Matching Engine", function () {
                 expect(auctionData.bump).to.equal(254);
                 expect(auctionData.vaaHash).to.eql(Array.from(vaaHash));
                 expect(auctionData.status).to.eql({ active: {} });
-                expect(auctionData.bestOffer).to.eql(auctioneerToken);
-                expect(auctionData.initialAuctioneer).to.eql(auctioneerToken);
+                expect(auctionData.bestOffer).to.eql(offerToken);
+                expect(auctionData.initialOffer).to.eql(offerToken);
                 expect(auctionData.startSlot.toString()).to.eql(slot.toString());
                 expect(auctionData.amount.toString()).to.eql(baseFastOrder.amountIn.toString());
                 expect(auctionData.securityDeposit.toString()).to.eql(
@@ -808,7 +808,7 @@ describe("Matching Engine", function () {
                     connection,
                     [
                         await engine.improveOfferIx(newOffer, keccak256(parseVaa(signedVaa).hash), {
-                            payer: auctioneerTwo.publicKey,
+                            offerAuthority: auctioneerTwo.publicKey,
                             bestOfferToken,
                         }),
                     ],
@@ -851,7 +851,7 @@ describe("Matching Engine", function () {
                 expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
                 expect(auctionDataAfter.status).to.eql({ active: {} });
                 expect(auctionDataAfter.bestOffer).to.eql(newAuctioneerToken);
-                expect(auctionDataAfter.initialAuctioneer).to.eql(initialAuctioneerToken);
+                expect(auctionDataAfter.initialOffer).to.eql(initialAuctioneerToken);
                 expect(auctionDataAfter.startSlot.toString()).to.eql(
                     auctionDataBefore.startSlot.toString()
                 );
@@ -894,7 +894,7 @@ describe("Matching Engine", function () {
                     connection,
                     [
                         await engine.improveOfferIx(newOffer, keccak256(parseVaa(signedVaa).hash), {
-                            payer: auctioneerOne.publicKey,
+                            offerAuthority: auctioneerOne.publicKey,
                             bestOfferToken,
                         }),
                     ],
@@ -953,7 +953,7 @@ describe("Matching Engine", function () {
                 expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
                 expect(auctionDataAfter.status).to.eql({ completed: {} });
                 expect(auctionDataAfter.bestOffer).to.eql(bestOfferToken);
-                expect(auctionDataAfter.initialAuctioneer).to.eql(initialOfferToken);
+                expect(auctionDataAfter.initialOffer).to.eql(initialOfferToken);
                 expect(auctionDataAfter.startSlot.toString()).to.eql(
                     auctionDataBefore.startSlot.toString()
                 );

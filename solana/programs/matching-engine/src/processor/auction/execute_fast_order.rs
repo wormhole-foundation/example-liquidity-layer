@@ -1,3 +1,7 @@
+use crate::{
+    error::MatchingEngineError,
+    state::{AuctionData, AuctionStatus, Custodian, PayerSequence, RouterEndpoint},
+};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::messages::raw::LiquidityLayerPayload;
@@ -5,11 +9,6 @@ use wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 use wormhole_cctp_solana::{
     cctp::{message_transmitter_program, token_messenger_minter_program},
     wormhole::core_bridge_program,
-};
-
-use crate::{
-    error::MatchingEngineError,
-    state::{AuctionData, AuctionStatus, Custodian, PayerSequence, RouterEndpoint},
 };
 
 #[derive(Accounts)]
@@ -25,17 +24,27 @@ pub struct ExecuteFastOrder<'info> {
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
     )]
-    custodian: Account<'info, Custodian>,
+    custodian: Box<Account<'info, Custodian>>,
+
+    /// CHECK: Must be owned by the Wormhole Core Bridge program.
+    #[account(
+        owner = core_bridge_program::id(),
+        constraint = VaaAccount::load(&vaa)?.try_digest()?.0 == auction_data.vaa_hash // TODO: add error
+    )]
+    vaa: AccountInfo<'info>,
 
     #[account(
         mut,
         seeds = [
             AuctionData::SEED_PREFIX,
-            VaaAccount::load(&vaa)?.try_digest()?.as_ref(),
+            auction_data.vaa_hash.as_ref()
         ],
-        bump
+        bump = auction_data.bump,
+        constraint = {
+            auction_data.status == AuctionStatus::Active
+        } @ MatchingEngineError::AuctionNotActive
     )]
-    auction_data: Account<'info, AuctionData>,
+    auction_data: Box<Account<'info, AuctionData>>,
 
     #[account(
         seeds = [
@@ -53,19 +62,23 @@ pub struct ExecuteFastOrder<'info> {
     )]
     executor_token: Account<'info, token::TokenAccount>,
 
+    /// CHECK: Mutable. Must equal [best_offer](AuctionData::best_offer).
     #[account(
         mut,
-        token::mint = custody_token.mint,
-        constraint = best_offer_token.key() == auction_data.best_offer.key() @ MatchingEngineError::InvalidTokenAccount,
+        constraint = {
+            best_offer_token.key() == auction_data.best_offer.key()
+        } @ MatchingEngineError::InvalidTokenAccount,
     )]
-    best_offer_token: Account<'info, token::TokenAccount>,
+    best_offer_token: AccountInfo<'info>,
 
+    /// CHECK: Mutable. Must equal [initial_offer](AuctionData::initial_offer).
     #[account(
         mut,
-        token::mint = custody_token.mint,
-        constraint = initial_offer_token.key() == auction_data.initial_auctioneer.key() @ MatchingEngineError::InvalidTokenAccount,
+        constraint = {
+            initial_offer_token.key() == auction_data.initial_offer.key()
+        } @ MatchingEngineError::InvalidTokenAccount,
     )]
-    initial_offer_token: Account<'info, token::TokenAccount>,
+    initial_offer_token: AccountInfo<'info>,
 
     /// Also the burn_source token account.
     #[account(
@@ -73,11 +86,7 @@ pub struct ExecuteFastOrder<'info> {
         seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
         bump = custodian.custody_token_bump,
     )]
-    custody_token: Account<'info, token::TokenAccount>,
-
-    /// CHECK: Must be owned by the Wormhole Core Bridge program.
-    #[account(owner = core_bridge_program::id())]
-    vaa: AccountInfo<'info>,
+    custody_token: Box<Account<'info, token::TokenAccount>>,
 
     /// Circle-supported mint.
     ///
@@ -165,11 +174,6 @@ pub struct ExecuteFastOrder<'info> {
 }
 
 pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
-    require!(
-        ctx.accounts.auction_data.status == AuctionStatus::Active,
-        MatchingEngineError::AuctionNotActive
-    );
-
     let slots_elapsed = Clock::get()?
         .slot
         .checked_sub(ctx.accounts.auction_data.start_slot)

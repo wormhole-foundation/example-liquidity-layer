@@ -1,5 +1,8 @@
 #[anchor_lang::prelude::error_code]
 pub enum MatchingEngineError {
+    #[msg("Overflow")]
+    Overflow = 0x2,
+
     #[msg("AssistantZeroPubkey")]
     AssistantZeroPubkey = 0x100,
 

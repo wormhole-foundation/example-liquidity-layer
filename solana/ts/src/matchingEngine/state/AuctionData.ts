@@ -6,7 +6,7 @@ export class AuctionData {
     vaaHash: number[];
     status: Object;
     bestOffer: PublicKey;
-    initialAuctioneer: PublicKey;
+    initialOffer: PublicKey;
     startSlot: BN;
     amount: BN;
     securityDeposit: BN;
@@ -17,7 +17,7 @@ export class AuctionData {
         vaaHash: number[],
         status: Object,
         bestOffer: PublicKey,
-        initialAuctioneer: PublicKey,
+        initialOffer: PublicKey,
         start_slot: BN,
         amount: BN,
         security_deposit: BN,
@@ -27,7 +27,7 @@ export class AuctionData {
         this.vaaHash = vaaHash;
         this.status = status;
         this.bestOffer = bestOffer;
-        this.initialAuctioneer = initialAuctioneer;
+        this.initialOffer = initialOffer;
         this.startSlot = start_slot;
         this.amount = amount;
         this.securityDeposit = security_deposit;

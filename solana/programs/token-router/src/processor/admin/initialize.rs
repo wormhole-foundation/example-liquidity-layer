@@ -25,7 +25,9 @@ pub struct Initialize<'info> {
     /// CHECK: This account must not be the zero pubkey.
     #[account(
         owner = Pubkey::default(),
-        constraint = owner_assistant.key() != Pubkey::default() @ TokenRouterError::AssistantZeroPubkey
+        constraint = {
+            owner_assistant.key() != Pubkey::default()
+        } @ TokenRouterError::AssistantZeroPubkey
     )]
     owner_assistant: AccountInfo<'info>,
 
@@ -49,7 +51,9 @@ pub struct Initialize<'info> {
         seeds = [crate::ID.as_ref()],
         bump,
         seeds::program = bpf_loader_upgradeable::id(),
-        constraint = program_data.upgrade_authority_address.is_some() @ TokenRouterError::ImmutableProgram
+        constraint = {
+            program_data.upgrade_authority_address.is_some()
+        } @ TokenRouterError::ImmutableProgram
     )]
     program_data: Account<'info, ProgramData>,
 

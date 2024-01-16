@@ -7,7 +7,7 @@ use anchor_spl::token;
 
 #[derive(Accounts)]
 pub struct ImproveOffer<'info> {
-    payer: Signer<'info>,
+    offer_authority: Signer<'info>,
 
     /// This program's Wormhole (Core Bridge) emitter authority.
     ///
@@ -31,14 +31,15 @@ pub struct ImproveOffer<'info> {
     #[account(
         mut,
         associated_token::mint = custody_token.mint,
-        associated_token::authority = payer
+        associated_token::authority = offer_authority
     )]
-    auctioneer_token: Account<'info, token::TokenAccount>,
+    offer_token: Account<'info, token::TokenAccount>,
 
     #[account(
         mut,
-        token::mint = custody_token.mint,
-        constraint = best_offer_token.key() == auction_data.best_offer.key() @ MatchingEngineError::InvalidTokenAccount,
+        constraint = {
+            best_offer_token.key() == auction_data.best_offer.key()
+        } @ MatchingEngineError::InvalidTokenAccount,
     )]
     best_offer_token: Account<'info, token::TokenAccount>,
 
@@ -61,10 +62,9 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
     );
 
     // Push this to the stack to enhance readability.
-    let auction_duration =
-        u64::try_from(ctx.accounts.custodian.auction_config.auction_duration).unwrap();
+    let auction_duration = ctx.accounts.custodian.auction_config.auction_duration;
     require!(
-        Clock::get()?.slot.checked_sub(auction_duration).unwrap() < auction_data.start_slot,
+        Clock::get()?.slot.saturating_sub(auction_duration.into()) < auction_data.start_slot,
         MatchingEngineError::AuctionPeriodExpired
     );
 
@@ -74,26 +74,26 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
         MatchingEngineError::OfferPriceNotImproved
     );
 
-    // Transfer funds from the `best_offer` token account to the `auctioneer_token` token account,
+    // Transfer funds from the `best_offer` token account to the `offer_token` token account,
     // but only if the pubkeys are different.
-    if auction_data.best_offer != *ctx.accounts.auctioneer_token.to_account_info().key {
+    if auction_data.best_offer != *ctx.accounts.offer_token.to_account_info().key {
         token::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
                 anchor_spl::token::Transfer {
-                    from: ctx.accounts.auctioneer_token.to_account_info(),
+                    from: ctx.accounts.offer_token.to_account_info(),
                     to: ctx.accounts.best_offer_token.to_account_info(),
-                    authority: ctx.accounts.payer.to_account_info(),
+                    authority: ctx.accounts.offer_authority.to_account_info(),
                 },
             ),
             auction_data
                 .amount
                 .checked_add(auction_data.security_deposit)
-                .unwrap(),
+                .ok_or(MatchingEngineError::Overflow)?,
         )?;
 
         // Update the `best_offer` token account and `amount` fields.
-        auction_data.best_offer = ctx.accounts.auctioneer_token.key();
+        auction_data.best_offer = ctx.accounts.offer_token.key();
         auction_data.offer_price = fee_offer;
     } else {
         // Since the auctioneer is already the best offer, we only need to update the `amount`.

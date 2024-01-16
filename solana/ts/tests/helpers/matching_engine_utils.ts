@@ -163,7 +163,7 @@ export async function getInitialAuctioneerTokenAccount(
     engine: MatchingEngineProgram,
     vaaHash: Buffer
 ): Promise<PublicKey> {
-    return (await engine.fetchAuctionData(vaaHash)).initialAuctioneer;
+    return (await engine.fetchAuctionData(vaaHash)).initialOffer;
 }
 
 const sleep = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));

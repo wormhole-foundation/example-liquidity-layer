@@ -231,7 +231,7 @@ export class MatchingEngineProgram {
                 auctionData: this.auctionDataAddress(vaaHash),
                 fromRouterEndpoint: this.routerEndpointAddress(fromChain),
                 toRouterEndpoint: this.routerEndpointAddress(toChain),
-                auctioneerToken: splToken.getAssociatedTokenAddressSync(mint, payer),
+                offerToken: splToken.getAssociatedTokenAddressSync(mint, payer),
                 custodyToken: this.custodyTokenAccountAddress(),
                 vaa,
             })
@@ -241,9 +241,9 @@ export class MatchingEngineProgram {
     async improveOfferIx(
         feeOffer: bigint,
         vaaHash: Buffer,
-        accounts: { payer: PublicKey; bestOfferToken: PublicKey }
+        accounts: { offerAuthority: PublicKey; bestOfferToken: PublicKey }
     ) {
-        const { payer, bestOfferToken } = accounts;
+        const { offerAuthority, bestOfferToken } = accounts;
         const { mint } = await splToken.getAccount(
             this.program.provider.connection,
             bestOfferToken
@@ -251,10 +251,10 @@ export class MatchingEngineProgram {
         return this.program.methods
             .improveOffer(new BN(feeOffer.toString()))
             .accounts({
-                payer,
+                offerAuthority,
                 custodian: this.custodianAddress(),
                 auctionData: this.auctionDataAddress(vaaHash),
-                auctioneerToken: splToken.getAssociatedTokenAddressSync(mint, payer),
+                offerToken: splToken.getAssociatedTokenAddressSync(mint, offerAuthority),
                 bestOfferToken,
                 custodyToken: this.custodyTokenAccountAddress(),
             })

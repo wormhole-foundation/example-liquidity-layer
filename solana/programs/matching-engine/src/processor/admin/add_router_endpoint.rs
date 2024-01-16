@@ -10,7 +10,9 @@ use common::admin::utils::assistant::only_authorized;
 pub struct AddRouterEndpoint<'info> {
     #[account(
         mut,
-        constraint = only_authorized(&custodian, &owner_or_assistant.key()) @ MatchingEngineError::OwnerOrAssistantOnly,
+        constraint = {
+            only_authorized(&custodian, &owner_or_assistant.key()) 
+        } @ MatchingEngineError::OwnerOrAssistantOnly,
     )]
     owner_or_assistant: Signer<'info>,
 

@@ -13,8 +13,12 @@ pub struct ConfirmOwnershipTransferRequest<'info> {
         mut,
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
-        constraint = custodian.pending_owner.is_some() @ MatchingEngineError::NoTransferOwnershipRequest,
-        constraint = pending_owner::only_pending_owner_unchecked(&custodian, &pending_owner.key()) @ MatchingEngineError::NotPendingOwner,
+        constraint = {
+            custodian.pending_owner.is_some()
+        } @ MatchingEngineError::NoTransferOwnershipRequest,
+        constraint = {
+            pending_owner::only_pending_owner_unchecked(&custodian, &pending_owner.key())
+        } @ MatchingEngineError::NotPendingOwner,
     )]
     custodian: Account<'info, Custodian>,
 

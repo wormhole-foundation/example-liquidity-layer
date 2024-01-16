@@ -18,7 +18,9 @@ pub struct AddCctpRouterEndpoint<'info> {
     #[account(
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
-        constraint = only_authorized(&custodian, &owner_or_assistant.key()) @ TokenRouterError::OwnerOrAssistantOnly,
+        constraint = {
+            only_authorized(&custodian, &owner_or_assistant.key())
+        } @ TokenRouterError::OwnerOrAssistantOnly,
     )]
     custodian: Account<'info, Custodian>,
 
@@ -56,7 +58,6 @@ pub struct AddCctpRouterEndpointArgs {
     pub address: [u8; 32],
 }
 
-#[access_control(check_constraints(&args))]
 pub fn add_cctp_router_endpoint(
     ctx: Context<AddCctpRouterEndpoint>,
     args: AddCctpRouterEndpointArgs,
@@ -67,25 +68,19 @@ pub fn add_cctp_router_endpoint(
         cctp_domain: domain,
     } = args;
 
+    require!(
+        chain != 0 && chain != wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
+        TokenRouterError::ChainNotAllowed
+    );
+
+    require!(address != [0; 32], TokenRouterError::InvalidEndpoint);
+
     ctx.accounts.router_endpoint.set_inner(RouterEndpoint {
         bump: ctx.bumps["router_endpoint"],
         chain,
         address,
         protocol: MessageProtocol::Cctp { domain },
     });
-
-    // Done.
-    Ok(())
-}
-
-fn check_constraints(args: &AddCctpRouterEndpointArgs) -> Result<()> {
-    require!(
-        args.chain != 0
-            && args.chain != wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
-        TokenRouterError::ChainNotAllowed
-    );
-
-    require!(args.address != [0; 32], TokenRouterError::InvalidEndpoint);
 
     // Done.
     Ok(())

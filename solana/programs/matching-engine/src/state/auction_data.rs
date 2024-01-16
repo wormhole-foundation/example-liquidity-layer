@@ -23,7 +23,7 @@ pub struct AuctionData {
     pub best_offer: Pubkey,
 
     /// The initial bidder of the auction.
-    pub initial_auctioneer: Pubkey,
+    pub initial_offer: Pubkey,
 
     /// The slot at which the auction started.
     pub start_slot: u64,

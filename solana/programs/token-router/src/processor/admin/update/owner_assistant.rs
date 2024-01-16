@@ -19,7 +19,9 @@ pub struct UpdateOwnerAssistant<'info> {
     ///
     /// CHECK: Must not be zero pubkey.
     #[account(
-        constraint = new_owner_assistant.key() != Pubkey::default() @ TokenRouterError::InvalidNewAssistant,
+        constraint = {
+            new_owner_assistant.key() != Pubkey::default()
+        } @ TokenRouterError::InvalidNewAssistant,
     )]
     new_owner_assistant: AccountInfo<'info>,
 }

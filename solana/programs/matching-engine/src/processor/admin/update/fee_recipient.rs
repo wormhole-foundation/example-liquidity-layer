@@ -6,7 +6,9 @@ use common::admin::utils::assistant::only_authorized;
 pub struct UpdateFeeRecipient<'info> {
     #[account(
         mut,
-        constraint = only_authorized(&custodian, &owner_or_assistant.key()) @ MatchingEngineError::OwnerOrAssistantOnly,
+        constraint = {
+            only_authorized(&custodian, &owner_or_assistant.key())
+        } @ MatchingEngineError::OwnerOrAssistantOnly,
     )]
     owner_or_assistant: Signer<'info>,
 
@@ -21,7 +23,9 @@ pub struct UpdateFeeRecipient<'info> {
     ///
     /// CHECK: Must not be zero pubkey.
     #[account(
-        constraint = new_fee_recipient.key() != Pubkey::default() @ MatchingEngineError::FeeRecipientZeroPubkey,
+        constraint = {
+            new_fee_recipient.key() != Pubkey::default()
+        } @ MatchingEngineError::FeeRecipientZeroPubkey,
     )]
     new_fee_recipient: AccountInfo<'info>,
 }
