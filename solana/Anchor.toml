@@ -103,6 +103,11 @@ filename = "ts/tests/accounts/token_messenger_minter/usdc_token_pair.json"
 address = "Hazwi3jFQtLKc2ughi7HFXPkpDeso7DQaMR9Ks4afh3j"
 filename = "ts/tests/accounts/token_messenger_minter/ethereum_remote_token_messenger.json"
 
+### Circle Token Messenger Minter PDA -- Arbitrum Remote Token Messenger
+[[test.validator.account]]
+address = "REzxi9nX3Eqseha5fBiaJhTC6SFJx4qJhP83U4UCrtc"
+filename = "ts/tests/accounts/token_messenger_minter/arbitrum_remote_token_messenger.json"
+
 ### Circle Token Messenger Minter PDA -- Base Remote Token Messenger
 [[test.validator.account]]
 address = "BWyFzH6LsnmDAaDWbGsriQ9SiiKq1CF6pbH4Ye3kzSBV"
