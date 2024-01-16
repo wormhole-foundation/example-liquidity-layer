@@ -5,9 +5,10 @@ import { BN, Program } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
-import { AuctionConfig, Custodian, RouterEndpoint } from "./state";
+import { AuctionConfig, Custodian, RouterEndpoint, PayerSequence } from "./state";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { AuctionData } from "./state/AuctionData";
+import { TokenMessengerMinterProgram } from "../cctp";
 
 export const PROGRAM_IDS = ["MatchingEngine11111111111111111111111111111"] as const;
 
@@ -16,6 +17,13 @@ export type ProgramId = (typeof PROGRAM_IDS)[number];
 export type AddRouterEndpointArgs = {
     chain: ChainId;
     address: Array<number>;
+};
+
+export type PublishMessageAccounts = {
+    coreBridgeConfig: PublicKey;
+    coreEmitterSequence: PublicKey;
+    coreFeeCollector: PublicKey;
+    coreBridgeProgram: PublicKey;
 };
 
 export class MatchingEngineProgram {
@@ -67,6 +75,10 @@ export class MatchingEngineProgram {
 
     async fetchAuctionData(vaaHash: Buffer): Promise<AuctionData> {
         return this.program.account.auctionData.fetch(this.auctionDataAddress(vaaHash));
+    }
+
+    payerSequenceAddress(payer: PublicKey): PublicKey {
+        return PayerSequence.address(this.ID, payer);
     }
 
     async initializeIx(
@@ -249,9 +261,30 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
+        switch (this._programId) {
+            case testnet(): {
+                return new TokenMessengerMinterProgram(
+                    this.program.provider.connection,
+                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
+                );
+            }
+            case mainnet(): {
+                return new TokenMessengerMinterProgram(
+                    this.program.provider.connection,
+                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
+                );
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
+    }
+
     async executeFastOrderIx(
         toChain: ChainId,
         vaaHash: Buffer,
+        remoteDomain: number,
         accounts: {
             payer: PublicKey;
             vaa: PublicKey;
@@ -264,11 +297,28 @@ export class MatchingEngineProgram {
             this.program.provider.connection,
             bestOfferToken
         );
+        const {
+            senderAuthority: tokenMessengerMinterSenderAuthority,
+            messageTransmitterConfig,
+            tokenMessenger,
+            remoteTokenMessenger,
+            tokenMinter,
+            localToken,
+            messageTransmitterProgram,
+            tokenMessengerMinterProgram,
+            tokenProgram,
+        } = this.tokenMessengerMinterProgram().depositForBurnWithCallerAccounts(mint, remoteDomain);
+
+        const custodian = this.custodianAddress();
+        const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
+            this.publishMessageAccounts(custodian);
+        const payerSequence = this.payerSequenceAddress(payer);
+
         return this.program.methods
             .executeFastOrder()
             .accounts({
                 payer,
-                custodian: this.custodianAddress(),
+                custodian,
                 auctionData: this.auctionDataAddress(vaaHash),
                 toRouterEndpoint: this.routerEndpointAddress(toChain),
                 executorToken: splToken.getAssociatedTokenAddressSync(mint, payer),
@@ -279,8 +329,46 @@ export class MatchingEngineProgram {
             })
             .instruction();
     }
+
+    publishMessageAccounts(emitter: PublicKey): PublishMessageAccounts {
+        const coreBridgeProgram = this.coreBridgeProgramId();
+
+        return {
+            coreBridgeConfig: PublicKey.findProgramAddressSync(
+                [Buffer.from("Bridge")],
+                coreBridgeProgram
+            )[0],
+            coreEmitterSequence: PublicKey.findProgramAddressSync(
+                [Buffer.from("Sequence"), emitter.toBuffer()],
+                coreBridgeProgram
+            )[0],
+            coreFeeCollector: PublicKey.findProgramAddressSync(
+                [Buffer.from("fee_collector")],
+                coreBridgeProgram
+            )[0],
+            coreBridgeProgram,
+        };
+    }
+
+    coreBridgeProgramId(): PublicKey {
+        switch (this._programId) {
+            case testnet(): {
+                return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
+            }
+            case mainnet(): {
+                return new PublicKey("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
+    }
 }
 
 export function testnet(): ProgramId {
+    return "MatchingEngine11111111111111111111111111111";
+}
+
+export function mainnet(): ProgramId {
     return "MatchingEngine11111111111111111111111111111";
 }
