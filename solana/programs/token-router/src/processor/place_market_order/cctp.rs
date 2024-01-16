@@ -1,6 +1,6 @@
 use crate::{
     error::TokenRouterError,
-    state::{Custodian, PayerSequence, RouterEndpoint},
+    state::{Custodian, MessageProtocol, PayerSequence, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -89,7 +89,6 @@ pub struct PlaceMarketOrderCctp<'info> {
             router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = router_endpoint.bump,
-        constraint = router_endpoint.cctp_domain.is_some() @ TokenRouterError::InvalidCctpEndpoint,
     )]
     router_endpoint: Account<'info, RouterEndpoint>,
 
@@ -178,6 +177,28 @@ pub fn place_market_order_cctp(
     ctx: Context<PlaceMarketOrderCctp>,
     args: PlaceMarketOrderCctpArgs,
 ) -> Result<()> {
+    match ctx.accounts.router_endpoint.protocol {
+        MessageProtocol::Cctp { domain } => handle_place_market_order_cctp(ctx, args, domain),
+        _ => err!(TokenRouterError::InvalidCctpEndpoint),
+    }
+}
+
+fn check_constraints(args: &PlaceMarketOrderCctpArgs) -> Result<()> {
+    // Even though CCTP prevents zero amount burns, we prefer to throw an explicit error here.
+    require!(args.amount_in > 0, TokenRouterError::InsufficientAmount);
+
+    // Cannot send to zero address.
+    require!(args.redeemer != [0; 32], TokenRouterError::InvalidRedeemer);
+
+    // Done.
+    Ok(())
+}
+
+fn handle_place_market_order_cctp(
+    ctx: Context<PlaceMarketOrderCctp>,
+    args: PlaceMarketOrderCctpArgs,
+    destination_cctp_domain: u32,
+) -> Result<()> {
     let PlaceMarketOrderCctpArgs {
         amount_in: amount,
         redeemer,
@@ -264,7 +285,7 @@ pub fn place_market_order_cctp(
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
             burn_source: ctx.accounts.burn_source.key(),
             destination_caller: ctx.accounts.router_endpoint.address,
-            destination_cctp_domain: ctx.accounts.router_endpoint.cctp_domain.unwrap(),
+            destination_cctp_domain,
             amount,
             mint_recipient: ctx.accounts.router_endpoint.address,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
@@ -277,17 +298,6 @@ pub fn place_market_order_cctp(
             .to_vec_payload(),
         },
     )?;
-
-    // Done.
-    Ok(())
-}
-
-fn check_constraints(args: &PlaceMarketOrderCctpArgs) -> Result<()> {
-    // Even though CCTP prevents zero amount burns, we prefer to throw an explicit error here.
-    require!(args.amount_in > 0, TokenRouterError::InsufficientAmount);
-
-    // Cannot send to zero address.
-    require!(args.redeemer != [0; 32], TokenRouterError::InvalidRedeemer,);
 
     // Done.
     Ok(())

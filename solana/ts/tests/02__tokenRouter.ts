@@ -325,9 +325,9 @@ describe("Token Router", function () {
             });
         });
 
-        describe("Add Router Endpoint", function () {
-            it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
-                const ix = await tokenRouter.addRouterEndpointIx(
+        describe("Add CCTP Router Endpoint", function () {
+            it("Cannot Add CCTP Router Endpoint as Non-Owner and Non-Assistant", async function () {
+                const ix = await tokenRouter.addCctpRouterEndpointIx(
                     {
                         ownerOrAssistant: payer.publicKey,
                     },
@@ -343,11 +343,15 @@ describe("Token Router", function () {
 
             [wormholeSdk.CHAINS.unset, wormholeSdk.CHAINS.solana].forEach((chain) =>
                 it(`Cannot Register Chain ID == ${chain}`, async function () {
-                    const ix = await tokenRouter.addRouterEndpointIx(
+                    const ix = await tokenRouter.addCctpRouterEndpointIx(
                         {
                             ownerOrAssistant: ownerAssistant.publicKey,
                         },
-                        { chain, address: routerEndpointAddress, cctpDomain: null }
+                        {
+                            chain,
+                            address: routerEndpointAddress,
+                            cctpDomain: foreignCctpDomain,
+                        }
                     );
 
                     await expectIxErr(
@@ -360,7 +364,7 @@ describe("Token Router", function () {
             );
 
             it("Cannot Register Zero Address", async function () {
-                const ix = await tokenRouter.addRouterEndpointIx(
+                const ix = await tokenRouter.addCctpRouterEndpointIx(
                     {
                         ownerOrAssistant: owner.publicKey,
                     },
@@ -374,16 +378,16 @@ describe("Token Router", function () {
                 await expectIxErr(connection, [ix], [owner], "Error Code: InvalidEndpoint");
             });
 
-            it(`Add Router Endpoint as Owner Assistant`, async function () {
+            it(`Add CCTP Router Endpoint as Owner Assistant`, async function () {
                 const contractAddress = Array.from(Buffer.alloc(32, "fbadc0de", "hex"));
-                const ix = await tokenRouter.addRouterEndpointIx(
+                const ix = await tokenRouter.addCctpRouterEndpointIx(
                     {
                         ownerOrAssistant: ownerAssistant.publicKey,
                     },
                     {
                         chain: foreignChain,
                         address: contractAddress,
-                        cctpDomain: null,
+                        cctpDomain: foreignCctpDomain,
                     }
                 );
 
@@ -396,13 +400,13 @@ describe("Token Router", function () {
                     bump: 255,
                     chain: foreignChain,
                     address: contractAddress,
-                    cctpDomain: null,
+                    protocol: { cctp: { domain: foreignCctpDomain } },
                 };
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
             });
 
             it(`Update Router Endpoint as Owner`, async function () {
-                const ix = await tokenRouter.addRouterEndpointIx(
+                const ix = await tokenRouter.addCctpRouterEndpointIx(
                     {
                         ownerOrAssistant: owner.publicKey,
                     },
@@ -422,7 +426,7 @@ describe("Token Router", function () {
                     bump: 255,
                     chain: foreignChain,
                     address: routerEndpointAddress,
-                    cctpDomain: foreignCctpDomain,
+                    protocol: { cctp: { domain: foreignCctpDomain } },
                 };
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
             });

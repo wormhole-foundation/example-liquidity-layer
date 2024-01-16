@@ -1,5 +1,14 @@
 use anchor_lang::prelude::*;
 
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
+pub enum MessageProtocol {
+    Cctp {
+        /// CCTP domain, which is how CCTP registers identifies foreign networks.
+        domain: u32,
+    },
+    Canonical,
+}
+
 #[account]
 #[derive(Debug, InitSpace)]
 /// Foreign emitter account data.
@@ -12,9 +21,8 @@ pub struct RouterEndpoint {
     /// Emitter address. Cannot be zero address.
     pub address: [u8; 32],
 
-    /// CCTP domain, which is how CCTP registers identifies foreign networks. If there is no CCTP
-    /// for a given foreign network, this field is `None`.
-    pub cctp_domain: Option<u32>,
+    /// Specific message protocol used to move assets.
+    pub protocol: MessageProtocol,
 }
 
 impl RouterEndpoint {

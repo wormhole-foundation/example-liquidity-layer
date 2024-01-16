@@ -1,17 +1,22 @@
 import { ChainId } from "@certusone/wormhole-sdk";
 import { PublicKey } from "@solana/web3.js";
 
+export type MessageProtocol = {
+    cctp?: { domain: number };
+    canonical?: {};
+};
+
 export class RouterEndpoint {
     bump: number;
     chain: number;
     address: Array<number>;
-    cctpDomain: number | null;
+    protocol: MessageProtocol;
 
-    constructor(bump: number, chain: number, address: Array<number>, cctpDomain: number | null) {
+    constructor(bump: number, chain: number, address: Array<number>, protocol: MessageProtocol) {
         this.bump = bump;
         this.chain = chain;
         this.address = address;
-        this.cctpDomain = cctpDomain;
+        this.protocol = protocol;
     }
 
     static address(programId: PublicKey, chain: ChainId) {

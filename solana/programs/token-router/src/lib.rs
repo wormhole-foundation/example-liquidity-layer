@@ -112,11 +112,11 @@ pub mod token_router {
         processor::update_owner_assistant(ctx)
     }
 
-    pub fn add_router_endpoint(
+    pub fn add_cctp_router_endpoint(
         ctx: Context<AddRouterEndpoint>,
         args: AddRouterEndpointArgs,
     ) -> Result<()> {
-        processor::add_router_endpoint(ctx, args)
+        processor::add_cctp_router_endpoint(ctx, args)
     }
 
     /// This instruction updates the `paused` boolean in the `SenderConfig`

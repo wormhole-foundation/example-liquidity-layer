@@ -18,7 +18,7 @@ import {
 } from "../cctp";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { VaaAccount } from "../wormhole";
-import { Custodian, PayerSequence, RouterEndpoint } from "./state";
+import { Custodian, MessageProtocol, PayerSequence, RouterEndpoint } from "./state";
 
 export const PROGRAM_IDS = ["TokenRouter11111111111111111111111111111111"] as const;
 
@@ -91,10 +91,10 @@ export type RedeemFillCctpAccounts = {
     tokenProgram: PublicKey;
 };
 
-export type AddRouterEndpointArgs = {
+export type AddCctpRouterEndpointArgs = {
     chain: ChainId;
     address: Array<number>;
-    cctpDomain: number | null;
+    cctpDomain: number;
 };
 
 export type RegisterContractArgs = {
@@ -229,13 +229,11 @@ export class TokenRouterProgram {
             if (inputRemoteDomain !== undefined) {
                 return inputRemoteDomain;
             } else {
-                const cctpDomain = await this.fetchRouterEndpoint(routerEndpoint).then(
-                    (acct) => acct.cctpDomain
-                );
-                if (cctpDomain === null) {
-                    throw new Error("invalid router endpoint");
+                const { protocol } = await this.fetchRouterEndpoint(routerEndpoint);
+                if (protocol.cctp !== undefined) {
+                    return protocol.cctp.domain;
                 } else {
-                    return cctpDomain;
+                    throw new Error("invalid router endpoint");
                 }
             }
         })();
@@ -544,14 +542,14 @@ export class TokenRouterProgram {
             .instruction();
     }
 
-    async addRouterEndpointIx(
+    async addCctpRouterEndpointIx(
         accounts: {
             ownerOrAssistant: PublicKey;
             custodian?: PublicKey;
             routerEndpoint?: PublicKey;
             remoteTokenMessenger?: PublicKey;
         },
-        args: AddRouterEndpointArgs
+        args: AddCctpRouterEndpointArgs
     ): Promise<TransactionInstruction> {
         const {
             ownerOrAssistant,
@@ -561,11 +559,10 @@ export class TokenRouterProgram {
         } = accounts;
         const { chain, cctpDomain } = args;
         const derivedRemoteTokenMessenger =
-            cctpDomain === null
-                ? null
-                : this.tokenMessengerMinterProgram().remoteTokenMessengerAddress(cctpDomain);
+            this.tokenMessengerMinterProgram().remoteTokenMessengerAddress(cctpDomain);
+
         return this.program.methods
-            .addRouterEndpoint(args)
+            .addCctpRouterEndpoint(args)
             .accounts({
                 ownerOrAssistant,
                 custodian: inputCustodian ?? this.custodianAddress(),
