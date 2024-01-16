@@ -1,10 +1,12 @@
 use crate::{
     error::MatchingEngineError,
+    send_cctp,
     state::{AuctionData, AuctionStatus, Custodian, PayerSequence, RouterEndpoint},
+    CctpAccounts,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::messages::raw::LiquidityLayerPayload;
+use common::{messages::raw::LiquidityLayerPayload, wormhole_io::TypePrefixedPayload};
 use wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 use wormhole_cctp_solana::{
     cctp::{message_transmitter_program, token_messenger_minter_program},
@@ -200,12 +202,18 @@ pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
         &[ctx.accounts.custodian.bump],
     ];
 
+    // We need to save the reward for the user so we include it when sending the CCTP transfer.
+    let mut user_reward: u64 = 0;
+
     if slots_elapsed > u64::try_from(auction_config.auction_grace_period).unwrap() {
         let (penalty, reward) = ctx
             .accounts
             .custodian
             .calculate_dynamic_penalty(auction_data.security_deposit, slots_elapsed)
             .ok_or(MatchingEngineError::PenaltyCalculationFailed)?;
+
+        // Save user reward for CCTP transfer.
+        user_reward = reward;
 
         // If caller passes in the same token account, only perform one transfer.
         if ctx.accounts.best_offer_token.key() == ctx.accounts.executor_token.key() {
@@ -263,8 +271,6 @@ pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
                     .unwrap(),
             )?;
         }
-
-        // TODO: Do the CCTP transfer or create a fast fill here.
     } else {
         // Return the security deposit and the fee to the highest bidder.
         token::transfer(
@@ -283,6 +289,54 @@ pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
                 .unwrap(),
         )?;
     }
+
+    // Send the CCTP message to the destination chain.
+    send_cctp(
+        CctpAccounts {
+            payer: &ctx.accounts.payer,
+            custodian: &ctx.accounts.custodian,
+            to_router_endpoint: &ctx.accounts.to_router_endpoint,
+            custody_token: &ctx.accounts.custody_token,
+            mint: &ctx.accounts.mint,
+            payer_sequence: &mut ctx.accounts.payer_sequence,
+            core_bridge_config: &ctx.accounts.core_bridge_config,
+            core_message: &ctx.accounts.core_message,
+            core_emitter_sequence: &mut ctx.accounts.core_emitter_sequence,
+            core_fee_collector: &ctx.accounts.core_fee_collector,
+            token_messenger_minter_sender_authority: &ctx
+                .accounts
+                .token_messenger_minter_sender_authority,
+            message_transmitter_config: &ctx.accounts.message_transmitter_config,
+            token_messenger: &ctx.accounts.token_messenger,
+            remote_token_messenger: &ctx.accounts.remote_token_messenger,
+            token_minter: &ctx.accounts.token_minter,
+            local_token: &ctx.accounts.local_token,
+            core_bridge_program: &ctx.accounts.core_bridge_program,
+            token_messenger_minter_program: &ctx.accounts.token_messenger_minter_program,
+            message_transmitter_program: &ctx.accounts.message_transmitter_program,
+            token_program: &ctx.accounts.token_program,
+            system_program: &ctx.accounts.system_program,
+            clock: &ctx.accounts.clock,
+            rent: &ctx.accounts.rent,
+        },
+        auction_data
+            .amount
+            .checked_sub(auction_data.offer_price)
+            .unwrap()
+            .checked_sub(u64::try_from(fast_order.init_auction_fee()).unwrap())
+            .unwrap()
+            .checked_add(user_reward)
+            .unwrap(),
+        fast_order.destination_cctp_domain(),
+        common::messages::Fill {
+            source_chain: vaa.try_emitter_chain()?,
+            order_sender: fast_order.sender(),
+            redeemer: fast_order.redeemer(),
+            redeemer_message: <&[u8]>::from(fast_order.redeemer_message()).to_vec().into(),
+        }
+        .to_vec_payload(),
+        ctx.bumps["core_message"],
+    )?;
 
     // Pay the auction initiator their fee.
     token::transfer(
@@ -303,6 +357,3 @@ pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
 
     Ok(())
 }
-
-// TODO: need to validate that the caller passed in the correct token accounts
-// and not just their own to steal funds. Look at ALL instructions.

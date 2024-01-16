@@ -945,7 +945,7 @@ describe("Matching Engine", function () {
                     baseFastOrder.maxFee + newOffer
                 );
                 expect(custodyBefore - custodyAfter).equals(
-                    baseFastOrder.initAuctionFee + baseFastOrder.maxFee + newOffer
+                    baseFastOrder.amountIn + baseFastOrder.maxFee
                 );
 
                 // Validate auction data account.
