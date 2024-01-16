@@ -20,8 +20,10 @@ import {
 import {
     FastMarketOrder,
     getBestOfferTokenAccount,
+    getInitialAuctioneerTokenAccount,
     getTokenBalance,
     postFastTransferVaa,
+    skip_slots,
 } from "./helpers/matching_engine_utils";
 
 chaiUse(chaiAsPromised);
@@ -54,9 +56,9 @@ describe("Matching Engine", function () {
             const auctionConfig: AuctionConfig = {
                 userPenaltyRewardBps: 250000,
                 initialPenaltyBps: 250000,
-                auctionDuration: 10,
-                auctionGracePeriod: 30,
-                auctionPenaltyBlocks: 60,
+                auctionDuration: 2,
+                auctionGracePeriod: 4,
+                auctionPenaltySlots: 10,
             };
 
             const createInitializeIx = (opts?: {
@@ -718,7 +720,7 @@ describe("Matching Engine", function () {
                     await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
                 ).amount;
 
-                const signedVaa = await placeInitialOfferForTest(
+                const [, signedVaa] = await placeInitialOfferForTest(
                     connection,
                     auctioneerOne,
                     wormholeSequence++,
@@ -770,7 +772,7 @@ describe("Matching Engine", function () {
 
         describe("Improve Offer", function () {
             it("Improve Offer With New Auctioneer", async function () {
-                const signedVaa = await placeInitialOfferForTest(
+                const [, signedVaa] = await placeInitialOfferForTest(
                     connection,
                     auctioneerOne,
                     wormholeSequence++,
@@ -862,6 +864,108 @@ describe("Matching Engine", function () {
                 expect(auctionDataAfter.offerPrice.toString()).to.eql(newOffer.toString());
             });
         });
+
+        describe("Execute Fast Order Within Grace Period", function () {
+            it("Execute Fast Order", async function () {
+                // Start the auction with auctioneer two so that we can
+                // check that the initial auctioneer is refunded.
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    auctioneerTwo,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = keccak256(parseVaa(signedVaa).hash);
+                let bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialAuctioneerTokenAccount(engine, vaaHash);
+                const newOffer = baseFastOrder.maxFee - 100n;
+
+                // Improve the bid with auctioneer one.
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.improveOfferIx(newOffer, keccak256(parseVaa(signedVaa).hash), {
+                            payer: auctioneerOne.publicKey,
+                            bestOfferToken,
+                        }),
+                    ],
+                    [auctioneerOne]
+                );
+
+                // Fetch the balances before.
+                const highestOfferBefore = await getTokenBalance(
+                    connection,
+                    auctioneerOne.publicKey
+                );
+                const custodyBefore = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+                const initialBefore = await getTokenBalance(connection, auctioneerTwo.publicKey);
+                const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
+                bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+
+                // Fast forward into the grace period.
+                await skip_slots(connection, 2);
+
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(arbChain, vaaHash, {
+                            payer: auctioneerOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [auctioneerOne]
+                );
+
+                // Validate balance changes.
+                const highestOfferAfter = await getTokenBalance(
+                    connection,
+                    auctioneerOne.publicKey
+                );
+                const custodyAfter = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+                const initialAfter = await getTokenBalance(connection, auctioneerTwo.publicKey);
+                const auctionDataAfter = await engine.fetchAuctionData(vaaHash);
+
+                expect(initialAfter - initialBefore).equals(baseFastOrder.initAuctionFee);
+                expect(highestOfferAfter - highestOfferBefore).equals(
+                    baseFastOrder.maxFee + newOffer
+                );
+                expect(custodyBefore - custodyAfter).equals(
+                    baseFastOrder.initAuctionFee + baseFastOrder.maxFee + newOffer
+                );
+
+                // Validate auction data account.
+                expect(auctionDataAfter.bump).to.equal(250);
+                expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
+                expect(auctionDataAfter.status).to.eql({ completed: {} });
+                expect(auctionDataAfter.bestOffer).to.eql(bestOfferToken);
+                expect(auctionDataAfter.initialAuctioneer).to.eql(initialOfferToken);
+                expect(auctionDataAfter.startSlot.toString()).to.eql(
+                    auctionDataBefore.startSlot.toString()
+                );
+                expect(auctionDataAfter.amount.toString()).to.eql(
+                    auctionDataBefore.amount.toString()
+                );
+                expect(auctionDataAfter.securityDeposit.toString()).to.eql(
+                    auctionDataBefore.securityDeposit.toString()
+                );
+                expect(auctionDataAfter.offerPrice.toString()).to.eql(newOffer.toString());
+            });
+        });
     });
 });
 
@@ -877,7 +981,7 @@ async function placeInitialOfferForTest(
         fromChain: ChainId;
         toChain: ChainId;
     }
-): Promise<Buffer> {
+): Promise<[PublicKey, Buffer]> {
     const [vaaKey, signedVaa] = await postFastTransferVaa(
         connection,
         auctioneer,
@@ -906,5 +1010,5 @@ async function placeInitialOfferForTest(
         [auctioneer]
     );
 
-    return signedVaa;
+    return [vaaKey, signedVaa];
 }

@@ -158,3 +158,19 @@ export async function getBestOfferTokenAccount(
 ): Promise<PublicKey> {
     return (await engine.fetchAuctionData(vaaHash)).bestOffer;
 }
+
+export async function getInitialAuctioneerTokenAccount(
+    engine: MatchingEngineProgram,
+    vaaHash: Buffer
+): Promise<PublicKey> {
+    return (await engine.fetchAuctionData(vaaHash)).initialAuctioneer;
+}
+
+const sleep = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function skip_slots(connection: Connection, slots: number) {
+    const start = await connection.getSlot();
+    while ((await connection.getSlot()) < start + slots) {
+        await sleep(500);
+    }
+}

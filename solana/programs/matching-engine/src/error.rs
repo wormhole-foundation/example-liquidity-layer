@@ -37,6 +37,9 @@ pub enum MatchingEngineError {
     #[msg("NotPendingOwner")]
     NotPendingOwner = 0x20e,
 
+    #[msg("InvalidTokenAccount")]
+    InvalidTokenAccount,
+
     #[msg("OwnerOrAssistantOnly")]
     OwnerOrAssistantOnly,
 
@@ -87,12 +90,22 @@ pub enum MatchingEngineError {
 
     #[msg("InvalidPayloadId")]
     InvalidPayloadId,
+
     #[msg("AuctionNotActive")]
     AuctionNotActive,
 
     #[msg("AuctionPeriodExpired")]
     AuctionPeriodExpired,
 
+    #[msg("AuctionPeriodNotExpired")]
+    AuctionPeriodNotExpired,
+
     #[msg("OfferPriceNotImproved")]
     OfferPriceNotImproved,
+
+    #[msg("BestOfferTokenNotPassedIn")]
+    BestOfferTokenNotPassedIn,
+
+    #[msg("PenaltyCalculationFailed")]
+    PenaltyCalculationFailed,
 }

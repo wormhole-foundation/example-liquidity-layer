@@ -38,6 +38,7 @@ pub struct ImproveOffer<'info> {
     #[account(
         mut,
         token::mint = custody_token.mint,
+        constraint = best_offer_token.key() == auction_data.best_offer.key() @ MatchingEngineError::InvalidTokenAccount,
     )]
     best_offer_token: Account<'info, token::TokenAccount>,
 

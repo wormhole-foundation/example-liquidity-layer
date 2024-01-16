@@ -5,7 +5,7 @@ export interface AuctionConfig {
     initialPenaltyBps: number;
     auctionDuration: number;
     auctionGracePeriod: number;
-    auctionPenaltyBlocks: number;
+    auctionPenaltySlots: number;
 }
 
 export class Custodian {

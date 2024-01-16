@@ -76,4 +76,8 @@ pub mod matching_engine {
     pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
         processor::improve_offer(ctx, fee_offer)
     }
+
+    pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
+        processor::execute_fast_order(ctx)
+    }
 }

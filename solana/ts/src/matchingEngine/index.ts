@@ -248,6 +248,37 @@ export class MatchingEngineProgram {
             })
             .instruction();
     }
+
+    async executeFastOrderIx(
+        toChain: ChainId,
+        vaaHash: Buffer,
+        accounts: {
+            payer: PublicKey;
+            vaa: PublicKey;
+            bestOfferToken: PublicKey;
+            initialOfferToken: PublicKey;
+        }
+    ) {
+        const { payer, vaa, bestOfferToken, initialOfferToken } = accounts;
+        const { mint } = await splToken.getAccount(
+            this.program.provider.connection,
+            bestOfferToken
+        );
+        return this.program.methods
+            .executeFastOrder()
+            .accounts({
+                payer,
+                custodian: this.custodianAddress(),
+                auctionData: this.auctionDataAddress(vaaHash),
+                toRouterEndpoint: this.routerEndpointAddress(toChain),
+                executorToken: splToken.getAssociatedTokenAddressSync(mint, payer),
+                bestOfferToken,
+                initialOfferToken,
+                custodyToken: this.custodyTokenAccountAddress(),
+                vaa,
+            })
+            .instruction();
+    }
 }
 
 export function testnet(): ProgramId {
