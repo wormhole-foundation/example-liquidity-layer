@@ -1,5 +1,5 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import { CctpTokenBurnMessage, FastFill, LiquidityLayerMessage } from "../src";
@@ -12,10 +12,12 @@ import {
     OWNER_ASSISTANT_KEYPAIR,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
+    expectIxErr,
     expectIxOk,
     postLiquidityLayerVaa,
 } from "./helpers";
 import * as splToken from "@solana/spl-token";
+import { VaaAccount } from "../src/wormhole";
 
 chaiUse(chaiAsPromised);
 
@@ -38,25 +40,59 @@ describe("Matching Engine <> Token Router", function () {
 
     describe("Admin", function () {
         describe("Matching Engine -- Add Local Token Router Endpoint", function () {
-            it.skip("Cannot Add Local Router Endpoint Without Executable", async function () {
-                // TODO
-            });
-
-            it("Add Local Router Endpoint", async function () {
-                const emitterAddress = Array.from(tokenRouter.custodianAddress().toBuffer());
+            it("Cannot Add Local Router Endpoint Without Executable", async function () {
                 const ix = await matchingEngine.addLocalRouterEndpointIx({
                     ownerOrAssistant: ownerAssistant.publicKey,
-                    tokenRouterProgram: tokenRouter.ID,
+                    tokenRouterProgram: SYSVAR_RENT_PUBKEY,
+                });
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: ConstraintExecutable"
+                );
+            });
+
+            it("Add Local Router Endpoint using System Program", async function () {
+                const ix = await matchingEngine.addLocalRouterEndpointIx({
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                    tokenRouterProgram: SystemProgram.programId,
                 });
                 await expectIxOk(connection, [ix], [ownerAssistant]);
 
                 const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
                     matchingEngine.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA)
                 );
+                const [expectedAddress] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("emitter")],
+                    SystemProgram.programId
+                );
                 const expectedRouterEndpointData: matchingEngineSdk.RouterEndpoint = {
                     bump: 254,
                     chain: wormholeSdk.CHAIN_ID_SOLANA,
-                    address: emitterAddress,
+                    address: Array.from(expectedAddress.toBuffer()),
+                };
+                expect(routerEndpointData).to.eql(expectedRouterEndpointData);
+            });
+
+            it("Add Local Router Endpoint using SPL Token Program", async function () {
+                const ix = await matchingEngine.addLocalRouterEndpointIx({
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                    tokenRouterProgram: splToken.TOKEN_PROGRAM_ID,
+                });
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+
+                const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
+                    matchingEngine.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA)
+                );
+                const [expectedAddress] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("emitter")],
+                    splToken.TOKEN_PROGRAM_ID
+                );
+                const expectedRouterEndpointData: matchingEngineSdk.RouterEndpoint = {
+                    bump: 254,
+                    chain: wormholeSdk.CHAIN_ID_SOLANA,
+                    address: Array.from(expectedAddress.toBuffer()),
                 };
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
             });
@@ -71,7 +107,9 @@ describe("Matching Engine <> Token Router", function () {
 
         let wormholeSequence = 4000n;
 
-        it("Redeem Fast Fill", async function () {
+        const localVariables = new Map<string, any>();
+
+        it("Cannot Redeem Fast Fill as Unregistered Token Router", async function () {
             const redeemer = Keypair.generate();
 
             const amount = 69n;
@@ -103,19 +141,117 @@ describe("Matching Engine <> Token Router", function () {
                 dstToken: payerToken,
             });
 
+            await expectIxErr(connection, [ix], [payer, redeemer], "Error Code: ConstraintAddress");
+
+            // Save VAA pubkey and redeemer for later.
+            localVariables.set("vaa", vaa);
+            localVariables.set("redeemer", redeemer);
+        });
+
+        it("Remove Local Router Endpoint", async function () {
+            const ix = await matchingEngine.removeRouterEndpointIx(
+                {
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                },
+                wormholeSdk.CHAIN_ID_SOLANA
+            );
+            await expectIxOk(connection, [ix], [ownerAssistant]);
+
+            const accInfo = await connection.getAccountInfo(
+                matchingEngine.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA)
+            );
+            expect(accInfo).is.null;
+        });
+
+        it("Cannot Redeem Fast Fill without Local Router Endpoint", async function () {
+            const vaa = localVariables.get("vaa") as PublicKey;
+            expect(localVariables.delete("vaa")).is.true;
+
+            const redeemer = localVariables.get("redeemer") as Keypair;
+            expect(localVariables.delete("redeemer")).is.true;
+
+            const ix = await tokenRouter.redeemFastFillIx({
+                payer: payer.publicKey,
+                vaa,
+                redeemer: redeemer.publicKey,
+                dstToken: payerToken,
+            });
+
+            await expectIxErr(
+                connection,
+                [ix],
+                [payer, redeemer],
+                "Error Code: AccountNotInitialized"
+            );
+
+            // Save VAA pubkey and redeemer for later.
+            localVariables.set("vaa", vaa);
+            localVariables.set("redeemer", redeemer);
+        });
+
+        it("Add Local Router Endpoint using Token Router Program", async function () {
+            const ix = await matchingEngine.addLocalRouterEndpointIx({
+                ownerOrAssistant: ownerAssistant.publicKey,
+                tokenRouterProgram: tokenRouter.ID,
+            });
+            await expectIxOk(connection, [ix], [ownerAssistant]);
+
+            const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
+                matchingEngine.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA)
+            );
+            const expectedRouterEndpointData: matchingEngineSdk.RouterEndpoint = {
+                bump: 254,
+                chain: wormholeSdk.CHAIN_ID_SOLANA,
+                address: Array.from(tokenRouter.custodianAddress().toBuffer()),
+            };
+            expect(routerEndpointData).to.eql(expectedRouterEndpointData);
+        });
+
+        it("Redeem Fast Fill", async function () {
+            const vaa = localVariables.get("vaa") as PublicKey;
+            expect(localVariables.delete("vaa")).is.true;
+
+            const redeemer = localVariables.get("redeemer") as Keypair;
+            expect(localVariables.delete("redeemer")).is.true;
+
+            const ix = await tokenRouter.redeemFastFillIx({
+                payer: payer.publicKey,
+                vaa,
+                redeemer: redeemer.publicKey,
+                dstToken: payerToken,
+            });
+
             await expectIxOk(connection, [ix], [payer, redeemer]);
+
+            // Save VAA pubkey and redeemer for later.
+            localVariables.set("vaa", vaa);
+            localVariables.set("redeemer", redeemer);
         });
 
-        it.skip("Cannot Redeem Fill Again", async function () {
-            // TODO
-        });
+        it("Cannot Redeem Same Fast Fill Again", async function () {
+            const vaa = localVariables.get("vaa") as PublicKey;
+            expect(localVariables.delete("vaa")).is.true;
 
-        it.skip("Remove Local Router Endpoint", async function () {
-            // TODO
-        });
+            const redeemer = localVariables.get("redeemer") as Keypair;
+            expect(localVariables.delete("redeemer")).is.true;
 
-        it.skip("Cannot Redeem Fast Fill Without Local Endpoint", async function () {
-            // TODO
+            const vaaHash = await VaaAccount.fetch(connection, vaa).then((vaa) => vaa.digest());
+
+            const ix = await tokenRouter.redeemFastFillIx({
+                payer: payer.publicKey,
+                vaa,
+                redeemer: redeemer.publicKey,
+                dstToken: payerToken,
+            });
+
+            await expectIxErr(
+                connection,
+                [ix],
+                [payer, redeemer],
+                `Allocate: account Address { address: ${matchingEngine
+                    .redeemedFastFillAddress(vaaHash)
+                    .toString()}, base: None } already in use`
+            );
         });
     });
 });

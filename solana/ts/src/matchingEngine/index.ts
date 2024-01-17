@@ -245,6 +245,29 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    async removeRouterEndpointIx(
+        accounts: {
+            ownerOrAssistant: PublicKey;
+            custodian?: PublicKey;
+            routerEndpoint?: PublicKey;
+        },
+        chain: wormholeSdk.ChainId
+    ): Promise<TransactionInstruction> {
+        const {
+            ownerOrAssistant,
+            custodian: inputCustodian,
+            routerEndpoint: inputRouterEndpoint,
+        } = accounts;
+        return this.program.methods
+            .removeRouterEndpoint()
+            .accounts({
+                ownerOrAssistant,
+                custodian: inputCustodian ?? this.custodianAddress(),
+                routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
+            })
+            .instruction();
+    }
+
     async updateFeeRecipientIx(accounts: {
         ownerOrAssistant: PublicKey;
         custodian?: PublicKey;
