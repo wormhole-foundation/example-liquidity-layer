@@ -28,7 +28,6 @@ describe("Matching Engine <> Token Router", function () {
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
 
     const foreignChain = wormholeSdk.CHAINS.ethereum;
-    const thisChain = wormholeSdk.CHAINS.solana;
     const routerEndpointAddress = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
     const foreignCctpDomain = 0;
     const unregisteredContractAddress = Buffer.alloc(32, "deafbeef", "hex");
@@ -38,24 +37,25 @@ describe("Matching Engine <> Token Router", function () {
     let lookupTableAddress: PublicKey;
 
     describe("Admin", function () {
-        describe("Matching Engine -- Add Solana Token Router Endpoint", function () {
-            it("Add Solana Router Endpoint", async function () {
+        describe("Matching Engine -- Add Local Token Router Endpoint", function () {
+            it.skip("Cannot Add Local Router Endpoint Without Executable", async function () {
+                // TODO
+            });
+
+            it("Add Local Router Endpoint", async function () {
                 const emitterAddress = Array.from(tokenRouter.custodianAddress().toBuffer());
-                const ix = await matchingEngine.addRouterEndpointIx(
-                    {
-                        ownerOrAssistant: ownerAssistant.publicKey,
-                        tokenRouterProgram: tokenRouter.ID,
-                    },
-                    { chain: thisChain, address: emitterAddress }
-                );
+                const ix = await matchingEngine.addLocalRouterEndpointIx({
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                    tokenRouterProgram: tokenRouter.ID,
+                });
                 await expectIxOk(connection, [ix], [ownerAssistant]);
 
                 const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
-                    matchingEngine.routerEndpointAddress(thisChain)
+                    matchingEngine.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA)
                 );
                 const expectedRouterEndpointData: matchingEngineSdk.RouterEndpoint = {
                     bump: 254,
-                    chain: thisChain,
+                    chain: wormholeSdk.CHAIN_ID_SOLANA,
                     address: emitterAddress,
                 };
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
@@ -75,15 +75,6 @@ describe("Matching Engine <> Token Router", function () {
             const redeemer = Keypair.generate();
 
             const amount = 69n;
-            const fastFill: FastFill = {
-                fill: {
-                    sourceChain: foreignChain,
-                    orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
-                    redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                    redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                },
-                amount,
-            };
             const message = new LiquidityLayerMessage({
                 fastFill: {
                     fill: {
@@ -113,6 +104,18 @@ describe("Matching Engine <> Token Router", function () {
             });
 
             await expectIxOk(connection, [ix], [payer, redeemer]);
+        });
+
+        it.skip("Cannot Redeem Fill Again", async function () {
+            // TODO
+        });
+
+        it.skip("Remove Local Router Endpoint", async function () {
+            // TODO
+        });
+
+        it.skip("Cannot Redeem Fast Fill Without Local Endpoint", async function () {
+            // TODO
         });
     });
 });

@@ -43,6 +43,14 @@ pub mod matching_engine {
         processor::add_router_endpoint(ctx, args)
     }
 
+    pub fn add_local_router_endpoint(ctx: Context<AddLocalRouterEndpoint>) -> Result<()> {
+        processor::add_local_router_endpoint(ctx)
+    }
+
+    pub fn remove_router_endpoint(ctx: Context<RemoveRouterEndpoint>) -> Result<()> {
+        processor::remove_router_endpoint(ctx)
+    }
+
     pub fn submit_ownership_transfer_request(
         ctx: Context<SubmitOwnershipTransferRequest>,
     ) -> Result<()> {

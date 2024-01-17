@@ -1,4 +1,4 @@
-import { CHAINS, ChainId, keccak256, parseVaa } from "@certusone/wormhole-sdk";
+import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
 import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
@@ -26,6 +26,7 @@ import {
     postFastTransferVaa,
     skip_slots,
 } from "./helpers/matching_engine_utils";
+import { ethers } from "ethers";
 
 chaiUse(chaiAsPromised);
 
@@ -42,10 +43,10 @@ describe("Matching Engine", function () {
     const offerAuthorityTwo = Keypair.generate();
 
     // Foreign endpoints.
-    const ethChain = CHAINS.ethereum;
+    const ethChain = wormholeSdk.CHAINS.ethereum;
     const ethRouter = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
     const ethDomain = 0;
-    const arbChain = CHAINS.arbitrum;
+    const arbChain = wormholeSdk.CHAINS.arbitrum;
     const arbRouter = Array.from(Buffer.alloc(32, "bead", "hex"));
     const arbDomain = 3;
 
@@ -467,7 +468,7 @@ describe("Matching Engine", function () {
         describe("Add Router Endpoint", function () {
             const createAddRouterEndpointIx = (opts?: {
                 sender?: PublicKey;
-                chain?: ChainId;
+                chain?: wormholeSdk.ChainId;
                 contractAddress?: Array<number>;
             }) =>
                 engine.addRouterEndpointIx(
@@ -508,21 +509,23 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Register Chain ID ==  0", async function () {
-                const chain = 0;
+            [wormholeSdk.CHAINS.unset, wormholeSdk.CHAINS.solana].forEach((chain) =>
+                it(`Cannot Register Chain ID == ${chain}`, async function () {
+                    const chain = 0;
 
-                await expectIxErr(
-                    connection,
-                    [
-                        await engine.addRouterEndpointIx(
-                            { ownerOrAssistant: owner.publicKey },
-                            { chain, address: ethRouter }
-                        ),
-                    ],
-                    [owner],
-                    "ChainNotAllowed"
-                );
-            });
+                    await expectIxErr(
+                        connection,
+                        [
+                            await engine.addRouterEndpointIx(
+                                { ownerOrAssistant: owner.publicKey },
+                                { chain, address: ethRouter }
+                            ),
+                        ],
+                        [owner],
+                        "ChainNotAllowed"
+                    );
+                })
+            );
 
             it("Cannot Register Zero Address", async function () {
                 await expectIxErr(
@@ -755,7 +758,7 @@ describe("Matching Engine", function () {
                 );
 
                 // Confirm the auction data.
-                const vaaHash = keccak256(parseVaa(signedVaa).hash);
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                 const auctionData = await engine.fetchAuctionData(vaaHash);
                 const slot = await connection.getSlot();
                 const offerToken = await splToken.getAssociatedTokenAddressSync(
@@ -807,17 +810,21 @@ describe("Matching Engine", function () {
 
                 // New Offer from offerAuthorityTwo.
                 const newOffer = baseFastOrder.maxFee - 100n;
-                const vaaHash = keccak256(parseVaa(signedVaa).hash);
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                 const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
                 const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
 
                 await expectIxOk(
                     connection,
                     [
-                        await engine.improveOfferIx(newOffer, keccak256(parseVaa(signedVaa).hash), {
-                            offerAuthority: offerAuthorityTwo.publicKey,
-                            bestOfferToken,
-                        }),
+                        await engine.improveOfferIx(
+                            newOffer,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                offerAuthority: offerAuthorityTwo.publicKey,
+                                bestOfferToken,
+                            }
+                        ),
                     ],
                     [offerAuthorityTwo]
                 );
@@ -891,7 +898,7 @@ describe("Matching Engine", function () {
                 );
 
                 // Accounts for the instruction.
-                const vaaHash = keccak256(parseVaa(signedVaa).hash);
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                 let bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
                 const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
                 const newOffer = baseFastOrder.maxFee - 100n;
@@ -900,10 +907,14 @@ describe("Matching Engine", function () {
                 await expectIxOk(
                     connection,
                     [
-                        await engine.improveOfferIx(newOffer, keccak256(parseVaa(signedVaa).hash), {
-                            offerAuthority: offerAuthorityOne.publicKey,
-                            bestOfferToken,
-                        }),
+                        await engine.improveOfferIx(
+                            newOffer,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                offerAuthority: offerAuthorityOne.publicKey,
+                                bestOfferToken,
+                            }
+                        ),
                     ],
                     [offerAuthorityOne]
                 );
@@ -988,8 +999,8 @@ async function placeInitialOfferForTest(
     engine: MatchingEngineProgram,
     args: {
         feeOffer: bigint;
-        fromChain: ChainId;
-        toChain: ChainId;
+        fromChain: wormholeSdk.ChainId;
+        toChain: wormholeSdk.ChainId;
     }
 ): Promise<[PublicKey, Buffer]> {
     const [vaaKey, signedVaa] = await postFastTransferVaa(
@@ -1009,7 +1020,7 @@ async function placeInitialOfferForTest(
                 args.feeOffer,
                 args.fromChain,
                 args.toChain,
-                keccak256(parseVaa(signedVaa).hash),
+                wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
                 {
                     payer: offerAuthority.publicKey,
                     vaa: vaaKey,

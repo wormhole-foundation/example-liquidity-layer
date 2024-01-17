@@ -81,7 +81,7 @@ export class MatchingEngineProgram {
         return AuctionData.address(this.ID, vaaHash);
     }
 
-    async fetchAuctionData(vaaHash: Buffer): Promise<AuctionData> {
+    async fetchAuctionData(vaaHash: Buffer | Uint8Array): Promise<AuctionData> {
         return this.program.account.auctionData.fetch(this.auctionDataAddress(vaaHash));
     }
 
@@ -202,7 +202,6 @@ export class MatchingEngineProgram {
             ownerOrAssistant: PublicKey;
             custodian?: PublicKey;
             routerEndpoint?: PublicKey;
-            tokenRouterProgram?: PublicKey;
         },
         args: AddRouterEndpointArgs
     ): Promise<TransactionInstruction> {
@@ -210,7 +209,6 @@ export class MatchingEngineProgram {
             ownerOrAssistant,
             custodian: inputCustodian,
             routerEndpoint: inputRouterEndpoint,
-            tokenRouterProgram,
         } = accounts;
         const { chain } = args;
         return this.program.methods
@@ -219,7 +217,30 @@ export class MatchingEngineProgram {
                 ownerOrAssistant,
                 custodian: inputCustodian ?? this.custodianAddress(),
                 routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
-                tokenRouterProgram: tokenRouterProgram ?? null,
+            })
+            .instruction();
+    }
+
+    async addLocalRouterEndpointIx(accounts: {
+        ownerOrAssistant: PublicKey;
+        tokenRouterProgram: PublicKey;
+        custodian?: PublicKey;
+        routerEndpoint?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const {
+            ownerOrAssistant,
+            tokenRouterProgram,
+            custodian: inputCustodian,
+            routerEndpoint: inputRouterEndpoint,
+        } = accounts;
+        return this.program.methods
+            .addLocalRouterEndpoint()
+            .accounts({
+                ownerOrAssistant,
+                custodian: inputCustodian ?? this.custodianAddress(),
+                routerEndpoint:
+                    inputRouterEndpoint ?? this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+                tokenRouterProgram,
             })
             .instruction();
     }
@@ -265,7 +286,7 @@ export class MatchingEngineProgram {
 
     async improveOfferIx(
         feeOffer: bigint,
-        vaaHash: Buffer,
+        vaaHash: Buffer | Uint8Array,
         accounts: { offerAuthority: PublicKey; bestOfferToken: PublicKey }
     ) {
         const { offerAuthority, bestOfferToken } = accounts;
