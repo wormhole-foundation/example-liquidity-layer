@@ -80,9 +80,14 @@ pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
     // Emitter must be the matching engine (this program).
     {
         let emitter = vaa.try_emitter_info()?;
-        require!(
-            emitter.chain == core_bridge_program::SOLANA_CHAIN
-                && Pubkey::from(emitter.address) == crate::ID,
+        require_eq!(
+            emitter.chain,
+            core_bridge_program::SOLANA_CHAIN,
+            MatchingEngineError::InvalidEmitterForFastFill
+        );
+        require_keys_eq!(
+            Pubkey::from(emitter.address),
+            ctx.accounts.custodian.key(),
             MatchingEngineError::InvalidEmitterForFastFill
         );
 

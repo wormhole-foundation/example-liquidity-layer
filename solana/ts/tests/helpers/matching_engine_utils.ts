@@ -156,14 +156,14 @@ export async function getBestOfferTokenAccount(
     engine: MatchingEngineProgram,
     vaaHash: Buffer
 ): Promise<PublicKey> {
-    return (await engine.fetchAuctionData(vaaHash)).bestOffer;
+    return (await engine.fetchAuctionData(vaaHash)).bestOfferToken;
 }
 
-export async function getInitialAuctioneerTokenAccount(
+export async function getInitialOfferTokenAccount(
     engine: MatchingEngineProgram,
     vaaHash: Buffer
 ): Promise<PublicKey> {
-    return (await engine.fetchAuctionData(vaaHash)).initialOffer;
+    return (await engine.fetchAuctionData(vaaHash)).initialOfferToken;
 }
 
 const sleep = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -112,7 +112,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     // Parse the transfer amount from the VAA.
     let amount = u64::try_from(fast_order.amount_in()).unwrap();
 
-    // Transfer tokens from the auctioneer to the custodian.
+    // Transfer tokens from the offer authority's token account to the custodian.
     token::transfer(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -126,12 +126,13 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     )?;
 
     // Set up the AuctionData account for this auction.
+    let initial_offer_token = ctx.accounts.offer_token.key();
     ctx.accounts.auction_data.set_inner(AuctionData {
         bump: ctx.bumps["auction_data"],
         vaa_hash: vaa.try_digest().unwrap().0,
         status: AuctionStatus::Active,
-        best_offer: ctx.accounts.offer_token.key(),
-        initial_offer: ctx.accounts.offer_token.key(),
+        best_offer_token: initial_offer_token,
+        initial_offer_token,
         start_slot: clock.slot,
         amount,
         security_deposit: max_fee,

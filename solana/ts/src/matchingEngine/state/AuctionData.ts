@@ -5,8 +5,8 @@ export class AuctionData {
     bump: number;
     vaaHash: number[];
     status: Object;
-    bestOffer: PublicKey;
-    initialOffer: PublicKey;
+    bestOfferToken: PublicKey;
+    initialOfferToken: PublicKey;
     startSlot: BN;
     amount: BN;
     securityDeposit: BN;
@@ -16,8 +16,8 @@ export class AuctionData {
         bump: number,
         vaaHash: number[],
         status: Object,
-        bestOffer: PublicKey,
-        initialOffer: PublicKey,
+        bestOfferToken: PublicKey,
+        initialOfferToken: PublicKey,
         start_slot: BN,
         amount: BN,
         security_deposit: BN,
@@ -26,15 +26,15 @@ export class AuctionData {
         this.bump = bump;
         this.vaaHash = vaaHash;
         this.status = status;
-        this.bestOffer = bestOffer;
-        this.initialOffer = initialOffer;
+        this.bestOfferToken = bestOfferToken;
+        this.initialOfferToken = initialOfferToken;
         this.startSlot = start_slot;
         this.amount = amount;
         this.securityDeposit = security_deposit;
         this.offerPrice = offer_price;
     }
 
-    static address(programId: PublicKey, vaaHash: Buffer) {
+    static address(programId: PublicKey, vaaHash: Buffer | Uint8Array) {
         return PublicKey.findProgramAddressSync([Buffer.from("auction"), vaaHash], programId)[0];
     }
 }

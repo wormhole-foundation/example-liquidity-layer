@@ -20,10 +20,10 @@ pub struct AuctionData {
     pub status: AuctionStatus,
 
     /// The highest bidder of the auction.
-    pub best_offer: Pubkey,
+    pub best_offer_token: Pubkey,
 
     /// The initial bidder of the auction.
-    pub initial_offer: Pubkey,
+    pub initial_offer_token: Pubkey,
 
     /// The slot at which the auction started.
     pub start_slot: u64,

@@ -43,7 +43,7 @@ pub struct CctpAccounts<'ctx, 'info> {
     payer: &'ctx Signer<'info>,
     custodian: &'ctx Account<'info, Custodian>,
     to_router_endpoint: &'ctx Account<'info, RouterEndpoint>,
-    custody_token: &'ctx Account<'info, token::TokenAccount>,
+    custody_token: &'ctx AccountInfo<'info>,
     mint: &'ctx AccountInfo<'info>,
     payer_sequence: &'ctx mut Account<'info, PayerSequence>,
     core_bridge_config: &'ctx UncheckedAccount<'info>,

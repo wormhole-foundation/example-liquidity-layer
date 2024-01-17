@@ -13,8 +13,15 @@ export const LOCALHOST = "http://localhost:8899";
 
 export const PAYER_KEYPAIR = Keypair.fromSecretKey(
     Buffer.from(
-        "7037e963e55b4455cf3f0a2e670031fa16bd1ea79d921a94af9bd46856b6b9c00c1a5886fe1093df9fc438c296f9f7275b7718b6bc0e156d8d336c58f083996d",
-        "hex"
+        "cDfpY+VbRFXPPwouZwAx+ha9HqedkhqUr5vUaFa2ucAMGliG/hCT35/EOMKW+fcnW3cYtrwOFW2NM2xY8IOZbQ==",
+        "base64"
+    )
+);
+
+export const OWNER_ASSISTANT_KEYPAIR = Keypair.fromSecretKey(
+    Buffer.from(
+        "900mlHo1RRdhxUKuBnnPowQ7yqb4rJ1dC7K1PM+pRxeuCWamoSkQdY+3hXAeX0OBXanyqg4oyBl8g1z1sDnSWg==",
+        "base64"
     )
 );
 

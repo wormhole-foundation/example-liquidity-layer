@@ -17,11 +17,12 @@ import {
     ETHEREUM_USDC_ADDRESS,
     LOCALHOST,
     MOCK_GUARDIANS,
+    OWNER_ASSISTANT_KEYPAIR,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
     expectIxErr,
     expectIxOk,
-    postDepositVaa,
+    postLiquidityLayerVaa,
 } from "./helpers";
 
 chaiUse(chaiAsPromised);
@@ -32,7 +33,7 @@ describe("Token Router", function () {
     const payer = PAYER_KEYPAIR;
     const relayer = Keypair.generate();
     const owner = Keypair.generate();
-    const ownerAssistant = Keypair.generate();
+    const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
 
     const foreignChain = wormholeSdk.CHAINS.ethereum;
     const invalidChain = (foreignChain + 1) as wormholeSdk.ChainId;
@@ -719,7 +720,7 @@ describe("Token Router", function () {
                 ),
             });
 
-            const vaa = await postDepositVaa(
+            const vaa = await postLiquidityLayerVaa(
                 connection,
                 payer,
                 MOCK_GUARDIANS,

@@ -19,6 +19,7 @@ import {
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { VaaAccount } from "../wormhole";
 import { Custodian, MessageProtocol, PayerSequence, RouterEndpoint } from "./state";
+import * as matchingEngineSdk from "../matchingEngine";
 
 export const PROGRAM_IDS = ["TokenRouter11111111111111111111111111111111"] as const;
 
@@ -88,6 +89,17 @@ export type RedeemFillCctpAccounts = {
     tokenMessengerMinterCustodyToken: PublicKey;
     tokenMessengerMinterProgram: PublicKey;
     messageTransmitterProgram: PublicKey;
+    tokenProgram: PublicKey;
+};
+
+export type RedeemFastFillAccounts = {
+    custodian: PublicKey;
+    custodyToken: PublicKey;
+    matchingEngineCustodian: PublicKey;
+    matchingEngineRedeemedFastFill: PublicKey;
+    matchingEngineRouterEndpoint: PublicKey;
+    matchingEngineCustodyToken: PublicKey;
+    matchingEngineProgram: PublicKey;
     tokenProgram: PublicKey;
 };
 
@@ -354,9 +366,6 @@ export class TokenRouterProgram {
     ): Promise<RedeemFillCctpAccounts> {
         const msg = CctpTokenBurnMessage.from(cctpMessage);
         const custodyToken = this.custodyTokenAccountAddress();
-        //const redeemerToken = new PublicKey(msg.mintRecipient);
-
-        // TODO: hardcode mint as USDC?
         const { mint } = await splToken.getAccount(this.program.provider.connection, custodyToken);
 
         const vaaAcct = await VaaAccount.fetch(this.program.provider.connection, vaa);
@@ -451,6 +460,65 @@ export class TokenRouterProgram {
                 tokenMessengerMinterCustodyToken,
                 tokenMessengerMinterProgram,
                 messageTransmitterProgram,
+                tokenProgram,
+            })
+            .instruction();
+    }
+
+    async redeemFastFillAccounts(vaa: PublicKey): Promise<RedeemFastFillAccounts> {
+        const {
+            custodian: matchingEngineCustodian,
+            redeemedFastFill: matchingEngineRedeemedFastFill,
+            routerEndpoint: matchingEngineRouterEndpoint,
+            custodyToken: matchingEngineCustodyToken,
+            matchingEngineProgram,
+            tokenProgram,
+        } = await this.matchingEngineProgram().redeemFastFillAccounts(vaa);
+
+        return {
+            custodian: this.custodianAddress(),
+            custodyToken: this.custodyTokenAccountAddress(),
+            matchingEngineCustodian,
+            matchingEngineRedeemedFastFill,
+            matchingEngineRouterEndpoint,
+            matchingEngineCustodyToken,
+            matchingEngineProgram,
+            tokenProgram,
+        };
+    }
+
+    async redeemFastFillIx(accounts: {
+        payer: PublicKey;
+        vaa: PublicKey;
+        redeemer: PublicKey;
+        dstToken: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const { payer, vaa, dstToken, redeemer } = accounts;
+        const {
+            custodian,
+            custodyToken,
+            matchingEngineCustodian,
+            matchingEngineRedeemedFastFill,
+            matchingEngineRouterEndpoint,
+            matchingEngineCustodyToken,
+            matchingEngineProgram,
+            tokenProgram,
+        } = await this.redeemFastFillAccounts(vaa);
+
+        return this.program.methods
+            .redeemFastFill()
+            .accounts({
+                payer,
+                custodian,
+                vaa,
+                redeemer,
+                dstToken,
+                custodyToken,
+                matchingEngineCustodian,
+                matchingEngineRedeemedFastFill,
+                matchingEngineRouterEndpoint,
+                matchingEngineCustodyToken,
+                matchingEngineProgram,
                 tokenProgram,
             })
             .instruction();
@@ -620,6 +688,26 @@ export class TokenRouterProgram {
                 return new MessageTransmitterProgram(
                     this.program.provider.connection,
                     "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
+                );
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
+    }
+
+    matchingEngineProgram(): matchingEngineSdk.MatchingEngineProgram {
+        switch (this._programId) {
+            case testnet(): {
+                return new matchingEngineSdk.MatchingEngineProgram(
+                    this.program.provider.connection,
+                    matchingEngineSdk.testnet()
+                );
+            }
+            case mainnet(): {
+                return new matchingEngineSdk.MatchingEngineProgram(
+                    this.program.provider.connection,
+                    matchingEngineSdk.mainnet()
                 );
             }
             default: {

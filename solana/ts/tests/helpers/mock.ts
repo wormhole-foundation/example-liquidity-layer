@@ -1,4 +1,9 @@
-import { coalesceChainId, parseVaa, tryNativeToHexString } from "@certusone/wormhole-sdk";
+import {
+    ChainName,
+    coalesceChainId,
+    parseVaa,
+    tryNativeToHexString,
+} from "@certusone/wormhole-sdk";
 import { MockEmitter, MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
 import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import { Connection, Keypair } from "@solana/web3.js";
@@ -7,18 +12,18 @@ import { LiquidityLayerMessage } from "../../src";
 import { CORE_BRIDGE_PID, GUARDIAN_KEY } from "./consts";
 import { postVaa } from "./utils";
 
-export async function postDepositVaa(
+export async function postLiquidityLayerVaa(
     connection: Connection,
     payer: Keypair,
     guardians: MockGuardians,
     foreignEmitterAddress: Array<number>,
     sequence: bigint,
-    message: LiquidityLayerMessage
+    message: LiquidityLayerMessage,
+    chainName?: ChainName
 ) {
-    const chainName = "ethereum";
     const foreignEmitter = new MockEmitter(
         Buffer.from(foreignEmitterAddress).toString("hex"),
-        coalesceChainId(chainName),
+        coalesceChainId(chainName ?? "ethereum"),
         Number(sequence)
     );
 

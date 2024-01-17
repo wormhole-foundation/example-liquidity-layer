@@ -24,7 +24,11 @@ pub struct ImproveOffer<'info> {
             AuctionData::SEED_PREFIX,
             auction_data.vaa_hash.as_ref(),
         ],
-        bump
+        bump = auction_data.bump,
+        has_one = best_offer_token @ MatchingEngineError::InvalidTokenAccount,
+        constraint = {
+            auction_data.status == AuctionStatus::Active
+        } @ MatchingEngineError::AuctionNotActive
     )]
     auction_data: Account<'info, AuctionData>,
 
@@ -35,12 +39,7 @@ pub struct ImproveOffer<'info> {
     )]
     offer_token: Account<'info, token::TokenAccount>,
 
-    #[account(
-        mut,
-        constraint = {
-            best_offer_token.key() == auction_data.best_offer.key()
-        } @ MatchingEngineError::InvalidTokenAccount,
-    )]
+    #[account(mut)]
     best_offer_token: Account<'info, token::TokenAccount>,
 
     #[account(
@@ -55,11 +54,6 @@ pub struct ImproveOffer<'info> {
 
 pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
     let auction_data = &mut ctx.accounts.auction_data;
-
-    require!(
-        auction_data.status == AuctionStatus::Active,
-        MatchingEngineError::AuctionNotActive
-    );
 
     // Push this to the stack to enhance readability.
     let auction_duration = ctx.accounts.custodian.auction_config.auction_duration;
@@ -76,7 +70,8 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
 
     // Transfer funds from the `best_offer` token account to the `offer_token` token account,
     // but only if the pubkeys are different.
-    if auction_data.best_offer != *ctx.accounts.offer_token.to_account_info().key {
+    let offer_token = ctx.accounts.offer_token.key();
+    if auction_data.best_offer_token != offer_token {
         token::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -86,19 +81,14 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
                     authority: ctx.accounts.offer_authority.to_account_info(),
                 },
             ),
-            auction_data
-                .amount
-                .checked_add(auction_data.security_deposit)
-                .ok_or(MatchingEngineError::Overflow)?,
+            auction_data.amount + auction_data.security_deposit,
         )?;
 
         // Update the `best_offer` token account and `amount` fields.
-        auction_data.best_offer = ctx.accounts.offer_token.key();
-        auction_data.offer_price = fee_offer;
-    } else {
-        // Since the auctioneer is already the best offer, we only need to update the `amount`.
-        auction_data.offer_price = fee_offer;
+        auction_data.best_offer_token = offer_token;
     }
+
+    auction_data.offer_price = fee_offer;
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 export * from "./state";
 
-import { ChainId } from "@certusone/wormhole-sdk";
+import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { BN, Program } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
@@ -10,13 +10,14 @@ import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { AuctionData } from "./state/AuctionData";
 import { TokenMessengerMinterProgram } from "../cctp";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
+import { VaaAccount } from "../wormhole";
 
 export const PROGRAM_IDS = ["MatchingEngine11111111111111111111111111111"] as const;
 
 export type ProgramId = (typeof PROGRAM_IDS)[number];
 
 export type AddRouterEndpointArgs = {
-    chain: ChainId;
+    chain: wormholeSdk.ChainId;
     address: Array<number>;
 };
 
@@ -25,6 +26,15 @@ export type PublishMessageAccounts = {
     coreEmitterSequence: PublicKey;
     coreFeeCollector: PublicKey;
     coreBridgeProgram: PublicKey;
+};
+
+export type RedeemFastFillAccounts = {
+    custodian: PublicKey;
+    redeemedFastFill: PublicKey;
+    routerEndpoint: PublicKey;
+    custodyToken: PublicKey;
+    matchingEngineProgram: PublicKey;
+    tokenProgram: PublicKey;
 };
 
 export class MatchingEngineProgram {
@@ -59,7 +69,7 @@ export class MatchingEngineProgram {
         return this.program.account.payerSequence.fetch(addr);
     }
 
-    routerEndpointAddress(chain: ChainId): PublicKey {
+    routerEndpointAddress(chain: wormholeSdk.ChainId): PublicKey {
         return RouterEndpoint.address(this.ID, chain);
     }
 
@@ -67,7 +77,7 @@ export class MatchingEngineProgram {
         return this.program.account.routerEndpoint.fetch(addr);
     }
 
-    auctionDataAddress(vaaHash: Buffer): PublicKey {
+    auctionDataAddress(vaaHash: Buffer | Uint8Array): PublicKey {
         return AuctionData.address(this.ID, vaaHash);
     }
 
@@ -90,6 +100,10 @@ export class MatchingEngineProgram {
             [Buffer.from("msg"), payer.toBuffer(), payerSequenceValue.toBuffer("be", 8)],
             this.ID
         )[0];
+    }
+
+    redeemedFastFillAddress(vaaHash: Buffer | Uint8Array): PublicKey {
+        return PublicKey.findProgramAddressSync([Buffer.from("redeemed"), vaaHash], this.ID)[0];
     }
 
     async initializeIx(
@@ -228,8 +242,8 @@ export class MatchingEngineProgram {
 
     async placeInitialOfferIx(
         feeOffer: bigint,
-        fromChain: ChainId,
-        toChain: ChainId,
+        fromChain: wormholeSdk.ChainId,
+        toChain: wormholeSdk.ChainId,
         vaaHash: Buffer,
         accounts: { payer: PublicKey; vaa: PublicKey; mint: PublicKey }
     ) {
@@ -293,7 +307,7 @@ export class MatchingEngineProgram {
     }
 
     async executeFastOrderIx(
-        toChain: ChainId,
+        toChain: wormholeSdk.ChainId,
         remoteDomain: number,
         vaaHash: Buffer,
         accounts: {
@@ -358,6 +372,20 @@ export class MatchingEngineProgram {
                 tokenProgram,
             })
             .instruction();
+    }
+
+    async redeemFastFillAccounts(vaa: PublicKey): Promise<RedeemFastFillAccounts> {
+        const custodyToken = this.custodyTokenAccountAddress();
+        const vaaAcct = await VaaAccount.fetch(this.program.provider.connection, vaa);
+
+        return {
+            custodian: this.custodianAddress(),
+            redeemedFastFill: this.redeemedFastFillAddress(vaaAcct.digest()),
+            routerEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+            custodyToken,
+            matchingEngineProgram: this.ID,
+            tokenProgram: splToken.TOKEN_PROGRAM_ID,
+        };
     }
 
     publishMessageAccounts(emitter: PublicKey): PublishMessageAccounts {

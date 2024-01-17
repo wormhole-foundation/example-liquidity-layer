@@ -42,6 +42,8 @@ pub struct ExecuteFastOrder<'info> {
             auction_data.vaa_hash.as_ref()
         ],
         bump = auction_data.bump,
+        has_one = best_offer_token @ MatchingEngineError::InvalidTokenAccount,
+        has_one = initial_offer_token @ MatchingEngineError::InvalidTokenAccount,
         constraint = {
             auction_data.status == AuctionStatus::Active
         } @ MatchingEngineError::AuctionNotActive
@@ -59,36 +61,28 @@ pub struct ExecuteFastOrder<'info> {
 
     #[account(
         mut,
-        associated_token::mint = custody_token.mint,
+        associated_token::mint = mint,
         associated_token::authority = payer
     )]
     executor_token: Account<'info, token::TokenAccount>,
 
     /// CHECK: Mutable. Must equal [best_offer](AuctionData::best_offer).
-    #[account(
-        mut,
-        constraint = {
-            best_offer_token.key() == auction_data.best_offer.key()
-        } @ MatchingEngineError::InvalidTokenAccount,
-    )]
+    #[account(mut)]
     best_offer_token: AccountInfo<'info>,
 
     /// CHECK: Mutable. Must equal [initial_offer](AuctionData::initial_offer).
-    #[account(
-        mut,
-        constraint = {
-            initial_offer_token.key() == auction_data.initial_offer.key()
-        } @ MatchingEngineError::InvalidTokenAccount,
-    )]
+    #[account(mut)]
     initial_offer_token: AccountInfo<'info>,
 
     /// Also the burn_source token account.
+    ///
+    /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
         seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
         bump = custodian.custody_token_bump,
     )]
-    custody_token: Box<Account<'info, token::TokenAccount>>,
+    custody_token: AccountInfo<'info>,
 
     /// Circle-supported mint.
     ///
@@ -176,13 +170,10 @@ pub struct ExecuteFastOrder<'info> {
 }
 
 pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
-    let slots_elapsed = Clock::get()?
-        .slot
-        .checked_sub(ctx.accounts.auction_data.start_slot)
-        .unwrap();
+    let slots_elapsed = Clock::get()?.slot - ctx.accounts.auction_data.start_slot;
     let auction_config = &ctx.accounts.custodian.auction_config;
     require!(
-        slots_elapsed > u64::try_from(auction_config.auction_duration).unwrap(),
+        slots_elapsed > auction_config.auction_duration.into(),
         MatchingEngineError::AuctionPeriodNotExpired
     );
 
@@ -197,10 +188,7 @@ pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
     let auction_data = &mut ctx.accounts.auction_data;
 
     // Save the custodian seeds to sign transfers with.
-    let custodian_seeds = &[
-        Custodian::SEED_PREFIX.as_ref(),
-        &[ctx.accounts.custodian.bump],
-    ];
+    let custodian_seeds = &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]];
 
     // We need to save the reward for the user so we include it when sending the CCTP transfer.
     let mut user_reward: u64 = 0;
@@ -225,7 +213,7 @@ pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
                         to: ctx.accounts.best_offer_token.to_account_info(),
                         authority: ctx.accounts.custodian.to_account_info(),
                     },
-                    &[&custodian_seeds[..]],
+                    &[custodian_seeds],
                 ),
                 auction_data
                     .offer_price
@@ -245,7 +233,7 @@ pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
                             to: ctx.accounts.executor_token.to_account_info(),
                             authority: ctx.accounts.custodian.to_account_info(),
                         },
-                        &[&custodian_seeds[..]],
+                        &[custodian_seeds],
                     ),
                     penalty,
                 )?;
@@ -259,7 +247,7 @@ pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
                         to: ctx.accounts.best_offer_token.to_account_info(),
                         authority: ctx.accounts.custodian.to_account_info(),
                     },
-                    &[&custodian_seeds[..]],
+                    &[custodian_seeds],
                 ),
                 auction_data
                     .offer_price
@@ -281,7 +269,7 @@ pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
                     to: ctx.accounts.best_offer_token.to_account_info(),
                     authority: ctx.accounts.custodian.to_account_info(),
                 },
-                &[&custodian_seeds[..]],
+                &[custodian_seeds],
             ),
             auction_data
                 .offer_price
