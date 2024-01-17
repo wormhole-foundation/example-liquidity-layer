@@ -172,7 +172,6 @@ pub struct PlaceMarketOrderCctpArgs {
 /// emit a Wormhole message associated with a CCTP message.
 ///
 /// See [burn_and_publish](wormhole_cctp_solana::cpi::burn_and_publish) for more details.
-#[access_control(check_constraints(&args))]
 pub fn place_market_order_cctp(
     ctx: Context<PlaceMarketOrderCctp>,
     args: PlaceMarketOrderCctpArgs,
@@ -181,17 +180,6 @@ pub fn place_market_order_cctp(
         MessageProtocol::Cctp { domain } => handle_place_market_order_cctp(ctx, args, domain),
         _ => err!(TokenRouterError::InvalidCctpEndpoint),
     }
-}
-
-fn check_constraints(args: &PlaceMarketOrderCctpArgs) -> Result<()> {
-    // Even though CCTP prevents zero amount burns, we prefer to throw an explicit error here.
-    require!(args.amount_in > 0, TokenRouterError::InsufficientAmount);
-
-    // Cannot send to zero address.
-    require!(args.redeemer != [0; 32], TokenRouterError::InvalidRedeemer);
-
-    // Done.
-    Ok(())
 }
 
 fn handle_place_market_order_cctp(
@@ -204,6 +192,12 @@ fn handle_place_market_order_cctp(
         redeemer,
         redeemer_message,
     } = args;
+
+    // Even though CCTP prevents zero amount burns, we prefer to throw an explicit error here.
+    require!(args.amount_in > 0, TokenRouterError::InsufficientAmount);
+
+    // Cannot send to zero address.
+    require!(args.redeemer != [0; 32], TokenRouterError::InvalidRedeemer);
 
     // Because the transfer initiator in the Circle message is whoever signs to burn assets, we need
     // to transfer assets from the source token account to one that belongs to this program.

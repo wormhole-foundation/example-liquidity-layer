@@ -1,7 +1,7 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { BN } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import { LiquidityLayerDeposit, LiquidityLayerMessage } from "../src";
@@ -215,6 +215,44 @@ describe("Matching Engine <> Token Router", function () {
                 [payer, redeemer],
                 `Allocate: account Address { address: ${redeemedFastFill.toString()}, base: None } already in use`
             );
+        });
+
+        it("Token Router ..... Cannot Redeem Fast Fill with Invalid VAA Account (Not Owned by Core Bridge)", async function () {
+            const redeemer = Keypair.generate();
+
+            const amount = 69n;
+            const message = new LiquidityLayerMessage({
+                fastFill: {
+                    fill: {
+                        sourceChain: foreignChain,
+                        orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
+                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                    },
+                    amount,
+                },
+            });
+
+            const vaa = await postLiquidityLayerVaa(
+                connection,
+                payer,
+                MOCK_GUARDIANS,
+                Array.from(matchingEngine.custodianAddress().toBuffer()),
+                wormholeSequence++,
+                message,
+                "avalanche"
+            );
+            const ix = await tokenRouter.redeemFastFillIx({
+                payer: payer.publicKey,
+                vaa,
+                redeemer: redeemer.publicKey,
+                dstToken: payerToken,
+            });
+
+            // Replace the VAA account pubkey with garbage.
+            ix.keys[ix.keys.findIndex((key) => key.pubkey.equals(vaa))].pubkey = SYSVAR_RENT_PUBKEY;
+
+            await expectIxErr(connection, [ix], [payer, redeemer], "Error Code: ConstraintOwner");
         });
 
         it("Token Router ..... Cannot Redeem Fast Fill with Emitter Chain ID != Solana", async function () {

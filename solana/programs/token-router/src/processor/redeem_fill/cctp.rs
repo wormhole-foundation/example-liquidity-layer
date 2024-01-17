@@ -165,8 +165,13 @@ pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: super::RedeemFillArg
     // Validate that this message originated from a registered emitter.
     let endpoint = &ctx.accounts.router_endpoint;
     let emitter = vaa.try_emitter_info().unwrap();
+    require_eq!(
+        emitter.chain,
+        endpoint.chain,
+        TokenRouterError::InvalidSourceRouter
+    );
     require!(
-        emitter.chain == endpoint.chain && emitter.address == endpoint.address,
+        emitter.address == endpoint.address,
         TokenRouterError::InvalidSourceRouter
     );
 
@@ -177,7 +182,9 @@ pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: super::RedeemFillArg
         .to_deposit_unchecked();
 
     // Save for final transfer.
-    let amount = deposit.amount();
+    //
+    // NOTE: This is safe because we know the amount is within u64 range.
+    let amount = u64::try_from(ruint::aliases::U256::from_be_bytes(deposit.amount())).unwrap();
 
     // Verify as Liquiditiy Layer Deposit message.
     let msg = LiquidityLayerDepositMessage::try_from(deposit.payload())
@@ -202,9 +209,6 @@ pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: super::RedeemFillArg
             },
             &[custodian_seeds],
         ),
-        // This is safe because we know the amount is within u64 range.
-        ruint::aliases::U256::from_be_bytes(amount)
-            .try_into()
-            .unwrap(),
+        amount,
     )
 }

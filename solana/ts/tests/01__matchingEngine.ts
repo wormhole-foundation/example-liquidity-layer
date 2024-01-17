@@ -75,7 +75,7 @@ describe("Matching Engine", function () {
                     mint: opts?.mint ?? USDC_MINT_ADDRESS,
                 });
 
-            it("Cannot Initialize Without USDC Mint", async function () {
+            it("Cannot Initialize without USDC Mint", async function () {
                 const mint = await splToken.createMint(connection, payer, payer.publicKey, null, 6);
 
                 await expectIxErr(
@@ -86,7 +86,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Initialize With Default Owner Assistant", async function () {
+            it("Cannot Initialize with Default Owner Assistant", async function () {
                 await expectIxErr(
                     connection,
                     [
@@ -99,7 +99,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Initialize With Default Fee Recipient", async function () {
+            it("Cannot Initialize with Default Fee Recipient", async function () {
                 await expectIxErr(
                     connection,
                     [
@@ -112,7 +112,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Initialize With Invalid Auction Duration", async function () {
+            it("Cannot Initialize with Invalid Auction Duration", async function () {
                 const newAuctionConfig = { ...auctionConfig } as AuctionConfig;
                 newAuctionConfig.auctionDuration = 0;
 
@@ -131,7 +131,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Initialize With Invalid Auction Grace Period", async function () {
+            it("Cannot Initialize with Invalid Auction Grace Period", async function () {
                 const newAuctionConfig = { ...auctionConfig } as AuctionConfig;
                 newAuctionConfig.auctionGracePeriod = auctionConfig.auctionDuration - 1;
 
@@ -150,7 +150,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Initialize With Invalid User Penalty", async function () {
+            it("Cannot Initialize with Invalid User Penalty", async function () {
                 const newAuctionConfig = { ...auctionConfig } as AuctionConfig;
                 newAuctionConfig.userPenaltyRewardBps = 4294967295;
 
@@ -169,7 +169,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Initialize With Invalid Initial Penalty", async function () {
+            it("Cannot Initialize with Invalid Initial Penalty", async function () {
                 const newAuctionConfig = { ...auctionConfig } as AuctionConfig;
                 newAuctionConfig.initialPenaltyBps = 4294967295;
 
@@ -590,7 +590,7 @@ describe("Matching Engine", function () {
         describe("Add Local Router Endpoint", function () {
             const expectedEndpointBump = 254;
 
-            it("Cannot Add Local Router Endpoint Without Executable", async function () {
+            it("Cannot Add Local Router Endpoint without Executable", async function () {
                 const ix = await engine.addLocalRouterEndpointIx({
                     ownerOrAssistant: ownerAssistant.publicKey,
                     tokenRouterProgram: SYSVAR_RENT_PUBKEY,
@@ -845,7 +845,7 @@ describe("Matching Engine", function () {
         });
 
         describe("Improve Offer", function () {
-            it("Improve Offer With New Offer Authority", async function () {
+            it("Improve Offer with New Offer Authority", async function () {
                 const [, signedVaa] = await placeInitialOfferForTest(
                     connection,
                     offerAuthorityOne,

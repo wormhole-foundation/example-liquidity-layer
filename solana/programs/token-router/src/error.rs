@@ -53,13 +53,13 @@ pub enum TokenRouterError {
     #[msg("InsufficientAmount")]
     InsufficientAmount = 0x100,
 
-    #[msg("UnknownEmitter")]
+    #[msg("InvalidSourceRouter")]
     InvalidSourceRouter = 0x200,
 
     #[msg("InvalidDepositMessage")]
     InvalidDepositMessage = 0x202,
 
-    #[msg("NotFillMessage")]
+    #[msg("InvalidPayloadId")]
     InvalidPayloadId = 0x204,
 
     #[msg("InvalidRedeemer")]
