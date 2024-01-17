@@ -4,6 +4,8 @@ import { MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
 
 export const SWAP_RATE_PRECISION = 10 ** 8;
 
+export const MAX_BPS_FEE = 1_000_000;
+
 export const WORMHOLE_CONTRACTS = CONTRACTS.TESTNET;
 export const CORE_BRIDGE_PID = new PublicKey(WORMHOLE_CONTRACTS.solana.core);
 

@@ -4,8 +4,8 @@ import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
 import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { postVaaSolana, solana as wormSolana } from "@certusone/wormhole-sdk";
-import { WORMHOLE_CONTRACTS, USDC_MINT_ADDRESS } from "../../tests/helpers";
-import { MatchingEngineProgram } from "../../src/matchingEngine";
+import { WORMHOLE_CONTRACTS, USDC_MINT_ADDRESS, MAX_BPS_FEE } from "../../tests/helpers";
+import { AuctionConfig, MatchingEngineProgram } from "../../src/matchingEngine";
 import { ethers } from "ethers";
 
 export async function getTokenBalance(connection: Connection, address: PublicKey) {
@@ -168,9 +168,42 @@ export async function getInitialOfferTokenAccount(
 
 const sleep = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function skip_slots(connection: Connection, slots: number) {
+export async function skip_slots(connection: Connection, slots: number): Promise<number> {
     const start = await connection.getSlot();
-    while ((await connection.getSlot()) < start + slots) {
+
+    while (true) {
+        const lastSlot = await connection.getSlot();
+        if (lastSlot >= start + slots) {
+            return lastSlot + 1;
+        }
         await sleep(500);
+    }
+}
+
+export async function calculateDynamicPenalty(
+    auctionConfig: AuctionConfig,
+    amount: number,
+    slotsElapsed: number
+): Promise<[number, number]> {
+    if (slotsElapsed <= auctionConfig.auctionGracePeriod) {
+        return [0, 0];
+    }
+
+    const penaltyPeriod = slotsElapsed - auctionConfig.auctionGracePeriod;
+    if (
+        penaltyPeriod >= auctionConfig.auctionPenaltySlots ||
+        auctionConfig.initialPenaltyBps == 0
+    ) {
+        const userReward = Math.floor((amount * auctionConfig.userPenaltyRewardBps) / MAX_BPS_FEE);
+        return [amount - userReward, userReward];
+    } else {
+        const basePenalty = Math.floor(amount * auctionConfig.initialPenaltyBps) / MAX_BPS_FEE;
+        const penalty = Math.floor(
+            basePenalty +
+                ((amount - basePenalty) * penaltyPeriod) / auctionConfig.auctionPenaltySlots
+        );
+        const userReward = Math.floor((penalty * auctionConfig.userPenaltyRewardBps) / MAX_BPS_FEE);
+
+        return [penalty - userReward, userReward];
     }
 }

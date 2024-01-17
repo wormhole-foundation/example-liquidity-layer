@@ -20,6 +20,7 @@ import {
 } from "./helpers";
 import {
     FastMarketOrder,
+    calculateDynamicPenalty,
     getBestOfferTokenAccount,
     getInitialOfferTokenAccount,
     getTokenBalance,
@@ -943,8 +944,8 @@ describe("Matching Engine", function () {
             });
         });
 
-        describe("Execute Fast Order Within Grace Period", function () {
-            it("Execute Fast Order", async function () {
+        describe("Execute Fast Order", function () {
+            it("Execute Fast Order Within Grace Period", async function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
                 const [vaaKey, signedVaa] = await placeInitialOfferForTest(
@@ -1049,6 +1050,210 @@ describe("Matching Engine", function () {
                     auctionDataBefore.securityDeposit.toString()
                 );
                 expect(auctionDataAfter.offerPrice.toString()).to.eql(newOffer.toString());
+            });
+
+            it("Execute Fast Order After Grace Period", async function () {
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                // Fetch the balances before.
+                const highestOfferBefore = await getTokenBalance(
+                    connection,
+                    offerAuthorityOne.publicKey
+                );
+                const custodyBefore = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+                const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
+
+                // Fast forward into the grace period.
+                const txnSlot = await skip_slots(connection, 7);
+
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne]
+                );
+
+                // Compute the expected penalty and user reward.
+                const [, expectedReward] = await calculateDynamicPenalty(
+                    (
+                        await engine.fetchCustodian(engine.custodianAddress())
+                    ).auctionConfig,
+                    Number(baseFastOrder.maxFee),
+                    txnSlot - Number(auctionDataBefore.startSlot)
+                );
+
+                // Validate balance changes.
+                const highestOfferAfter = await getTokenBalance(
+                    connection,
+                    offerAuthorityOne.publicKey
+                );
+                const custodyAfter = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+                const auctionDataAfter = await engine.fetchAuctionData(vaaHash);
+
+                // The highest bidder is also the initial bidder in this case. The highest bidder
+                // is also executing the fast order after the grace period has ended, so they will
+                // be penalized by the expected user reward portion of the penalty.
+                expect(highestOfferAfter - highestOfferBefore).equals(
+                    baseFastOrder.maxFee +
+                        baseFastOrder.maxFee +
+                        baseFastOrder.initAuctionFee -
+                        BigInt(expectedReward)
+                );
+                expect(custodyBefore - custodyAfter).equals(
+                    baseFastOrder.amountIn + baseFastOrder.maxFee
+                );
+
+                // Validate auction data account.
+                expect(auctionDataAfter.bump).to.equal(254);
+                expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
+                expect(auctionDataAfter.status).to.eql({ completed: {} });
+                expect(auctionDataAfter.bestOfferToken).to.eql(bestOfferToken);
+                expect(auctionDataAfter.initialOfferToken).to.eql(initialOfferToken);
+                expect(auctionDataAfter.startSlot.toString()).to.eql(
+                    auctionDataBefore.startSlot.toString()
+                );
+                expect(auctionDataAfter.amount.toString()).to.eql(
+                    auctionDataBefore.amount.toString()
+                );
+                expect(auctionDataAfter.securityDeposit.toString()).to.eql(
+                    auctionDataBefore.securityDeposit.toString()
+                );
+                expect(auctionDataAfter.offerPrice.toString()).to.eql(
+                    baseFastOrder.maxFee.toString()
+                );
+            });
+
+            it("Execute Fast Order After Grace Period (With Liquidator)", async function () {
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                // Fetch the balances before.
+                const highestOfferBefore = await getTokenBalance(
+                    connection,
+                    offerAuthorityOne.publicKey
+                );
+                const custodyBefore = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+                const liquidatorBefore = await getTokenBalance(
+                    connection,
+                    offerAuthorityTwo.publicKey
+                );
+                const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
+
+                // Fast forward into the grace period.
+                const txnSlot = await skip_slots(connection, 10);
+
+                // Execute the fast order with the liquidator (offerAuthorityTwo).
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                            payer: offerAuthorityTwo.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityTwo]
+                );
+
+                // Compute the expected penalty and user reward.
+                const [expectedPenalty, expectedReward] = await calculateDynamicPenalty(
+                    (
+                        await engine.fetchCustodian(engine.custodianAddress())
+                    ).auctionConfig,
+                    Number(baseFastOrder.maxFee),
+                    txnSlot - Number(auctionDataBefore.startSlot)
+                );
+
+                // Validate balance changes.
+                const highestOfferAfter = await getTokenBalance(
+                    connection,
+                    offerAuthorityOne.publicKey
+                );
+                const liquidatorAfter = await getTokenBalance(
+                    connection,
+                    offerAuthorityTwo.publicKey
+                );
+                const custodyAfter = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+                const auctionDataAfter = await engine.fetchAuctionData(vaaHash);
+
+                expect(highestOfferAfter - highestOfferBefore).equals(
+                    baseFastOrder.maxFee +
+                        baseFastOrder.maxFee +
+                        baseFastOrder.initAuctionFee -
+                        BigInt(expectedReward) -
+                        BigInt(expectedPenalty)
+                );
+                expect(liquidatorAfter - liquidatorBefore).equals(BigInt(expectedPenalty));
+                expect(custodyBefore - custodyAfter).equals(
+                    baseFastOrder.amountIn + baseFastOrder.maxFee
+                );
+
+                // Validate auction data account.
+                expect(auctionDataAfter.bump).to.equal(255);
+                expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
+                expect(auctionDataAfter.status).to.eql({ completed: {} });
+                expect(auctionDataAfter.bestOfferToken).to.eql(bestOfferToken);
+                expect(auctionDataAfter.initialOfferToken).to.eql(initialOfferToken);
+                expect(auctionDataAfter.startSlot.toString()).to.eql(
+                    auctionDataBefore.startSlot.toString()
+                );
+                expect(auctionDataAfter.amount.toString()).to.eql(
+                    auctionDataBefore.amount.toString()
+                );
+                expect(auctionDataAfter.securityDeposit.toString()).to.eql(
+                    auctionDataBefore.securityDeposit.toString()
+                );
+                expect(auctionDataAfter.offerPrice.toString()).to.eql(
+                    baseFastOrder.maxFee.toString()
+                );
             });
         });
     });

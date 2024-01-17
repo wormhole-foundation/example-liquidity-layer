@@ -76,11 +76,11 @@ impl Custodian {
                     .checked_mul(penalty_period)?
                     .checked_div(auction_penalty_slots)?,
             )?;
-            let reward = amount
+            let reward = penalty
                 .checked_mul(user_penalty_reward_bps)?
                 .checked_div(fee_precision)?;
 
-            return Some((penalty - reward, reward));
+            return Some((penalty.checked_sub(reward).unwrap(), reward));
         }
     }
 }
