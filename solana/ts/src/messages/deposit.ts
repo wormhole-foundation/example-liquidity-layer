@@ -34,11 +34,11 @@ export type LiquidityLayerDepositMessage = {
 };
 
 export class LiquidityLayerDeposit {
-    deposit: DepositHeader;
+    header: DepositHeader;
     message: LiquidityLayerDepositMessage;
 
-    constructor(deposit: DepositHeader, message: LiquidityLayerDepositMessage) {
-        this.deposit = deposit;
+    constructor(header: DepositHeader, message: LiquidityLayerDepositMessage) {
+        this.header = header;
         this.message = message;
     }
 
@@ -118,7 +118,7 @@ export class LiquidityLayerDeposit {
     encode(): Buffer {
         const buf = Buffer.alloc(146);
 
-        const { deposit, message } = this;
+        const { header, message } = this;
         const {
             tokenAddress,
             amount,
@@ -127,7 +127,7 @@ export class LiquidityLayerDeposit {
             cctpNonce,
             burnSource,
             mintRecipient,
-        } = deposit;
+        } = header;
 
         let offset = 0;
         buf.set(tokenAddress, offset);

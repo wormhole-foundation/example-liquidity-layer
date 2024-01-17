@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 #[derive(Debug, InitSpace)]
 pub struct RedeemedFastFill {
     pub bump: u8,
-    pub hash: [u8; 32],
+    pub vaa_hash: [u8; 32],
     pub sequence: u64,
 }
 

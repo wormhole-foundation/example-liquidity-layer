@@ -1,3 +1,4 @@
 export * from "./Custodian";
-export * from "./RouterEndpoint";
 export * from "./PayerSequence";
+export * from "./RedeemedFastFill";
+export * from "./RouterEndpoint";

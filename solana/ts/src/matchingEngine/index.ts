@@ -5,7 +5,7 @@ import { BN, Program } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
-import { AuctionConfig, Custodian, RouterEndpoint, PayerSequence } from "./state";
+import { AuctionConfig, Custodian, RouterEndpoint, PayerSequence, RedeemedFastFill } from "./state";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { AuctionData } from "./state/AuctionData";
 import { TokenMessengerMinterProgram } from "../cctp";
@@ -103,7 +103,11 @@ export class MatchingEngineProgram {
     }
 
     redeemedFastFillAddress(vaaHash: Buffer | Uint8Array): PublicKey {
-        return PublicKey.findProgramAddressSync([Buffer.from("redeemed"), vaaHash], this.ID)[0];
+        return RedeemedFastFill.address(this.ID, vaaHash);
+    }
+
+    fetchRedeemedFastFill(addr: PublicKey): Promise<RedeemedFastFill> {
+        return this.program.account.redeemedFastFill.fetch(addr);
     }
 
     async initializeIx(

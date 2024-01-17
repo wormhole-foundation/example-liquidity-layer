@@ -1,9 +1,4 @@
-import {
-    ChainName,
-    coalesceChainId,
-    parseVaa,
-    tryNativeToHexString,
-} from "@certusone/wormhole-sdk";
+import { ChainName, coalesceChainId, parseVaa } from "@certusone/wormhole-sdk";
 import { MockEmitter, MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
 import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import { Connection, Keypair } from "@solana/web3.js";
@@ -18,18 +13,18 @@ export async function postLiquidityLayerVaa(
     guardians: MockGuardians,
     foreignEmitterAddress: Array<number>,
     sequence: bigint,
-    message: LiquidityLayerMessage,
+    message: LiquidityLayerMessage | Buffer,
     chainName?: ChainName
 ) {
     const foreignEmitter = new MockEmitter(
         Buffer.from(foreignEmitterAddress).toString("hex"),
         coalesceChainId(chainName ?? "ethereum"),
-        Number(sequence)
+        Number(sequence - 1n)
     );
 
     const published = foreignEmitter.publishMessage(
         0, // nonce,
-        message.encode(),
+        Buffer.isBuffer(message) ? message : message.encode(),
         0, // consistencyLevel
         12345678 // timestamp
     );
@@ -51,11 +46,16 @@ export class CircleAttester {
         const signature = this.attester.signDigest(ethers.utils.keccak256(message));
 
         const attestation = Buffer.alloc(65);
-        attestation.set(ethers.utils.arrayify(signature.r), 0);
-        attestation.set(ethers.utils.arrayify(signature.s), 32);
+
+        let offset = 0;
+        attestation.set(ethers.utils.arrayify(signature.r), offset);
+        offset += 32;
+        attestation.set(ethers.utils.arrayify(signature.s), offset);
+        offset += 32;
 
         const recoveryId = signature.recoveryParam;
-        attestation.writeUInt8(recoveryId < 27 ? recoveryId + 27 : recoveryId, 64);
+        attestation.writeUInt8(recoveryId < 27 ? recoveryId + 27 : recoveryId, offset);
+        offset += 1;
 
         return attestation;
     }

@@ -1,6 +1,6 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
-import { Connection, Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import {
@@ -583,6 +583,70 @@ describe("Matching Engine", function () {
                     chain: ethChain,
                     address: ethRouter,
                 } as RouterEndpoint;
+                expect(routerEndpointData).to.eql(expectedRouterEndpointData);
+            });
+        });
+
+        describe("Add Local Router Endpoint", function () {
+            const expectedEndpointBump = 254;
+
+            it("Cannot Add Local Router Endpoint Without Executable", async function () {
+                const ix = await engine.addLocalRouterEndpointIx({
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                    tokenRouterProgram: SYSVAR_RENT_PUBKEY,
+                });
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: ConstraintExecutable"
+                );
+            });
+
+            it("Add Local Router Endpoint using System Program", async function () {
+                const ix = await engine.addLocalRouterEndpointIx({
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                    tokenRouterProgram: SystemProgram.programId,
+                });
+
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+
+                const routerEndpointData = await engine.fetchRouterEndpoint(
+                    engine.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA)
+                );
+                const [expectedAddress] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("emitter")],
+                    SystemProgram.programId
+                );
+                const expectedRouterEndpointData = new RouterEndpoint(
+                    expectedEndpointBump,
+                    wormholeSdk.CHAIN_ID_SOLANA,
+                    Array.from(expectedAddress.toBuffer())
+                );
+                expect(routerEndpointData).to.eql(expectedRouterEndpointData);
+            });
+
+            it("Update Local Router Endpoint using SPL Token Program", async function () {
+                const ix = await engine.addLocalRouterEndpointIx({
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                    tokenRouterProgram: splToken.TOKEN_PROGRAM_ID,
+                });
+
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+
+                const routerEndpointData = await engine.fetchRouterEndpoint(
+                    engine.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA)
+                );
+                const [expectedAddress] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("emitter")],
+                    splToken.TOKEN_PROGRAM_ID
+                );
+                const expectedRouterEndpointData = new RouterEndpoint(
+                    expectedEndpointBump,
+                    wormholeSdk.CHAIN_ID_SOLANA,
+                    Array.from(expectedAddress.toBuffer())
+                );
                 expect(routerEndpointData).to.eql(expectedRouterEndpointData);
             });
         });

@@ -79,22 +79,23 @@ describe("Token Router", function () {
                 const custodianData = await tokenRouter.fetchCustodian(
                     tokenRouter.custodianAddress()
                 );
-                const expectedCustodianData: Custodian = {
-                    bump: 253,
-                    custodyTokenBump: 254,
-                    paused: false,
-                    owner: payer.publicKey,
-                    pendingOwner: null,
-                    ownerAssistant: ownerAssistant.publicKey,
-                    pausedSetBy: payer.publicKey,
-                };
-                expect(custodianData).to.eql(expectedCustodianData);
+                expect(custodianData).to.eql(
+                    new Custodian(
+                        253, // bump
+                        254, // custodyTokenBump
+                        false, // paused
+                        payer.publicKey, // owner
+                        null, // pendingOwner
+                        ownerAssistant.publicKey,
+                        payer.publicKey // pausedSetBy
+                    )
+                );
 
-                const custodyToken = await splToken.getAccount(
+                const { amount } = await splToken.getAccount(
                     connection,
                     tokenRouter.custodyTokenAccountAddress()
                 );
-                expect(custodyToken.amount).to.equal(0n);
+                expect(amount).to.equal(0n);
             });
 
             it("Cannot Initialize Again", async function () {
@@ -123,6 +124,7 @@ describe("Token Router", function () {
                         recentSlot: slot,
                     })
                 );
+
                 await expectIxOk(connection, [createIx], [payer]);
 
                 const usdcCommonAccounts = tokenRouter.commonAccounts(USDC_MINT_ADDRESS);
@@ -177,11 +179,11 @@ describe("Token Router", function () {
                 await expectIxOk(connection, [ix], [payer]);
 
                 // Confirm that the pending owner variable is set in the owner config.
-                const custodianData = await tokenRouter.fetchCustodian(
+                const { pendingOwner } = await tokenRouter.fetchCustodian(
                     tokenRouter.custodianAddress()
                 );
 
-                expect(custodianData.pendingOwner).deep.equals(owner.publicKey);
+                expect(pendingOwner).deep.equals(owner.publicKey);
             });
 
             it("Cannot Cancel Ownership Request as Non-Owner", async function () {
@@ -200,10 +202,10 @@ describe("Token Router", function () {
                 await expectIxOk(connection, [ix], [payer]);
 
                 // Confirm the pending owner field was reset.
-                const custodianData = await tokenRouter.fetchCustodian(
+                const { pendingOwner } = await tokenRouter.fetchCustodian(
                     tokenRouter.custodianAddress()
                 );
-                expect(custodianData.pendingOwner).deep.equals(null);
+                expect(pendingOwner).deep.equals(null);
             });
 
             it("Submit Ownership Transfer Request as Payer Again to Owner Pubkey", async function () {
@@ -215,11 +217,11 @@ describe("Token Router", function () {
                 await expectIxOk(connection, [ix], [payer]);
 
                 // Confirm that the pending owner variable is set in the owner config.
-                const custodianData = await tokenRouter.fetchCustodian(
+                const { pendingOwner } = await tokenRouter.fetchCustodian(
                     tokenRouter.custodianAddress()
                 );
 
-                expect(custodianData.pendingOwner).deep.equals(owner.publicKey);
+                expect(pendingOwner).deep.equals(owner.publicKey);
             });
 
             it("Cannot Confirm Ownership Transfer Request as Non-Pending Owner", async function () {
@@ -244,11 +246,11 @@ describe("Token Router", function () {
 
                 // Confirm that the owner config reflects the current ownership status.
                 {
-                    const custodianData = await tokenRouter.fetchCustodian(
+                    const { owner: actualOwner, pendingOwner } = await tokenRouter.fetchCustodian(
                         tokenRouter.custodianAddress()
                     );
-                    expect(custodianData.owner).deep.equals(owner.publicKey);
-                    expect(custodianData.pendingOwner).deep.equals(null);
+                    expect(actualOwner).deep.equals(owner.publicKey);
+                    expect(pendingOwner).deep.equals(null);
                 }
             });
 
@@ -295,6 +297,7 @@ describe("Token Router", function () {
                     owner: ownerAssistant.publicKey,
                     newOwnerAssistant: relayer.publicKey,
                 });
+
                 await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
             });
 
@@ -307,10 +310,10 @@ describe("Token Router", function () {
                 await expectIxOk(connection, [ix], [payer, owner]);
 
                 // Confirm the assistant field was updated.
-                const custodianData = await tokenRouter.fetchCustodian(
+                const { ownerAssistant: actualOwnerAssistant } = await tokenRouter.fetchCustodian(
                     tokenRouter.custodianAddress()
                 );
-                expect(custodianData.ownerAssistant).deep.equals(relayer.publicKey);
+                expect(actualOwnerAssistant).to.eql(relayer.publicKey);
 
                 // Set the assistant back to the assistant key.
                 await expectIxOk(
@@ -327,6 +330,8 @@ describe("Token Router", function () {
         });
 
         describe("Add CCTP Router Endpoint", function () {
+            const expectedEndpointBump = 255;
+
             it("Cannot Add CCTP Router Endpoint as Non-Owner and Non-Assistant", async function () {
                 const ix = await tokenRouter.addCctpRouterEndpointIx(
                     {
@@ -397,13 +402,14 @@ describe("Token Router", function () {
                 const routerEndpointData = await tokenRouter.fetchRouterEndpoint(
                     tokenRouter.routerEndpointAddress(foreignChain)
                 );
-                const expectedRouterEndpointData: RouterEndpoint = {
-                    bump: 255,
-                    chain: foreignChain,
-                    address: contractAddress,
-                    protocol: { cctp: { domain: foreignCctpDomain } },
-                };
-                expect(routerEndpointData).to.eql(expectedRouterEndpointData);
+                expect(routerEndpointData).to.eql(
+                    new RouterEndpoint(
+                        expectedEndpointBump,
+                        foreignChain,
+                        contractAddress,
+                        { cctp: { domain: foreignCctpDomain } } // protocol
+                    )
+                );
             });
 
             it(`Update Router Endpoint as Owner`, async function () {
@@ -423,13 +429,14 @@ describe("Token Router", function () {
                 const routerEndpointData = await tokenRouter.fetchRouterEndpoint(
                     tokenRouter.routerEndpointAddress(foreignChain)
                 );
-                const expectedRouterEndpointData: RouterEndpoint = {
-                    bump: 255,
-                    chain: foreignChain,
-                    address: routerEndpointAddress,
-                    protocol: { cctp: { domain: foreignCctpDomain } },
-                };
-                expect(routerEndpointData).to.eql(expectedRouterEndpointData);
+                expect(routerEndpointData).to.eql(
+                    new RouterEndpoint(
+                        expectedEndpointBump,
+                        foreignChain,
+                        routerEndpointAddress,
+                        { cctp: { domain: foreignCctpDomain } } // protocol
+                    )
+                );
             });
         });
 
@@ -580,6 +587,7 @@ describe("Token Router", function () {
                 addressLookupTableAccounts: [lookupTableAccount!],
             });
 
+            // Check balance.
             const { amount: balanceAfter } = await splToken.getAccount(connection, burnSource);
             expect(balanceAfter + amountIn).equals(balanceBefore);
 
@@ -655,6 +663,7 @@ describe("Token Router", function () {
                 addressLookupTableAccounts: [lookupTableAccount!],
             });
 
+            // Check balance.
             const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
             expect(balanceAfter + amountIn).equals(balanceBefore);
 
@@ -699,12 +708,6 @@ describe("Token Router", function () {
                     burnSource
                 );
 
-            const fill: Fill = {
-                sourceChain: foreignChain,
-                orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
-                redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-            };
             const message = new LiquidityLayerMessage({
                 deposit: new LiquidityLayerDeposit(
                     {
@@ -716,7 +719,14 @@ describe("Token Router", function () {
                         burnSource,
                         mintRecipient: encodedMintRecipient,
                     },
-                    { fill }
+                    {
+                        fill: {
+                            sourceChain: foreignChain,
+                            orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
+                            redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                            redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                        },
+                    }
                 ),
             });
 
@@ -754,10 +764,9 @@ describe("Token Router", function () {
                 addressLookupTableAccounts: [lookupTableAccount!],
             });
 
+            // Check balance.
             const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
             expect(balanceAfter).equals(balanceBefore + amount);
-
-            // TODO: check message
         });
     });
 });
