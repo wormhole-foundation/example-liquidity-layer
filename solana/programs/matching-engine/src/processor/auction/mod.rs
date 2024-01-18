@@ -7,6 +7,9 @@ pub use improve_offer::*;
 mod execute_fast_order;
 pub use execute_fast_order::*;
 
+mod execute_fast_order_solana;
+pub use execute_fast_order_solana::*;
+
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 

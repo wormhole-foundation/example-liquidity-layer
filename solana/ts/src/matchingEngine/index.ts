@@ -430,6 +430,52 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    async executeFastOrderSolanaIx(
+        vaaHash: Buffer,
+        accounts: {
+            payer: PublicKey;
+            vaa: PublicKey;
+            bestOfferToken: PublicKey;
+            initialOfferToken: PublicKey;
+        }
+    ) {
+        const { payer, vaa, bestOfferToken, initialOfferToken } = accounts;
+        const { mint } = await splToken.getAccount(
+            this.program.provider.connection,
+            bestOfferToken
+        );
+
+        const custodian = this.custodianAddress();
+        const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
+            this.publishMessageAccounts(custodian);
+        const payerSequence = this.payerSequenceAddress(payer);
+        const coreMessage = await this.fetchPayerSequenceValue(payerSequence).then((value) =>
+            this.coreMessageAddress(payer, value)
+        );
+
+        return this.program.methods
+            .executeFastOrderSolana()
+            .accounts({
+                payer,
+                custodian,
+                auctionData: this.auctionDataAddress(vaaHash),
+                toRouterEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+                executorToken: splToken.getAssociatedTokenAddressSync(mint, payer),
+                bestOfferToken,
+                initialOfferToken,
+                custodyToken: this.custodyTokenAccountAddress(),
+                vaa,
+                mint: USDC_MINT_ADDRESS,
+                payerSequence,
+                coreBridgeConfig,
+                coreMessage,
+                coreEmitterSequence,
+                coreFeeCollector,
+                coreBridgeProgram,
+            })
+            .instruction();
+    }
+
     async redeemFastFillAccounts(vaa: PublicKey): Promise<RedeemFastFillAccounts> {
         const custodyToken = this.custodyTokenAccountAddress();
         const vaaAcct = await VaaAccount.fetch(this.program.provider.connection, vaa);

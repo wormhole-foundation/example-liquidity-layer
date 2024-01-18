@@ -26,6 +26,7 @@ import {
     getTokenBalance,
     postFastTransferVaa,
     skip_slots,
+    verifyFastFillMessage,
     verifyFillMessage,
 } from "./helpers/matching_engine_utils";
 
@@ -50,6 +51,9 @@ describe("Matching Engine", function () {
     const arbChain = wormholeSdk.CHAINS.arbitrum;
     const arbRouter = Array.from(Buffer.alloc(32, "bead", "hex"));
     const arbDomain = 3;
+    const solanaChain = wormholeSdk.CHAINS.solana;
+    const solanaRouter = Array.from(Buffer.alloc(32, "c0ffee", "hex"));
+    const solanaDomain = 5;
 
     // Matching Engine program.
     const engine = new MatchingEngineProgram(connection);
@@ -510,7 +514,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            [wormholeSdk.CHAINS.unset, wormholeSdk.CHAINS.solana].forEach((chain) =>
+            [wormholeSdk.CHAINS.unset, solanaChain].forEach((chain) =>
                 it(`Cannot Register Chain ID == ${chain}`, async function () {
                     const chain = 0;
 
@@ -712,7 +716,7 @@ describe("Matching Engine", function () {
             redeemerMessage: Buffer.from("All your base are belong to us."),
         };
 
-        before("Register To Router Endpoint", async function () {
+        before("Register To Router Endpoints", async function () {
             await expectIxOk(
                 connection,
                 [
@@ -1059,6 +1063,127 @@ describe("Matching Engine", function () {
                         orderSender: Array.from(baseFastOrder.sender),
                         redeemer: Array.from(baseFastOrder.redeemer),
                         redeemerMessage: baseFastOrder.redeemerMessage,
+                    }
+                );
+            });
+
+            it("Execute Fast Order Within Grace Period (Target == Solana)", async function () {
+                const fastOrder = { ...baseFastOrder };
+                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
+                fastOrder.targetDomain = solanaDomain;
+
+                // Start the auction with offer two so that we can
+                // check that the initial offer is refunded.
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityTwo,
+                    wormholeSequence++,
+                    fastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: fastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: solanaChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                let bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const newOffer = fastOrder.maxFee - 100n;
+
+                // Improve the bid with offer one.
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.improveOfferIx(
+                            newOffer,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                offerAuthority: offerAuthorityOne.publicKey,
+                                bestOfferToken,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne]
+                );
+
+                // Fetch the balances before.
+                const highestOfferBefore = await getTokenBalance(
+                    connection,
+                    offerAuthorityOne.publicKey
+                );
+                const custodyBefore = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+                const initialBefore = await getTokenBalance(
+                    connection,
+                    offerAuthorityTwo.publicKey
+                );
+                const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
+                bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+
+                // Fast forward into the grace period.
+                await skip_slots(connection, 2);
+                const message = await engine.getCoreMessage(offerAuthorityOne.publicKey);
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.executeFastOrderSolanaIx(vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne]
+                );
+
+                // Validate balance changes.
+                const highestOfferAfter = await getTokenBalance(
+                    connection,
+                    offerAuthorityOne.publicKey
+                );
+                const custodyAfter = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+                const initialAfter = await getTokenBalance(connection, offerAuthorityTwo.publicKey);
+                const auctionDataAfter = await engine.fetchAuctionData(vaaHash);
+
+                expect(initialAfter - initialBefore).equals(fastOrder.initAuctionFee);
+                expect(highestOfferAfter - highestOfferBefore).equals(fastOrder.maxFee + newOffer);
+                expect(custodyBefore - custodyAfter).equals(
+                    fastOrder.maxFee + newOffer + fastOrder.initAuctionFee
+                );
+
+                // Validate auction data account.
+                expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
+                expect(auctionDataAfter.status).to.eql({ completed: {} });
+                expect(auctionDataAfter.bestOfferToken).to.eql(bestOfferToken);
+                expect(auctionDataAfter.initialOfferToken).to.eql(initialOfferToken);
+                expect(auctionDataAfter.startSlot.toString()).to.eql(
+                    auctionDataBefore.startSlot.toString()
+                );
+                expect(auctionDataAfter.amount.toString()).to.eql(
+                    auctionDataBefore.amount.toString()
+                );
+                expect(auctionDataAfter.securityDeposit.toString()).to.eql(
+                    auctionDataBefore.securityDeposit.toString()
+                );
+                expect(auctionDataAfter.offerPrice.toString()).to.eql(newOffer.toString());
+
+                // Validate the core message.
+                await verifyFastFillMessage(
+                    connection,
+                    message,
+                    fastOrder.amountIn - newOffer - fastOrder.initAuctionFee,
+                    {
+                        sourceChain: ethChain,
+                        orderSender: Array.from(fastOrder.sender),
+                        redeemer: Array.from(fastOrder.redeemer),
+                        redeemerMessage: fastOrder.redeemerMessage,
                     }
                 );
             });

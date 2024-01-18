@@ -226,3 +226,16 @@ export async function verifyFillMessage(
     expect(parsed.deposit?.header.destinationCctpDomain).to.equal(targetDomain);
     expect(parsed.deposit?.message.fill).to.deep.equal(expectedFill);
 }
+
+export async function verifyFastFillMessage(
+    connection: Connection,
+    message: PublicKey,
+    amount: bigint,
+    expectedFill: Fill
+) {
+    const fillPayload = (await getPostedMessage(connection, message)).message.payload;
+    const parsed = LiquidityLayerMessage.decode(fillPayload);
+
+    expect(parsed.fastFill?.fill).to.deep.equal(expectedFill);
+    expect(parsed.fastFill?.amount).to.equal(amount);
+}

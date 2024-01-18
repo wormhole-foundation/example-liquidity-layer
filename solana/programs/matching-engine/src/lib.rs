@@ -103,4 +103,8 @@ pub mod matching_engine {
     pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
         processor::execute_fast_order(ctx)
     }
+
+    pub fn execute_fast_order_solana(ctx: Context<ExecuteFastOrderSolana>) -> Result<()> {
+        processor::execute_fast_order_solana(ctx)
+    }
 }
