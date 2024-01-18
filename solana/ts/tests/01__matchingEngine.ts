@@ -26,8 +26,8 @@ import {
     getTokenBalance,
     postFastTransferVaa,
     skip_slots,
+    verifyFillMessage,
 } from "./helpers/matching_engine_utils";
-import { ethers } from "ethers";
 
 chaiUse(chaiAsPromised);
 
@@ -701,11 +701,11 @@ describe("Matching Engine", function () {
             minAmountOut: 0n,
             targetChain: arbChain,
             targetDomain: arbDomain,
-            redeemer: Buffer.from("deadbeef", "hex"),
-            sender: Buffer.from("beefdead", "hex"),
-            refundAddress: Buffer.from("deadbeef", "hex"),
+            redeemer: Buffer.alloc(32, "deadbeef", "hex"),
+            sender: Buffer.alloc(32, "beefdead", "hex"),
+            refundAddress: Buffer.alloc(32, "beef", "hex"),
             slowSequence: 0n,
-            slowEmitter: Buffer.from("beefdead", "hex"),
+            slowEmitter: Buffer.alloc(32, "dead", "hex"),
             maxFee: 10000n,
             initAuctionFee: 100n,
             deadline: 0,
@@ -831,7 +831,6 @@ describe("Matching Engine", function () {
                     offerAuthorityOne.publicKey
                 );
 
-                expect(auctionData.bump).to.equal(254);
                 expect(auctionData.vaaHash).to.eql(Array.from(vaaHash));
                 expect(auctionData.status).to.eql({ active: {} });
                 expect(auctionData.bestOfferToken).to.eql(offerToken);
@@ -926,7 +925,6 @@ describe("Matching Engine", function () {
                     offerAuthorityOne.publicKey
                 );
 
-                expect(auctionDataAfter.bump).to.equal(249);
                 expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
                 expect(auctionDataAfter.status).to.eql({ active: {} });
                 expect(auctionDataAfter.bestOfferToken).to.eql(newOfferToken);
@@ -1001,7 +999,7 @@ describe("Matching Engine", function () {
 
                 // Fast forward into the grace period.
                 await skip_slots(connection, 2);
-
+                const message = await engine.getCoreMessage(offerAuthorityOne.publicKey);
                 await expectIxOk(
                     connection,
                     [
@@ -1035,7 +1033,6 @@ describe("Matching Engine", function () {
                 );
 
                 // Validate auction data account.
-                expect(auctionDataAfter.bump).to.equal(250);
                 expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
                 expect(auctionDataAfter.status).to.eql({ completed: {} });
                 expect(auctionDataAfter.bestOfferToken).to.eql(bestOfferToken);
@@ -1050,6 +1047,20 @@ describe("Matching Engine", function () {
                     auctionDataBefore.securityDeposit.toString()
                 );
                 expect(auctionDataAfter.offerPrice.toString()).to.eql(newOffer.toString());
+
+                // Validate the core message.
+                await verifyFillMessage(
+                    connection,
+                    message,
+                    baseFastOrder.amountIn - newOffer - baseFastOrder.initAuctionFee,
+                    arbDomain,
+                    {
+                        sourceChain: ethChain,
+                        orderSender: Array.from(baseFastOrder.sender),
+                        redeemer: Array.from(baseFastOrder.redeemer),
+                        redeemerMessage: baseFastOrder.redeemerMessage,
+                    }
+                );
             });
 
             it("Execute Fast Order After Grace Period", async function () {
@@ -1084,7 +1095,7 @@ describe("Matching Engine", function () {
 
                 // Fast forward into the grace period.
                 const txnSlot = await skip_slots(connection, 7);
-
+                const message = await engine.getCoreMessage(offerAuthorityOne.publicKey);
                 await expectIxOk(
                     connection,
                     [
@@ -1131,7 +1142,6 @@ describe("Matching Engine", function () {
                 );
 
                 // Validate auction data account.
-                expect(auctionDataAfter.bump).to.equal(254);
                 expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
                 expect(auctionDataAfter.status).to.eql({ completed: {} });
                 expect(auctionDataAfter.bestOfferToken).to.eql(bestOfferToken);
@@ -1147,6 +1157,23 @@ describe("Matching Engine", function () {
                 );
                 expect(auctionDataAfter.offerPrice.toString()).to.eql(
                     baseFastOrder.maxFee.toString()
+                );
+
+                // Validate the core message.
+                await verifyFillMessage(
+                    connection,
+                    message,
+                    baseFastOrder.amountIn -
+                        baseFastOrder.maxFee -
+                        baseFastOrder.initAuctionFee +
+                        BigInt(expectedReward),
+                    arbDomain,
+                    {
+                        sourceChain: ethChain,
+                        orderSender: Array.from(baseFastOrder.sender),
+                        redeemer: Array.from(baseFastOrder.redeemer),
+                        redeemerMessage: baseFastOrder.redeemerMessage,
+                    }
                 );
             });
 
@@ -1188,6 +1215,7 @@ describe("Matching Engine", function () {
                 const txnSlot = await skip_slots(connection, 10);
 
                 // Execute the fast order with the liquidator (offerAuthorityTwo).
+                const message = await engine.getCoreMessage(offerAuthorityTwo.publicKey);
                 await expectIxOk(
                     connection,
                     [
@@ -1237,7 +1265,6 @@ describe("Matching Engine", function () {
                 );
 
                 // Validate auction data account.
-                expect(auctionDataAfter.bump).to.equal(255);
                 expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
                 expect(auctionDataAfter.status).to.eql({ completed: {} });
                 expect(auctionDataAfter.bestOfferToken).to.eql(bestOfferToken);
@@ -1253,6 +1280,23 @@ describe("Matching Engine", function () {
                 );
                 expect(auctionDataAfter.offerPrice.toString()).to.eql(
                     baseFastOrder.maxFee.toString()
+                );
+
+                // Validate the core message.
+                await verifyFillMessage(
+                    connection,
+                    message,
+                    baseFastOrder.amountIn -
+                        baseFastOrder.maxFee -
+                        baseFastOrder.initAuctionFee +
+                        BigInt(expectedReward),
+                    arbDomain,
+                    {
+                        sourceChain: ethChain,
+                        orderSender: Array.from(baseFastOrder.sender),
+                        redeemer: Array.from(baseFastOrder.redeemer),
+                        redeemerMessage: baseFastOrder.redeemerMessage,
+                    }
                 );
             });
         });

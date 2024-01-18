@@ -288,6 +288,14 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    async getCoreMessage(payer: PublicKey): Promise<PublicKey> {
+        const payerSequence = this.payerSequenceAddress(payer);
+        const coreMessage = await this.fetchPayerSequenceValue(payerSequence).then((value) =>
+            this.coreMessageAddress(payer, value)
+        );
+        return coreMessage;
+    }
+
     async placeInitialOfferIx(
         feeOffer: bigint,
         fromChain: wormholeSdk.ChainId,

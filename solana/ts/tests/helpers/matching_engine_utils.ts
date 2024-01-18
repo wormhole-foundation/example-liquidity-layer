@@ -6,7 +6,11 @@ import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { postVaaSolana, solana as wormSolana } from "@certusone/wormhole-sdk";
 import { WORMHOLE_CONTRACTS, USDC_MINT_ADDRESS, MAX_BPS_FEE } from "../../tests/helpers";
 import { AuctionConfig, MatchingEngineProgram } from "../../src/matchingEngine";
+import { getPostedMessage } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import { ethers } from "ethers";
+import { Fill, LiquidityLayerMessage } from "../../src";
+
+import { expect } from "chai";
 
 export async function getTokenBalance(connection: Connection, address: PublicKey) {
     return (
@@ -206,4 +210,19 @@ export async function calculateDynamicPenalty(
 
         return [penalty - userReward, userReward];
     }
+}
+
+export async function verifyFillMessage(
+    connection: Connection,
+    message: PublicKey,
+    amount: bigint,
+    targetDomain: number,
+    expectedFill: Fill
+) {
+    const fillPayload = (await getPostedMessage(connection, message)).message.payload;
+    const parsed = LiquidityLayerMessage.decode(fillPayload);
+
+    expect(parsed.deposit?.header.amount).to.equal(amount);
+    expect(parsed.deposit?.header.destinationCctpDomain).to.equal(targetDomain);
+    expect(parsed.deposit?.message.fill).to.deep.equal(expectedFill);
 }

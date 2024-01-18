@@ -22,8 +22,6 @@ pub struct AuctionConfig {
     pub auction_penalty_slots: u16,
 }
 
-/// TODO: Whitelist USDC mint key.
-
 #[account]
 #[derive(Debug, InitSpace)]
 pub struct Custodian {
