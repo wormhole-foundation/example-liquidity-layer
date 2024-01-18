@@ -47,10 +47,10 @@ impl Custodian {
 
     pub fn calculate_dynamic_penalty(&self, amount: u64, slots_elapsed: u64) -> Option<(u64, u64)> {
         let config = &self.auction_config;
-        let grace_period = u64::try_from(config.auction_grace_period).unwrap();
-        let auction_penalty_slots = u64::try_from(config.auction_penalty_slots).unwrap();
-        let user_penalty_reward_bps = u64::try_from(config.user_penalty_reward_bps).unwrap();
-        let fee_precision = u64::try_from(FEE_PRECISION_MAX).unwrap();
+        let grace_period = config.auction_grace_period.into();
+        let auction_penalty_slots = config.auction_penalty_slots.into();
+        let user_penalty_reward_bps = config.user_penalty_reward_bps.into();
+        let fee_precision = FEE_PRECISION_MAX.into();
 
         if slots_elapsed <= grace_period {
             return Some((0, 0));
@@ -64,10 +64,10 @@ impl Custodian {
                 .checked_mul(user_penalty_reward_bps)?
                 .checked_div(fee_precision)?;
 
-            return Some((amount.checked_sub(reward)?, reward));
+            Some((amount.checked_sub(reward)?, reward))
         } else {
             let base_penalty = amount
-                .checked_mul(u64::try_from(config.initial_penalty_bps).unwrap())?
+                .checked_mul(config.initial_penalty_bps.into())?
                 .checked_div(fee_precision)?;
             let penalty = base_penalty.checked_add(
                 (amount.checked_sub(base_penalty)?)
@@ -78,7 +78,7 @@ impl Custodian {
                 .checked_mul(user_penalty_reward_bps)?
                 .checked_div(fee_precision)?;
 
-            return Some((penalty.checked_sub(reward).unwrap(), reward));
+            Some((penalty.checked_sub(reward).unwrap(), reward))
         }
     }
 }

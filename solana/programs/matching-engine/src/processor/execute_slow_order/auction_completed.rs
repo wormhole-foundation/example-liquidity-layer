@@ -1,4 +1,4 @@
-use crate::state::{AuctionData, AuctionStatus, Custodian, RouterEndpoint};
+use crate::state::{AuctionData, AuctionStatus, Custodian};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use wormhole_cctp_solana::{
@@ -38,14 +38,10 @@ pub struct ExecuteSlowOrderAuctionCompleted<'info> {
             VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref(),
         ],
         bump = auction_data.bump,
+        has_one = best_offer_token,
         constraint = auction_data.status == AuctionStatus::Completed // TODO: add error
     )]
     auction_data: Account<'info, AuctionData>,
-
-    /// Redeemer, who owns the token account that will receive the minted tokens.
-    ///
-    /// CHECK: Signer must be the redeemer encoded in the Deposit Fill message.
-    redeemer: Signer<'info>,
 
     /// Destination token account, which the redeemer may not own. But because the redeemer is a
     /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
@@ -53,7 +49,7 @@ pub struct ExecuteSlowOrderAuctionCompleted<'info> {
     ///
     /// CHECK: This token account must already exist.
     #[account(mut)]
-    dst_token: AccountInfo<'info>,
+    best_offer_token: AccountInfo<'info>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -68,18 +64,6 @@ pub struct ExecuteSlowOrderAuctionCompleted<'info> {
         bump = custodian.custody_token_bump,
     )]
     custody_token: Account<'info, token::TokenAccount>,
-
-    /// Registered emitter account representing a Circle Integration on another network.
-    ///
-    /// Seeds must be \["registered_emitter", target_chain.to_be_bytes()\].
-    #[account(
-        seeds = [
-            RouterEndpoint::SEED_PREFIX,
-            router_endpoint.chain.to_be_bytes().as_ref(),
-        ],
-        bump = router_endpoint.bump,
-    )]
-    router_endpoint: Account<'info, RouterEndpoint>,
 
     /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
     message_transmitter_authority: UncheckedAccount<'info>,
@@ -163,7 +147,7 @@ pub fn execute_slow_order_auction_completed(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
                 from: ctx.accounts.custody_token.to_account_info(),
-                to: ctx.accounts.dst_token.to_account_info(),
+                to: ctx.accounts.best_offer_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
             &[&[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]]],

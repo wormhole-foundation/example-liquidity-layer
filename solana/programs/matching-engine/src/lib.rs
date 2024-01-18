@@ -7,7 +7,8 @@ mod processor;
 pub(crate) use processor::*;
 
 pub mod state;
-use crate::state::AuctionConfig;
+
+pub mod utils;
 
 use anchor_lang::prelude::*;
 

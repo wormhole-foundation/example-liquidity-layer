@@ -17,7 +17,7 @@ pub struct CctpMessageArgs {
     pub cctp_attestation: Vec<u8>,
 }
 
-pub(self) struct PrepareExecuteSlowOrder<'ctx, 'info> {
+pub struct PrepareExecuteSlowOrder<'ctx, 'info> {
     payer: &'ctx Signer<'info>,
     custodian: &'ctx Account<'info, Custodian>,
     finalized_vaa: &'ctx AccountInfo<'info>,
@@ -37,7 +37,7 @@ pub(self) struct PrepareExecuteSlowOrder<'ctx, 'info> {
     system_program: &'ctx AccountInfo<'info>,
 }
 
-pub(self) fn prepare_execute_slow_order<'ix, 'accts, 'info>(
+pub fn prepare_execute_slow_order<'ix, 'accts, 'info>(
     fast_vaa: &'ix VaaAccount<'accts>,
     accounts: PrepareExecuteSlowOrder<'accts, 'info>,
     args: CctpMessageArgs,
@@ -48,7 +48,7 @@ where
     let custodian_bump = accounts.custodian.bump;
 
     let finalized_vaa = wormhole_cctp_solana::cpi::verify_vaa_and_mint(
-        &accounts.finalized_vaa,
+        accounts.finalized_vaa,
         CpiContext::new_with_signer(
             accounts.message_transmitter_program.to_account_info(),
             message_transmitter_program::cpi::ReceiveTokenMessengerMinterMessage {

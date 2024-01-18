@@ -1,11 +1,11 @@
-use crate::{
-    error::MatchingEngineError,
-    state::{AuctionConfig, Custodian},
-};
+use crate::{error::MatchingEngineError, state::Custodian};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::constants::FEE_PRECISION_MAX;
 use solana_program::bpf_loader_upgradeable;
+
+// Because this is used as the args for initialize, we'll make it public here.
+pub use crate::state::AuctionConfig;
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {

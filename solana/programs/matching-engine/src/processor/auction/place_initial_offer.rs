@@ -102,7 +102,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     require!(fee_offer <= max_fee, MatchingEngineError::OfferPriceTooHigh);
 
     // Verify that the to and from router endpoints are valid.
-    crate::processor::verify_router_path(
+    crate::utils::verify_router_path(
         &ctx.accounts.from_router_endpoint,
         &ctx.accounts.to_router_endpoint,
         &vaa.try_emitter_info().unwrap(),

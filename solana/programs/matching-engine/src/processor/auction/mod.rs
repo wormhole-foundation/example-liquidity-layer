@@ -15,7 +15,6 @@ use crate::{
     state::{AuctionData, AuctionStatus, Custodian, PayerSequence, RouterEndpoint},
 };
 use common::messages::raw::LiquidityLayerPayload;
-use wormhole_cctp_solana::wormhole::core_bridge_program::sdk::EmitterInfo;
 use wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 use wormhole_cctp_solana::{
     cctp::{message_transmitter_program, token_messenger_minter_program},
@@ -91,7 +90,7 @@ pub fn handle_fast_order_execution(accounts: ExecuteFastOrderAccounts) -> Result
     // We need to save the reward for the user so we include it when sending the CCTP transfer.
     let mut user_reward: u64 = 0;
 
-    if slots_elapsed > u64::try_from(auction_config.auction_grace_period).unwrap() {
+    if slots_elapsed > auction_config.auction_grace_period.into() {
         let (penalty, reward) = accounts
             .custodian
             .calculate_dynamic_penalty(auction_data.security_deposit, slots_elapsed)
@@ -218,7 +217,7 @@ pub fn send_cctp(
     payload: Vec<u8>,
     core_message_bump: u8,
 ) -> Result<()> {
-    let authority_seeds = &[Custodian::SEED_PREFIX.as_ref(), &[accounts.custodian.bump]];
+    let authority_seeds = &[Custodian::SEED_PREFIX, &[accounts.custodian.bump]];
 
     wormhole_cctp_solana::cpi::burn_and_publish(
         CpiContext::new_with_signer(
@@ -280,25 +279,6 @@ pub fn send_cctp(
             payload,
         },
     )?;
-
-    Ok(())
-}
-
-pub fn verify_router_path(
-    from_router_endpoint: &RouterEndpoint,
-    to_router_endpoint: &RouterEndpoint,
-    emitter_info: &EmitterInfo,
-    target_chain: u16,
-) -> Result<()> {
-    require!(
-        from_router_endpoint.chain == emitter_info.chain
-            && from_router_endpoint.address == emitter_info.address,
-        MatchingEngineError::InvalidEndpoint
-    );
-    require!(
-        to_router_endpoint.chain == target_chain && to_router_endpoint.address != [0u8; 32],
-        MatchingEngineError::InvalidEndpoint
-    );
 
     Ok(())
 }

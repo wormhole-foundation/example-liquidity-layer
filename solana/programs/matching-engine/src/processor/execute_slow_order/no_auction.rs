@@ -32,7 +32,7 @@ pub struct ExecuteSlowOrderNoAuction<'info> {
     #[account(owner = core_bridge_program::id())]
     finalized_vaa: AccountInfo<'info>,
 
-    /// CHECK: There should be no account data here because an auction was never created.
+    /// There should be no account data here because an auction was never created.
     #[account(
         init,
         payer = payer,
@@ -62,7 +62,7 @@ pub struct ExecuteSlowOrderNoAuction<'info> {
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
     /// from its custody account to this account.
     ///
-    /// Mutable. Seeds must be \["custody"\].
+    /// CHECK: Mutable. Seeds must be \["custody"\].
     ///
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
@@ -70,7 +70,7 @@ pub struct ExecuteSlowOrderNoAuction<'info> {
         seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
         bump = custodian.custody_token_bump,
     )]
-    custody_token: Account<'info, token::TokenAccount>,
+    custody_token: AccountInfo<'info>,
 
     /// Registered emitter account representing a Circle Integration on another network.
     ///
