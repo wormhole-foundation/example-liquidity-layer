@@ -1,30 +1,31 @@
 use crate::{error::MatchingEngineError, state::RouterEndpoint};
 use anchor_lang::prelude::*;
-use wormhole_cctp_solana::wormhole::core_bridge_program::sdk::EmitterInfo;
+use wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 
 pub fn verify_router_path(
-    src_endpoint: &RouterEndpoint,
-    dst_endpoint: &RouterEndpoint,
-    emitter_info: &EmitterInfo,
-    target_chain: u16,
+    vaa: &VaaAccount<'_>,
+    source_endpoint: &RouterEndpoint,
+    target_endpoint: &RouterEndpoint,
+    expected_target_chain: u16,
 ) -> Result<()> {
+    let emitter = vaa.try_emitter_info()?;
     require_eq!(
-        src_endpoint.chain,
-        emitter_info.chain,
-        MatchingEngineError::InvalidEndpoint
+        source_endpoint.chain,
+        emitter.chain,
+        MatchingEngineError::ErrInvalidSourceRouter
     );
     require!(
-        src_endpoint.address == emitter_info.address,
-        MatchingEngineError::InvalidEndpoint
+        source_endpoint.address == emitter.address,
+        MatchingEngineError::ErrInvalidSourceRouter
     );
     require_eq!(
-        dst_endpoint.chain,
-        target_chain,
-        MatchingEngineError::InvalidEndpoint
+        target_endpoint.chain,
+        expected_target_chain,
+        MatchingEngineError::ErrInvalidTargetRouter
     );
     require!(
-        dst_endpoint.address != [0u8; 32],
-        MatchingEngineError::InvalidEndpoint
+        target_endpoint.address != [0u8; 32],
+        MatchingEngineError::ErrInvalidTargetRouter
     );
 
     Ok(())

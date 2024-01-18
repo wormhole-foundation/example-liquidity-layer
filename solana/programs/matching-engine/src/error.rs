@@ -52,6 +52,12 @@ pub enum MatchingEngineError {
     #[msg("InvalidEndpoint")]
     InvalidEndpoint,
 
+    #[msg("ErrInvalidSourceRouter")]
+    ErrInvalidSourceRouter,
+
+    #[msg("ErrInvalidTargetRouter")]
+    ErrInvalidTargetRouter,
+
     #[msg("TokenRouterProgramIdRequired")]
     TokenRouterProgramIdRequired,
 

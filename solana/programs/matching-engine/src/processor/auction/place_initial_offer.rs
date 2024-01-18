@@ -103,9 +103,9 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
 
     // Verify that the to and from router endpoints are valid.
     crate::utils::verify_router_path(
+        &vaa,
         &ctx.accounts.from_router_endpoint,
         &ctx.accounts.to_router_endpoint,
-        &vaa.try_emitter_info().unwrap(),
         fast_order.target_chain(),
     )?;
 

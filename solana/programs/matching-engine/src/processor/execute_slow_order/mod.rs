@@ -1,8 +1,8 @@
 mod auction_completed;
 pub use auction_completed::*;
 
-mod no_auction;
-pub use no_auction::*;
+mod no_auction_cctp;
+pub use no_auction_cctp::*;
 
 use crate::{error::MatchingEngineError, state::Custodian};
 use anchor_lang::prelude::*;

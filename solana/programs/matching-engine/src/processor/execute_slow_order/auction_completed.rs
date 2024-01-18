@@ -38,7 +38,7 @@ pub struct ExecuteSlowOrderAuctionCompleted<'info> {
             VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref(),
         ],
         bump = auction_data.bump,
-        has_one = best_offer_token,
+        has_one = best_offer_token, // TODO: add error
         constraint = auction_data.status == AuctionStatus::Completed // TODO: add error
     )]
     auction_data: Account<'info, AuctionData>,

@@ -37,11 +37,11 @@ pub mod matching_engine {
         processor::execute_slow_order_auction_completed(ctx, args)
     }
 
-    pub fn execute_slow_order_no_auction(
-        ctx: Context<ExecuteSlowOrderNoAuction>,
+    pub fn execute_slow_order_no_auction_cctp(
+        ctx: Context<ExecuteSlowOrderNoAuctionCctp>,
         args: CctpMessageArgs,
     ) -> Result<()> {
-        processor::execute_slow_order_no_auction(ctx, args)
+        processor::execute_slow_order_no_auction_cctp(ctx, args)
     }
 
     /// This instruction is be used to generate your program's config.
