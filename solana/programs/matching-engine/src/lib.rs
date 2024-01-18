@@ -36,6 +36,13 @@ pub mod matching_engine {
         processor::execute_slow_order_auction_completed(ctx, args)
     }
 
+    pub fn execute_slow_order_no_auction(
+        ctx: Context<ExecuteSlowOrderNoAuction>,
+        args: CctpMessageArgs,
+    ) -> Result<()> {
+        processor::execute_slow_order_no_auction(ctx, args)
+    }
+
     /// This instruction is be used to generate your program's config.
     /// And for convenience, we will store Wormhole-related PDAs in the
     /// config so we can verify these accounts with a simple == constraint.

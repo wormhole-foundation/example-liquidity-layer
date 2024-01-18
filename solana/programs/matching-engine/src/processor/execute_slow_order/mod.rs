@@ -1,6 +1,9 @@
 mod auction_completed;
 pub use auction_completed::*;
 
+mod no_auction;
+pub use no_auction::*;
+
 use crate::{error::MatchingEngineError, state::Custodian};
 use anchor_lang::prelude::*;
 use common::messages::raw::{FastMarketOrder, LiquidityLayerDepositMessage, LiquidityLayerMessage};
