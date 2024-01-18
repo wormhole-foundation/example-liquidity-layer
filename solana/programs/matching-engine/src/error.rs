@@ -94,6 +94,9 @@ pub enum MatchingEngineError {
     #[msg("InvalidPayloadId")]
     InvalidPayloadId,
 
+    #[msg("InvalidDepositPayloadId")]
+    InvalidDepositPayloadId,
+
     #[msg("AuctionNotActive")]
     AuctionNotActive,
 
@@ -111,4 +114,7 @@ pub enum MatchingEngineError {
 
     #[msg("PenaltyCalculationFailed")]
     PenaltyCalculationFailed,
+
+    #[msg("VaaMismatch")]
+    VaaMismatch,
 }
