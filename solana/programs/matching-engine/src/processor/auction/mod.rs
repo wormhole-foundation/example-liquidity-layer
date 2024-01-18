@@ -12,32 +12,15 @@ use anchor_spl::token;
 
 use crate::{
     error::MatchingEngineError,
-    state::{Custodian, PayerSequence, RouterEndpoint},
+    state::{AuctionData, AuctionStatus, Custodian, PayerSequence, RouterEndpoint},
 };
+use common::messages::raw::LiquidityLayerPayload;
 use wormhole_cctp_solana::wormhole::core_bridge_program::sdk::EmitterInfo;
+use wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 use wormhole_cctp_solana::{
     cctp::{message_transmitter_program, token_messenger_minter_program},
     wormhole::core_bridge_program,
 };
-
-pub fn verify_router_path(
-    from_router_endpoint: &RouterEndpoint,
-    to_router_endpoint: &RouterEndpoint,
-    emitter_info: &EmitterInfo,
-    target_chain: u16,
-) -> Result<()> {
-    require!(
-        from_router_endpoint.chain == emitter_info.chain
-            && from_router_endpoint.address == emitter_info.address,
-        MatchingEngineError::InvalidEndpoint
-    );
-    require!(
-        to_router_endpoint.chain == target_chain && to_router_endpoint.address != [0u8; 32],
-        MatchingEngineError::InvalidEndpoint
-    );
-
-    Ok(())
-}
 
 pub struct CctpAccounts<'ctx, 'info> {
     payer: &'ctx Signer<'info>,
@@ -65,6 +48,167 @@ pub struct CctpAccounts<'ctx, 'info> {
     system_program: &'ctx Program<'info, System>,
     clock: &'ctx AccountInfo<'info>,
     rent: &'ctx AccountInfo<'info>,
+}
+
+pub struct ExecuteFastOrderAccounts<'ctx, 'info> {
+    custodian: &'ctx Account<'info, Custodian>,
+    vaa: &'ctx AccountInfo<'info>,
+    auction_data: &'ctx mut Box<Account<'info, AuctionData>>,
+    custody_token: &'ctx AccountInfo<'info>,
+    executor_token: &'ctx Account<'info, token::TokenAccount>,
+    best_offer_token: &'ctx AccountInfo<'info>,
+    initial_offer_token: &'ctx AccountInfo<'info>,
+    token_program: &'ctx Program<'info, token::Token>,
+}
+
+pub struct ReturnArgs {
+    pub transfer_amount: u64,
+    pub cctp_destination_domain: u32,
+    pub fill: common::messages::Fill,
+}
+
+pub fn handle_fast_order_execution(accounts: ExecuteFastOrderAccounts) -> Result<ReturnArgs> {
+    let slots_elapsed = Clock::get()?.slot - accounts.auction_data.start_slot;
+    let auction_config = &accounts.custodian.auction_config;
+    require!(
+        slots_elapsed > auction_config.auction_duration.into(),
+        MatchingEngineError::AuctionPeriodNotExpired
+    );
+
+    // Create zero copy reference to `FastMarketOrder` payload.
+    let vaa = VaaAccount::load(accounts.vaa)?;
+    let msg = LiquidityLayerPayload::try_from(vaa.try_payload()?)
+        .map_err(|_| MatchingEngineError::InvalidVaa)?
+        .message();
+    let fast_order = msg
+        .fast_market_order()
+        .ok_or(MatchingEngineError::NotFastMarketOrder)?;
+    let auction_data = accounts.auction_data;
+
+    // Save the custodian seeds to sign transfers with.
+    let custodian_seeds = &[Custodian::SEED_PREFIX, &[accounts.custodian.bump]];
+
+    // We need to save the reward for the user so we include it when sending the CCTP transfer.
+    let mut user_reward: u64 = 0;
+
+    if slots_elapsed > u64::try_from(auction_config.auction_grace_period).unwrap() {
+        let (penalty, reward) = accounts
+            .custodian
+            .calculate_dynamic_penalty(auction_data.security_deposit, slots_elapsed)
+            .ok_or(MatchingEngineError::PenaltyCalculationFailed)?;
+
+        // Save user reward for CCTP transfer.
+        user_reward = reward;
+
+        // If caller passes in the same token account, only perform one transfer.
+        if accounts.best_offer_token.key() == accounts.executor_token.key() {
+            token::transfer(
+                CpiContext::new_with_signer(
+                    accounts.token_program.to_account_info(),
+                    anchor_spl::token::Transfer {
+                        from: accounts.custody_token.to_account_info(),
+                        to: accounts.best_offer_token.to_account_info(),
+                        authority: accounts.custodian.to_account_info(),
+                    },
+                    &[custodian_seeds],
+                ),
+                auction_data
+                    .offer_price
+                    .checked_add(auction_data.security_deposit)
+                    .unwrap()
+                    .checked_sub(reward)
+                    .unwrap(),
+            )?;
+        } else {
+            // Pay the liquidator the penalty.
+            if penalty > 0 {
+                token::transfer(
+                    CpiContext::new_with_signer(
+                        accounts.token_program.to_account_info(),
+                        anchor_spl::token::Transfer {
+                            from: accounts.custody_token.to_account_info(),
+                            to: accounts.executor_token.to_account_info(),
+                            authority: accounts.custodian.to_account_info(),
+                        },
+                        &[custodian_seeds],
+                    ),
+                    penalty,
+                )?;
+            }
+
+            token::transfer(
+                CpiContext::new_with_signer(
+                    accounts.token_program.to_account_info(),
+                    anchor_spl::token::Transfer {
+                        from: accounts.custody_token.to_account_info(),
+                        to: accounts.best_offer_token.to_account_info(),
+                        authority: accounts.custodian.to_account_info(),
+                    },
+                    &[custodian_seeds],
+                ),
+                auction_data
+                    .offer_price
+                    .checked_add(auction_data.security_deposit)
+                    .unwrap()
+                    .checked_sub(reward)
+                    .unwrap()
+                    .checked_sub(penalty)
+                    .unwrap(),
+            )?;
+        }
+    } else {
+        // Return the security deposit and the fee to the highest bidder.
+        token::transfer(
+            CpiContext::new_with_signer(
+                accounts.token_program.to_account_info(),
+                anchor_spl::token::Transfer {
+                    from: accounts.custody_token.to_account_info(),
+                    to: accounts.best_offer_token.to_account_info(),
+                    authority: accounts.custodian.to_account_info(),
+                },
+                &[custodian_seeds],
+            ),
+            auction_data
+                .offer_price
+                .checked_add(auction_data.security_deposit)
+                .unwrap(),
+        )?;
+    }
+
+    // Pay the auction initiator their fee.
+    token::transfer(
+        CpiContext::new_with_signer(
+            accounts.token_program.to_account_info(),
+            anchor_spl::token::Transfer {
+                from: accounts.custody_token.to_account_info(),
+                to: accounts.initial_offer_token.to_account_info(),
+                authority: accounts.custodian.to_account_info(),
+            },
+            &[&custodian_seeds[..]],
+        ),
+        u64::try_from(fast_order.init_auction_fee()).unwrap(),
+    )?;
+
+    // Set the auction status to completed.
+    auction_data.status = AuctionStatus::Completed;
+
+    Ok(ReturnArgs {
+        transfer_amount: auction_data
+            .amount
+            .checked_sub(auction_data.offer_price)
+            .unwrap()
+            .checked_sub(u64::try_from(fast_order.init_auction_fee()).unwrap())
+            .unwrap()
+            .checked_add(user_reward)
+            .unwrap(),
+        cctp_destination_domain: fast_order.destination_cctp_domain(),
+        fill: common::messages::Fill {
+            source_chain: vaa.try_emitter_chain()?,
+            order_sender: fast_order.sender(),
+            redeemer: fast_order.redeemer(),
+            redeemer_message: <&[u8]>::from(fast_order.redeemer_message()).to_vec().into(),
+        },
+    })
 }
 
 pub fn send_cctp(
@@ -136,6 +280,25 @@ pub fn send_cctp(
             payload,
         },
     )?;
+
+    Ok(())
+}
+
+pub fn verify_router_path(
+    from_router_endpoint: &RouterEndpoint,
+    to_router_endpoint: &RouterEndpoint,
+    emitter_info: &EmitterInfo,
+    target_chain: u16,
+) -> Result<()> {
+    require!(
+        from_router_endpoint.chain == emitter_info.chain
+            && from_router_endpoint.address == emitter_info.address,
+        MatchingEngineError::InvalidEndpoint
+    );
+    require!(
+        to_router_endpoint.chain == target_chain && to_router_endpoint.address != [0u8; 32],
+        MatchingEngineError::InvalidEndpoint
+    );
 
     Ok(())
 }

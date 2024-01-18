@@ -1,12 +1,12 @@
 use crate::{
     error::MatchingEngineError,
-    send_cctp,
+    handle_fast_order_execution, send_cctp,
     state::{AuctionData, AuctionStatus, Custodian, PayerSequence, RouterEndpoint},
-    CctpAccounts,
+    CctpAccounts, ExecuteFastOrderAccounts,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{messages::raw::LiquidityLayerPayload, wormhole_io::TypePrefixedPayload};
+use common::wormhole_io::TypePrefixedPayload;
 use wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 use wormhole_cctp_solana::{
     cctp::{message_transmitter_program, token_messenger_minter_program},
@@ -56,6 +56,9 @@ pub struct ExecuteFastOrder<'info> {
             to_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
+        constraint = {
+            to_router_endpoint.chain != core_bridge_program::SOLANA_CHAIN
+        } @ MatchingEngineError::InvalidChain
     )]
     to_router_endpoint: Account<'info, RouterEndpoint>,
 
@@ -170,113 +173,16 @@ pub struct ExecuteFastOrder<'info> {
 }
 
 pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
-    let slots_elapsed = Clock::get()?.slot - ctx.accounts.auction_data.start_slot;
-    let auction_config = &ctx.accounts.custodian.auction_config;
-    require!(
-        slots_elapsed > auction_config.auction_duration.into(),
-        MatchingEngineError::AuctionPeriodNotExpired
-    );
-
-    // Create zero copy reference to `FastMarketOrder` payload.
-    let vaa = VaaAccount::load(&ctx.accounts.vaa)?;
-    let msg = LiquidityLayerPayload::try_from(vaa.try_payload()?)
-        .map_err(|_| MatchingEngineError::InvalidVaa)?
-        .message();
-    let fast_order = msg
-        .fast_market_order()
-        .ok_or(MatchingEngineError::NotFastMarketOrder)?;
-    let auction_data = &mut ctx.accounts.auction_data;
-
-    // Save the custodian seeds to sign transfers with.
-    let custodian_seeds = &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]];
-
-    // We need to save the reward for the user so we include it when sending the CCTP transfer.
-    let mut user_reward: u64 = 0;
-
-    if slots_elapsed > u64::try_from(auction_config.auction_grace_period).unwrap() {
-        let (penalty, reward) = ctx
-            .accounts
-            .custodian
-            .calculate_dynamic_penalty(auction_data.security_deposit, slots_elapsed)
-            .ok_or(MatchingEngineError::PenaltyCalculationFailed)?;
-
-        // Save user reward for CCTP transfer.
-        user_reward = reward;
-
-        // If caller passes in the same token account, only perform one transfer.
-        if ctx.accounts.best_offer_token.key() == ctx.accounts.executor_token.key() {
-            token::transfer(
-                CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    anchor_spl::token::Transfer {
-                        from: ctx.accounts.custody_token.to_account_info(),
-                        to: ctx.accounts.best_offer_token.to_account_info(),
-                        authority: ctx.accounts.custodian.to_account_info(),
-                    },
-                    &[custodian_seeds],
-                ),
-                auction_data
-                    .offer_price
-                    .checked_add(auction_data.security_deposit)
-                    .unwrap()
-                    .checked_sub(reward)
-                    .unwrap(),
-            )?;
-        } else {
-            // Pay the liquidator the penalty.
-            if penalty > 0 {
-                token::transfer(
-                    CpiContext::new_with_signer(
-                        ctx.accounts.token_program.to_account_info(),
-                        anchor_spl::token::Transfer {
-                            from: ctx.accounts.custody_token.to_account_info(),
-                            to: ctx.accounts.executor_token.to_account_info(),
-                            authority: ctx.accounts.custodian.to_account_info(),
-                        },
-                        &[custodian_seeds],
-                    ),
-                    penalty,
-                )?;
-            }
-
-            token::transfer(
-                CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    anchor_spl::token::Transfer {
-                        from: ctx.accounts.custody_token.to_account_info(),
-                        to: ctx.accounts.best_offer_token.to_account_info(),
-                        authority: ctx.accounts.custodian.to_account_info(),
-                    },
-                    &[custodian_seeds],
-                ),
-                auction_data
-                    .offer_price
-                    .checked_add(auction_data.security_deposit)
-                    .unwrap()
-                    .checked_sub(reward)
-                    .unwrap()
-                    .checked_sub(penalty)
-                    .unwrap(),
-            )?;
-        }
-    } else {
-        // Return the security deposit and the fee to the highest bidder.
-        token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                anchor_spl::token::Transfer {
-                    from: ctx.accounts.custody_token.to_account_info(),
-                    to: ctx.accounts.best_offer_token.to_account_info(),
-                    authority: ctx.accounts.custodian.to_account_info(),
-                },
-                &[custodian_seeds],
-            ),
-            auction_data
-                .offer_price
-                .checked_add(auction_data.security_deposit)
-                .unwrap(),
-        )?;
-    }
+    let cctp_args = handle_fast_order_execution(ExecuteFastOrderAccounts {
+        custodian: &ctx.accounts.custodian,
+        vaa: &ctx.accounts.vaa,
+        auction_data: &mut ctx.accounts.auction_data,
+        custody_token: &ctx.accounts.custody_token,
+        executor_token: &ctx.accounts.executor_token,
+        best_offer_token: &ctx.accounts.best_offer_token,
+        initial_offer_token: &ctx.accounts.initial_offer_token,
+        token_program: &ctx.accounts.token_program,
+    })?;
 
     // Send the CCTP message to the destination chain.
     send_cctp(
@@ -307,41 +213,11 @@ pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
             clock: &ctx.accounts.clock,
             rent: &ctx.accounts.rent,
         },
-        auction_data
-            .amount
-            .checked_sub(auction_data.offer_price)
-            .unwrap()
-            .checked_sub(u64::try_from(fast_order.init_auction_fee()).unwrap())
-            .unwrap()
-            .checked_add(user_reward)
-            .unwrap(),
-        fast_order.destination_cctp_domain(),
-        common::messages::Fill {
-            source_chain: vaa.try_emitter_chain()?,
-            order_sender: fast_order.sender(),
-            redeemer: fast_order.redeemer(),
-            redeemer_message: <&[u8]>::from(fast_order.redeemer_message()).to_vec().into(),
-        }
-        .to_vec_payload(),
+        cctp_args.transfer_amount,
+        cctp_args.cctp_destination_domain,
+        cctp_args.fill.to_vec_payload(),
         ctx.bumps["core_message"],
     )?;
-
-    // Pay the auction initiator their fee.
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token::Transfer {
-                from: ctx.accounts.custody_token.to_account_info(),
-                to: ctx.accounts.initial_offer_token.to_account_info(),
-                authority: ctx.accounts.custodian.to_account_info(),
-            },
-            &[&custodian_seeds[..]],
-        ),
-        u64::try_from(fast_order.init_auction_fee()).unwrap(),
-    )?;
-
-    // Set the auction status to completed.
-    auction_data.status = AuctionStatus::Completed;
 
     Ok(())
 }
