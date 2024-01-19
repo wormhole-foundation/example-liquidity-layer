@@ -25,6 +25,7 @@ import {
     getInitialOfferTokenAccount,
     getTokenBalance,
     postFastTransferVaa,
+    postVaaWithMessage,
     skip_slots,
     verifyFastFillMessage,
     verifyFillMessage,
@@ -710,7 +711,7 @@ describe("Matching Engine", function () {
             refundAddress: Buffer.alloc(32, "beef", "hex"),
             slowSequence: 0n,
             slowEmitter: Buffer.alloc(32, "dead", "hex"),
-            maxFee: 10000n,
+            maxFee: 1000000n,
             initAuctionFee: 100n,
             deadline: 0,
             redeemerMessage: Buffer.from("All your base are belong to us."),
@@ -786,7 +787,77 @@ describe("Matching Engine", function () {
         });
 
         describe("Place Initial Offer", function () {
-            it("Place Initial Offer", async function () {
+            for (const offerPrice of [0n, baseFastOrder.maxFee / 2n, baseFastOrder.maxFee]) {
+                it(`Place Initial Offer (Price == ${offerPrice})`, async function () {
+                    // Fetch the balances before.
+                    const offerBalanceBefore = await getTokenBalance(
+                        connection,
+                        offerAuthorityOne.publicKey
+                    );
+                    const custodyBefore = (
+                        await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                    ).amount;
+
+                    const [, signedVaa] = await placeInitialOfferForTest(
+                        connection,
+                        offerAuthorityOne,
+                        wormholeSequence++,
+                        baseFastOrder,
+                        ethRouter,
+                        engine,
+                        {
+                            feeOffer: offerPrice,
+                            fromChain: ethChain,
+                            toChain: arbChain,
+                        }
+                    );
+
+                    // Validate balance changes.
+                    const offerBalanceAfter = await getTokenBalance(
+                        connection,
+                        offerAuthorityOne.publicKey
+                    );
+                    const custodyAfter = (
+                        await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                    ).amount;
+
+                    expect(offerBalanceAfter).equals(
+                        offerBalanceBefore - baseFastOrder.maxFee - baseFastOrder.amountIn
+                    );
+                    expect(custodyAfter).equals(
+                        custodyBefore + baseFastOrder.maxFee + baseFastOrder.amountIn
+                    );
+
+                    // Confirm the auction data.
+                    const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                    const auctionData = await engine.fetchAuctionData(vaaHash);
+                    const slot = await connection.getSlot();
+                    const offerToken = await splToken.getAssociatedTokenAddressSync(
+                        USDC_MINT_ADDRESS,
+                        offerAuthorityOne.publicKey
+                    );
+
+                    expect(auctionData.vaaHash).to.eql(Array.from(vaaHash));
+                    expect(auctionData.status).to.eql({ active: {} });
+                    expect(auctionData.bestOfferToken).to.eql(offerToken);
+                    expect(auctionData.initialOfferToken).to.eql(offerToken);
+                    expect(auctionData.startSlot.toString()).to.eql(slot.toString());
+                    expect(auctionData.amount.toString()).to.eql(baseFastOrder.amountIn.toString());
+                    expect(auctionData.securityDeposit.toString()).to.eql(
+                        baseFastOrder.maxFee.toString()
+                    );
+                    expect(auctionData.offerPrice.toString()).to.eql(offerPrice.toString());
+                });
+            }
+
+            it(`Place Initial Offer (Offer Price == ${
+                baseFastOrder.amountIn - 1n
+            })`, async function () {
+                const fastOrder = { ...baseFastOrder } as FastMarketOrder;
+
+                // Set the deadline to 10 slots from now.
+                fastOrder.maxFee = fastOrder.amountIn - 1n;
+
                 // Fetch the balances before.
                 const offerBalanceBefore = await getTokenBalance(
                     connection,
@@ -800,11 +871,11 @@ describe("Matching Engine", function () {
                     connection,
                     offerAuthorityOne,
                     wormholeSequence++,
-                    baseFastOrder,
+                    fastOrder,
                     ethRouter,
                     engine,
                     {
-                        feeOffer: baseFastOrder.maxFee,
+                        feeOffer: fastOrder.maxFee,
                         fromChain: ethChain,
                         toChain: arbChain,
                     }
@@ -820,11 +891,9 @@ describe("Matching Engine", function () {
                 ).amount;
 
                 expect(offerBalanceAfter).equals(
-                    offerBalanceBefore - baseFastOrder.maxFee - baseFastOrder.amountIn
+                    offerBalanceBefore - fastOrder.maxFee - fastOrder.amountIn
                 );
-                expect(custodyAfter).equals(
-                    custodyBefore + baseFastOrder.maxFee + baseFastOrder.amountIn
-                );
+                expect(custodyAfter).equals(custodyBefore + fastOrder.maxFee + fastOrder.amountIn);
 
                 // Confirm the auction data.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
@@ -840,12 +909,145 @@ describe("Matching Engine", function () {
                 expect(auctionData.bestOfferToken).to.eql(offerToken);
                 expect(auctionData.initialOfferToken).to.eql(offerToken);
                 expect(auctionData.startSlot.toString()).to.eql(slot.toString());
-                expect(auctionData.amount.toString()).to.eql(baseFastOrder.amountIn.toString());
-                expect(auctionData.securityDeposit.toString()).to.eql(
-                    baseFastOrder.maxFee.toString()
-                );
-                expect(auctionData.offerPrice.toString()).to.eql(baseFastOrder.maxFee.toString());
+                expect(auctionData.amount.toString()).to.eql(fastOrder.amountIn.toString());
+                expect(auctionData.securityDeposit.toString()).to.eql(fastOrder.maxFee.toString());
+                expect(auctionData.offerPrice.toString()).to.eql(fastOrder.maxFee.toString());
             });
+
+            it(`Place Initial Offer (With Deadline)`, async function () {
+                const fastOrder = { ...baseFastOrder } as FastMarketOrder;
+
+                // Set the deadline to 10 slots from now.
+                const currTime = await connection.getBlockTime(await connection.getSlot());
+                if (currTime === null) {
+                    throw new Error("Failed to get current block time");
+                }
+                fastOrder.deadline = currTime + 10;
+
+                // Fetch the balances before.
+                const offerBalanceBefore = await getTokenBalance(
+                    connection,
+                    offerAuthorityOne.publicKey
+                );
+                const custodyBefore = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+
+                const [, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    fastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: fastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // Validate balance changes.
+                const offerBalanceAfter = await getTokenBalance(
+                    connection,
+                    offerAuthorityOne.publicKey
+                );
+                const custodyAfter = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+
+                expect(offerBalanceAfter).equals(
+                    offerBalanceBefore - fastOrder.maxFee - fastOrder.amountIn
+                );
+                expect(custodyAfter).equals(custodyBefore + fastOrder.maxFee + fastOrder.amountIn);
+
+                // Confirm the auction data.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const auctionData = await engine.fetchAuctionData(vaaHash);
+                const slot = await connection.getSlot();
+                const offerToken = await splToken.getAssociatedTokenAddressSync(
+                    USDC_MINT_ADDRESS,
+                    offerAuthorityOne.publicKey
+                );
+
+                expect(auctionData.vaaHash).to.eql(Array.from(vaaHash));
+                expect(auctionData.status).to.eql({ active: {} });
+                expect(auctionData.bestOfferToken).to.eql(offerToken);
+                expect(auctionData.initialOfferToken).to.eql(offerToken);
+                expect(auctionData.startSlot.toString()).to.eql(slot.toString());
+                expect(auctionData.amount.toString()).to.eql(fastOrder.amountIn.toString());
+                expect(auctionData.securityDeposit.toString()).to.eql(fastOrder.maxFee.toString());
+                expect(auctionData.offerPrice.toString()).to.eql(fastOrder.maxFee.toString());
+            });
+
+            it(`Cannot Place Initial Offer (Deadline Exceeded)`, async function () {
+                const fastOrder = { ...baseFastOrder } as FastMarketOrder;
+
+                // Set the deadline to the previous block timestamp.
+                const currTime = await connection.getBlockTime(await connection.getSlot());
+                if (currTime === null) {
+                    throw new Error("Failed to get current block time");
+                }
+                fastOrder.deadline = currTime + -1;
+
+                const [vaaKey, signedVaa] = await postFastTransferVaa(
+                    connection,
+                    offerAuthorityOne,
+                    MOCK_GUARDIANS,
+                    wormholeSequence++,
+                    fastOrder,
+                    "0x" + Buffer.from(ethRouter).toString("hex")
+                );
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.placeInitialOfferIx(
+                            fastOrder.maxFee,
+                            ethChain,
+                            arbChain,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                payer: offerAuthorityOne.publicKey,
+                                vaa: vaaKey,
+                                mint: USDC_MINT_ADDRESS,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "FastMarketOrderExpired"
+                );
+            });
+
+            // it(`Cannot Place Initial Offer (Invalid Payload)`, async function () {
+            //     const [vaaKey, signedVaa] = await postVaaWithMessage(
+            //         connection,
+            //         offerAuthorityOne,
+            //         MOCK_GUARDIANS,
+            //         wormholeSequence++,
+            //         Buffer.from("deadbeef", "hex"),
+            //         "0x" + Buffer.from(ethRouter).toString("hex")
+            //     );
+
+            //     await expectIxErr(
+            //         connection,
+            //         [
+            //             await engine.placeInitialOfferIx(
+            //                 baseFastOrder.maxFee,
+            //                 ethChain,
+            //                 arbChain,
+            //                 wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+            //                 {
+            //                     payer: offerAuthorityOne.publicKey,
+            //                     vaa: vaaKey,
+            //                     mint: USDC_MINT_ADDRESS,
+            //                 }
+            //             ),
+            //         ],
+            //         [offerAuthorityOne],
+            //         "NotFastMarketOrder"
+            //     );
+            // });
         });
 
         describe("Improve Offer", function () {

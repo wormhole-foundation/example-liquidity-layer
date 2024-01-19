@@ -128,12 +128,12 @@ export function decodeFastMarketOrder(buf: Buffer): FastMarketOrder {
     return order;
 }
 
-export async function postFastTransferVaa(
+export async function postVaaWithMessage(
     connection: Connection,
     payer: Keypair,
     guardians: MockGuardians,
     sequence: bigint,
-    fastMessage: FastMarketOrder,
+    payload: Buffer,
     emitterAddress: string
 ): Promise<[PublicKey, Buffer]> {
     const chainName = "ethereum";
@@ -145,7 +145,7 @@ export async function postFastTransferVaa(
 
     const published = foreignEmitter.publishMessage(
         0, // nonce,
-        encodeFastMarketOrder(fastMessage),
+        payload,
         200, // consistencyLevel
         12345678 // timestamp
     );
@@ -154,6 +154,24 @@ export async function postFastTransferVaa(
     await postVaa(connection, payer, vaaBuf);
 
     return [derivePostedVaaKey(WORMHOLE_CONTRACTS.solana.core, parseVaa(vaaBuf).hash), vaaBuf];
+}
+
+export async function postFastTransferVaa(
+    connection: Connection,
+    payer: Keypair,
+    guardians: MockGuardians,
+    sequence: bigint,
+    fastMessage: FastMarketOrder,
+    emitterAddress: string
+): Promise<[PublicKey, Buffer]> {
+    return postVaaWithMessage(
+        connection,
+        payer,
+        guardians,
+        sequence,
+        encodeFastMarketOrder(fastMessage),
+        emitterAddress
+    );
 }
 
 export async function getBestOfferTokenAccount(

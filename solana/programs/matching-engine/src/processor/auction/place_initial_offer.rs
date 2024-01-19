@@ -122,7 +122,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
                 authority: ctx.accounts.payer.to_account_info(),
             },
         ),
-        amount + fee_offer,
+        amount + max_fee,
     )?;
 
     // Set up the AuctionData account for this auction.
