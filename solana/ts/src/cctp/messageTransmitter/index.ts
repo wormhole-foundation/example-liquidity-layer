@@ -22,6 +22,7 @@ export type ReceiveMessageAccounts = {
     localToken: PublicKey;
     tokenPair: PublicKey;
     custodyToken: PublicKey;
+    messageTransmitterProgram: PublicKey;
     tokenProgram: PublicKey;
 };
 
@@ -130,6 +131,7 @@ export class MessageTransmitterProgram {
             localToken: tokenMessengerMinterProgram.localTokenAddress(mint),
             tokenPair: tokenMessengerMinterProgram.tokenPairAddress(sourceDomain, burnTokenAddress),
             custodyToken: tokenMessengerMinterProgram.custodyTokenAddress(mint),
+            messageTransmitterProgram: this.ID,
             tokenProgram: TOKEN_PROGRAM_ID,
         };
     }

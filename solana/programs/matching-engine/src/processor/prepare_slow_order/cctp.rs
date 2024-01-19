@@ -51,7 +51,7 @@ pub struct PrepareSlowOrderCctp<'info> {
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
     /// from its custody account to this account.
     ///
-    /// Mutable. Seeds must be \["custody"\].
+    /// CHECK: Mutable. Seeds must be \["custody"\].
     ///
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
@@ -59,7 +59,7 @@ pub struct PrepareSlowOrderCctp<'info> {
         seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
         bump = custodian.custody_token_bump,
     )]
-    custody_token: Account<'info, token::TokenAccount>,
+    custody_token: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
     message_transmitter_authority: UncheckedAccount<'info>,

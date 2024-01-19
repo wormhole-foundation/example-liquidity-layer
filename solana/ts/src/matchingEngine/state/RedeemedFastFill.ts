@@ -12,7 +12,10 @@ export class RedeemedFastFill {
         this.sequence = sequence;
     }
 
-    static address(programId: PublicKey, vaaHash: Buffer | Uint8Array) {
-        return PublicKey.findProgramAddressSync([Buffer.from("redeemed"), vaaHash], programId)[0];
+    static address(programId: PublicKey, vaaHash: Array<number> | Buffer | Uint8Array) {
+        return PublicKey.findProgramAddressSync(
+            [Buffer.from("redeemed"), Buffer.from(vaaHash)],
+            programId
+        )[0];
     }
 }

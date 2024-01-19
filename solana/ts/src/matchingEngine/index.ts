@@ -8,9 +8,10 @@ import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { AuctionConfig, Custodian, RouterEndpoint, PayerSequence, RedeemedFastFill } from "./state";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { AuctionData } from "./state/AuctionData";
-import { TokenMessengerMinterProgram } from "../cctp";
+import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
 import { VaaAccount } from "../wormhole";
+import { PreparedSlowOrder } from "./state/PreparedSlowOrder";
 
 export const PROGRAM_IDS = ["MatchingEngine11111111111111111111111111111"] as const;
 
@@ -36,6 +37,11 @@ export type RedeemFastFillAccounts = {
     custodyToken: PublicKey;
     matchingEngineProgram: PublicKey;
     tokenProgram: PublicKey;
+};
+
+export type CctpMessageArgs = {
+    encodedCctpMessage: Buffer;
+    cctpAttestation: Buffer;
 };
 
 export class MatchingEngineProgram {
@@ -78,11 +84,11 @@ export class MatchingEngineProgram {
         return this.program.account.routerEndpoint.fetch(addr);
     }
 
-    auctionDataAddress(vaaHash: Buffer | Uint8Array): PublicKey {
+    auctionDataAddress(vaaHash: Array<number> | Buffer | Uint8Array): PublicKey {
         return AuctionData.address(this.ID, vaaHash);
     }
 
-    async fetchAuctionData(vaaHash: Buffer | Uint8Array): Promise<AuctionData> {
+    async fetchAuctionData(vaaHash: Array<number> | Buffer | Uint8Array): Promise<AuctionData> {
         return this.program.account.auctionData.fetch(this.auctionDataAddress(vaaHash));
     }
 
@@ -103,12 +109,26 @@ export class MatchingEngineProgram {
         )[0];
     }
 
-    redeemedFastFillAddress(vaaHash: Buffer | Uint8Array): PublicKey {
+    redeemedFastFillAddress(vaaHash: Array<number> | Buffer | Uint8Array): PublicKey {
         return RedeemedFastFill.address(this.ID, vaaHash);
     }
 
     fetchRedeemedFastFill(addr: PublicKey): Promise<RedeemedFastFill> {
         return this.program.account.redeemedFastFill.fetch(addr);
+    }
+
+    preparedSlowOrderAddress(
+        payer: PublicKey,
+        fastVaaHash: Array<number> | Buffer | Uint8Array
+    ): PublicKey {
+        return PublicKey.findProgramAddressSync(
+            [Buffer.from("prepared"), payer.toBuffer(), Buffer.from(fastVaaHash)],
+            this.ID
+        )[0];
+    }
+
+    fetchPreparedSlowOrder(addr: PublicKey): Promise<PreparedSlowOrder> {
+        return this.program.account.preparedSlowOrder.fetch(addr);
     }
 
     async initializeIx(
@@ -303,7 +323,7 @@ export class MatchingEngineProgram {
         toChain: wormholeSdk.ChainId,
         vaaHash: Buffer,
         accounts: { payer: PublicKey; vaa: PublicKey; mint: PublicKey }
-    ) {
+    ): Promise<TransactionInstruction> {
         const { payer, vaa, mint } = accounts;
         return this.program.methods
             .placeInitialOffer(new BN(feeOffer.toString()))
@@ -324,7 +344,7 @@ export class MatchingEngineProgram {
         feeOffer: bigint,
         vaaHash: Buffer | Uint8Array,
         accounts: { offerAuthority: PublicKey; bestOfferToken: PublicKey }
-    ) {
+    ): Promise<TransactionInstruction> {
         const { offerAuthority, bestOfferToken } = accounts;
         const { mint } = await splToken.getAccount(
             this.program.provider.connection,
@@ -343,6 +363,58 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    async prepareSlowOrderCctpIx(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            finalizedVaa: PublicKey;
+            mint: PublicKey;
+        },
+        args: CctpMessageArgs
+    ): Promise<TransactionInstruction> {
+        const { payer, fastVaa, finalizedVaa, mint } = accounts;
+        const fastVaaAcct = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+        const { encodedCctpMessage } = args;
+        const {
+            authority: messageTransmitterAuthority,
+            messageTransmitterConfig,
+            usedNonces,
+            tokenMessengerMinterProgram,
+            tokenMessenger,
+            remoteTokenMessenger,
+            tokenMinter,
+            localToken,
+            tokenPair,
+            custodyToken: tokenMessengerMinterCustodyToken,
+            messageTransmitterProgram,
+            tokenProgram,
+        } = this.messageTransmitterProgram().receiveMessageAccounts(mint, encodedCctpMessage);
+
+        return this.program.methods
+            .prepareSlowOrderCctp(args)
+            .accounts({
+                payer,
+                custodian: this.custodianAddress(),
+                fastVaa,
+                finalizedVaa,
+                preparedSlowOrder: this.preparedSlowOrderAddress(payer, fastVaaAcct.digest()),
+                custodyToken: this.custodyTokenAccountAddress(),
+                messageTransmitterAuthority,
+                messageTransmitterConfig,
+                usedNonces,
+                tokenMessenger,
+                remoteTokenMessenger,
+                tokenMinter,
+                localToken,
+                tokenPair,
+                tokenMessengerMinterCustodyToken,
+                tokenMessengerMinterProgram,
+                messageTransmitterProgram,
+                tokenProgram,
+            })
+            .instruction();
+    }
+
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
         switch (this._programId) {
             case testnet(): {
@@ -355,6 +427,26 @@ export class MatchingEngineProgram {
                 return new TokenMessengerMinterProgram(
                     this.program.provider.connection,
                     "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
+                );
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
+    }
+
+    messageTransmitterProgram(): MessageTransmitterProgram {
+        switch (this._programId) {
+            case testnet(): {
+                return new MessageTransmitterProgram(
+                    this.program.provider.connection,
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
+                );
+            }
+            case mainnet(): {
+                return new MessageTransmitterProgram(
+                    this.program.provider.connection,
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
                 );
             }
             default: {

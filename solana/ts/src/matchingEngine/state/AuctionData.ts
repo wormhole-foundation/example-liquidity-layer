@@ -34,7 +34,10 @@ export class AuctionData {
         this.offerPrice = offer_price;
     }
 
-    static address(programId: PublicKey, vaaHash: Buffer | Uint8Array) {
-        return PublicKey.findProgramAddressSync([Buffer.from("auction"), vaaHash], programId)[0];
+    static address(programId: PublicKey, vaaHash: Array<number> | Buffer | Uint8Array) {
+        return PublicKey.findProgramAddressSync(
+            [Buffer.from("auction"), Buffer.from(vaaHash)],
+            programId
+        )[0];
     }
 }

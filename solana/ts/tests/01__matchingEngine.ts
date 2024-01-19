@@ -1,6 +1,13 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
-import { Connection, Keypair, PublicKey, SYSVAR_RENT_PUBKEY, SystemProgram } from "@solana/web3.js";
+import {
+    Connection,
+    Keypair,
+    PublicKey,
+    SYSVAR_RENT_PUBKEY,
+    SystemProgram,
+    TransactionInstruction,
+} from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import {
@@ -10,6 +17,8 @@ import {
     RouterEndpoint,
 } from "../src/matchingEngine";
 import {
+    CircleAttester,
+    ETHEREUM_USDC_ADDRESS,
     LOCALHOST,
     MOCK_GUARDIANS,
     OWNER_ASSISTANT_KEYPAIR,
@@ -17,6 +26,7 @@ import {
     USDC_MINT_ADDRESS,
     expectIxErr,
     expectIxOk,
+    postLiquidityLayerVaa,
 } from "./helpers";
 import {
     FastMarketOrder,
@@ -30,7 +40,13 @@ import {
     verifyFastFillMessage,
     verifyFillMessage,
 } from "./helpers/matching_engine_utils";
-import { FastFill, LiquidityLayerMessage } from "../src";
+import {
+    CctpTokenBurnMessage,
+    FastFill,
+    LiquidityLayerDeposit,
+    LiquidityLayerMessage,
+} from "../src";
+import { VaaAccount } from "../src/wormhole";
 
 chaiUse(chaiAsPromised);
 
@@ -763,7 +779,7 @@ describe("Matching Engine", function () {
 
                 // Mint USDC.
                 const mintAmount = 100000n * 100000000n;
-                const destination = await splToken.getAssociatedTokenAddressSync(
+                const destination = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     wallet.publicKey
                 );
@@ -830,7 +846,7 @@ describe("Matching Engine", function () {
                     const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                     const auctionData = await engine.fetchAuctionData(vaaHash);
                     const slot = await connection.getSlot();
-                    const offerToken = await splToken.getAssociatedTokenAddressSync(
+                    const offerToken = splToken.getAssociatedTokenAddressSync(
                         USDC_MINT_ADDRESS,
                         offerAuthorityOne.publicKey
                     );
@@ -897,7 +913,7 @@ describe("Matching Engine", function () {
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                 const auctionData = await engine.fetchAuctionData(vaaHash);
                 const slot = await connection.getSlot();
-                const offerToken = await splToken.getAssociatedTokenAddressSync(
+                const offerToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     offerAuthorityOne.publicKey
                 );
@@ -963,7 +979,7 @@ describe("Matching Engine", function () {
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                 const auctionData = await engine.fetchAuctionData(vaaHash);
                 const slot = await connection.getSlot();
-                const offerToken = await splToken.getAssociatedTokenAddressSync(
+                const offerToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     offerAuthorityOne.publicKey
                 );
@@ -1841,6 +1857,127 @@ describe("Matching Engine", function () {
                 );
             });
         });
+
+        describe("Prepare Slow Order", function () {
+            let testCctpNonce = 2n ** 64n - 1n;
+
+            // Hack to prevent math overflow error when invoking CCTP programs.
+            testCctpNonce -= 4n * 6400n;
+
+            const localVariables = new Map<string, any>();
+
+            // TODO: add negative tests
+
+            it("Prepare Slow Order", async function () {
+                const redeemer = Keypair.generate();
+
+                const sourceCctpDomain = 0;
+                const cctpNonce = testCctpNonce++;
+                const amountIn = 690000n; // 69 cents
+
+                // Concoct a Circle message.
+                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(engine, sourceCctpDomain, cctpNonce, amountIn);
+
+                const fastMessage = new LiquidityLayerMessage({
+                    fastMarketOrder: {
+                        amountIn,
+                        minAmountOut: 0n,
+                        targetChain: wormholeSdk.CHAIN_ID_SOLANA as number,
+                        destinationCctpDomain,
+                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                        sender: new Array(32).fill(0),
+                        refundAddress: new Array(32).fill(0),
+                        slowSequence: 0n, // TODO: will be removed
+                        slowEmitter: new Array(32).fill(0), // TODO: will be removed
+                        maxFee: 42069n,
+                        initAuctionFee: 2000n,
+                        deadline: 2,
+                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                    },
+                });
+
+                const finalizedMessage = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit(
+                        {
+                            tokenAddress: burnMessage.burnTokenAddress,
+                            amount: amountIn,
+                            sourceCctpDomain,
+                            destinationCctpDomain,
+                            cctpNonce,
+                            burnSource,
+                            mintRecipient: Array.from(
+                                engine.custodyTokenAccountAddress().toBuffer()
+                            ),
+                        },
+                        {
+                            slowOrderResponse: {
+                                baseFee: 420n,
+                            },
+                        }
+                    ),
+                });
+
+                const fastVaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    fastMessage
+                );
+                const finalizedVaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    finalizedMessage
+                );
+
+                const ix = await engine.prepareSlowOrderCctpIx(
+                    {
+                        payer: payer.publicKey,
+                        fastVaa,
+                        finalizedVaa,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    {
+                        encodedCctpMessage,
+                        cctpAttestation,
+                    }
+                );
+
+                await expectIxOk(connection, [ix], [payer]);
+
+                // TODO: validate prepared slow order
+                const fastVaaAcct = await VaaAccount.fetch(connection, fastVaa);
+                const preparedSlowOrder = engine.preparedSlowOrderAddress(
+                    payer.publicKey,
+                    fastVaaAcct.digest()
+                );
+
+                // Save for later.
+                localVariables.set("ix", ix);
+                localVariables.set("preparedSlowOrder", preparedSlowOrder);
+            });
+
+            it("Cannot Prepare Slow Order for Same VAAs", async function () {
+                const ix = localVariables.get("ix") as TransactionInstruction;
+                expect(localVariables.delete("ix")).is.true;
+
+                const preparedSlowOrder = localVariables.get("preparedSlowOrder") as PublicKey;
+                expect(localVariables.delete("preparedSlowOrder")).is.true;
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer],
+                    `Allocate: account Address { address: ${preparedSlowOrder.toString()}, base: None } already in use`
+                );
+            });
+        });
     });
 });
 
@@ -1886,4 +2023,53 @@ async function placeInitialOfferForTest(
     );
 
     return [vaaKey, signedVaa];
+}
+
+async function craftCctpTokenBurnMessage(
+    engine: MatchingEngineProgram,
+    sourceCctpDomain: number,
+    cctpNonce: bigint,
+    amount: bigint,
+    overrides: { destinationCctpDomain?: number } = {}
+) {
+    const { destinationCctpDomain: inputDestinationCctpDomain } = overrides;
+
+    const messageTransmitterProgram = engine.messageTransmitterProgram();
+    const { version, localDomain } = await messageTransmitterProgram.fetchMessageTransmitterConfig(
+        messageTransmitterProgram.messageTransmitterConfigAddress()
+    );
+    const destinationCctpDomain = inputDestinationCctpDomain ?? localDomain;
+
+    const tokenMessengerMinterProgram = engine.tokenMessengerMinterProgram();
+    const { tokenMessenger: sourceTokenMessenger } =
+        await tokenMessengerMinterProgram.fetchRemoteTokenMessenger(
+            tokenMessengerMinterProgram.remoteTokenMessengerAddress(sourceCctpDomain)
+        );
+
+    const burnMessage = new CctpTokenBurnMessage(
+        {
+            version,
+            sourceDomain: sourceCctpDomain,
+            destinationDomain: destinationCctpDomain,
+            nonce: cctpNonce,
+            sender: sourceTokenMessenger,
+            recipient: Array.from(tokenMessengerMinterProgram.ID.toBuffer()), // targetTokenMessenger
+            targetCaller: Array.from(engine.custodianAddress().toBuffer()), // targetCaller
+        },
+        0,
+        Array.from(wormholeSdk.tryNativeToUint8Array(ETHEREUM_USDC_ADDRESS, "ethereum")), // sourceTokenAddress
+        Array.from(engine.custodyTokenAccountAddress().toBuffer()), // mint recipient
+        amount,
+        new Array(32).fill(0) // burnSource
+    );
+
+    const encodedCctpMessage = burnMessage.encode();
+    const cctpAttestation = new CircleAttester().createAttestation(encodedCctpMessage);
+
+    return {
+        destinationCctpDomain,
+        burnMessage,
+        encodedCctpMessage,
+        cctpAttestation,
+    };
 }
