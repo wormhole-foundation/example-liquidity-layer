@@ -219,6 +219,25 @@ describe("Matching Engine", function () {
                     "already in use"
                 );
             });
+
+            after("Transfer Lamports to Owner and Owner Assistant", async function () {
+                await expectIxOk(
+                    connection,
+                    [
+                        SystemProgram.transfer({
+                            fromPubkey: payer.publicKey,
+                            toPubkey: owner.publicKey,
+                            lamports: 1000000000,
+                        }),
+                        SystemProgram.transfer({
+                            fromPubkey: payer.publicKey,
+                            toPubkey: ownerAssistant.publicKey,
+                            lamports: 1000000000,
+                        }),
+                    ],
+                    [payer]
+                );
+            });
         });
 
         describe("Ownership Transfer Request", async function () {
@@ -473,47 +492,17 @@ describe("Matching Engine", function () {
         });
 
         describe("Add Router Endpoint", function () {
-            const createAddRouterEndpointIx = (opts?: {
-                sender?: PublicKey;
-                chain?: wormholeSdk.ChainId;
-                contractAddress?: Array<number>;
-            }) =>
-                engine.addRouterEndpointIx(
-                    {
-                        ownerOrAssistant: opts?.sender ?? owner.publicKey,
-                    },
+            it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
+                const ix = await engine.addRouterEndpointIx(
+                    { ownerOrAssistant: payer.publicKey },
                     {
                         chain: ethChain,
-                        address: opts?.contractAddress ?? ethRouter,
+                        address: ethRouter,
+                        mintRecipient: null,
                     }
                 );
 
-            before("Transfer Lamports to Owner and Owner Assistant", async function () {
-                await expectIxOk(
-                    connection,
-                    [
-                        SystemProgram.transfer({
-                            fromPubkey: payer.publicKey,
-                            toPubkey: owner.publicKey,
-                            lamports: 1000000000,
-                        }),
-                        SystemProgram.transfer({
-                            fromPubkey: payer.publicKey,
-                            toPubkey: ownerAssistant.publicKey,
-                            lamports: 1000000000,
-                        }),
-                    ],
-                    [payer]
-                );
-            });
-
-            it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
-                await expectIxErr(
-                    connection,
-                    [await createAddRouterEndpointIx({ sender: payer.publicKey })],
-                    [payer],
-                    "OwnerOrAssistantOnly"
-                );
+                await expectIxErr(connection, [ix], [payer], "OwnerOrAssistantOnly");
             });
 
             [wormholeSdk.CHAINS.unset, solanaChain].forEach((chain) =>
@@ -525,7 +514,7 @@ describe("Matching Engine", function () {
                         [
                             await engine.addRouterEndpointIx(
                                 { ownerOrAssistant: owner.publicKey },
-                                { chain, address: ethRouter }
+                                { chain, address: ethRouter, mintRecipient: null }
                             ),
                         ],
                         [owner],
@@ -535,62 +524,57 @@ describe("Matching Engine", function () {
             );
 
             it("Cannot Register Zero Address", async function () {
-                await expectIxErr(
-                    connection,
-                    [
-                        await createAddRouterEndpointIx({
-                            contractAddress: new Array(32).fill(0),
-                        }),
-                    ],
-                    [owner],
-                    "InvalidEndpoint"
+                const ix = await engine.addRouterEndpointIx(
+                    { ownerOrAssistant: owner.publicKey },
+                    {
+                        chain: ethChain,
+                        address: new Array(32).fill(0),
+                        mintRecipient: null,
+                    }
                 );
+
+                await expectIxErr(connection, [ix], [owner], "InvalidEndpoint");
             });
 
             it(`Add Router Endpoint as Owner Assistant`, async function () {
                 const contractAddress = Array.from(Buffer.alloc(32, "fbadc0de", "hex"));
-                await expectIxOk(
-                    connection,
-                    [
-                        await createAddRouterEndpointIx({
-                            sender: ownerAssistant.publicKey,
-                            contractAddress,
-                        }),
-                    ],
-                    [ownerAssistant]
+                const mintRecipient = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+                const ix = await engine.addRouterEndpointIx(
+                    { ownerOrAssistant: ownerAssistant.publicKey },
+                    {
+                        chain: ethChain,
+                        address: contractAddress,
+                        mintRecipient,
+                    }
                 );
+                await expectIxOk(connection, [ix], [ownerAssistant]);
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(
                     engine.routerEndpointAddress(ethChain)
                 );
-                const expectedRouterEndpointData = {
-                    bump: 255,
-                    chain: ethChain,
-                    address: contractAddress,
-                } as RouterEndpoint;
-                expect(routerEndpointData).to.eql(expectedRouterEndpointData);
+                expect(routerEndpointData).to.eql(
+                    new RouterEndpoint(255, ethChain, contractAddress, mintRecipient)
+                );
             });
 
             it(`Update Router Endpoint as Owner`, async function () {
-                await expectIxOk(
-                    connection,
-                    [
-                        await createAddRouterEndpointIx({
-                            contractAddress: ethRouter,
-                        }),
-                    ],
-                    [owner]
+                const ix = await engine.addRouterEndpointIx(
+                    { ownerOrAssistant: owner.publicKey },
+                    {
+                        chain: ethChain,
+                        address: ethRouter,
+                        mintRecipient: null,
+                    }
                 );
+
+                await expectIxOk(connection, [ix], [owner]);
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(
                     engine.routerEndpointAddress(ethChain)
                 );
-                const expectedRouterEndpointData = {
-                    bump: 255,
-                    chain: ethChain,
-                    address: ethRouter,
-                } as RouterEndpoint;
-                expect(routerEndpointData).to.eql(expectedRouterEndpointData);
+                expect(routerEndpointData).to.eql(
+                    new RouterEndpoint(255, ethChain, ethRouter, ethRouter)
+                );
             });
         });
 
@@ -626,12 +610,18 @@ describe("Matching Engine", function () {
                     [Buffer.from("emitter")],
                     SystemProgram.programId
                 );
-                const expectedRouterEndpointData = new RouterEndpoint(
-                    expectedEndpointBump,
-                    wormholeSdk.CHAIN_ID_SOLANA,
-                    Array.from(expectedAddress.toBuffer())
+                const [expectedMintRecipient] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("custody")],
+                    SystemProgram.programId
                 );
-                expect(routerEndpointData).to.eql(expectedRouterEndpointData);
+                expect(routerEndpointData).to.eql(
+                    new RouterEndpoint(
+                        expectedEndpointBump,
+                        wormholeSdk.CHAIN_ID_SOLANA,
+                        Array.from(expectedAddress.toBuffer()),
+                        Array.from(expectedMintRecipient.toBuffer())
+                    )
+                );
             });
 
             it("Update Local Router Endpoint using SPL Token Program", async function () {
@@ -649,12 +639,18 @@ describe("Matching Engine", function () {
                     [Buffer.from("emitter")],
                     splToken.TOKEN_PROGRAM_ID
                 );
-                const expectedRouterEndpointData = new RouterEndpoint(
-                    expectedEndpointBump,
-                    wormholeSdk.CHAIN_ID_SOLANA,
-                    Array.from(expectedAddress.toBuffer())
+                const [expectedMintRecipient] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("custody")],
+                    splToken.TOKEN_PROGRAM_ID
                 );
-                expect(routerEndpointData).to.eql(expectedRouterEndpointData);
+                expect(routerEndpointData).to.eql(
+                    new RouterEndpoint(
+                        expectedEndpointBump,
+                        wormholeSdk.CHAIN_ID_SOLANA,
+                        Array.from(expectedAddress.toBuffer()),
+                        Array.from(expectedMintRecipient.toBuffer())
+                    )
+                );
             });
         });
 
@@ -729,6 +725,7 @@ describe("Matching Engine", function () {
                         {
                             chain: arbChain,
                             address: arbRouter,
+                            mintRecipient: null,
                         }
                     ),
                 ],

@@ -270,7 +270,7 @@ pub fn execute_slow_order_no_auction_cctp(
             ],
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
-            burn_source: ctx.accounts.custody_token.key(),
+            burn_source: None,
             destination_caller: ctx.accounts.to_router_endpoint.address,
             destination_cctp_domain: order.destination_cctp_domain(),
             amount,

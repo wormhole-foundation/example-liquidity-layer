@@ -105,8 +105,9 @@ export type RedeemFastFillAccounts = {
 
 export type AddCctpRouterEndpointArgs = {
     chain: wormholeSdk.ChainId;
-    address: Array<number>;
     cctpDomain: number;
+    address: Array<number>;
+    mintRecipient: Array<number> | null;
 };
 
 export type RegisterContractArgs = {

@@ -19,6 +19,7 @@ export type ProgramId = (typeof PROGRAM_IDS)[number];
 export type AddRouterEndpointArgs = {
     chain: wormholeSdk.ChainId;
     address: Array<number>;
+    mintRecipient: Array<number> | null;
 };
 
 export type PublishMessageAccounts = {

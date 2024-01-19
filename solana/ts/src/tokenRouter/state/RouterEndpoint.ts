@@ -10,12 +10,20 @@ export class RouterEndpoint {
     bump: number;
     chain: number;
     address: Array<number>;
+    mintRecipient: Array<number>;
     protocol: MessageProtocol;
 
-    constructor(bump: number, chain: number, address: Array<number>, protocol: MessageProtocol) {
+    constructor(
+        bump: number,
+        chain: number,
+        address: Array<number>,
+        mintRecipient: Array<number>,
+        protocol: MessageProtocol
+    ) {
         this.bump = bump;
         this.chain = chain;
         this.address = address;
+        this.mintRecipient = mintRecipient;
         this.protocol = protocol;
     }
 

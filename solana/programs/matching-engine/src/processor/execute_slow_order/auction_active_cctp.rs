@@ -55,7 +55,7 @@ pub struct ExecuteSlowOrderAuctionActiveCctp<'info> {
         ],
         bump = prepared_slow_order.bump,
     )]
-    prepared_slow_order: Account<'info, PreparedSlowOrder>,
+    prepared_slow_order: Box<Account<'info, PreparedSlowOrder>>,
 
     /// There should be no account data here because an auction was never created.
     #[account(
@@ -114,7 +114,7 @@ pub struct ExecuteSlowOrderAuctionActiveCctp<'info> {
         ],
         bump = to_router_endpoint.bump,
     )]
-    to_router_endpoint: Account<'info, RouterEndpoint>,
+    to_router_endpoint: Box<Account<'info, RouterEndpoint>>,
 
     /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
     message_transmitter_authority: UncheckedAccount<'info>,
@@ -308,7 +308,7 @@ pub fn execute_slow_order_auction_active_cctp(
             ],
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
-            burn_source: ctx.accounts.custody_token.key(),
+            burn_source: None,
             destination_caller: ctx.accounts.to_router_endpoint.address,
             destination_cctp_domain: order.destination_cctp_domain(),
             amount: cctp_amount,

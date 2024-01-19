@@ -43,15 +43,22 @@ pub struct AddLocalRouterEndpoint<'info> {
 }
 
 pub fn add_local_router_endpoint(ctx: Context<AddLocalRouterEndpoint>) -> Result<()> {
+    let program_id = &ctx.accounts.token_router_program.key();
+
     // This PDA address is the router's emitter address, which is used to publish its Wormhole
     // messages.
-    let (emitter, _) =
-        Pubkey::find_program_address(&[b"emitter"], &ctx.accounts.token_router_program.key());
+    let (emitter, _) = Pubkey::find_program_address(&[b"emitter"], program_id);
 
     ctx.accounts.router_endpoint.set_inner(RouterEndpoint {
         bump: ctx.bumps["router_endpoint"],
         chain: SOLANA_CHAIN,
         address: emitter.to_bytes(),
+        mint_recipient: Pubkey::find_program_address(
+            &[common::constants::CUSTODY_TOKEN_SEED_PREFIX],
+            program_id,
+        )
+        .0
+        .to_bytes(),
     });
 
     // Done.

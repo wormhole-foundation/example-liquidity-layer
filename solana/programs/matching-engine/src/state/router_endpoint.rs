@@ -11,6 +11,10 @@ pub struct RouterEndpoint {
 
     /// Emitter address. Cannot be zero address.
     pub address: [u8; 32],
+
+    /// Future-proof field in case another network has token accounts to send assets to instead of
+    /// sending to the address directly.
+    pub mint_recipient: [u8; 32],
 }
 
 impl RouterEndpoint {

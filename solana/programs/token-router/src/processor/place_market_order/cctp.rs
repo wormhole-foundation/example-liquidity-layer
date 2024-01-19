@@ -277,11 +277,11 @@ fn handle_place_market_order_cctp(
             ],
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
-            burn_source: ctx.accounts.burn_source.key(),
+            burn_source: Some(ctx.accounts.burn_source.key()),
             destination_caller: ctx.accounts.router_endpoint.address,
             destination_cctp_domain,
             amount,
-            mint_recipient: ctx.accounts.router_endpoint.address,
+            mint_recipient: ctx.accounts.router_endpoint.mint_recipient,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
             payload: common::messages::Fill {
                 source_chain: wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,

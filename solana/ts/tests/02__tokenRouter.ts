@@ -342,6 +342,7 @@ describe("Token Router", function () {
                         chain: foreignChain,
                         address: foreignEndpointAddress,
                         cctpDomain: foreignCctpDomain,
+                        mintRecipient: null,
                     }
                 );
 
@@ -358,6 +359,7 @@ describe("Token Router", function () {
                             chain,
                             address: foreignEndpointAddress,
                             cctpDomain: foreignCctpDomain,
+                            mintRecipient: null,
                         }
                     );
 
@@ -379,6 +381,7 @@ describe("Token Router", function () {
                         chain: foreignChain,
                         address: new Array(32).fill(0),
                         cctpDomain: foreignCctpDomain,
+                        mintRecipient: null,
                     }
                 );
 
@@ -395,6 +398,7 @@ describe("Token Router", function () {
                         chain: foreignChain,
                         address: contractAddress,
                         cctpDomain: foreignCctpDomain,
+                        mintRecipient: null,
                     }
                 );
 
@@ -407,6 +411,7 @@ describe("Token Router", function () {
                     new RouterEndpoint(
                         expectedEndpointBump,
                         foreignChain,
+                        contractAddress,
                         contractAddress,
                         { cctp: { domain: foreignCctpDomain } } // protocol
                     )
@@ -422,6 +427,7 @@ describe("Token Router", function () {
                         chain: foreignChain,
                         address: foreignEndpointAddress,
                         cctpDomain: foreignCctpDomain,
+                        mintRecipient: null,
                     }
                 );
 
@@ -434,6 +440,7 @@ describe("Token Router", function () {
                     new RouterEndpoint(
                         expectedEndpointBump,
                         foreignChain,
+                        foreignEndpointAddress,
                         foreignEndpointAddress,
                         { cctp: { domain: foreignCctpDomain } } // protocol
                     )
@@ -1226,6 +1233,7 @@ describe("Token Router", function () {
                         chain: foreignChain,
                         address: foreignEndpointAddress,
                         cctpDomain: foreignCctpDomain,
+                        mintRecipient: null,
                     }
                 );
 

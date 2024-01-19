@@ -42,13 +42,18 @@ pub struct AddRouterEndpoint<'info> {
 pub struct AddRouterEndpointArgs {
     pub chain: u16,
     pub address: [u8; 32],
+    pub mint_recipient: Option<[u8; 32]>,
 }
 
 pub fn add_router_endpoint(
     ctx: Context<AddRouterEndpoint>,
     args: AddRouterEndpointArgs,
 ) -> Result<()> {
-    let AddRouterEndpointArgs { chain, address } = args;
+    let AddRouterEndpointArgs {
+        chain,
+        address,
+        mint_recipient,
+    } = args;
 
     require!(
         chain != 0 && chain != wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
@@ -61,6 +66,7 @@ pub fn add_router_endpoint(
         bump: ctx.bumps["router_endpoint"],
         chain,
         address,
+        mint_recipient: mint_recipient.unwrap_or(address),
     });
 
     // Done.

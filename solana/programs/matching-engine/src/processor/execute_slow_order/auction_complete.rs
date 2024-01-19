@@ -1,7 +1,6 @@
 use crate::state::{AuctionData, AuctionStatus, Custodian, PreparedSlowOrder};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use wormhole_cctp_solana::wormhole::core_bridge_program;
 
 #[derive(Accounts)]
 pub struct ExecuteSlowOrderAuctionComplete<'info> {
@@ -17,18 +16,13 @@ pub struct ExecuteSlowOrderAuctionComplete<'info> {
     )]
     custodian: Account<'info, Custodian>,
 
-    /// CHECK: Must be owned by the Wormhole Core Bridge program. This account will be read via
-    /// zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader.
-    #[account(owner = core_bridge_program::id())]
-    fast_vaa: AccountInfo<'info>,
-
     #[account(
         mut,
         close = payer,
         seeds = [
             PreparedSlowOrder::SEED_PREFIX,
             payer.key().as_ref(),
-            core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
+            prepared_slow_order.fast_vaa_hash.as_ref()
         ],
         bump = prepared_slow_order.bump,
     )]

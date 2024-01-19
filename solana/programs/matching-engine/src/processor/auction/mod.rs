@@ -273,7 +273,7 @@ pub fn send_cctp(
             ],
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
-            burn_source: accounts.custody_token.key(),
+            burn_source: None,
             destination_caller: accounts.to_router_endpoint.address,
             destination_cctp_domain,
             amount,

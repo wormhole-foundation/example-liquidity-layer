@@ -56,6 +56,7 @@ pub struct AddCctpRouterEndpointArgs {
     pub chain: u16,
     pub cctp_domain: u32,
     pub address: [u8; 32],
+    pub mint_recipient: Option<[u8; 32]>,
 }
 
 pub fn add_cctp_router_endpoint(
@@ -64,8 +65,9 @@ pub fn add_cctp_router_endpoint(
 ) -> Result<()> {
     let AddCctpRouterEndpointArgs {
         chain,
-        address,
         cctp_domain: domain,
+        address,
+        mint_recipient,
     } = args;
 
     require!(
@@ -79,6 +81,7 @@ pub fn add_cctp_router_endpoint(
         bump: ctx.bumps["router_endpoint"],
         chain,
         address,
+        mint_recipient: mint_recipient.unwrap_or(address),
         protocol: MessageProtocol::Cctp { domain },
     });
 
