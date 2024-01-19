@@ -75,7 +75,7 @@ pub struct RedeemCctpFill<'info> {
     message_transmitter_authority: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
-    message_transmitter_config: AccountInfo<'info>,
+    message_transmitter_config: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["used_nonces", remote_domain.to_string(),
     /// first_nonce.to_string()\] (CCTP Message Transmitter program).
@@ -101,11 +101,11 @@ pub struct RedeemCctpFill<'info> {
 
     /// CHECK: Seeds must be \["token_pair", remote_domain.to_string(), remote_token_address\] (CCTP
     /// Token Messenger Minter program).
-    token_pair: AccountInfo<'info>,
+    token_pair: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["custody", mint\] (CCTP Token Messenger Minter program).
     #[account(mut)]
-    token_messenger_minter_custody_token: AccountInfo<'info>,
+    token_messenger_minter_custody_token: UncheckedAccount<'info>,
 
     token_messenger_minter_program:
         Program<'info, token_messenger_minter_program::TokenMessengerMinter>,

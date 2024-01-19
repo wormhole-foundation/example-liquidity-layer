@@ -120,7 +120,7 @@ pub struct ExecuteSlowOrderAuctionActiveCctp<'info> {
     message_transmitter_authority: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
-    message_transmitter_config: AccountInfo<'info>,
+    message_transmitter_config: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["used_nonces", remote_domain.to_string(),
     /// first_nonce.to_string()\] (CCTP Message Transmitter program).
