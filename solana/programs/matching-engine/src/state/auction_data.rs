@@ -6,6 +6,7 @@ pub enum AuctionStatus {
     NotStarted,
     Active,
     Completed,
+    Settled { base_fee: u64, penalty: Option<u64> },
 }
 
 #[account]

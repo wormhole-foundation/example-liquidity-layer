@@ -1,7 +1,10 @@
 use std::io::Write;
 
-use crate::state::{
-    AuctionData, AuctionStatus, Custodian, PayerSequence, PreparedSlowOrder, RouterEndpoint,
+use crate::{
+    error::MatchingEngineError,
+    state::{
+        AuctionData, AuctionStatus, Custodian, PayerSequence, PreparedSlowOrder, RouterEndpoint,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -12,7 +15,7 @@ use wormhole_cctp_solana::{
 };
 
 #[derive(Accounts)]
-pub struct ExecuteSlowOrderNoAuctionCctp<'info> {
+pub struct ExecuteSlowOrderAuctionActiveCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
@@ -26,7 +29,7 @@ pub struct ExecuteSlowOrderNoAuctionCctp<'info> {
         ],
         bump,
     )]
-    payer_sequence: Box<Account<'info, PayerSequence>>,
+    payer_sequence: Account<'info, PayerSequence>,
 
     /// This program's Wormhole (Core Bridge) emitter authority.
     ///
@@ -34,7 +37,6 @@ pub struct ExecuteSlowOrderNoAuctionCctp<'info> {
     #[account(
         seeds = [Custodian::SEED_PREFIX],
         bump = custodian.bump,
-        has_one = fee_recipient, // TODO: add error
     )]
     custodian: Box<Account<'info, Custodian>>,
 
@@ -57,16 +59,28 @@ pub struct ExecuteSlowOrderNoAuctionCctp<'info> {
 
     /// There should be no account data here because an auction was never created.
     #[account(
-        init,
-        payer = payer,
-        space = 8 + AuctionData::INIT_SPACE,
+        mut,
         seeds = [
             AuctionData::SEED_PREFIX,
             prepared_slow_order.fast_vaa_hash.as_ref(),
         ],
-        bump
+        bump = auction_data.bump,
+        has_one = best_offer_token, // TODO: add error
+        constraint = auction_data.status == AuctionStatus::Active // TODO: add error
     )]
     auction_data: Box<Account<'info, AuctionData>>,
+
+    /// CHECK: Must equal the best offer token in the auction data account.
+    #[account(mut)]
+    best_offer_token: AccountInfo<'info>,
+
+    /// Destination token account, which the redeemer may not own. But because the redeemer is a
+    /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
+    /// to any account he chooses (this one).
+    ///
+    /// CHECK: This token account must already exist.
+    #[account(mut)]
+    liquidator_token: AccountInfo<'info>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -82,14 +96,6 @@ pub struct ExecuteSlowOrderNoAuctionCctp<'info> {
     )]
     custody_token: AccountInfo<'info>,
 
-    /// Destination token account, which the redeemer may not own. But because the redeemer is a
-    /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
-    /// to any account he chooses (this one).
-    ///
-    /// CHECK: This token account must already exist.
-    #[account(mut)]
-    fee_recipient: AccountInfo<'info>,
-
     /// Circle-supported mint.
     ///
     /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
@@ -104,21 +110,47 @@ pub struct ExecuteSlowOrderNoAuctionCctp<'info> {
     #[account(
         seeds = [
             RouterEndpoint::SEED_PREFIX,
-            from_router_endpoint.chain.to_be_bytes().as_ref(),
-        ],
-        bump = from_router_endpoint.bump,
-    )]
-    from_router_endpoint: Box<Account<'info, RouterEndpoint>>,
-
-    /// Seeds must be \["endpoint", chain.to_be_bytes()\].
-    #[account(
-        seeds = [
-            RouterEndpoint::SEED_PREFIX,
             to_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
     )]
-    to_router_endpoint: Box<Account<'info, RouterEndpoint>>,
+    to_router_endpoint: Account<'info, RouterEndpoint>,
+
+    /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
+    message_transmitter_authority: UncheckedAccount<'info>,
+
+    /// CHECK: Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
+    message_transmitter_config: AccountInfo<'info>,
+
+    /// CHECK: Mutable. Seeds must be \["used_nonces", remote_domain.to_string(),
+    /// first_nonce.to_string()\] (CCTP Message Transmitter program).
+    #[account(mut)]
+    used_nonces: UncheckedAccount<'info>,
+
+    /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
+    token_messenger: UncheckedAccount<'info>,
+
+    /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
+    /// Messenger Minter program).
+    remote_token_messenger: UncheckedAccount<'info>,
+
+    /// CHECK: Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
+    token_minter: UncheckedAccount<'info>,
+
+    /// Token Messenger Minter's Local Token account. This program uses the mint of this account to
+    /// validate the `mint_recipient` token account's mint.
+    ///
+    /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
+    #[account(mut)]
+    local_token: UncheckedAccount<'info>,
+
+    /// CHECK: Seeds must be \["token_pair", remote_domain.to_string(), remote_token_address\] (CCTP
+    /// Token Messenger Minter program).
+    token_pair: UncheckedAccount<'info>,
+
+    /// CHECK: Mutable. Seeds must be \["custody", mint\] (CCTP Token Messenger Minter program).
+    #[account(mut)]
+    token_messenger_minter_custody_token: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["Bridge"\] (Wormhole Core Bridge program).
     #[account(mut)]
@@ -147,26 +179,6 @@ pub struct ExecuteSlowOrderNoAuctionCctp<'info> {
     /// CHECK: Seeds must be \["sender_authority"\] (CCTP Token Messenger Minter program).
     token_messenger_minter_sender_authority: UncheckedAccount<'info>,
 
-    /// CHECK: Mutable. Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
-    #[account(mut)]
-    message_transmitter_config: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
-    token_messenger: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
-    /// Messenger Minter program).
-    remote_token_messenger: UncheckedAccount<'info>,
-
-    /// CHECK Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
-    token_minter: UncheckedAccount<'info>,
-
-    /// Local token account, which this program uses to validate the `mint` used to burn.
-    ///
-    /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
-    #[account(mut)]
-    local_token: UncheckedAccount<'info>,
-
     core_bridge_program: Program<'info, core_bridge_program::CoreBridge>,
     token_messenger_minter_program:
         Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
@@ -183,28 +195,54 @@ pub struct ExecuteSlowOrderNoAuctionCctp<'info> {
     rent: AccountInfo<'info>,
 }
 
-pub fn execute_slow_order_no_auction_cctp(
-    ctx: Context<ExecuteSlowOrderNoAuctionCctp>,
+pub fn execute_slow_order_auction_active_cctp(
+    ctx: Context<ExecuteSlowOrderAuctionActiveCctp>,
 ) -> Result<()> {
     let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa).unwrap();
     let order = LiquidityLayerMessage::try_from(fast_vaa.try_payload().unwrap())
         .unwrap()
         .to_fast_market_order_unchecked();
 
-    // NOTE: We need to verify the router path, since an auction was never created and this check is
-    // done in the `place_initial_offer` instruction.
-    crate::utils::verify_router_path(
-        &fast_vaa,
-        &ctx.accounts.from_router_endpoint,
-        &ctx.accounts.to_router_endpoint,
-        order.target_chain(),
-    )?;
-
     let custodian_seeds = &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]];
 
-    // TODO: encoding will change from u128 to u64
-    let base_fee = ctx.accounts.prepared_slow_order.base_fee;
-    let amount = u64::try_from(order.amount_in()).unwrap() - base_fee;
+    // This means the slow message beat the fast message. We need to refund the bidder and
+    // (potentially) take a penalty for not fulfilling their obligation. The `penalty` CAN be zero
+    // in this case, since the auction grace period might not have ended yet.
+    let (final_status, liquidator_amount, best_offer_amount, cctp_amount) = {
+        let auction = &ctx.accounts.auction_data;
+        let slots_elapsed = Clock::get().map(|clock| clock.slot - auction.start_slot)?;
+        let (penalty, reward) = ctx
+            .accounts
+            .custodian
+            .calculate_dynamic_penalty(auction.security_deposit, slots_elapsed)
+            .ok_or(MatchingEngineError::PenaltyCalculationFailed)?;
+
+        let base_fee = ctx.accounts.prepared_slow_order.base_fee;
+        (
+            AuctionStatus::Settled {
+                base_fee,
+                penalty: Some(penalty),
+            },
+            penalty + base_fee,
+            auction.amount + auction.security_deposit - penalty - reward,
+            auction.amount - base_fee + reward,
+        )
+    };
+
+    // Transfer to the best offer token what he deserves.
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            token::Transfer {
+                from: ctx.accounts.custody_token.to_account_info(),
+                to: ctx.accounts.best_offer_token.to_account_info(),
+                authority: ctx.accounts.custodian.to_account_info(),
+            },
+            &[custodian_seeds],
+        ),
+        best_offer_amount,
+    )?;
+
     let mut redeemer_message = Vec::with_capacity(order.redeemer_message_len().try_into().unwrap());
     redeemer_message.write_all(order.redeemer_message().into())?;
 
@@ -273,7 +311,7 @@ pub fn execute_slow_order_no_auction_cctp(
             burn_source: ctx.accounts.custody_token.key(),
             destination_caller: ctx.accounts.to_router_endpoint.address,
             destination_cctp_domain: order.destination_cctp_domain(),
-            amount,
+            amount: cctp_amount,
             // TODO: add mint recipient to the router endpoint account to future proof this?
             mint_recipient: ctx.accounts.to_router_endpoint.address,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
@@ -287,31 +325,21 @@ pub fn execute_slow_order_no_auction_cctp(
         },
     )?;
 
-    // This is a necessary security check. This will prevent a relayer from starting an auction with
-    // the fast transfer VAA, even though the slow relayer already delivered the slow VAA. Not
-    // setting this could lead to trapped funds (which would require an upgrade to fix).
-    //
-    // NOTE: We do not bother setting the other fields in this account. The existence of this
-    // accounts ensures the security defined in the previous paragraph.
-    ctx.accounts.auction_data.status = AuctionStatus::Settled {
-        base_fee,
-        penalty: None,
-    };
+    // Everyone's whole, set the auction as completed.
+    ctx.accounts.auction_data.status = final_status;
 
-    // Pay the `fee_recipient` the base fee. This ensures that the protocol relayer is paid for
-    // relaying slow VAAs that do not have an associated auction. This prevents the protocol relayer
-    // from any MEV attacks.
+    // Transfer the penalty amount to the caller. The caller also earns the base fee for relaying
+    // the slow VAA.
     token::transfer(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
                 from: ctx.accounts.custody_token.to_account_info(),
-                to: ctx.accounts.fee_recipient.to_account_info(),
+                to: ctx.accounts.liquidator_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
             &[custodian_seeds],
         ),
-        // TODO: encoding will change from u128 to u64
-        ctx.accounts.prepared_slow_order.base_fee,
+        liquidator_amount,
     )
 }

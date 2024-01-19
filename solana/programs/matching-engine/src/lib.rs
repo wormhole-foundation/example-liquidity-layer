@@ -30,18 +30,29 @@ pub mod matching_engine {
         processor::redeem_fast_fill(ctx)
     }
 
-    pub fn execute_slow_order_auction_completed(
-        ctx: Context<ExecuteSlowOrderAuctionCompleted>,
+    pub fn prepare_slow_order_cctp(
+        ctx: Context<PrepareSlowOrderCctp>,
         args: CctpMessageArgs,
     ) -> Result<()> {
-        processor::execute_slow_order_auction_completed(ctx, args)
+        processor::prepare_slow_order_cctp(ctx, args)
+    }
+
+    pub fn execute_slow_order_auction_complete(
+        ctx: Context<ExecuteSlowOrderAuctionComplete>,
+    ) -> Result<()> {
+        processor::execute_slow_order_auction_complete(ctx)
     }
 
     pub fn execute_slow_order_no_auction_cctp(
         ctx: Context<ExecuteSlowOrderNoAuctionCctp>,
-        args: CctpMessageArgs,
     ) -> Result<()> {
-        processor::execute_slow_order_no_auction_cctp(ctx, args)
+        processor::execute_slow_order_no_auction_cctp(ctx)
+    }
+
+    pub fn execute_slow_order_auction_active_cctp(
+        ctx: Context<ExecuteSlowOrderAuctionActiveCctp>,
+    ) -> Result<()> {
+        processor::execute_slow_order_auction_active_cctp(ctx)
     }
 
     /// This instruction is be used to generate your program's config.
