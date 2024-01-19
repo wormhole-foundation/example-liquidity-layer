@@ -30,6 +30,7 @@ import {
     verifyFastFillMessage,
     verifyFillMessage,
 } from "./helpers/matching_engine_utils";
+import { FastFill, LiquidityLayerMessage } from "../src";
 
 chaiUse(chaiAsPromised);
 
@@ -980,6 +981,77 @@ describe("Matching Engine", function () {
                 expect(auctionData.offerPrice.toString()).to.eql(fastOrder.maxFee.toString());
             });
 
+            it(`Cannot Place Initial Offer (Invalid VAA)`, async function () {
+                const [vaaKey, signedVaa] = await postVaaWithMessage(
+                    connection,
+                    offerAuthorityOne,
+                    MOCK_GUARDIANS,
+                    wormholeSequence++,
+                    Buffer.from("deadbeef", "hex"),
+                    "0x" + Buffer.from(ethRouter).toString("hex")
+                );
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.placeInitialOfferIx(
+                            baseFastOrder.maxFee,
+                            ethChain,
+                            arbChain,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                payer: offerAuthorityOne.publicKey,
+                                vaa: vaaKey,
+                                mint: USDC_MINT_ADDRESS,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "InvalidVaa"
+                );
+            });
+
+            it(`Cannot Place Initial Offer (Invalid Payload)`, async function () {
+                const fastFill = {
+                    fill: {
+                        sourceChain: ethChain,
+                        orderSender: Array.from(baseFastOrder.sender),
+                        redeemer: Array.from(baseFastOrder.redeemer),
+                        redeemerMessage: baseFastOrder.redeemerMessage,
+                    },
+                    amount: 1000n,
+                } as FastFill;
+                const payload = new LiquidityLayerMessage({ fastFill: fastFill }).encode();
+
+                const [vaaKey, signedVaa] = await postVaaWithMessage(
+                    connection,
+                    offerAuthorityOne,
+                    MOCK_GUARDIANS,
+                    wormholeSequence++,
+                    payload,
+                    "0x" + Buffer.from(ethRouter).toString("hex")
+                );
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.placeInitialOfferIx(
+                            baseFastOrder.maxFee,
+                            ethChain,
+                            arbChain,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                payer: offerAuthorityOne.publicKey,
+                                vaa: vaaKey,
+                                mint: USDC_MINT_ADDRESS,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "NotFastMarketOrder"
+                );
+            });
+
             it(`Cannot Place Initial Offer (Deadline Exceeded)`, async function () {
                 const fastOrder = { ...baseFastOrder } as FastMarketOrder;
 
@@ -1019,35 +1091,180 @@ describe("Matching Engine", function () {
                 );
             });
 
-            // it(`Cannot Place Initial Offer (Invalid Payload)`, async function () {
-            //     const [vaaKey, signedVaa] = await postVaaWithMessage(
-            //         connection,
-            //         offerAuthorityOne,
-            //         MOCK_GUARDIANS,
-            //         wormholeSequence++,
-            //         Buffer.from("deadbeef", "hex"),
-            //         "0x" + Buffer.from(ethRouter).toString("hex")
-            //     );
+            it(`Cannot Place Initial Offer (Offer Price Too High)`, async function () {
+                const feeOffer = baseFastOrder.maxFee + 1n;
 
-            //     await expectIxErr(
-            //         connection,
-            //         [
-            //             await engine.placeInitialOfferIx(
-            //                 baseFastOrder.maxFee,
-            //                 ethChain,
-            //                 arbChain,
-            //                 wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
-            //                 {
-            //                     payer: offerAuthorityOne.publicKey,
-            //                     vaa: vaaKey,
-            //                     mint: USDC_MINT_ADDRESS,
-            //                 }
-            //             ),
-            //         ],
-            //         [offerAuthorityOne],
-            //         "NotFastMarketOrder"
-            //     );
-            // });
+                const [vaaKey, signedVaa] = await postFastTransferVaa(
+                    connection,
+                    offerAuthorityOne,
+                    MOCK_GUARDIANS,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    "0x" + Buffer.from(ethRouter).toString("hex")
+                );
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.placeInitialOfferIx(
+                            feeOffer,
+                            ethChain,
+                            arbChain,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                payer: offerAuthorityOne.publicKey,
+                                vaa: vaaKey,
+                                mint: USDC_MINT_ADDRESS,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "OfferPriceTooHigh"
+                );
+            });
+
+            it(`Cannot Place Initial Offer (Invalid Emitter Chain)`, async function () {
+                const [vaaKey, signedVaa] = await postFastTransferVaa(
+                    connection,
+                    offerAuthorityOne,
+                    MOCK_GUARDIANS,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    "0x" + Buffer.from(ethRouter).toString("hex"),
+                    wormholeSdk.CHAINS.acala // Pass invalid emitter chain.
+                );
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.placeInitialOfferIx(
+                            baseFastOrder.maxFee,
+                            ethChain,
+                            arbChain,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                payer: offerAuthorityOne.publicKey,
+                                vaa: vaaKey,
+                                mint: USDC_MINT_ADDRESS,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "ErrInvalidSourceRouter"
+                );
+            });
+
+            it(`Cannot Place Initial Offer (Invalid Emitter Address)`, async function () {
+                const [vaaKey, signedVaa] = await postFastTransferVaa(
+                    connection,
+                    offerAuthorityOne,
+                    MOCK_GUARDIANS,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    "0x" + Buffer.from(arbRouter).toString("hex") // Pass arbRouter instead of ethRouter.
+                );
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.placeInitialOfferIx(
+                            baseFastOrder.maxFee,
+                            ethChain,
+                            arbChain,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                payer: offerAuthorityOne.publicKey,
+                                vaa: vaaKey,
+                                mint: USDC_MINT_ADDRESS,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "ErrInvalidSourceRouter"
+                );
+            });
+
+            it(`Cannot Place Initial Offer (Invalid Target Router Chain)`, async function () {
+                // Change the fast order chain Id.
+                const fastOrder = { ...baseFastOrder } as FastMarketOrder;
+                fastOrder.targetChain = wormholeSdk.CHAINS.acala;
+
+                const [vaaKey, signedVaa] = await postFastTransferVaa(
+                    connection,
+                    offerAuthorityOne,
+                    MOCK_GUARDIANS,
+                    wormholeSequence++,
+                    fastOrder,
+                    "0x" + Buffer.from(ethRouter).toString("hex")
+                );
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.placeInitialOfferIx(
+                            fastOrder.maxFee,
+                            ethChain,
+                            arbChain,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                payer: offerAuthorityOne.publicKey,
+                                vaa: vaaKey,
+                                mint: USDC_MINT_ADDRESS,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "ErrInvalidTargetRouter"
+                );
+            });
+
+            it(`Cannot Place Initial Offer Again`, async function () {
+                const [vaaKey, signedVaa] = await postFastTransferVaa(
+                    connection,
+                    offerAuthorityOne,
+                    MOCK_GUARDIANS,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    "0x" + Buffer.from(ethRouter).toString("hex")
+                );
+
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.placeInitialOfferIx(
+                            baseFastOrder.maxFee,
+                            ethChain,
+                            arbChain,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                payer: offerAuthorityOne.publicKey,
+                                vaa: vaaKey,
+                                mint: USDC_MINT_ADDRESS,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne]
+                );
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.placeInitialOfferIx(
+                            baseFastOrder.maxFee,
+                            ethChain,
+                            arbChain,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                payer: offerAuthorityOne.publicKey,
+                                vaa: vaaKey,
+                                mint: USDC_MINT_ADDRESS,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "already in use"
+                );
+            });
         });
 
         describe("Improve Offer", function () {

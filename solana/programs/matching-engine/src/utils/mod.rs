@@ -23,10 +23,6 @@ pub fn verify_router_path(
         expected_target_chain,
         MatchingEngineError::ErrInvalidTargetRouter
     );
-    require!(
-        target_endpoint.address != [0u8; 32],
-        MatchingEngineError::ErrInvalidTargetRouter
-    );
 
     Ok(())
 }

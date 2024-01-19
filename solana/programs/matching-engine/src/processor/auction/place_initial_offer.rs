@@ -30,6 +30,8 @@ pub struct PlaceInitialOffer<'info> {
     #[account(owner = core_bridge_program::id())]
     vaa: AccountInfo<'info>,
 
+    /// This account should only be created once, and should never be changed to
+    /// init_if_needed. Otherwise someone can game an existing auction.
     #[account(
         init,
         payer = payer,

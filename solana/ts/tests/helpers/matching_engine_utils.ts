@@ -1,4 +1,10 @@
-import { coalesceChainId, parseVaa, tryNativeToHexString } from "@certusone/wormhole-sdk";
+import {
+    CHAIN_ID_ETH,
+    ChainId,
+    coalesceChainId,
+    parseVaa,
+    tryNativeToHexString,
+} from "@certusone/wormhole-sdk";
 import { MockEmitter, MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
 import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
 import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
@@ -134,12 +140,16 @@ export async function postVaaWithMessage(
     guardians: MockGuardians,
     sequence: bigint,
     payload: Buffer,
-    emitterAddress: string
+    emitterAddress: string,
+    emitterChain?: ChainId
 ): Promise<[PublicKey, Buffer]> {
-    const chainName = "ethereum";
+    if (emitterChain === undefined) {
+        emitterChain = CHAIN_ID_ETH;
+    }
+
     const foreignEmitter = new MockEmitter(
-        tryNativeToHexString(emitterAddress, chainName),
-        coalesceChainId(chainName),
+        tryNativeToHexString(emitterAddress, emitterChain),
+        emitterChain,
         Number(sequence)
     );
 
@@ -162,7 +172,8 @@ export async function postFastTransferVaa(
     guardians: MockGuardians,
     sequence: bigint,
     fastMessage: FastMarketOrder,
-    emitterAddress: string
+    emitterAddress: string,
+    emitterChain?: ChainId
 ): Promise<[PublicKey, Buffer]> {
     return postVaaWithMessage(
         connection,
@@ -170,7 +181,8 @@ export async function postFastTransferVaa(
         guardians,
         sequence,
         encodeFastMarketOrder(fastMessage),
-        emitterAddress
+        emitterAddress,
+        emitterChain
     );
 }
 
