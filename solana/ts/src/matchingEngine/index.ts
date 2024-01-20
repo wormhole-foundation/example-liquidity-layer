@@ -131,6 +131,14 @@ export class MatchingEngineProgram {
         return this.program.account.preparedSlowOrder.fetch(addr);
     }
 
+    async getBestOfferTokenAccount(vaaHash: Buffer | Uint8Array): Promise<PublicKey> {
+        return (await this.fetchAuctionData(vaaHash)).bestOfferToken;
+    }
+
+    async getInitialOfferTokenAccount(vaaHash: Buffer): Promise<PublicKey> {
+        return (await this.fetchAuctionData(vaaHash)).bestOfferToken;
+    }
+
     async initializeIx(
         auctionConfig: AuctionConfig,
         accounts: {
@@ -343,9 +351,14 @@ export class MatchingEngineProgram {
     async improveOfferIx(
         feeOffer: bigint,
         vaaHash: Buffer | Uint8Array,
-        accounts: { offerAuthority: PublicKey; bestOfferToken: PublicKey }
-    ): Promise<TransactionInstruction> {
-        const { offerAuthority, bestOfferToken } = accounts;
+        accounts: { offerAuthority: PublicKey; bestOfferToken?: PublicKey }
+    ) {
+        let { offerAuthority, bestOfferToken } = accounts;
+
+        if (bestOfferToken === undefined) {
+            bestOfferToken = await this.getBestOfferTokenAccount(vaaHash);
+        }
+
         const { mint } = await splToken.getAccount(
             this.program.provider.connection,
             bestOfferToken
@@ -462,11 +475,19 @@ export class MatchingEngineProgram {
         accounts: {
             payer: PublicKey;
             vaa: PublicKey;
-            bestOfferToken: PublicKey;
-            initialOfferToken: PublicKey;
+            bestOfferToken?: PublicKey;
+            initialOfferToken?: PublicKey;
         }
     ) {
-        const { payer, vaa, bestOfferToken, initialOfferToken } = accounts;
+        let { payer, vaa, bestOfferToken, initialOfferToken } = accounts;
+
+        if (bestOfferToken === undefined) {
+            bestOfferToken = await this.getBestOfferTokenAccount(vaaHash);
+        }
+
+        if (initialOfferToken === undefined) {
+            initialOfferToken = await this.getInitialOfferTokenAccount(vaaHash);
+        }
         const { mint } = await splToken.getAccount(
             this.program.provider.connection,
             bestOfferToken
@@ -528,14 +549,23 @@ export class MatchingEngineProgram {
         accounts: {
             payer: PublicKey;
             vaa: PublicKey;
-            bestOfferToken: PublicKey;
-            initialOfferToken: PublicKey;
+            bestOfferToken?: PublicKey;
+            initialOfferToken?: PublicKey;
         }
     ) {
-        const { payer, vaa, bestOfferToken, initialOfferToken } = accounts;
+        let { payer, vaa, bestOfferToken, initialOfferToken } = accounts;
+
+        if (bestOfferToken === undefined) {
+            bestOfferToken = await this.getBestOfferTokenAccount(vaaHash);
+        }
+
+        if (initialOfferToken === undefined) {
+            initialOfferToken = await this.getInitialOfferTokenAccount(vaaHash);
+        }
+
         const { mint } = await splToken.getAccount(
             this.program.provider.connection,
-            bestOfferToken
+            bestOfferToken!
         );
 
         const custodian = this.custodianAddress();

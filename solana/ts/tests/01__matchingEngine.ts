@@ -1281,7 +1281,104 @@ describe("Matching Engine", function () {
         });
 
         describe("Improve Offer", function () {
-            it("Improve Offer with New Offer Authority", async function () {
+            for (const newOffer of [0n, baseFastOrder.maxFee / 2n, baseFastOrder.maxFee - 1n]) {
+                it(`Improve Offer (Price == ${newOffer})`, async function () {
+                    const [, signedVaa] = await placeInitialOfferForTest(
+                        connection,
+                        offerAuthorityOne,
+                        wormholeSequence++,
+                        baseFastOrder,
+                        ethRouter,
+                        engine,
+                        {
+                            feeOffer: baseFastOrder.maxFee,
+                            fromChain: ethChain,
+                            toChain: arbChain,
+                        }
+                    );
+
+                    const initialOfferBalanceBefore = await getTokenBalance(
+                        connection,
+                        offerAuthorityOne.publicKey
+                    );
+                    const newOfferBalanceBefore = await getTokenBalance(
+                        connection,
+                        offerAuthorityTwo.publicKey
+                    );
+                    const custodyBefore = (
+                        await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                    ).amount;
+
+                    // New Offer from offerAuthorityTwo.
+                    const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                    const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
+                    const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+
+                    await expectIxOk(
+                        connection,
+                        [
+                            await engine.improveOfferIx(
+                                newOffer,
+                                wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                                {
+                                    offerAuthority: offerAuthorityTwo.publicKey,
+                                    bestOfferToken,
+                                }
+                            ),
+                        ],
+                        [offerAuthorityTwo]
+                    );
+
+                    // Validate balance changes.
+                    const initialOfferBalanceAfter = await getTokenBalance(
+                        connection,
+                        offerAuthorityOne.publicKey
+                    );
+                    const newOfferBalanceAfter = await getTokenBalance(
+                        connection,
+                        offerAuthorityTwo.publicKey
+                    );
+                    const custodyAfter = (
+                        await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                    ).amount;
+
+                    expect(newOfferBalanceAfter).equals(
+                        newOfferBalanceBefore - baseFastOrder.maxFee - baseFastOrder.amountIn
+                    );
+                    expect(initialOfferBalanceAfter).equals(
+                        initialOfferBalanceBefore + baseFastOrder.maxFee + baseFastOrder.amountIn
+                    );
+                    expect(custodyAfter).equals(custodyBefore);
+
+                    // Confirm the auction data.
+                    const auctionDataAfter = await engine.fetchAuctionData(vaaHash);
+                    const newOfferToken = splToken.getAssociatedTokenAddressSync(
+                        USDC_MINT_ADDRESS,
+                        offerAuthorityTwo.publicKey
+                    );
+                    const initialOfferToken = splToken.getAssociatedTokenAddressSync(
+                        USDC_MINT_ADDRESS,
+                        offerAuthorityOne.publicKey
+                    );
+
+                    expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
+                    expect(auctionDataAfter.status).to.eql({ active: {} });
+                    expect(auctionDataAfter.bestOfferToken).to.eql(newOfferToken);
+                    expect(auctionDataAfter.initialOfferToken).to.eql(initialOfferToken);
+                    expect(auctionDataAfter.startSlot.toString()).to.eql(
+                        auctionDataBefore.startSlot.toString()
+                    );
+                    expect(auctionDataAfter.amount.toString()).to.eql(
+                        auctionDataBefore.amount.toString()
+                    );
+                    expect(auctionDataAfter.securityDeposit.toString()).to.eql(
+                        auctionDataBefore.securityDeposit.toString()
+                    );
+                    expect(auctionDataAfter.offerPrice.toString()).to.eql(newOffer.toString());
+                });
+            }
+
+            it(`Improve Offer With Highest Offer Account`, async function () {
                 const [, signedVaa] = await placeInitialOfferForTest(
                     connection,
                     offerAuthorityOne,
@@ -1300,17 +1397,13 @@ describe("Matching Engine", function () {
                     connection,
                     offerAuthorityOne.publicKey
                 );
-                const newOfferBalanceBefore = await getTokenBalance(
-                    connection,
-                    offerAuthorityTwo.publicKey
-                );
                 const custodyBefore = (
                     await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
                 ).amount;
 
-                // New Offer from offerAuthorityTwo.
-                const newOffer = baseFastOrder.maxFee - 100n;
+                // New Offer from offerAuthorityOne.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const newOffer = baseFastOrder.maxFee - 100n;
                 const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
                 const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
 
@@ -1321,41 +1414,28 @@ describe("Matching Engine", function () {
                             newOffer,
                             wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
                             {
-                                offerAuthority: offerAuthorityTwo.publicKey,
+                                offerAuthority: offerAuthorityOne.publicKey,
                                 bestOfferToken,
                             }
                         ),
                     ],
-                    [offerAuthorityTwo]
+                    [offerAuthorityOne]
                 );
 
-                // Validate balance changes.
+                // Validate balance changes (nothing should change).
                 const initialOfferBalanceAfter = await getTokenBalance(
                     connection,
                     offerAuthorityOne.publicKey
-                );
-                const newOfferBalanceAfter = await getTokenBalance(
-                    connection,
-                    offerAuthorityTwo.publicKey
                 );
                 const custodyAfter = (
                     await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
                 ).amount;
 
-                expect(newOfferBalanceAfter).equals(
-                    newOfferBalanceBefore - baseFastOrder.maxFee - baseFastOrder.amountIn
-                );
-                expect(initialOfferBalanceAfter).equals(
-                    initialOfferBalanceBefore + baseFastOrder.maxFee + baseFastOrder.amountIn
-                );
+                expect(initialOfferBalanceAfter).equals(initialOfferBalanceBefore);
                 expect(custodyAfter).equals(custodyBefore);
 
                 // Confirm the auction data.
                 const auctionDataAfter = await engine.fetchAuctionData(vaaHash);
-                const newOfferToken = splToken.getAssociatedTokenAddressSync(
-                    USDC_MINT_ADDRESS,
-                    offerAuthorityTwo.publicKey
-                );
                 const initialOfferToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     offerAuthorityOne.publicKey
@@ -1363,7 +1443,7 @@ describe("Matching Engine", function () {
 
                 expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
                 expect(auctionDataAfter.status).to.eql({ active: {} });
-                expect(auctionDataAfter.bestOfferToken).to.eql(newOfferToken);
+                expect(auctionDataAfter.bestOfferToken).to.eql(auctionDataAfter.bestOfferToken);
                 expect(auctionDataAfter.initialOfferToken).to.eql(initialOfferToken);
                 expect(auctionDataAfter.startSlot.toString()).to.eql(
                     auctionDataBefore.startSlot.toString()
@@ -1375,6 +1455,169 @@ describe("Matching Engine", function () {
                     auctionDataBefore.securityDeposit.toString()
                 );
                 expect(auctionDataAfter.offerPrice.toString()).to.eql(newOffer.toString());
+            });
+
+            it(`Cannot Improve Offer (Auction Expired)`, async function () {
+                const [, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // New Offer from offerAuthorityOne.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const newOffer = baseFastOrder.maxFee - 100n;
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+
+                await skip_slots(connection, 3);
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.improveOfferIx(
+                            newOffer,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                offerAuthority: offerAuthorityOne.publicKey,
+                                bestOfferToken,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "AuctionPeriodExpired"
+                );
+            });
+
+            it(`Cannot Improve Offer (Invalid Best Offer Token Account)`, async function () {
+                const [, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // New Offer from offerAuthorityOne.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const newOffer = baseFastOrder.maxFee - 100n;
+
+                // Pass the wrong address for the best offer token account.
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.improveOfferIx(
+                            newOffer,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                offerAuthority: offerAuthorityOne.publicKey,
+                                bestOfferToken: engine.custodyTokenAccountAddress(),
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "InvalidTokenAccount"
+                );
+            });
+
+            it(`Cannot Improve Offer (Auction Not Active)`, async function () {
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // New Offer from offerAuthorityOne.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const newOffer = baseFastOrder.maxFee - 100n;
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+
+                await skip_slots(connection, 3);
+
+                // Excute the fast order so that the auction status changes.
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                        }),
+                    ],
+                    [offerAuthorityOne]
+                );
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.improveOfferIx(
+                            newOffer,
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                offerAuthority: offerAuthorityOne.publicKey,
+                                bestOfferToken,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "AuctionNotActive"
+                );
+            });
+
+            it(`Cannot Improve Offer (Offer Price Not Improved)`, async function () {
+                const [, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // New Offer from offerAuthorityOne.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.improveOfferIx(
+                            baseFastOrder.maxFee, // Offer price not improved.
+                            wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash),
+                            {
+                                offerAuthority: offerAuthorityOne.publicKey,
+                                bestOfferToken,
+                            }
+                        ),
+                    ],
+                    [offerAuthorityOne],
+                    "OfferPriceNotImproved"
+                );
             });
         });
 
