@@ -3,20 +3,20 @@ import { PublicKey } from "@solana/web3.js";
 
 export class PreparedSlowOrder {
     bump: number;
-    payer: PublicKey;
+    preparedBy: PublicKey;
     fastVaaHash: Array<number>;
     sourceChain: number;
     baseFee: BN;
 
     constructor(
         bump: number,
-        payer: PublicKey,
+        preparedBy: PublicKey,
         fastVaaHash: Array<number>,
         sourceChain: number,
         baseFee: BN
     ) {
         this.bump = bump;
-        this.payer = payer;
+        this.preparedBy = preparedBy;
         this.fastVaaHash = fastVaaHash;
         this.sourceChain = sourceChain;
         this.baseFee = baseFee;

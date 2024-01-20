@@ -210,7 +210,7 @@ pub fn prepare_slow_order_cctp(
         .prepared_slow_order
         .set_inner(PreparedSlowOrder {
             bump: ctx.bumps["prepared_slow_order"],
-            payer: ctx.accounts.payer.key(),
+            prepared_by: ctx.accounts.payer.key(),
             fast_vaa_hash: fast_vaa.try_digest().unwrap().0,
             source_chain,
             base_fee: slow_order_response.base_fee().try_into().unwrap(),

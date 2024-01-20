@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 #[derive(Debug, InitSpace)]
 pub struct PreparedSlowOrder {
     pub bump: u8,
-    pub payer: Pubkey,
+    pub prepared_by: Pubkey,
     pub fast_vaa_hash: [u8; 32],
 
     pub source_chain: u16,

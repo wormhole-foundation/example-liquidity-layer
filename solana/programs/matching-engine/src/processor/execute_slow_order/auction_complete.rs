@@ -4,8 +4,9 @@ use anchor_spl::token;
 
 #[derive(Accounts)]
 pub struct ExecuteSlowOrderAuctionComplete<'info> {
+    /// CHECK: Must be the account that created the prepared slow order.
     #[account(mut)]
-    payer: Signer<'info>,
+    prepared_by: AccountInfo<'info>,
 
     /// This program's Wormhole (Core Bridge) emitter authority.
     ///
@@ -18,10 +19,10 @@ pub struct ExecuteSlowOrderAuctionComplete<'info> {
 
     #[account(
         mut,
-        close = payer,
+        close = prepared_by,
         seeds = [
             PreparedSlowOrder::SEED_PREFIX,
-            payer.key().as_ref(),
+            prepared_by.key().as_ref(),
             prepared_slow_order.fast_vaa_hash.as_ref()
         ],
         bump = prepared_slow_order.bump,

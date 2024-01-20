@@ -1952,10 +1952,12 @@ describe("Matching Engine", function () {
                 await expectIxOk(connection, [ix], [payer]);
 
                 // TODO: validate prepared slow order
-                const fastVaaAcct = await VaaAccount.fetch(connection, fastVaa);
+                const fastVaaHash = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
+                    vaa.digest()
+                );
                 const preparedSlowOrder = engine.preparedSlowOrderAddress(
                     payer.publicKey,
-                    fastVaaAcct.digest()
+                    fastVaaHash
                 );
 
                 // Save for later.
@@ -1963,7 +1965,7 @@ describe("Matching Engine", function () {
                 localVariables.set("preparedSlowOrder", preparedSlowOrder);
             });
 
-            it("Cannot Prepare Slow Order for Same VAAs", async function () {
+            it("Cannot Prepare Slow Order for Same VAAs with Same Payer", async function () {
                 const ix = localVariables.get("ix") as TransactionInstruction;
                 expect(localVariables.delete("ix")).is.true;
 

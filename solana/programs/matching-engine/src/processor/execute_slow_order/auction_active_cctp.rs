@@ -45,12 +45,16 @@ pub struct ExecuteSlowOrderAuctionActiveCctp<'info> {
     #[account(owner = core_bridge_program::id())]
     fast_vaa: AccountInfo<'info>,
 
+    /// CHECK: Must be the account that created the prepared slow order.
+    #[account(mut)]
+    prepared_by: AccountInfo<'info>,
+
     #[account(
         mut,
-        close = payer,
+        close = prepared_by,
         seeds = [
             PreparedSlowOrder::SEED_PREFIX,
-            payer.key().as_ref(),
+            prepared_by.key().as_ref(),
             core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
         ],
         bump = prepared_slow_order.bump,
