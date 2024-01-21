@@ -1894,9 +1894,9 @@ describe("Matching Engine", function () {
                 const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
 
                 // Fast forward into the grace period.
-                const txnSlot = await skip_slots(connection, 7);
+                await skip_slots(connection, 7);
                 const message = await engine.getCoreMessage(offerAuthorityOne.publicKey);
-                await expectIxOk(
+                const txnSignature = await expectIxOk(
                     connection,
                     [
                         await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
@@ -1908,6 +1908,9 @@ describe("Matching Engine", function () {
                     ],
                     [offerAuthorityOne]
                 );
+                const txnSlot = await connection.getSignatureStatus(txnSignature).then((status) => {
+                    return status.value!.slot;
+                });
 
                 // Compute the expected penalty and user reward.
                 const [, expectedReward] = await calculateDynamicPenalty(
@@ -1977,7 +1980,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Execute Fast Order After Grace Period (With Liquidator)", async function () {
+            it(`Execute Fast Order With Liquidator (Within Penalty Period)`, async function () {
                 const [vaaKey, signedVaa] = await placeInitialOfferForTest(
                     connection,
                     offerAuthorityOne,
@@ -2011,12 +2014,12 @@ describe("Matching Engine", function () {
                 );
                 const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
 
-                // Fast forward into the grace period.
-                const txnSlot = await skip_slots(connection, 10);
+                // Fast forward into tge penalty period.
+                await skip_slots(connection, 10);
 
                 // Execute the fast order with the liquidator (offerAuthorityTwo).
                 const message = await engine.getCoreMessage(offerAuthorityTwo.publicKey);
-                await expectIxOk(
+                const txnSignature = await expectIxOk(
                     connection,
                     [
                         await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
@@ -2028,6 +2031,9 @@ describe("Matching Engine", function () {
                     ],
                     [offerAuthorityTwo]
                 );
+                const txnSlot = await connection.getSignatureStatus(txnSignature).then((status) => {
+                    return status.value!.slot;
+                });
 
                 // Compute the expected penalty and user reward.
                 const [expectedPenalty, expectedReward] = await calculateDynamicPenalty(
@@ -2097,6 +2103,615 @@ describe("Matching Engine", function () {
                         redeemer: Array.from(baseFastOrder.redeemer),
                         redeemerMessage: baseFastOrder.redeemerMessage,
                     }
+                );
+            });
+
+            it(`Execute Fast Order With Liquidator (Post Penalty Period)`, async function () {
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                // Fetch the balances before.
+                const highestOfferBefore = await getTokenBalance(
+                    connection,
+                    offerAuthorityOne.publicKey
+                );
+                const custodyBefore = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+                const liquidatorBefore = await getTokenBalance(
+                    connection,
+                    offerAuthorityTwo.publicKey
+                );
+                const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
+
+                // Fast forward past the penalty period.
+                await skip_slots(connection, 15);
+
+                // Execute the fast order with the liquidator (offerAuthorityTwo).
+                const message = await engine.getCoreMessage(offerAuthorityTwo.publicKey);
+                const txnSignature = await expectIxOk(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                            payer: offerAuthorityTwo.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityTwo]
+                );
+                const txnSlot = await connection.getSignatureStatus(txnSignature).then((status) => {
+                    return status.value!.slot;
+                });
+
+                // Compute the expected penalty and user reward.
+                const [expectedPenalty, expectedReward] = await calculateDynamicPenalty(
+                    (
+                        await engine.fetchCustodian(engine.custodianAddress())
+                    ).auctionConfig,
+                    Number(baseFastOrder.maxFee),
+                    txnSlot - Number(auctionDataBefore.startSlot)
+                );
+
+                // Since we are beyond the penalty period, the entire security deposit
+                // is divided between the highest bidder and the liquidator.
+                expect(baseFastOrder.maxFee).equals(BigInt(expectedReward + expectedPenalty));
+
+                // Validate balance changes.
+                const highestOfferAfter = await getTokenBalance(
+                    connection,
+                    offerAuthorityOne.publicKey
+                );
+                const liquidatorAfter = await getTokenBalance(
+                    connection,
+                    offerAuthorityTwo.publicKey
+                );
+                const custodyAfter = (
+                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
+                ).amount;
+                const auctionDataAfter = await engine.fetchAuctionData(vaaHash);
+
+                expect(highestOfferAfter - highestOfferBefore).equals(
+                    baseFastOrder.maxFee +
+                        baseFastOrder.maxFee +
+                        baseFastOrder.initAuctionFee -
+                        BigInt(expectedReward) -
+                        BigInt(expectedPenalty)
+                );
+                expect(liquidatorAfter - liquidatorBefore).equals(BigInt(expectedPenalty));
+                expect(custodyBefore - custodyAfter).equals(
+                    baseFastOrder.amountIn + baseFastOrder.maxFee
+                );
+
+                // Validate auction data account.
+                expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
+                expect(auctionDataAfter.status).to.eql({ completed: {} });
+                expect(auctionDataAfter.bestOfferToken).to.eql(bestOfferToken);
+                expect(auctionDataAfter.initialOfferToken).to.eql(initialOfferToken);
+                expect(auctionDataAfter.startSlot.toString()).to.eql(
+                    auctionDataBefore.startSlot.toString()
+                );
+                expect(auctionDataAfter.amount.toString()).to.eql(
+                    auctionDataBefore.amount.toString()
+                );
+                expect(auctionDataAfter.securityDeposit.toString()).to.eql(
+                    auctionDataBefore.securityDeposit.toString()
+                );
+                expect(auctionDataAfter.offerPrice.toString()).to.eql(
+                    baseFastOrder.maxFee.toString()
+                );
+
+                // Validate the core message.
+                await verifyFillMessage(
+                    connection,
+                    message,
+                    baseFastOrder.amountIn -
+                        baseFastOrder.maxFee -
+                        baseFastOrder.initAuctionFee +
+                        BigInt(expectedReward),
+                    arbDomain,
+                    {
+                        sourceChain: ethChain,
+                        orderSender: Array.from(baseFastOrder.sender),
+                        redeemer: Array.from(baseFastOrder.redeemer),
+                        redeemerMessage: baseFastOrder.redeemerMessage,
+                    }
+                );
+            });
+
+            it(`Cannot Execute Fast Order (Invalid Chain)`, async function () {
+                const fastOrder = { ...baseFastOrder };
+                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
+                fastOrder.targetDomain = solanaDomain;
+
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    fastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: fastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: solanaChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(solanaChain, solanaDomain, vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne],
+                    "InvalidChain"
+                );
+            });
+
+            it(`Cannot Execute Fast Order (Vaa Hash Mismatch)`, async function () {
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                const [vaaKey2, signedVaa2] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const vaaHash2 = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa2).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                // Fast forward past the penalty period.
+                await skip_slots(connection, 15);
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash2, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne],
+                    "MismatchedVaaHash"
+                );
+            });
+
+            it(`Cannot Execute Fast Order (Invalid Best Offer Token Account)`, async function () {
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                // Pass the wrong address for the best offer token account.
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken: engine.custodyTokenAccountAddress(),
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne],
+                    "InvalidTokenAccount"
+                );
+            });
+
+            it(`Cannot Execute Fast Order (Invalid Initial Offer Token Account)`, async function () {
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+
+                // Pass the wrong address for the initial offer token account.
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken: engine.custodyTokenAccountAddress(),
+                        }),
+                    ],
+                    [offerAuthorityOne],
+                    "InvalidTokenAccount"
+                );
+            });
+
+            it(`Cannot Execute Fast Order (Auction Not Active)`, async function () {
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                // Fast forward into the grace period.
+                await skip_slots(connection, 4);
+
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne]
+                );
+
+                // Should already be completed.
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne],
+                    "AuctionNotActive"
+                );
+            });
+
+            it(`Cannot Execute Fast Order (Auction Period Not Expired)`, async function () {
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                // Do not fast forward into the grace period.
+
+                // Pass the wrong address for the initial offer token account.
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne],
+                    "AuctionPeriodNotExpired"
+                );
+            });
+
+            it(`Cannot Execute Fast Order Solana (Invalid Chain)`, async function () {
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: arbChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.executeFastOrderSolanaIx(vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                            toRouterEndpoint: engine.routerEndpointAddress(arbChain),
+                        }),
+                    ],
+                    [offerAuthorityOne],
+                    "InvalidChain"
+                );
+            });
+
+            it(`Cannot Execute Fast Order Solana (Vaa Hash Mismatch)`, async function () {
+                const fastOrder = { ...baseFastOrder };
+                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
+                fastOrder.targetDomain = solanaDomain;
+
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    fastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: baseFastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: solanaChain,
+                    }
+                );
+
+                const [vaaKey2, signedVaa2] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    fastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: fastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: solanaChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const vaaHash2 = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa2).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                // Fast forward past the penalty period.
+                await skip_slots(connection, 15);
+
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.executeFastOrderSolanaIx(vaaHash2, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne],
+                    "MismatchedVaaHash"
+                );
+            });
+
+            it(`Cannot Execute Fast Order Solana (Invalid Best Offer Token Account)`, async function () {
+                const fastOrder = { ...baseFastOrder };
+                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
+                fastOrder.targetDomain = solanaDomain;
+
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    fastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: fastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: solanaChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                // Pass the wrong address for the best offer token account.
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.executeFastOrderSolanaIx(vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken: engine.custodyTokenAccountAddress(),
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne],
+                    "InvalidTokenAccount"
+                );
+            });
+
+            it(`Cannot Execute Fast Order Solana (Invalid Initial Offer Token Account)`, async function () {
+                const fastOrder = { ...baseFastOrder };
+                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
+                fastOrder.targetDomain = solanaDomain;
+
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    fastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: fastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: solanaChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+
+                // Pass the wrong address for the initial offer token account.
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.executeFastOrderSolanaIx(vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken: engine.custodyTokenAccountAddress(),
+                        }),
+                    ],
+                    [offerAuthorityOne],
+                    "InvalidTokenAccount"
+                );
+            });
+
+            it(`Cannot Execute Fast Order Solana (Auction Not Active)`, async function () {
+                const fastOrder = { ...baseFastOrder };
+                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
+                fastOrder.targetDomain = solanaDomain;
+
+                const [vaaKey, signedVaa] = await placeInitialOfferForTest(
+                    connection,
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    fastOrder,
+                    ethRouter,
+                    engine,
+                    {
+                        feeOffer: fastOrder.maxFee,
+                        fromChain: ethChain,
+                        toChain: solanaChain,
+                    }
+                );
+
+                // Accounts for the instruction.
+                const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
+                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+
+                // Fast forward into the grace period.
+                await skip_slots(connection, 4);
+
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.executeFastOrderSolanaIx(vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne]
+                );
+
+                // Should already be completed.
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.executeFastOrderSolanaIx(vaaHash, {
+                            payer: offerAuthorityOne.publicKey,
+                            vaa: vaaKey,
+                            bestOfferToken,
+                            initialOfferToken,
+                        }),
+                    ],
+                    [offerAuthorityOne],
+                    "AuctionNotActive"
                 );
             });
         });

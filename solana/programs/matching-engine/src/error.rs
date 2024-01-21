@@ -123,4 +123,7 @@ pub enum MatchingEngineError {
 
     #[msg("VaaMismatch")]
     VaaMismatch,
+
+    #[msg("MismatchedVaaHash")]
+    MismatchedVaaHash,
 }

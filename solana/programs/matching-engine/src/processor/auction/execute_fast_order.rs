@@ -31,7 +31,9 @@ pub struct ExecuteFastOrder<'info> {
     /// CHECK: Must be owned by the Wormhole Core Bridge program.
     #[account(
         owner = core_bridge_program::id(),
-        constraint = VaaAccount::load(&vaa)?.try_digest()?.0 == auction_data.vaa_hash // TODO: add error
+        constraint = {
+            VaaAccount::load(&vaa)?.try_digest()?.0 == auction_data.vaa_hash
+        } @ MatchingEngineError::MismatchedVaaHash
     )]
     vaa: AccountInfo<'info>,
 

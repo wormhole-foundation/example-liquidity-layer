@@ -551,9 +551,10 @@ export class MatchingEngineProgram {
             vaa: PublicKey;
             bestOfferToken?: PublicKey;
             initialOfferToken?: PublicKey;
+            toRouterEndpoint?: PublicKey;
         }
     ) {
-        let { payer, vaa, bestOfferToken, initialOfferToken } = accounts;
+        let { payer, vaa, bestOfferToken, initialOfferToken, toRouterEndpoint } = accounts;
 
         if (bestOfferToken === undefined) {
             bestOfferToken = await this.getBestOfferTokenAccount(vaaHash);
@@ -561,6 +562,10 @@ export class MatchingEngineProgram {
 
         if (initialOfferToken === undefined) {
             initialOfferToken = await this.getInitialOfferTokenAccount(vaaHash);
+        }
+
+        if (toRouterEndpoint === undefined) {
+            toRouterEndpoint = this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA);
         }
 
         const { mint } = await splToken.getAccount(
@@ -582,7 +587,7 @@ export class MatchingEngineProgram {
                 payer,
                 custodian,
                 auctionData: this.auctionDataAddress(vaaHash),
-                toRouterEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+                toRouterEndpoint,
                 executorToken: splToken.getAssociatedTokenAddressSync(mint, payer),
                 bestOfferToken,
                 initialOfferToken,
