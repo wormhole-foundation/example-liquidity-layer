@@ -3,9 +3,50 @@ import { ethers } from "ethers";
 import { IERC20, IERC20__factory, ITokenBridge__factory, IUSDC__factory } from "../../src/types";
 import { WALLET_PRIVATE_KEYS } from "./consts";
 import { CONTRACTS, coalesceChainId, tryNativeToUint8Array } from "@certusone/wormhole-sdk";
+import { EvmMatchingEngine } from "../../src";
+
+export interface ScoreKeeper {
+    player: ethers.Wallet;
+    bid: ethers.BigNumber;
+    balance: ethers.BigNumber;
+}
 
 export async function mine(provider: ethers.providers.StaticJsonRpcProvider) {
     await provider.send("evm_mine", []);
+}
+
+export async function mineMany(provider: ethers.providers.StaticJsonRpcProvider, count: number) {
+    for (let i = 0; i < count; i++) {
+        await mine(provider);
+    }
+}
+
+export async function mineToGracePeriod(
+    auctionId: Uint8Array,
+    engine: EvmMatchingEngine,
+    provider: ethers.providers.StaticJsonRpcProvider
+) {
+    const startBlock = await engine.liveAuctionInfo(auctionId).then((info) => info.startBlock);
+    const gracePeriod = await engine.getAuctionGracePeriod();
+    const currentBlock = await provider.getBlockNumber();
+
+    // Will mine blocks until there is one block left in the grace period.
+    const blocksToMine = gracePeriod - (currentBlock - Number(startBlock)) - 1;
+    await mineMany(provider, blocksToMine);
+}
+
+export async function mineToPenaltyPeriod(
+    auctionId: Uint8Array,
+    engine: EvmMatchingEngine,
+    provider: ethers.providers.StaticJsonRpcProvider,
+    penaltyBlocks: number
+) {
+    const startBlock = await engine.liveAuctionInfo(auctionId).then((info) => info.startBlock);
+    const gracePeriod = await engine.getAuctionGracePeriod();
+    const currentBlock = await provider.getBlockNumber();
+
+    const blocksToMine = gracePeriod - (currentBlock - Number(startBlock)) + penaltyBlocks;
+    await mineMany(provider, blocksToMine);
 }
 
 export async function mineWait(
@@ -53,16 +94,26 @@ export async function mintWrappedTokens(
     return { wrappedToken };
 }
 
-export async function mintNativeUsdc(usdc: IERC20, recipient: string, amount: ethers.BigNumberish) {
+export async function mintNativeUsdc(
+    usdc: IERC20,
+    recipient: string,
+    amount: ethers.BigNumberish,
+    mineBlock: boolean = true
+) {
     if (!("detectNetwork" in usdc.provider)) {
         throw new Error("provider must be a StaticJsonRpcProvider");
     }
 
     const provider = usdc.provider as ethers.providers.StaticJsonRpcProvider;
 
-    await IUSDC__factory.connect(usdc.address, new ethers.Wallet(WALLET_PRIVATE_KEYS[9], provider))
-        .mint(recipient, amount)
-        .then((tx) => mineWait(provider, tx));
+    const tx = await IUSDC__factory.connect(
+        usdc.address,
+        new ethers.Wallet(WALLET_PRIVATE_KEYS[9], provider)
+    ).mint(recipient, amount);
+
+    if (mineBlock) {
+        await mineWait(provider, tx);
+    }
 }
 
 export async function burnAllUsdc(usdc: IERC20) {

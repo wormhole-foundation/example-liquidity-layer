@@ -14,25 +14,29 @@ import {PlaceMarketOrder} from "./assets/PlaceMarketOrder.sol";
 import {RedeemFill} from "./assets/RedeemFill.sol";
 import {State} from "./assets/State.sol";
 
-contract TokenRouterImplementation is
-    TokenRouterAdmin,
-    PlaceMarketOrder,
-    RedeemFill
-{
+contract TokenRouterImplementation is TokenRouterAdmin, PlaceMarketOrder, RedeemFill {
     error AlreadyInitialized();
 
     constructor(
         address token_,
-        address wormholeCircle_
+        address wormhole_,
+        address cctpTokenMessenger_,
+        uint16 matchingEngineChain_,
+        bytes32 matchingEngineAddress_,
+        uint32 matchingEngineDomain_
     )
         State(
             token_,
-            wormholeCircle_
+            wormhole_,
+            cctpTokenMessenger_,
+            matchingEngineChain_,
+            matchingEngineAddress_,
+            matchingEngineDomain_
         )
     {}
 
     function initialize() public virtual initializer {
-        // this function needs to be exposed for an upgrade to pass
+        // This function needs to be exposed for an upgrade to pass.
     }
 
     modifier initializer() {

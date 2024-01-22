@@ -34,12 +34,6 @@ then
     exit 1
 fi
 
-if [ -z ${rpc+x} ];
-then
-    echo "rpc (-u) is unset" >&2
-    exit 1
-fi
-
 if [ -z ${private_key+x} ];
 then
     echo "private key (-k) is unset" >&2
@@ -53,6 +47,12 @@ ENV=$ROOT/../env
 FORGE_SCRIPTS=$ROOT/../forge/scripts
 
 . $ENV/$network/$chain.env
+
+# Use the RPC environment variable if rpc isn't set.
+if [ -z ${rpc+x} ];
+then
+    rpc=$RPC
+fi
 
 forge script $FORGE_SCRIPTS/UpgradeTokenRouter.s.sol \
     --rpc-url $rpc \

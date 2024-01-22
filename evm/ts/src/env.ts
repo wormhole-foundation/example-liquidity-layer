@@ -9,10 +9,16 @@ export enum ChainType {
 export type LiquidityLayerEnv = {
     chainType: ChainType;
     chainId: number;
+    domain: number;
     tokenAddress: string;
-    wormholeCctpAddress: string;
+    wormholeAddress: string;
+    tokenMessengerAddress: string;
     ownerAssistantAddress: string;
     tokenRouterAddress: string;
+    feeRecipient?: string;
+    matchingEngineChain: string;
+    matchingEngineAddress: string;
+    matchingEngineDomain?: string;
 };
 
 export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
@@ -26,13 +32,19 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
     const keys = [
         "CHAIN_TYPE",
         "CHAIN_ID",
+        "DOMAIN",
         "TOKEN_ADDRESS",
-        "WORMHOLE_CCTP_ADDRESS",
+        "WORMHOLE_ADDRESS",
+        "TOKEN_MESSENGER_ADDRESS",
         "OWNER_ASSISTANT_ADDRESS",
         "TOKEN_ROUTER_ADDRESS",
+        "FEE_RECIPIENT_ADDRESS",
+        "MATCHING_ENGINE_CHAIN",
+        "MATCHING_ENGINE_ADDRESS",
+        "MATCHING_ENGINE_DOMAIN",
     ];
     for (const key of keys) {
-        if (!contents[key]) {
+        if (!contents[key] && key != "FEE_RECIPIENT_ADDRESS") {
             throw new Error(`no ${key}`);
         }
     }
@@ -40,10 +52,16 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
     return {
         chainType: parseChainType(contents.CHAIN_TYPE),
         chainId: parseInt(contents.CHAIN_ID),
+        domain: parseInt(contents.DOMAIN),
         tokenAddress: contents.TOKEN_ADDRESS,
-        wormholeCctpAddress: contents.WORMHOLE_CCTP_ADDRESS,
+        wormholeAddress: contents.WORMHOLE_ADDRESS,
+        tokenMessengerAddress: contents.TOKEN_MESSENGER_ADDRESS,
         ownerAssistantAddress: contents.OWNER_ASSISTANT_ADDRESS,
         tokenRouterAddress: contents.TOKEN_ROUTER_ADDRESS,
+        feeRecipient: contents.FEE_RECIPIENT_ADDRESS,
+        matchingEngineChain: contents.MATCHING_ENGINE_CHAIN,
+        matchingEngineAddress: contents.MATCHING_ENGINE_ADDRESS,
+        matchingEngineDomain: contents.MATCHING_ENGINE_DOMAIN,
     };
 }
 

@@ -25,11 +25,17 @@ anvil --port 8548 \
     --no-mining \
     --fork-url $ETHEREUM_RPC > $LOGS/ethereum.log &
 
+# Arbitrum (CCTP).
+anvil --port 8549 \
+    -m "myth like bonus scare over problem client lizard pioneer submit female collect" \
+    --no-mining \
+    --fork-url $ARBITRUM_RPC > $LOGS/arbitrum.log &
+
 # Chill.
 sleep 2
 
 # Double-check number of anvil instances.
-if [ "$( pgrep anvil | wc -l )" -ne 2 ]; then
+if [ "$( pgrep anvil | wc -l )" -ne 3 ]; then
     echo "Not all anvil instances are running. Try again."
     pkill anvil
     exit 1
@@ -37,5 +43,5 @@ fi
 
 npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json  $ROOT/[0-9]*.ts
 
-# Nuke.
+# # Nuke.
 pkill anvil

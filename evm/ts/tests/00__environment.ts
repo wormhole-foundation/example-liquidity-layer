@@ -4,7 +4,6 @@ import { ethers } from "ethers";
 import { parseLiquidityLayerEnvFile } from "../src";
 import {
     ICircleBridge__factory,
-    ICircleIntegration__factory,
     IMessageTransmitter__factory,
     IUSDC__factory,
     IWormhole__factory,
@@ -12,6 +11,7 @@ import {
 import {
     GUARDIAN_PRIVATE_KEY,
     LOCALHOSTS,
+    MATCHING_ENGINE_CHAIN,
     OWNER_PRIVATE_KEY,
     ValidNetwork,
     WALLET_PRIVATE_KEYS,
@@ -21,7 +21,7 @@ import {
 } from "./helpers";
 
 describe("Environment", () => {
-    const chainNames: ValidNetwork[] = ["avalanche", "ethereum"];
+    const chainNames: ValidNetwork[] = ["avalanche", "ethereum", "arbitrum"];
 
     for (const chainName of chainNames) {
         if (!(chainName in LOCALHOSTS)) {
@@ -32,7 +32,8 @@ describe("Environment", () => {
         const {
             chainId,
             tokenAddress: usdcAddress,
-            wormholeCctpAddress,
+            wormholeAddress,
+            tokenMessengerAddress,
         } = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
 
         const localhost = LOCALHOSTS[chainName] as string;
@@ -43,8 +44,6 @@ describe("Environment", () => {
 
             const owner = new ethers.Wallet(OWNER_PRIVATE_KEY, provider);
 
-            const wormholeCctp = ICircleIntegration__factory.connect(wormholeCctpAddress, provider);
-
             it("Wallets", async () => {
                 const balances = await Promise.all(wallets.map((wallet) => wallet.getBalance()));
 
@@ -54,10 +53,7 @@ describe("Environment", () => {
             });
 
             it("Modify Core Bridge", async () => {
-                const coreBridge = IWormhole__factory.connect(
-                    await wormholeCctp.wormhole(),
-                    provider
-                );
+                const coreBridge = IWormhole__factory.connect(wormholeAddress, provider);
 
                 const actualChainId = await coreBridge.chainId();
                 expect(actualChainId).to.equal(chainId);
@@ -135,7 +131,7 @@ describe("Environment", () => {
 
             it("Modify Circle Contracts", async () => {
                 const circleBridge = ICircleBridge__factory.connect(
-                    await wormholeCctp.circleBridge(),
+                    tokenMessengerAddress,
                     provider
                 );
 
@@ -238,6 +234,33 @@ describe("Environment", () => {
                         .then((tx) => mineWait(provider, tx));
                 }
             });
+
+            if (chainId === MATCHING_ENGINE_CHAIN) {
+                it("Deploy Matching Engine", async () => {
+                    await provider.send("evm_setAutomine", [true]);
+
+                    const scripts = `${__dirname}/../../sh`;
+                    const cmd =
+                        `bash ${scripts}/deploy_matching_engine.sh ` +
+                        `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey} ` +
+                        `> /dev/null 2>&1`;
+                    const out = execSync(cmd, { encoding: "utf8" });
+
+                    await provider.send("evm_setAutomine", [false]);
+                });
+
+                it("Upgrade Matching Engine", async () => {
+                    await provider.send("evm_setAutomine", [true]);
+
+                    const scripts = `${__dirname}/../../sh`;
+                    const cmd =
+                        `bash ${scripts}/upgrade_matching_engine.sh ` +
+                        `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}` +
+                        `> /dev/null 2>&1`;
+                    const out = execSync(cmd, { encoding: "utf8" });
+                    await provider.send("evm_setAutomine", [false]);
+                });
+            }
 
             it("Deploy Token Router", async () => {
                 await provider.send("evm_setAutomine", [true]);
