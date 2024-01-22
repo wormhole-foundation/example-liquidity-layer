@@ -30,12 +30,12 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     using Messages for *;
 
     event AuctionStarted(
-        bytes32 indexed auctionId, uint128 transferAmount, uint128 startingBid, address bidder
+        bytes32 indexed auctionId, uint64 transferAmount, uint64 startingBid, address bidder
     );
-    event NewBid(bytes32 indexed auctionId, uint128 newBid, uint128 oldBid, address bidder);
+    event NewBid(bytes32 indexed auctionId, uint64 newBid, uint64 oldBid, address bidder);
 
     /// @inheritdoc IMatchingEngineFastOrders
-    function placeInitialBid(bytes calldata fastTransferVaa, uint128 feeBid) external {
+    function placeInitialBid(bytes calldata fastTransferVaa, uint64 feeBid) external {
         IWormhole.VM memory vaa = _verifyWormholeMessage(fastTransferVaa);
 
         Messages.FastMarketOrder memory order = vaa.payload.decodeFastMarketOrder();
@@ -76,7 +76,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
         // Set the live auction data.
         auction.status = AuctionStatus.Active;
-        auction.startBlock = uint128(block.number);
+        auction.startBlock = uint64(block.number);
         auction.highestBidder = msg.sender;
         auction.initialBidder = msg.sender;
         auction.amount = order.amountIn;
@@ -87,7 +87,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     }
 
     /// @inheritdoc IMatchingEngineFastOrders
-    function improveBid(bytes32 auctionId, uint128 feeBid) public {
+    function improveBid(bytes32 auctionId, uint64 feeBid) public {
         // Fetch auction information, if it exists.
         LiveAuctionData storage auction = getLiveAuctionInfo().auctions[auctionId];
 
@@ -108,7 +108,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             revert ErrAuctionNotActive(vaa.hash);
         }
 
-        uint128 blocksElapsed = uint128(block.number) - auction.startBlock;
+        uint64 blocksElapsed = uint64(block.number) - auction.startBlock;
         if (blocksElapsed <= _auctionDuration) {
             revert ErrAuctionPeriodNotComplete();
         }
@@ -116,7 +116,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         Messages.FastMarketOrder memory order = vaa.payload.decodeFastMarketOrder();
 
         if (blocksElapsed > _auctionGracePeriod) {
-            (uint128 penalty, uint128 userReward) =
+            (uint64 penalty, uint64 userReward) =
                 calculateDynamicPenalty(auction.securityDeposit, blocksElapsed);
 
             /**
@@ -174,14 +174,15 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
         // Confirm that the fast transfer VAA is associated with the slow transfer VAA.
         if (
-            vaa.emitterChainId != cctpVaa.emitterChainId || vaa.emitterAddress != cctpVaa.emitterAddress
-                || vaa.sequence != cctpVaa.sequence + 1 || vaa.timestamp != cctpVaa.timestamp
+            vaa.emitterChainId != cctpVaa.emitterChainId
+                || vaa.emitterAddress != cctpVaa.emitterAddress || vaa.sequence != cctpVaa.sequence + 1
+                || vaa.timestamp != cctpVaa.timestamp
         ) {
             revert ErrVaaMismatch();
         }
 
         // Parse the `maxFee` from the slow VAA.
-        uint128 baseFee = payload.decodeSlowOrderResponse().baseFee;
+        uint64 baseFee = payload.decodeSlowOrderResponse().baseFee;
 
         LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vaa.hash];
 
@@ -213,8 +214,8 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
              * obligation. The `penalty` CAN be zero in this case, since the auction
              * grace period might not have ended yet.
              */
-            (uint128 penalty, uint128 userReward) = calculateDynamicPenalty(
-                auction.securityDeposit, uint128(block.number) - auction.startBlock
+            (uint64 penalty, uint64 userReward) = calculateDynamicPenalty(
+                auction.securityDeposit, uint64(block.number) - auction.startBlock
             );
 
             // Transfer the penalty amount to the caller. The caller also earns the base
@@ -247,7 +248,8 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     {
         IWormhole.VM memory vaa = _verifyWormholeMessage(fastFillVaa);
         if (
-            vaa.emitterChainId != _chainId || vaa.emitterAddress != address(this).toUniversalAddress()
+            vaa.emitterChainId != _chainId
+                || vaa.emitterAddress != address(this).toUniversalAddress()
         ) {
             revert ErrInvalidEmitterForFastFill();
         }
@@ -275,7 +277,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     // ------------------------------- Private ---------------------------------
 
     function _handleCctpTransfer(
-        uint128 amount,
+        uint64 amount,
         uint16 sourceChain,
         Messages.FastMarketOrder memory order
     ) private returns (uint64 sequence) {
@@ -316,7 +318,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         }
     }
 
-    function _improveBid(bytes32 auctionId, LiveAuctionData storage auction, uint128 feeBid)
+    function _improveBid(bytes32 auctionId, LiveAuctionData storage auction, uint64 feeBid)
         private
     {
         /**
@@ -328,7 +330,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         if (auction.status != AuctionStatus.Active) {
             revert ErrAuctionNotActive(auctionId);
         }
-        if (uint128(block.number) - auction.startBlock > getAuctionDuration()) {
+        if (uint64(block.number) - auction.startBlock > getAuctionDuration()) {
             revert ErrAuctionPeriodExpired();
         }
         if (feeBid >= auction.bidPrice) {
@@ -368,7 +370,8 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         view
         returns (IWormhole.VM memory)
     {
-        (IWormhole.VM memory vaa, bool valid, string memory reason) = _wormhole.parseAndVerifyVM(_vaa);
+        (IWormhole.VM memory vaa, bool valid, string memory reason) =
+            _wormhole.parseAndVerifyVM(_vaa);
 
         if (!valid) {
             revert ErrInvalidWormholeMessage(reason);

@@ -91,28 +91,28 @@ abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
     }
 
     /// @inheritdoc ITokenRouterState
-    function getInitialAuctionFee() external view returns (uint128) {
+    function getInitialAuctionFee() external view returns (uint64) {
         return getFastTransferParametersState().initAuctionFee;
     }
 
     /// @inheritdoc ITokenRouterState
-    function getBaseFee() external view returns (uint128) {
+    function getBaseFee() external view returns (uint64) {
         return getFastTransferParametersState().baseFee;
     }
 
     /// @inheritdoc ITokenRouterState
-    function getMinFee() public pure returns (uint128) {
+    function getMinFee() public pure returns (uint64) {
         FastTransferParameters memory params = getFastTransferParametersState();
         return params.baseFee + params.initAuctionFee + 1;
     }
 
     /// @inheritdoc ITokenRouterState
-    function getMinTransferAmount() external pure returns (uint128) {
+    function getMinTransferAmount() external pure returns (uint64) {
         return getMinFee() + 1;
     }
 
     /// @inheritdoc ITokenRouterState
-    function getMaxTransferAmount() external view returns (uint128) {
+    function getMaxTransferAmount() external view returns (uint64) {
         return getFastTransferParametersState().maxAmount;
     }
 }

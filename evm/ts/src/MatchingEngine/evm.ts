@@ -90,7 +90,7 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         if (auctionId !== undefined) {
             return this.contract["calculateDynamicPenalty(bytes32)"](auctionId);
         } else if (amount !== undefined && blocksElapsed !== undefined) {
-            return this.contract["calculateDynamicPenalty(uint128,uint128)"](amount, blocksElapsed);
+            return this.contract["calculateDynamicPenalty(uint64,uint64)"](amount, blocksElapsed);
         } else {
             throw new Error("Invalid arguments");
         }

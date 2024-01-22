@@ -56,29 +56,29 @@ interface ITokenRouterState {
     /**
      * @notice Returns the minimum transfer amount for fast transfers.
      */
-    function getMinTransferAmount() external view returns (uint128);
+    function getMinTransferAmount() external view returns (uint64);
 
     /**
      * @notice Returns the minimum fee for fast transfers. This includes the `baseFee`
      * and `initialAuctionFee`.
      */
-    function getMinFee() external pure returns (uint128);
+    function getMinFee() external pure returns (uint64);
 
     /**
      * @notice Returns the maximum transfer amount for fast transfers.
      */
-    function getMaxTransferAmount() external view returns (uint128);
+    function getMaxTransferAmount() external view returns (uint64);
 
     /**
      * @notice Returns the initial auction fee for fast transfers. This is the fee
      * the relayer is paid for starting a fast transfer auction.
      */
-    function getInitialAuctionFee() external view returns (uint128);
+    function getInitialAuctionFee() external view returns (uint64);
 
     /**
      * @notice Returns the base fee for fast transfers. This is the fee the relayer
      * is paid for relaying the CCTP message associated with a fast transfer. This fee
      * is only paid in the a fast transfer auction does not occur.
      */
-    function getBaseFee() external view returns (uint128);
+    function getBaseFee() external view returns (uint64);
 }

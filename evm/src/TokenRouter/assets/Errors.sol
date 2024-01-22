@@ -20,11 +20,11 @@ error ErrInvalidMatchingEngineSender(bytes32 sender, bytes32 expected);
 
 error ErrInvalidChain(uint16 chain);
 
-error ErrInsufficientAmount(uint128 amount, uint128 minAmount);
+error ErrInsufficientAmount(uint64 amount, uint64 minAmount);
 
 error ErrInsufficientFastTransferFee();
 
-error ErrAmountTooLarge(uint128 amountIn, uint128 maxAmount);
+error ErrAmountTooLarge(uint64 amountIn, uint64 maxAmount);
 
 error ErrFastTransferFeeUnset();
 
@@ -38,4 +38,4 @@ error ErrInvalidFeeOverride();
 
 error ErrFastTransferDisabled();
 
-error ErrInvalidMaxFee(uint128 maxFee, uint128 minimumReuiredFee);
+error ErrInvalidMaxFee(uint64 maxFee, uint64 minimumReuiredFee);

@@ -15,11 +15,11 @@ struct FastTransferParameters {
     // Determines if fast transfers are enabled.
     bool enabled;
     // The maximum amount that can be transferred using fast transfers.
-    uint128 maxAmount;
+    uint64 maxAmount;
     // The `baseFee` which is summed with the `feeInBps` to calculate the total fee.
-    uint128 baseFee;
+    uint64 baseFee;
     // The fee paid to the initial bidder of an auction.
-    uint128 initAuctionFee;
+    uint64 initAuctionFee;
 }
 
 struct RouterEndpoints {

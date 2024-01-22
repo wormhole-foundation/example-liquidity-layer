@@ -211,15 +211,13 @@ export class FastFill {
     static decode(payload: Buffer): FastFill {
         const buf = takePayloadId(payload, this.ID);
 
-        const sourceChain = buf.readUInt16BE(0);
-        const orderSender = buf.subarray(2, 34);
-        const redeemer = buf.subarray(34, 66);
-        const redeemerMsgLen = buf.readUInt32BE(66);
+        const fillAmount = buf.readBigUInt64BE(0);
+        const sourceChain = buf.readUInt16BE(8);
+        const orderSender = buf.subarray(10, 42);
+        const redeemer = buf.subarray(42, 74);
+        const redeemerMsgLen = buf.readUInt32BE(74);
         const endMessage = 70 + redeemerMsgLen;
-        const redeemerMessage = buf.subarray(70, endMessage);
-        const fillAmount = BigInt(
-            ethers.BigNumber.from(buf.subarray(endMessage, endMessage + 16)).toString()
-        );
+        const redeemerMessage = buf.subarray(78, endMessage);
 
         return new FastFill(sourceChain, orderSender, redeemer, redeemerMessage, fillAmount);
     }
@@ -271,20 +269,18 @@ export class FastMarketOrder {
     static decode(payload: Buffer): FastMarketOrder {
         const buf = takePayloadId(payload, this.ID);
 
-        const amountIn = BigInt(ethers.BigNumber.from(buf.subarray(0, 16)).toString());
-        const minAmountOut = BigInt(ethers.BigNumber.from(buf.subarray(16, 32)).toString());
-        const targetChain = buf.readUInt16BE(32);
-        const targetDomain = buf.readUInt32BE(34);
-        const redeemer = buf.subarray(38, 70);
-        const sender = buf.subarray(70, 102);
-        const refundAddress = buf.subarray(102, 134);
-        //const slowSequence = buf.readBigUint64BE(134);
-        //const slowEmitter = buf.subarray(142, 174);
-        const maxFee = BigInt(ethers.BigNumber.from(buf.subarray(134, 150)).toString());
-        const initAuctionFee = BigInt(ethers.BigNumber.from(buf.subarray(150, 166)).toString());
-        const deadline = buf.readUInt32BE(166);
-        const redeemerMsgLen = buf.readUInt32BE(170);
-        const redeemerMessage = buf.subarray(174, 174 + redeemerMsgLen);
+        const amountIn = buf.readBigUInt64BE(0);
+        const minAmountOut = buf.readBigUInt64BE(8);
+        const targetChain = buf.readUInt16BE(16);
+        const targetDomain = buf.readUInt32BE(18);
+        const redeemer = buf.subarray(22, 54);
+        const sender = buf.subarray(54, 86);
+        const refundAddress = buf.subarray(86, 118);
+        const maxFee = buf.readBigUInt64BE(118);
+        const initAuctionFee = buf.readBigUInt64BE(126);
+        const deadline = buf.readUInt32BE(134);
+        const redeemerMsgLen = buf.readUInt32BE(138);
+        const redeemerMessage = buf.subarray(138, 138 + redeemerMsgLen);
         return new FastMarketOrder(
             amountIn,
             minAmountOut,

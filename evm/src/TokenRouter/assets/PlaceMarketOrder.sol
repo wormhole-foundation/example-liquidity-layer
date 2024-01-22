@@ -24,8 +24,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     /// @inheritdoc IPlaceMarketOrder
     function placeMarketOrder(
-        uint128 amountIn,
-        uint128 minAmountOut,
+        uint64 amountIn,
+        uint64 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
@@ -41,7 +41,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     /// @inheritdoc IPlaceMarketOrder
     function placeMarketOrder(
-        uint128 amountIn,
+        uint64 amountIn,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage
@@ -51,13 +51,13 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     /// @inheritdoc IPlaceMarketOrder
     function placeFastMarketOrder(
-        uint128 amountIn,
-        uint128 minAmountOut,
+        uint64 amountIn,
+        uint64 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress,
-        uint128 maxFee,
+        uint64 maxFee,
         uint32 deadline
     ) external payable notPaused returns (uint64 sequence, uint64 fastSequence, uint64 cctpNonce) {
         if (refundAddress == address(0)) {
@@ -77,11 +77,11 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
     /// @inheritdoc IPlaceMarketOrder
     function placeFastMarketOrder(
-        uint128 amountIn,
+        uint64 amountIn,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
-        uint128 maxFee,
+        uint64 maxFee,
         uint32 deadline
     ) external payable notPaused returns (uint64 sequence, uint64 fastSequence, uint64 cctpNonce) {
         return _handleFastOrder(
@@ -92,8 +92,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     // ---------------------------------------- private -------------------------------------------
 
     function _handleOrder(
-        uint128 amountIn,
-        uint128 minAmountOut,
+        uint64 amountIn,
+        uint64 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
@@ -125,13 +125,13 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     }
 
     function _handleFastOrder(
-        uint128 amountIn,
-        uint128 minAmountOut,
+        uint64 amountIn,
+        uint64 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress,
-        uint128 maxFee,
+        uint64 maxFee,
         uint32 deadline
     ) private returns (uint64 sequence, uint64 fastSequence, uint64 cctpNonce) {
         // The Matching Engine chain is a fast finality chain already,
@@ -152,7 +152,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         if (amountIn <= maxFee) {
             revert ErrInsufficientAmount(amountIn, maxFee);
         }
-        uint128 minimumRequiredFee = fastParams.baseFee + fastParams.initAuctionFee + 1;
+        uint64 minimumRequiredFee = fastParams.baseFee + fastParams.initAuctionFee + 1;
         if (maxFee < minimumRequiredFee) {
             revert ErrInvalidMaxFee(maxFee, minimumRequiredFee);
         }

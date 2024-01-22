@@ -12,7 +12,7 @@ error ErrInvalidTargetRouter(uint16 chain);
 
 error ErrInvalidSourceRouter(bytes32 sender, bytes32 expected);
 
-error ErrBidPriceTooHigh(uint128 bidPrice, uint128 maxPrice);
+error ErrBidPriceTooHigh(uint64 bidPrice, uint64 maxPrice);
 
 error ErrAuctionPeriodExpired();
 

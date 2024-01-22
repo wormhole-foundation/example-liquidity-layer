@@ -84,33 +84,33 @@ abstract contract State is IMatchingEngineState, WormholeCctpTokenMessenger {
     function calculateDynamicPenalty(bytes32 auctionId)
         external
         view
-        returns (uint128 penalty, uint128 userReward)
+        returns (uint64 penalty, uint64 userReward)
     {
         LiveAuctionData memory auction = getLiveAuctionInfo().auctions[auctionId];
         return calculateDynamicPenalty(
-            auction.securityDeposit, uint128(block.number) - auction.startBlock
+            auction.securityDeposit, uint64(block.number) - auction.startBlock
         );
     }
 
     /// @inheritdoc IMatchingEngineState
-    function calculateDynamicPenalty(uint128 amount, uint128 blocksElapsed)
+    function calculateDynamicPenalty(uint64 amount, uint64 blocksElapsed)
         public
         view
-        returns (uint128, uint128)
+        returns (uint64, uint64)
     {
         if (blocksElapsed <= _auctionGracePeriod) {
             return (0, 0);
         }
 
-        uint128 penaltyPeriod = blocksElapsed - _auctionGracePeriod;
+        uint64 penaltyPeriod = blocksElapsed - _auctionGracePeriod;
         if (penaltyPeriod >= _auctionPenaltyBlocks || _initialPenaltyBps == MAX_BPS_FEE) {
-            uint128 userReward = amount * _userPenaltyRewardBps / MAX_BPS_FEE;
+            uint64 userReward = amount * _userPenaltyRewardBps / MAX_BPS_FEE;
             return (amount - userReward, userReward);
         } else {
-            uint128 basePenalty = amount * _initialPenaltyBps / MAX_BPS_FEE;
-            uint128 penalty =
+            uint64 basePenalty = amount * _initialPenaltyBps / MAX_BPS_FEE;
+            uint64 penalty =
                 basePenalty + ((amount - basePenalty) * penaltyPeriod / _auctionPenaltyBlocks);
-            uint128 userReward = penalty * _userPenaltyRewardBps / MAX_BPS_FEE;
+            uint64 userReward = penalty * _userPenaltyRewardBps / MAX_BPS_FEE;
 
             return (penalty - userReward, userReward);
         }
@@ -175,8 +175,8 @@ abstract contract State is IMatchingEngineState, WormholeCctpTokenMessenger {
     }
 
     /// @inheritdoc IMatchingEngineState
-    function getAuctionBlocksElapsed(bytes32 auctionId) public view returns (uint128) {
-        return uint128(block.number) - getLiveAuctionInfo().auctions[auctionId].startBlock;
+    function getAuctionBlocksElapsed(bytes32 auctionId) public view returns (uint64) {
+        return uint64(block.number) - getLiveAuctionInfo().auctions[auctionId].startBlock;
     }
 
     /// @inheritdoc IMatchingEngineState
@@ -195,12 +195,12 @@ abstract contract State is IMatchingEngineState, WormholeCctpTokenMessenger {
     }
 
     /// @inheritdoc IMatchingEngineState
-    function getAuctionAmount(bytes32 auctionId) public view returns (uint128) {
+    function getAuctionAmount(bytes32 auctionId) public view returns (uint64) {
         return getLiveAuctionInfo().auctions[auctionId].amount;
     }
 
     /// @inheritdoc IMatchingEngineState
-    function getSecurityDeposit(bytes32 auctionId) public view returns (uint128) {
+    function getSecurityDeposit(bytes32 auctionId) public view returns (uint64) {
         return getLiveAuctionInfo().auctions[auctionId].securityDeposit;
     }
 

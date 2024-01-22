@@ -72,12 +72,12 @@ contract MatchingEngineTest is Test {
     bytes32 immutable TEST_REDEEMER = makeAddr("TEST_REDEEMER").toUniversalAddress();
 
     // Used to calculate a theo price for the fast transfer fee.
-    uint128 immutable TEST_TRANSFER_FEE_IN_BPS = 25000; // 0.25%.
+    uint64 immutable TEST_TRANSFER_FEE_IN_BPS = 25000; // 0.25%.
 
     // Fast transfer outbound parameters.
-    uint128 immutable FAST_TRANSFER_MAX_AMOUNT = 500000e6; // 500,000 USDC.
-    uint128 immutable FAST_TRANSFER_BASE_FEE = 1e6; // 1 USDC.
-    uint128 immutable FAST_TRANSFER_INIT_AUCTION_FEE = 1e6; // 1 USDC.
+    uint64 immutable FAST_TRANSFER_MAX_AMOUNT = 500000e6; // 500,000 USDC.
+    uint64 immutable FAST_TRANSFER_BASE_FEE = 1e6; // 1 USDC.
+    uint64 immutable FAST_TRANSFER_INIT_AUCTION_FEE = 1e6; // 1 USDC.
 
     // Initial Auction parameters.
     uint24 immutable USER_PENALTY_REWARD_BPS = 250000; // 25%.
@@ -364,8 +364,8 @@ contract MatchingEngineTest is Test {
     function testCalculateDynamicPenalty() public {
         // Still in grace period.
         {
-            uint128 amount = 10000000;
-            (uint128 penalty, uint128 reward) =
+            uint64 amount = 10000000;
+            (uint64 penalty, uint64 reward) =
                 engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() - 1);
             assertEq(penalty, 0);
             assertEq(reward, 0);
@@ -373,8 +373,8 @@ contract MatchingEngineTest is Test {
 
         // Penalty period is over.
         {
-            uint128 amount = 10000000;
-            (uint128 penalty, uint128 reward) = engine.calculateDynamicPenalty(
+            uint64 amount = 10000000;
+            (uint64 penalty, uint64 reward) = engine.calculateDynamicPenalty(
                 amount, engine.getAuctionPenaltyBlocks() + engine.getAuctionGracePeriod()
             );
             assertEq(penalty, 7500000);
@@ -383,8 +383,8 @@ contract MatchingEngineTest is Test {
 
         // One block into the penalty period.
         {
-            uint128 amount = 10000000;
-            (uint128 penalty, uint128 reward) =
+            uint64 amount = 10000000;
+            (uint64 penalty, uint64 reward) =
                 engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 1);
             assertEq(penalty, 1087500);
             assertEq(reward, 362500);
@@ -392,8 +392,8 @@ contract MatchingEngineTest is Test {
 
         // 50% of the way through the penalty period.
         {
-            uint128 amount = 10000000;
-            (uint128 penalty, uint128 reward) =
+            uint64 amount = 10000000;
+            (uint64 penalty, uint64 reward) =
                 engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 10);
             assertEq(penalty, 4125000);
             assertEq(reward, 1375000);
@@ -401,8 +401,8 @@ contract MatchingEngineTest is Test {
 
         // Penalty period boundary (19/20)
         {
-            uint128 amount = 10000000;
-            (uint128 penalty, uint128 reward) =
+            uint64 amount = 10000000;
+            (uint64 penalty, uint64 reward) =
                 engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 19);
             assertEq(penalty, 7162500);
             assertEq(reward, 2387500);
@@ -418,8 +418,8 @@ contract MatchingEngineTest is Test {
                 engine.getAuctionPenaltyBlocks()
             );
 
-            uint128 amount = 10000000;
-            (uint128 penalty, uint128 reward) =
+            uint64 amount = 10000000;
+            (uint64 penalty, uint64 reward) =
                 engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 10);
             assertEq(penalty, 3750000);
             assertEq(reward, 1250000);
@@ -435,8 +435,8 @@ contract MatchingEngineTest is Test {
                 engine.getAuctionPenaltyBlocks()
             );
 
-            uint128 amount = 10000000;
-            (uint128 penalty, uint128 reward) =
+            uint64 amount = 10000000;
+            (uint64 penalty, uint64 reward) =
                 engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 10);
             assertEq(penalty, 5000000);
             assertEq(reward, 0);
@@ -452,8 +452,8 @@ contract MatchingEngineTest is Test {
                 engine.getAuctionPenaltyBlocks()
             );
 
-            uint128 amount = 10000000;
-            (uint128 penalty, uint128 reward) =
+            uint64 amount = 10000000;
+            (uint64 penalty, uint64 reward) =
                 engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 5);
             assertEq(penalty, 5000000);
             assertEq(reward, 5000000);
@@ -469,8 +469,8 @@ contract MatchingEngineTest is Test {
                 engine.getAuctionPenaltyBlocks()
             );
 
-            uint128 amount = 10000000;
-            (uint128 penalty, uint128 reward) =
+            uint64 amount = 10000000;
+            (uint64 penalty, uint64 reward) =
                 engine.calculateDynamicPenalty(amount, engine.getAuctionGracePeriod() + 10);
             assertEq(penalty, 0);
             assertEq(reward, 7500000);
@@ -481,26 +481,24 @@ contract MatchingEngineTest is Test {
      * PLACE INITIAL BID TESTS
      */
 
-    function testPlaceInitialBid(uint128 amountIn, uint128 feeBid) public {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+    function testPlaceInitialBid(uint64 amountIn, uint64 feeBid) public {
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         // This method explicitly sets the deadline to zero.
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
 
         // Cap the fee bid.
-        feeBid = uint128(bound(feeBid, 0, order.maxFee));
+        feeBid = uint64(bound(feeBid, 0, order.maxFee));
 
         // Place initial bid with player one and verify the state changes.
         _placeInitialBid(order, fastMessage, feeBid, PLAYER_ONE);
     }
 
-    function testPlaceInitialBidWithDeadline(
-        uint128 amountIn,
-        uint128 feeBid,
-        uint32 timeToDeadline
-    ) public {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+    function testPlaceInitialBidWithDeadline(uint64 amountIn, uint64 feeBid, uint32 timeToDeadline)
+        public
+    {
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
         timeToDeadline =
             uint32(bound(timeToDeadline, 5, type(uint32).max - uint32(block.timestamp)));
         uint32 deadline = uint32(block.timestamp + timeToDeadline);
@@ -510,15 +508,15 @@ contract MatchingEngineTest is Test {
             _getFastMarketOrder(amountIn, deadline);
 
         // Cap the fee bid.
-        feeBid = uint128(bound(feeBid, 0, order.maxFee));
+        feeBid = uint64(bound(feeBid, 0, order.maxFee));
 
         // Place initial bid with player one and verify the state changes.
         _placeInitialBid(order, fastMessage, feeBid, PLAYER_ONE);
     }
 
     function testCannotPlaceInitialBidDeadlineExceeded() public {
-        uint128 amountIn = _getMinTransferAmount() + 6900;
-        uint128 transferFee = _calculateFastTransferFee(amountIn);
+        uint64 amountIn = _getMinTransferAmount() + 6900;
+        uint64 transferFee = _calculateFastTransferFee(amountIn);
         uint32 deadline = uint32(block.timestamp) + 10;
 
         Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
@@ -546,8 +544,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotPlaceInitialBidInvalidWormholeMessage() public {
-        (, bytes memory fastMessage) =
-            _getFastMarketOrder(_getMinTransferAmount());
+        (, bytes memory fastMessage) = _getFastMarketOrder(_getMinTransferAmount());
 
         // Modify the vaa.
         fastMessage[5] = 0x00;
@@ -557,8 +554,8 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotPlaceInitialBidInvalidRouterPath() public {
-        uint128 amountIn = _getMinTransferAmount() + 6900;
-        uint128 bid = 420;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
+        uint64 bid = 420;
         uint16 invalidChain = 69;
 
         Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
@@ -587,8 +584,8 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotPlaceInitialBidInvalidTargetRouter() public {
-        uint128 amountIn = _getMinTransferAmount() + 6900;
-        uint128 bid = 420;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
+        uint64 bid = 420;
         uint16 invalidChain = 69;
 
         // Use an invalid target chain.
@@ -614,8 +611,8 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotPlaceInitialBidPriceTooHigh() public {
-        uint128 amountIn = _getMinTransferAmount() + 6900;
-        uint128 transferFee = _calculateFastTransferFee(amountIn);
+        uint64 amountIn = _getMinTransferAmount() + 6900;
+        uint64 transferFee = _calculateFastTransferFee(amountIn);
 
         Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
             amountIn: amountIn,
@@ -636,14 +633,14 @@ contract MatchingEngineTest is Test {
 
         vm.expectRevert(
             abi.encodeWithSignature(
-                "ErrBidPriceTooHigh(uint128,uint128)", transferFee + 1, transferFee
+                "ErrBidPriceTooHigh(uint64,uint64)", transferFee + 1, transferFee
             )
         );
         engine.placeInitialBid(fastMessage, transferFee + 1);
     }
 
     function testCannotPlaceInitialBidAuctionNotActive() public {
-        uint128 amountIn = _getMinTransferAmount() + 6900;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -666,8 +663,8 @@ contract MatchingEngineTest is Test {
      * two players are racing to place the initial bid. Instead, `_improveBid`
      * is called and the highest bidder is updated.
      */
-    function testPlaceInitialBidAgain(uint128 amountIn, uint128 newBid) public {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+    function testPlaceInitialBidAgain(uint64 amountIn, uint64 newBid) public {
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -676,7 +673,7 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint128(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee));
 
         _dealAndApproveUsdc(engine, order.amountIn + order.maxFee, PLAYER_TWO);
 
@@ -706,8 +703,8 @@ contract MatchingEngineTest is Test {
      * IMPROVE BID TESTS
      */
 
-    function testImproveBid(uint128 amountIn, uint128 newBid) public {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+    function testImproveBid(uint64 amountIn, uint64 newBid) public {
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -716,13 +713,13 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint128(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee));
 
         _improveBid(order, fastMessage, newBid, PLAYER_ONE, PLAYER_TWO);
     }
 
-    function testImproveBidWithHighestBidder(uint128 amountIn, uint128 newBid) public {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+    function testImproveBidWithHighestBidder(uint64 amountIn, uint64 newBid) public {
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -731,7 +728,7 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint128(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee));
 
         IWormhole.VM memory _vm = wormhole.parseVM(fastMessage);
 
@@ -748,7 +745,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotImproveBidAuctionAlreadyCompleted() public {
-        uint128 amountIn = _getMinTransferAmount() + 6900;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -767,7 +764,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotImproveBidAuctionNotActive() public {
-        uint128 amountIn = _getMinTransferAmount() + 6900;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -779,7 +776,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotImproveBidAuctionExpired() public {
-        uint128 amountIn = _getMinTransferAmount() + 6900;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -796,7 +793,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotImproveBidPriceTooHigh() public {
-        uint128 amountIn = _getMinTransferAmount() + 6900;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -806,9 +803,7 @@ contract MatchingEngineTest is Test {
 
         // Try to place a bid with the same price.
         vm.expectRevert(
-            abi.encodeWithSignature(
-                "ErrBidPriceTooHigh(uint128,uint128)", order.maxFee, order.maxFee
-            )
+            abi.encodeWithSignature("ErrBidPriceTooHigh(uint64,uint64)", order.maxFee, order.maxFee)
         );
         engine.improveBid(auctionId, order.maxFee);
     }
@@ -817,8 +812,8 @@ contract MatchingEngineTest is Test {
      * EXECUTE FAST ORDER TESTS
      */
 
-    function testExecuteFastOrder(uint128 amountIn, uint128 newBid) public {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+    function testExecuteFastOrder(uint64 amountIn, uint64 newBid) public {
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -827,7 +822,7 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint128(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee));
         _improveBid(order, fastMessage, newBid, PLAYER_ONE, PLAYER_TWO);
 
         IWormhole.VM memory _vm = wormhole.parseVM(fastMessage);
@@ -856,26 +851,26 @@ contract MatchingEngineTest is Test {
         assertEq(uint8(engine.getAuctionStatus(_vm.hash)), uint8(AuctionStatus.Completed));
     }
 
-    function testExecuteFastOrderWithPenalty(uint128 amountIn, uint8 penaltyBlocks) public {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+    function testExecuteFastOrderWithPenalty(uint64 amountIn, uint8 penaltyBlocks) public {
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
 
         // Place initial bid for the max fee with player one.
-        uint128 bidPrice = order.maxFee - 1;
+        uint64 bidPrice = order.maxFee - 1;
         _placeInitialBid(order, fastMessage, bidPrice, PLAYER_ONE);
 
         IWormhole.VM memory _vm = wormhole.parseVM(fastMessage);
 
         // Warp the block into the penalty period.
         penaltyBlocks = uint8(bound(penaltyBlocks, 1, engine.getAuctionPenaltyBlocks() + 1));
-        uint128 startBlock = engine.liveAuctionInfo(_vm.hash).startBlock;
+        uint64 startBlock = engine.liveAuctionInfo(_vm.hash).startBlock;
         vm.roll(startBlock + engine.getAuctionGracePeriod() + penaltyBlocks);
 
         // Calculate the expected penalty and reward.
-        (uint128 expectedPenalty, uint128 expectedReward) =
-            engine.calculateDynamicPenalty(order.maxFee, uint128(block.number - startBlock));
+        (uint64 expectedPenalty, uint64 expectedReward) =
+            engine.calculateDynamicPenalty(order.maxFee, uint64(block.number - startBlock));
 
         // Execute the fast order, the highest bidder should receive some of their security deposit
         // (less penalties).
@@ -903,7 +898,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotExecuteFastOrderAuctionNotActive() public {
-        uint128 amountIn = _getMinTransferAmount() + 69;
+        uint64 amountIn = _getMinTransferAmount() + 69;
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -922,7 +917,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotExecuteFastOrderAuctionPeriodNotComplete() public {
-        uint128 amountIn = _getMinTransferAmount() + 69;
+        uint64 amountIn = _getMinTransferAmount() + 69;
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -937,7 +932,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotExecuteFastOrderAuctionInvalidWormholeMessage() public {
-        uint128 amountIn = _getMinTransferAmount() + 69;
+        uint64 amountIn = _getMinTransferAmount() + 69;
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -957,8 +952,8 @@ contract MatchingEngineTest is Test {
      * SLOW ORDER TESTS
      */
 
-    function testExecuteSlowOrderAndRedeem(uint128 amountIn, uint128 newBid) public {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+    function testExecuteSlowOrderAndRedeem(uint64 amountIn, uint64 newBid) public {
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -966,7 +961,7 @@ contract MatchingEngineTest is Test {
         // Start the auction and make some bids.
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
         _improveBid(
-            order, fastMessage, uint128(bound(newBid, 0, order.maxFee)), PLAYER_ONE, PLAYER_TWO
+            order, fastMessage, uint64(bound(newBid, 0, order.maxFee)), PLAYER_ONE, PLAYER_TWO
         );
 
         IWormhole.VM memory vaa = wormhole.parseVM(fastMessage);
@@ -993,8 +988,8 @@ contract MatchingEngineTest is Test {
         assertEq(IERC20(USDC_ADDRESS).balanceOf(PLAYER_TWO) - balanceBefore, order.amountIn);
     }
 
-    function testExecuteSlowOrderAndRedeemAuctionNotStarted(uint128 amountIn) public {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+    function testExecuteSlowOrderAndRedeemAuctionNotStarted(uint64 amountIn) public {
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -1034,21 +1029,21 @@ contract MatchingEngineTest is Test {
         assertEq(uint8(engine.getAuctionStatus(auctionId)), uint8(AuctionStatus.Completed));
     }
 
-    function testExecuteSlowOrderAndRedeemAuctionStillActive(uint128 amountIn, uint128 newBid)
+    function testExecuteSlowOrderAndRedeemAuctionStillActive(uint64 amountIn, uint64 newBid)
         public
     {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
 
         // Cache security deposit for later use.
-        uint128 securityDeposit = order.maxFee;
+        uint64 securityDeposit = order.maxFee;
 
         // Start the auction and make some bids.
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
         _improveBid(
-            order, fastMessage, uint128(bound(newBid, 0, order.maxFee)), PLAYER_ONE, PLAYER_TWO
+            order, fastMessage, uint64(bound(newBid, 0, order.maxFee)), PLAYER_ONE, PLAYER_TWO
         );
 
         IWormhole.VM memory vaa = wormhole.parseVM(fastMessage);
@@ -1081,10 +1076,10 @@ contract MatchingEngineTest is Test {
     }
 
     function testExecuteSlowOrderAndRedeemAuctionStillActiveWithPenalty(
-        uint128 amountIn,
+        uint64 amountIn,
         uint8 penaltyBlocks
     ) public {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -1093,7 +1088,7 @@ contract MatchingEngineTest is Test {
         uint256 securityDeposit = order.maxFee;
 
         // Place initial bid for the max fee with player one.
-        uint128 bidPrice = order.maxFee - 1;
+        uint64 bidPrice = order.maxFee - 1;
         _placeInitialBid(order, fastMessage, bidPrice, PLAYER_ONE);
 
         IWormhole.VM memory vaa = wormhole.parseVM(fastMessage);
@@ -1102,12 +1097,12 @@ contract MatchingEngineTest is Test {
 
         // Warp the block into the penalty period.
         penaltyBlocks = uint8(bound(penaltyBlocks, 1, engine.getAuctionPenaltyBlocks() + 1));
-        uint128 startBlock = engine.liveAuctionInfo(auctionId).startBlock;
+        uint64 startBlock = engine.liveAuctionInfo(auctionId).startBlock;
         vm.roll(startBlock + engine.getAuctionGracePeriod() + penaltyBlocks);
 
         // Calculate the expected penalty and reward.
-        (uint128 expectedPenalty, uint128 expectedReward) =
-            engine.calculateDynamicPenalty(order.maxFee, uint128(block.number - startBlock));
+        (uint64 expectedPenalty, uint64 expectedReward) =
+            engine.calculateDynamicPenalty(order.maxFee, uint64(block.number - startBlock));
 
         CctpMessage memory params = _craftWormholeCctpRedeemParams(
             engine,
@@ -1136,7 +1131,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotExecuteSlowOrderAndRedeemInvalidSourceRouterNoAuction() public {
-        uint128 amountIn = _getMinTransferAmount() + 6900;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
         uint64 fastSequence = 69;
 
         Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
@@ -1174,16 +1169,15 @@ contract MatchingEngineTest is Test {
         engine.executeSlowOrderAndRedeem(fastMessage, params);
     }
 
-    function testCannotExecuteSlowOrderAndRedeemWithRolledBackVaa(uint128 amountIn) public {
+    function testCannotExecuteSlowOrderAndRedeemWithRolledBackVaa(uint64 amountIn) public {
         uint32 timestampOne = 69;
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         // Create two fast orders with the same sequence, but different timestamps to simulate
         // a rolled back VAA. The fast message that doesn't have a specified timestamp arg
         // will use the default 1234567, which is also assigned to the slow VAA.
-        (, bytes memory rolledBackMessage) = _getFastMarketOrder(
-            amountIn, ETH_CHAIN, ETH_DOMAIN, 0, timestampOne
-        );
+        (, bytes memory rolledBackMessage) =
+            _getFastMarketOrder(amountIn, ETH_CHAIN, ETH_DOMAIN, 0, timestampOne);
         (Messages.FastMarketOrder memory order,) = _getFastMarketOrder(amountIn, 0);
 
         // Start the auction and make some bids.
@@ -1210,7 +1204,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotExecuteSlowOrderAndRedeemInvalidTargetRouter() public {
-        uint128 amountIn = _getMinTransferAmount() + 6900;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
         uint16 invalidTargetChain = 69;
         uint64 fastSequence = 69;
 
@@ -1245,7 +1239,7 @@ contract MatchingEngineTest is Test {
 
     function testCannotExecuteSlowOrderAndRedeemVaaMismatchCompletedAuction() public {
         uint64 fastSequence = 69;
-        uint128 amountIn = _getMinTransferAmount() + 6900;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -1257,7 +1251,10 @@ contract MatchingEngineTest is Test {
 
         // NOTE: Create slow VAA with a different sequence number.
         CctpMessage memory params = _craftWormholeCctpRedeemParams(
-            engine, amountIn, order.encode(), fastSequence - 2 // Subtract 2 to make it invalid.
+            engine,
+            amountIn,
+            order.encode(),
+            fastSequence - 2 // Subtract 2 to make it invalid.
         );
 
         vm.expectRevert(abi.encodeWithSignature("ErrVaaMismatch()"));
@@ -1266,7 +1263,7 @@ contract MatchingEngineTest is Test {
 
     function testCannotExecuteSlowOrderAndRedeemVaaMismatchActiveAuction() public {
         uint64 fastSequence = 69;
-        uint128 amountIn = _getMinTransferAmount() + 6900;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
@@ -1278,7 +1275,10 @@ contract MatchingEngineTest is Test {
 
         // NOTE: Create slow VAA with a different sequence number.
         CctpMessage memory params = _craftWormholeCctpRedeemParams(
-            engine, amountIn, order.encode(), fastSequence - 2 // Subtract 2 to make it invalid.
+            engine,
+            amountIn,
+            order.encode(),
+            fastSequence - 2 // Subtract 2 to make it invalid.
         );
 
         vm.expectRevert(abi.encodeWithSignature("ErrVaaMismatch()"));
@@ -1287,14 +1287,17 @@ contract MatchingEngineTest is Test {
 
     function testCannotExecuteSlowOrderAndRedeemVaaMismatchAuctionNotStarted() public {
         uint64 fastSequence = 69;
-        uint128 amountIn = _getMinTransferAmount() + 6900;
+        uint64 amountIn = _getMinTransferAmount() + 6900;
 
         (Messages.FastMarketOrder memory order, bytes memory fastMessage) =
             _getFastMarketOrder(amountIn);
 
         // NOTE: Create slow VAA with a different sequence number.
         CctpMessage memory params = _craftWormholeCctpRedeemParams(
-            engine, amountIn, order.encode(), fastSequence - 2 // Subtract 2 to make it invalid.
+            engine,
+            amountIn,
+            order.encode(),
+            fastSequence - 2 // Subtract 2 to make it invalid.
         );
 
         vm.expectRevert(abi.encodeWithSignature("ErrVaaMismatch()"));
@@ -1305,8 +1308,8 @@ contract MatchingEngineTest is Test {
      * FAST FILL TESTS
      */
 
-    function testRedeemFastFill(uint128 amountIn, uint128 newBid) public {
-        amountIn = uint128(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
+    function testRedeemFastFill(uint64 amountIn, uint64 newBid) public {
+        amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
         // Deploy the avax token router and register it.
         ITokenRouter avaxRouter = _deployAndRegisterAvaxRouter();
@@ -1317,7 +1320,7 @@ contract MatchingEngineTest is Test {
         // Start the auction and make some bids.
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
         _improveBid(
-            order, fastMessage, uint128(bound(newBid, 0, order.maxFee)), PLAYER_ONE, PLAYER_TWO
+            order, fastMessage, uint64(bound(newBid, 0, order.maxFee)), PLAYER_ONE, PLAYER_TWO
         );
 
         bytes32 auctionId = wormhole.parseVM(fastMessage).hash;
@@ -1352,7 +1355,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotRedeemFastFillInvalidEmitterChain() public {
-        uint128 amountIn = _getMinTransferAmount() + 69;
+        uint64 amountIn = _getMinTransferAmount() + 69;
         uint16 invalidEmitterChain = 69;
 
         // Deploy the avax token router and register it.
@@ -1380,7 +1383,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotRedeemFastFillInvalidEmitterAddress() public {
-        uint128 amountIn = _getMinTransferAmount() + 69;
+        uint64 amountIn = _getMinTransferAmount() + 69;
         address invalidEmitterAddress = makeAddr("invalidEmitter");
 
         // Deploy the avax token router and register it.
@@ -1408,7 +1411,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotRedeemFastFillInvalidSourceRouter() public {
-        uint128 amountIn = _getMinTransferAmount() + 69;
+        uint64 amountIn = _getMinTransferAmount() + 69;
         address invalidRouter = makeAddr("invalidRouter");
 
         // Deploy the avax token router and register it.
@@ -1442,7 +1445,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotRedeemFastFillAgain() public {
-        uint128 amountIn = _getMinTransferAmount() + 69;
+        uint64 amountIn = _getMinTransferAmount() + 69;
 
         // Deploy the avax token router and register it.
         ITokenRouter avaxRouter = _deployAndRegisterAvaxRouter();
@@ -1471,7 +1474,7 @@ contract MatchingEngineTest is Test {
     }
 
     function testCannotRedeemFastFillInvalidRedeemer() public {
-        uint128 amountIn = _getMinTransferAmount() + 69420;
+        uint64 amountIn = _getMinTransferAmount() + 69420;
         address invalidRedeemer = makeAddr("invalidRedeemer");
 
         // Deploy the avax token router and register it.
@@ -1537,7 +1540,7 @@ contract MatchingEngineTest is Test {
     function _placeInitialBid(
         Messages.FastMarketOrder memory order,
         bytes memory fastMessage,
-        uint128 feeBid,
+        uint64 feeBid,
         address bidder
     ) internal {
         _dealAndApproveUsdc(engine, order.amountIn + order.maxFee, bidder);
@@ -1561,7 +1564,7 @@ contract MatchingEngineTest is Test {
     function _improveBid(
         Messages.FastMarketOrder memory order,
         bytes memory fastMessage,
-        uint128 newBid,
+        uint64 newBid,
         address initialBidder,
         address newBidder
     ) internal {
@@ -1653,7 +1656,7 @@ contract MatchingEngineTest is Test {
 
     function _verifyAuctionState(
         Messages.FastMarketOrder memory order,
-        uint128 feeBid,
+        uint64 feeBid,
         address currentBidder,
         address initialBidder,
         bytes32 vmHash
@@ -1670,7 +1673,7 @@ contract MatchingEngineTest is Test {
 
     function _verifyOutboundCctpTransfer(
         Messages.FastMarketOrder memory order,
-        uint128 transferAmount,
+        uint64 transferAmount,
         IWormhole.VM memory cctpMessage,
         address caller
     ) internal {
@@ -1705,7 +1708,7 @@ contract MatchingEngineTest is Test {
         assertEq(mintRecipient, ETH_ROUTER);
     }
 
-    function _getFastMarketOrder(uint128 amountIn)
+    function _getFastMarketOrder(uint64 amountIn)
         internal
         view
         returns (Messages.FastMarketOrder memory order, bytes memory fastMessage)
@@ -1713,7 +1716,7 @@ contract MatchingEngineTest is Test {
         return _getFastMarketOrder(amountIn, ETH_CHAIN, ETH_DOMAIN, 0);
     }
 
-    function _getFastMarketOrder(uint128 amountIn, uint32 deadline)
+    function _getFastMarketOrder(uint64 amountIn, uint32 deadline)
         internal
         view
         returns (Messages.FastMarketOrder memory order, bytes memory fastMessage)
@@ -1722,18 +1725,16 @@ contract MatchingEngineTest is Test {
     }
 
     function _getFastMarketOrder(
-        uint128 amountIn,
+        uint64 amountIn,
         uint16 targetChain,
         uint32 targetDomain,
         uint32 deadline
     ) internal view returns (Messages.FastMarketOrder memory order, bytes memory fastMessage) {
-        return _getFastMarketOrder(
-            amountIn, targetChain, targetDomain, deadline, 1234567
-        );
+        return _getFastMarketOrder(amountIn, targetChain, targetDomain, deadline, 1234567);
     }
 
     function _getFastMarketOrder(
-        uint128 amountIn,
+        uint64 amountIn,
         uint16 targetChain,
         uint32 targetDomain,
         uint32 deadline,
@@ -1757,23 +1758,24 @@ contract MatchingEngineTest is Test {
         uint64 sequence = 69;
 
         // Generate the fast message vaa using the information from the fast order.
-        fastMessage = _createSignedVaa(ARB_CHAIN, ARB_ROUTER, sequence, vaaTimestamp, order.encode());
+        fastMessage =
+            _createSignedVaa(ARB_CHAIN, ARB_ROUTER, sequence, vaaTimestamp, order.encode());
     }
 
-    function _getMinTransferAmount() internal pure returns (uint128) {
+    function _getMinTransferAmount() internal pure returns (uint64) {
         return FAST_TRANSFER_BASE_FEE + FAST_TRANSFER_INIT_AUCTION_FEE + 1;
     }
 
-    function _getMaxTransferAmount() internal pure returns (uint128) {
+    function _getMaxTransferAmount() internal pure returns (uint64) {
         return FAST_TRANSFER_MAX_AMOUNT;
     }
 
-    function _calculateFastTransferFee(uint128 amount) internal view returns (uint128) {
+    function _calculateFastTransferFee(uint64 amount) internal view returns (uint64) {
         if (amount < FAST_TRANSFER_BASE_FEE + FAST_TRANSFER_INIT_AUCTION_FEE) {
             revert();
         }
 
-        uint128 transferFee = uint128(
+        uint64 transferFee = uint64(
             (amount - FAST_TRANSFER_BASE_FEE - FAST_TRANSFER_INIT_AUCTION_FEE)
                 * TEST_TRANSFER_FEE_IN_BPS / engine.maxBpsFee()
         );
