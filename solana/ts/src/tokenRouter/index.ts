@@ -377,21 +377,37 @@ export class TokenRouterProgram {
         };
     }
 
-    async placeMarketOrderCctpIx(accounts: {
-        payer: PublicKey;
-        preparedOrder: PublicKey;
-        orderSender?: PublicKey;
-        routerEndpoint?: PublicKey;
-    }): Promise<TransactionInstruction> {
-        let {
+    async placeMarketOrderCctpIx(
+        accounts: {
+            payer: PublicKey;
+            preparedOrder: PublicKey;
+            orderSender?: PublicKey;
+            routerEndpoint?: PublicKey;
+        },
+        args?: {
+            targetChain: number;
+        }
+    ): Promise<TransactionInstruction> {
+        const {
             payer,
             preparedOrder,
             orderSender: inputOrderSender,
             routerEndpoint: inputRouterEndpoint,
         } = accounts;
-        const {
-            info: { orderSender, targetChain },
-        } = await this.fetchPreparedOrder(preparedOrder);
+        const { orderSender, targetChain } = await (async () => {
+            if (inputOrderSender !== undefined && args !== undefined) {
+                return { orderSender: inputOrderSender, targetChain: args.targetChain };
+            } else {
+                const {
+                    info: { orderSender, targetChain },
+                } = await this.fetchPreparedOrder(preparedOrder).catch((_) => {
+                    throw new Error(
+                        "Cannot find prepared order. If it doesn't exist, please provide orderSender and targetChain."
+                    );
+                });
+                return { orderSender, targetChain };
+            }
+        })();
 
         const payerSequence = this.payerSequenceAddress(payer);
         const coreMessage = await this.fetchPayerSequenceValue(payerSequence).then((value) =>

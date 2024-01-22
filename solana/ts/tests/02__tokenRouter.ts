@@ -730,34 +730,14 @@ describe("Token Router", function () {
             });
 
             it("Prepare Market Order", async function () {
-                const preparedOrder = Keypair.generate();
-
                 const amountIn = 69n;
-                const ix = await tokenRouter.prepareMarketOrderIx(
-                    {
-                        payer: payer.publicKey,
-                        orderSender: orderSender.publicKey,
-                        preparedOrder: preparedOrder.publicKey,
-                        orderToken: payerToken,
-                        refundToken: payerToken,
-                    },
-                    {
-                        amountIn,
-                        minAmountOut: null,
-                        targetChain: foreignChain,
-                        redeemer,
-                        redeemerMessage,
-                    }
-                );
+                const { preparedOrder, approveIx, prepareIx } = await prepareOrder(amountIn);
 
-                const approveIx = splToken.createApproveInstruction(
-                    payerToken,
-                    orderSender.publicKey,
-                    payer.publicKey,
-                    amountIn
+                await expectIxOk(
+                    connection,
+                    [approveIx, prepareIx],
+                    [payer, orderSender, preparedOrder]
                 );
-
-                await expectIxOk(connection, [approveIx, ix], [payer, orderSender, preparedOrder]);
 
                 // Save for later.
                 localVariables.set("preparedOrder", preparedOrder.publicKey);
@@ -845,45 +825,7 @@ describe("Token Router", function () {
                 );
                 expect(balanceAfter).equals(balanceBefore - amountIn);
 
-                // TODO: check message
-
-                const accInfo = await connection.getAccountInfo(preparedOrder);
-                expect(accInfo).is.null;
-            });
-
-            it("Prepare Another Market Order", async () => {
-                const preparedOrder = Keypair.generate();
-
-                const amountIn = 420n;
-                const ix = await tokenRouter.prepareMarketOrderIx(
-                    {
-                        payer: payer.publicKey,
-                        orderSender: orderSender.publicKey,
-                        preparedOrder: preparedOrder.publicKey,
-                        orderToken: payerToken,
-                        refundToken: payerToken,
-                    },
-                    {
-                        amountIn,
-                        minAmountOut: null,
-                        targetChain: foreignChain,
-                        redeemer,
-                        redeemerMessage,
-                    }
-                );
-
-                const approveIx = splToken.createApproveInstruction(
-                    payerToken,
-                    orderSender.publicKey,
-                    payer.publicKey,
-                    amountIn
-                );
-
-                await expectIxOk(connection, [approveIx, ix], [payer, orderSender, preparedOrder]);
-
-                // Save for later.
-                localVariables.set("preparedOrder", preparedOrder.publicKey);
-                localVariables.set("amountIn", amountIn);
+                checkAfterEffects({ preparedOrder, amountIn, burnSource: payerToken });
             });
 
             it("Pause", async function () {
@@ -895,6 +837,21 @@ describe("Token Router", function () {
                 );
 
                 await expectIxOk(connection, [ix], [owner]);
+            });
+
+            it("Prepare Another Market Order While Paused", async () => {
+                const amountIn = 420n;
+                const { preparedOrder, approveIx, prepareIx } = await prepareOrder(amountIn);
+
+                await expectIxOk(
+                    connection,
+                    [approveIx, approveIx, prepareIx],
+                    [payer, orderSender, preparedOrder]
+                );
+
+                // Save for later.
+                localVariables.set("preparedOrder", preparedOrder.publicKey);
+                localVariables.set("amountIn", amountIn);
             });
 
             it("Cannot Place Market Order when Paused", async function () {
@@ -921,7 +878,9 @@ describe("Token Router", function () {
 
             it("Place Market Order after Unpaused", async function () {
                 const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
+                expect(localVariables.delete("preparedOrder")).is.true;
                 const amountIn = localVariables.get("amountIn") as bigint;
+                expect(localVariables.delete("amountIn")).is.true;
 
                 const ix = await tokenRouter.placeMarketOrderCctpIx({
                     payer: payer.publicKey,
@@ -948,7 +907,84 @@ describe("Token Router", function () {
                 );
                 expect(balanceAfter).equals(balanceBefore - amountIn);
 
-                // TODO: check message
+                checkAfterEffects({ preparedOrder, amountIn, burnSource: payerToken });
+            });
+
+            it("Prepare and Place Market Order in One Transaction", async function () {
+                const amountIn = 42069n;
+                const { preparedOrder, approveIx, prepareIx } = await prepareOrder(amountIn);
+
+                const ix = await tokenRouter.placeMarketOrderCctpIx(
+                    {
+                        payer: payer.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        orderSender: orderSender.publicKey,
+                    },
+                    {
+                        targetChain: foreignChain,
+                    }
+                );
+
+                const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress
+                );
+                await expectIxOk(
+                    connection,
+                    [approveIx, prepareIx, ix],
+                    [payer, orderSender, preparedOrder],
+                    {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    }
+                );
+
+                const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
+                expect(balanceAfter).equals(balanceBefore - amountIn);
+
+                checkAfterEffects({
+                    preparedOrder: preparedOrder.publicKey,
+                    amountIn,
+                    burnSource: payerToken,
+                });
+            });
+
+            async function prepareOrder(amountIn: bigint) {
+                const preparedOrder = Keypair.generate();
+                const prepareIx = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        orderSender: orderSender.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        orderToken: payerToken,
+                        refundToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut: null,
+                        targetChain: foreignChain,
+                        redeemer,
+                        redeemerMessage,
+                    }
+                );
+
+                const approveIx = splToken.createApproveInstruction(
+                    payerToken,
+                    orderSender.publicKey,
+                    payer.publicKey,
+                    amountIn
+                );
+
+                return { preparedOrder, approveIx, prepareIx };
+            }
+
+            async function checkAfterEffects(args: {
+                preparedOrder: PublicKey;
+                amountIn: bigint;
+                burnSource: PublicKey;
+            }) {
+                const { preparedOrder, amountIn, burnSource } = args;
+
                 const { value: payerSequenceValue } = await tokenRouter.fetchPayerSequence(
                     tokenRouter.payerSequenceAddress(payer.publicKey)
                 );
@@ -960,16 +996,50 @@ describe("Token Router", function () {
                 );
                 expect(emitterAddress).to.eql(tokenRouter.custodianAddress().toBuffer());
 
-                const actualDepositMessage = LiquidityLayerMessage.decode(payload);
-                // TODO: check this with an expected message
+                const { sourceCctpDomain, cctpNonce } = await (async () => {
+                    const transmitter = tokenRouter.messageTransmitterProgram();
+                    const config = transmitter.messageTransmitterConfigAddress();
+                    const { localDomain, nextAvailableNonce } =
+                        await transmitter.fetchMessageTransmitterConfig(config);
+                    return { sourceCctpDomain: localDomain, cctpNonce: nextAvailableNonce - 1n };
+                })();
+
+                const {
+                    protocol: { cctp: cctpProtocol },
+                } = await tokenRouter.fetchRouterEndpoint(
+                    tokenRouter.routerEndpointAddress(foreignChain)
+                );
+                expect(cctpProtocol).is.not.null;
+                const { domain: destinationCctpDomain } = cctpProtocol!;
+
+                const depositMessage = LiquidityLayerMessage.decode(payload);
+                expect(depositMessage).to.eql(
+                    new LiquidityLayerMessage({
+                        deposit: new LiquidityLayerDeposit(
+                            {
+                                tokenAddress: Array.from(USDC_MINT_ADDRESS.toBuffer()),
+                                amount: amountIn,
+                                sourceCctpDomain,
+                                destinationCctpDomain,
+                                cctpNonce,
+                                burnSource: Array.from(burnSource.toBuffer()),
+                                mintRecipient: foreignEndpointAddress,
+                            },
+                            {
+                                fill: {
+                                    sourceChain: wormholeSdk.CHAIN_ID_SOLANA as number,
+                                    orderSender: Array.from(orderSender.publicKey.toBuffer()),
+                                    redeemer,
+                                    redeemerMessage,
+                                },
+                            }
+                        ),
+                    })
+                );
 
                 const accInfo = await connection.getAccountInfo(preparedOrder);
                 expect(accInfo).is.null;
-            });
-
-            it.skip("Prepare and Place Market Order in One Transaction", async function () {
-                // TODO
-            });
+            }
         });
 
         describe("Redeem Fill (CCTP)", function () {
