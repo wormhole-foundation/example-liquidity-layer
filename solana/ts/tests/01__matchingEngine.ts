@@ -32,8 +32,6 @@ import {
 import {
     FastMarketOrder,
     calculateDynamicPenalty,
-    getBestOfferTokenAccount,
-    getInitialOfferTokenAccount,
     getTokenBalance,
     postFastTransferVaa,
     postVaaWithMessage,
@@ -1313,7 +1311,7 @@ describe("Matching Engine", function () {
                     // New Offer from offerAuthorityTwo.
                     const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                     const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
-                    const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                    const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
                     await expectIxOk(
                         connection,
@@ -1406,7 +1404,7 @@ describe("Matching Engine", function () {
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                 const newOffer = baseFastOrder.maxFee - 100n;
                 const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
                 await expectIxOk(
                     connection,
@@ -1476,7 +1474,7 @@ describe("Matching Engine", function () {
                 // New Offer from offerAuthorityOne.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                 const newOffer = baseFastOrder.maxFee - 100n;
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
                 await skip_slots(connection, 3);
 
@@ -1552,7 +1550,7 @@ describe("Matching Engine", function () {
                 // New Offer from offerAuthorityOne.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                 const newOffer = baseFastOrder.maxFee - 100n;
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
                 await skip_slots(connection, 3);
 
@@ -1602,7 +1600,7 @@ describe("Matching Engine", function () {
 
                 // New Offer from offerAuthorityOne.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
                 await expectIxErr(
                     connection,
@@ -1642,8 +1640,8 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                let bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                let bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
                 const newOffer = baseFastOrder.maxFee - 100n;
 
                 // Improve the bid with offer one.
@@ -1675,7 +1673,7 @@ describe("Matching Engine", function () {
                     offerAuthorityTwo.publicKey
                 );
                 const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
-                bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
                 // Fast forward into the grace period.
                 await skip_slots(connection, 2);
@@ -1766,8 +1764,8 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                let bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                let bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
                 const newOffer = fastOrder.maxFee - 100n;
 
                 // Improve the bid with offer one.
@@ -1799,7 +1797,7 @@ describe("Matching Engine", function () {
                     offerAuthorityTwo.publicKey
                 );
                 const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
-                bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
                 // Fast forward into the grace period.
                 await skip_slots(connection, 2);
@@ -1881,8 +1879,8 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Fetch the balances before.
                 const highestOfferBefore = await getTokenBalance(
@@ -1998,8 +1996,8 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Fetch the balances before.
                 const highestOfferBefore = await getTokenBalance(
@@ -2124,8 +2122,8 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Fetch the balances before.
                 const highestOfferBefore = await getTokenBalance(
@@ -2258,8 +2256,8 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 await expectIxErr(
                     connection,
@@ -2308,8 +2306,8 @@ describe("Matching Engine", function () {
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                 const vaaHash2 = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa2).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Fast forward past the penalty period.
                 await skip_slots(connection, 15);
@@ -2346,7 +2344,7 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Pass the wrong address for the best offer token account.
                 await expectIxErr(
@@ -2381,7 +2379,7 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
                 // Pass the wrong address for the initial offer token account.
                 await expectIxErr(
@@ -2416,8 +2414,8 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Fast forward into the grace period.
                 await skip_slots(connection, 4);
@@ -2468,8 +2466,8 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Do not fast forward into the grace period.
 
@@ -2506,8 +2504,8 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 await expectIxErr(
                     connection,
@@ -2561,8 +2559,8 @@ describe("Matching Engine", function () {
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
                 const vaaHash2 = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa2).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Fast forward past the penalty period.
                 await skip_slots(connection, 15);
@@ -2603,7 +2601,7 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Pass the wrong address for the best offer token account.
                 await expectIxErr(
@@ -2642,7 +2640,7 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
                 // Pass the wrong address for the initial offer token account.
                 await expectIxErr(
@@ -2681,8 +2679,8 @@ describe("Matching Engine", function () {
 
                 // Accounts for the instruction.
                 const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                const bestOfferToken = await getBestOfferTokenAccount(engine, vaaHash);
-                const initialOfferToken = await getInitialOfferTokenAccount(engine, vaaHash);
+                const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
+                const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Fast forward into the grace period.
                 await skip_slots(connection, 4);

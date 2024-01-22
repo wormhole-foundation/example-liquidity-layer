@@ -94,10 +94,12 @@ pub fn handle_fast_order_execution(accounts: ExecuteFastOrderAccounts) -> Result
     let mut user_reward: u64 = 0;
 
     if slots_elapsed > auction_config.auction_grace_period.into() {
-        let (penalty, reward) = accounts
-            .custodian
-            .calculate_dynamic_penalty(auction_data.security_deposit, slots_elapsed)
-            .ok_or(MatchingEngineError::PenaltyCalculationFailed)?;
+        let (penalty, reward) = crate::utils::calculate_dynamic_penalty(
+            &accounts.custodian.auction_config,
+            auction_data.security_deposit,
+            slots_elapsed,
+        )
+        .ok_or(MatchingEngineError::PenaltyCalculationFailed)?;
 
         // Save user reward for CCTP transfer.
         user_reward = reward;

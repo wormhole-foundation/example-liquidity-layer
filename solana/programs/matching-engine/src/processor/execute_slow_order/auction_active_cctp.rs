@@ -215,11 +215,12 @@ pub fn execute_slow_order_auction_active_cctp(
     let (final_status, liquidator_amount, best_offer_amount, cctp_amount) = {
         let auction = &ctx.accounts.auction_data;
         let slots_elapsed = Clock::get().map(|clock| clock.slot - auction.start_slot)?;
-        let (penalty, reward) = ctx
-            .accounts
-            .custodian
-            .calculate_dynamic_penalty(auction.security_deposit, slots_elapsed)
-            .ok_or(MatchingEngineError::PenaltyCalculationFailed)?;
+        let (penalty, reward) = crate::utils::calculate_dynamic_penalty(
+            &ctx.accounts.custodian.auction_config,
+            auction.security_deposit,
+            slots_elapsed,
+        )
+        .ok_or(MatchingEngineError::PenaltyCalculationFailed)?;
 
         let base_fee = ctx.accounts.prepared_slow_order.base_fee;
         (

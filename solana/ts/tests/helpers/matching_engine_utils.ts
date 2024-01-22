@@ -186,20 +186,6 @@ export async function postFastTransferVaa(
     );
 }
 
-export async function getBestOfferTokenAccount(
-    engine: MatchingEngineProgram,
-    vaaHash: Buffer
-): Promise<PublicKey> {
-    return (await engine.fetchAuctionData(vaaHash)).bestOfferToken;
-}
-
-export async function getInitialOfferTokenAccount(
-    engine: MatchingEngineProgram,
-    vaaHash: Buffer
-): Promise<PublicKey> {
-    return (await engine.fetchAuctionData(vaaHash)).initialOfferToken;
-}
-
 const sleep = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function skip_slots(connection: Connection, slots: number): Promise<number> {
