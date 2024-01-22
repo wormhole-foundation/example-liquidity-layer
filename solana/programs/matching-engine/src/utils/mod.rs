@@ -68,3 +68,157 @@ pub fn calculate_dynamic_penalty(
         Some((penalty.checked_sub(reward).unwrap(), reward))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use anchor_lang::prelude::Result;
+
+    #[test]
+    fn test_calculate_dynamic_penalty() -> Result<()> {
+        // Create test AuctionConfig struct.
+        let mut config = AuctionConfig {
+            user_penalty_reward_bps: 250000,
+            initial_penalty_bps: 100000,
+            auction_duration: 2,
+            auction_grace_period: 6,
+            auction_penalty_slots: 20,
+        };
+
+        // Still in grace period.
+        {
+            let amount = 10000000;
+            let slots_elapsed = config.auction_grace_period - 1;
+            let (penalty, reward) =
+                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
+                    .unwrap();
+
+            assert_eq!(penalty, 0);
+            assert_eq!(reward, 0);
+        }
+
+        // Penalty period is over.
+        {
+            let amount = 10000000;
+            let slots_elapsed = config.auction_penalty_slots + config.auction_grace_period;
+            let (penalty, reward) =
+                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
+                    .unwrap();
+
+            assert_eq!(penalty, 7500000);
+            assert_eq!(reward, 2500000);
+        }
+
+        // One slot into the penalty period.
+        {
+            let amount = 10000000;
+            let slots_elapsed = config.auction_grace_period + 1;
+            let (penalty, reward) =
+                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
+                    .unwrap();
+
+            assert_eq!(penalty, 1087500);
+            assert_eq!(reward, 362500);
+        }
+
+        // 50% of the way through the penalty period.
+        {
+            let amount = 10000000;
+            let slots_elapsed = config.auction_grace_period + 10;
+            let (penalty, reward) =
+                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
+                    .unwrap();
+
+            assert_eq!(penalty, 4125000);
+            assert_eq!(reward, 1375000);
+        }
+
+        // Penalty period (19/20 slots).
+        {
+            let amount = 10000000;
+            let slots_elapsed = config.auction_grace_period + 19;
+            let (penalty, reward) =
+                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
+                    .unwrap();
+
+            assert_eq!(penalty, 7162500);
+            assert_eq!(reward, 2387500);
+        }
+
+        // Update the initial penalty to 0%. 50% of the way through the penalty period.
+        {
+            config.initial_penalty_bps = 0;
+
+            let amount = 10000000;
+            let slots_elapsed = config.auction_grace_period + 10;
+            let (penalty, reward) =
+                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
+                    .unwrap();
+
+            assert_eq!(penalty, 3750000);
+            assert_eq!(reward, 1250000);
+        }
+
+        // Set the user reward to 0%.
+        {
+            config.user_penalty_reward_bps = 0;
+
+            let amount = 10000000;
+            let slots_elapsed = config.auction_grace_period + 10;
+            let (penalty, reward) =
+                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
+                    .unwrap();
+
+            assert_eq!(penalty, 5000000);
+            assert_eq!(reward, 0);
+        }
+
+        // Set the initial penalty to 100% and user penalty to 50%.
+        {
+            config.initial_penalty_bps = FEE_PRECISION_MAX;
+            config.user_penalty_reward_bps = 500000;
+
+            let amount = 10000000;
+            let slots_elapsed = config.auction_grace_period + 5;
+            let (penalty, reward) =
+                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
+                    .unwrap();
+
+            assert_eq!(penalty, 5000000);
+            assert_eq!(reward, 5000000);
+        }
+
+        // Set the user penalty to 100% and initial penalty to 50%.
+        {
+            config.initial_penalty_bps = 500000;
+            config.user_penalty_reward_bps = FEE_PRECISION_MAX;
+
+            let amount = 10000000;
+            let slots_elapsed = config.auction_grace_period + 10;
+            let (penalty, reward) =
+                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
+                    .unwrap();
+
+            assert_eq!(penalty, 0);
+            assert_eq!(reward, 7500000);
+        }
+
+        // Set the penalty blocks to zero.
+        {
+            config.initial_penalty_bps = 500000;
+            config.user_penalty_reward_bps = 500000;
+            config.auction_penalty_slots = 0;
+
+            let amount = 10000000;
+            let slots_elapsed = config.auction_grace_period + 10;
+            let (penalty, reward) =
+                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
+                    .unwrap();
+
+            assert_eq!(penalty, 5000000);
+            assert_eq!(reward, 5000000);
+        }
+
+        Ok(())
+    }
+}
