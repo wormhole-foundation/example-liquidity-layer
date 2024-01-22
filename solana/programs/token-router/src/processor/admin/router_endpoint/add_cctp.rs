@@ -1,6 +1,7 @@
 use crate::{
     error::TokenRouterError,
     state::{Custodian, MessageProtocol, RouterEndpoint},
+    CUSTODIAN_BUMP,
 };
 use anchor_lang::prelude::*;
 use common::admin::utils::assistant::only_authorized;
@@ -17,7 +18,7 @@ pub struct AddCctpRouterEndpoint<'info> {
 
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = CUSTODIAN_BUMP,
         constraint = {
             only_authorized(&custodian, &owner_or_assistant.key())
         } @ TokenRouterError::OwnerOrAssistantOnly,

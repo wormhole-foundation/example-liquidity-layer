@@ -1,6 +1,7 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
 import {
+    ComputeBudgetProgram,
     Connection,
     Keypair,
     PublicKey,
@@ -2807,7 +2808,11 @@ describe("Matching Engine", function () {
                     }
                 );
 
-                await expectIxOk(connection, [ix], [payer]);
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 250_000,
+                });
+
+                await expectIxOk(connection, [computeIx, ix], [payer]);
 
                 // TODO: validate prepared slow order
                 const fastVaaHash = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
@@ -2823,7 +2828,7 @@ describe("Matching Engine", function () {
                 localVariables.set("preparedSlowOrder", preparedSlowOrder);
             });
 
-            it("Cannot Prepare Slow Order for Same VAAs with Same Payer", async function () {
+            it("Cannot Prepare Slow Order for Same VAAs", async function () {
                 const ix = localVariables.get("ix") as TransactionInstruction;
                 expect(localVariables.delete("ix")).is.true;
 

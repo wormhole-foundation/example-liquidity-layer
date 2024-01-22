@@ -19,7 +19,7 @@ import {
 import * as matchingEngineSdk from "../matchingEngine";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { VaaAccount } from "../wormhole";
-import { Custodian, PayerSequence, RouterEndpoint } from "./state";
+import { Custodian, PayerSequence, PreparedOrder, RouterEndpoint } from "./state";
 
 export const PROGRAM_IDS = ["TokenRouter11111111111111111111111111111111"] as const;
 
@@ -27,6 +27,14 @@ export type ProgramId = (typeof PROGRAM_IDS)[number];
 
 export type PlaceMarketOrderCctpArgs = {
     amountIn: bigint;
+    targetChain: wormholeSdk.ChainId;
+    redeemer: Array<number>;
+    redeemerMessage: Buffer;
+};
+
+export type PrepareMarketOrderArgs = {
+    amountIn: bigint;
+    minAmountOut: bigint | null;
     targetChain: wormholeSdk.ChainId;
     redeemer: Array<number>;
     redeemerMessage: Buffer;
@@ -61,6 +69,7 @@ export type TokenRouterCommonAccounts = PublishMessageAccounts & {
 export type PlaceMarketOrderCctpAccounts = PublishMessageAccounts & {
     custodian: PublicKey;
     custodyToken: PublicKey;
+    mint: PublicKey;
     routerEndpoint: PublicKey;
     tokenMessengerMinterSenderAuthority: PublicKey;
     messageTransmitterConfig: PublicKey;
@@ -185,7 +194,11 @@ export class TokenRouterProgram {
         return this.program.account.routerEndpoint.fetch(addr);
     }
 
-    commonAccounts(mint?: PublicKey): TokenRouterCommonAccounts {
+    async fetchPreparedOrder(addr: PublicKey): Promise<PreparedOrder> {
+        return this.program.account.preparedOrder.fetch(addr);
+    }
+
+    async commonAccounts(): Promise<TokenRouterCommonAccounts> {
         const custodian = this.custodianAddress();
         const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
             this.publishMessageAccounts(custodian);
@@ -193,23 +206,15 @@ export class TokenRouterProgram {
         const tokenMessengerMinterProgram = this.tokenMessengerMinterProgram();
         const messageTransmitterProgram = this.messageTransmitterProgram();
 
-        const [localToken, tokenMessengerMinterCustodyToken] = (() => {
-            if (mint === undefined) {
-                return [];
-            } else {
-                return [
-                    tokenMessengerMinterProgram.localTokenAddress(mint),
-                    tokenMessengerMinterProgram.custodyTokenAddress(mint),
-                ];
-            }
-        })();
+        const custodyToken = this.custodyTokenAccountAddress();
+        const { mint } = await splToken.getAccount(this.program.provider.connection, custodyToken);
 
         return {
             tokenRouterProgram: this.ID,
             systemProgram: SystemProgram.programId,
             rent: SYSVAR_RENT_PUBKEY,
             custodian,
-            custodyToken: this.custodyTokenAccountAddress(),
+            custodyToken,
             coreBridgeConfig,
             coreEmitterSequence,
             coreFeeCollector,
@@ -223,13 +228,94 @@ export class TokenRouterProgram {
             messageTransmitterProgram: messageTransmitterProgram.ID,
             tokenProgram: splToken.TOKEN_PROGRAM_ID,
             mint,
-            localToken,
-            tokenMessengerMinterCustodyToken,
+            localToken: tokenMessengerMinterProgram.localTokenAddress(mint),
+            tokenMessengerMinterCustodyToken: tokenMessengerMinterProgram.custodyTokenAddress(mint),
         };
     }
 
+    async prepareMarketOrderIx(
+        accounts: {
+            payer: PublicKey;
+            orderSender: PublicKey;
+            preparedOrder: PublicKey;
+            orderToken: PublicKey;
+            refundToken: PublicKey;
+        },
+        args: PrepareMarketOrderArgs
+    ): Promise<TransactionInstruction> {
+        const { payer, orderSender, preparedOrder, orderToken, refundToken } = accounts;
+        const { amountIn, minAmountOut, ...remainingArgs } = args;
+
+        return this.program.methods
+            .prepareMarketOrder({
+                amountIn: new BN(amountIn.toString()),
+                minAmountOut: minAmountOut === null ? null : new BN(minAmountOut.toString()),
+                ...remainingArgs,
+            })
+            .accounts({
+                payer,
+                orderSender,
+                preparedOrder,
+                orderToken,
+                refundToken,
+                custodyToken: this.custodyTokenAccountAddress(),
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+            })
+            .instruction();
+    }
+
+    async closePreparedOrderIx(accounts: {
+        preparedOrder: PublicKey;
+        payer?: PublicKey;
+        orderSender?: PublicKey;
+        refundToken?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const {
+            preparedOrder,
+            payer: inputPayer,
+            orderSender: inputOrderSender,
+            refundToken: inputRefundToken,
+        } = accounts;
+
+        const { payer, orderSender, refundToken } = await (async () => {
+            if (
+                inputPayer === undefined ||
+                inputOrderSender === undefined ||
+                inputRefundToken === undefined
+            ) {
+                const {
+                    info: { payer, orderSender, refundToken },
+                } = await this.fetchPreparedOrder(preparedOrder);
+
+                return {
+                    payer: inputPayer ?? payer,
+                    orderSender: inputOrderSender ?? orderSender,
+                    refundToken: inputRefundToken ?? refundToken,
+                };
+            } else {
+                return {
+                    payer: inputPayer,
+                    orderSender: inputOrderSender,
+                    refundToken: inputRefundToken,
+                };
+            }
+        })();
+
+        return this.program.methods
+            .closePreparedOrder()
+            .accounts({
+                payer,
+                custodian: this.custodianAddress(),
+                orderSender,
+                preparedOrder,
+                refundToken,
+                custodyToken: this.custodyTokenAccountAddress(),
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+            })
+            .instruction();
+    }
+
     async placeMarketOrderCctpAccounts(
-        mint: PublicKey,
         targetChain: wormholeSdk.ChainId,
         overrides: {
             remoteDomain?: number;
@@ -251,6 +337,9 @@ export class TokenRouterProgram {
             }
         })();
 
+        const custodyToken = this.custodyTokenAccountAddress();
+        const { mint } = await splToken.getAccount(this.program.provider.connection, custodyToken);
+
         const {
             senderAuthority: tokenMessengerMinterSenderAuthority,
             messageTransmitterConfig,
@@ -269,7 +358,8 @@ export class TokenRouterProgram {
 
         return {
             custodian,
-            custodyToken: this.custodyTokenAccountAddress(),
+            custodyToken,
+            mint,
             routerEndpoint,
             coreBridgeConfig,
             coreEmitterSequence,
@@ -287,30 +377,21 @@ export class TokenRouterProgram {
         };
     }
 
-    async placeMarketOrderCctpIx(
-        accounts: {
-            payer: PublicKey;
-            mint: PublicKey;
-            burnSource: PublicKey;
-            burnSourceAuthority?: PublicKey;
-            routerEndpoint?: PublicKey;
-        },
-        args: PlaceMarketOrderCctpArgs
-    ): Promise<TransactionInstruction> {
+    async placeMarketOrderCctpIx(accounts: {
+        payer: PublicKey;
+        preparedOrder: PublicKey;
+        orderSender?: PublicKey;
+        routerEndpoint?: PublicKey;
+    }): Promise<TransactionInstruction> {
         let {
             payer,
-            burnSource,
-            mint,
-            burnSourceAuthority: inputBurnSourceAuthority,
+            preparedOrder,
+            orderSender: inputOrderSender,
             routerEndpoint: inputRouterEndpoint,
         } = accounts;
-        const burnSourceAuthority =
-            inputBurnSourceAuthority ??
-            (await splToken
-                .getAccount(this.program.provider.connection, burnSource)
-                .then((token) => token.owner));
-
-        const { amountIn, targetChain, redeemer, redeemerMessage } = args;
+        const {
+            info: { orderSender, targetChain },
+        } = await this.fetchPreparedOrder(preparedOrder);
 
         const payerSequence = this.payerSequenceAddress(payer);
         const coreMessage = await this.fetchPayerSequenceValue(payerSequence).then((value) =>
@@ -319,6 +400,7 @@ export class TokenRouterProgram {
         const {
             custodian,
             custodyToken,
+            mint,
             routerEndpoint,
             coreBridgeConfig,
             coreEmitterSequence,
@@ -333,21 +415,17 @@ export class TokenRouterProgram {
             tokenMessengerMinterProgram,
             messageTransmitterProgram,
             tokenProgram,
-        } = await this.placeMarketOrderCctpAccounts(mint, targetChain);
+        } = await this.placeMarketOrderCctpAccounts(targetChain as wormholeSdk.ChainId);
 
         return this.program.methods
-            .placeMarketOrderCctp({
-                amountIn: new BN(amountIn.toString()),
-                redeemer,
-                redeemerMessage,
-            })
+            .placeMarketOrderCctp()
             .accounts({
                 payer,
                 payerSequence,
                 custodian,
-                burnSourceAuthority,
+                preparedOrder,
+                orderSender: inputOrderSender ?? orderSender,
                 mint,
-                burnSource,
                 custodyToken,
                 routerEndpoint: inputRouterEndpoint ?? routerEndpoint,
                 coreBridgeConfig,

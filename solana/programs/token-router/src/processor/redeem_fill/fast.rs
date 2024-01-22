@@ -1,4 +1,4 @@
-use crate::{error::TokenRouterError, state::Custodian};
+use crate::{error::TokenRouterError, state::Custodian, CUSTODIAN_BUMP, CUSTODY_TOKEN_BUMP};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::messages::raw::LiquidityLayerMessage;
@@ -15,9 +15,9 @@ pub struct RedeemFastFill<'info> {
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = CUSTODIAN_BUMP,
     )]
-    custodian: Account<'info, Custodian>,
+    custodian: AccountInfo<'info>,
 
     /// CHECK: Must be owned by the Wormhole Core Bridge program. This account will be read via
     /// zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader.
@@ -45,7 +45,7 @@ pub struct RedeemFastFill<'info> {
     #[account(
         mut,
         seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = custodian.custody_token_bump,
+        bump = CUSTODY_TOKEN_BUMP,
     )]
     custody_token: Account<'info, token::TokenAccount>,
 
@@ -74,7 +74,7 @@ pub struct RedeemFastFill<'info> {
 ///
 /// See [verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint) for more details.
 pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
-    let custodian_seeds = &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]];
+    let custodian_seeds = &[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]];
 
     matching_engine::cpi::redeem_fast_fill(CpiContext::new_with_signer(
         ctx.accounts.matching_engine_program.to_account_info(),

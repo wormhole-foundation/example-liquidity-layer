@@ -75,8 +75,6 @@ pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
     }
 
     ctx.accounts.custodian.set_inner(Custodian {
-        bump: ctx.bumps["custodian"],
-        custody_token_bump: ctx.bumps["custody_token"],
         paused: false,
         paused_set_by: owner,
         owner,

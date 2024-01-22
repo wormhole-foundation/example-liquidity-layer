@@ -53,6 +53,18 @@ pub enum TokenRouterError {
     #[msg("InsufficientAmount")]
     InsufficientAmount = 0x100,
 
+    #[msg("MinAmountOutTooHigh")]
+    MinAmountOutTooHigh = 0x102,
+
+    #[msg("PayerMismatch")]
+    PayerMismatch = 0x120,
+
+    #[msg("OrderSenderMismatch")]
+    OrderSenderMismatch = 0x122,
+
+    #[msg("RefundTokenMismatch")]
+    RefundTokenMismatch = 0x124,
+
     #[msg("InvalidSourceRouter")]
     InvalidSourceRouter = 0x200,
 

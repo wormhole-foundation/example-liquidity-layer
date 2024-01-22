@@ -1,8 +1,11 @@
 mod admin;
 pub use admin::*;
 
-mod place_market_order;
-pub use place_market_order::*;
+mod close_prepared_order;
+pub use close_prepared_order::*;
+
+mod market_order;
+pub use market_order::*;
 
 mod redeem_fill;
 pub use redeem_fill::*;

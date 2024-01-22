@@ -3,9 +3,6 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(Debug, InitSpace)]
 pub struct Custodian {
-    pub bump: u8,
-    pub custody_token_bump: u8,
-
     /// Boolean indicating whether outbound transfers are paused.
     pub paused: bool,
 

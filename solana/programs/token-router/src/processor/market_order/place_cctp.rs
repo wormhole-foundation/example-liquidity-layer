@@ -1,6 +1,7 @@
 use crate::{
     error::TokenRouterError,
-    state::{Custodian, MessageProtocol, PayerSequence, RouterEndpoint},
+    state::{Custodian, MessageProtocol, PayerSequence, PreparedOrder, RouterEndpoint},
+    CUSTODIAN_BUMP, CUSTODY_TOKEN_BUMP,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -33,35 +34,29 @@ pub struct PlaceMarketOrderCctp<'info> {
     /// Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = CUSTODIAN_BUMP,
         constraint = !custodian.paused @ TokenRouterError::Paused,
     )]
     custodian: Account<'info, Custodian>,
 
+    #[account(
+        mut,
+        close = payer,
+        has_one = payer @ TokenRouterError::PayerMismatch,
+        has_one = order_sender @ TokenRouterError::OrderSenderMismatch,
+    )]
+    prepared_order: Account<'info, PreparedOrder>,
+
     /// Signer who must have the authority (either as the owner or has been delegated authority)
     /// over the `burn_source` token account.
-    burn_source_authority: Signer<'info>,
+    order_sender: Signer<'info>,
 
     /// Circle-supported mint.
     ///
     /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
     /// Token Messenger Minter program's local token account.
-    #[account(
-        mut,
-        address = common::constants::usdc::id(),
-    )]
+    #[account(mut)]
     mint: AccountInfo<'info>,
-
-    /// Token account where assets are burned from. The CCTP Token Messenger Minter program will
-    /// burn the configured [amount](TransferTokensWithPayloadArgs::amount) from this account.
-    ///
-    /// CHECK: This account must have delegated authority or be owned by the
-    /// [burn_source_authority](Self::burn_source_authority). Its mint must be USDC.
-    #[account(
-        mut,
-        token::mint = mint,
-    )]
-    burn_source: Account<'info, token::TokenAccount>,
 
     /// Temporary custody token account. This account will be closed at the end of this instruction.
     /// It just acts as a conduit to allow this program to be the transfer initiator in the CCTP
@@ -71,7 +66,7 @@ pub struct PlaceMarketOrderCctp<'info> {
     #[account(
         mut,
         seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = custodian.custody_token_bump,
+        bump = CUSTODY_TOKEN_BUMP,
     )]
     custody_token: AccountInfo<'info>,
 
@@ -155,65 +150,24 @@ pub struct PlaceMarketOrderCctp<'info> {
     rent: AccountInfo<'info>,
 }
 
-/// Arguments used to invoke [place_market_order_cctp].
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct PlaceMarketOrderCctpArgs {
-    /// Transfer (burn) amount.
-    pub amount_in: u64,
-
-    pub redeemer: [u8; 32],
-
-    /// Arbitrary payload, which can be used to encode instructions or data for another network's
-    /// smart contract.
-    pub redeemer_message: Vec<u8>,
-}
-
 /// This instruction invokes both Wormhole Core Bridge and CCTP Token Messenger Minter programs to
 /// emit a Wormhole message associated with a CCTP message.
 ///
 /// See [burn_and_publish](wormhole_cctp_solana::cpi::burn_and_publish) for more details.
-pub fn place_market_order_cctp(
-    ctx: Context<PlaceMarketOrderCctp>,
-    args: PlaceMarketOrderCctpArgs,
-) -> Result<()> {
+pub fn place_market_order_cctp(ctx: Context<PlaceMarketOrderCctp>) -> Result<()> {
     match ctx.accounts.router_endpoint.protocol {
-        MessageProtocol::Cctp { domain } => handle_place_market_order_cctp(ctx, args, domain),
+        MessageProtocol::Cctp { domain } => handle_place_market_order_cctp(ctx, domain),
         _ => err!(TokenRouterError::InvalidCctpEndpoint),
     }
 }
 
 fn handle_place_market_order_cctp(
     ctx: Context<PlaceMarketOrderCctp>,
-    args: PlaceMarketOrderCctpArgs,
     destination_cctp_domain: u32,
 ) -> Result<()> {
-    let PlaceMarketOrderCctpArgs {
-        amount_in: amount,
-        redeemer,
-        redeemer_message,
-    } = args;
+    let custodian_seeds = &[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]];
 
-    // Even though CCTP prevents zero amount burns, we prefer to throw an explicit error here.
-    require!(args.amount_in > 0, TokenRouterError::InsufficientAmount);
-
-    // Cannot send to zero address.
-    require!(args.redeemer != [0; 32], TokenRouterError::InvalidRedeemer);
-
-    // Because the transfer initiator in the Circle message is whoever signs to burn assets, we need
-    // to transfer assets from the source token account to one that belongs to this program.
-    token::transfer(
-        CpiContext::new(
-            ctx.accounts.token_program.to_account_info(),
-            token::Transfer {
-                from: ctx.accounts.burn_source.to_account_info(),
-                to: ctx.accounts.custody_token.to_account_info(),
-                authority: ctx.accounts.burn_source_authority.to_account_info(),
-            },
-        ),
-        amount,
-    )?;
-
-    let custodian_seeds = &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]];
+    let redeemer_message = std::mem::take(&mut ctx.accounts.prepared_order.redeemer_message);
 
     // This returns the CCTP nonce, but we do not need it.
     wormhole_cctp_solana::cpi::burn_and_publish(
@@ -277,16 +231,16 @@ fn handle_place_market_order_cctp(
             ],
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
-            burn_source: Some(ctx.accounts.burn_source.key()),
+            burn_source: Some(ctx.accounts.prepared_order.order_token),
             destination_caller: ctx.accounts.router_endpoint.address,
             destination_cctp_domain,
-            amount,
+            amount: ctx.accounts.prepared_order.amount_in,
             mint_recipient: ctx.accounts.router_endpoint.mint_recipient,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
             payload: common::messages::Fill {
                 source_chain: wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
-                order_sender: ctx.accounts.burn_source_authority.key().to_bytes(),
-                redeemer,
+                order_sender: ctx.accounts.order_sender.key().to_bytes(),
+                redeemer: ctx.accounts.prepared_order.redeemer,
                 redeemer_message: redeemer_message.into(),
             }
             .to_vec_payload(),

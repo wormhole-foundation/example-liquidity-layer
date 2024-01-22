@@ -1,8 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 
 export class Custodian {
-    bump: number;
-    custodyTokenBump: number;
     paused: boolean;
     owner: PublicKey;
     pendingOwner: PublicKey | null;
@@ -10,16 +8,12 @@ export class Custodian {
     pausedSetBy: PublicKey;
 
     constructor(
-        bump: number,
-        custodyTokenBump: number,
         paused: boolean,
         owner: PublicKey,
         pendingOwner: PublicKey | null,
         ownerAssistant: PublicKey,
         pausedSetBy: PublicKey
     ) {
-        this.bump = bump;
-        this.custodyTokenBump = custodyTokenBump;
         this.paused = paused;
         this.owner = owner;
         this.pendingOwner = pendingOwner;

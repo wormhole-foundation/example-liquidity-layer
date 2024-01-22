@@ -1,5 +1,6 @@
 export * from "./Custodian";
 export * from "./PayerSequence";
+export * from "./PreparedOrder";
 export * from "./RouterEndpoint";
 
 import { solana } from "@certusone/wormhole-sdk";

@@ -11,12 +11,11 @@ pub mod state;
 use anchor_lang::prelude::*;
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "mainnet")] {
+    if #[cfg(feature = "testnet")] {
         // Placeholder.
         declare_id!("TokenRouter11111111111111111111111111111111");
-    } else if #[cfg(feature = "testnet")] {
-        // Placeholder.
-        declare_id!("TokenRouter11111111111111111111111111111111");
+        const CUSTODIAN_BUMP: u8 = 253;
+        const CUSTODY_TOKEN_BUMP: u8 = 254;
     }
 }
 
@@ -24,11 +23,19 @@ cfg_if::cfg_if! {
 pub mod token_router {
     use super::*;
 
-    pub fn place_market_order_cctp(
-        ctx: Context<PlaceMarketOrderCctp>,
-        args: PlaceMarketOrderCctpArgs,
+    pub fn prepare_market_order(
+        ctx: Context<PrepareMarketOrder>,
+        args: PrepareMarketOrderArgs,
     ) -> Result<()> {
-        processor::place_market_order_cctp(ctx, args)
+        processor::prepare_market_order(ctx, args)
+    }
+
+    pub fn close_prepared_order(ctx: Context<ClosePreparedOrder>) -> Result<()> {
+        processor::close_prepared_order(ctx)
+    }
+
+    pub fn place_market_order_cctp(ctx: Context<PlaceMarketOrderCctp>) -> Result<()> {
+        processor::place_market_order_cctp(ctx)
     }
 
     pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: RedeemFillArgs) -> Result<()> {

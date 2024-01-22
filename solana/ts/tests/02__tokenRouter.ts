@@ -11,8 +11,8 @@ import {
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
-import { CctpTokenBurnMessage, Fill, LiquidityLayerDeposit, LiquidityLayerMessage } from "../src";
-import { Custodian, RouterEndpoint, TokenRouterProgram } from "../src/tokenRouter";
+import { CctpTokenBurnMessage, LiquidityLayerDeposit, LiquidityLayerMessage } from "../src";
+import { Custodian, PreparedOrder, RouterEndpoint, TokenRouterProgram } from "../src/tokenRouter";
 import {
     CircleAttester,
     ETHEREUM_USDC_ADDRESS,
@@ -25,6 +25,9 @@ import {
     expectIxOk,
     postLiquidityLayerVaa,
 } from "./helpers";
+import { BN } from "@coral-xyz/anchor";
+import { VaaAccount } from "../src/wormhole";
+import { getPostedMessage } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 
 chaiUse(chaiAsPromised);
 
@@ -82,8 +85,6 @@ describe("Token Router", function () {
                 );
                 expect(custodianData).to.eql(
                     new Custodian(
-                        253, // bump
-                        254, // custodyTokenBump
                         false, // paused
                         payer.publicKey, // owner
                         null, // pendingOwner
@@ -128,7 +129,7 @@ describe("Token Router", function () {
 
                 await expectIxOk(connection, [createIx], [payer]);
 
-                const usdcCommonAccounts = tokenRouter.commonAccounts(USDC_MINT_ADDRESS);
+                const usdcCommonAccounts = await tokenRouter.commonAccounts();
 
                 // Extend.
                 const extendIx = AddressLookupTableProgram.extendLookupTable({
@@ -499,173 +500,390 @@ describe("Token Router", function () {
     });
 
     describe("Business Logic", function () {
+        describe("Preparing Order", function () {
+            const payerToken = splToken.getAssociatedTokenAddressSync(
+                USDC_MINT_ADDRESS,
+                payer.publicKey
+            );
+
+            const localVariables = new Map<string, any>();
+
+            it.skip("Cannot Prepare Market Order with Insufficient Amount", async function () {
+                // TODO
+            });
+
+            it.skip("Cannot Prepare Market Order with Invalid Redeemer", async function () {
+                // TODO
+            });
+
+            it("Prepare Market Order with Some Min Amount Out", async function () {
+                const orderSender = Keypair.generate();
+                const preparedOrder = Keypair.generate();
+
+                const amountIn = 69n;
+                const minAmountOut = 0n;
+                const targetChain = foreignChain;
+                const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+                const redeemerMessage = Buffer.from("All your base are belong to us");
+                const ix = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        orderSender: orderSender.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        orderToken: payerToken,
+                        refundToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut,
+                        targetChain,
+                        redeemer,
+                        redeemerMessage,
+                    }
+                );
+
+                const approveIx = splToken.createApproveInstruction(
+                    payerToken,
+                    orderSender.publicKey,
+                    payer.publicKey,
+                    amountIn
+                );
+
+                const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
+
+                await expectIxOk(connection, [approveIx, ix], [payer, orderSender, preparedOrder]);
+
+                const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
+                expect(balanceAfter).equals(balanceBefore - amountIn);
+
+                const preparedOrderData = await tokenRouter.fetchPreparedOrder(
+                    preparedOrder.publicKey
+                );
+                expect(preparedOrderData).to.eql(
+                    new PreparedOrder(
+                        {
+                            orderSender: orderSender.publicKey,
+                            payer: payer.publicKey,
+                            orderType: {
+                                market: {
+                                    minAmountOut: (() => {
+                                        const buf = Buffer.alloc(8);
+                                        buf.writeBigUInt64BE(minAmountOut);
+                                        return new BN(buf);
+                                    })(),
+                                },
+                            },
+                            orderToken: payerToken,
+                            refundToken: payerToken,
+                            amountIn: (() => {
+                                const buf = Buffer.alloc(8);
+                                buf.writeBigUInt64BE(amountIn);
+                                return new BN(buf);
+                            })(),
+                            targetChain,
+                            redeemer,
+                        },
+                        redeemerMessage
+                    )
+                );
+            });
+
+            it("Prepare Market Order without Min Amount Out", async function () {
+                const orderSender = Keypair.generate();
+                const preparedOrder = Keypair.generate();
+
+                const amountIn = 69n;
+                const ix = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        orderSender: orderSender.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        orderToken: payerToken,
+                        refundToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut: null,
+                        targetChain: foreignChain,
+                        redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
+                        redeemerMessage: Buffer.from("All your base are belong to us"),
+                    }
+                );
+
+                const approveIx = splToken.createApproveInstruction(
+                    payerToken,
+                    orderSender.publicKey,
+                    payer.publicKey,
+                    amountIn
+                );
+
+                const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
+
+                await expectIxOk(connection, [approveIx, ix], [payer, orderSender, preparedOrder]);
+
+                const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
+                expect(balanceAfter).equals(balanceBefore - amountIn);
+
+                // We've checked other fields in a previous test. Just make sure the min amount out
+                // is null.
+                const {
+                    info: { orderType },
+                } = await tokenRouter.fetchPreparedOrder(preparedOrder.publicKey);
+                expect(orderType).to.eql({ market: { minAmountOut: null } });
+
+                // Save for later.
+                localVariables.set("preparedOrder", preparedOrder.publicKey);
+                localVariables.set("orderSender", orderSender);
+                localVariables.set("amountIn", amountIn);
+            });
+
+            it("Cannot Close Prepared Order without Original Payer", async function () {
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
+                const orderSender = localVariables.get("orderSender") as Keypair;
+
+                const ix = await tokenRouter.closePreparedOrderIx({
+                    preparedOrder,
+                    payer: ownerAssistant.publicKey,
+                });
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant, orderSender],
+                    "Error Code: PayerMismatch"
+                );
+            });
+
+            it("Cannot Close Prepared Order without Order Sender", async function () {
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
+
+                const ix = await tokenRouter.closePreparedOrderIx({
+                    preparedOrder,
+                    orderSender: ownerAssistant.publicKey,
+                });
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer, ownerAssistant],
+                    "Error Code: OrderSenderMismatch"
+                );
+            });
+
+            it("Cannot Close Prepared Order without Correct Refund Token", async function () {
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
+                const orderSender = localVariables.get("orderSender") as Keypair;
+
+                const refundToken = Keypair.generate().publicKey;
+
+                const ix = await tokenRouter.closePreparedOrderIx({
+                    preparedOrder,
+                    refundToken,
+                });
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer, orderSender],
+                    "Error Code: RefundTokenMismatch"
+                );
+            });
+
+            it("Close Prepared Order", async function () {
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
+                expect(localVariables.delete("preparedOrder")).is.true;
+                const orderSender = localVariables.get("orderSender") as Keypair;
+                expect(localVariables.delete("orderSender")).is.true;
+                const amountIn = localVariables.get("amountIn") as bigint;
+                expect(localVariables.delete("amountIn")).is.true;
+
+                const ix = await tokenRouter.closePreparedOrderIx({
+                    preparedOrder,
+                });
+
+                const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
+
+                await expectIxOk(connection, [ix], [payer, orderSender]);
+
+                const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
+                expect(balanceAfter).equals(balanceBefore + amountIn);
+
+                const accInfo = await connection.getAccountInfo(preparedOrder);
+                expect(accInfo).is.null;
+            });
+        });
+
         describe("Place Market Order (CCTP)", function () {
             const payerToken = splToken.getAssociatedTokenAddressSync(
                 USDC_MINT_ADDRESS,
                 payer.publicKey
             );
-            const burnSourceAuthority = Keypair.generate();
+            const orderSender = Keypair.generate();
 
-            before("Set Up Arbitrary Burn Source", async function () {
-                const burnSource = await splToken.createAccount(
-                    connection,
-                    payer,
-                    USDC_MINT_ADDRESS,
-                    burnSourceAuthority.publicKey
+            const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+            const redeemerMessage = Buffer.from("All your base are belong to us");
+
+            const localVariables = new Map<string, any>();
+
+            it.skip("Cannot Place Market Order without Prepared Order", async function () {
+                // TODO
+            });
+
+            it("Prepare Market Order", async function () {
+                const preparedOrder = Keypair.generate();
+
+                const amountIn = 69n;
+                const ix = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        orderSender: orderSender.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        orderToken: payerToken,
+                        refundToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut: null,
+                        targetChain: foreignChain,
+                        redeemer,
+                        redeemerMessage,
+                    }
                 );
 
-                // Add funds to account.
-                await splToken.mintTo(
-                    connection,
-                    payer,
-                    USDC_MINT_ADDRESS,
-                    burnSource,
-                    payer,
-                    1_000_000_000n // 1,000 USDC
+                const approveIx = splToken.createApproveInstruction(
+                    payerToken,
+                    orderSender.publicKey,
+                    payer.publicKey,
+                    amountIn
                 );
+
+                await expectIxOk(connection, [approveIx, ix], [payer, orderSender, preparedOrder]);
+
+                // Save for later.
+                localVariables.set("preparedOrder", preparedOrder.publicKey);
+                localVariables.set("amountIn", amountIn);
             });
 
             it("Cannot Place Market Order with Unregistered Endpoint", async function () {
-                const amountIn = 69n;
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
+
                 const unregisteredEndpoint = tokenRouter.routerEndpointAddress(
                     wormholeSdk.CHAIN_ID_SOLANA
                 );
-                const ix = await tokenRouter.placeMarketOrderCctpIx(
-                    {
-                        payer: payer.publicKey,
-                        mint: USDC_MINT_ADDRESS,
-                        burnSource: payerToken,
-                        burnSourceAuthority: payer.publicKey,
-                        routerEndpoint: unregisteredEndpoint,
-                    },
-                    {
-                        amountIn,
-                        targetChain: foreignChain,
-                        redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
-                        redeemerMessage: Buffer.from("All your base are belong to us"),
-                    }
-                );
+                const ix = await tokenRouter.placeMarketOrderCctpIx({
+                    payer: payer.publicKey,
+                    preparedOrder,
+                    routerEndpoint: unregisteredEndpoint,
+                });
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: AccountNotInitialized", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
-            });
-
-            it("Cannot Place Market Order with Insufficient Amount", async function () {
-                const ix = await tokenRouter.placeMarketOrderCctpIx(
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer, orderSender],
+                    "Error Code: AccountNotInitialized",
                     {
-                        payer: payer.publicKey,
-                        mint: USDC_MINT_ADDRESS,
-                        burnSource: payerToken,
-                        burnSourceAuthority: payer.publicKey,
-                    },
-                    {
-                        amountIn: 0n,
-                        targetChain: foreignChain,
-                        redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
-                        redeemerMessage: Buffer.from("All your base are belong to us"),
+                        addressLookupTableAccounts: [lookupTableAccount!],
                     }
                 );
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
-                );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InsufficientAmount", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
             });
 
-            it("Cannot Place Market Order with Invalid Redeemer", async function () {
-                const amountIn = 69n;
-                const ix = await tokenRouter.placeMarketOrderCctpIx(
-                    {
-                        payer: payer.publicKey,
-                        mint: USDC_MINT_ADDRESS,
-                        burnSource: payerToken,
-                        burnSourceAuthority: payer.publicKey,
-                    },
-                    {
-                        amountIn,
-                        targetChain: foreignChain,
-                        redeemer: new Array(32).fill(0),
-                        redeemerMessage: Buffer.from("All your base are belong to us"),
-                    }
-                );
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
-                );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidRedeemer", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
+            it.skip("Cannot Place Market Order without Original Payer", async function () {
+                // TODO
             });
 
-            it("Cannot Place Market Order as Invalid Burn Source Authority", async function () {
-                const burnSourceAuthority = Keypair.generate();
+            it("Cannot Place Market Order without Order Sender", async function () {
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
 
-                const amountIn = 69n;
-                const ix = await tokenRouter.placeMarketOrderCctpIx(
-                    {
-                        payer: payer.publicKey,
-                        mint: USDC_MINT_ADDRESS,
-                        burnSource: payerToken,
-                        burnSourceAuthority: burnSourceAuthority.publicKey,
-                    },
-                    {
-                        amountIn,
-                        targetChain: foreignChain,
-                        redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
-                        redeemerMessage: Buffer.from("All your base are belong to us"),
-                    }
-                );
+                const someoneElse = Keypair.generate();
+
+                const ix = await tokenRouter.placeMarketOrderCctpIx({
+                    payer: payer.publicKey,
+                    preparedOrder,
+                    orderSender: someoneElse.publicKey,
+                });
 
                 // NOTE: This error comes from the SPL Token program.
                 await expectIxErr(
                     connection,
                     [ix],
-                    [payer, burnSourceAuthority],
-                    "Error: owner does not match"
+                    [payer, someoneElse],
+                    "Error Code: OrderSenderMismatch"
                 );
             });
 
-            it("Place Market Order as Burn Source Authority", async function () {
-                const burnSource = splToken.getAssociatedTokenAddressSync(
-                    USDC_MINT_ADDRESS,
-                    burnSourceAuthority.publicKey
-                );
-                const amountIn = 69n;
-                const ix = await tokenRouter.placeMarketOrderCctpIx(
-                    {
-                        payer: payer.publicKey,
-                        mint: USDC_MINT_ADDRESS,
-                        burnSource,
-                        burnSourceAuthority: burnSourceAuthority.publicKey,
-                    },
-                    {
-                        amountIn,
-                        targetChain: foreignChain,
-                        redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
-                        redeemerMessage: Buffer.from("All your base are belong to us"),
-                    }
-                );
+            it("Place Market Order", async function () {
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
+                expect(localVariables.delete("preparedOrder")).is.true;
+                const amountIn = localVariables.get("amountIn") as bigint;
+                expect(localVariables.delete("amountIn")).is.true;
 
-                const { amount: balanceBefore } = await splToken.getAccount(connection, burnSource);
+                const ix = await tokenRouter.placeMarketOrderCctpIx({
+                    payer: payer.publicKey,
+                    preparedOrder,
+                });
+
+                const custodyToken = tokenRouter.custodyTokenAccountAddress();
+                const { amount: balanceBefore } = await splToken.getAccount(
+                    connection,
+                    custodyToken
+                );
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress
                 );
-                await expectIxOk(connection, [ix], [payer, burnSourceAuthority], {
+                await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
 
-                // Check balance.
-                const { amount: balanceAfter } = await splToken.getAccount(connection, burnSource);
-                expect(balanceAfter + amountIn).equals(balanceBefore);
+                // Check balance of custody account.
+                const { amount: balanceAfter } = await splToken.getAccount(
+                    connection,
+                    custodyToken
+                );
+                expect(balanceAfter).equals(balanceBefore - amountIn);
 
                 // TODO: check message
+
+                const accInfo = await connection.getAccountInfo(preparedOrder);
+                expect(accInfo).is.null;
+            });
+
+            it("Prepare Another Market Order", async () => {
+                const preparedOrder = Keypair.generate();
+
+                const amountIn = 420n;
+                const ix = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        orderSender: orderSender.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        orderToken: payerToken,
+                        refundToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut: null,
+                        targetChain: foreignChain,
+                        redeemer,
+                        redeemerMessage,
+                    }
+                );
+
+                const approveIx = splToken.createApproveInstruction(
+                    payerToken,
+                    orderSender.publicKey,
+                    payer.publicKey,
+                    amountIn
+                );
+
+                await expectIxOk(connection, [approveIx, ix], [payer, orderSender, preparedOrder]);
+
+                // Save for later.
+                localVariables.set("preparedOrder", preparedOrder.publicKey);
+                localVariables.set("amountIn", amountIn);
             });
 
             it("Pause", async function () {
@@ -680,22 +898,14 @@ describe("Token Router", function () {
             });
 
             it("Cannot Place Market Order when Paused", async function () {
-                const ix = await tokenRouter.placeMarketOrderCctpIx(
-                    {
-                        payer: payer.publicKey,
-                        mint: USDC_MINT_ADDRESS,
-                        burnSource: payerToken,
-                        burnSourceAuthority: payer.publicKey,
-                    },
-                    {
-                        amountIn: 69n,
-                        targetChain: foreignChain,
-                        redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
-                        redeemerMessage: Buffer.from("All your base are belong to us"),
-                    }
-                );
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
 
-                await expectIxErr(connection, [ix], [payer], "Error Code: Paused");
+                const ix = await tokenRouter.placeMarketOrderCctpIx({
+                    payer: payer.publicKey,
+                    preparedOrder,
+                });
+
+                await expectIxErr(connection, [ix], [payer, orderSender], "Error Code: Paused");
             });
 
             it("Unpause", async function () {
@@ -710,36 +920,55 @@ describe("Token Router", function () {
             });
 
             it("Place Market Order after Unpaused", async function () {
-                const amountIn = 69n;
-                const ix = await tokenRouter.placeMarketOrderCctpIx(
-                    {
-                        payer: payer.publicKey,
-                        mint: USDC_MINT_ADDRESS,
-                        burnSource: payerToken,
-                        burnSourceAuthority: payer.publicKey,
-                    },
-                    {
-                        amountIn,
-                        targetChain: foreignChain,
-                        redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
-                        redeemerMessage: Buffer.from("All your base are belong to us"),
-                    }
-                );
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
+                const amountIn = localVariables.get("amountIn") as bigint;
 
-                const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
+                const ix = await tokenRouter.placeMarketOrderCctpIx({
+                    payer: payer.publicKey,
+                    preparedOrder,
+                });
+
+                const custodyToken = tokenRouter.custodyTokenAccountAddress();
+                const { amount: balanceBefore } = await splToken.getAccount(
+                    connection,
+                    custodyToken
+                );
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress
                 );
-                await expectIxOk(connection, [ix], [payer], {
+                await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
 
                 // Check balance.
-                const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
-                expect(balanceAfter + amountIn).equals(balanceBefore);
+                const { amount: balanceAfter } = await splToken.getAccount(
+                    connection,
+                    custodyToken
+                );
+                expect(balanceAfter).equals(balanceBefore - amountIn);
 
                 // TODO: check message
+                const { value: payerSequenceValue } = await tokenRouter.fetchPayerSequence(
+                    tokenRouter.payerSequenceAddress(payer.publicKey)
+                );
+                const {
+                    message: { emitterAddress, payload },
+                } = await getPostedMessage(
+                    connection,
+                    tokenRouter.coreMessageAddress(payer.publicKey, payerSequenceValue.subn(1))
+                );
+                expect(emitterAddress).to.eql(tokenRouter.custodianAddress().toBuffer());
+
+                const actualDepositMessage = LiquidityLayerMessage.decode(payload);
+                // TODO: check this with an expected message
+
+                const accInfo = await connection.getAccountInfo(preparedOrder);
+                expect(accInfo).is.null;
+            });
+
+            it.skip("Prepare and Place Market Order in One Transaction", async function () {
+                // TODO
             });
         });
 

@@ -1,4 +1,4 @@
-use crate::{error::TokenRouterError, state::Custodian};
+use crate::{error::TokenRouterError, state::Custodian, CUSTODIAN_BUMP};
 use anchor_lang::prelude::*;
 use common::admin::utils::assistant::only_authorized;
 
@@ -9,7 +9,7 @@ pub struct SetPause<'info> {
     #[account(
         mut,
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = CUSTODIAN_BUMP,
         constraint = {
             only_authorized(&custodian, &owner_or_assistant.key())
         } @ TokenRouterError::OwnerOrAssistantOnly,

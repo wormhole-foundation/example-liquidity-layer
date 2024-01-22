@@ -1,6 +1,7 @@
 use crate::{
     error::TokenRouterError,
     state::{Custodian, RouterEndpoint},
+    CUSTODIAN_BUMP, CUSTODY_TOKEN_BUMP,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -23,9 +24,9 @@ pub struct RedeemCctpFill<'info> {
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = CUSTODIAN_BUMP,
     )]
-    custodian: Account<'info, Custodian>,
+    custodian: AccountInfo<'info>,
 
     /// CHECK: Must be owned by the Wormhole Core Bridge program. This account will be read via
     /// zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader.
@@ -55,7 +56,7 @@ pub struct RedeemCctpFill<'info> {
     #[account(
         mut,
         seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = custodian.custody_token_bump,
+        bump = CUSTODY_TOKEN_BUMP,
     )]
     custody_token: Account<'info, token::TokenAccount>,
 
@@ -119,7 +120,7 @@ pub struct RedeemCctpFill<'info> {
 ///
 /// See [verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint) for more details.
 pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: super::RedeemFillArgs) -> Result<()> {
-    let custodian_seeds = &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]];
+    let custodian_seeds = &[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]];
 
     let vaa = wormhole_cctp_solana::cpi::verify_vaa_and_mint(
         &ctx.accounts.vaa,
