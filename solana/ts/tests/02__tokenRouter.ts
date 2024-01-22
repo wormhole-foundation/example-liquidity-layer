@@ -1043,92 +1043,27 @@ describe("Token Router", function () {
         });
 
         describe("Redeem Fill (CCTP)", function () {
-            const payerToken = splToken.getAssociatedTokenAddressSync(
-                USDC_MINT_ADDRESS,
-                payer.publicKey
+            const encodedMintRecipient = Array.from(
+                tokenRouter.custodyTokenAccountAddress().toBuffer()
             );
+            const sourceCctpDomain = 0;
+            const amount = 69n;
+            const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
+            const redeemer = Keypair.generate();
 
             let testCctpNonce = 2n ** 64n - 1n;
 
             // Hack to prevent math overflow error when invoking CCTP programs.
-            testCctpNonce -= 2n * 6400n;
+            testCctpNonce -= 20n * 6400n;
 
-            let wormholeSequence = 0n;
+            let wormholeSequence = 2000n;
 
             const localVariables = new Map<string, any>();
 
-            it("Cannot Redeem Fill with Invalid VAA Account (Not Owned by Core Bridge)", async function () {
-                const redeemer = Keypair.generate();
-
-                const encodedMintRecipient = Array.from(
-                    tokenRouter.custodyTokenAccountAddress().toBuffer()
-                );
-                const sourceCctpDomain = 0;
-                const cctpNonce = testCctpNonce++;
-                const amount = 69n;
-
-                // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
-                const { encodedCctpMessage, cctpAttestation } = await craftCctpTokenBurnMessage(
-                    tokenRouter,
-                    sourceCctpDomain,
-                    cctpNonce,
-                    encodedMintRecipient,
-                    amount,
-                    burnSource
-                );
-                const vaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    foreignEndpointAddress,
-                    wormholeSequence++,
-                    Buffer.from("Oh noes!")
-                );
-
-                const ix = await tokenRouter.redeemCctpFillIx(
-                    {
-                        payer: payer.publicKey,
-                        vaa,
-                        redeemer: redeemer.publicKey,
-                        dstToken: payerToken,
-                    },
-                    {
-                        encodedCctpMessage,
-                        cctpAttestation,
-                    }
-                );
-
-                // Replace the VAA account pubkey with garbage.
-                ix.keys[ix.keys.findIndex((key) => key.pubkey.equals(vaa))].pubkey =
-                    SYSVAR_RENT_PUBKEY;
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
-                );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer, redeemer],
-                    "Error Code: ConstraintOwner",
-                    {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    }
-                );
-            });
-
             it("Cannot Redeem Fill from Invalid Source Router Chain", async function () {
-                const redeemer = Keypair.generate();
-
-                const encodedMintRecipient = Array.from(
-                    tokenRouter.custodyTokenAccountAddress().toBuffer()
-                );
-                const sourceCctpDomain = 0;
                 const cctpNonce = testCctpNonce++;
-                const amount = 69n;
 
                 // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
                 const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
                     await craftCctpTokenBurnMessage(
                         tokenRouter,
@@ -1171,8 +1106,6 @@ describe("Token Router", function () {
                     {
                         payer: payer.publicKey,
                         vaa,
-                        redeemer: redeemer.publicKey,
-                        dstToken: payerToken,
                         routerEndpoint: tokenRouter.routerEndpointAddress(foreignChain),
                     },
                     {
@@ -1184,29 +1117,15 @@ describe("Token Router", function () {
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer, redeemer],
-                    "Error Code: InvalidSourceRouter",
-                    {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    }
-                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidSourceRouter", {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
             });
 
             it("Cannot Redeem Fill from Invalid Source Router Address", async function () {
-                const redeemer = Keypair.generate();
-
-                const encodedMintRecipient = Array.from(
-                    tokenRouter.custodyTokenAccountAddress().toBuffer()
-                );
-                const sourceCctpDomain = 0;
                 const cctpNonce = testCctpNonce++;
-                const amount = 69n;
 
                 // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
                 const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
                     await craftCctpTokenBurnMessage(
                         tokenRouter,
@@ -1248,8 +1167,6 @@ describe("Token Router", function () {
                     {
                         payer: payer.publicKey,
                         vaa,
-                        redeemer: redeemer.publicKey,
-                        dstToken: payerToken,
                     },
                     {
                         encodedCctpMessage,
@@ -1260,29 +1177,15 @@ describe("Token Router", function () {
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer, redeemer],
-                    "Error Code: InvalidSourceRouter",
-                    {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    }
-                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidSourceRouter", {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
             });
 
             it("Cannot Redeem Fill with Invalid Deposit Message", async function () {
-                const redeemer = Keypair.generate();
-
-                const encodedMintRecipient = Array.from(
-                    tokenRouter.custodyTokenAccountAddress().toBuffer()
-                );
-                const sourceCctpDomain = 0;
                 const cctpNonce = testCctpNonce++;
-                const amount = 69n;
 
                 // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
                 const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
                     await craftCctpTokenBurnMessage(
                         tokenRouter,
@@ -1328,8 +1231,6 @@ describe("Token Router", function () {
                     {
                         payer: payer.publicKey,
                         vaa,
-                        redeemer: redeemer.publicKey,
-                        dstToken: payerToken,
                     },
                     {
                         encodedCctpMessage,
@@ -1340,29 +1241,15 @@ describe("Token Router", function () {
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer, redeemer],
-                    "Error Code: InvalidDepositMessage",
-                    {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    }
-                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidDepositMessage", {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
             });
 
             it("Cannot Redeem Fill with Invalid Payload ID", async function () {
-                const redeemer = Keypair.generate();
-
-                const encodedMintRecipient = Array.from(
-                    tokenRouter.custodyTokenAccountAddress().toBuffer()
-                );
-                const sourceCctpDomain = 0;
                 const cctpNonce = testCctpNonce++;
-                const amount = 69n;
 
                 // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
                 const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
                     await craftCctpTokenBurnMessage(
                         tokenRouter,
@@ -1404,8 +1291,6 @@ describe("Token Router", function () {
                     {
                         payer: payer.publicKey,
                         vaa,
-                        redeemer: redeemer.publicKey,
-                        dstToken: payerToken,
                     },
                     {
                         encodedCctpMessage,
@@ -1416,15 +1301,9 @@ describe("Token Router", function () {
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer, redeemer],
-                    "Error Code: InvalidPayloadId",
-                    {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    }
-                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidPayloadId", {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
             });
 
             it("Remove Router Endpoint", async function () {
@@ -1439,8 +1318,184 @@ describe("Token Router", function () {
             });
 
             it("Cannot Redeem Fill without Router Endpoint", async function () {
-                const redeemer = Keypair.generate();
+                const cctpNonce = testCctpNonce++;
 
+                // Concoct a Circle message.
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(
+                        tokenRouter,
+                        sourceCctpDomain,
+                        cctpNonce,
+                        encodedMintRecipient,
+                        amount,
+                        burnSource
+                    );
+
+                const message = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit(
+                        {
+                            tokenAddress: burnMessage.burnTokenAddress,
+                            amount,
+                            sourceCctpDomain,
+                            destinationCctpDomain,
+                            cctpNonce,
+                            burnSource,
+                            mintRecipient: encodedMintRecipient,
+                        },
+                        {
+                            fill: {
+                                sourceChain: foreignChain,
+                                orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
+                                redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                            },
+                        }
+                    ),
+                });
+
+                const vaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    foreignEndpointAddress,
+                    wormholeSequence++,
+                    message
+                );
+                const ix = await tokenRouter.redeemCctpFillIx(
+                    {
+                        payer: payer.publicKey,
+                        vaa,
+                    },
+                    {
+                        encodedCctpMessage,
+                        cctpAttestation,
+                    }
+                );
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress
+                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: AccountNotInitialized", {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
+
+                // Save for later.
+                localVariables.set("args", { encodedCctpMessage, cctpAttestation });
+                localVariables.set("vaa", vaa);
+            });
+
+            it("Add Router Endpoint", async function () {
+                const ix = await tokenRouter.addCctpRouterEndpointIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    {
+                        chain: foreignChain,
+                        address: foreignEndpointAddress,
+                        cctpDomain: foreignCctpDomain,
+                        mintRecipient: null,
+                    }
+                );
+
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+            });
+
+            it("Redeem Fill", async function () {
+                const args = localVariables.get("args") as {
+                    encodedCctpMessage: Buffer;
+                    cctpAttestation: Buffer;
+                };
+                const vaa = localVariables.get("vaa") as PublicKey;
+
+                const ix = await tokenRouter.redeemCctpFillIx(
+                    {
+                        payer: payer.publicKey,
+                        vaa,
+                    },
+                    args
+                );
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 250_000,
+                });
+
+                const custodyToken = tokenRouter.custodyTokenAccountAddress();
+                const { amount: balanceBefore } = await splToken.getAccount(
+                    connection,
+                    custodyToken
+                );
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress
+                );
+                await expectIxOk(connection, [computeIx, ix], [payer], {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
+
+                // Check balance.
+                const { amount: balanceAfter } = await splToken.getAccount(
+                    connection,
+                    custodyToken
+                );
+                expect(balanceAfter).equals(balanceBefore + amount);
+
+                // TODO: check prepared fill account.
+            });
+
+            it("Redeem Same Fill is No-op", async function () {
+                const args = localVariables.get("args") as {
+                    encodedCctpMessage: Buffer;
+                    cctpAttestation: Buffer;
+                };
+                expect(localVariables.delete("args")).is.true;
+
+                const vaa = localVariables.get("vaa") as PublicKey;
+                expect(localVariables.delete("vaa")).is.true;
+
+                const ix = await tokenRouter.redeemCctpFillIx(
+                    {
+                        payer: payer.publicKey,
+                        vaa,
+                    },
+                    args
+                );
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress
+                );
+                await expectIxOk(connection, [ix], [payer], {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
+
+                // TODO: check prepared fill account.
+            });
+        });
+
+        describe("Consume Prepared Fill", function () {
+            const redeemer = Keypair.generate();
+
+            let testCctpNonce = 2n ** 64n - 1n;
+
+            // Hack to prevent math overflow error when invoking CCTP programs.
+            testCctpNonce -= 21n * 6400n;
+
+            let wormholeSequence = 2100n;
+
+            const localVariables = new Map<string, any>();
+
+            it.skip("Redeem Fill (CCTP)", async function () {
+                // TODO
+            });
+
+            it.skip("Consume Prepared Fill after Redeem Fill (CCTP)", async function () {
+                // TODO
+            });
+
+            it.skip("Cannot Redeem Fill Again (CCTP)", async function () {
+                // TODO
+            });
+
+            async function redeemFillCctp() {
                 const encodedMintRecipient = Array.from(
                     tokenRouter.custodyTokenAccountAddress().toBuffer()
                 );
@@ -1490,12 +1545,10 @@ describe("Token Router", function () {
                     wormholeSequence++,
                     message
                 );
-                const ix = await tokenRouter.redeemCctpFillIx(
+                const redeemIx = await tokenRouter.redeemCctpFillIx(
                     {
                         payer: payer.publicKey,
                         vaa,
-                        redeemer: redeemer.publicKey,
-                        dstToken: payerToken,
                     },
                     {
                         encodedCctpMessage,
@@ -1503,151 +1556,8 @@ describe("Token Router", function () {
                     }
                 );
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
-                );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer, redeemer],
-                    "Error Code: AccountNotInitialized",
-                    {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    }
-                );
-
-                // Save for later.
-                localVariables.set("args", { encodedCctpMessage, cctpAttestation });
-                localVariables.set("vaa", vaa);
-                localVariables.set("redeemer", redeemer);
-                localVariables.set("amount", amount);
-            });
-
-            it("Add Router Endpoint", async function () {
-                const ix = await tokenRouter.addCctpRouterEndpointIx(
-                    {
-                        ownerOrAssistant: ownerAssistant.publicKey,
-                    },
-                    {
-                        chain: foreignChain,
-                        address: foreignEndpointAddress,
-                        cctpDomain: foreignCctpDomain,
-                        mintRecipient: null,
-                    }
-                );
-
-                await expectIxOk(connection, [ix], [ownerAssistant]);
-            });
-
-            it("Cannot Redeem Fill with Invalid Redeemer", async function () {
-                const args = localVariables.get("args") as {
-                    encodedCctpMessage: Buffer;
-                    cctpAttestation: Buffer;
-                };
-                const vaa = localVariables.get("vaa") as PublicKey;
-
-                const redeemer = Keypair.generate();
-
-                const ix = await tokenRouter.redeemCctpFillIx(
-                    {
-                        payer: payer.publicKey,
-                        vaa,
-                        redeemer: redeemer.publicKey,
-                        dstToken: payerToken,
-                    },
-                    args
-                );
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
-                );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer, redeemer],
-                    "Error Code: InvalidRedeemer",
-                    {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    }
-                );
-            });
-
-            it("Redeem Fill", async function () {
-                const args = localVariables.get("args") as {
-                    encodedCctpMessage: Buffer;
-                    cctpAttestation: Buffer;
-                };
-                const vaa = localVariables.get("vaa") as PublicKey;
-                const redeemer = localVariables.get("redeemer") as Keypair;
-
-                const amount = localVariables.get("amount") as bigint;
-                expect(localVariables.delete("amount")).is.true;
-
-                const ix = await tokenRouter.redeemCctpFillIx(
-                    {
-                        payer: payer.publicKey,
-                        vaa,
-                        redeemer: redeemer.publicKey,
-                        dstToken: payerToken,
-                    },
-                    args
-                );
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 250_000,
-                });
-
-                const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
-                );
-                await expectIxOk(connection, [computeIx, ix], [payer, redeemer], {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
-
-                // Check balance.
-                const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
-                expect(balanceAfter).equals(balanceBefore + amount);
-            });
-
-            it("Cannot Redeem Same Fill Again", async function () {
-                const args = localVariables.get("args") as {
-                    encodedCctpMessage: Buffer;
-                    cctpAttestation: Buffer;
-                };
-                expect(localVariables.delete("args")).is.true;
-
-                const vaa = localVariables.get("vaa") as PublicKey;
-                expect(localVariables.delete("vaa")).is.true;
-
-                const redeemer = localVariables.get("redeemer") as Keypair;
-                expect(localVariables.delete("redeemer")).is.true;
-
-                const ix = await tokenRouter.redeemCctpFillIx(
-                    {
-                        payer: payer.publicKey,
-                        vaa,
-                        redeemer: redeemer.publicKey,
-                        dstToken: payerToken,
-                    },
-                    args
-                );
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
-                );
-                // NOTE: This is a CCTP Message Transmitter program error.
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer, redeemer],
-                    "Error Code: NonceAlreadyUsed",
-                    {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    }
-                );
-            });
+                return { amount, message, vaa, redeemIx };
+            }
         });
     });
 });

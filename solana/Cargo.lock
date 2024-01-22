@@ -2415,9 +2415,9 @@ dependencies = [
 
 [[package]]
 name = "wormhole-cctp-solana"
-version = "0.0.1-alpha.6"
+version = "0.0.1-alpha.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c6dc492a1db64b466853a60a91a975bb227b65c1c374c1bd825ba4d2449fe09"
+checksum = "d566238cc3af7a9a451c6199f327213be31ba97534c28dc96b6ea6d009ce8695"
 dependencies = [
  "anchor-lang",
  "anchor-spl",

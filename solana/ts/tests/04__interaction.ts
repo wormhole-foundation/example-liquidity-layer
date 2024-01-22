@@ -37,19 +37,20 @@ describe("Matching Engine <> Token Router", function () {
             payer.publicKey
         );
 
+        const orderSender = Array.from(Buffer.alloc(32, "d00d", "hex"));
+        const redeemer = Keypair.generate();
+
         let wormholeSequence = 4000n;
 
         const localVariables = new Map<string, any>();
 
         it("Token Router ..... Cannot Redeem Fast Fill as Unregistered Token Router", async function () {
-            const redeemer = Keypair.generate();
-
             const amount = 69n;
             const message = new LiquidityLayerMessage({
                 fastFill: {
                     fill: {
                         sourceChain: foreignChain,
-                        orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
+                        orderSender,
                         redeemer: Array.from(redeemer.publicKey.toBuffer()),
                         redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                     },
@@ -69,15 +70,12 @@ describe("Matching Engine <> Token Router", function () {
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
                 vaa,
-                redeemer: redeemer.publicKey,
-                dstToken: payerToken,
             });
 
-            await expectIxErr(connection, [ix], [payer, redeemer], "Error Code: ConstraintAddress");
+            await expectIxErr(connection, [ix], [payer], "Error Code: ConstraintAddress");
 
             // Save for later.
             localVariables.set("vaa", vaa);
-            localVariables.set("redeemer", redeemer);
             localVariables.set("amount", amount);
         });
 
@@ -98,21 +96,13 @@ describe("Matching Engine <> Token Router", function () {
 
         it("Token Router ..... Cannot Redeem Fast Fill without Local Router Endpoint", async function () {
             const vaa = localVariables.get("vaa") as PublicKey;
-            const redeemer = localVariables.get("redeemer") as Keypair;
 
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
                 vaa,
-                redeemer: redeemer.publicKey,
-                dstToken: payerToken,
             });
 
-            await expectIxErr(
-                connection,
-                [ix],
-                [payer, redeemer],
-                "Error Code: AccountNotInitialized"
-            );
+            await expectIxErr(connection, [ix], [payer], "Error Code: AccountNotInitialized");
         });
 
         it("Matching Engine .. Add Local Router Endpoint using Token Router Program", async function () {
@@ -135,45 +125,28 @@ describe("Matching Engine <> Token Router", function () {
             );
         });
 
-        it("Token Router ..... Cannot Redeem Fast Fill with Invalid Redeemer", async function () {
-            const vaa = localVariables.get("vaa") as PublicKey;
-
-            const redeemer = Keypair.generate();
-            const ix = await tokenRouter.redeemFastFillIx({
-                payer: payer.publicKey,
-                vaa,
-                redeemer: redeemer.publicKey,
-                dstToken: payerToken,
-            });
-
-            await expectIxErr(connection, [ix], [payer, redeemer], "Error Code: InvalidRedeemer");
-        });
-
         it("Token Router ..... Redeem Fast Fill", async function () {
             const vaa = localVariables.get("vaa") as PublicKey;
-            const redeemer = localVariables.get("redeemer") as Keypair;
-
             const amount = localVariables.get("amount") as bigint;
-            expect(localVariables.delete("amount")).is.true;
-
-            const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
 
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
                 vaa,
-                redeemer: redeemer.publicKey,
-                dstToken: payerToken,
             });
 
-            await expectIxOk(connection, [ix], [payer, redeemer]);
+            const custodyToken = tokenRouter.custodyTokenAccountAddress();
+            const { amount: balanceBefore } = await splToken.getAccount(connection, custodyToken);
+
+            await expectIxOk(connection, [ix], [payer]);
 
             // Check balance.
-            const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
+            const { amount: balanceAfter } = await splToken.getAccount(connection, custodyToken);
             expect(balanceAfter).equals(balanceBefore + amount);
 
-            // Check redeemed fast fill account.
             const vaaHash = await VaaAccount.fetch(connection, vaa).then((vaa) => vaa.digest());
-            //console.log("vaaHash...", Buffer.from(vaaHash).toString("hex"));
+            const preparedFill = tokenRouter.preparedFillAddress(vaaHash);
+
+            // Check redeemed fast fill account.
             const redeemedFastFill = matchingEngine.redeemedFastFillAddress(vaaHash);
             const redeemedFastFillData = await matchingEngine.fetchRedeemedFastFill(
                 redeemedFastFill
@@ -181,25 +154,89 @@ describe("Matching Engine <> Token Router", function () {
 
             // The VAA hash can change depending on the message (sequence is usually the reason for
             // this). So we just take the bump from the fetched data and move on with our lives.
-            const { bump } = redeemedFastFillData;
-            expect(redeemedFastFillData).to.eql(
-                new matchingEngineSdk.RedeemedFastFill(
-                    bump,
-                    Array.from(vaaHash),
-                    new BN(new BN(wormholeSequence.toString()).subn(1).toBuffer("be", 8))
-                )
-            );
+            {
+                const { bump } = redeemedFastFillData;
+                expect(redeemedFastFillData).to.eql(
+                    new matchingEngineSdk.RedeemedFastFill(
+                        bump,
+                        Array.from(vaaHash),
+                        new BN(new BN(wormholeSequence.toString()).subn(1).toBuffer("be", 8))
+                    )
+                );
+            }
+
+            {
+                const preparedFillData = await tokenRouter.fetchPreparedFill(preparedFill);
+                const { bump } = preparedFillData;
+                expect(preparedFillData).to.eql(
+                    new tokenRouterSdk.PreparedFill(
+                        Array.from(vaaHash),
+                        bump,
+                        redeemer.publicKey,
+                        payer.publicKey,
+                        { fastFill: {} },
+                        foreignChain,
+                        orderSender,
+                        (() => {
+                            const buf = Buffer.alloc(8);
+                            buf.writeBigUInt64BE(amount);
+                            return new BN(buf);
+                        })()
+                    )
+                );
+            }
 
             // Save for later.
             localVariables.set("redeemedFastFill", redeemedFastFill);
+            localVariables.set("preparedFill", preparedFill);
+        });
+
+        it("Token Router ..... Redeem Same Fast Fill is No-op", async function () {
+            const vaa = localVariables.get("vaa") as PublicKey;
+
+            const ix = await tokenRouter.redeemFastFillIx({
+                payer: payer.publicKey,
+                vaa,
+            });
+
+            await expectIxOk(connection, [ix], [payer]);
+        });
+
+        it("Token Router ..... Consume Prepared Fill for Fast Fill", async function () {
+            const preparedFill = localVariables.get("preparedFill") as PublicKey;
+            expect(localVariables.delete("preparedFill")).is.true;
+
+            const amount = localVariables.get("amount") as bigint;
+            expect(localVariables.delete("amount")).is.true;
+
+            const rentRecipient = Keypair.generate().publicKey;
+            const ix = await tokenRouter.consumePreparedFillIx({
+                preparedFill,
+                redeemer: redeemer.publicKey,
+                dstToken: payerToken,
+                rentRecipient,
+            });
+
+            const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
+            const solBalanceBefore = await connection.getBalance(rentRecipient);
+
+            await expectIxOk(connection, [ix], [payer, redeemer]);
+
+            // Check balance.
+            const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
+            expect(balanceAfter).equals(balanceBefore + amount);
+
+            const solBalanceAfter = await connection.getBalance(rentRecipient);
+            const preparedFillRent = await connection.getMinimumBalanceForRentExemption(148);
+            expect(solBalanceAfter).equals(solBalanceBefore + preparedFillRent);
+
+            const accInfo = await connection.getAccountInfo(preparedFill);
+            expect(accInfo).is.null;
         });
 
         it("Token Router ..... Cannot Redeem Same Fast Fill Again", async function () {
             const vaa = localVariables.get("vaa") as PublicKey;
             expect(localVariables.delete("vaa")).is.true;
-
-            const redeemer = localVariables.get("redeemer") as Keypair;
-            expect(localVariables.delete("redeemer")).is.true;
 
             const redeemedFastFill = localVariables.get("redeemedFastFill") as PublicKey;
             expect(localVariables.delete("redeemedFastFill")).is.true;
@@ -207,66 +244,24 @@ describe("Matching Engine <> Token Router", function () {
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
                 vaa,
-                redeemer: redeemer.publicKey,
-                dstToken: payerToken,
             });
 
             await expectIxErr(
                 connection,
                 [ix],
-                [payer, redeemer],
+                [payer],
                 `Allocate: account Address { address: ${redeemedFastFill.toString()}, base: None } already in use`
             );
         });
 
-        it("Token Router ..... Cannot Redeem Fast Fill with Invalid VAA Account (Not Owned by Core Bridge)", async function () {
-            const redeemer = Keypair.generate();
-
-            const amount = 69n;
-            const message = new LiquidityLayerMessage({
-                fastFill: {
-                    fill: {
-                        sourceChain: foreignChain,
-                        orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
-                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                    },
-                    amount,
-                },
-            });
-
-            const vaa = await postLiquidityLayerVaa(
-                connection,
-                payer,
-                MOCK_GUARDIANS,
-                Array.from(matchingEngine.custodianAddress().toBuffer()),
-                wormholeSequence++,
-                message,
-                "avalanche"
-            );
-            const ix = await tokenRouter.redeemFastFillIx({
-                payer: payer.publicKey,
-                vaa,
-                redeemer: redeemer.publicKey,
-                dstToken: payerToken,
-            });
-
-            // Replace the VAA account pubkey with garbage.
-            ix.keys[ix.keys.findIndex((key) => key.pubkey.equals(vaa))].pubkey = SYSVAR_RENT_PUBKEY;
-
-            await expectIxErr(connection, [ix], [payer, redeemer], "Error Code: ConstraintOwner");
-        });
-
         it("Token Router ..... Cannot Redeem Fast Fill with Emitter Chain ID != Solana", async function () {
-            const redeemer = Keypair.generate();
-
             const amount = 69n;
             const message = new LiquidityLayerMessage({
                 fastFill: {
                     fill: {
                         sourceChain: foreignChain,
                         orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
-                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                        redeemer: new Array(32).fill(0),
                         redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                     },
                     amount,
@@ -285,28 +280,19 @@ describe("Matching Engine <> Token Router", function () {
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
                 vaa,
-                redeemer: redeemer.publicKey,
-                dstToken: payerToken,
             });
 
-            await expectIxErr(
-                connection,
-                [ix],
-                [payer, redeemer],
-                "Error Code: InvalidEmitterForFastFill"
-            );
+            await expectIxErr(connection, [ix], [payer], "Error Code: InvalidEmitterForFastFill");
         });
 
         it("Token Router ..... Cannot Redeem Fast Fill with Emitter Address != Matching Engine Custodian", async function () {
-            const redeemer = Keypair.generate();
-
             const amount = 69n;
             const message = new LiquidityLayerMessage({
                 fastFill: {
                     fill: {
                         sourceChain: foreignChain,
                         orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
-                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                        redeemer: new Array(32).fill(0),
                         redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                     },
                     amount,
@@ -325,16 +311,9 @@ describe("Matching Engine <> Token Router", function () {
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
                 vaa,
-                redeemer: redeemer.publicKey,
-                dstToken: payerToken,
             });
 
-            await expectIxErr(
-                connection,
-                [ix],
-                [payer, redeemer],
-                "Error Code: InvalidEmitterForFastFill"
-            );
+            await expectIxErr(connection, [ix], [payer], "Error Code: InvalidEmitterForFastFill");
         });
 
         it("Token Router ..... Cannot Redeem Fast Fill with Invalid VAA", async function () {
@@ -348,21 +327,15 @@ describe("Matching Engine <> Token Router", function () {
                 "solana"
             );
 
-            const redeemer = Keypair.generate();
-
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
                 vaa,
-                redeemer: redeemer.publicKey,
-                dstToken: payerToken,
             });
 
-            await expectIxErr(connection, [ix], [payer, redeemer], "Error Code: InvalidVaa");
+            await expectIxErr(connection, [ix], [payer], "Error Code: InvalidVaa");
         });
 
         it("Token Router ..... Cannot Redeem Fast Fill with Invalid Payload", async function () {
-            const redeemer = Keypair.generate();
-
             const amount = 69n;
             const message = new LiquidityLayerMessage({
                 deposit: new LiquidityLayerDeposit(
@@ -379,7 +352,7 @@ describe("Matching Engine <> Token Router", function () {
                         fill: {
                             sourceChain: foreignChain,
                             orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
-                            redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                            redeemer: new Array(32).fill(0),
                             redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                         },
                     }
@@ -398,11 +371,9 @@ describe("Matching Engine <> Token Router", function () {
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
                 vaa,
-                redeemer: redeemer.publicKey,
-                dstToken: payerToken,
             });
 
-            await expectIxErr(connection, [ix], [payer, redeemer], "Error Code: InvalidPayloadId");
+            await expectIxErr(connection, [ix], [payer], "Error Code: InvalidPayloadId");
         });
     });
 });

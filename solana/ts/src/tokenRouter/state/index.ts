@@ -1,5 +1,6 @@
 export * from "./Custodian";
 export * from "./PayerSequence";
+export * from "./PreparedFill";
 export * from "./PreparedOrder";
 export * from "./RouterEndpoint";
 

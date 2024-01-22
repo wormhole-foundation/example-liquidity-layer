@@ -38,12 +38,16 @@ pub mod token_router {
         processor::place_market_order_cctp(ctx)
     }
 
-    pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: RedeemFillArgs) -> Result<()> {
+    pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) -> Result<()> {
         processor::redeem_cctp_fill(ctx, args)
     }
 
     pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
         processor::redeem_fast_fill(ctx)
+    }
+
+    pub fn consume_prepared_fill(ctx: Context<ConsumePreparedFill>) -> Result<()> {
+        processor::consume_prepared_fill(ctx)
     }
 
     // admin

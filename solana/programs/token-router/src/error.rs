@@ -76,4 +76,7 @@ pub enum TokenRouterError {
 
     #[msg("InvalidRedeemer")]
     InvalidRedeemer = 0x206,
+
+    #[msg("RedeemerMismatch")]
+    RedeemerMismatch = 0x220,
 }

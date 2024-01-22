@@ -19,7 +19,7 @@ import {
 import * as matchingEngineSdk from "../matchingEngine";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { VaaAccount } from "../wormhole";
-import { Custodian, PayerSequence, PreparedOrder, RouterEndpoint } from "./state";
+import { Custodian, PayerSequence, PreparedFill, PreparedOrder, RouterEndpoint } from "./state";
 
 export const PROGRAM_IDS = ["TokenRouter11111111111111111111111111111111"] as const;
 
@@ -85,6 +85,7 @@ export type PlaceMarketOrderCctpAccounts = PublishMessageAccounts & {
 
 export type RedeemFillCctpAccounts = {
     custodian: PublicKey;
+    preparedFill: PublicKey;
     custodyToken: PublicKey;
     routerEndpoint: PublicKey;
     messageTransmitterAuthority: PublicKey;
@@ -103,6 +104,7 @@ export type RedeemFillCctpAccounts = {
 
 export type RedeemFastFillAccounts = {
     custodian: PublicKey;
+    preparedFill: PublicKey;
     custodyToken: PublicKey;
     matchingEngineCustodian: PublicKey;
     matchingEngineRedeemedFastFill: PublicKey;
@@ -196,6 +198,14 @@ export class TokenRouterProgram {
 
     async fetchPreparedOrder(addr: PublicKey): Promise<PreparedOrder> {
         return this.program.account.preparedOrder.fetch(addr);
+    }
+
+    preparedFillAddress(vaaHash: Array<number> | Uint8Array | Buffer) {
+        return PreparedFill.address(this.ID, vaaHash);
+    }
+
+    async fetchPreparedFill(addr: PublicKey): Promise<PreparedFill> {
+        return this.program.account.preparedFill.fetch(addr);
     }
 
     async commonAccounts(): Promise<TokenRouterCommonAccounts> {
@@ -309,6 +319,28 @@ export class TokenRouterProgram {
                 orderSender,
                 preparedOrder,
                 refundToken,
+                custodyToken: this.custodyTokenAccountAddress(),
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+            })
+            .instruction();
+    }
+
+    async consumePreparedFillIx(accounts: {
+        preparedFill: PublicKey;
+        redeemer: PublicKey;
+        dstToken: PublicKey;
+        rentRecipient: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const { preparedFill, redeemer, dstToken, rentRecipient } = accounts;
+
+        return this.program.methods
+            .consumePreparedFill()
+            .accounts({
+                custodian: this.custodianAddress(),
+                redeemer,
+                rentRecipient,
+                preparedFill,
+                dstToken,
                 custodyToken: this.custodyTokenAccountAddress(),
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
             })
@@ -472,6 +504,7 @@ export class TokenRouterProgram {
 
         const vaaAcct = await VaaAccount.fetch(this.program.provider.connection, vaa);
         const { chain } = vaaAcct.emitterInfo();
+        const preparedFill = this.preparedFillAddress(vaaAcct.digest());
 
         const messageTransmitterProgram = this.messageTransmitterProgram();
         const {
@@ -490,6 +523,7 @@ export class TokenRouterProgram {
 
         return {
             custodian: this.custodianAddress(),
+            preparedFill,
             custodyToken,
             routerEndpoint: this.routerEndpointAddress(chain as wormholeSdk.ChainId), // yikes
             messageTransmitterAuthority,
@@ -511,8 +545,6 @@ export class TokenRouterProgram {
         accounts: {
             payer: PublicKey;
             vaa: PublicKey;
-            redeemer: PublicKey;
-            dstToken: PublicKey;
             routerEndpoint?: PublicKey;
         },
         args: {
@@ -520,12 +552,13 @@ export class TokenRouterProgram {
             cctpAttestation: Buffer;
         }
     ): Promise<TransactionInstruction> {
-        const { payer, vaa, redeemer, dstToken, routerEndpoint: inputRouterEndpoint } = accounts;
+        const { payer, vaa, routerEndpoint: inputRouterEndpoint } = accounts;
 
         const { encodedCctpMessage } = args;
 
         const {
             custodian,
+            preparedFill,
             custodyToken,
             routerEndpoint,
             messageTransmitterAuthority,
@@ -548,8 +581,7 @@ export class TokenRouterProgram {
                 payer,
                 custodian,
                 vaa,
-                redeemer,
-                dstToken,
+                preparedFill,
                 custodyToken,
                 routerEndpoint: inputRouterEndpoint ?? routerEndpoint,
                 messageTransmitterAuthority,
@@ -570,16 +602,20 @@ export class TokenRouterProgram {
 
     async redeemFastFillAccounts(vaa: PublicKey): Promise<RedeemFastFillAccounts> {
         const {
-            custodian: matchingEngineCustodian,
-            redeemedFastFill: matchingEngineRedeemedFastFill,
-            routerEndpoint: matchingEngineRouterEndpoint,
-            custodyToken: matchingEngineCustodyToken,
-            matchingEngineProgram,
-            tokenProgram,
+            vaaHash,
+            accounts: {
+                custodian: matchingEngineCustodian,
+                redeemedFastFill: matchingEngineRedeemedFastFill,
+                routerEndpoint: matchingEngineRouterEndpoint,
+                custodyToken: matchingEngineCustodyToken,
+                matchingEngineProgram,
+                tokenProgram,
+            },
         } = await this.matchingEngineProgram().redeemFastFillAccounts(vaa);
 
         return {
             custodian: this.custodianAddress(),
+            preparedFill: this.preparedFillAddress(vaaHash),
             custodyToken: this.custodyTokenAccountAddress(),
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
@@ -593,12 +629,11 @@ export class TokenRouterProgram {
     async redeemFastFillIx(accounts: {
         payer: PublicKey;
         vaa: PublicKey;
-        redeemer: PublicKey;
-        dstToken: PublicKey;
     }): Promise<TransactionInstruction> {
-        const { payer, vaa, dstToken, redeemer } = accounts;
+        const { payer, vaa } = accounts;
         const {
             custodian,
+            preparedFill,
             custodyToken,
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
@@ -614,8 +649,7 @@ export class TokenRouterProgram {
                 payer,
                 custodian,
                 vaa,
-                redeemer,
-                dstToken,
+                preparedFill,
                 custodyToken,
                 matchingEngineCustodian,
                 matchingEngineRedeemedFastFill,

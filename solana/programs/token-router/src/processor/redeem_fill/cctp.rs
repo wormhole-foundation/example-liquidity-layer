@@ -1,6 +1,6 @@
 use crate::{
     error::TokenRouterError,
-    state::{Custodian, RouterEndpoint},
+    state::{Custodian, FillType, PreparedFill, RouterEndpoint},
     CUSTODIAN_BUMP, CUSTODY_TOKEN_BUMP,
 };
 use anchor_lang::prelude::*;
@@ -10,7 +10,7 @@ use wormhole_cctp_solana::{
     cctp::{message_transmitter_program, token_messenger_minter_program},
     cpi::ReceiveMessageArgs,
     utils::WormholeCctpPayload,
-    wormhole::core_bridge_program,
+    wormhole::core_bridge_program::VaaAccount,
 };
 
 /// Account context to invoke [redeem_cctp_fill].
@@ -28,29 +28,27 @@ pub struct RedeemCctpFill<'info> {
     )]
     custodian: AccountInfo<'info>,
 
-    /// CHECK: Must be owned by the Wormhole Core Bridge program. This account will be read via
-    /// zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader.
-    #[account(owner = core_bridge_program::id())]
+    /// CHECK: Must be owned by the Wormhole Core Bridge program. Ownership check happens in
+    /// [verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint).
     vaa: AccountInfo<'info>,
 
-    /// Redeemer, who owns the token account that will receive the minted tokens.
-    ///
-    /// CHECK: Signer must be the redeemer encoded in the Deposit Fill message.
-    redeemer: Signer<'info>,
-
-    /// Destination token account, which the redeemer may not own. But because the redeemer is a
-    /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
-    /// to any account he chooses (this one).
-    ///
-    /// CHECK: This token account must already exist.
-    #[account(mut)]
-    dst_token: AccountInfo<'info>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = 8 + PreparedFill::INIT_SPACE,
+        seeds = [
+            PreparedFill::SEED_PREFIX,
+            VaaAccount::load(&vaa)?.try_digest()?.as_ref(),
+        ],
+        bump,
+    )]
+    prepared_fill: Account<'info, PreparedFill>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
     /// from its custody account to this account.
     ///
-    /// Mutable. Seeds must be \["custody"\].
+    /// CHECK: Mutable. Seeds must be \["custody"\].
     ///
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
@@ -58,7 +56,7 @@ pub struct RedeemCctpFill<'info> {
         seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
         bump = CUSTODY_TOKEN_BUMP,
     )]
-    custody_token: Account<'info, token::TokenAccount>,
+    custody_token: AccountInfo<'info>,
 
     /// Registered emitter account representing a Circle Integration on another network.
     ///
@@ -115,11 +113,28 @@ pub struct RedeemCctpFill<'info> {
     system_program: Program<'info, System>,
 }
 
+/// Arguments used to invoke [redeem_cctp_fill].
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct CctpMessageArgs {
+    /// CCTP message.
+    pub encoded_cctp_message: Vec<u8>,
+
+    /// Attestation of [encoded_cctp_message](Self::encoded_cctp_message).
+    pub cctp_attestation: Vec<u8>,
+}
+
 /// This instruction reconciles a Wormhole CCTP deposit message with a CCTP message to mint tokens
 /// for the [mint_recipient](RedeemCctpFill::mint_recipient) token account.
 ///
 /// See [verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint) for more details.
-pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: super::RedeemFillArgs) -> Result<()> {
+pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) -> Result<()> {
+    match ctx.accounts.prepared_fill.fill_type {
+        FillType::Unset => handle_redeem_fill_cctp(ctx, args),
+        _ => super::redeem_fill_noop(),
+    }
+}
+
+fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) -> Result<()> {
     let custodian_seeds = &[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]];
 
     let vaa = wormhole_cctp_solana::cpi::verify_vaa_and_mint(
@@ -182,34 +197,26 @@ pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: super::RedeemFillArg
         .message()
         .to_deposit_unchecked();
 
-    // Save for final transfer.
-    //
     // NOTE: This is safe because we know the amount is within u64 range.
     let amount = u64::try_from(ruint::aliases::U256::from_be_bytes(deposit.amount())).unwrap();
 
     // Verify as Liquiditiy Layer Deposit message.
     let msg = LiquidityLayerDepositMessage::try_from(deposit.payload())
         .map_err(|_| TokenRouterError::InvalidDepositMessage)?;
-
-    // Verify redeemer.
     let fill = msg.fill().ok_or(TokenRouterError::InvalidPayloadId)?;
-    require_keys_eq!(
-        Pubkey::from(fill.redeemer()),
-        ctx.accounts.redeemer.key(),
-        TokenRouterError::InvalidRedeemer
-    );
 
-    // Finally transfer tokens to destination.
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            token::Transfer {
-                from: ctx.accounts.custody_token.to_account_info(),
-                to: ctx.accounts.dst_token.to_account_info(),
-                authority: ctx.accounts.custodian.to_account_info(),
-            },
-            &[custodian_seeds],
-        ),
+    // Set prepared fill data.
+    ctx.accounts.prepared_fill.set_inner(PreparedFill {
+        vaa_hash: vaa.try_digest().unwrap().0,
+        bump: ctx.bumps["prepared_fill"],
+        redeemer: Pubkey::from(fill.redeemer()),
+        payer: ctx.accounts.payer.key(),
+        fill_type: FillType::WormholeCctpDeposit,
+        source_chain: fill.source_chain(),
+        order_sender: fill.order_sender(),
         amount,
-    )
+    });
+
+    // Done.
+    Ok(())
 }

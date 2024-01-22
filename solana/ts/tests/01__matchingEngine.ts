@@ -2719,7 +2719,7 @@ describe("Matching Engine", function () {
             let testCctpNonce = 2n ** 64n - 1n;
 
             // Hack to prevent math overflow error when invoking CCTP programs.
-            testCctpNonce -= 4n * 6400n;
+            testCctpNonce -= 10n * 6400n;
 
             const localVariables = new Map<string, any>();
 

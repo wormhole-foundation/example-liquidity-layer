@@ -1,8 +1,11 @@
-use crate::{error::TokenRouterError, state::Custodian, CUSTODIAN_BUMP, CUSTODY_TOKEN_BUMP};
+use crate::{
+    state::{Custodian, FillType, PreparedFill},
+    CUSTODIAN_BUMP, CUSTODY_TOKEN_BUMP,
+};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::messages::raw::LiquidityLayerMessage;
-use wormhole_cctp_solana::wormhole::core_bridge_program;
+use wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount};
 
 /// Account context to invoke [redeem_fast_fill].
 #[derive(Accounts)]
@@ -24,18 +27,17 @@ pub struct RedeemFastFill<'info> {
     #[account(owner = core_bridge_program::id())]
     vaa: AccountInfo<'info>,
 
-    /// Redeemer, who owns the token account that will receive the minted tokens.
-    ///
-    /// CHECK: Signer must be the redeemer encoded in the Deposit Fill message.
-    redeemer: Signer<'info>,
-
-    /// Destination token account, which the redeemer may not own. But because the redeemer is a
-    /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
-    /// to any account he chooses (this one).
-    ///
-    /// CHECK: This token account must already exist.
-    #[account(mut)]
-    dst_token: AccountInfo<'info>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = 8 + PreparedFill::INIT_SPACE,
+        seeds = [
+            PreparedFill::SEED_PREFIX,
+            VaaAccount::load(&vaa)?.try_digest()?.as_ref(),
+        ],
+        bump,
+    )]
+    prepared_fill: Account<'info, PreparedFill>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -74,6 +76,13 @@ pub struct RedeemFastFill<'info> {
 ///
 /// See [verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint) for more details.
 pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
+    match ctx.accounts.prepared_fill.fill_type {
+        FillType::Unset => handle_redeem_fast_fill(ctx),
+        _ => super::redeem_fill_noop(),
+    }
+}
+
+fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
     let custodian_seeds = &[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]];
 
     matching_engine::cpi::redeem_fast_fill(CpiContext::new_with_signer(
@@ -102,34 +111,27 @@ pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
     let vaa =
         wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount::load(&ctx.accounts.vaa)
             .unwrap();
+    let fast_fill = LiquidityLayerMessage::try_from(vaa.try_payload().unwrap())
+        .unwrap()
+        .to_fast_fill_unchecked();
 
-    // Verify redeemer.
-    let amount = {
-        let fast_fill = LiquidityLayerMessage::try_from(vaa.try_payload().unwrap())
-            .unwrap()
-            .to_fast_fill_unchecked();
+    // This is safe because we know the amount is within u64 range.
+    let amount = u64::try_from(fast_fill.amount()).unwrap();
 
-        require_keys_eq!(
-            Pubkey::from(fast_fill.fill().redeemer()),
-            ctx.accounts.redeemer.key(),
-            TokenRouterError::InvalidRedeemer
-        );
+    let fill = fast_fill.fill();
 
-        // This is safe because we know the amount is within u64 range.
-        u64::try_from(fast_fill.amount()).unwrap()
-    };
-
-    // Finally transfer tokens to destination.
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            token::Transfer {
-                from: ctx.accounts.custody_token.to_account_info(),
-                to: ctx.accounts.dst_token.to_account_info(),
-                authority: ctx.accounts.custodian.to_account_info(),
-            },
-            &[custodian_seeds],
-        ),
+    // Set prepared fill data.
+    ctx.accounts.prepared_fill.set_inner(PreparedFill {
+        vaa_hash: vaa.try_digest().unwrap().0,
+        bump: ctx.bumps["prepared_fill"],
+        redeemer: Pubkey::from(fill.redeemer()),
+        payer: ctx.accounts.payer.key(),
+        fill_type: FillType::FastFill,
+        source_chain: fill.source_chain(),
+        order_sender: fill.order_sender(),
         amount,
-    )
+    });
+
+    // Done.
+    Ok(())
 }

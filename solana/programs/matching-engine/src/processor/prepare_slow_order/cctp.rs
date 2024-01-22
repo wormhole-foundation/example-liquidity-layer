@@ -29,9 +29,8 @@ pub struct PrepareSlowOrderCctp<'info> {
     #[account(owner = core_bridge_program::id())]
     fast_vaa: AccountInfo<'info>,
 
-    /// CHECK: Must be owned by the Wormhole Core Bridge program. This account will be read via
-    /// zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader.
-    #[account(owner = core_bridge_program::id())]
+    /// CHECK: Must be owned by the Wormhole Core Bridge program. Ownership check happens in
+    /// [verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint).
     finalized_vaa: AccountInfo<'info>,
 
     #[account(

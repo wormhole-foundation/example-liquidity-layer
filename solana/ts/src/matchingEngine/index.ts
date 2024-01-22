@@ -604,17 +604,23 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async redeemFastFillAccounts(vaa: PublicKey): Promise<RedeemFastFillAccounts> {
+    async redeemFastFillAccounts(
+        vaa: PublicKey
+    ): Promise<{ vaaHash: Uint8Array; accounts: RedeemFastFillAccounts }> {
         const custodyToken = this.custodyTokenAccountAddress();
         const vaaAcct = await VaaAccount.fetch(this.program.provider.connection, vaa);
+        const vaaHash = vaaAcct.digest();
 
         return {
-            custodian: this.custodianAddress(),
-            redeemedFastFill: this.redeemedFastFillAddress(vaaAcct.digest()),
-            routerEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
-            custodyToken,
-            matchingEngineProgram: this.ID,
-            tokenProgram: splToken.TOKEN_PROGRAM_ID,
+            vaaHash,
+            accounts: {
+                custodian: this.custodianAddress(),
+                redeemedFastFill: this.redeemedFastFillAddress(vaaHash),
+                routerEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+                custodyToken,
+                matchingEngineProgram: this.ID,
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+            },
         };
     }
 
