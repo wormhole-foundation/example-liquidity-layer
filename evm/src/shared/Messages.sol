@@ -7,11 +7,12 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 library Messages {
     using BytesParsing for bytes;
 
-    // Payload IDs. Payload IDs 1-10 are reserved for CCTP deposit messages.
-    uint8 private constant FILL = 11;
+    // Payload IDs. Payloads IDs 1-10 are reserved for messages that are
+    // paired with a CCTP transfeer.
+    uint8 private constant FILL = 1;
+    uint8 private constant SLOW_ORDER_RESPONSE = 2;
+    uint8 private constant FAST_MARKET_ORDER = 11;
     uint8 private constant FAST_FILL = 12;
-    uint8 private constant FAST_MARKET_ORDER = 13;
-    uint8 private constant SLOW_ORDER_RESPONSE = 14;
 
     // VAA fields.
     uint256 private constant SIG_COUNT_OFFSET = 5;

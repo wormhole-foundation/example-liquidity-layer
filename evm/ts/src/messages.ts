@@ -167,7 +167,7 @@ export class Fill {
     }
 
     static get ID(): number {
-        return 11;
+        return 1;
     }
 
     static decode(payload: Buffer): Fill {
@@ -263,7 +263,7 @@ export class FastMarketOrder {
     }
 
     static get ID(): number {
-        return 13;
+        return 11;
     }
 
     static decode(payload: Buffer): FastMarketOrder {
@@ -305,7 +305,7 @@ export class SlowOrderResponse {
     }
 
     static get ID(): number {
-        return 14;
+        return 2;
     }
 
     static decode(payload: Buffer): SlowOrderResponse {
