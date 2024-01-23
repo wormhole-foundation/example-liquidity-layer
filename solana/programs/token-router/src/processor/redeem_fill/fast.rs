@@ -7,13 +7,13 @@ use anchor_spl::token;
 use common::messages::raw::LiquidityLayerMessage;
 use wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount};
 
-/// Account context to invoke [redeem_fast_fill].
+/// Accounts required for [redeem_fast_fill].
 #[derive(Accounts)]
 pub struct RedeemFastFill<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    /// This program's Wormhole (Core Bridge) emitter authority.
+    /// Custodian, but does not need to be deserialized.
     ///
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
@@ -43,13 +43,13 @@ pub struct RedeemFastFill<'info> {
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
     /// from its custody account to this account.
     ///
-    /// Mutable. Seeds must be \["custody"\].
+    /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
         seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
         bump = CUSTODY_TOKEN_BUMP,
     )]
-    custody_token: Account<'info, token::TokenAccount>,
+    custody_token: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["emitter"] (Matching Engine program).
     #[account(mut)]
@@ -85,9 +85,9 @@ pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
 fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
     let custodian_seeds = &[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]];
 
-    matching_engine::cpi::redeem_fast_fill(CpiContext::new_with_signer(
+    matching_engine::cpi::complete_fast_fill(CpiContext::new_with_signer(
         ctx.accounts.matching_engine_program.to_account_info(),
-        matching_engine::cpi::accounts::RedeemFastFill {
+        matching_engine::cpi::accounts::CompleteFastFill {
             payer: ctx.accounts.payer.to_account_info(),
             custodian: ctx.accounts.matching_engine_custodian.to_account_info(),
             vaa: ctx.accounts.vaa.to_account_info(),
@@ -122,7 +122,7 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
         vaa_hash: vaa.try_digest().unwrap().0,
         bump: ctx.bumps["prepared_fill"],
         redeemer: Pubkey::from(fill.redeemer()),
-        payer: ctx.accounts.payer.key(),
+        prepared_by: ctx.accounts.payer.key(),
         fill_type: FillType::FastFill,
         source_chain: fill.source_chain(),
         order_sender: fill.order_sender(),

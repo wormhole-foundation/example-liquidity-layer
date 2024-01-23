@@ -1,13 +1,9 @@
-use crate::state::{AuctionData, AuctionStatus, Custodian, PreparedSlowOrder};
+use crate::state::{AuctionData, AuctionStatus, Custodian, PreparedAuctionSettlement};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
 #[derive(Accounts)]
-pub struct ExecuteSlowOrderAuctionComplete<'info> {
-    /// CHECK: Must be the account that created the prepared slow order.
-    #[account(mut)]
-    prepared_by: AccountInfo<'info>,
-
+pub struct SettleAuctionComplete<'info> {
     /// This program's Wormhole (Core Bridge) emitter authority.
     ///
     /// CHECK: Seeds must be \["emitter"\].
@@ -17,22 +13,26 @@ pub struct ExecuteSlowOrderAuctionComplete<'info> {
     )]
     custodian: Account<'info, Custodian>,
 
+    /// CHECK: Must be the account that created the prepared slow order.
+    #[account(mut)]
+    prepared_by: AccountInfo<'info>,
+
     #[account(
         mut,
         close = prepared_by,
         seeds = [
-            PreparedSlowOrder::SEED_PREFIX,
+            PreparedAuctionSettlement::SEED_PREFIX,
             prepared_by.key().as_ref(),
-            prepared_slow_order.fast_vaa_hash.as_ref()
+            prepared_auction_settlement.fast_vaa_hash.as_ref()
         ],
-        bump = prepared_slow_order.bump,
+        bump = prepared_auction_settlement.bump,
     )]
-    prepared_slow_order: Account<'info, PreparedSlowOrder>,
+    prepared_auction_settlement: Account<'info, PreparedAuctionSettlement>,
 
     #[account(
         seeds = [
             AuctionData::SEED_PREFIX,
-            prepared_slow_order.fast_vaa_hash.as_ref(),
+            prepared_auction_settlement.fast_vaa_hash.as_ref(),
         ],
         bump = auction_data.bump,
         has_one = best_offer_token, // TODO: add error
@@ -65,11 +65,9 @@ pub struct ExecuteSlowOrderAuctionComplete<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-pub fn execute_slow_order_auction_complete(
-    ctx: Context<ExecuteSlowOrderAuctionComplete>,
-) -> Result<()> {
+pub fn settle_auction_complete(ctx: Context<SettleAuctionComplete>) -> Result<()> {
     ctx.accounts.auction_data.status = AuctionStatus::Settled {
-        base_fee: ctx.accounts.prepared_slow_order.base_fee,
+        base_fee: ctx.accounts.prepared_auction_settlement.base_fee,
         penalty: None,
     };
 

@@ -7,8 +7,8 @@ pub use custodian::*;
 mod payer_sequence;
 pub use payer_sequence::*;
 
-mod prepared_slow_order;
-pub use prepared_slow_order::*;
+mod prepared_auction_settlement;
+pub use prepared_auction_settlement::*;
 
 mod redeemed_fast_fill;
 pub use redeemed_fast_fill::*;

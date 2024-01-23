@@ -56,14 +56,17 @@ pub enum TokenRouterError {
     #[msg("MinAmountOutTooHigh")]
     MinAmountOutTooHigh = 0x102,
 
-    #[msg("PayerMismatch")]
-    PayerMismatch = 0x120,
+    #[msg("PreparedByMismatch")]
+    PreparedByMismatch = 0x120,
 
     #[msg("OrderSenderMismatch")]
     OrderSenderMismatch = 0x122,
 
     #[msg("RefundTokenMismatch")]
     RefundTokenMismatch = 0x124,
+
+    #[msg("PayerNotPreparer")]
+    PayerNotPreparer = 0x126,
 
     #[msg("InvalidSourceRouter")]
     InvalidSourceRouter = 0x200,

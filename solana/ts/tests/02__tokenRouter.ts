@@ -1,4 +1,6 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
+import { getPostedMessage } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
+import { BN } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -6,7 +8,6 @@ import {
     Connection,
     Keypair,
     PublicKey,
-    SYSVAR_RENT_PUBKEY,
     SystemProgram,
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
@@ -25,9 +26,6 @@ import {
     expectIxOk,
     postLiquidityLayerVaa,
 } from "./helpers";
-import { BN } from "@coral-xyz/anchor";
-import { VaaAccount } from "../src/wormhole";
-import { getPostedMessage } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 
 chaiUse(chaiAsPromised);
 
@@ -563,7 +561,7 @@ describe("Token Router", function () {
                     new PreparedOrder(
                         {
                             orderSender: orderSender.publicKey,
-                            payer: payer.publicKey,
+                            preparedBy: payer.publicKey,
                             orderType: {
                                 market: {
                                     minAmountOut: (() => {
@@ -643,14 +641,14 @@ describe("Token Router", function () {
 
                 const ix = await tokenRouter.closePreparedOrderIx({
                     preparedOrder,
-                    payer: ownerAssistant.publicKey,
+                    preparedBy: ownerAssistant.publicKey,
                 });
 
                 await expectIxErr(
                     connection,
                     [ix],
                     [ownerAssistant, orderSender],
-                    "Error Code: PayerMismatch"
+                    "Error Code: PreparedByMismatch"
                 );
             });
 

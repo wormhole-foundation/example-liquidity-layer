@@ -9,7 +9,7 @@ export type OrderType = {
 
 export type PreparedOrderInfo = {
     orderSender: PublicKey;
-    payer: PublicKey;
+    preparedBy: PublicKey;
     orderType: OrderType;
     orderToken: PublicKey;
     refundToken: PublicKey;

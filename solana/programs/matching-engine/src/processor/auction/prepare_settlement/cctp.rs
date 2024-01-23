@@ -1,6 +1,6 @@
 use crate::{
     error::MatchingEngineError,
-    state::{Custodian, PreparedSlowOrder},
+    state::{Custodian, PreparedAuctionSettlement},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -11,7 +11,7 @@ use wormhole_cctp_solana::{
 };
 
 #[derive(Accounts)]
-pub struct PrepareSlowOrderCctp<'info> {
+pub struct PrepareAuctionSettlementCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
@@ -36,15 +36,15 @@ pub struct PrepareSlowOrderCctp<'info> {
     #[account(
         init,
         payer = payer,
-        space = 8 + PreparedSlowOrder::INIT_SPACE,
+        space = 8 + PreparedAuctionSettlement::INIT_SPACE,
         seeds = [
-            PreparedSlowOrder::SEED_PREFIX,
+            PreparedAuctionSettlement::SEED_PREFIX,
             payer.key().as_ref(),
             core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
         ],
         bump,
     )]
-    prepared_slow_order: Account<'info, PreparedSlowOrder>,
+    prepared_auction_settlement: Account<'info, PreparedAuctionSettlement>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -109,8 +109,8 @@ pub struct CctpMessageArgs {
     pub cctp_attestation: Vec<u8>,
 }
 
-pub fn prepare_slow_order_cctp(
-    ctx: Context<PrepareSlowOrderCctp>,
+pub fn prepare_auction_settlement_cctp(
+    ctx: Context<PrepareAuctionSettlementCctp>,
     args: CctpMessageArgs,
 ) -> Result<()> {
     let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa).unwrap();
@@ -202,15 +202,15 @@ pub fn prepare_slow_order_cctp(
 
     // Write to the prepared slow order account, which will be closed by one of the following
     // instructions:
-    // * execute_slow_order_auction_active_cctp
-    // * execute_slow_order_auction_complete
+    // * settle_auction_active_cctp
+    // * settle_auction_complete
     // * execute_slow_order_no_auction
     ctx.accounts
-        .prepared_slow_order
-        .set_inner(PreparedSlowOrder {
-            bump: ctx.bumps["prepared_slow_order"],
-            prepared_by: ctx.accounts.payer.key(),
+        .prepared_auction_settlement
+        .set_inner(PreparedAuctionSettlement {
+            bump: ctx.bumps["prepared_auction_settlement"],
             fast_vaa_hash: fast_vaa.try_digest().unwrap().0,
+            prepared_by: ctx.accounts.payer.key(),
             source_chain,
             base_fee: slow_order_response.base_fee().try_into().unwrap(),
         });

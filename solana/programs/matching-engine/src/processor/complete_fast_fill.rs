@@ -8,8 +8,9 @@ use crate::{
     state::{Custodian, RedeemedFastFill, RouterEndpoint},
 };
 
+/// Accounts required for [complete_fast_fill].
 #[derive(Accounts)]
-pub struct RedeemFastFill<'info> {
+pub struct CompleteFastFill<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
@@ -74,7 +75,8 @@ pub struct RedeemFastFill<'info> {
     system_program: Program<'info, System>,
 }
 
-pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
+/// TODO: docstring
+pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
     let vaa = core_bridge_program::VaaAccount::load(&ctx.accounts.vaa).unwrap();
 
     // Emitter must be the matching engine (this program).

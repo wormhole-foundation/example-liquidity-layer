@@ -26,33 +26,27 @@ cfg_if::cfg_if! {
 pub mod matching_engine {
     use super::*;
 
-    pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
-        processor::redeem_fast_fill(ctx)
+    pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
+        processor::complete_fast_fill(ctx)
     }
 
-    pub fn prepare_slow_order_cctp(
-        ctx: Context<PrepareSlowOrderCctp>,
+    pub fn prepare_auction_settlement_cctp(
+        ctx: Context<PrepareAuctionSettlementCctp>,
         args: CctpMessageArgs,
     ) -> Result<()> {
-        processor::prepare_slow_order_cctp(ctx, args)
+        processor::prepare_auction_settlement_cctp(ctx, args)
     }
 
-    pub fn execute_slow_order_auction_complete(
-        ctx: Context<ExecuteSlowOrderAuctionComplete>,
-    ) -> Result<()> {
-        processor::execute_slow_order_auction_complete(ctx)
+    pub fn settle_auction_complete(ctx: Context<SettleAuctionComplete>) -> Result<()> {
+        processor::settle_auction_complete(ctx)
     }
 
-    pub fn execute_slow_order_no_auction_cctp(
-        ctx: Context<ExecuteSlowOrderNoAuctionCctp>,
-    ) -> Result<()> {
-        processor::execute_slow_order_no_auction_cctp(ctx)
+    pub fn settle_auction_none_cctp(ctx: Context<SettleAuctionNoneCctp>) -> Result<()> {
+        processor::settle_auction_none_cctp(ctx)
     }
 
-    pub fn execute_slow_order_auction_active_cctp(
-        ctx: Context<ExecuteSlowOrderAuctionActiveCctp>,
-    ) -> Result<()> {
-        processor::execute_slow_order_auction_active_cctp(ctx)
+    pub fn settle_auction_active_cctp(ctx: Context<SettleAuctionActiveCctp>) -> Result<()> {
+        processor::settle_auction_active_cctp(ctx)
     }
 
     /// This instruction is be used to generate your program's config.

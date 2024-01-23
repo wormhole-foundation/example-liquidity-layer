@@ -13,13 +13,13 @@ use wormhole_cctp_solana::{
     wormhole::core_bridge_program::VaaAccount,
 };
 
-/// Account context to invoke [redeem_cctp_fill].
+/// Accounts required for [redeem_cctp_fill].
 #[derive(Accounts)]
 pub struct RedeemCctpFill<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    /// This program's Wormhole (Core Bridge) emitter authority.
+    /// Custodian, but does not need to be deserialized.
     ///
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
@@ -113,7 +113,7 @@ pub struct RedeemCctpFill<'info> {
     system_program: Program<'info, System>,
 }
 
-/// Arguments used to invoke [redeem_cctp_fill].
+/// Arguments for [redeem_cctp_fill].
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct CctpMessageArgs {
     /// CCTP message.
@@ -210,7 +210,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
         vaa_hash: vaa.try_digest().unwrap().0,
         bump: ctx.bumps["prepared_fill"],
         redeemer: Pubkey::from(fill.redeemer()),
-        payer: ctx.accounts.payer.key(),
+        prepared_by: ctx.accounts.payer.key(),
         fill_type: FillType::WormholeCctpDeposit,
         source_chain: fill.source_chain(),
         order_sender: fill.order_sender(),

@@ -2713,7 +2713,7 @@ describe("Matching Engine", function () {
             });
         });
 
-        describe("Prepare Slow Order", function () {
+        describe("Prepare Auction Settlement", function () {
             let testCctpNonce = 2n ** 64n - 1n;
 
             // Hack to prevent math overflow error when invoking CCTP programs.
@@ -2723,7 +2723,7 @@ describe("Matching Engine", function () {
 
             // TODO: add negative tests
 
-            it("Prepare Slow Order", async function () {
+            it("Prepare Auction Settlement", async function () {
                 const redeemer = Keypair.generate();
 
                 const sourceCctpDomain = 0;
@@ -2789,7 +2789,7 @@ describe("Matching Engine", function () {
                     finalizedMessage
                 );
 
-                const ix = await engine.prepareSlowOrderCctpIx(
+                const ix = await engine.prepareAuctionSettlementCctpIx(
                     {
                         payer: payer.publicKey,
                         fastVaa,
@@ -2812,28 +2812,30 @@ describe("Matching Engine", function () {
                 const fastVaaHash = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
                     vaa.digest()
                 );
-                const preparedSlowOrder = engine.preparedSlowOrderAddress(
+                const preparedAuctionSettlement = engine.preparedAuctionSettlementAddress(
                     payer.publicKey,
                     fastVaaHash
                 );
 
                 // Save for later.
                 localVariables.set("ix", ix);
-                localVariables.set("preparedSlowOrder", preparedSlowOrder);
+                localVariables.set("preparedAuctionSettlement", preparedAuctionSettlement);
             });
 
-            it("Cannot Prepare Slow Order for Same VAAs", async function () {
+            it("Cannot Prepare Auction Settlement for Same VAAs", async function () {
                 const ix = localVariables.get("ix") as TransactionInstruction;
                 expect(localVariables.delete("ix")).is.true;
 
-                const preparedSlowOrder = localVariables.get("preparedSlowOrder") as PublicKey;
-                expect(localVariables.delete("preparedSlowOrder")).is.true;
+                const preparedAuctionSettlement = localVariables.get(
+                    "preparedAuctionSettlement"
+                ) as PublicKey;
+                expect(localVariables.delete("preparedAuctionSettlement")).is.true;
 
                 await expectIxErr(
                     connection,
                     [ix],
                     [payer],
-                    `Allocate: account Address { address: ${preparedSlowOrder.toString()}, base: None } already in use`
+                    `Allocate: account Address { address: ${preparedAuctionSettlement.toString()}, base: None } already in use`
                 );
             });
         });

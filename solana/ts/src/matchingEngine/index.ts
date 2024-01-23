@@ -5,13 +5,21 @@ import { BN, Program } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
-import { AuctionConfig, Custodian, RouterEndpoint, PayerSequence, RedeemedFastFill } from "./state";
-import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
-import { AuctionData } from "./state/AuctionData";
-import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
+import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
+import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { VaaAccount } from "../wormhole";
-import { PreparedSlowOrder } from "./state/PreparedSlowOrder";
+import {
+    AuctionConfig,
+    AuctionData,
+    Custodian,
+    PayerSequence,
+    PreparedAuctionSettlement,
+    RedeemedFastFill,
+    RouterEndpoint,
+} from "./state";
+import { DepositForBurnWithCallerAccounts } from "../cctp/tokenMessengerMinter";
+import { LiquidityLayerMessage } from "../messages";
 
 export const PROGRAM_IDS = ["MatchingEngine11111111111111111111111111111"] as const;
 
@@ -24,10 +32,33 @@ export type AddRouterEndpointArgs = {
 };
 
 export type PublishMessageAccounts = {
+    custodian: PublicKey;
+    payerSequence: PublicKey;
+    coreMessage: PublicKey;
     coreBridgeConfig: PublicKey;
     coreEmitterSequence: PublicKey;
     coreFeeCollector: PublicKey;
     coreBridgeProgram: PublicKey;
+};
+
+export type BurnAndPublishAccounts = {
+    custodian: PublicKey;
+    payerSequence: PublicKey;
+    routerEndpoint: PublicKey;
+    coreMessage: PublicKey;
+    coreBridgeConfig: PublicKey;
+    coreEmitterSequence: PublicKey;
+    coreFeeCollector: PublicKey;
+    coreBridgeProgram: PublicKey;
+    tokenMessengerMinterSenderAuthority: PublicKey;
+    messageTransmitterConfig: PublicKey;
+    tokenMessenger: PublicKey;
+    remoteTokenMessenger: PublicKey;
+    tokenMinter: PublicKey;
+    localToken: PublicKey;
+    messageTransmitterProgram: PublicKey;
+    tokenMessengerMinterProgram: PublicKey;
+    tokenProgram: PublicKey;
 };
 
 export type RedeemFastFillAccounts = {
@@ -117,18 +148,15 @@ export class MatchingEngineProgram {
         return this.program.account.redeemedFastFill.fetch(addr);
     }
 
-    preparedSlowOrderAddress(
+    preparedAuctionSettlementAddress(
         payer: PublicKey,
         fastVaaHash: Array<number> | Buffer | Uint8Array
     ): PublicKey {
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("prepared"), payer.toBuffer(), Buffer.from(fastVaaHash)],
-            this.ID
-        )[0];
+        return PreparedAuctionSettlement.address(this.ID, payer, fastVaaHash);
     }
 
-    fetchPreparedSlowOrder(addr: PublicKey): Promise<PreparedSlowOrder> {
-        return this.program.account.preparedSlowOrder.fetch(addr);
+    fetchPreparedAuctionSettlement(addr: PublicKey): Promise<PreparedAuctionSettlement> {
+        return this.program.account.preparedAuctionSettlement.fetch(addr);
     }
 
     async getBestOfferTokenAccount(vaaHash: Buffer | Uint8Array): Promise<PublicKey> {
@@ -376,7 +404,7 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async prepareSlowOrderCctpIx(
+    async prepareAuctionSettlementCctpIx(
         accounts: {
             payer: PublicKey;
             fastVaa: PublicKey;
@@ -404,13 +432,16 @@ export class MatchingEngineProgram {
         } = this.messageTransmitterProgram().receiveMessageAccounts(mint, encodedCctpMessage);
 
         return this.program.methods
-            .prepareSlowOrderCctp(args)
+            .prepareAuctionSettlementCctp(args)
             .accounts({
                 payer,
                 custodian: this.custodianAddress(),
                 fastVaa,
                 finalizedVaa,
-                preparedSlowOrder: this.preparedSlowOrderAddress(payer, fastVaaAcct.digest()),
+                preparedAuctionSettlement: this.preparedAuctionSettlementAddress(
+                    payer,
+                    fastVaaAcct.digest()
+                ),
                 custodyToken: this.custodyTokenAccountAddress(),
                 messageTransmitterAuthority,
                 messageTransmitterConfig,
@@ -424,6 +455,151 @@ export class MatchingEngineProgram {
                 tokenMessengerMinterProgram,
                 messageTransmitterProgram,
                 tokenProgram,
+            })
+            .instruction();
+    }
+
+    async settleAuctionCompleteIx(accounts: {
+        preparedAuctionSettlement: PublicKey;
+        auctionData?: PublicKey;
+        preparedBy?: PublicKey;
+        bestOfferToken?: PublicKey;
+    }) {
+        const {
+            preparedAuctionSettlement,
+            auctionData: inputAuctionData,
+            preparedBy: inputPreparedBy,
+            bestOfferToken: inputBestOfferToken,
+        } = accounts;
+
+        const { preparedBy, auctionData } = await (async () => {
+            if (inputPreparedBy !== undefined && inputAuctionData !== undefined) {
+                return {
+                    preparedBy: inputPreparedBy,
+                    auctionData: inputAuctionData,
+                };
+            } else {
+                const { preparedBy, fastVaaHash } = await this.fetchPreparedAuctionSettlement(
+                    preparedAuctionSettlement
+                );
+                return {
+                    preparedBy,
+                    auctionData: this.auctionDataAddress(fastVaaHash),
+                };
+            }
+        })();
+
+        const bestOfferToken = await (async () => {
+            if (inputBestOfferToken !== undefined) {
+                return inputBestOfferToken;
+            } else {
+                const { bestOfferToken } = await this.fetchAuctionData(
+                    await this.fetchPreparedAuctionSettlement(preparedAuctionSettlement).then(
+                        (acct) => acct.fastVaaHash
+                    )
+                );
+                return bestOfferToken;
+            }
+        })();
+
+        return this.program.methods
+            .settleAuctionComplete()
+            .accounts({
+                custodian: this.custodianAddress(),
+                preparedBy,
+                preparedAuctionSettlement,
+                auctionData,
+                bestOfferToken,
+                custodyToken: this.custodyTokenAccountAddress(),
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+            })
+            .instruction();
+    }
+
+    // async settleAuctionActiveCctpIx(
+    //     accounts: {
+    //         payer: PublicKey;
+    //         fastVaa: PublicKey;
+    //         liquidatorToken: PublicKey;
+    //         preparedAuctionSettlement?: PublicKey;
+    //         auctionData?: PublicKey;
+    //         preparedBy?: PublicKey;
+    //     },
+    //     args: { targetChain: wormholeSdk.ChainId; remoteDomain?: number }
+    // ) {
+    //     const {
+    //         payer,
+    //         fastVaa,
+    //         liquidatorToken,
+    //         preparedAuctionSettlement: inputPreparedAuctionSettlement,
+    //         auctionData: inputAuctionData,
+    //         preparedBy: inputPreparedBy,
+    //     } = accounts;
+
+    //     const { mint } = await splToken.getAccount(
+    //         this.program.provider.connection,
+    //         liquidatorToken
+    //     );
+
+    //     const { targetChain, remoteDomain: inputRemoteDomain } = args;
+    //     const destinationCctpDomain = await (async () => {
+    //         if (inputRemoteDomain !== undefined) {
+    //             return inputRemoteDomain;
+    //         } else {
+    //             const message = await VaaAccount.fetch(
+    //                 this.program.provider.connection,
+    //                 fastVaa
+    //             ).then((vaa) => LiquidityLayerMessage.decode(vaa.payload()));
+    //             if (message.fastMarketOrder === undefined) {
+    //                 throw new Error("Message not FastMarketOrder");
+    //             }
+    //             return message.fastMarketOrder.destinationCctpDomain;
+    //         }
+    //     })();
+
+    //     const {
+    //         custodian,
+    //         payerSequence,
+    //         routerEndpoint: toRouterEndpoint,
+    //         coreMessage,
+    //         coreBridgeConfig,
+    //         coreEmitterSequence,
+    //         coreFeeCollector,
+    //         coreBridgeProgram,
+    //         tokenMessengerMinterSenderAuthority,
+    //         messageTransmitterConfig,
+    //         tokenMessenger,
+    //         remoteTokenMessenger,
+    //         tokenMinter,
+    //         localToken,
+    //         messageTransmitterProgram,
+    //         tokenMessengerMinterProgram,
+    //         tokenProgram,
+    //     } = await this.burnAndPublishAccounts(
+    //         { payer, mint },
+    //         { targetChain, destinationCctpDomain }
+    //     );
+
+    //     return this.program.methods
+    //         .settleAuctionActiveCctp()
+    //         .accounts({
+    //             payer,
+    //             payerSequence,
+    //             custodian,
+    //             fastVaa,
+    //             preparedBy,
+    //             preparedAuctionSettlement,
+    //             auctionData,
+    //             liquidatorToken,
+    //         })
+    //         .instruction();
+    // }
+
+    async settleAuctionNoneCctpIx() {
+        return this.program.methods
+            .settleAuctionNoneCctp()
+            .accounts({
+                custodian: this.custodianAddress(),
             })
             .instruction();
     }
@@ -469,7 +645,7 @@ export class MatchingEngineProgram {
     }
 
     async executeFastOrderIx(
-        toChain: wormholeSdk.ChainId,
+        targetChain: wormholeSdk.ChainId,
         remoteDomain: number,
         vaaHash: Buffer,
         accounts: {
@@ -493,7 +669,15 @@ export class MatchingEngineProgram {
             bestOfferToken
         );
         const {
-            senderAuthority: tokenMessengerMinterSenderAuthority,
+            custodian,
+            payerSequence,
+            routerEndpoint: toRouterEndpoint,
+            coreMessage,
+            coreBridgeConfig,
+            coreEmitterSequence,
+            coreFeeCollector,
+            coreBridgeProgram,
+            tokenMessengerMinterSenderAuthority,
             messageTransmitterConfig,
             tokenMessenger,
             remoteTokenMessenger,
@@ -502,14 +686,9 @@ export class MatchingEngineProgram {
             messageTransmitterProgram,
             tokenMessengerMinterProgram,
             tokenProgram,
-        } = this.tokenMessengerMinterProgram().depositForBurnWithCallerAccounts(mint, remoteDomain);
-
-        const custodian = this.custodianAddress();
-        const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
-            this.publishMessageAccounts(custodian);
-        const payerSequence = this.payerSequenceAddress(payer);
-        const coreMessage = await this.fetchPayerSequenceValue(payerSequence).then((value) =>
-            this.coreMessageAddress(payer, value)
+        } = await this.burnAndPublishAccounts(
+            { payer, mint },
+            { targetChain, destinationCctpDomain: remoteDomain }
         );
 
         return this.program.methods
@@ -518,13 +697,13 @@ export class MatchingEngineProgram {
                 payer,
                 custodian,
                 auctionData: this.auctionDataAddress(vaaHash),
-                toRouterEndpoint: this.routerEndpointAddress(toChain),
+                toRouterEndpoint,
                 executorToken: splToken.getAssociatedTokenAddressSync(mint, payer),
                 bestOfferToken,
                 initialOfferToken,
                 custodyToken: this.custodyTokenAccountAddress(),
                 vaa,
-                mint: USDC_MINT_ADDRESS,
+                mint,
                 payerSequence,
                 coreBridgeConfig,
                 coreMessage,
@@ -573,13 +752,15 @@ export class MatchingEngineProgram {
             bestOfferToken!
         );
 
-        const custodian = this.custodianAddress();
-        const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
-            this.publishMessageAccounts(custodian);
-        const payerSequence = this.payerSequenceAddress(payer);
-        const coreMessage = await this.fetchPayerSequenceValue(payerSequence).then((value) =>
-            this.coreMessageAddress(payer, value)
-        );
+        const {
+            custodian,
+            payerSequence,
+            coreMessage,
+            coreBridgeConfig,
+            coreEmitterSequence,
+            coreFeeCollector,
+            coreBridgeProgram,
+        } = await this.publishMessageAccounts(payer);
 
         return this.program.methods
             .executeFastOrderSolana()
@@ -606,34 +787,41 @@ export class MatchingEngineProgram {
 
     async redeemFastFillAccounts(
         vaa: PublicKey
-    ): Promise<{ vaaHash: Uint8Array; accounts: RedeemFastFillAccounts }> {
-        const custodyToken = this.custodyTokenAccountAddress();
-        const vaaAcct = await VaaAccount.fetch(this.program.provider.connection, vaa);
-        const vaaHash = vaaAcct.digest();
+    ): Promise<{ vaaAccount: VaaAccount; accounts: RedeemFastFillAccounts }> {
+        const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, vaa);
 
         return {
-            vaaHash,
+            vaaAccount,
             accounts: {
                 custodian: this.custodianAddress(),
-                redeemedFastFill: this.redeemedFastFillAddress(vaaHash),
+                redeemedFastFill: this.redeemedFastFillAddress(vaaAccount.digest()),
                 routerEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
-                custodyToken,
+                custodyToken: this.custodyTokenAccountAddress(),
                 matchingEngineProgram: this.ID,
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
             },
         };
     }
 
-    publishMessageAccounts(emitter: PublicKey): PublishMessageAccounts {
+    async publishMessageAccounts(payer: PublicKey): Promise<PublishMessageAccounts> {
+        const payerSequence = this.payerSequenceAddress(payer);
+        const coreMessage = await this.fetchPayerSequenceValue(payerSequence).then((value) =>
+            this.coreMessageAddress(payer, value)
+        );
+
         const coreBridgeProgram = this.coreBridgeProgramId();
+        const custodian = this.custodianAddress();
 
         return {
+            custodian,
+            payerSequence,
+            coreMessage,
             coreBridgeConfig: PublicKey.findProgramAddressSync(
                 [Buffer.from("Bridge")],
                 coreBridgeProgram
             )[0],
             coreEmitterSequence: PublicKey.findProgramAddressSync(
-                [Buffer.from("Sequence"), emitter.toBuffer()],
+                [Buffer.from("Sequence"), custodian.toBuffer()],
                 coreBridgeProgram
             )[0],
             coreFeeCollector: PublicKey.findProgramAddressSync(
@@ -641,6 +829,65 @@ export class MatchingEngineProgram {
                 coreBridgeProgram
             )[0],
             coreBridgeProgram,
+        };
+    }
+
+    async burnAndPublishAccounts(
+        base: {
+            payer: PublicKey;
+            mint: PublicKey;
+        },
+        args: {
+            targetChain: wormholeSdk.ChainId;
+            destinationCctpDomain: number;
+        }
+    ): Promise<BurnAndPublishAccounts> {
+        const { payer, mint } = base;
+        const { targetChain, destinationCctpDomain } = args;
+
+        const {
+            senderAuthority: tokenMessengerMinterSenderAuthority,
+            messageTransmitterConfig,
+            tokenMessenger,
+            remoteTokenMessenger,
+            tokenMinter,
+            localToken,
+            messageTransmitterProgram,
+            tokenMessengerMinterProgram,
+            tokenProgram,
+        } = this.tokenMessengerMinterProgram().depositForBurnWithCallerAccounts(
+            mint,
+            destinationCctpDomain
+        );
+
+        const {
+            custodian,
+            payerSequence,
+            coreMessage,
+            coreBridgeConfig,
+            coreEmitterSequence,
+            coreFeeCollector,
+            coreBridgeProgram,
+        } = await this.publishMessageAccounts(payer);
+
+        return {
+            custodian,
+            payerSequence,
+            routerEndpoint: this.routerEndpointAddress(targetChain),
+            coreMessage,
+            coreBridgeConfig,
+            coreEmitterSequence,
+            coreFeeCollector,
+            coreBridgeProgram,
+            tokenMessengerMinterSenderAuthority,
+            messageTransmitterConfig,
+            tokenMessenger,
+            remoteTokenMessenger,
+            tokenMinter,
+            localToken,
+            messageTransmitterProgram,
+            tokenMessengerMinterProgram,
+            tokenProgram,
         };
     }
 

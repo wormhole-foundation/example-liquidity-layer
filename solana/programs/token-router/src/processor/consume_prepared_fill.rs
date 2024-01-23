@@ -6,6 +6,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
+/// Accounts required for [consume_prepared_fill].
 #[derive(Accounts)]
 pub struct ConsumePreparedFill<'info> {
     /// Custodian, but does not need to be deserialized.
@@ -56,6 +57,7 @@ pub struct ConsumePreparedFill<'info> {
     token_program: Program<'info, token::Token>,
 }
 
+/// TODO: add docstring
 pub fn consume_prepared_fill(ctx: Context<ConsumePreparedFill>) -> Result<()> {
     token::transfer(
         CpiContext::new_with_signer(

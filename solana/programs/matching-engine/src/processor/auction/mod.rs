@@ -1,14 +1,14 @@
-mod place_initial_offer;
-pub use place_initial_offer::*;
-
-mod improve_offer;
-pub use improve_offer::*;
-
 mod execute_fast_order;
 pub use execute_fast_order::*;
 
-mod execute_fast_order_solana;
-pub use execute_fast_order_solana::*;
+mod offer;
+pub use offer::*;
+
+mod prepare_settlement;
+pub use prepare_settlement::*;
+
+mod settle;
+pub use settle::*;
 
 use anchor_lang::prelude::*;
 use anchor_spl::token;

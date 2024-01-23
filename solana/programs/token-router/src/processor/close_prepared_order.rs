@@ -6,6 +6,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
+/// Accounts required for [close_prepared_order].
 #[derive(Accounts)]
 pub struct ClosePreparedOrder<'info> {
     /// Custodian, but does not need to be deserialized.
@@ -22,12 +23,12 @@ pub struct ClosePreparedOrder<'info> {
 
     /// CHECK: This payer must be the same one encoded in the prepared order.
     #[account(mut)]
-    payer: AccountInfo<'info>,
+    prepared_by: AccountInfo<'info>,
 
     #[account(
         mut,
-        close = payer,
-        has_one = payer @ TokenRouterError::PayerMismatch,
+        close = prepared_by,
+        has_one = prepared_by @ TokenRouterError::PreparedByMismatch,
         has_one = order_sender @ TokenRouterError::OrderSenderMismatch,
         has_one = refund_token @ TokenRouterError::RefundTokenMismatch,
     )]
@@ -51,6 +52,7 @@ pub struct ClosePreparedOrder<'info> {
     token_program: Program<'info, token::Token>,
 }
 
+/// TODO: add docstring
 pub fn close_prepared_order(ctx: Context<ClosePreparedOrder>) -> Result<()> {
     token::transfer(
         CpiContext::new_with_signer(

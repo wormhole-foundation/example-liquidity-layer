@@ -8,7 +8,7 @@ pub enum OrderType {
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub struct PreparedOrderInfo {
     pub order_sender: Pubkey,
-    pub payer: Pubkey,
+    pub prepared_by: Pubkey,
 
     pub order_type: OrderType,
     pub order_token: Pubkey,

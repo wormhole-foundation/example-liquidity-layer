@@ -11,7 +11,7 @@ export class PreparedFill {
     vaaHash: Array<number>;
     bump: number;
     redeemer: PublicKey;
-    payer: PublicKey;
+    preparedBy: PublicKey;
     fillType: FillType;
     sourceChain: number;
     orderSender: Array<number>;
@@ -21,7 +21,7 @@ export class PreparedFill {
         vaaHash: Array<number>,
         bump: number,
         redeemer: PublicKey,
-        payer: PublicKey,
+        preparedBy: PublicKey,
         fillType: FillType,
         sourceChain: number,
         orderSender: Array<number>,
@@ -30,7 +30,7 @@ export class PreparedFill {
         this.vaaHash = vaaHash;
         this.bump = bump;
         this.redeemer = redeemer;
-        this.payer = payer;
+        this.preparedBy = preparedBy;
         this.fillType = fillType;
         this.sourceChain = sourceChain;
         this.orderSender = orderSender;

@@ -11,9 +11,10 @@ use wormhole_cctp_solana::{
     wormhole::core_bridge_program,
 };
 
-/// Account context to invoke [place_market_order_cctp].
+/// Accounts required for [place_market_order_cctp].
 #[derive(Accounts)]
 pub struct PlaceMarketOrderCctp<'info> {
+    /// This account must be the same pubkey as the one who prepared the order.
     #[account(mut)]
     payer: Signer<'info>,
 
@@ -42,8 +43,16 @@ pub struct PlaceMarketOrderCctp<'info> {
     #[account(
         mut,
         close = payer,
-        has_one = payer @ TokenRouterError::PayerMismatch,
         has_one = order_sender @ TokenRouterError::OrderSenderMismatch,
+        constraint = {
+            // We use require here so the revert shows left vs right.
+            require_keys_eq!(
+                payer.key(),
+                prepared_order.prepared_by,
+                TokenRouterError::PayerNotPreparer
+            );
+            true
+        },
     )]
     prepared_order: Account<'info, PreparedOrder>,
 

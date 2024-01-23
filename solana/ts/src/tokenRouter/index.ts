@@ -276,35 +276,35 @@ export class TokenRouterProgram {
 
     async closePreparedOrderIx(accounts: {
         preparedOrder: PublicKey;
-        payer?: PublicKey;
+        preparedBy?: PublicKey;
         orderSender?: PublicKey;
         refundToken?: PublicKey;
     }): Promise<TransactionInstruction> {
         const {
             preparedOrder,
-            payer: inputPayer,
+            preparedBy: inputPreparedBy,
             orderSender: inputOrderSender,
             refundToken: inputRefundToken,
         } = accounts;
 
-        const { payer, orderSender, refundToken } = await (async () => {
+        const { preparedBy, orderSender, refundToken } = await (async () => {
             if (
-                inputPayer === undefined ||
+                inputPreparedBy === undefined ||
                 inputOrderSender === undefined ||
                 inputRefundToken === undefined
             ) {
                 const {
-                    info: { payer, orderSender, refundToken },
+                    info: { preparedBy, orderSender, refundToken },
                 } = await this.fetchPreparedOrder(preparedOrder);
 
                 return {
-                    payer: inputPayer ?? payer,
+                    preparedBy: inputPreparedBy ?? preparedBy,
                     orderSender: inputOrderSender ?? orderSender,
                     refundToken: inputRefundToken ?? refundToken,
                 };
             } else {
                 return {
-                    payer: inputPayer,
+                    preparedBy: inputPreparedBy,
                     orderSender: inputOrderSender,
                     refundToken: inputRefundToken,
                 };
@@ -314,7 +314,7 @@ export class TokenRouterProgram {
         return this.program.methods
             .closePreparedOrder()
             .accounts({
-                payer,
+                preparedBy,
                 custodian: this.custodianAddress(),
                 orderSender,
                 preparedOrder,
@@ -602,7 +602,7 @@ export class TokenRouterProgram {
 
     async redeemFastFillAccounts(vaa: PublicKey): Promise<RedeemFastFillAccounts> {
         const {
-            vaaHash,
+            vaaAccount,
             accounts: {
                 custodian: matchingEngineCustodian,
                 redeemedFastFill: matchingEngineRedeemedFastFill,
@@ -615,7 +615,7 @@ export class TokenRouterProgram {
 
         return {
             custodian: this.custodianAddress(),
-            preparedFill: this.preparedFillAddress(vaaHash),
+            preparedFill: this.preparedFillAddress(vaaAccount.digest()),
             custodyToken: this.custodyTokenAccountAddress(),
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,

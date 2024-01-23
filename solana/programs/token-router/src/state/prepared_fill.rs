@@ -14,7 +14,7 @@ pub struct PreparedFill {
     pub bump: u8,
 
     pub redeemer: Pubkey,
-    pub payer: Pubkey,
+    pub prepared_by: Pubkey,
 
     pub fill_type: FillType,
     pub source_chain: u16,
