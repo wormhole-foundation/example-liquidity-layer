@@ -190,7 +190,7 @@ pub fn handle_fast_order_execution(accounts: ExecuteFastOrderAccounts) -> Result
             },
             &[&custodian_seeds[..]],
         ),
-        u64::try_from(fast_order.init_auction_fee()).unwrap(),
+        fast_order.init_auction_fee(),
     )?;
 
     // Set the auction status to completed.
@@ -201,7 +201,7 @@ pub fn handle_fast_order_execution(accounts: ExecuteFastOrderAccounts) -> Result
             .amount
             .checked_sub(auction_data.offer_price)
             .unwrap()
-            .checked_sub(u64::try_from(fast_order.init_auction_fee()).unwrap())
+            .checked_sub(fast_order.init_auction_fee())
             .unwrap()
             .checked_add(user_reward)
             .unwrap(),

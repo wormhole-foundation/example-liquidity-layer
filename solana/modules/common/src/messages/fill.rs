@@ -46,7 +46,7 @@ impl Writeable for Fill {
 }
 
 impl TypePrefixedPayload for Fill {
-    const TYPE: Option<u8> = Some(11);
+    const TYPE: Option<u8> = Some(1);
 }
 
 #[cfg(test)]

@@ -206,9 +206,8 @@ pub fn execute_slow_order_no_auction_cctp(
 
     let custodian_seeds = &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]];
 
-    // TODO: encoding will change from u128 to u64
     let base_fee = ctx.accounts.prepared_slow_order.base_fee;
-    let amount = u64::try_from(order.amount_in()).unwrap() - base_fee;
+    let amount = order.amount_in() - base_fee;
     let mut redeemer_message = Vec::with_capacity(order.redeemer_message_len().try_into().unwrap());
     redeemer_message.write_all(order.redeemer_message().into())?;
 

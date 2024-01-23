@@ -100,7 +100,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
         MatchingEngineError::FastMarketOrderExpired,
     );
 
-    let max_fee = u64::try_from(fast_order.max_fee()).unwrap();
+    let max_fee = fast_order.max_fee();
     require!(fee_offer <= max_fee, MatchingEngineError::OfferPriceTooHigh);
 
     // Verify that the to and from router endpoints are valid.
@@ -112,7 +112,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     )?;
 
     // Parse the transfer amount from the VAA.
-    let amount = u64::try_from(fast_order.amount_in()).unwrap();
+    let amount = fast_order.amount_in();
 
     // Transfer tokens from the offer authority's token account to the custodian.
     token::transfer(

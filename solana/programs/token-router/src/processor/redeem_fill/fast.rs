@@ -115,9 +115,6 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
         .unwrap()
         .to_fast_fill_unchecked();
 
-    // This is safe because we know the amount is within u64 range.
-    let amount = u64::try_from(fast_fill.amount()).unwrap();
-
     let fill = fast_fill.fill();
 
     // Set prepared fill data.
@@ -129,7 +126,7 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
         fill_type: FillType::FastFill,
         source_chain: fill.source_chain(),
         order_sender: fill.order_sender(),
-        amount,
+        amount: fast_fill.amount(),
     });
 
     // Done.

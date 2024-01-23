@@ -5,8 +5,8 @@ use wormhole_io::{Readable, TypePrefixedPayload, Writeable};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FastFill {
+    pub amount: u64,
     pub fill: Fill,
-    pub amount: u128,
 }
 
 impl Readable for FastFill {
@@ -26,7 +26,7 @@ impl Readable for FastFill {
 
 impl Writeable for FastFill {
     fn written_size(&self) -> usize {
-        self.fill.written_size() + 16
+        self.fill.written_size() + 8
     }
 
     fn write<W>(&self, writer: &mut W) -> std::io::Result<()>
@@ -34,8 +34,8 @@ impl Writeable for FastFill {
         Self: Sized,
         W: std::io::Write,
     {
-        self.fill.write(writer)?;
         self.amount.write(writer)?;
+        self.fill.write(writer)?;
         Ok(())
     }
 }

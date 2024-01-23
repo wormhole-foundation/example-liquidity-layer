@@ -30,7 +30,6 @@ import {
     postLiquidityLayerVaa,
 } from "./helpers";
 import {
-    FastMarketOrder,
     calculateDynamicPenalty,
     getTokenBalance,
     postFastTransferVaa,
@@ -41,6 +40,7 @@ import {
 } from "./helpers/matching_engine_utils";
 import {
     CctpTokenBurnMessage,
+    FastMarketOrder,
     FastFill,
     LiquidityLayerDeposit,
     LiquidityLayerMessage,
@@ -717,12 +717,10 @@ describe("Matching Engine", function () {
             amountIn: 50000000000n,
             minAmountOut: 0n,
             targetChain: arbChain,
-            targetDomain: arbDomain,
-            redeemer: Buffer.alloc(32, "deadbeef", "hex"),
-            sender: Buffer.alloc(32, "beefdead", "hex"),
-            refundAddress: Buffer.alloc(32, "beef", "hex"),
-            slowSequence: 0n,
-            slowEmitter: Buffer.alloc(32, "dead", "hex"),
+            destinationCctpDomain: arbDomain,
+            redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
+            sender: Array.from(Buffer.alloc(32, "beefdead", "hex")),
+            refundAddress: Array.from(Buffer.alloc(32, "beef", "hex")),
             maxFee: 1000000n,
             initAuctionFee: 100n,
             deadline: 0,
@@ -1744,7 +1742,7 @@ describe("Matching Engine", function () {
             it("Execute Fast Order Within Grace Period (Target == Solana)", async function () {
                 const fastOrder = { ...baseFastOrder };
                 fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.targetDomain = solanaDomain;
+                fastOrder.destinationCctpDomain = solanaDomain;
 
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
@@ -2238,7 +2236,7 @@ describe("Matching Engine", function () {
             it(`Cannot Execute Fast Order (Invalid Chain)`, async function () {
                 const fastOrder = { ...baseFastOrder };
                 fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.targetDomain = solanaDomain;
+                fastOrder.destinationCctpDomain = solanaDomain;
 
                 const [vaaKey, signedVaa] = await placeInitialOfferForTest(
                     connection,
@@ -2526,7 +2524,7 @@ describe("Matching Engine", function () {
             it(`Cannot Execute Fast Order Solana (Vaa Hash Mismatch)`, async function () {
                 const fastOrder = { ...baseFastOrder };
                 fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.targetDomain = solanaDomain;
+                fastOrder.destinationCctpDomain = solanaDomain;
 
                 const [vaaKey, signedVaa] = await placeInitialOfferForTest(
                     connection,
@@ -2583,7 +2581,7 @@ describe("Matching Engine", function () {
             it(`Cannot Execute Fast Order Solana (Invalid Best Offer Token Account)`, async function () {
                 const fastOrder = { ...baseFastOrder };
                 fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.targetDomain = solanaDomain;
+                fastOrder.destinationCctpDomain = solanaDomain;
 
                 const [vaaKey, signedVaa] = await placeInitialOfferForTest(
                     connection,
@@ -2622,7 +2620,7 @@ describe("Matching Engine", function () {
             it(`Cannot Execute Fast Order Solana (Invalid Initial Offer Token Account)`, async function () {
                 const fastOrder = { ...baseFastOrder };
                 fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.targetDomain = solanaDomain;
+                fastOrder.destinationCctpDomain = solanaDomain;
 
                 const [vaaKey, signedVaa] = await placeInitialOfferForTest(
                     connection,
@@ -2661,7 +2659,7 @@ describe("Matching Engine", function () {
             it(`Cannot Execute Fast Order Solana (Auction Not Active)`, async function () {
                 const fastOrder = { ...baseFastOrder };
                 fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.targetDomain = solanaDomain;
+                fastOrder.destinationCctpDomain = solanaDomain;
 
                 const [vaaKey, signedVaa] = await placeInitialOfferForTest(
                     connection,
@@ -2746,8 +2744,6 @@ describe("Matching Engine", function () {
                         redeemer: Array.from(redeemer.publicKey.toBuffer()),
                         sender: new Array(32).fill(0),
                         refundAddress: new Array(32).fill(0),
-                        slowSequence: 0n, // TODO: will be removed
-                        slowEmitter: new Array(32).fill(0), // TODO: will be removed
                         maxFee: 42069n,
                         initAuctionFee: 2000n,
                         deadline: 2,

@@ -125,7 +125,7 @@ impl<'a> LiquidityLayerMessage<'a> {
         match span[0] {
             1 => Ok(Self::Deposit(Deposit::parse(&span[1..])?)),
             12 => Ok(Self::FastFill(FastFill::parse(&span[1..])?)),
-            13 => Ok(Self::FastMarketOrder(FastMarketOrder::parse(&span[1..])?)),
+            11 => Ok(Self::FastMarketOrder(FastMarketOrder::parse(&span[1..])?)),
             _ => Err("Unknown LiquidityLayerMessage type"),
         }
     }
@@ -142,22 +142,16 @@ impl<'a> AsRef<[u8]> for FastFill<'a> {
 
 impl<'a> FastFill<'a> {
     pub fn fill(&'a self) -> Fill<'a> {
-        Fill::parse(&self.0[..70 + usize::try_from(self.redeemer_message_len()).unwrap()]).unwrap()
+        Fill::parse(&self.0[78..]).unwrap()
     }
 
-    pub fn amount(&self) -> u128 {
-        let len = usize::try_from(self.redeemer_message_len()).unwrap();
-        u128::from_be_bytes(self.0[70 + len..86 + len].try_into().unwrap())
-    }
-
-    // TODO: remove this when encoding changes.
-    fn redeemer_message_len(&self) -> u32 {
-        u32::from_be_bytes(self.0[66..70].try_into().unwrap())
+    pub fn amount(&self) -> u64 {
+        u64::from_be_bytes(self.0[66..74].try_into().unwrap())
     }
 
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
-        if span.len() < 86 {
-            return Err("FastFill span too short. Need at least 86 bytes");
+        if span.len() < 78 {
+            return Err("FastFill span too short. Need at least 78 bytes");
         }
 
         let fast_fill = Self(span);
@@ -182,65 +176,57 @@ impl<'a> AsRef<[u8]> for FastMarketOrder<'a> {
 }
 
 impl<'a> FastMarketOrder<'a> {
-    pub fn amount_in(&self) -> u128 {
-        u128::from_be_bytes(self.0[..16].try_into().unwrap())
+    pub fn amount_in(&self) -> u64 {
+        u64::from_be_bytes(self.0[..8].try_into().unwrap())
     }
 
-    pub fn min_amount_out(&self) -> u128 {
-        u128::from_be_bytes(self.0[16..32].try_into().unwrap())
+    pub fn min_amount_out(&self) -> u64 {
+        u64::from_be_bytes(self.0[8..16].try_into().unwrap())
     }
 
     pub fn target_chain(&self) -> u16 {
-        u16::from_be_bytes(self.0[32..34].try_into().unwrap())
+        u16::from_be_bytes(self.0[16..18].try_into().unwrap())
     }
 
     pub fn destination_cctp_domain(&self) -> u32 {
-        u32::from_be_bytes(self.0[34..38].try_into().unwrap())
+        u32::from_be_bytes(self.0[18..22].try_into().unwrap())
     }
 
     pub fn redeemer(&self) -> [u8; 32] {
-        self.0[38..70].try_into().unwrap()
+        self.0[22..54].try_into().unwrap()
     }
 
     pub fn sender(&self) -> [u8; 32] {
-        self.0[70..102].try_into().unwrap()
+        self.0[54..86].try_into().unwrap()
     }
 
     pub fn refund_address(&self) -> [u8; 32] {
-        self.0[102..134].try_into().unwrap()
+        self.0[86..118].try_into().unwrap()
     }
 
-    pub fn slow_sequence(&self) -> u64 {
-        u64::from_be_bytes(self.0[134..142].try_into().unwrap())
+    pub fn max_fee(&self) -> u64 {
+        u64::from_be_bytes(self.0[118..126].try_into().unwrap())
     }
 
-    pub fn slow_emitter(&self) -> [u8; 32] {
-        self.0[142..174].try_into().unwrap()
-    }
-
-    pub fn max_fee(&self) -> u128 {
-        u128::from_be_bytes(self.0[174..190].try_into().unwrap())
-    }
-
-    pub fn init_auction_fee(&self) -> u128 {
-        u128::from_be_bytes(self.0[190..206].try_into().unwrap())
+    pub fn init_auction_fee(&self) -> u64 {
+        u64::from_be_bytes(self.0[126..134].try_into().unwrap())
     }
 
     pub fn deadline(&self) -> u32 {
-        u32::from_be_bytes(self.0[206..210].try_into().unwrap())
+        u32::from_be_bytes(self.0[134..138].try_into().unwrap())
     }
 
     pub fn redeemer_message_len(&self) -> u32 {
-        u32::from_be_bytes(self.0[210..214].try_into().unwrap())
+        u32::from_be_bytes(self.0[138..142].try_into().unwrap())
     }
 
     pub fn redeemer_message(&'a self) -> Payload<'a> {
-        Payload::parse(&self.0[214..])
+        Payload::parse(&self.0[142..])
     }
 
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
-        if span.len() < 214 {
-            return Err("FastMarketOrder span too short. Need at least 214 bytes");
+        if span.len() < 142 {
+            return Err("FastMarketOrder span too short. Need at least 142 bytes");
         }
 
         let fast_market_order = Self(span);

@@ -190,8 +190,8 @@ pub fn execute_fast_order_solana(ctx: Context<ExecuteFastOrderSolana>) -> Result
         core_bridge_program::cpi::PostMessageArgs {
             nonce: 0, // Always zero.
             payload: common::messages::FastFill {
+                amount: wormhole_args.transfer_amount,
                 fill: wormhole_args.fill,
-                amount: u128::try_from(wormhole_args.transfer_amount).unwrap(),
             }
             .to_vec_payload(),
             commitment: core_bridge_program::Commitment::Finalized,
