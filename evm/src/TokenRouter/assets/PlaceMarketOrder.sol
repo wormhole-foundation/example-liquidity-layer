@@ -34,7 +34,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress
-    ) external payable notPaused returns (uint64 sequence, uint64 cctpNonce) {
+    ) external payable notPaused returns (uint64 sequence, uint256 protocolSequence) {
         if (refundAddress == address(0)) {
             revert ErrInvalidRefundAddress();
         }
@@ -49,7 +49,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage
-    ) external payable notPaused returns (uint64 sequence, uint64 cctpNonce) {
+    ) external payable notPaused returns (uint64 sequence, uint256 protocolSequence) {
         return _handleOrder(amountIn, 0, targetChain, redeemer, redeemerMessage, address(0));
     }
 
@@ -63,7 +63,12 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         address refundAddress,
         uint64 maxFee,
         uint32 deadline
-    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence, uint64 cctpNonce) {
+    )
+        external
+        payable
+        notPaused
+        returns (uint64 sequence, uint64 fastSequence, uint256 protocolSequence)
+    {
         if (refundAddress == address(0)) {
             revert ErrInvalidRefundAddress();
         }
@@ -87,7 +92,12 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes calldata redeemerMessage,
         uint64 maxFee,
         uint32 deadline
-    ) external payable notPaused returns (uint64 sequence, uint64 fastSequence, uint64 cctpNonce) {
+    )
+        external
+        payable
+        notPaused
+        returns (uint64 sequence, uint64 fastSequence, uint256 protocolSequence)
+    {
         return _handleFastOrder(
             amountIn, 0, targetChain, redeemer, redeemerMessage, address(0), maxFee, deadline
         );
@@ -102,7 +112,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress
-    ) private returns (uint64 sequence, uint64 cctpNonce) {
+    ) private returns (uint64 sequence, uint256 protocolSequence) {
         if (amountIn == 0) {
             revert ErrInsufficientAmount(0, 0);
         }
@@ -111,7 +121,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), amountIn);
 
-        (sequence, cctpNonce) = burnAndPublish(
+        (sequence, protocolSequence) = burnAndPublish(
             endpoint.router,
             getCircleDomainsState().domains[targetChain],
             address(_orderToken),
@@ -137,7 +147,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         address refundAddress,
         uint64 maxFee,
         uint32 deadline
-    ) private returns (uint64 sequence, uint64 fastSequence, uint64 cctpNonce) {
+    ) private returns (uint64 sequence, uint64 fastSequence, uint256 protocolSequence) {
         // The Matching Engine chain is a fast finality chain already,
         // so we don't need to send a fast transfer message.
         if (_chainId == _matchingEngineChain) {
@@ -168,7 +178,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         // User needs to send enough value to pay for two Wormhole messages.
         uint256 messageFee = msg.value / 2;
 
-        (sequence, cctpNonce) = burnAndPublish(
+        (sequence, protocolSequence) = burnAndPublish(
             _matchingEngineAddress,
             _matchingEngineDomain,
             address(_orderToken),
