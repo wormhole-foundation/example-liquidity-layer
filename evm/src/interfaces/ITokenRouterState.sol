@@ -14,6 +14,18 @@ interface ITokenRouterState {
     function getRouter(uint16 chain) external view returns (bytes32);
 
     /**
+     * @notice Returns the mint recipient for a given chain ID.
+     * @param chain The Wormhole chain ID.
+     */
+    function getMintRecipient(uint16 chain) external view returns (bytes32);
+
+    /**
+     * @notice Returns the router endpoint for a given chain ID.
+     * @param chain The Wormhole chain ID.
+     */
+    function getRouterEndpoint(uint16 chain) external view returns (Endpoint memory);
+
+    /**
      * @notice Returns the Circle domain for a given chain ID.
      * @param chain The Wormhole chain ID.
      */

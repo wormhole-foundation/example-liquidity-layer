@@ -7,8 +7,8 @@ import {
     ValidNetwork,
     DEFAULT_FAST_TRANSFER_PARAMS,
     MATCHING_ENGINE_NAME,
-    MATCHING_ENGINE_CHAIN,
 } from "./helpers";
+import { tryHexToNativeAssetString, CHAIN_ID_AVAX } from "@certusone/wormhole-sdk";
 import { expect } from "chai";
 
 import { parseLiquidityLayerEnvFile } from "../src";
@@ -58,7 +58,10 @@ describe("Configuration", () => {
                 LOCALHOSTS[MATCHING_ENGINE_NAME]
             );
             const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
-            const engine = IMatchingEngine__factory.connect(env.matchingEngineAddress, assistant);
+            const engine = IMatchingEngine__factory.connect(
+                tryHexToNativeAssetString(env.matchingEngineAddress, CHAIN_ID_AVAX),
+                assistant
+            );
 
             await engine
                 .setCctpAllowance(ethers.constants.MaxUint256)

@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {IMatchingEngineState} from "../../interfaces/IMatchingEngineState.sol";
+import {RouterEndpoint} from "../../interfaces/IMatchingEngineTypes.sol";
 
 import "./Errors.sol";
 
@@ -117,22 +118,32 @@ abstract contract State is IMatchingEngineState, WormholeCctpTokenMessenger {
     }
 
     /// @inheritdoc IMatchingEngineState
-    function getDeployer() external view returns (address) {
+    function getDeployer() public view returns (address) {
         return _deployer;
     }
 
     /// @inheritdoc IMatchingEngineState
     function getRouter(uint16 chain) public view returns (bytes32) {
+        return getRouterEndpointState().endpoints[chain].router;
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function getMintRecipient(uint16 chain) public view returns (bytes32) {
+        return getRouterEndpointState().endpoints[chain].mintRecipient;
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function getRouterEndpoint(uint16 chain) public view returns (RouterEndpoint memory) {
         return getRouterEndpointState().endpoints[chain];
     }
 
     /// @inheritdoc IMatchingEngineState
-    function wormhole() external view returns (IWormhole) {
+    function wormhole() public view returns (IWormhole) {
         return _wormhole;
     }
 
     /// @inheritdoc IMatchingEngineState
-    function wormholeChainId() external view returns (uint16) {
+    function wormholeChainId() public view returns (uint16) {
         return _chainId;
     }
 
@@ -142,7 +153,7 @@ abstract contract State is IMatchingEngineState, WormholeCctpTokenMessenger {
     }
 
     /// @inheritdoc IMatchingEngineState
-    function token() external view returns (IERC20) {
+    function token() public view returns (IERC20) {
         return _token;
     }
 

@@ -3,6 +3,8 @@ import {
     parseVaa,
     keccak256,
     tryNativeToUint8Array,
+    tryHexToNativeAssetString,
+    CHAIN_ID_AVAX,
 } from "@certusone/wormhole-sdk";
 import { expect } from "chai";
 import { ethers } from "ethers";
@@ -60,7 +62,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
         if (engineEnv.chainType === ChainType.Evm) {
             return new EvmMatchingEngine(
                 engineWallet,
-                engineEnv.matchingEngineAddress,
+                tryHexToNativeAssetString(engineEnv.matchingEngineAddress, CHAIN_ID_AVAX),
                 engineEnv.tokenMessengerAddress
             );
         } else {

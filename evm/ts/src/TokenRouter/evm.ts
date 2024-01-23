@@ -1,6 +1,6 @@
 import { ChainId } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
-import { OrderResponse, TokenRouter, FastTransferParameters } from ".";
+import { Endpoint, OrderResponse, TokenRouter, FastTransferParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {
     ITokenRouter,
@@ -101,8 +101,8 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         return this.contract.redeemFill(response);
     }
 
-    addRouterEndpoint(chain: number, info: string, domain: number) {
-        return this.contract.addRouterEndpoint(chain, info, domain);
+    addRouterEndpoint(chain: number, endpoint: Endpoint, domain: number) {
+        return this.contract.addRouterEndpoint(chain, endpoint, domain);
     }
 
     updateFastTransferParameters(newParams: FastTransferParameters) {

@@ -15,6 +15,11 @@ export type OrderResponse = {
     circleAttestation: Buffer | Uint8Array;
 };
 
+export type Endpoint = {
+    router: string | Buffer | Uint8Array;
+    mintRecipient: string | Buffer | Uint8Array;
+};
+
 export abstract class TokenRouter<PreparedTransactionType extends PreparedInstruction> {
     abstract get address(): string;
 
@@ -42,7 +47,7 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
 
     abstract addRouterEndpoint(
         chain: number,
-        info: string,
+        endpoint: Endpoint,
         domain: number
     ): Promise<PreparedTransactionType>;
 

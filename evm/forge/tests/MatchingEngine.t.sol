@@ -31,7 +31,8 @@ import {IMatchingEngine} from "../../src/interfaces/IMatchingEngine.sol";
 import {
     LiveAuctionData,
     AuctionStatus,
-    CctpMessage
+    CctpMessage,
+    RouterEndpoint
 } from "../../src/interfaces/IMatchingEngineTypes.sol";
 
 import {FastTransferParameters} from "../../src/interfaces/ITokenRouterTypes.sol";
@@ -137,8 +138,12 @@ contract MatchingEngineTest is Test {
         engine.setCctpAllowance(type(uint256).max);
 
         // Set up the router endpoints.
-        engine.addRouterEndpoint(ARB_CHAIN, ARB_ROUTER);
-        engine.addRouterEndpoint(ETH_CHAIN, ETH_ROUTER);
+        engine.addRouterEndpoint(
+            ARB_CHAIN, RouterEndpoint({router: ARB_ROUTER, mintRecipient: ARB_ROUTER})
+        );
+        engine.addRouterEndpoint(
+            ETH_CHAIN, RouterEndpoint({router: ETH_ROUTER, mintRecipient: ETH_ROUTER})
+        );
 
         vm.stopPrank();
 
@@ -277,40 +282,66 @@ contract MatchingEngineTest is Test {
     function testAddRouterEndpoint() public {
         uint16 chain = 1;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
 
         assertEq(engine.getRouter(chain), bytes32(0));
+        assertEq(engine.getMintRecipient(chain), bytes32(0));
 
         vm.prank(makeAddr("owner"));
-        engine.addRouterEndpoint(chain, routerEndpoint);
+        engine.addRouterEndpoint(
+            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient})
+        );
 
         assertEq(engine.getRouter(chain), routerEndpoint);
+        assertEq(engine.getMintRecipient(chain), mintRecipient);
     }
 
     function testCannotAddRouterEndpointChainIdZero() public {
         uint16 chain = 0;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
 
         vm.prank(makeAddr("owner"));
         vm.expectRevert(abi.encodeWithSignature("ErrChainNotAllowed(uint16)", chain));
-        engine.addRouterEndpoint(chain, routerEndpoint);
+        engine.addRouterEndpoint(
+            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient})
+        );
     }
 
-    function testCannotAddRouterEndpointInvalidEndpoint() public {
+    function testCannotAddRouterEndpointInvalidRouter() public {
         uint16 chain = 1;
         bytes32 routerEndpoint = bytes32(0);
+        bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
 
         vm.prank(makeAddr("owner"));
         vm.expectRevert(abi.encodeWithSignature("ErrInvalidEndpoint(bytes32)", routerEndpoint));
-        engine.addRouterEndpoint(chain, routerEndpoint);
+        engine.addRouterEndpoint(
+            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient})
+        );
+    }
+
+    function testCannotAddRouterEndpointInvalidMintRecipient() public {
+        uint16 chain = 1;
+        bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = bytes32(0);
+
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidEndpoint(bytes32)", mintRecipient));
+        engine.addRouterEndpoint(
+            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient})
+        );
     }
 
     function testCannotAddRouterEndpointOwnerOrAssistantOnly() public {
         uint16 chain = 1;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
 
         vm.prank(makeAddr("robber"));
         vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
-        engine.addRouterEndpoint(chain, routerEndpoint);
+        engine.addRouterEndpoint(
+            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient})
+        );
     }
 
     function testUpdateFeeRecipient() public {
@@ -1159,7 +1190,10 @@ contract MatchingEngineTest is Test {
 
         // Change the address for the arb router.
         vm.prank(makeAddr("owner"));
-        engine.addRouterEndpoint(ARB_CHAIN, bytes32("deadbeef"));
+        engine.addRouterEndpoint(
+            ARB_CHAIN,
+            RouterEndpoint({router: bytes32("deadbeef"), mintRecipient: bytes32("beefdead")})
+        );
 
         vm.expectRevert(
             abi.encodeWithSignature(
@@ -1523,6 +1557,7 @@ contract MatchingEngineTest is Test {
             CIRCLE_BRIDGE.fromUniversalAddress(),
             AVAX_CHAIN,
             address(engine).toUniversalAddress(),
+            address(engine).toUniversalAddress(),
             ENGINE_DOMAIN
         );
 
@@ -1532,7 +1567,13 @@ contract MatchingEngineTest is Test {
         address proxy = setup.deployProxy(address(implementation), makeAddr("ownerAssistant"));
 
         vm.prank(makeAddr("owner"));
-        engine.addRouterEndpoint(AVAX_CHAIN, proxy.toUniversalAddress());
+        engine.addRouterEndpoint(
+            AVAX_CHAIN,
+            RouterEndpoint({
+                router: proxy.toUniversalAddress(),
+                mintRecipient: proxy.toUniversalAddress()
+            })
+        );
 
         return ITokenRouter(proxy);
     }

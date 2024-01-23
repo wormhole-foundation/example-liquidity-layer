@@ -2,17 +2,17 @@
 
 pragma solidity ^0.8.0;
 
-import {FastTransferParameters} from "./ITokenRouterTypes.sol";
+import {Endpoint, FastTransferParameters} from "./ITokenRouterTypes.sol";
 
 interface ITokenRouterAdmin {
     /**
      * @notice Add a `router` endpoint for the specified Wormhole `chain`.
      * @param chain The Wormhole chain ID.
-     * @param router The `router` address in Wormhole universal format.
+     * @param endpoint The `Endpoint` for the specified `chain`.
      * @param domain The Circle domain for the specified `chain`.
      * @dev This function is only callable by the contract owner or assistant.
      */
-    function addRouterEndpoint(uint16 chain, bytes32 router, uint32 domain) external;
+    function addRouterEndpoint(uint16 chain, Endpoint memory endpoint, uint32 domain) external;
 
     /**
      * @notice Update the fast transfer parameters.

@@ -148,7 +148,7 @@ export class LiquidityLayerTransactionResult {
         let wormhole: LiquidityLayerObservation | undefined;
 
         for (const message of publishedMessages) {
-            const {
+            let {
                 sender: evmEmitterAddress,
                 sequence: ethersSequence,
                 nonce,
@@ -161,6 +161,10 @@ export class LiquidityLayerTransactionResult {
             const encodedMessage = bufferfy(payloadByteslike);
 
             const payloadId = encodedMessage.readUInt8(0);
+
+            // Make sure the address is checksummed.
+            evmEmitterAddress = ethers.utils.getAddress(evmEmitterAddress);
+            contractAddress = ethers.utils.getAddress(contractAddress);
 
             if (evmEmitterAddress == contractAddress) {
                 if (payloadId == CCTP_DEPOSIT_PAYLOAD) {

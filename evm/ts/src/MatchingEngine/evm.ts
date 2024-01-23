@@ -1,6 +1,6 @@
 import { ChainId } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
-import { LiveAuctionData, MatchingEngine, RedeemParameters } from ".";
+import { RouterEndpoint, LiveAuctionData, MatchingEngine, RedeemParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {
     IMatchingEngine,
@@ -51,8 +51,11 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         return new EvmMatchingEngine(connection, this.address, this.circle.address);
     }
 
-    async addRouterEndpoint(chain: number, router: string): Promise<ethers.ContractTransaction> {
-        return this.contract.addRouterEndpoint(chain, router);
+    async addRouterEndpoint(
+        chain: number,
+        endpoint: RouterEndpoint
+    ): Promise<ethers.ContractTransaction> {
+        return this.contract.addRouterEndpoint(chain, endpoint);
     }
 
     async placeInitialBid(

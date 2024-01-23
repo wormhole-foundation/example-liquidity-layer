@@ -19,10 +19,18 @@ export type LiveAuctionData = {
     bidPrice: bigint | ethers.BigNumberish;
 };
 
+export type RouterEndpoint = {
+    router: string | Buffer | Uint8Array;
+    mintRecipient: string | Buffer | Uint8Array;
+};
+
 export abstract class MatchingEngine<PreparedTransactionType extends PreparedInstruction> {
     abstract get address(): string;
 
-    abstract addRouterEndpoint(chain: number, router: string): Promise<PreparedTransactionType>;
+    abstract addRouterEndpoint(
+        chain: number,
+        endpoint: RouterEndpoint
+    ): Promise<PreparedTransactionType>;
 
     abstract liveAuctionInfo(auctionId: Buffer | Uint8Array): Promise<LiveAuctionData>;
 

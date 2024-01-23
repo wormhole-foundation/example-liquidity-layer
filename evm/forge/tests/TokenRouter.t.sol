@@ -29,7 +29,7 @@ import {Messages} from "../../src/shared/Messages.sol";
 import {Utils} from "../../src/shared/Utils.sol";
 
 import "../../src/interfaces/ITokenRouter.sol";
-import {FastTransferParameters} from "../../src/interfaces/ITokenRouterTypes.sol";
+import {FastTransferParameters, Endpoint} from "../../src/interfaces/ITokenRouterTypes.sol";
 
 import {WormholeCctpMessages} from "../../src/shared/WormholeCctpMessages.sol";
 
@@ -62,9 +62,11 @@ contract TokenRouterTest is Test {
     uint64 immutable FAST_TRANSFER_BASE_FEE = 1e6; // 1 USDC.
     uint64 immutable FAST_TRANSFER_INIT_AUCTION_FEE = 1e6; // 1 USDC.
 
-    // Matching engine (Ethereum).
+    // Matching engine (Ethereum). Setting the matching engine mint recipient to
+    // a different address for testing purposes.
     uint16 immutable matchingEngineChain = 2;
     bytes32 immutable matchingEngineAddress = makeAddr("ME").toUniversalAddress();
+    bytes32 immutable matchingEngineMintRecipient = makeAddr("MR").toUniversalAddress();
     uint32 immutable matchingEngineDomain = 0;
 
     // Test.
@@ -86,6 +88,7 @@ contract TokenRouterTest is Test {
             _tokenMessenger,
             matchingEngineChain,
             matchingEngineAddress,
+            matchingEngineMintRecipient,
             matchingEngineDomain
         );
 
@@ -106,7 +109,9 @@ contract TokenRouterTest is Test {
         router.setCctpAllowance(type(uint256).max);
 
         // Register target chain endpoints.
-        router.addRouterEndpoint(ARB_CHAIN, ARB_ROUTER, ARB_DOMAIN);
+        router.addRouterEndpoint(
+            ARB_CHAIN, Endpoint({router: ARB_ROUTER, mintRecipient: ARB_ROUTER}), ARB_DOMAIN
+        );
 
         // Set the fast transfer parameters for Arbitrum.
         router.updateFastTransferParameters(
@@ -138,6 +143,7 @@ contract TokenRouterTest is Test {
             CIRCLE_BRIDGE,
             matchingEngineChain,
             matchingEngineAddress,
+            matchingEngineMintRecipient,
             matchingEngineDomain
         );
 
@@ -161,6 +167,7 @@ contract TokenRouterTest is Test {
             CIRCLE_BRIDGE,
             matchingEngineChain,
             matchingEngineAddress,
+            matchingEngineMintRecipient,
             matchingEngineDomain
         );
 
@@ -347,56 +354,86 @@ contract TokenRouterTest is Test {
     function testAddRouterEndpoint() public {
         uint16 chain = 1;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = routerEndpoint;
         uint32 domain = 1;
 
         assertEq(router.getRouter(chain), bytes32(0));
+        assertEq(router.getMintRecipient(chain), bytes32(0));
         assertEq(router.getDomain(chain), 0);
 
         vm.prank(makeAddr("owner"));
-        router.addRouterEndpoint(chain, routerEndpoint, domain);
+        router.addRouterEndpoint(
+            chain, Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
+        );
 
         assertEq(router.getRouter(chain), routerEndpoint);
+        assertEq(router.getMintRecipient(chain), mintRecipient);
         assertEq(router.getDomain(chain), domain);
     }
 
     function testCannotAddRouterEndpointChainIdZero() public {
         uint16 chain = 0;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = routerEndpoint;
         uint32 domain = 1;
 
         vm.prank(makeAddr("owner"));
         vm.expectRevert(abi.encodeWithSignature("ErrChainNotAllowed(uint16)", chain));
-        router.addRouterEndpoint(chain, routerEndpoint, domain);
+        router.addRouterEndpoint(
+            chain, Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
+        );
     }
 
     function testCannotAddRouterEndpointThisChain() public {
         uint16 chain = router.wormholeChainId();
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = routerEndpoint;
         uint32 domain = 1;
 
         vm.prank(makeAddr("owner"));
         vm.expectRevert(abi.encodeWithSignature("ErrChainNotAllowed(uint16)", chain));
-        router.addRouterEndpoint(chain, routerEndpoint, domain);
+        router.addRouterEndpoint(
+            chain, Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
+        );
     }
 
-    function testCannotAddRouterEndpointInvalidEndpoint() public {
+    function testCannotAddRouterEndpointInvalidRouter() public {
         uint16 chain = 1;
         bytes32 routerEndpoint = bytes32(0);
+        bytes32 mintRecipient = routerEndpoint;
         uint32 domain = 1;
 
         vm.prank(makeAddr("owner"));
         vm.expectRevert(abi.encodeWithSignature("ErrInvalidEndpoint(bytes32)", routerEndpoint));
-        router.addRouterEndpoint(chain, routerEndpoint, domain);
+        router.addRouterEndpoint(
+            chain, Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
+        );
+    }
+
+    function testCannotAddRouterEndpointInvalidMintRecipient() public {
+        uint16 chain = 1;
+        bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = bytes32(0);
+        uint32 domain = 1;
+
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert(abi.encodeWithSignature("ErrInvalidEndpoint(bytes32)", mintRecipient));
+        router.addRouterEndpoint(
+            chain, Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
+        );
     }
 
     function testCannotAddRouterEndpointOwnerOrAssistantOnly() public {
         uint16 chain = 1;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = routerEndpoint;
         uint32 domain = 1;
 
         vm.prank(makeAddr("robber"));
         vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
-        router.addRouterEndpoint(chain, routerEndpoint, domain);
+        router.addRouterEndpoint(
+            chain, Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
+        );
     }
 
     function testUpdateFastTransferParameters() public {
@@ -707,6 +744,49 @@ contract TokenRouterTest is Test {
         assertEq(payload, expectedFill.encode());
     }
 
+    function testPlaceMarketOrderDifferentMintRecipient() public {
+        uint64 amountIn = 690000;
+
+        _dealAndApproveUsdc(router, amountIn);
+
+        Messages.Fill memory expectedFill = Messages.Fill({
+            sourceChain: router.wormholeChainId(),
+            orderSender: address(this).toUniversalAddress(),
+            redeemer: TEST_REDEEMER,
+            redeemerMessage: bytes("All your base are belong to us")
+        });
+
+        {
+            vm.prank(makeAddr("owner"));
+            router.addRouterEndpoint(
+                ARB_CHAIN,
+                Endpoint({router: ARB_ROUTER, mintRecipient: bytes32("c0ffee")}),
+                ARB_DOMAIN
+            );
+        }
+
+        // Place the order and parse the deposit message.
+        (
+            bytes32 token,
+            uint256 amount,
+            uint32 sourceCctpDomain,
+            uint32 targetCctpDomain,
+            ,
+            bytes32 burnSource,
+            bytes32 mintRecipient,
+            bytes memory payload
+        ) = _placeMarketOrder(router, amountIn, ARB_CHAIN, expectedFill).decodeDeposit();
+
+        // Compare the expected values with the actual deposit message.
+        assertEq(token, USDC_ADDRESS.toUniversalAddress());
+        assertEq(amount, amountIn);
+        assertEq(sourceCctpDomain, AVAX_DOMAIN);
+        assertEq(targetCctpDomain, ARB_DOMAIN);
+        assertEq(burnSource, address(this).toUniversalAddress());
+        assertEq(mintRecipient, router.getMintRecipient(ARB_CHAIN));
+        assertEq(payload, expectedFill.encode());
+    }
+
     function testCannotPlaceFastMarketOrderErrInvalidRefundAddress() public {
         bytes memory encodedSignature = abi.encodeWithSignature(
             "placeFastMarketOrder(uint64,uint64,uint16,bytes32,bytes,address,uint64,uint32)",
@@ -911,7 +991,7 @@ contract TokenRouterTest is Test {
         assertEq(sourceCctpDomain, AVAX_DOMAIN);
         assertEq(targetCctpDomain, matchingEngineDomain);
         assertEq(burnSource, address(this).toUniversalAddress());
-        assertEq(mintRecipient, matchingEngineAddress);
+        assertEq(mintRecipient, matchingEngineMintRecipient);
         assertEq(payload, Messages.SlowOrderResponse({baseFee: router.getBaseFee()}).encode());
     }
 
@@ -975,7 +1055,7 @@ contract TokenRouterTest is Test {
         assertEq(sourceCctpDomain, AVAX_DOMAIN);
         assertEq(targetCctpDomain, matchingEngineDomain);
         assertEq(burnSource, address(this).toUniversalAddress());
-        assertEq(mintRecipient, matchingEngineAddress);
+        assertEq(mintRecipient, matchingEngineMintRecipient);
         assertEq(payload, Messages.SlowOrderResponse({baseFee: router.getBaseFee()}).encode());
     }
 
@@ -993,10 +1073,13 @@ contract TokenRouterTest is Test {
 
         // Register a router for the matching engine chain.
         uint16 targetChain = matchingEngineChain;
-        bytes32 targetRouter = makeAddr("targetRouter").toUniversalAddress();
+        Endpoint memory targetEndpoint = Endpoint({
+            router: makeAddr("targetRouter").toUniversalAddress(),
+            mintRecipient: makeAddr("targetRouter").toUniversalAddress()
+        });
 
         vm.prank(makeAddr("owner"));
-        router.addRouterEndpoint(targetChain, targetRouter, matchingEngineDomain);
+        router.addRouterEndpoint(targetChain, targetEndpoint, matchingEngineDomain);
 
         // Create a fast market order, this is actually the payload that will be encoded
         // in the "slow message".
@@ -1038,7 +1121,7 @@ contract TokenRouterTest is Test {
         assertEq(sourceCctpDomain, AVAX_DOMAIN);
         assertEq(targetCctpDomain, matchingEngineDomain);
         assertEq(burnSource, address(this).toUniversalAddress());
-        assertEq(mintRecipient, matchingEngineAddress);
+        assertEq(mintRecipient, matchingEngineMintRecipient);
         assertEq(payload, Messages.SlowOrderResponse({baseFee: router.getBaseFee()}).encode());
     }
 

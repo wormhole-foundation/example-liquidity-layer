@@ -14,7 +14,7 @@ import {IMatchingEngineFastOrders} from "../../interfaces/IMatchingEngineFastOrd
 import "./Errors.sol";
 import {State} from "./State.sol";
 import {Utils} from "../../shared/Utils.sol";
-import {CctpMessage} from "../../interfaces/IMatchingEngineTypes.sol";
+import {CctpMessage, RouterEndpoint} from "../../interfaces/IMatchingEngineTypes.sol";
 import {
     getRouterEndpointState,
     LiveAuctionData,
@@ -261,7 +261,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
         fastFills.redeemed[vaa.hash] = true;
 
         // Only the TokenRouter from this chain (_chainId) can redeem this message type.
-        bytes32 expectedRouter = getRouterEndpointState().endpoints[_chainId];
+        bytes32 expectedRouter = getRouterEndpointState().endpoints[_chainId].router;
         bytes32 callingRouter = msg.sender.toUniversalAddress();
         if (expectedRouter != callingRouter) {
             revert ErrInvalidSourceRouter(callingRouter, expectedRouter);
@@ -297,15 +297,15 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
                 FINALITY
             );
         } else {
-            bytes32 targetRouter = getRouterEndpointState().endpoints[order.targetChain];
+            RouterEndpoint memory endpoint = getRouterEndpointState().endpoints[order.targetChain];
 
             // Burn the tokens and publish the message to the target chain.
             (sequence,) = burnAndPublish(
-                targetRouter,
+                endpoint.router,
                 order.targetDomain,
                 address(_token),
                 amount,
-                targetRouter,
+                endpoint.mintRecipient,
                 NONCE,
                 Messages.Fill({
                     sourceChain: sourceChain,
@@ -355,12 +355,12 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     }
 
     function _verifyRouterPath(uint16 chain, bytes32 fromRouter, uint16 targetChain) private view {
-        bytes32 expectedRouter = getRouterEndpointState().endpoints[chain];
+        bytes32 expectedRouter = getRouterEndpointState().endpoints[chain].router;
         if (fromRouter != expectedRouter) {
             revert ErrInvalidSourceRouter(fromRouter, expectedRouter);
         }
 
-        if (getRouterEndpointState().endpoints[targetChain] == bytes32(0)) {
+        if (getRouterEndpointState().endpoints[targetChain].router == bytes32(0)) {
             revert ErrInvalidTargetRouter(targetChain);
         }
     }

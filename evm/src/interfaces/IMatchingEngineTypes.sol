@@ -16,9 +16,14 @@ struct FeeRecipient {
     address recipient;
 }
 
+struct RouterEndpoint {
+    bytes32 router;
+    bytes32 mintRecipient;
+}
+
 struct RouterEndpoints {
     // Mapping of chain ID to router address in Wormhole universal format.
-    mapping(uint16 chain => bytes32 endpoint) endpoints;
+    mapping(uint16 chain => RouterEndpoint endpoint) endpoints;
 }
 
 enum AuctionStatus {

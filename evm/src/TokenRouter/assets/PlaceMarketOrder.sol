@@ -12,8 +12,12 @@ import {Utils} from "../../shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
-import {FastTransferParameters} from "../../interfaces/ITokenRouterTypes.sol";
-import {getFastTransferParametersState, getCircleDomainsState} from "./Storage.sol";
+import {FastTransferParameters, Endpoint} from "../../interfaces/ITokenRouterTypes.sol";
+import {
+    getFastTransferParametersState,
+    getCircleDomainsState,
+    getRouterEndpointState
+} from "./Storage.sol";
 
 import "../../interfaces/IPlaceMarketOrder.sol";
 
@@ -103,16 +107,16 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             revert ErrInsufficientAmount(0, 0);
         }
 
-        bytes32 targetRouter = _verifyTarget(targetChain, redeemer);
+        Endpoint memory endpoint = _verifyTarget(targetChain, redeemer);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), amountIn);
 
         (sequence, cctpNonce) = burnAndPublish(
-            targetRouter,
+            endpoint.router,
             getCircleDomainsState().domains[targetChain],
             address(_orderToken),
             amountIn,
-            targetRouter,
+            endpoint.mintRecipient,
             NONCE,
             Messages.Fill({
                 sourceChain: _chainId,
@@ -169,7 +173,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             _matchingEngineDomain,
             address(_orderToken),
             amountIn,
-            _matchingEngineAddress,
+            _matchingEngineMintRecipient,
             NONCE,
             Messages.SlowOrderResponse({baseFee: fastParams.baseFee}).encode(),
             messageFee
@@ -198,15 +202,15 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     function _verifyTarget(uint16 targetChain, bytes32 redeemer)
         private
         view
-        returns (bytes32 targetRouter)
+        returns (Endpoint storage endpoint)
     {
         if (redeemer == bytes32(0)) {
             revert ErrInvalidRedeemerAddress();
         }
 
         // This check also validates that a target domain has been set.
-        targetRouter = getRouter(targetChain);
-        if (targetRouter == bytes32(0)) {
+        endpoint = getRouterEndpointState().endpoints[targetChain];
+        if (endpoint.router == bytes32(0)) {
             revert ErrUnsupportedChain(targetChain);
         }
     }
