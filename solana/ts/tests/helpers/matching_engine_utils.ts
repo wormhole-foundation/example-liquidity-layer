@@ -18,12 +18,8 @@ import { Fill, LiquidityLayerMessage, FastMarketOrder } from "../../src";
 import { expect } from "chai";
 
 export async function getTokenBalance(connection: Connection, address: PublicKey) {
-    return (
-        await getAccount(
-            connection,
-            await getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, address)
-        )
-    ).amount;
+    return (await getAccount(connection, getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, address)))
+        .amount;
 }
 
 export async function postVaa(
@@ -69,7 +65,6 @@ export async function postVaaWithMessage(
         emitterChain = CHAIN_ID_ETH;
     }
 
-    console.log(payload.toString("hex"));
     const foreignEmitter = new MockEmitter(
         tryNativeToHexString(emitterAddress, emitterChain),
         emitterChain,

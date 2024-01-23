@@ -3,8 +3,8 @@ import { ethers } from "ethers";
 
 export const ID_DEPOSIT = 1;
 
-export const ID_DEPOSIT_FILL = 11;
-export const ID_DEPOSIT_SLOW_ORDER_RESPONSE = 14;
+export const ID_DEPOSIT_FILL = 1;
+export const ID_DEPOSIT_SLOW_ORDER_RESPONSE = 2;
 
 export type DepositHeader = {
     tokenAddress: Array<number>;
@@ -24,7 +24,7 @@ export type Fill = {
 };
 
 export type SlowOrderResponse = {
-    // u128
+    // u64
     baseFee: bigint;
 };
 
@@ -88,9 +88,7 @@ export class LiquidityLayerDeposit {
                     };
                 }
                 case ID_DEPOSIT_SLOW_ORDER_RESPONSE: {
-                    const baseFee = BigInt(
-                        new BN(buf.subarray(offset, (offset += 16)), undefined, "be").toString()
-                    );
+                    const baseFee = buf.readBigUInt64BE(offset);
                     return {
                         slowOrderResponse: { baseFee },
                     };
@@ -168,12 +166,10 @@ export class LiquidityLayerDeposit {
             } else if (slowOrderResponse !== undefined) {
                 const { baseFee } = slowOrderResponse;
 
-                const messageBuf = Buffer.alloc(1 + 16);
+                const messageBuf = Buffer.alloc(1 + 8);
                 let offset = 0;
                 offset = messageBuf.writeUInt8(ID_DEPOSIT_SLOW_ORDER_RESPONSE, offset);
-                const encodedBaseFee = new BN(baseFee.toString()).toBuffer("be", 16);
-                messageBuf.set(encodedBaseFee, offset);
-                offset += encodedBaseFee.length;
+                offset = messageBuf.writeBigUInt64BE(baseFee, offset);
 
                 return messageBuf;
             } else {

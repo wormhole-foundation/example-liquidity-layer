@@ -63,8 +63,8 @@ impl<'a> LiquidityLayerDepositMessage<'a> {
         }
 
         match span[0] {
-            11 => Ok(Self::Fill(Fill::parse(&span[1..])?)),
-            14 => Ok(Self::SlowOrderResponse(SlowOrderResponse::parse(
+            1 => Ok(Self::Fill(Fill::parse(&span[1..])?)),
+            2 => Ok(Self::SlowOrderResponse(SlowOrderResponse::parse(
                 &span[1..],
             )?)),
             _ => Err("Unknown LiquidityLayerDepositMessage type"),
@@ -128,13 +128,13 @@ impl<'a> AsRef<[u8]> for SlowOrderResponse<'a> {
 }
 
 impl<'a> SlowOrderResponse<'a> {
-    pub fn base_fee(&self) -> u128 {
-        u128::from_be_bytes(self.0[..16].try_into().unwrap())
+    pub fn base_fee(&self) -> u64 {
+        u64::from_be_bytes(self.0[..8].try_into().unwrap())
     }
 
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
-        if span.len() != 16 {
-            return Err("SlowOrderResponse span too short. Need exactly 16 bytes");
+        if span.len() != 8 {
+            return Err("SlowOrderResponse span too short. Need exactly 8 bytes");
         }
 
         Ok(Self(span))

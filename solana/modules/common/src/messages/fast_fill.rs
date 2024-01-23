@@ -26,7 +26,7 @@ impl Readable for FastFill {
 
 impl Writeable for FastFill {
     fn written_size(&self) -> usize {
-        self.fill.written_size() + 8
+        8 + self.fill.written_size()
     }
 
     fn write<W>(&self, writer: &mut W) -> std::io::Result<()>

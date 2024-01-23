@@ -48,8 +48,8 @@ impl<'a> LiquidityLayerPayload<'a> {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum LiquidityLayerMessage<'a> {
     Deposit(Deposit<'a>),
-    FastFill(FastFill<'a>),
     FastMarketOrder(FastMarketOrder<'a>),
+    FastFill(FastFill<'a>),
 }
 
 impl<'a> TryFrom<Payload<'a>> for LiquidityLayerMessage<'a> {
@@ -64,8 +64,8 @@ impl<'a> AsRef<[u8]> for LiquidityLayerMessage<'a> {
     fn as_ref(&self) -> &[u8] {
         match self {
             Self::Deposit(inner) => inner.as_ref(),
-            Self::FastFill(inner) => inner.as_ref(),
             Self::FastMarketOrder(inner) => inner.as_ref(),
+            Self::FastFill(inner) => inner.as_ref(),
         }
     }
 }
@@ -124,8 +124,8 @@ impl<'a> LiquidityLayerMessage<'a> {
 
         match span[0] {
             1 => Ok(Self::Deposit(Deposit::parse(&span[1..])?)),
-            12 => Ok(Self::FastFill(FastFill::parse(&span[1..])?)),
             11 => Ok(Self::FastMarketOrder(FastMarketOrder::parse(&span[1..])?)),
+            12 => Ok(Self::FastFill(FastFill::parse(&span[1..])?)),
             _ => Err("Unknown LiquidityLayerMessage type"),
         }
     }
@@ -141,12 +141,12 @@ impl<'a> AsRef<[u8]> for FastFill<'a> {
 }
 
 impl<'a> FastFill<'a> {
-    pub fn fill(&'a self) -> Fill<'a> {
-        Fill::parse(&self.0[78..]).unwrap()
+    pub fn amount(&self) -> u64 {
+        u64::from_be_bytes(self.0[..8].try_into().unwrap())
     }
 
-    pub fn amount(&self) -> u64 {
-        u64::from_be_bytes(self.0[66..74].try_into().unwrap())
+    pub fn fill(&'a self) -> Fill<'a> {
+        Fill::parse(&self.0[8..]).unwrap()
     }
 
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {

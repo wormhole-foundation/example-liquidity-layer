@@ -1238,12 +1238,22 @@ describe("Token Router", function () {
                     }
                 );
 
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 250_000,
+                });
+
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidDepositMessage", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
+                await expectIxErr(
+                    connection,
+                    [computeIx, ix],
+                    [payer],
+                    "Error Code: InvalidDepositMessage",
+                    {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    }
+                );
             });
 
             it("Cannot Redeem Fill with Invalid Payload ID", async function () {

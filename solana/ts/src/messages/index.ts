@@ -1,11 +1,10 @@
 import { BN } from "@coral-xyz/anchor";
-import { ethers } from "ethers";
 import { Fill, ID_DEPOSIT, LiquidityLayerDeposit } from "./deposit";
 
 export * from "./deposit";
 
+export const ID_FAST_MARKET_ORDER = 11;
 export const ID_FAST_FILL = 12;
-export const ID_FAST_MARKET_ORDER = 13;
 
 export type FastFill = {
     // u64
@@ -61,25 +60,6 @@ export class LiquidityLayerMessage {
                         fastMarketOrder: undefined,
                     };
                 }
-                case ID_FAST_FILL: {
-                    const amount = buf.readBigUInt64BE(offset);
-                    offset += 8;
-                    const sourceChain = buf.readUInt16BE(offset);
-                    offset += 2;
-                    const orderSender = Array.from(buf.subarray(offset, (offset += 32)));
-                    const redeemer = Array.from(buf.subarray(offset, (offset += 32)));
-                    const redeemerMessageLen = buf.readUInt32BE(offset);
-                    offset += 4;
-                    const redeemerMessage = buf.subarray(offset, (offset += redeemerMessageLen));
-                    return {
-                        deposit: undefined,
-                        fastFill: {
-                            fill: { sourceChain, orderSender, redeemer, redeemerMessage },
-                            amount,
-                        } as FastFill,
-                        fastMarketOrder: undefined,
-                    };
-                }
                 case ID_FAST_MARKET_ORDER: {
                     const amountIn = buf.readBigUInt64BE(offset);
                     offset += 8;
@@ -118,6 +98,25 @@ export class LiquidityLayerMessage {
                         } as FastMarketOrder,
                     };
                 }
+                case ID_FAST_FILL: {
+                    const amount = buf.readBigUInt64BE(offset);
+                    offset += 8;
+                    const sourceChain = buf.readUInt16BE(offset);
+                    offset += 2;
+                    const orderSender = Array.from(buf.subarray(offset, (offset += 32)));
+                    const redeemer = Array.from(buf.subarray(offset, (offset += 32)));
+                    const redeemerMessageLen = buf.readUInt32BE(offset);
+                    offset += 4;
+                    const redeemerMessage = buf.subarray(offset, (offset += redeemerMessageLen));
+                    return {
+                        deposit: undefined,
+                        fastFill: {
+                            amount,
+                            fill: { sourceChain, orderSender, redeemer, redeemerMessage },
+                        } as FastFill,
+                        fastMarketOrder: undefined,
+                    };
+                }
                 default: {
                     throw new Error("Invalid Liquidity Layer message");
                 }
@@ -140,10 +139,8 @@ export class LiquidityLayerMessage {
                 const messageBuf = Buffer.alloc(1 + 78 + redeemerMessage.length);
 
                 let offset = 0;
-                const encodedAmount = new BN(amount.toString()).toBuffer("be", 8);
-                messageBuf.set(encodedAmount, offset);
-                offset += encodedAmount.length;
                 offset = messageBuf.writeUInt8(ID_FAST_FILL, offset);
+                offset = messageBuf.writeBigUInt64BE(amount, offset);
                 offset = messageBuf.writeUInt16BE(sourceChain, offset);
                 messageBuf.set(orderSender, offset);
                 offset += orderSender.length;
@@ -173,12 +170,8 @@ export class LiquidityLayerMessage {
 
                 let offset = 0;
                 offset = messageBuf.writeUInt8(ID_FAST_MARKET_ORDER, offset);
-                const encodedAmountIn = new BN(amountIn.toString()).toBuffer("be", 8);
-                messageBuf.set(encodedAmountIn, offset);
-                offset += encodedAmountIn.length;
-                const encodedMinAmountOut = new BN(minAmountOut.toString()).toBuffer("be", 8);
-                messageBuf.set(encodedMinAmountOut, offset);
-                offset += encodedMinAmountOut.length;
+                offset = messageBuf.writeBigUInt64BE(amountIn, offset);
+                offset = messageBuf.writeBigUInt64BE(minAmountOut, offset);
                 offset = messageBuf.writeUInt16BE(targetChain, offset);
                 offset = messageBuf.writeUInt32BE(destinationCctpDomain, offset);
                 messageBuf.set(redeemer, offset);
@@ -187,12 +180,8 @@ export class LiquidityLayerMessage {
                 offset += sender.length;
                 messageBuf.set(refundAddress, offset);
                 offset += refundAddress.length;
-                const encodedMaxFee = new BN(maxFee.toString()).toBuffer("be", 8);
-                messageBuf.set(encodedMaxFee, offset);
-                offset += encodedMaxFee.length;
-                const encodedInitAuctionFee = new BN(initAuctionFee.toString()).toBuffer("be", 8);
-                messageBuf.set(encodedInitAuctionFee, offset);
-                offset += encodedInitAuctionFee.length;
+                offset = messageBuf.writeBigUInt64BE(maxFee, offset);
+                offset = messageBuf.writeBigUInt64BE(initAuctionFee, offset);
                 offset = messageBuf.writeUInt32BE(deadline, offset);
                 offset = messageBuf.writeUInt32BE(redeemerMessage.length, offset);
                 messageBuf.set(redeemerMessage, offset);
