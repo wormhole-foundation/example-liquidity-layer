@@ -104,18 +104,16 @@ export async function postFastTransferVaa(
     );
 }
 
-const sleep = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
-
-export async function skip_slots(connection: Connection, slots: number): Promise<number> {
-    const start = await connection.getSlot();
-
-    while (true) {
-        const lastSlot = await connection.getSlot();
-        if (lastSlot >= start + slots) {
-            return lastSlot + 1;
-        }
-        await sleep(500);
-    }
+export async function waitBySlots(connection: Connection, numSlots: number) {
+    const targetSlot = await connection.getSlot().then((slot) => slot + numSlots);
+    return new Promise((resolve, _) => {
+        const sub = connection.onSlotChange((slot) => {
+            if (slot.slot >= targetSlot) {
+                connection.removeSlotChangeListener(sub);
+                resolve(slot.slot);
+            }
+        });
+    });
 }
 
 export async function calculateDynamicPenalty(

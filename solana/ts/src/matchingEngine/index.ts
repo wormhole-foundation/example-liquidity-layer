@@ -644,7 +644,7 @@ export class MatchingEngineProgram {
         }
     }
 
-    async executeFastOrderIx(
+    async executeFastOrderCctpIx(
         targetChain: wormholeSdk.ChainId,
         remoteDomain: number,
         vaaHash: Buffer,
@@ -692,7 +692,7 @@ export class MatchingEngineProgram {
         );
 
         return this.program.methods
-            .executeFastOrder()
+            .executeFastOrderCctp()
             .accounts({
                 payer,
                 custodian,

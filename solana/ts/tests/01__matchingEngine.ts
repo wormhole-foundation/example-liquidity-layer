@@ -34,7 +34,7 @@ import {
     getTokenBalance,
     postFastTransferVaa,
     postVaaWithMessage,
-    skip_slots,
+    waitBySlots,
     verifyFastFillMessage,
     verifyFillMessage,
 } from "./helpers/matching_engine_utils";
@@ -1474,7 +1474,7 @@ describe("Matching Engine", function () {
                 const newOffer = baseFastOrder.maxFee - 100n;
                 const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
-                await skip_slots(connection, 3);
+                await waitBySlots(connection, 3);
 
                 await expectIxErr(
                     connection,
@@ -1550,13 +1550,13 @@ describe("Matching Engine", function () {
                 const newOffer = baseFastOrder.maxFee - 100n;
                 const bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
-                await skip_slots(connection, 3);
+                await waitBySlots(connection, 4);
 
                 // Excute the fast order so that the auction status changes.
                 await expectIxOk(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
                             payer: offerAuthorityOne.publicKey,
                             vaa: vaaKey,
                         }),
@@ -1674,12 +1674,12 @@ describe("Matching Engine", function () {
                 bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
                 // Fast forward into the grace period.
-                await skip_slots(connection, 2);
+                await waitBySlots(connection, 3);
                 const message = await engine.getCoreMessage(offerAuthorityOne.publicKey);
                 await expectIxOk(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
                             payer: offerAuthorityOne.publicKey,
                             vaa: vaaKey,
                             bestOfferToken,
@@ -1798,7 +1798,7 @@ describe("Matching Engine", function () {
                 bestOfferToken = await engine.getBestOfferTokenAccount(vaaHash);
 
                 // Fast forward into the grace period.
-                await skip_slots(connection, 2);
+                await waitBySlots(connection, 3);
                 const message = await engine.getCoreMessage(offerAuthorityOne.publicKey);
                 await expectIxOk(
                     connection,
@@ -1891,12 +1891,12 @@ describe("Matching Engine", function () {
                 const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
 
                 // Fast forward into the grace period.
-                await skip_slots(connection, 7);
+                await waitBySlots(connection, 7);
                 const message = await engine.getCoreMessage(offerAuthorityOne.publicKey);
                 const txnSignature = await expectIxOk(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
                             payer: offerAuthorityOne.publicKey,
                             vaa: vaaKey,
                             bestOfferToken,
@@ -2012,14 +2012,14 @@ describe("Matching Engine", function () {
                 const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
 
                 // Fast forward into tge penalty period.
-                await skip_slots(connection, 10);
+                await waitBySlots(connection, 10);
 
                 // Execute the fast order with the liquidator (offerAuthorityTwo).
                 const message = await engine.getCoreMessage(offerAuthorityTwo.publicKey);
                 const txnSignature = await expectIxOk(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
                             payer: offerAuthorityTwo.publicKey,
                             vaa: vaaKey,
                             bestOfferToken,
@@ -2138,14 +2138,14 @@ describe("Matching Engine", function () {
                 const auctionDataBefore = await engine.fetchAuctionData(vaaHash);
 
                 // Fast forward past the penalty period.
-                await skip_slots(connection, 15);
+                await waitBySlots(connection, 15);
 
                 // Execute the fast order with the liquidator (offerAuthorityTwo).
                 const message = await engine.getCoreMessage(offerAuthorityTwo.publicKey);
                 const txnSignature = await expectIxOk(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
                             payer: offerAuthorityTwo.publicKey,
                             vaa: vaaKey,
                             bestOfferToken,
@@ -2260,7 +2260,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [
-                        await engine.executeFastOrderIx(solanaChain, solanaDomain, vaaHash, {
+                        await engine.executeFastOrderCctpIx(solanaChain, solanaDomain, vaaHash, {
                             payer: offerAuthorityOne.publicKey,
                             vaa: vaaKey,
                             bestOfferToken,
@@ -2308,12 +2308,12 @@ describe("Matching Engine", function () {
                 const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Fast forward past the penalty period.
-                await skip_slots(connection, 15);
+                await waitBySlots(connection, 15);
 
                 await expectIxErr(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash2, {
+                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash2, {
                             payer: offerAuthorityOne.publicKey,
                             vaa: vaaKey,
                             bestOfferToken,
@@ -2348,7 +2348,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
                             payer: offerAuthorityOne.publicKey,
                             vaa: vaaKey,
                             bestOfferToken: engine.custodyTokenAccountAddress(),
@@ -2383,7 +2383,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
                             payer: offerAuthorityOne.publicKey,
                             vaa: vaaKey,
                             bestOfferToken,
@@ -2416,12 +2416,12 @@ describe("Matching Engine", function () {
                 const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Fast forward into the grace period.
-                await skip_slots(connection, 4);
+                await waitBySlots(connection, 4);
 
                 await expectIxOk(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
                             payer: offerAuthorityOne.publicKey,
                             vaa: vaaKey,
                             bestOfferToken,
@@ -2435,7 +2435,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
                             payer: offerAuthorityOne.publicKey,
                             vaa: vaaKey,
                             bestOfferToken,
@@ -2473,7 +2473,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [
-                        await engine.executeFastOrderIx(arbChain, arbDomain, vaaHash, {
+                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
                             payer: offerAuthorityOne.publicKey,
                             vaa: vaaKey,
                             bestOfferToken,
@@ -2561,7 +2561,7 @@ describe("Matching Engine", function () {
                 const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Fast forward past the penalty period.
-                await skip_slots(connection, 15);
+                await waitBySlots(connection, 15);
 
                 await expectIxErr(
                     connection,
@@ -2681,7 +2681,7 @@ describe("Matching Engine", function () {
                 const initialOfferToken = await engine.getInitialOfferTokenAccount(vaaHash);
 
                 // Fast forward into the grace period.
-                await skip_slots(connection, 4);
+                await waitBySlots(connection, 4);
 
                 await expectIxOk(
                     connection,

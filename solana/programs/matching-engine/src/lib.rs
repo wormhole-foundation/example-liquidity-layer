@@ -105,8 +105,8 @@ pub mod matching_engine {
         processor::improve_offer(ctx, fee_offer)
     }
 
-    pub fn execute_fast_order(ctx: Context<ExecuteFastOrder>) -> Result<()> {
-        processor::execute_fast_order(ctx)
+    pub fn execute_fast_order_cctp(ctx: Context<ExecuteFastOrderCctp>) -> Result<()> {
+        processor::execute_fast_order_cctp(ctx)
     }
 
     pub fn execute_fast_order_solana(ctx: Context<ExecuteFastOrderSolana>) -> Result<()> {
