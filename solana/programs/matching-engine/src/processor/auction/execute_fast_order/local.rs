@@ -171,10 +171,7 @@ pub fn execute_fast_order_solana(ctx: Context<ExecuteFastOrderSolana>) -> Result
                 rent: ctx.accounts.rent.to_account_info(),
             },
             &[
-                &[
-                    Custodian::SEED_PREFIX.as_ref(),
-                    &[ctx.accounts.custodian.bump],
-                ],
+                &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]],
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),

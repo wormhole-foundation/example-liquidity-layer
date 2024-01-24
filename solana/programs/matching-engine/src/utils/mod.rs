@@ -90,8 +90,7 @@ mod test {
             let amount = 10000000;
             let slots_elapsed = config.auction_grace_period - 1;
             let (penalty, reward) =
-                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
-                    .unwrap();
+                calculate_dynamic_penalty(&config, amount, slots_elapsed.into()).unwrap();
 
             assert_eq!(penalty, 0);
             assert_eq!(reward, 0);
@@ -102,8 +101,7 @@ mod test {
             let amount = 10000000;
             let slots_elapsed = config.auction_penalty_slots + config.auction_grace_period;
             let (penalty, reward) =
-                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
-                    .unwrap();
+                calculate_dynamic_penalty(&config, amount, slots_elapsed.into()).unwrap();
 
             assert_eq!(penalty, 7500000);
             assert_eq!(reward, 2500000);
@@ -114,8 +112,7 @@ mod test {
             let amount = 10000000;
             let slots_elapsed = config.auction_grace_period + 1;
             let (penalty, reward) =
-                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
-                    .unwrap();
+                calculate_dynamic_penalty(&config, amount, slots_elapsed.into()).unwrap();
 
             assert_eq!(penalty, 1087500);
             assert_eq!(reward, 362500);
@@ -126,8 +123,7 @@ mod test {
             let amount = 10000000;
             let slots_elapsed = config.auction_grace_period + 10;
             let (penalty, reward) =
-                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
-                    .unwrap();
+                calculate_dynamic_penalty(&config, amount, slots_elapsed.into()).unwrap();
 
             assert_eq!(penalty, 4125000);
             assert_eq!(reward, 1375000);
@@ -138,8 +134,7 @@ mod test {
             let amount = 10000000;
             let slots_elapsed = config.auction_grace_period + 19;
             let (penalty, reward) =
-                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
-                    .unwrap();
+                calculate_dynamic_penalty(&config, amount, slots_elapsed.into()).unwrap();
 
             assert_eq!(penalty, 7162500);
             assert_eq!(reward, 2387500);
@@ -152,8 +147,7 @@ mod test {
             let amount = 10000000;
             let slots_elapsed = config.auction_grace_period + 10;
             let (penalty, reward) =
-                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
-                    .unwrap();
+                calculate_dynamic_penalty(&config, amount, slots_elapsed.into()).unwrap();
 
             assert_eq!(penalty, 3750000);
             assert_eq!(reward, 1250000);
@@ -166,8 +160,7 @@ mod test {
             let amount = 10000000;
             let slots_elapsed = config.auction_grace_period + 10;
             let (penalty, reward) =
-                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
-                    .unwrap();
+                calculate_dynamic_penalty(&config, amount, slots_elapsed.into()).unwrap();
 
             assert_eq!(penalty, 5000000);
             assert_eq!(reward, 0);
@@ -181,8 +174,7 @@ mod test {
             let amount = 10000000;
             let slots_elapsed = config.auction_grace_period + 5;
             let (penalty, reward) =
-                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
-                    .unwrap();
+                calculate_dynamic_penalty(&config, amount, slots_elapsed.into()).unwrap();
 
             assert_eq!(penalty, 5000000);
             assert_eq!(reward, 5000000);
@@ -196,8 +188,7 @@ mod test {
             let amount = 10000000;
             let slots_elapsed = config.auction_grace_period + 10;
             let (penalty, reward) =
-                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
-                    .unwrap();
+                calculate_dynamic_penalty(&config, amount, slots_elapsed.into()).unwrap();
 
             assert_eq!(penalty, 0);
             assert_eq!(reward, 7500000);
@@ -212,8 +203,7 @@ mod test {
             let amount = 10000000;
             let slots_elapsed = config.auction_grace_period + 10;
             let (penalty, reward) =
-                calculate_dynamic_penalty(&config, amount, u64::try_from(slots_elapsed).unwrap())
-                    .unwrap();
+                calculate_dynamic_penalty(&config, amount, slots_elapsed.into()).unwrap();
 
             assert_eq!(penalty, 5000000);
             assert_eq!(reward, 5000000);

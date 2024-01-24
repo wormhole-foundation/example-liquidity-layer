@@ -121,6 +121,6 @@ pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
             },
             &[&[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]]],
         ),
-        fast_fill.amount().try_into().unwrap(),
+        fast_fill.amount(),
     )
 }

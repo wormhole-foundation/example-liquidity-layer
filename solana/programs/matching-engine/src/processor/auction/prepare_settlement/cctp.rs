@@ -212,7 +212,7 @@ pub fn prepare_auction_settlement_cctp(
             fast_vaa_hash: fast_vaa.try_digest().unwrap().0,
             prepared_by: ctx.accounts.payer.key(),
             source_chain,
-            base_fee: slow_order_response.base_fee().try_into().unwrap(),
+            base_fee: slow_order_response.base_fee(),
         });
 
     // Done.
