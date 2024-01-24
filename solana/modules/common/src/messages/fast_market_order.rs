@@ -69,3 +69,53 @@ impl Writeable for FastMarketOrder {
 impl TypePrefixedPayload for FastMarketOrder {
     const TYPE: Option<u8> = Some(11);
 }
+
+#[cfg(test)]
+mod test {
+    use hex_literal::hex;
+    use messages::raw;
+
+    use crate::messages;
+
+    use super::*;
+
+    #[test]
+    fn serde() {
+        let fast_market_order = FastMarketOrder {
+            amount_in: 1234567890,
+            min_amount_out: 69420,
+            target_chain: 69,
+            destination_cctp_domain: 420,
+            redeemer: hex!("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
+            sender: hex!("beefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdead"),
+            refund_address: hex!(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            ),
+            max_fee: 1234567890,
+            init_auction_fee: 69420,
+            deadline: 420,
+            redeemer_message: b"All your base are belong to us.".to_vec().into(),
+        };
+
+        let encoded = fast_market_order.to_vec_payload();
+
+        let msg = raw::LiquidityLayerMessage::parse(&encoded).unwrap();
+        let parsed = msg.to_fast_market_order_unchecked();
+
+        let expected = FastMarketOrder {
+            amount_in: parsed.amount_in(),
+            min_amount_out: parsed.min_amount_out(),
+            target_chain: parsed.target_chain(),
+            destination_cctp_domain: parsed.destination_cctp_domain(),
+            redeemer: parsed.redeemer(),
+            sender: parsed.sender(),
+            refund_address: parsed.refund_address(),
+            max_fee: parsed.max_fee(),
+            init_auction_fee: parsed.init_auction_fee(),
+            deadline: parsed.deadline(),
+            redeemer_message: parsed.redeemer_message().as_ref().to_vec().into(),
+        };
+
+        assert_eq!(fast_market_order, expected);
+    }
+}

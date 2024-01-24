@@ -39,3 +39,27 @@ impl Writeable for SlowOrderResponse {
 impl TypePrefixedPayload for SlowOrderResponse {
     const TYPE: Option<u8> = Some(2);
 }
+
+#[cfg(test)]
+mod test {
+    use wormhole_io::Writeable;
+
+    use crate::messages;
+
+    #[test]
+    fn serde() {
+        let slow_order_response = messages::SlowOrderResponse {
+            base_fee: 1234567890,
+        };
+
+        let encoded = slow_order_response.to_vec();
+
+        let parsed = messages::raw::SlowOrderResponse::parse(&encoded).unwrap();
+
+        let expected = messages::SlowOrderResponse {
+            base_fee: parsed.base_fee(),
+        };
+
+        assert_eq!(slow_order_response, expected);
+    }
+}

@@ -46,38 +46,42 @@ impl TypePrefixedPayload for FastFill {
 
 #[cfg(test)]
 mod test {
-    // use hex_literal::hex;
+    use hex_literal::hex;
+    use messages::raw;
 
-    // use super::*;
+    use crate::messages;
 
-    // #[test]
-    // fn transfer_tokens_with_relay() {
-    //     let msg = TransferTokensWithRelay {
-    //         target_relayer_fee: U256::from(69u64),
-    //         to_native_token_amount: U256::from(420u64),
-    //         target_recipient_wallet: hex!(
-    //             "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-    //         ),
-    //     };
+    use super::*;
 
-    //     let mut bytes = Vec::with_capacity(msg.payload_written_size());
-    //     msg.write_typed(&mut bytes).unwrap();
-    //     assert_eq!(bytes.len(), msg.payload_written_size());
-    //     assert_eq!(bytes, hex!("01000000000000000000000000000000000000000000000000000000000000004500000000000000000000000000000000000000000000000000000000000001a4deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"));
+    #[test]
+    fn serde() {
+        let fast_fill = FastFill {
+            amount: 1234567890,
+            fill: Fill {
+                source_chain: 69,
+                order_sender: hex!(
+                    "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+                ),
+                redeemer: hex!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+                redeemer_message: b"All your base are belong to us.".to_vec().into(),
+            },
+        };
 
-    //     let mut cursor = std::io::Cursor::new(&mut bytes);
-    //     let recovered = TransferTokensWithRelay::read_payload(&mut cursor).unwrap();
-    //     assert_eq!(recovered, msg);
-    // }
+        let encoded = fast_fill.to_vec_payload();
 
-    // #[test]
-    // fn invalid_message_type() {
-    //     let mut bytes = hex!("45000000000000000000000000000000000000000000000000000000000000004500000000000000000000000000000000000000000000000000000000000001a4deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+        let msg = raw::LiquidityLayerMessage::parse(&encoded).unwrap();
+        let parsed = msg.to_fast_fill_unchecked();
 
-    //     let mut cursor = std::io::Cursor::new(&mut bytes);
-    //     let err = TransferTokensWithRelay::read_typed(&mut cursor)
-    //         .err()
-    //         .unwrap();
-    //     matches!(err.kind(), std::io::ErrorKind::InvalidData);
-    // }
+        let expected = FastFill {
+            amount: parsed.amount(),
+            fill: Fill {
+                source_chain: parsed.fill().source_chain(),
+                order_sender: parsed.fill().order_sender(),
+                redeemer: parsed.fill().redeemer(),
+                redeemer_message: parsed.fill().redeemer_message().as_ref().to_vec().into(),
+            },
+        };
+
+        assert_eq!(fast_fill, expected);
+    }
 }

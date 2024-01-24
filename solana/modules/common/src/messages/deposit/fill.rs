@@ -51,38 +51,31 @@ impl TypePrefixedPayload for Fill {
 
 #[cfg(test)]
 mod test {
-    // use hex_literal::hex;
+    use hex_literal::hex;
+    use wormhole_io::Writeable;
 
-    // use super::*;
+    use crate::messages;
 
-    // #[test]
-    // fn transfer_tokens_with_relay() {
-    //     let msg = TransferTokensWithRelay {
-    //         target_relayer_fee: U256::from(69u64),
-    //         to_native_token_amount: U256::from(420u64),
-    //         target_recipient_wallet: hex!(
-    //             "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-    //         ),
-    //     };
+    #[test]
+    fn serde() {
+        let fill = messages::Fill {
+            source_chain: 69,
+            order_sender: hex!("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
+            redeemer: hex!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+            redeemer_message: b"All your base are belong to us.".to_vec().into(),
+        };
 
-    //     let mut bytes = Vec::with_capacity(msg.payload_written_size());
-    //     msg.write_typed(&mut bytes).unwrap();
-    //     assert_eq!(bytes.len(), msg.payload_written_size());
-    //     assert_eq!(bytes, hex!("01000000000000000000000000000000000000000000000000000000000000004500000000000000000000000000000000000000000000000000000000000001a4deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"));
+        let encoded = fill.to_vec();
 
-    //     let mut cursor = std::io::Cursor::new(&mut bytes);
-    //     let recovered = TransferTokensWithRelay::read_payload(&mut cursor).unwrap();
-    //     assert_eq!(recovered, msg);
-    // }
+        let parsed = messages::raw::Fill::parse(&encoded).unwrap();
 
-    // #[test]
-    // fn invalid_message_type() {
-    //     let mut bytes = hex!("45000000000000000000000000000000000000000000000000000000000000004500000000000000000000000000000000000000000000000000000000000001a4deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef");
+        let expected = messages::Fill {
+            source_chain: parsed.source_chain(),
+            order_sender: parsed.order_sender(),
+            redeemer: parsed.redeemer(),
+            redeemer_message: parsed.redeemer_message().as_ref().to_vec().into(),
+        };
 
-    //     let mut cursor = std::io::Cursor::new(&mut bytes);
-    //     let err = TransferTokensWithRelay::read_typed(&mut cursor)
-    //         .err()
-    //         .unwrap();
-    //     matches!(err.kind(), std::io::ErrorKind::InvalidData);
-    // }
+        assert_eq!(fill, expected);
+    }
 }
