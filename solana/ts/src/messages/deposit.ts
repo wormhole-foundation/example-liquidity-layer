@@ -88,7 +88,7 @@ export class LiquidityLayerDeposit {
                     };
                 }
                 case ID_DEPOSIT_SLOW_ORDER_RESPONSE: {
-                    const baseFee = buf.readBigUInt64BE(offset);
+                    const baseFee = payload.readBigUInt64BE(offset);
                     return {
                         slowOrderResponse: { baseFee },
                     };

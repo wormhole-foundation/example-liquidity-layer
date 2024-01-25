@@ -11,7 +11,7 @@ pub struct SubmitOwnershipTransferRequest<'info> {
     #[account(
         mut,
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = Custodian::BUMP,
         constraint = only_owner(&custodian, &owner.key()) @ MatchingEngineError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
@@ -63,7 +63,7 @@ pub fn submit_ownership_transfer_request(
                     current_authority: ctx.accounts.owner.to_account_info(),
                     new_authority: ctx.accounts.custodian.to_account_info(),
                 },
-                &[&[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]]],
+                &[Custodian::SIGNER_SEEDS],
             ),
             crate::ID,
         )?;

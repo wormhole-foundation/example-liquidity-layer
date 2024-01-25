@@ -1,6 +1,8 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::result_large_err)]
 
+pub mod custody_token;
+
 pub mod error;
 
 mod processor;
@@ -15,7 +17,6 @@ cfg_if::cfg_if! {
         // Placeholder.
         declare_id!("TokenRouter11111111111111111111111111111111");
         const CUSTODIAN_BUMP: u8 = 253;
-        const CUSTODY_TOKEN_BUMP: u8 = 254;
     }
 }
 

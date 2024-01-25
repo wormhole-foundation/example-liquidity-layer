@@ -1,8 +1,7 @@
 use crate::{
     error::MatchingEngineError,
-    handle_fast_order_execution,
-    state::{AuctionData, AuctionStatus, Custodian, PayerSequence, RouterEndpoint},
-    ExecuteFastOrderAccounts,
+    state::{Auction, AuctionConfig, Custodian, PayerSequence, RouterEndpoint},
+    utils,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -11,88 +10,9 @@ use wormhole_cctp_solana::wormhole::core_bridge_program;
 use wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 
 #[derive(Accounts)]
-pub struct ExecuteFastOrderSolana<'info> {
+pub struct ExecuteFastOrderLocal<'info> {
     #[account(mut)]
     payer: Signer<'info>,
-
-    /// This program's Wormhole (Core Bridge) emitter authority. This is also the burn-source
-    /// authority for CCTP transfers.
-    ///
-    /// CHECK: Seeds must be \["emitter"\].
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
-    )]
-    custodian: Box<Account<'info, Custodian>>,
-
-    /// CHECK: Must be owned by the Wormhole Core Bridge program.
-    #[account(
-        owner = core_bridge_program::id(),
-        constraint = {
-            VaaAccount::load(&vaa)?.try_digest()?.0 == auction_data.vaa_hash
-        } @ MatchingEngineError::MismatchedVaaHash
-    )]
-    vaa: AccountInfo<'info>,
-
-    #[account(
-        mut,
-        seeds = [
-            AuctionData::SEED_PREFIX,
-            auction_data.vaa_hash.as_ref()
-        ],
-        bump = auction_data.bump,
-        has_one = best_offer_token @ MatchingEngineError::InvalidTokenAccount,
-        has_one = initial_offer_token @ MatchingEngineError::InvalidTokenAccount,
-        constraint = {
-            auction_data.status == AuctionStatus::Active
-        } @ MatchingEngineError::AuctionNotActive
-    )]
-    auction_data: Box<Account<'info, AuctionData>>,
-
-    #[account(
-        seeds = [
-            RouterEndpoint::SEED_PREFIX,
-            to_router_endpoint.chain.to_be_bytes().as_ref(),
-        ],
-        bump = to_router_endpoint.bump,
-        constraint = {
-            to_router_endpoint.chain == core_bridge_program::SOLANA_CHAIN
-        } @ MatchingEngineError::InvalidChain
-    )]
-    to_router_endpoint: Account<'info, RouterEndpoint>,
-
-    #[account(
-        mut,
-        associated_token::mint = mint,
-        associated_token::authority = payer
-    )]
-    executor_token: Account<'info, token::TokenAccount>,
-
-    /// CHECK: Mutable. Must equal [best_offer](AuctionData::best_offer).
-    #[account(mut)]
-    best_offer_token: AccountInfo<'info>,
-
-    /// CHECK: Mutable. Must equal [initial_offer](AuctionData::initial_offer).
-    #[account(mut)]
-    initial_offer_token: AccountInfo<'info>,
-
-    /// Also the burn_source token account.
-    ///
-    /// CHECK: Mutable. Seeds must be \["custody"\].
-    #[account(
-        mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = custodian.custody_token_bump,
-    )]
-    custody_token: AccountInfo<'info>,
-
-    /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
-    /// Token Messenger Minter program's local token account.
-    #[account(
-        mut,
-        address = common::constants::usdc::id(),
-    )]
-    mint: AccountInfo<'info>,
 
     #[account(
         init_if_needed,
@@ -105,6 +25,71 @@ pub struct ExecuteFastOrderSolana<'info> {
         bump,
     )]
     payer_sequence: Account<'info, PayerSequence>,
+
+    /// This program's Wormhole (Core Bridge) emitter authority. This is also the burn-source
+    /// authority for CCTP transfers.
+    ///
+    /// CHECK: Seeds must be \["emitter"\].
+    #[account(
+        seeds = [Custodian::SEED_PREFIX],
+        bump = Custodian::BUMP,
+    )]
+    custodian: AccountInfo<'info>,
+
+    auction_config: Box<Account<'info, AuctionConfig>>,
+
+    /// CHECK: Must be owned by the Wormhole Core Bridge program.
+    #[account(owner = core_bridge_program::id())]
+    fast_vaa: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [
+            Auction::SEED_PREFIX,
+            VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
+        ],
+        bump = auction.bump,
+        constraint = utils::is_valid_active_auction(
+            &auction_config,
+            &auction,
+            Some(best_offer_token.key()),
+            Some(initial_offer_token.key()),
+        )?
+    )]
+    auction: Box<Account<'info, Auction>>,
+
+    #[account(
+        seeds = [
+            RouterEndpoint::SEED_PREFIX,
+            core_bridge_program::SOLANA_CHAIN.to_be_bytes().as_ref(),
+        ],
+        bump = to_router_endpoint.bump,
+    )]
+    to_router_endpoint: Account<'info, RouterEndpoint>,
+
+    #[account(
+        mut,
+        associated_token::mint = common::constants::usdc::id(),
+        associated_token::authority = payer
+    )]
+    executor_token: Account<'info, token::TokenAccount>,
+
+    /// CHECK: Mutable. Must equal [best_offer](Auction::best_offer).
+    #[account(mut)]
+    best_offer_token: AccountInfo<'info>,
+
+    /// CHECK: Mutable. Must equal [initial_offer](Auction::initial_offer).
+    #[account(mut)]
+    initial_offer_token: AccountInfo<'info>,
+
+    /// Also the burn_source token account.
+    ///
+    /// CHECK: Mutable. Seeds must be \["custody"\].
+    #[account(
+        mut,
+        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
+    )]
+    custody_token: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["Bridge"\] (Wormhole Core Bridge program).
     #[account(mut)]
@@ -143,11 +128,16 @@ pub struct ExecuteFastOrderSolana<'info> {
     rent: AccountInfo<'info>,
 }
 
-pub fn execute_fast_order_solana(ctx: Context<ExecuteFastOrderSolana>) -> Result<()> {
-    let wormhole_args = handle_fast_order_execution(ExecuteFastOrderAccounts {
+pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<()> {
+    let super::PreparedFastExecution {
+        transfer_amount: amount,
+        destination_cctp_domain: _,
+        fill,
+    } = super::prepare_fast_execution(super::PrepareFastExecution {
         custodian: &ctx.accounts.custodian,
-        vaa: &ctx.accounts.vaa,
-        auction_data: &mut ctx.accounts.auction_data,
+        auction_config: &ctx.accounts.auction_config,
+        fast_vaa: &ctx.accounts.fast_vaa,
+        auction: &mut ctx.accounts.auction,
         custody_token: &ctx.accounts.custody_token,
         executor_token: &ctx.accounts.executor_token,
         best_offer_token: &ctx.accounts.best_offer_token,
@@ -171,7 +161,7 @@ pub fn execute_fast_order_solana(ctx: Context<ExecuteFastOrderSolana>) -> Result
                 rent: ctx.accounts.rent.to_account_info(),
             },
             &[
-                &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]],
+                Custodian::SIGNER_SEEDS,
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),
@@ -185,15 +175,9 @@ pub fn execute_fast_order_solana(ctx: Context<ExecuteFastOrderSolana>) -> Result
             ],
         ),
         core_bridge_program::cpi::PostMessageArgs {
-            nonce: 0, // Always zero.
-            payload: common::messages::FastFill {
-                amount: wormhole_args.transfer_amount,
-                fill: wormhole_args.fill,
-            }
-            .to_vec_payload(),
+            nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
+            payload: common::messages::FastFill { amount, fill }.to_vec_payload(),
             commitment: core_bridge_program::Commitment::Finalized,
         },
-    )?;
-
-    Ok(())
+    )
 }

@@ -1,4 +1,4 @@
-use crate::{error::TokenRouterError, state::Custodian, CUSTODIAN_BUMP};
+use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
@@ -9,7 +9,7 @@ pub struct UpdateOwnerAssistant<'info> {
     #[account(
         mut,
         seeds = [Custodian::SEED_PREFIX],
-        bump = CUSTODIAN_BUMP,
+        bump = Custodian::BUMP,
         has_one = owner @ TokenRouterError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,

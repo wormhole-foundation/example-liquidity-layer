@@ -8,6 +8,9 @@ pub enum TokenRouterError {
     #[msg("OwnerOrAssistantOnly")]
     OwnerOrAssistantOnly = 0x4,
 
+    #[msg("InvalidCustodyToken")]
+    InvalidCustodyToken = 0x6,
+
     #[msg("AssistantZeroPubkey")]
     AssistantZeroPubkey = 0x20,
 
@@ -40,6 +43,9 @@ pub enum TokenRouterError {
     /// Specified foreign contract has a bad chain ID or zero address.
     #[msg("InvalidEndpoint")]
     InvalidEndpoint = 0x42,
+
+    #[msg("InvalidMintRecipient")]
+    InvalidMintRecipient = 0x43,
 
     #[msg("CctpRemoteTokenMessengerRequired")]
     CctpRemoteTokenMessengerRequired = 0x44,

@@ -1,7 +1,6 @@
 use crate::{
     error::TokenRouterError,
     state::{Custodian, PreparedOrder},
-    CUSTODIAN_BUMP, CUSTODY_TOKEN_BUMP,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -14,7 +13,7 @@ pub struct ClosePreparedOrder<'info> {
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = CUSTODIAN_BUMP,
+        bump = Custodian::BUMP,
     )]
     custodian: AccountInfo<'info>,
 
@@ -44,8 +43,7 @@ pub struct ClosePreparedOrder<'info> {
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = CUSTODY_TOKEN_BUMP,
+        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
     )]
     custody_token: AccountInfo<'info>,
 
@@ -62,7 +60,7 @@ pub fn close_prepared_order(ctx: Context<ClosePreparedOrder>) -> Result<()> {
                 to: ctx.accounts.refund_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
-            &[&[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]]],
+            &[Custodian::SIGNER_SEEDS],
         ),
         ctx.accounts.prepared_order.amount_in,
     )

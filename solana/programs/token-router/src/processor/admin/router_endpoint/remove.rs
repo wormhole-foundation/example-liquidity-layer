@@ -1,7 +1,6 @@
 use crate::{
     error::TokenRouterError,
     state::{Custodian, RouterEndpoint},
-    CUSTODIAN_BUMP,
 };
 use anchor_lang::prelude::*;
 use common::admin::utils::assistant::only_authorized;
@@ -18,7 +17,7 @@ pub struct RemoveRouterEndpoint<'info> {
 
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = CUSTODIAN_BUMP,
+        bump = Custodian::BUMP,
     )]
     custodian: Account<'info, Custodian>,
 

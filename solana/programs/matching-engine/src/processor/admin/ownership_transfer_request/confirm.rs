@@ -12,7 +12,7 @@ pub struct ConfirmOwnershipTransferRequest<'info> {
     #[account(
         mut,
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = Custodian::BUMP,
         constraint = {
             custodian.pending_owner.is_some()
         } @ MatchingEngineError::NoTransferOwnershipRequest,
@@ -56,7 +56,7 @@ pub fn confirm_ownership_transfer_request(
                     current_authority: ctx.accounts.custodian.to_account_info(),
                     new_authority: ctx.accounts.pending_owner.to_account_info(),
                 },
-                &[&[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]]],
+                &[Custodian::SIGNER_SEEDS],
             ),
             crate::ID,
         )?;

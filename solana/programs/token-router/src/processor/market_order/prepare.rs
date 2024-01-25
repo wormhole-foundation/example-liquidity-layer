@@ -3,8 +3,7 @@ use anchor_spl::token;
 
 use crate::{
     error::TokenRouterError,
-    state::{OrderType, PreparedOrder, PreparedOrderInfo},
-    CUSTODY_TOKEN_BUMP,
+    state::{Custodian, OrderType, PreparedOrder, PreparedOrderInfo},
 };
 
 /// Accounts required for [prepare_market_order].
@@ -14,6 +13,17 @@ pub struct PrepareMarketOrder<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
+    /// Custodian, but does not need to be deserialized.
+    ///
+    /// CHECK: Seeds must be \["emitter"\].
+    #[account(
+        seeds = [Custodian::SEED_PREFIX],
+        bump = Custodian::BUMP,
+    )]
+    custodian: AccountInfo<'info>,
+
+    /// This signer will be encoded in the prepared order. He will also need to be present when
+    /// invoking any of the place market order instructions.
     order_sender: Signer<'info>,
 
     #[account(
@@ -28,6 +38,9 @@ pub struct PrepareMarketOrder<'info> {
     ///
     /// CHECK: This account must have delegated authority or be owned by the
     /// [burn_source_authority](Self::burn_source_authority). Its mint must be USDC.
+    ///
+    /// NOTE: This token account must have delegated transfer authority to the custodian prior to
+    /// invoking this instruction.
     #[account(mut)]
     order_token: AccountInfo<'info>,
 
@@ -40,8 +53,7 @@ pub struct PrepareMarketOrder<'info> {
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = CUSTODY_TOKEN_BUMP,
+        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
     )]
     custody_token: AccountInfo<'info>,
 
@@ -113,13 +125,14 @@ pub fn prepare_market_order(
 
     // Finally transfer amount to custody token account.
     token::transfer(
-        CpiContext::new(
+        CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
                 from: ctx.accounts.order_token.to_account_info(),
                 to: ctx.accounts.custody_token.to_account_info(),
-                authority: ctx.accounts.order_sender.to_account_info(),
+                authority: ctx.accounts.custodian.to_account_info(),
             },
+            &[Custodian::SIGNER_SEEDS],
         ),
         amount_in,
     )

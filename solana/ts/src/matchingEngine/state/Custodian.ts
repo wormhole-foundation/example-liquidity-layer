@@ -1,41 +1,31 @@
+import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
-export interface AuctionConfig {
-    userPenaltyRewardBps: number;
-    initialPenaltyBps: number;
-    auctionDuration: number;
-    auctionGracePeriod: number;
-    auctionPenaltySlots: number;
-}
-
 export class Custodian {
-    bump: number;
-    custodyTokenBump: number;
     owner: PublicKey;
     pendingOwner: PublicKey | null;
     ownerAssistant: PublicKey;
-    feeRecipient: PublicKey;
-    auctionConfig: AuctionConfig;
+    feeRecipientToken: PublicKey;
+    auctionConfigId: number;
+    nextProposalId: BN;
 
     constructor(
-        bump: number,
-        custodyTokenBump: number,
         owner: PublicKey,
         pendingOwner: PublicKey | null,
         ownerAssistant: PublicKey,
-        feeRecipient: PublicKey,
-        auctionConfig: AuctionConfig
+        feeRecipientToken: PublicKey,
+        auctionConfigId: number,
+        nextProposalId: BN
     ) {
-        this.bump = bump;
-        this.custodyTokenBump = custodyTokenBump;
         this.owner = owner;
         this.pendingOwner = pendingOwner;
         this.ownerAssistant = ownerAssistant;
-        this.feeRecipient = feeRecipient;
-        this.auctionConfig = auctionConfig;
+        this.feeRecipientToken = feeRecipientToken;
+        this.auctionConfigId = auctionConfigId;
+        this.nextProposalId = nextProposalId;
     }
 
     static address(programId: PublicKey) {
-        return PublicKey.findProgramAddressSync([Buffer.from("custodian")], programId)[0];
+        return PublicKey.findProgramAddressSync([Buffer.from("emitter")], programId)[0];
     }
 }

@@ -210,3 +210,29 @@ export function getRandomBN(numBytes: number, range?: { min: BN; max: BN }) {
         return new BN(result.toArray("le", numBytes), undefined, "le");
     }
 }
+
+export function bigintToU64BN(value: bigint): BN {
+    const buf = Buffer.alloc(8);
+    buf.writeBigUInt64BE(value);
+    return new BN(buf);
+}
+
+export function numberToU64BN(value: number): BN {
+    return bigintToU64BN(BigInt(value));
+}
+
+export async function waitBySlots(connection: Connection, numSlots: number) {
+    const targetSlot = await connection.getSlot().then((slot) => slot + numSlots);
+    return waitUntilSlot(connection, targetSlot);
+}
+
+export async function waitUntilSlot(connection: Connection, targetSlot: number) {
+    return new Promise((resolve, _) => {
+        const sub = connection.onSlotChange((slot) => {
+            if (slot.slot >= targetSlot) {
+                connection.removeSlotChangeListener(sub);
+                resolve(slot.slot);
+            }
+        });
+    });
+}

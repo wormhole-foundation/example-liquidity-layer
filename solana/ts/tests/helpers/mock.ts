@@ -7,6 +7,7 @@ import { LiquidityLayerMessage } from "../../src";
 import { CORE_BRIDGE_PID, GUARDIAN_KEY } from "./consts";
 import { postVaa } from "./utils";
 
+// TODO: return VaaAccount, too
 export async function postLiquidityLayerVaa(
     connection: Connection,
     payer: Keypair,

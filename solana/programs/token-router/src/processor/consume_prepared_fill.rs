@@ -1,7 +1,6 @@
 use crate::{
     error::TokenRouterError,
     state::{Custodian, PreparedFill},
-    CUSTODIAN_BUMP, CUSTODY_TOKEN_BUMP,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -14,7 +13,7 @@ pub struct ConsumePreparedFill<'info> {
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = CUSTODIAN_BUMP,
+        bump = Custodian::BUMP,
     )]
     custodian: AccountInfo<'info>,
 
@@ -49,8 +48,7 @@ pub struct ConsumePreparedFill<'info> {
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = CUSTODY_TOKEN_BUMP,
+        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
     )]
     custody_token: AccountInfo<'info>,
 
@@ -67,7 +65,7 @@ pub fn consume_prepared_fill(ctx: Context<ConsumePreparedFill>) -> Result<()> {
                 to: ctx.accounts.dst_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
-            &[&[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]]],
+            &[Custodian::SIGNER_SEEDS],
         ),
         ctx.accounts.prepared_fill.amount,
     )

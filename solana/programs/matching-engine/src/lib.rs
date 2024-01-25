@@ -1,6 +1,8 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::result_large_err)]
 
+pub mod custody_token;
+
 pub mod error;
 
 mod processor;
@@ -13,12 +15,10 @@ pub mod utils;
 use anchor_lang::prelude::*;
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "mainnet")] {
+    if #[cfg(feature = "testnet")] {
         // Placeholder.
         declare_id!("MatchingEngine11111111111111111111111111111");
-    } else if #[cfg(feature = "testnet")] {
-        // Placeholder.
-        declare_id!("MatchingEngine11111111111111111111111111111");
+        const CUSTODIAN_BUMP: u8 = 254;
     }
 }
 
@@ -30,11 +30,11 @@ pub mod matching_engine {
         processor::complete_fast_fill(ctx)
     }
 
-    pub fn prepare_auction_settlement_cctp(
-        ctx: Context<PrepareAuctionSettlementCctp>,
+    pub fn prepare_order_response_cctp(
+        ctx: Context<PrepareOrderResponseCctp>,
         args: CctpMessageArgs,
     ) -> Result<()> {
-        processor::prepare_auction_settlement_cctp(ctx, args)
+        processor::prepare_order_response_cctp(ctx, args)
     }
 
     pub fn settle_auction_complete(ctx: Context<SettleAuctionComplete>) -> Result<()> {
@@ -45,15 +45,23 @@ pub mod matching_engine {
         processor::settle_auction_none_cctp(ctx)
     }
 
+    pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result<()> {
+        processor::settle_auction_none_local(ctx)
+    }
+
     pub fn settle_auction_active_cctp(ctx: Context<SettleAuctionActiveCctp>) -> Result<()> {
         processor::settle_auction_active_cctp(ctx)
+    }
+
+    pub fn settle_auction_active_local(ctx: Context<SettleAuctionActiveLocal>) -> Result<()> {
+        processor::settle_auction_active_local(ctx)
     }
 
     /// This instruction is be used to generate your program's config.
     /// And for convenience, we will store Wormhole-related PDAs in the
     /// config so we can verify these accounts with a simple == constraint.
-    pub fn initialize(ctx: Context<Initialize>, auction_config: AuctionConfig) -> Result<()> {
-        processor::initialize(ctx, auction_config)
+    pub fn initialize(ctx: Context<Initialize>, auction_params: AuctionParameters) -> Result<()> {
+        processor::initialize(ctx, auction_params)
     }
 
     pub fn add_router_endpoint(
@@ -89,6 +97,17 @@ pub mod matching_engine {
         processor::cancel_ownership_transfer_request(ctx)
     }
 
+    pub fn propose_auction_parameters(
+        ctx: Context<ProposeAuctionParameters>,
+        params: AuctionParameters,
+    ) -> Result<()> {
+        processor::propose_auction_parameters(ctx, params)
+    }
+
+    pub fn update_auction_parameters(ctx: Context<UpdateAuctionParameters>) -> Result<()> {
+        processor::update_auction_parameters(ctx)
+    }
+
     pub fn update_owner_assistant(ctx: Context<UpdateOwnerAssistant>) -> Result<()> {
         processor::update_owner_assistant(ctx)
     }
@@ -109,7 +128,11 @@ pub mod matching_engine {
         processor::execute_fast_order_cctp(ctx)
     }
 
-    pub fn execute_fast_order_solana(ctx: Context<ExecuteFastOrderSolana>) -> Result<()> {
-        processor::execute_fast_order_solana(ctx)
+    pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<()> {
+        processor::execute_fast_order_local(ctx)
+    }
+
+    pub fn close_proposal(ctx: Context<CloseProposal>) -> Result<()> {
+        processor::close_proposal(ctx)
     }
 }

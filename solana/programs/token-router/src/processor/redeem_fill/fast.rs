@@ -1,6 +1,6 @@
 use crate::{
+    error::TokenRouterError,
     state::{Custodian, FillType, PreparedFill},
-    CUSTODIAN_BUMP, CUSTODY_TOKEN_BUMP,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -18,7 +18,7 @@ pub struct RedeemFastFill<'info> {
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = CUSTODIAN_BUMP,
+        bump = Custodian::BUMP,
     )]
     custodian: AccountInfo<'info>,
 
@@ -46,8 +46,7 @@ pub struct RedeemFastFill<'info> {
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = CUSTODY_TOKEN_BUMP,
+        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
     )]
     custody_token: AccountInfo<'info>,
 
@@ -83,8 +82,6 @@ pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
 }
 
 fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
-    let custodian_seeds = &[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]];
-
     matching_engine::cpi::complete_fast_fill(CpiContext::new_with_signer(
         ctx.accounts.matching_engine_program.to_account_info(),
         matching_engine::cpi::accounts::CompleteFastFill {
@@ -105,7 +102,7 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
             token_program: ctx.accounts.token_program.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
         },
-        &[custodian_seeds],
+        &[Custodian::SIGNER_SEEDS],
     ))?;
 
     let vaa =

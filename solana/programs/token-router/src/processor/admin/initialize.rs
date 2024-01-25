@@ -34,10 +34,9 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = owner,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump,
-        token::mint = mint,
-        token::authority = custodian
+        associated_token::mint = mint,
+        associated_token::authority = custodian,
+        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
     )]
     custody_token: Account<'info, token::TokenAccount>,
 
@@ -59,6 +58,7 @@ pub struct Initialize<'info> {
 
     system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,
+    associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
 }
 
 pub fn initialize(ctx: Context<Initialize>) -> Result<()> {

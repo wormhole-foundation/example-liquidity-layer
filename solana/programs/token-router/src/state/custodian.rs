@@ -20,6 +20,8 @@ pub struct Custodian {
 
 impl Custodian {
     pub const SEED_PREFIX: &'static [u8] = b"emitter";
+    pub const BUMP: u8 = crate::CUSTODIAN_BUMP;
+    pub const SIGNER_SEEDS: &'static [&'static [u8]] = &[Self::SEED_PREFIX, &[Self::BUMP]];
 }
 
 impl common::admin::Ownable for Custodian {
@@ -49,5 +51,24 @@ impl common::admin::OwnerAssistant for Custodian {
 
     fn owner_assistant_mut(&mut self) -> &mut Pubkey {
         &mut self.owner_assistant
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use solana_program::pubkey::Pubkey;
+
+    use super::*;
+
+    #[test]
+    fn test_bump() {
+        let (custodian, bump) =
+            Pubkey::find_program_address(&[Custodian::SEED_PREFIX], &crate::id());
+        assert_eq!(Custodian::BUMP, bump, "bump mismatch");
+        assert_eq!(
+            custodian,
+            Pubkey::create_program_address(Custodian::SIGNER_SEEDS, &crate::id()).unwrap(),
+            "custodian mismatch",
+        );
     }
 }

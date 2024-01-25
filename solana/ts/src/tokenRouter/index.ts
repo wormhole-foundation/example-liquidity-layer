@@ -1,6 +1,5 @@
 export * from "./state";
 
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { BN, Program } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
@@ -25,17 +24,10 @@ export const PROGRAM_IDS = ["TokenRouter11111111111111111111111111111111"] as co
 
 export type ProgramId = (typeof PROGRAM_IDS)[number];
 
-export type PlaceMarketOrderCctpArgs = {
-    amountIn: bigint;
-    targetChain: wormholeSdk.ChainId;
-    redeemer: Array<number>;
-    redeemerMessage: Buffer;
-};
-
 export type PrepareMarketOrderArgs = {
     amountIn: bigint;
     minAmountOut: bigint | null;
-    targetChain: wormholeSdk.ChainId;
+    targetChain: number;
     redeemer: Array<number>;
     redeemerMessage: Buffer;
 };
@@ -61,9 +53,9 @@ export type TokenRouterCommonAccounts = PublishMessageAccounts & {
     messageTransmitterConfig: PublicKey;
     messageTransmitterProgram: PublicKey;
     tokenProgram: PublicKey;
-    mint?: PublicKey;
-    localToken?: PublicKey;
-    tokenMessengerMinterCustodyToken?: PublicKey;
+    mint: PublicKey;
+    localToken: PublicKey;
+    tokenMessengerMinterCustodyToken: PublicKey;
 };
 
 export type PlaceMarketOrderCctpAccounts = PublishMessageAccounts & {
@@ -115,37 +107,22 @@ export type RedeemFastFillAccounts = {
 };
 
 export type AddCctpRouterEndpointArgs = {
-    chain: wormholeSdk.ChainId;
+    chain: number;
     cctpDomain: number;
     address: Array<number>;
     mintRecipient: Array<number> | null;
 };
 
-export type RegisterContractArgs = {
-    chain: wormholeSdk.ChainId;
-    address: Array<number>;
-};
-
-export type RegisterAssetArgs = {
-    chain: wormholeSdk.ChainId;
-    relayerFee: BN;
-    nativeSwapRate: BN;
-    maxNativeSwapAmount: BN;
-};
-
-export type UpdateRelayerFeeArgs = {
-    chain: wormholeSdk.ChainId;
-    relayerFee: BN;
-};
-
 export class TokenRouterProgram {
     private _programId: ProgramId;
+    private _mint: PublicKey;
 
     program: Program<TokenRouter>;
 
     // TODO: fix this
-    constructor(connection: Connection, programId?: ProgramId) {
-        this._programId = programId ?? testnet();
+    constructor(connection: Connection, programId: ProgramId, mint: PublicKey) {
+        this._programId = programId;
+        this._mint = mint;
         this.program = new Program(IDL, new PublicKey(this._programId), {
             connection,
         });
@@ -155,16 +132,21 @@ export class TokenRouterProgram {
         return this.program.programId;
     }
 
+    get mint(): PublicKey {
+        return this._mint;
+    }
+
     custodianAddress(): PublicKey {
         return Custodian.address(this.ID);
     }
 
-    async fetchCustodian(addr: PublicKey): Promise<Custodian> {
+    async fetchCustodian(input?: { address: PublicKey }): Promise<Custodian> {
+        const addr = input === undefined ? this.custodianAddress() : input.address;
         return this.program.account.custodian.fetch(addr);
     }
 
     custodyTokenAccountAddress(): PublicKey {
-        return PublicKey.findProgramAddressSync([Buffer.from("custody")], this.ID)[0];
+        return splToken.getAssociatedTokenAddressSync(this.mint, this.custodianAddress(), true);
     }
 
     coreMessageAddress(payer: PublicKey, payerSequenceValue: BN): PublicKey {
@@ -188,7 +170,7 @@ export class TokenRouterProgram {
             .catch((_) => new BN(0));
     }
 
-    routerEndpointAddress(chain: wormholeSdk.ChainId): PublicKey {
+    routerEndpointAddress(chain: number): PublicKey {
         return RouterEndpoint.address(this.ID, chain);
     }
 
@@ -217,7 +199,7 @@ export class TokenRouterProgram {
         const messageTransmitterProgram = this.messageTransmitterProgram();
 
         const custodyToken = this.custodyTokenAccountAddress();
-        const { mint } = await splToken.getAccount(this.program.provider.connection, custodyToken);
+        const mint = this.mint;
 
         return {
             tokenRouterProgram: this.ID,
@@ -264,6 +246,7 @@ export class TokenRouterProgram {
             })
             .accounts({
                 payer,
+                custodian: this.custodianAddress(),
                 orderSender,
                 preparedOrder,
                 orderToken,
@@ -348,7 +331,7 @@ export class TokenRouterProgram {
     }
 
     async placeMarketOrderCctpAccounts(
-        targetChain: wormholeSdk.ChainId,
+        targetChain: number,
         overrides: {
             remoteDomain?: number;
         } = {}
@@ -370,7 +353,7 @@ export class TokenRouterProgram {
         })();
 
         const custodyToken = this.custodyTokenAccountAddress();
-        const { mint } = await splToken.getAccount(this.program.provider.connection, custodyToken);
+        const mint = this.mint;
 
         const {
             senderAuthority: tokenMessengerMinterSenderAuthority,
@@ -427,9 +410,7 @@ export class TokenRouterProgram {
             routerEndpoint: inputRouterEndpoint,
         } = accounts;
         const { orderSender, targetChain } = await (async () => {
-            if (inputOrderSender !== undefined && args !== undefined) {
-                return { orderSender: inputOrderSender, targetChain: args.targetChain };
-            } else {
+            if (inputOrderSender === undefined || args === undefined) {
                 const {
                     info: { orderSender, targetChain },
                 } = await this.fetchPreparedOrder(preparedOrder).catch((_) => {
@@ -438,6 +419,8 @@ export class TokenRouterProgram {
                     );
                 });
                 return { orderSender, targetChain };
+            } else {
+                return { orderSender: inputOrderSender, targetChain: args.targetChain };
             }
         })();
 
@@ -463,7 +446,7 @@ export class TokenRouterProgram {
             tokenMessengerMinterProgram,
             messageTransmitterProgram,
             tokenProgram,
-        } = await this.placeMarketOrderCctpAccounts(targetChain as wormholeSdk.ChainId);
+        } = await this.placeMarketOrderCctpAccounts(targetChain);
 
         return this.program.methods
             .placeMarketOrderCctp()
@@ -500,7 +483,6 @@ export class TokenRouterProgram {
     ): Promise<RedeemFillCctpAccounts> {
         const msg = CctpTokenBurnMessage.from(cctpMessage);
         const custodyToken = this.custodyTokenAccountAddress();
-        const { mint } = await splToken.getAccount(this.program.provider.connection, custodyToken);
 
         const vaaAcct = await VaaAccount.fetch(this.program.provider.connection, vaa);
         const { chain } = vaaAcct.emitterInfo();
@@ -519,13 +501,13 @@ export class TokenRouterProgram {
             tokenPair,
             custodyToken: tokenMessengerMinterCustodyToken,
             tokenProgram,
-        } = messageTransmitterProgram.receiveMessageAccounts(mint, msg);
+        } = messageTransmitterProgram.receiveMessageAccounts(this.mint, msg);
 
         return {
             custodian: this.custodianAddress(),
             preparedFill,
             custodyToken,
-            routerEndpoint: this.routerEndpointAddress(chain as wormholeSdk.ChainId), // yikes
+            routerEndpoint: this.routerEndpointAddress(chain),
             messageTransmitterAuthority,
             messageTransmitterConfig,
             usedNonces,
@@ -664,16 +646,16 @@ export class TokenRouterProgram {
     async initializeIx(accounts: {
         owner: PublicKey;
         ownerAssistant: PublicKey;
-        mint: PublicKey;
+        mint?: PublicKey;
     }): Promise<TransactionInstruction> {
-        const { owner, ownerAssistant, mint } = accounts;
+        const { owner, ownerAssistant, mint: inputMint } = accounts;
         return this.program.methods
             .initialize()
             .accounts({
                 owner,
                 custodian: this.custodianAddress(),
                 ownerAssistant,
-                mint,
+                mint: inputMint ?? this.mint,
                 custodyToken: this.custodyTokenAccountAddress(),
                 programData: getProgramData(this.ID),
             })
@@ -783,7 +765,7 @@ export class TokenRouterProgram {
             custodian?: PublicKey;
             routerEndpoint?: PublicKey;
         },
-        chain: wormholeSdk.ChainId
+        chain: number
     ): Promise<TransactionInstruction> {
         const {
             ownerOrAssistant,
@@ -861,13 +843,15 @@ export class TokenRouterProgram {
             case testnet(): {
                 return new matchingEngineSdk.MatchingEngineProgram(
                     this.program.provider.connection,
-                    matchingEngineSdk.testnet()
+                    matchingEngineSdk.testnet(),
+                    this.mint
                 );
             }
             case mainnet(): {
                 return new matchingEngineSdk.MatchingEngineProgram(
                     this.program.provider.connection,
-                    matchingEngineSdk.mainnet()
+                    matchingEngineSdk.mainnet(),
+                    this.mint
                 );
             }
             default: {

@@ -1,77 +1,88 @@
 use crate::{
     error::MatchingEngineError,
-    state::{AuctionData, AuctionStatus, Custodian},
+    state::{Auction, AuctionConfig, Custodian},
+    utils,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
 #[derive(Accounts)]
 pub struct ImproveOffer<'info> {
-    offer_authority: Signer<'info>,
-
-    /// This program's Wormhole (Core Bridge) emitter authority.
+    /// This program's Wormhole (Core Bridge) emitter authority. This is also the burn-source
+    /// authority for CCTP transfers.
     ///
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = Custodian::BUMP,
     )]
-    custodian: Account<'info, Custodian>,
+    custodian: AccountInfo<'info>,
+
+    auction_config: Account<'info, AuctionConfig>,
+
+    offer_authority: Signer<'info>,
 
     #[account(
         mut,
         seeds = [
-            AuctionData::SEED_PREFIX,
-            auction_data.vaa_hash.as_ref(),
+            Auction::SEED_PREFIX,
+            auction.vaa_hash.as_ref(),
         ],
-        bump = auction_data.bump,
-        has_one = best_offer_token @ MatchingEngineError::InvalidTokenAccount,
-        constraint = {
-            auction_data.status == AuctionStatus::Active
-        } @ MatchingEngineError::AuctionNotActive
+        bump = auction.bump,
+        constraint = utils::is_valid_active_auction(
+            &auction_config,
+            &auction,
+            Some(best_offer_token.key()),
+            None,
+        )?
     )]
-    auction_data: Account<'info, AuctionData>,
+    auction: Account<'info, Auction>,
 
     #[account(
         mut,
-        associated_token::mint = custody_token.mint,
+        associated_token::mint = common::constants::usdc::id(),
         associated_token::authority = offer_authority
     )]
     offer_token: Account<'info, token::TokenAccount>,
 
+    /// CHECK: Mutable. Must have the same key in auction data.
     #[account(mut)]
-    best_offer_token: Account<'info, token::TokenAccount>,
+    best_offer_token: AccountInfo<'info>,
 
+    /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = custodian.custody_token_bump,
+        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
-    custody_token: Account<'info, token::TokenAccount>,
+    custody_token: AccountInfo<'info>,
 
     token_program: Program<'info, token::Token>,
 }
 
 pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
-    let auction_data = &mut ctx.accounts.auction_data;
+    let auction = ctx.accounts.auction.info.as_mut().unwrap();
 
-    // Push this to the stack to enhance readability.
-    let auction_duration = ctx.accounts.custodian.auction_config.auction_duration;
-    require!(
-        Clock::get()?.slot.saturating_sub(auction_duration.into()) < auction_data.start_slot,
-        MatchingEngineError::AuctionPeriodExpired
-    );
+    {
+        let Clock { slot, .. } = Clock::get()?;
+        require!(
+            slot <= auction.end_slot,
+            MatchingEngineError::AuctionPeriodExpired
+        );
+    }
 
     // Make sure the new offer is less than the previous offer.
     require!(
-        fee_offer < auction_data.offer_price,
+        fee_offer < auction.offer_price,
         MatchingEngineError::OfferPriceNotImproved
     );
 
     // Transfer funds from the `best_offer` token account to the `offer_token` token account,
     // but only if the pubkeys are different.
+    //
+    // TODO: change authority to custodian. Authority must be delegated to custodian before this
+    // can work.
     let offer_token = ctx.accounts.offer_token.key();
-    if auction_data.best_offer_token != offer_token {
+    if auction.best_offer_token != offer_token {
         token::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -81,14 +92,14 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
                     authority: ctx.accounts.offer_authority.to_account_info(),
                 },
             ),
-            auction_data.amount + auction_data.security_deposit,
+            auction.amount_in + auction.security_deposit,
         )?;
 
         // Update the `best_offer` token account and `amount` fields.
-        auction_data.best_offer_token = offer_token;
+        auction.best_offer_token = offer_token;
     }
 
-    auction_data.offer_price = fee_offer;
+    auction.offer_price = fee_offer;
 
     Ok(())
 }

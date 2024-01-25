@@ -1,6 +1,6 @@
 use crate::{
     error::MatchingEngineError,
-    state::{Custodian, PreparedAuctionSettlement},
+    state::{Custodian, PreparedOrderResponse},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -11,7 +11,7 @@ use wormhole_cctp_solana::{
 };
 
 #[derive(Accounts)]
-pub struct PrepareAuctionSettlementCctp<'info> {
+pub struct PrepareOrderResponseCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
@@ -20,7 +20,7 @@ pub struct PrepareAuctionSettlementCctp<'info> {
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = Custodian::BUMP,
     )]
     custodian: Box<Account<'info, Custodian>>,
 
@@ -36,15 +36,15 @@ pub struct PrepareAuctionSettlementCctp<'info> {
     #[account(
         init,
         payer = payer,
-        space = 8 + PreparedAuctionSettlement::INIT_SPACE,
+        space = 8 + PreparedOrderResponse::INIT_SPACE,
         seeds = [
-            PreparedAuctionSettlement::SEED_PREFIX,
+            PreparedOrderResponse::SEED_PREFIX,
             payer.key().as_ref(),
             core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
         ],
         bump,
     )]
-    prepared_auction_settlement: Account<'info, PreparedAuctionSettlement>,
+    prepared_order_response: Account<'info, PreparedOrderResponse>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -55,8 +55,7 @@ pub struct PrepareAuctionSettlementCctp<'info> {
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = custodian.custody_token_bump,
+        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
     custody_token: AccountInfo<'info>,
 
@@ -109,8 +108,8 @@ pub struct CctpMessageArgs {
     pub cctp_attestation: Vec<u8>,
 }
 
-pub fn prepare_auction_settlement_cctp(
-    ctx: Context<PrepareAuctionSettlementCctp>,
+pub fn prepare_order_response_cctp(
+    ctx: Context<PrepareOrderResponseCctp>,
     args: CctpMessageArgs,
 ) -> Result<()> {
     let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa).unwrap();
@@ -148,7 +147,7 @@ pub fn prepare_auction_settlement_cctp(
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
             },
-            &[&[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]]],
+            &[Custodian::SIGNER_SEEDS],
         ),
         wormhole_cctp_solana::cpi::ReceiveMessageArgs {
             encoded_message: args.encoded_cctp_message,
@@ -206,9 +205,9 @@ pub fn prepare_auction_settlement_cctp(
     // * settle_auction_complete
     // * execute_slow_order_no_auction
     ctx.accounts
-        .prepared_auction_settlement
-        .set_inner(PreparedAuctionSettlement {
-            bump: ctx.bumps["prepared_auction_settlement"],
+        .prepared_order_response
+        .set_inner(PreparedOrderResponse {
+            bump: ctx.bumps["prepared_order_response"],
             fast_vaa_hash: fast_vaa.try_digest().unwrap().0,
             prepared_by: ctx.accounts.payer.key(),
             source_chain,

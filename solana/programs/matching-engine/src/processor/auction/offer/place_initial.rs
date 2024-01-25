@@ -6,7 +6,7 @@ use wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 
 use crate::{
     error::MatchingEngineError,
-    state::{AuctionData, AuctionStatus, Custodian, RouterEndpoint},
+    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian, RouterEndpoint},
 };
 
 #[derive(Accounts)]
@@ -22,27 +22,39 @@ pub struct PlaceInitialOffer<'info> {
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = Custodian::BUMP,
     )]
     custodian: Account<'info, Custodian>,
 
+    #[account(
+        constraint = {
+            require_eq!(
+                auction_config.id,
+                custodian.auction_config_id,
+                MatchingEngineError::AuctionConfigMismatch,
+            );
+            true
+        }
+    )]
+    auction_config: Account<'info, AuctionConfig>,
+
     /// CHECK: Must be owned by the Wormhole Core Bridge program.
     #[account(owner = core_bridge_program::id())]
-    vaa: AccountInfo<'info>,
+    fast_vaa: AccountInfo<'info>,
 
     /// This account should only be created once, and should never be changed to
     /// init_if_needed. Otherwise someone can game an existing auction.
     #[account(
         init,
         payer = payer,
-        space = 8 + AuctionData::INIT_SPACE,
+        space = 8 + Auction::INIT_SPACE,
         seeds = [
-            AuctionData::SEED_PREFIX,
-            VaaAccount::load(&vaa)?.try_digest()?.as_ref(),
+            Auction::SEED_PREFIX,
+            VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref(),
         ],
         bump
     )]
-    auction_data: Account<'info, AuctionData>,
+    auction: Box<Account<'info, Auction>>,
 
     #[account(
         seeds = [
@@ -71,8 +83,7 @@ pub struct PlaceInitialOffer<'info> {
 
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = custodian.custody_token_bump,
+        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
     custody_token: Account<'info, token::TokenAccount>,
 
@@ -82,8 +93,8 @@ pub struct PlaceInitialOffer<'info> {
 
 pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> Result<()> {
     // Create zero copy reference to `FastMarketOrder` payload.
-    let vaa = VaaAccount::load(&ctx.accounts.vaa)?;
-    let msg = LiquidityLayerPayload::try_from(vaa.try_payload()?)
+    let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa)?;
+    let msg = LiquidityLayerPayload::try_from(fast_vaa.try_payload()?)
         .map_err(|_| MatchingEngineError::InvalidVaa)?
         .message();
     let fast_order = msg
@@ -91,12 +102,16 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
         .ok_or(MatchingEngineError::NotFastMarketOrder)?;
 
     // We need to fetch clock values for a couple of operations in this instruction.
-    let clock = Clock::get()?;
+    let Clock {
+        slot,
+        unix_timestamp,
+        ..
+    } = Clock::get()?;
 
     // Check to see if the deadline has expired.
     let deadline = i64::from(fast_order.deadline());
     require!(
-        deadline == 0 || clock.unix_timestamp < deadline,
+        deadline == 0 || unix_timestamp < deadline,
         MatchingEngineError::FastMarketOrderExpired,
     );
 
@@ -105,16 +120,19 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
 
     // Verify that the to and from router endpoints are valid.
     crate::utils::verify_router_path(
-        &vaa,
+        &fast_vaa,
         &ctx.accounts.from_router_endpoint,
         &ctx.accounts.to_router_endpoint,
         fast_order.target_chain(),
     )?;
 
     // Parse the transfer amount from the VAA.
-    let amount = fast_order.amount_in();
+    let amount_in = fast_order.amount_in();
 
     // Transfer tokens from the offer authority's token account to the custodian.
+    //
+    // TODO: change authority to custodian. Authority must be delegated to custodian before this
+    // can work.
     token::transfer(
         CpiContext::new(
             ctx.accounts.token_program.to_account_info(),
@@ -124,21 +142,26 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
                 authority: ctx.accounts.payer.to_account_info(),
             },
         ),
-        amount + max_fee,
+        amount_in + max_fee,
     )?;
 
-    // Set up the AuctionData account for this auction.
+    // Set up the Auction account for this auction.
     let initial_offer_token = ctx.accounts.offer_token.key();
-    ctx.accounts.auction_data.set_inner(AuctionData {
-        bump: ctx.bumps["auction_data"],
-        vaa_hash: vaa.try_digest().unwrap().0,
+    ctx.accounts.auction.set_inner(Auction {
+        bump: ctx.bumps["auction"],
+        vaa_hash: fast_vaa.try_digest().unwrap().0,
         status: AuctionStatus::Active,
-        best_offer_token: initial_offer_token,
-        initial_offer_token,
-        start_slot: clock.slot,
-        amount,
-        security_deposit: max_fee,
-        offer_price: fee_offer,
+        info: Some(AuctionInfo {
+            config_id: ctx.accounts.auction_config.id,
+            best_offer_token: initial_offer_token,
+            initial_offer_token,
+            start_slot: slot,
+            end_slot: slot + u64::from(ctx.accounts.auction_config.duration),
+            amount_in,
+            security_deposit: max_fee,
+            offer_price: fee_offer,
+            amount_out: amount_in,
+        }),
     });
 
     Ok(())

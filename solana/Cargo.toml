@@ -39,12 +39,14 @@ ruint = "1.9.0"
 cfg-if = "1.0"
 hex-literal = "0.4.1"
 
-anyhow = "1.0"
-thiserror = "1.0"
-
 ### https://github.com/coral-xyz/anchor/issues/2755
 ### This dependency must be added for each program.
 ahash = "=0.8.6"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
 
 [profile.release.build-override]
 opt-level = 3

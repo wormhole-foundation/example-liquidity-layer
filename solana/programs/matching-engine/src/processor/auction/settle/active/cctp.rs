@@ -1,15 +1,13 @@
-use std::io::Write;
-
 use crate::{
     error::MatchingEngineError,
     state::{
-        AuctionData, AuctionStatus, Custodian, PayerSequence, PreparedAuctionSettlement,
-        RouterEndpoint,
+        Auction, AuctionConfig, Custodian, PayerSequence, PreparedOrderResponse, RouterEndpoint,
     },
+    utils,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{messages::raw::LiquidityLayerMessage, wormhole_io::TypePrefixedPayload};
+use common::wormhole_io::TypePrefixedPayload;
 use wormhole_cctp_solana::{
     cctp::{message_transmitter_program, token_messenger_minter_program},
     wormhole::core_bridge_program::{self, VaaAccount},
@@ -31,16 +29,18 @@ pub struct SettleAuctionActiveCctp<'info> {
         ],
         bump,
     )]
-    payer_sequence: Account<'info, PayerSequence>,
+    payer_sequence: Box<Account<'info, PayerSequence>>,
 
     /// This program's Wormhole (Core Bridge) emitter authority.
     ///
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = Custodian::BUMP,
     )]
-    custodian: Box<Account<'info, Custodian>>,
+    custodian: AccountInfo<'info>,
+
+    auction_config: Box<Account<'info, AuctionConfig>>,
 
     /// CHECK: Must be owned by the Wormhole Core Bridge program. This account will be read via
     /// zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader.
@@ -56,26 +56,30 @@ pub struct SettleAuctionActiveCctp<'info> {
         mut,
         close = prepared_by,
         seeds = [
-            PreparedAuctionSettlement::SEED_PREFIX,
+            PreparedOrderResponse::SEED_PREFIX,
             prepared_by.key().as_ref(),
             core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
         ],
-        bump = prepared_auction_settlement.bump,
+        bump = prepared_order_response.bump,
     )]
-    prepared_auction_settlement: Box<Account<'info, PreparedAuctionSettlement>>,
+    prepared_order_response: Box<Account<'info, PreparedOrderResponse>>,
 
     /// There should be no account data here because an auction was never created.
     #[account(
         mut,
         seeds = [
-            AuctionData::SEED_PREFIX,
-            prepared_auction_settlement.fast_vaa_hash.as_ref(),
+            Auction::SEED_PREFIX,
+            prepared_order_response.fast_vaa_hash.as_ref(),
         ],
-        bump = auction_data.bump,
-        has_one = best_offer_token, // TODO: add error
-        constraint = auction_data.status == AuctionStatus::Active // TODO: add error
+        bump = auction.bump,
+        constraint = utils::is_valid_active_auction(
+            &auction_config,
+            &auction,
+            Some(best_offer_token.key()),
+            None,
+        )?
     )]
-    auction_data: Box<Account<'info, AuctionData>>,
+    auction: Box<Account<'info, Auction>>,
 
     /// CHECK: Must equal the best offer token in the auction data account.
     #[account(mut)]
@@ -98,17 +102,9 @@ pub struct SettleAuctionActiveCctp<'info> {
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = custodian.custody_token_bump,
+        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
     custody_token: AccountInfo<'info>,
-
-    /// Circle-supported mint.
-    ///
-    /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
-    /// Token Messenger Minter program's local token account.
-    #[account(mut)]
-    mint: AccountInfo<'info>,
 
     /// Seeds must be \["endpoint", chain.to_be_bytes()\].
     #[account(
@@ -117,8 +113,18 @@ pub struct SettleAuctionActiveCctp<'info> {
             to_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
+        constraint = {
+            to_router_endpoint.chain != core_bridge_program::SOLANA_CHAIN
+        } @ MatchingEngineError::InvalidChain
     )]
     to_router_endpoint: Box<Account<'info, RouterEndpoint>>,
+
+    /// Circle-supported mint.
+    ///
+    /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
+    /// Token Messenger Minter program's local token account.
+    #[account(mut)]
+    mint: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
     message_transmitter_authority: UncheckedAccount<'info>,
@@ -202,53 +208,24 @@ pub struct SettleAuctionActiveCctp<'info> {
 /// TODO: add docstring
 pub fn settle_auction_active_cctp(ctx: Context<SettleAuctionActiveCctp>) -> Result<()> {
     let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa).unwrap();
-    let order = LiquidityLayerMessage::try_from(fast_vaa.try_payload().unwrap())
-        .unwrap()
-        .to_fast_market_order_unchecked();
 
-    let custodian_seeds = &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]];
-
-    // This means the slow message beat the fast message. We need to refund the bidder and
-    // (potentially) take a penalty for not fulfilling their obligation. The `penalty` CAN be zero
-    // in this case, since the auction grace period might not have ended yet.
-    let (final_status, liquidator_amount, best_offer_amount, cctp_amount) = {
-        let auction = &ctx.accounts.auction_data;
-        let slots_elapsed = Clock::get().map(|clock| clock.slot - auction.start_slot)?;
-        let (penalty, reward) = crate::utils::calculate_dynamic_penalty(
-            &ctx.accounts.custodian.auction_config,
-            auction.security_deposit,
-            slots_elapsed,
-        )
-        .ok_or(MatchingEngineError::PenaltyCalculationFailed)?;
-
-        let base_fee = ctx.accounts.prepared_auction_settlement.base_fee;
-        (
-            AuctionStatus::Settled {
-                base_fee,
-                penalty: Some(penalty),
-            },
-            penalty + base_fee,
-            auction.amount + auction.security_deposit - penalty - reward,
-            auction.amount - base_fee + reward,
-        )
-    };
-
-    // Transfer to the best offer token what he deserves.
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            token::Transfer {
-                from: ctx.accounts.custody_token.to_account_info(),
-                to: ctx.accounts.best_offer_token.to_account_info(),
-                authority: ctx.accounts.custodian.to_account_info(),
-            },
-            &[custodian_seeds],
-        ),
-        best_offer_amount,
+    let super::SettledActive {
+        order,
+        user_amount: amount,
+        fill,
+    } = super::settle_active_and_prepare_fill(
+        super::SettleActiveAndPrepareFill {
+            custodian: &ctx.accounts.custodian,
+            auction_config: &ctx.accounts.auction_config,
+            prepared_order_response: &ctx.accounts.prepared_order_response,
+            liquidator_token: &ctx.accounts.liquidator_token,
+            best_offer_token: &ctx.accounts.best_offer_token,
+            custody_token: &ctx.accounts.custody_token,
+            token_program: &ctx.accounts.token_program,
+        },
+        &fast_vaa,
+        &mut ctx.accounts.auction,
     )?;
-
-    let mut redeemer_message = Vec::with_capacity(order.redeemer_message_len().try_into().unwrap());
-    redeemer_message.write_all(order.redeemer_message().into())?;
 
     // This returns the CCTP nonce, but we do not need it.
     wormhole_cctp_solana::cpi::burn_and_publish(
@@ -282,7 +259,7 @@ pub fn settle_auction_active_cctp(ctx: Context<SettleAuctionActiveCctp>) -> Resu
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
             },
-            &[custodian_seeds],
+            &[Custodian::SIGNER_SEEDS],
         ),
         CpiContext::new_with_signer(
             ctx.accounts.core_bridge_program.to_account_info(),
@@ -298,7 +275,7 @@ pub fn settle_auction_active_cctp(ctx: Context<SettleAuctionActiveCctp>) -> Resu
                 rent: ctx.accounts.rent.to_account_info(),
             },
             &[
-                custodian_seeds,
+                Custodian::SIGNER_SEEDS,
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),
@@ -315,35 +292,12 @@ pub fn settle_auction_active_cctp(ctx: Context<SettleAuctionActiveCctp>) -> Resu
             burn_source: None,
             destination_caller: ctx.accounts.to_router_endpoint.address,
             destination_cctp_domain: order.destination_cctp_domain(),
-            amount: cctp_amount,
-            // TODO: add mint recipient to the router endpoint account to future proof this?
-            mint_recipient: ctx.accounts.to_router_endpoint.address,
+            amount,
+            mint_recipient: ctx.accounts.to_router_endpoint.mint_recipient,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
-            payload: common::messages::Fill {
-                source_chain: ctx.accounts.prepared_auction_settlement.source_chain,
-                order_sender: order.sender(),
-                redeemer: order.redeemer(),
-                redeemer_message: redeemer_message.into(),
-            }
-            .to_vec_payload(),
+            payload: fill.to_vec_payload(),
         },
     )?;
 
-    // Everyone's whole, set the auction as completed.
-    ctx.accounts.auction_data.status = final_status;
-
-    // Transfer the penalty amount to the caller. The caller also earns the base fee for relaying
-    // the slow VAA.
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            token::Transfer {
-                from: ctx.accounts.custody_token.to_account_info(),
-                to: ctx.accounts.liquidator_token.to_account_info(),
-                authority: ctx.accounts.custodian.to_account_info(),
-            },
-            &[custodian_seeds],
-        ),
-        liquidator_amount,
-    )
+    Ok(())
 }

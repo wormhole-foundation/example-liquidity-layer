@@ -19,7 +19,7 @@ pub struct CompleteFastFill<'info> {
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = Custodian::BUMP,
     )]
     custodian: Account<'info, Custodian>,
 
@@ -66,8 +66,7 @@ pub struct CompleteFastFill<'info> {
     /// Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = custodian.custody_token_bump,
+        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
     custody_token: Account<'info, token::TokenAccount>,
 
@@ -119,7 +118,7 @@ pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
                 to: ctx.accounts.token_router_custody_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
-            &[&[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]]],
+            &[Custodian::SIGNER_SEEDS],
         ),
         fast_fill.amount(),
     )

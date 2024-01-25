@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 #[account]
 #[derive(Debug, InitSpace)]
-pub struct PreparedAuctionSettlement {
+pub struct PreparedOrderResponse {
     pub bump: u8,
     pub fast_vaa_hash: [u8; 32],
 
@@ -12,6 +12,6 @@ pub struct PreparedAuctionSettlement {
     pub base_fee: u64,
 }
 
-impl PreparedAuctionSettlement {
-    pub const SEED_PREFIX: &'static [u8] = b"auction-settlement";
+impl PreparedOrderResponse {
+    pub const SEED_PREFIX: &'static [u8] = b"order-response";
 }

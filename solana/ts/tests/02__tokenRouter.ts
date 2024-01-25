@@ -1,6 +1,5 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { getPostedMessage } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
-import { BN } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -22,6 +21,7 @@ import {
     OWNER_ASSISTANT_KEYPAIR,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
+    bigintToU64BN,
     expectIxErr,
     expectIxOk,
     postLiquidityLayerVaa,
@@ -42,7 +42,11 @@ describe("Token Router", function () {
     const foreignEndpointAddress = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
     const foreignCctpDomain = 0;
     const unregisteredContractAddress = Buffer.alloc(32, "deafbeef", "hex");
-    const tokenRouter = new TokenRouterProgram(connection);
+    const tokenRouter = new TokenRouterProgram(
+        connection,
+        "TokenRouter11111111111111111111111111111111",
+        USDC_MINT_ADDRESS
+    );
 
     let lookupTableAddress: PublicKey;
 
@@ -56,14 +60,23 @@ describe("Token Router", function () {
                     ownerAssistant: ownerAssistant.publicKey,
                     mint,
                 });
-                await expectIxErr(connection, [ix], [payer], "Error Code: NotUsdc");
+                const unknownAta = splToken.getAssociatedTokenAddressSync(
+                    mint,
+                    tokenRouter.custodianAddress(),
+                    true
+                );
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer],
+                    `Instruction references an unknown account ${unknownAta.toString()}`
+                );
             });
 
             it("Cannot Initialize with Default Owner Assistant", async function () {
                 const ix = await tokenRouter.initializeIx({
                     owner: payer.publicKey,
                     ownerAssistant: PublicKey.default,
-                    mint: USDC_MINT_ADDRESS,
                 });
 
                 await expectIxErr(connection, [ix], [payer], "Error Code: AssistantZeroPubkey");
@@ -73,14 +86,11 @@ describe("Token Router", function () {
                 const ix = await tokenRouter.initializeIx({
                     owner: payer.publicKey,
                     ownerAssistant: ownerAssistant.publicKey,
-                    mint: USDC_MINT_ADDRESS,
                 });
 
                 await expectIxOk(connection, [ix], [payer]);
 
-                const custodianData = await tokenRouter.fetchCustodian(
-                    tokenRouter.custodianAddress()
-                );
+                const custodianData = await tokenRouter.fetchCustodian();
                 expect(custodianData).to.eql(
                     new Custodian(
                         false, // paused
@@ -102,7 +112,6 @@ describe("Token Router", function () {
                 const ix = await tokenRouter.initializeIx({
                     owner: payer.publicKey,
                     ownerAssistant: ownerAssistant.publicKey,
-                    mint: USDC_MINT_ADDRESS,
                 });
 
                 await expectIxErr(
@@ -179,9 +188,7 @@ describe("Token Router", function () {
                 await expectIxOk(connection, [ix], [payer]);
 
                 // Confirm that the pending owner variable is set in the owner config.
-                const { pendingOwner } = await tokenRouter.fetchCustodian(
-                    tokenRouter.custodianAddress()
-                );
+                const { pendingOwner } = await tokenRouter.fetchCustodian();
 
                 expect(pendingOwner).deep.equals(owner.publicKey);
             });
@@ -202,9 +209,7 @@ describe("Token Router", function () {
                 await expectIxOk(connection, [ix], [payer]);
 
                 // Confirm the pending owner field was reset.
-                const { pendingOwner } = await tokenRouter.fetchCustodian(
-                    tokenRouter.custodianAddress()
-                );
+                const { pendingOwner } = await tokenRouter.fetchCustodian();
                 expect(pendingOwner).deep.equals(null);
             });
 
@@ -217,9 +222,7 @@ describe("Token Router", function () {
                 await expectIxOk(connection, [ix], [payer]);
 
                 // Confirm that the pending owner variable is set in the owner config.
-                const { pendingOwner } = await tokenRouter.fetchCustodian(
-                    tokenRouter.custodianAddress()
-                );
+                const { pendingOwner } = await tokenRouter.fetchCustodian();
 
                 expect(pendingOwner).deep.equals(owner.publicKey);
             });
@@ -246,9 +249,7 @@ describe("Token Router", function () {
 
                 // Confirm that the owner config reflects the current ownership status.
                 {
-                    const { owner: actualOwner, pendingOwner } = await tokenRouter.fetchCustodian(
-                        tokenRouter.custodianAddress()
-                    );
+                    const { owner: actualOwner, pendingOwner } = await tokenRouter.fetchCustodian();
                     expect(actualOwner).deep.equals(owner.publicKey);
                     expect(pendingOwner).deep.equals(null);
                 }
@@ -310,9 +311,7 @@ describe("Token Router", function () {
                 await expectIxOk(connection, [ix], [payer, owner]);
 
                 // Confirm the assistant field was updated.
-                const { ownerAssistant: actualOwnerAssistant } = await tokenRouter.fetchCustodian(
-                    tokenRouter.custodianAddress()
-                );
+                const { ownerAssistant: actualOwnerAssistant } = await tokenRouter.fetchCustodian();
                 expect(actualOwnerAssistant).to.eql(relayer.publicKey);
 
                 // Set the assistant back to the assistant key.
@@ -470,9 +469,7 @@ describe("Token Router", function () {
 
                 await expectIxOk(connection, [ix], [ownerAssistant]);
 
-                const { paused: actualPaused, pausedSetBy } = await tokenRouter.fetchCustodian(
-                    tokenRouter.custodianAddress()
-                );
+                const { paused: actualPaused, pausedSetBy } = await tokenRouter.fetchCustodian();
                 expect(actualPaused).equals(paused);
                 expect(pausedSetBy).eql(ownerAssistant.publicKey);
             });
@@ -488,9 +485,7 @@ describe("Token Router", function () {
 
                 await expectIxOk(connection, [ix], [owner]);
 
-                const { paused: actualPaused, pausedSetBy } = await tokenRouter.fetchCustodian(
-                    tokenRouter.custodianAddress()
-                );
+                const { paused: actualPaused, pausedSetBy } = await tokenRouter.fetchCustodian();
                 expect(actualPaused).equals(paused);
                 expect(pausedSetBy).eql(owner.publicKey);
             });
@@ -498,6 +493,13 @@ describe("Token Router", function () {
     });
 
     describe("Business Logic", function () {
+        let testCctpNonce = 2n ** 64n - 1n;
+
+        // Hack to prevent math overflow error when invoking CCTP programs.
+        testCctpNonce -= 20n * 6400n;
+
+        let wormholeSequence = 2000n;
+
         describe("Preparing Order", function () {
             const payerToken = splToken.getAssociatedTokenAddressSync(
                 USDC_MINT_ADDRESS,
@@ -511,6 +513,10 @@ describe("Token Router", function () {
             });
 
             it.skip("Cannot Prepare Market Order with Invalid Redeemer", async function () {
+                // TODO
+            });
+
+            it.skip("Cannot Prepare Market Order without Delegating Authority to Custodian", async function () {
                 // TODO
             });
 
@@ -542,7 +548,7 @@ describe("Token Router", function () {
 
                 const approveIx = splToken.createApproveInstruction(
                     payerToken,
-                    orderSender.publicKey,
+                    tokenRouter.custodianAddress(),
                     payer.publicKey,
                     amountIn
                 );
@@ -564,20 +570,12 @@ describe("Token Router", function () {
                             preparedBy: payer.publicKey,
                             orderType: {
                                 market: {
-                                    minAmountOut: (() => {
-                                        const buf = Buffer.alloc(8);
-                                        buf.writeBigUInt64BE(minAmountOut);
-                                        return new BN(buf);
-                                    })(),
+                                    minAmountOut: bigintToU64BN(minAmountOut),
                                 },
                             },
                             orderToken: payerToken,
                             refundToken: payerToken,
-                            amountIn: (() => {
-                                const buf = Buffer.alloc(8);
-                                buf.writeBigUInt64BE(amountIn);
-                                return new BN(buf);
-                            })(),
+                            amountIn: bigintToU64BN(amountIn),
                             targetChain,
                             redeemer,
                         },
@@ -610,7 +608,7 @@ describe("Token Router", function () {
 
                 const approveIx = splToken.createApproveInstruction(
                     payerToken,
-                    orderSender.publicKey,
+                    tokenRouter.custodianAddress(),
                     payer.publicKey,
                     amountIn
                 );
@@ -968,7 +966,7 @@ describe("Token Router", function () {
 
                 const approveIx = splToken.createApproveInstruction(
                     payerToken,
-                    orderSender.publicKey,
+                    tokenRouter.custodianAddress(),
                     payer.publicKey,
                     amountIn
                 );
@@ -1048,13 +1046,6 @@ describe("Token Router", function () {
             const amount = 69n;
             const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
             const redeemer = Keypair.generate();
-
-            let testCctpNonce = 2n ** 64n - 1n;
-
-            // Hack to prevent math overflow error when invoking CCTP programs.
-            testCctpNonce -= 20n * 6400n;
-
-            let wormholeSequence = 2000n;
 
             const localVariables = new Map<string, any>();
 
@@ -1481,13 +1472,6 @@ describe("Token Router", function () {
 
         describe("Consume Prepared Fill", function () {
             const redeemer = Keypair.generate();
-
-            let testCctpNonce = 2n ** 64n - 1n;
-
-            // Hack to prevent math overflow error when invoking CCTP programs.
-            testCctpNonce -= 21n * 6400n;
-
-            let wormholeSequence = 2100n;
 
             const localVariables = new Map<string, any>();
 

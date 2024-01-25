@@ -1,4 +1,4 @@
-use crate::{error::TokenRouterError, state::Custodian, CUSTODIAN_BUMP};
+use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
 use common::admin::utils::pending_owner;
 use solana_program::bpf_loader_upgradeable;
@@ -12,7 +12,7 @@ pub struct ConfirmOwnershipTransferRequest<'info> {
     #[account(
         mut,
         seeds = [Custodian::SEED_PREFIX],
-        bump = CUSTODIAN_BUMP,
+        bump = Custodian::BUMP,
         constraint = {
             custodian.pending_owner.is_some()
         } @ TokenRouterError::NoTransferOwnershipRequest,
@@ -56,7 +56,7 @@ pub fn confirm_ownership_transfer_request(
                     current_authority: ctx.accounts.custodian.to_account_info(),
                     new_authority: ctx.accounts.pending_owner.to_account_info(),
                 },
-                &[&[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]]],
+                &[Custodian::SIGNER_SEEDS],
             ),
             crate::ID,
         )?;

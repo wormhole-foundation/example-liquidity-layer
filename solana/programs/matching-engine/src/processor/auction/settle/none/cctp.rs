@@ -1,11 +1,10 @@
-use std::io::Write;
-
-use crate::state::{
-    AuctionData, AuctionStatus, Custodian, PayerSequence, PreparedAuctionSettlement, RouterEndpoint,
+use crate::{
+    error::MatchingEngineError,
+    state::{Auction, Custodian, PayerSequence, PreparedOrderResponse, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{messages::raw::LiquidityLayerMessage, wormhole_io::TypePrefixedPayload};
+use common::wormhole_io::TypePrefixedPayload;
 use wormhole_cctp_solana::{
     cctp::{message_transmitter_program, token_messenger_minter_program},
     wormhole::core_bridge_program::{self, VaaAccount},
@@ -34,8 +33,8 @@ pub struct SettleAuctionNoneCctp<'info> {
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
-        has_one = fee_recipient, // TODO: add error
+        bump = Custodian::BUMP,
+        has_one = fee_recipient_token @ MatchingEngineError::FeeRecipientTokenMismatch,
     )]
     custodian: Box<Account<'info, Custodian>>,
 
@@ -53,26 +52,26 @@ pub struct SettleAuctionNoneCctp<'info> {
         mut,
         close = prepared_by,
         seeds = [
-            PreparedAuctionSettlement::SEED_PREFIX,
+            PreparedOrderResponse::SEED_PREFIX,
             prepared_by.key().as_ref(),
             core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
         ],
-        bump = prepared_auction_settlement.bump,
+        bump = prepared_order_response.bump,
     )]
-    prepared_auction_settlement: Account<'info, PreparedAuctionSettlement>,
+    prepared_order_response: Account<'info, PreparedOrderResponse>,
 
     /// There should be no account data here because an auction was never created.
     #[account(
         init,
         payer = payer,
-        space = 8 + AuctionData::INIT_SPACE,
+        space = 8 + Auction::INIT_SPACE_NO_AUCTION,
         seeds = [
-            AuctionData::SEED_PREFIX,
-            prepared_auction_settlement.fast_vaa_hash.as_ref(),
+            Auction::SEED_PREFIX,
+            prepared_order_response.fast_vaa_hash.as_ref(),
         ],
         bump
     )]
-    auction_data: Box<Account<'info, AuctionData>>,
+    auction: Box<Account<'info, Auction>>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -83,8 +82,7 @@ pub struct SettleAuctionNoneCctp<'info> {
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = custodian.custody_token_bump,
+        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
     custody_token: AccountInfo<'info>,
 
@@ -94,17 +92,7 @@ pub struct SettleAuctionNoneCctp<'info> {
     ///
     /// CHECK: This token account must already exist.
     #[account(mut)]
-    fee_recipient: AccountInfo<'info>,
-
-    /// Circle-supported mint.
-    ///
-    /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
-    /// Token Messenger Minter program's local token account.
-    #[account(
-        mut,
-        address = common::constants::usdc::id(),
-    )]
-    mint: AccountInfo<'info>,
+    fee_recipient_token: AccountInfo<'info>,
 
     /// Seeds must be \["endpoint", chain.to_be_bytes()\].
     #[account(
@@ -113,6 +101,9 @@ pub struct SettleAuctionNoneCctp<'info> {
             from_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = from_router_endpoint.bump,
+        constraint = {
+            to_router_endpoint.chain != core_bridge_program::SOLANA_CHAIN
+        } @ MatchingEngineError::InvalidChain
     )]
     from_router_endpoint: Box<Account<'info, RouterEndpoint>>,
 
@@ -123,8 +114,21 @@ pub struct SettleAuctionNoneCctp<'info> {
             to_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
+        constraint = {
+            to_router_endpoint.chain != core_bridge_program::SOLANA_CHAIN
+        } @ MatchingEngineError::InvalidChain
     )]
     to_router_endpoint: Box<Account<'info, RouterEndpoint>>,
+
+    /// Circle-supported mint.
+    ///
+    /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
+    /// Token Messenger Minter program's local token account.
+    #[account(
+        mut,
+        address = common::constants::usdc::id(),
+    )]
+    mint: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["Bridge"\] (Wormhole Core Bridge program).
     #[account(mut)]
@@ -192,25 +196,25 @@ pub struct SettleAuctionNoneCctp<'info> {
 /// TODO: add docstring
 pub fn settle_auction_none_cctp(ctx: Context<SettleAuctionNoneCctp>) -> Result<()> {
     let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa).unwrap();
-    let order = LiquidityLayerMessage::try_from(fast_vaa.try_payload().unwrap())
-        .unwrap()
-        .to_fast_market_order_unchecked();
 
-    // NOTE: We need to verify the router path, since an auction was never created and this check is
-    // done in the `place_initial_offer` instruction.
-    crate::utils::verify_router_path(
+    let super::SettledNone {
+        order,
+        user_amount: amount,
+        fill,
+    } = super::settle_none_and_prepare_fill(
+        super::SettleNoneAndPrepareFill {
+            custodian: &ctx.accounts.custodian,
+            prepared_order_response: &ctx.accounts.prepared_order_response,
+            from_router_endpoint: &ctx.accounts.from_router_endpoint,
+            to_router_endpoint: &ctx.accounts.to_router_endpoint,
+            fee_recipient_token: &ctx.accounts.fee_recipient_token,
+            custody_token: &ctx.accounts.custody_token,
+            token_program: &ctx.accounts.token_program,
+        },
         &fast_vaa,
-        &ctx.accounts.from_router_endpoint,
-        &ctx.accounts.to_router_endpoint,
-        order.target_chain(),
+        &mut ctx.accounts.auction,
+        ctx.bumps["auction"],
     )?;
-
-    let custodian_seeds = &[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]];
-
-    let base_fee = ctx.accounts.prepared_auction_settlement.base_fee;
-    let amount = order.amount_in() - base_fee;
-    let mut redeemer_message = Vec::with_capacity(order.redeemer_message_len().try_into().unwrap());
-    redeemer_message.write_all(order.redeemer_message().into())?;
 
     // This returns the CCTP nonce, but we do not need it.
     wormhole_cctp_solana::cpi::burn_and_publish(
@@ -244,7 +248,7 @@ pub fn settle_auction_none_cctp(ctx: Context<SettleAuctionNoneCctp>) -> Result<(
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
             },
-            &[custodian_seeds],
+            &[Custodian::SIGNER_SEEDS],
         ),
         CpiContext::new_with_signer(
             ctx.accounts.core_bridge_program.to_account_info(),
@@ -260,7 +264,7 @@ pub fn settle_auction_none_cctp(ctx: Context<SettleAuctionNoneCctp>) -> Result<(
                 rent: ctx.accounts.rent.to_account_info(),
             },
             &[
-                custodian_seeds,
+                Custodian::SIGNER_SEEDS,
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),
@@ -281,41 +285,10 @@ pub fn settle_auction_none_cctp(ctx: Context<SettleAuctionNoneCctp>) -> Result<(
             // TODO: add mint recipient to the router endpoint account to future proof this?
             mint_recipient: ctx.accounts.to_router_endpoint.address,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
-            payload: common::messages::Fill {
-                source_chain: ctx.accounts.prepared_auction_settlement.source_chain,
-                order_sender: order.sender(),
-                redeemer: order.redeemer(),
-                redeemer_message: redeemer_message.into(),
-            }
-            .to_vec_payload(),
+            payload: fill.to_vec_payload(),
         },
     )?;
 
-    // This is a necessary security check. This will prevent a relayer from starting an auction with
-    // the fast transfer VAA, even though the slow relayer already delivered the slow VAA. Not
-    // setting this could lead to trapped funds (which would require an upgrade to fix).
-    //
-    // NOTE: We do not bother setting the other fields in this account. The existence of this
-    // accounts ensures the security defined in the previous paragraph.
-    ctx.accounts.auction_data.status = AuctionStatus::Settled {
-        base_fee,
-        penalty: None,
-    };
-
-    // Pay the `fee_recipient` the base fee. This ensures that the protocol relayer is paid for
-    // relaying slow VAAs that do not have an associated auction. This prevents the protocol relayer
-    // from any MEV attacks.
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            token::Transfer {
-                from: ctx.accounts.custody_token.to_account_info(),
-                to: ctx.accounts.fee_recipient.to_account_info(),
-                authority: ctx.accounts.custodian.to_account_info(),
-            },
-            &[custodian_seeds],
-        ),
-        // TODO: encoding will change from u128 to u64
-        ctx.accounts.prepared_auction_settlement.base_fee,
-    )
+    // Done.
+    Ok(())
 }

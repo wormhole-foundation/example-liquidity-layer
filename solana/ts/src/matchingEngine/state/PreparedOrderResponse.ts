@@ -1,7 +1,8 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import { VaaHash } from "..";
 
-export class PreparedAuctionSettlement {
+export class PreparedOrderResponse {
     bump: number;
     preparedBy: PublicKey;
     fastVaaHash: Array<number>;
@@ -22,13 +23,9 @@ export class PreparedAuctionSettlement {
         this.baseFee = baseFee;
     }
 
-    static address(
-        programId: PublicKey,
-        payer: PublicKey,
-        fastVaaHash: Array<number> | Buffer | Uint8Array
-    ) {
+    static address(programId: PublicKey, preparedBy: PublicKey, fastVaaHash: VaaHash) {
         return PublicKey.findProgramAddressSync(
-            [Buffer.from("auction-settlement"), payer.toBuffer(), Buffer.from(fastVaaHash)],
+            [Buffer.from("order-response"), preparedBy.toBuffer(), Buffer.from(fastVaaHash)],
             programId
         )[0];
     }

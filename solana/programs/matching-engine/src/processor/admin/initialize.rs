@@ -1,11 +1,13 @@
-use crate::{error::MatchingEngineError, state::Custodian};
+use crate::{
+    error::MatchingEngineError,
+    state::{AuctionConfig, Custodian},
+};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::constants::FEE_PRECISION_MAX;
 use solana_program::bpf_loader_upgradeable;
 
 // Because this is used as the args for initialize, we'll make it public here.
-pub use crate::state::AuctionConfig;
+pub use crate::state::AuctionParameters;
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -24,7 +26,20 @@ pub struct Initialize<'info> {
     /// instructions.
     custodian: Account<'info, Custodian>,
 
+    #[account(
+        init,
+        payer = owner,
+        space = 8 + AuctionConfig::INIT_SPACE,
+        seeds = [
+            AuctionConfig::SEED_PREFIX,
+            u32::default().to_be_bytes().as_ref()
+        ],
+        bump,
+    )]
+    auction_config: Account<'info, AuctionConfig>,
+
     /// CHECK: This account must not be the zero pubkey.
+    /// TODO: do we prevent the owner from being the owner assistant?
     #[account(
         owner = Pubkey::default(),
         constraint = {
@@ -43,12 +58,17 @@ pub struct Initialize<'info> {
     fee_recipient: AccountInfo<'info>,
 
     #[account(
+        associated_token::mint = mint,
+        associated_token::authority = fee_recipient,
+    )]
+    fee_recipient_token: Account<'info, token::TokenAccount>,
+
+    #[account(
         init,
         payer = owner,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump,
-        token::mint = mint,
-        token::authority = custodian
+        associated_token::mint = mint,
+        associated_token::authority = custodian,
+        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
     custody_token: Account<'info, token::TokenAccount>,
 
@@ -70,26 +90,32 @@ pub struct Initialize<'info> {
 
     system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,
+    associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
 }
 
-#[access_control(check_constraints(&ctx, &auction_config))]
-pub fn initialize(ctx: Context<Initialize>, auction_config: AuctionConfig) -> Result<()> {
+#[access_control(check_constraints(&ctx, &auction_params))]
+pub fn initialize(ctx: Context<Initialize>, auction_params: AuctionParameters) -> Result<()> {
     let owner: Pubkey = ctx.accounts.owner.key();
+    let auction_config_id = 0;
     ctx.accounts.custodian.set_inner(Custodian {
-        bump: ctx.bumps["custodian"],
-        custody_token_bump: ctx.bumps["custody_token"],
         owner,
         pending_owner: None,
         owner_assistant: ctx.accounts.owner_assistant.key(),
-        fee_recipient: ctx.accounts.fee_recipient.key(),
-        auction_config,
+        fee_recipient_token: ctx.accounts.fee_recipient_token.key(),
+        auction_config_id,
+        next_proposal_id: Default::default(),
+    });
+
+    ctx.accounts.auction_config.set_inner(AuctionConfig {
+        id: auction_config_id,
+        parameters: auction_params,
     });
 
     // Done.
     Ok(())
 }
 
-fn check_constraints(ctx: &Context<Initialize>, config: &AuctionConfig) -> Result<()> {
+fn check_constraints(ctx: &Context<Initialize>, params: &AuctionParameters) -> Result<()> {
     // We need to check that the upgrade authority is the owner passed into the account context.
     #[cfg(not(feature = "integration-test"))]
     {
@@ -105,22 +131,7 @@ fn check_constraints(ctx: &Context<Initialize>, config: &AuctionConfig) -> Resul
     // This prevents the unused variables warning popping up when this program is built.
     let _ = ctx;
 
-    require!(
-        config.auction_duration > 0,
-        MatchingEngineError::InvalidAuctionDuration
-    );
-    require!(
-        config.auction_grace_period > config.auction_duration,
-        MatchingEngineError::InvalidAuctionGracePeriod
-    );
-    require!(
-        config.user_penalty_reward_bps <= FEE_PRECISION_MAX,
-        MatchingEngineError::UserPenaltyTooLarge
-    );
-    require!(
-        config.initial_penalty_bps <= FEE_PRECISION_MAX,
-        MatchingEngineError::InitialPenaltyTooLarge
-    );
+    crate::utils::math::require_valid_auction_parameters(params)?;
 
     // Done.
     Ok(())

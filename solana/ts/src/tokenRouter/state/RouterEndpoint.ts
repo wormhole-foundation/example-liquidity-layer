@@ -1,4 +1,3 @@
-import { ChainId } from "@certusone/wormhole-sdk";
 import { PublicKey } from "@solana/web3.js";
 
 export type MessageProtocol = {
@@ -27,7 +26,7 @@ export class RouterEndpoint {
         this.protocol = protocol;
     }
 
-    static address(programId: PublicKey, chain: ChainId) {
+    static address(programId: PublicKey, chain: number) {
         const encodedChain = Buffer.alloc(2);
         encodedChain.writeUInt16BE(chain);
         return PublicKey.findProgramAddressSync(

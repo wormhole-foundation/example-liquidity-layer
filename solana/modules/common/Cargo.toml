@@ -10,10 +10,10 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-testnet = []
-mainnet = []
+testnet = ["wormhole-cctp-solana/testnet"]
 
 [dependencies]
+wormhole-cctp-solana.workspace = true
 wormhole-io.workspace = true
 wormhole-raw-vaas.workspace = true
 

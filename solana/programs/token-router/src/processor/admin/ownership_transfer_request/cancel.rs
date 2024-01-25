@@ -1,4 +1,4 @@
-use crate::{error::TokenRouterError, state::Custodian, CUSTODIAN_BUMP};
+use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
 use solana_program::bpf_loader_upgradeable;
 
@@ -10,7 +10,7 @@ pub struct CancelOwnershipTransferRequest<'info> {
     #[account(
         mut,
         seeds = [Custodian::SEED_PREFIX],
-        bump = CUSTODIAN_BUMP,
+        bump = Custodian::BUMP,
         has_one = owner @ TokenRouterError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
@@ -49,7 +49,7 @@ pub fn cancel_ownership_transfer_request(
                     current_authority: ctx.accounts.custodian.to_account_info(),
                     new_authority: ctx.accounts.owner.to_account_info(),
                 },
-                &[&[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]]],
+                &[Custodian::SIGNER_SEEDS],
             ),
             crate::ID,
         )?;

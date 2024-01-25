@@ -16,7 +16,7 @@ pub struct AddRouterEndpoint<'info> {
 
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = Custodian::BUMP,
         constraint = {
             only_authorized(&custodian, &owner_or_assistant.key())
         } @ MatchingEngineError::OwnerOrAssistantOnly,
@@ -62,11 +62,22 @@ pub fn add_router_endpoint(
 
     require!(address != [0; 32], MatchingEngineError::InvalidEndpoint);
 
+    let mint_recipient = match mint_recipient {
+        Some(mint_recipient) => {
+            require!(
+                mint_recipient != [0; 32],
+                MatchingEngineError::InvalidMintRecipient
+            );
+            mint_recipient
+        }
+        None => address,
+    };
+
     ctx.accounts.router_endpoint.set_inner(RouterEndpoint {
         bump: ctx.bumps["router_endpoint"],
         chain,
         address,
-        mint_recipient: mint_recipient.unwrap_or(address),
+        mint_recipient,
     });
 
     // Done.

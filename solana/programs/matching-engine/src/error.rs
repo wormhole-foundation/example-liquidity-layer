@@ -1,7 +1,15 @@
 #[anchor_lang::prelude::error_code]
 pub enum MatchingEngineError {
-    #[msg("Overflow")]
-    Overflow = 0x2,
+    /// Only the program's owner is permitted.
+    #[msg("OwnerOnly")]
+    OwnerOnly = 0x2,
+
+    // Only the program's owner or assistant is permitted.
+    #[msg("OwnerOrAssistantOnly")]
+    OwnerOrAssistantOnly = 0x4,
+
+    #[msg("InvalidCustodyToken")]
+    InvalidCustodyToken = 0x6,
 
     #[msg("AssistantZeroPubkey")]
     AssistantZeroPubkey = 0x100,
@@ -14,10 +22,6 @@ pub enum MatchingEngineError {
 
     #[msg("NotUsdc")]
     NotUsdc = 0x103,
-
-    /// Only the program's owner is permitted.
-    #[msg("OwnerOnly")]
-    OwnerOnly = 0x200,
 
     #[msg("InvalidNewOwner")]
     InvalidNewOwner = 0x202,
@@ -43,14 +47,14 @@ pub enum MatchingEngineError {
     #[msg("InvalidTokenAccount")]
     InvalidTokenAccount,
 
-    #[msg("OwnerOrAssistantOnly")]
-    OwnerOrAssistantOnly,
-
     #[msg("ChainNotAllowed")]
     ChainNotAllowed,
 
     #[msg("InvalidEndpoint")]
     InvalidEndpoint,
+
+    #[msg("InvalidMintRecipient")]
+    InvalidMintRecipient,
 
     #[msg("ErrInvalidSourceRouter")]
     ErrInvalidSourceRouter,
@@ -126,4 +130,19 @@ pub enum MatchingEngineError {
 
     #[msg("MismatchedVaaHash")]
     MismatchedVaaHash,
+
+    #[msg("BestOfferTokenMismatch")]
+    BestOfferTokenMismatch,
+
+    #[msg("InitialOfferTokenMismatch")]
+    InitialOfferTokenMismatch,
+
+    #[msg("FeeRecipientTokenMismatch")]
+    FeeRecipientTokenMismatch,
+
+    #[msg("AuctionNotCompleted")]
+    AuctionNotCompleted,
+
+    #[msg("AuctionConfigMismatch")]
+    AuctionConfigMismatch,
 }

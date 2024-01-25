@@ -1,147 +1,16 @@
-import {
-    CHAIN_ID_ETH,
-    ChainId,
-    coalesceChainId,
-    parseVaa,
-    tryNativeToHexString,
-} from "@certusone/wormhole-sdk";
-import { MockEmitter, MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
-import { getAssociatedTokenAddressSync, getAccount } from "@solana/spl-token";
-import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { postVaaSolana, solana as wormSolana } from "@certusone/wormhole-sdk";
-import { WORMHOLE_CONTRACTS, USDC_MINT_ADDRESS, MAX_BPS_FEE } from "../../tests/helpers";
-import { AuctionConfig } from "../../src/matchingEngine";
 import { getPostedMessage } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
-import { Fill, LiquidityLayerMessage, FastMarketOrder } from "../../src";
-
+import { getAccount, getAssociatedTokenAddressSync } from "@solana/spl-token";
+import { Connection, PublicKey } from "@solana/web3.js";
 import { expect } from "chai";
+import { Fill, LiquidityLayerMessage } from "../../src";
+import { USDC_MINT_ADDRESS } from "../../tests/helpers";
 
-export async function getTokenBalance(connection: Connection, address: PublicKey) {
-    return (await getAccount(connection, getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, address)))
-        .amount;
-}
-
-export async function postVaa(
-    connection: Connection,
-    payer: Keypair,
-    vaaBuf: Buffer,
-    coreBridgeAddress?: PublicKey
-) {
-    await postVaaSolana(
+export async function getUsdcAtaBalance(connection: Connection, owner: PublicKey) {
+    const { amount } = await getAccount(
         connection,
-        new wormSolana.NodeWallet(payer).signTransaction,
-        coreBridgeAddress ?? WORMHOLE_CONTRACTS.solana.core,
-        payer.publicKey,
-        vaaBuf
+        getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner)
     );
-}
-
-export function encodeFastMarketOrder(order: FastMarketOrder): Buffer {
-    const encodedFastOrder = new LiquidityLayerMessage({ fastMarketOrder: order }).encode();
-    return encodedFastOrder;
-}
-
-export function decodeFastMarketOrder(buf: Buffer): FastMarketOrder {
-    const order = LiquidityLayerMessage.decode(buf);
-
-    if (order.fastMarketOrder === undefined) {
-        throw new Error("Invalid message type");
-    }
-
-    return order.fastMarketOrder;
-}
-
-export async function postVaaWithMessage(
-    connection: Connection,
-    payer: Keypair,
-    guardians: MockGuardians,
-    sequence: bigint,
-    payload: Buffer,
-    emitterAddress: string,
-    emitterChain?: ChainId
-): Promise<[PublicKey, Buffer]> {
-    if (emitterChain === undefined) {
-        emitterChain = CHAIN_ID_ETH;
-    }
-
-    const foreignEmitter = new MockEmitter(
-        tryNativeToHexString(emitterAddress, emitterChain),
-        emitterChain,
-        Number(sequence)
-    );
-
-    const published = foreignEmitter.publishMessage(
-        0, // nonce,
-        payload,
-        200, // consistencyLevel
-        12345678 // timestamp
-    );
-    const vaaBuf = guardians.addSignatures(published, [0]);
-
-    await postVaa(connection, payer, vaaBuf);
-
-    return [derivePostedVaaKey(WORMHOLE_CONTRACTS.solana.core, parseVaa(vaaBuf).hash), vaaBuf];
-}
-
-export async function postFastTransferVaa(
-    connection: Connection,
-    payer: Keypair,
-    guardians: MockGuardians,
-    sequence: bigint,
-    fastMessage: FastMarketOrder,
-    emitterAddress: string,
-    emitterChain?: ChainId
-): Promise<[PublicKey, Buffer]> {
-    return postVaaWithMessage(
-        connection,
-        payer,
-        guardians,
-        sequence,
-        encodeFastMarketOrder(fastMessage),
-        emitterAddress,
-        emitterChain
-    );
-}
-
-export async function waitBySlots(connection: Connection, numSlots: number) {
-    const targetSlot = await connection.getSlot().then((slot) => slot + numSlots);
-    return new Promise((resolve, _) => {
-        const sub = connection.onSlotChange((slot) => {
-            if (slot.slot >= targetSlot) {
-                connection.removeSlotChangeListener(sub);
-                resolve(slot.slot);
-            }
-        });
-    });
-}
-
-export async function calculateDynamicPenalty(
-    auctionConfig: AuctionConfig,
-    amount: number,
-    slotsElapsed: number
-): Promise<[number, number]> {
-    if (slotsElapsed <= auctionConfig.auctionGracePeriod) {
-        return [0, 0];
-    }
-
-    const penaltyPeriod = slotsElapsed - auctionConfig.auctionGracePeriod;
-    if (
-        penaltyPeriod >= auctionConfig.auctionPenaltySlots ||
-        auctionConfig.initialPenaltyBps == 0
-    ) {
-        const userReward = Math.floor((amount * auctionConfig.userPenaltyRewardBps) / MAX_BPS_FEE);
-        return [amount - userReward, userReward];
-    } else {
-        const basePenalty = Math.floor(amount * auctionConfig.initialPenaltyBps) / MAX_BPS_FEE;
-        const penalty = Math.floor(
-            basePenalty +
-                ((amount - basePenalty) * penaltyPeriod) / auctionConfig.auctionPenaltySlots
-        );
-        const userReward = Math.floor((penalty * auctionConfig.userPenaltyRewardBps) / MAX_BPS_FEE);
-
-        return [penalty - userReward, userReward];
-    }
+    return amount;
 }
 
 export async function verifyFillMessage(

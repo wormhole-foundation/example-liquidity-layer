@@ -1,7 +1,6 @@
 use crate::{
     error::TokenRouterError,
     state::{Custodian, MessageProtocol, RouterEndpoint},
-    CUSTODIAN_BUMP,
 };
 use anchor_lang::prelude::*;
 use common::admin::utils::assistant::only_authorized;
@@ -18,7 +17,7 @@ pub struct AddCctpRouterEndpoint<'info> {
 
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = CUSTODIAN_BUMP,
+        bump = Custodian::BUMP,
         constraint = {
             only_authorized(&custodian, &owner_or_assistant.key())
         } @ TokenRouterError::OwnerOrAssistantOnly,
@@ -78,11 +77,22 @@ pub fn add_cctp_router_endpoint(
 
     require!(address != [0; 32], TokenRouterError::InvalidEndpoint);
 
+    let mint_recipient = match mint_recipient {
+        Some(mint_recipient) => {
+            require!(
+                mint_recipient != [0; 32],
+                TokenRouterError::InvalidMintRecipient
+            );
+            mint_recipient
+        }
+        None => address,
+    };
+
     ctx.accounts.router_endpoint.set_inner(RouterEndpoint {
         bump: ctx.bumps["router_endpoint"],
         chain,
         address,
-        mint_recipient: mint_recipient.unwrap_or(address),
+        mint_recipient,
         protocol: MessageProtocol::Cctp { domain },
     });
 

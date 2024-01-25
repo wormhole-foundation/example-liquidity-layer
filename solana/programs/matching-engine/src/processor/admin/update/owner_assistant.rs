@@ -1,6 +1,6 @@
 use crate::{error::MatchingEngineError, state::Custodian};
 use anchor_lang::prelude::*;
-use common::admin::utils::{assistant, ownable::only_owner};
+use common::admin::utils::assistant;
 
 #[derive(Accounts)]
 pub struct UpdateOwnerAssistant<'info> {
@@ -10,8 +10,8 @@ pub struct UpdateOwnerAssistant<'info> {
     #[account(
         mut,
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
-        constraint = only_owner(&custodian, &owner.key()) @ MatchingEngineError::OwnerOnly,
+        bump = Custodian::BUMP,
+        has_one = owner @ MatchingEngineError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
 

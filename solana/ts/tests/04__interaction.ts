@@ -14,6 +14,7 @@ import {
     OWNER_ASSISTANT_KEYPAIR,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
+    bigintToU64BN,
     expectIxErr,
     expectIxOk,
     postLiquidityLayerVaa,
@@ -28,8 +29,16 @@ describe("Matching Engine <> Token Router", function () {
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
 
     const foreignChain = wormholeSdk.CHAINS.ethereum;
-    const tokenRouter = new tokenRouterSdk.TokenRouterProgram(connection);
-    const matchingEngine = new matchingEngineSdk.MatchingEngineProgram(connection);
+    const matchingEngine = new matchingEngineSdk.MatchingEngineProgram(
+        connection,
+        "MatchingEngine11111111111111111111111111111",
+        USDC_MINT_ADDRESS
+    );
+    const tokenRouter = new tokenRouterSdk.TokenRouterProgram(
+        connection,
+        "TokenRouter11111111111111111111111111111111",
+        matchingEngine.mint
+    );
 
     describe("Redeem Fast Fill", function () {
         const payerToken = splToken.getAssociatedTokenAddressSync(
@@ -44,7 +53,7 @@ describe("Matching Engine <> Token Router", function () {
 
         const localVariables = new Map<string, any>();
 
-        it("Token Router ..... Cannot Redeem Fast Fill as Unregistered Token Router", async function () {
+        it("Token Router ..... Cannot Redeem Fast Fill without Local Router Endpoint", async function () {
             const amount = 69n;
             const message = new LiquidityLayerMessage({
                 fastFill: {
@@ -67,35 +76,6 @@ describe("Matching Engine <> Token Router", function () {
                 message,
                 "solana"
             );
-            const ix = await tokenRouter.redeemFastFillIx({
-                payer: payer.publicKey,
-                vaa,
-            });
-
-            await expectIxErr(connection, [ix], [payer], "Error Code: ConstraintAddress");
-
-            // Save for later.
-            localVariables.set("vaa", vaa);
-            localVariables.set("amount", amount);
-        });
-
-        it("Matching Engine .. Remove Local Router Endpoint", async function () {
-            const ix = await matchingEngine.removeRouterEndpointIx(
-                {
-                    ownerOrAssistant: ownerAssistant.publicKey,
-                },
-                wormholeSdk.CHAIN_ID_SOLANA
-            );
-            await expectIxOk(connection, [ix], [ownerAssistant]);
-
-            const accInfo = await connection.getAccountInfo(
-                matchingEngine.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA)
-            );
-            expect(accInfo).is.null;
-        });
-
-        it("Token Router ..... Cannot Redeem Fast Fill without Local Router Endpoint", async function () {
-            const vaa = localVariables.get("vaa") as PublicKey;
 
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
@@ -103,6 +83,10 @@ describe("Matching Engine <> Token Router", function () {
             });
 
             await expectIxErr(connection, [ix], [payer], "Error Code: AccountNotInitialized");
+
+            // Save for later.
+            localVariables.set("vaa", vaa);
+            localVariables.set("amount", amount);
         });
 
         it("Matching Engine .. Add Local Router Endpoint using Token Router Program", async function () {
@@ -113,7 +97,7 @@ describe("Matching Engine <> Token Router", function () {
             await expectIxOk(connection, [ix], [ownerAssistant]);
 
             const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
-                matchingEngine.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA)
+                wormholeSdk.CHAIN_ID_SOLANA
             );
             expect(routerEndpointData).to.eql(
                 new matchingEngineSdk.RouterEndpoint(
@@ -148,9 +132,9 @@ describe("Matching Engine <> Token Router", function () {
 
             // Check redeemed fast fill account.
             const redeemedFastFill = matchingEngine.redeemedFastFillAddress(vaaHash);
-            const redeemedFastFillData = await matchingEngine.fetchRedeemedFastFill(
-                redeemedFastFill
-            );
+            const redeemedFastFillData = await matchingEngine.fetchRedeemedFastFill({
+                address: redeemedFastFill,
+            });
 
             // The VAA hash can change depending on the message (sequence is usually the reason for
             // this). So we just take the bump from the fetched data and move on with our lives.
@@ -177,11 +161,7 @@ describe("Matching Engine <> Token Router", function () {
                         { fastFill: {} },
                         foreignChain,
                         orderSender,
-                        (() => {
-                            const buf = Buffer.alloc(8);
-                            buf.writeBigUInt64BE(amount);
-                            return new BN(buf);
-                        })()
+                        bigintToU64BN(amount)
                     )
                 );
             }

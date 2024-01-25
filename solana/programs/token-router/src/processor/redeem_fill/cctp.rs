@@ -1,7 +1,6 @@
 use crate::{
     error::TokenRouterError,
     state::{Custodian, FillType, PreparedFill, RouterEndpoint},
-    CUSTODIAN_BUMP, CUSTODY_TOKEN_BUMP,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -24,7 +23,7 @@ pub struct RedeemCctpFill<'info> {
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = CUSTODIAN_BUMP,
+        bump = Custodian::BUMP,
     )]
     custodian: AccountInfo<'info>,
 
@@ -53,8 +52,7 @@ pub struct RedeemCctpFill<'info> {
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = CUSTODY_TOKEN_BUMP,
+        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
     )]
     custody_token: AccountInfo<'info>,
 
@@ -135,8 +133,6 @@ pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) -> 
 }
 
 fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) -> Result<()> {
-    let custodian_seeds = &[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]];
-
     let vaa = wormhole_cctp_solana::cpi::verify_vaa_and_mint(
         &ctx.accounts.vaa,
         CpiContext::new_with_signer(
@@ -170,7 +166,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
             },
-            &[custodian_seeds],
+            &[Custodian::SIGNER_SEEDS],
         ),
         ReceiveMessageArgs {
             encoded_message: args.encoded_cctp_message,

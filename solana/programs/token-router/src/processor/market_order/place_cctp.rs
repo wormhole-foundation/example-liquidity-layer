@@ -1,7 +1,6 @@
 use crate::{
     error::TokenRouterError,
     state::{Custodian, MessageProtocol, PayerSequence, PreparedOrder, RouterEndpoint},
-    CUSTODIAN_BUMP, CUSTODY_TOKEN_BUMP,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -15,7 +14,10 @@ use wormhole_cctp_solana::{
 #[derive(Accounts)]
 pub struct PlaceMarketOrderCctp<'info> {
     /// This account must be the same pubkey as the one who prepared the order.
-    #[account(mut)]
+    #[account(
+        mut,
+        address = prepared_order.prepared_by @ TokenRouterError::PayerNotPreparer,
+    )]
     payer: Signer<'info>,
 
     #[account(
@@ -35,7 +37,7 @@ pub struct PlaceMarketOrderCctp<'info> {
     /// Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = CUSTODIAN_BUMP,
+        bump = Custodian::BUMP,
         constraint = !custodian.paused @ TokenRouterError::Paused,
     )]
     custodian: Account<'info, Custodian>,
@@ -44,20 +46,10 @@ pub struct PlaceMarketOrderCctp<'info> {
         mut,
         close = payer,
         has_one = order_sender @ TokenRouterError::OrderSenderMismatch,
-        constraint = {
-            // We use require here so the revert shows left vs right.
-            require_keys_eq!(
-                payer.key(),
-                prepared_order.prepared_by,
-                TokenRouterError::PayerNotPreparer
-            );
-            true
-        },
     )]
     prepared_order: Account<'info, PreparedOrder>,
 
-    /// Signer who must have the authority (either as the owner or has been delegated authority)
-    /// over the `burn_source` token account.
+    /// Signer who must be the same one encoded in the prepared order.
     order_sender: Signer<'info>,
 
     /// Circle-supported mint.
@@ -74,8 +66,7 @@ pub struct PlaceMarketOrderCctp<'info> {
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = CUSTODY_TOKEN_BUMP,
+        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
     )]
     custody_token: AccountInfo<'info>,
 
@@ -174,8 +165,6 @@ fn handle_place_market_order_cctp(
     ctx: Context<PlaceMarketOrderCctp>,
     destination_cctp_domain: u32,
 ) -> Result<()> {
-    let custodian_seeds = &[Custodian::SEED_PREFIX, &[CUSTODIAN_BUMP]];
-
     let redeemer_message = std::mem::take(&mut ctx.accounts.prepared_order.redeemer_message);
 
     // This returns the CCTP nonce, but we do not need it.
@@ -210,7 +199,7 @@ fn handle_place_market_order_cctp(
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
             },
-            &[custodian_seeds],
+            &[Custodian::SIGNER_SEEDS],
         ),
         CpiContext::new_with_signer(
             ctx.accounts.core_bridge_program.to_account_info(),
@@ -226,7 +215,7 @@ fn handle_place_market_order_cctp(
                 rent: ctx.accounts.rent.to_account_info(),
             },
             &[
-                custodian_seeds,
+                Custodian::SIGNER_SEEDS,
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),

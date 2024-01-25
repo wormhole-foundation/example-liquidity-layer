@@ -1,4 +1,7 @@
-use crate::state::{AuctionData, AuctionStatus, Custodian, PreparedAuctionSettlement};
+use crate::{
+    error::MatchingEngineError,
+    state::{Auction, AuctionStatus, Custodian, PreparedOrderResponse},
+};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
@@ -9,7 +12,7 @@ pub struct SettleAuctionComplete<'info> {
     /// CHECK: Seeds must be \["emitter"\].
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = Custodian::BUMP,
     )]
     custodian: Account<'info, Custodian>,
 
@@ -21,24 +24,35 @@ pub struct SettleAuctionComplete<'info> {
         mut,
         close = prepared_by,
         seeds = [
-            PreparedAuctionSettlement::SEED_PREFIX,
+            PreparedOrderResponse::SEED_PREFIX,
             prepared_by.key().as_ref(),
-            prepared_auction_settlement.fast_vaa_hash.as_ref()
+            prepared_order_response.fast_vaa_hash.as_ref()
         ],
-        bump = prepared_auction_settlement.bump,
+        bump = prepared_order_response.bump,
     )]
-    prepared_auction_settlement: Account<'info, PreparedAuctionSettlement>,
+    prepared_order_response: Account<'info, PreparedOrderResponse>,
 
     #[account(
         seeds = [
-            AuctionData::SEED_PREFIX,
-            prepared_auction_settlement.fast_vaa_hash.as_ref(),
+            Auction::SEED_PREFIX,
+            prepared_order_response.fast_vaa_hash.as_ref(),
         ],
-        bump = auction_data.bump,
-        has_one = best_offer_token, // TODO: add error
-        constraint = auction_data.status == AuctionStatus::Completed // TODO: add error
+        bump = auction.bump,
+        constraint = {
+            require!(
+                matches!(auction.status, AuctionStatus::Completed { .. }),
+                MatchingEngineError::AuctionNotCompleted,
+            );
+
+            require_keys_eq!(
+                best_offer_token.key(),
+                auction.info.as_ref().unwrap().best_offer_token,
+                MatchingEngineError::BestOfferTokenMismatch,
+            );
+            true
+        }
     )]
-    auction_data: Account<'info, AuctionData>,
+    auction: Account<'info, Auction>,
 
     /// Destination token account, which the redeemer may not own. But because the redeemer is a
     /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
@@ -57,8 +71,7 @@ pub struct SettleAuctionComplete<'info> {
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        seeds = [common::constants::CUSTODY_TOKEN_SEED_PREFIX],
-        bump = custodian.custody_token_bump,
+        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
     custody_token: Account<'info, token::TokenAccount>,
 
@@ -66,8 +79,8 @@ pub struct SettleAuctionComplete<'info> {
 }
 
 pub fn settle_auction_complete(ctx: Context<SettleAuctionComplete>) -> Result<()> {
-    ctx.accounts.auction_data.status = AuctionStatus::Settled {
-        base_fee: ctx.accounts.prepared_auction_settlement.base_fee,
+    ctx.accounts.auction.status = AuctionStatus::Settled {
+        base_fee: ctx.accounts.prepared_order_response.base_fee,
         penalty: None,
     };
 
@@ -80,8 +93,8 @@ pub fn settle_auction_complete(ctx: Context<SettleAuctionComplete>) -> Result<()
                 to: ctx.accounts.best_offer_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
-            &[&[Custodian::SEED_PREFIX, &[ctx.accounts.custodian.bump]]],
+            &[Custodian::SIGNER_SEEDS],
         ),
-        ctx.accounts.auction_data.amount,
+        ctx.accounts.auction.info.as_ref().unwrap().amount_in,
     )
 }

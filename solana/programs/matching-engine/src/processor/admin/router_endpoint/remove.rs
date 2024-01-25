@@ -17,7 +17,7 @@ pub struct RemoveRouterEndpoint<'info> {
 
     #[account(
         seeds = [Custodian::SEED_PREFIX],
-        bump = custodian.bump,
+        bump = Custodian::BUMP,
     )]
     custodian: Account<'info, Custodian>,
 

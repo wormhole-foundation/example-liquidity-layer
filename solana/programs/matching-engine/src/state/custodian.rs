@@ -1,33 +1,8 @@
 use anchor_lang::prelude::*;
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug, InitSpace)]
-pub struct AuctionConfig {
-    // The percentage of the penalty that is awarded to the user when the auction is completed.
-    pub user_penalty_reward_bps: u32,
-
-    // The initial penalty percentage that is incurred once the grace period is over.
-    pub initial_penalty_bps: u32,
-
-    // The duration of the auction in slots. About 500ms on Solana.
-    pub auction_duration: u16,
-
-    /**
-     * The grace period of the auction in slots. This is the number of slots the highest bidder
-     * has to execute the fast order before incurring a penalty. About 15 seconds on Avalanche.
-     * This value INCLUDES the `_auctionDuration`.
-     */
-    pub auction_grace_period: u16,
-
-    // The `securityDeposit` decays over the `penaltyslots` slots period.
-    pub auction_penalty_slots: u16,
-}
-
 #[account]
 #[derive(Debug, InitSpace)]
 pub struct Custodian {
-    pub bump: u8,
-    pub custody_token_bump: u8,
-
     /// Program's owner.
     pub owner: Pubkey,
     pub pending_owner: Option<Pubkey>,
@@ -36,14 +11,17 @@ pub struct Custodian {
     pub owner_assistant: Pubkey,
 
     // Recipient of `SlowOrderResponse` relay fees.
-    pub fee_recipient: Pubkey,
+    pub fee_recipient_token: Pubkey,
 
-    /// Auction config.
-    pub auction_config: AuctionConfig,
+    pub auction_config_id: u32,
+
+    pub next_proposal_id: u64,
 }
 
 impl Custodian {
-    pub const SEED_PREFIX: &'static [u8] = b"custodian";
+    pub const SEED_PREFIX: &'static [u8] = b"emitter";
+    pub const BUMP: u8 = crate::CUSTODIAN_BUMP;
+    pub const SIGNER_SEEDS: &'static [&'static [u8]] = &[Self::SEED_PREFIX, &[Self::BUMP]];
 }
 
 impl common::admin::Ownable for Custodian {
@@ -73,5 +51,24 @@ impl common::admin::OwnerAssistant for Custodian {
 
     fn owner_assistant_mut(&mut self) -> &mut Pubkey {
         &mut self.owner_assistant
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use solana_program::pubkey::Pubkey;
+
+    use super::*;
+
+    #[test]
+    fn test_bump() {
+        let (custodian, bump) =
+            Pubkey::find_program_address(&[Custodian::SEED_PREFIX], &crate::id());
+        assert_eq!(Custodian::BUMP, bump, "bump mismatch");
+        assert_eq!(
+            custodian,
+            Pubkey::create_program_address(Custodian::SIGNER_SEEDS, &crate::id()).unwrap(),
+            "custodian mismatch",
+        );
     }
 }
