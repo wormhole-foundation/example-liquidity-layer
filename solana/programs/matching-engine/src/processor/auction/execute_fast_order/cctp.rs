@@ -1,6 +1,6 @@
 use crate::{
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, Custodian, PayerSequence, RouterEndpoint},
+    state::{Auction, AuctionConfig, Custodian, MessageProtocol, PayerSequence, RouterEndpoint},
     utils,
 };
 use anchor_lang::prelude::*;
@@ -70,9 +70,6 @@ pub struct ExecuteFastOrderCctp<'info> {
             to_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
-        constraint = {
-            to_router_endpoint.chain != core_bridge_program::SOLANA_CHAIN
-        } @ MatchingEngineError::InvalidChain
     )]
     to_router_endpoint: Account<'info, RouterEndpoint>,
 
@@ -171,10 +168,19 @@ pub struct ExecuteFastOrderCctp<'info> {
 
 /// TODO: add docstring
 pub fn execute_fast_order_cctp(ctx: Context<ExecuteFastOrderCctp>) -> Result<()> {
+    match ctx.accounts.to_router_endpoint.protocol {
+        MessageProtocol::Cctp { domain } => handle_execute_fast_order_cctp(ctx, domain),
+        _ => err!(MatchingEngineError::InvalidCctpEndpoint),
+    }
+}
+
+pub fn handle_execute_fast_order_cctp(
+    ctx: Context<ExecuteFastOrderCctp>,
+    destination_cctp_domain: u32,
+) -> Result<()> {
     let super::PreparedFastExecution {
         user_amount: amount,
         fill,
-        destination_cctp_domain,
     } = super::prepare_fast_execution(super::PrepareFastExecution {
         custodian: &ctx.accounts.custodian,
         auction_config: &ctx.accounts.auction_config,

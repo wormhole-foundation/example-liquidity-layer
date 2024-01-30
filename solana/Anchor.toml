@@ -16,6 +16,10 @@ members = [
 token_router = "TokenRouter11111111111111111111111111111111"
 matching_engine = "MatchingEngine11111111111111111111111111111"
 
+[programs.devnet]
+token_router = "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md"
+matching_engine = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS"
+
 [registry]
 url = "https://api.apr.dev"
 

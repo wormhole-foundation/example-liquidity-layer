@@ -553,12 +553,13 @@ describe("Matching Engine", function () {
             });
         });
 
-        describe("Add Router Endpoint", function () {
+        describe("Add Router Endpoint (CCTP)", function () {
             it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
-                const ix = await engine.addRouterEndpointIx(
+                const ix = await engine.addCctpRouterEndpointIx(
                     { ownerOrAssistant: payer.publicKey },
                     {
                         chain: ethChain,
+                        cctpDomain: ethDomain,
                         address: ethRouter,
                         mintRecipient: null,
                     }
@@ -571,25 +572,20 @@ describe("Matching Engine", function () {
                 it(`Cannot Register Chain ID == ${chain}`, async function () {
                     const chain = 0;
 
-                    await expectIxErr(
-                        connection,
-                        [
-                            await engine.addRouterEndpointIx(
-                                { ownerOrAssistant: owner.publicKey },
-                                { chain, address: ethRouter, mintRecipient: null }
-                            ),
-                        ],
-                        [owner],
-                        "ChainNotAllowed"
+                    const ix = await engine.addCctpRouterEndpointIx(
+                        { ownerOrAssistant: owner.publicKey },
+                        { chain, cctpDomain: ethDomain, address: ethRouter, mintRecipient: null }
                     );
+                    await expectIxErr(connection, [ix], [owner], "ChainNotAllowed");
                 })
             );
 
             it("Cannot Register Zero Address", async function () {
-                const ix = await engine.addRouterEndpointIx(
+                const ix = await engine.addCctpRouterEndpointIx(
                     { ownerOrAssistant: owner.publicKey },
                     {
                         chain: ethChain,
+                        cctpDomain: ethDomain,
                         address: new Array(32).fill(0),
                         mintRecipient: null,
                     }
@@ -601,10 +597,11 @@ describe("Matching Engine", function () {
             it("Add Router Endpoint as Owner Assistant", async function () {
                 const contractAddress = Array.from(Buffer.alloc(32, "fbadc0de", "hex"));
                 const mintRecipient = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
-                const ix = await engine.addRouterEndpointIx(
+                const ix = await engine.addCctpRouterEndpointIx(
                     { ownerOrAssistant: ownerAssistant.publicKey },
                     {
                         chain: ethChain,
+                        cctpDomain: ethDomain,
                         address: contractAddress,
                         mintRecipient,
                     }
@@ -613,15 +610,18 @@ describe("Matching Engine", function () {
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(ethChain);
                 expect(routerEndpointData).to.eql(
-                    new RouterEndpoint(255, ethChain, contractAddress, mintRecipient)
+                    new RouterEndpoint(255, ethChain, contractAddress, mintRecipient, {
+                        cctp: { domain: ethDomain },
+                    })
                 );
             });
 
             it("Update Router Endpoint as Owner", async function () {
-                const ix = await engine.addRouterEndpointIx(
+                const ix = await engine.addCctpRouterEndpointIx(
                     { ownerOrAssistant: owner.publicKey },
                     {
                         chain: ethChain,
+                        cctpDomain: ethDomain,
                         address: ethRouter,
                         mintRecipient: null,
                     }
@@ -631,7 +631,9 @@ describe("Matching Engine", function () {
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(ethChain);
                 expect(routerEndpointData).to.eql(
-                    new RouterEndpoint(255, ethChain, ethRouter, ethRouter)
+                    new RouterEndpoint(255, ethChain, ethRouter, ethRouter, {
+                        cctp: { domain: ethDomain },
+                    })
                 );
             });
         });
@@ -782,22 +784,18 @@ describe("Matching Engine", function () {
         };
 
         before("Register To Router Endpoints", async function () {
-            await expectIxOk(
-                connection,
-                [
-                    await engine.addRouterEndpointIx(
-                        {
-                            ownerOrAssistant: owner.publicKey,
-                        },
-                        {
-                            chain: arbChain,
-                            address: arbRouter,
-                            mintRecipient: null,
-                        }
-                    ),
-                ],
-                [owner]
+            const ix = await engine.addCctpRouterEndpointIx(
+                {
+                    ownerOrAssistant: owner.publicKey,
+                },
+                {
+                    chain: arbChain,
+                    cctpDomain: arbDomain,
+                    address: arbRouter,
+                    mintRecipient: null,
+                }
             );
+            await expectIxOk(connection, [ix], [owner]);
         });
 
         before("Transfer Lamports to Offer Authorities", async function () {

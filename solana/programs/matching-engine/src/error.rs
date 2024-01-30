@@ -145,4 +145,7 @@ pub enum MatchingEngineError {
 
     #[msg("AuctionConfigMismatch")]
     AuctionConfigMismatch,
+
+    #[msg("InvalidCctpEndpoint")]
+    InvalidCctpEndpoint,
 }

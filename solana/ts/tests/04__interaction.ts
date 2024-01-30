@@ -99,12 +99,14 @@ describe("Matching Engine <> Token Router", function () {
             const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
                 wormholeSdk.CHAIN_ID_SOLANA
             );
+            const { bump } = routerEndpointData;
             expect(routerEndpointData).to.eql(
                 new matchingEngineSdk.RouterEndpoint(
-                    254, // bump
+                    bump,
                     wormholeSdk.CHAIN_ID_SOLANA,
                     Array.from(tokenRouter.custodianAddress().toBuffer()),
-                    Array.from(tokenRouter.custodyTokenAccountAddress().toBuffer())
+                    Array.from(tokenRouter.custodyTokenAccountAddress().toBuffer()),
+                    { local: { programId: tokenRouter.ID } }
                 )
             );
         });

@@ -8,16 +8,15 @@ use crate::state::{Auction, AuctionStatus, Custodian, PreparedOrderResponse, Rou
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
-    messages::{
-        raw::{FastMarketOrder, LiquidityLayerMessage},
-        Fill,
-    },
+    messages::{raw::LiquidityLayerMessage, Fill},
     wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount,
 };
 
 struct SettleNoneAndPrepareFill<'ctx, 'info> {
     custodian: &'ctx Account<'info, Custodian>,
     prepared_order_response: &'ctx Account<'info, PreparedOrderResponse>,
+    fast_vaa: &'ctx AccountInfo<'info>,
+    auction: &'ctx mut Account<'info, Auction>,
     from_router_endpoint: &'ctx Account<'info, RouterEndpoint>,
     to_router_endpoint: &'ctx Account<'info, RouterEndpoint>,
     fee_recipient_token: &'ctx AccountInfo<'info>,
@@ -25,21 +24,20 @@ struct SettleNoneAndPrepareFill<'ctx, 'info> {
     token_program: &'ctx Program<'info, token::Token>,
 }
 
-struct SettledNone<'ctx> {
-    order: FastMarketOrder<'ctx>,
+struct SettledNone {
     user_amount: u64,
     fill: Fill,
 }
 
-fn settle_none_and_prepare_fill<'ctx>(
-    accounts: SettleNoneAndPrepareFill<'ctx, '_>,
-    fast_vaa: &'ctx VaaAccount<'ctx>,
-    auction: &'ctx mut Auction,
+fn settle_none_and_prepare_fill(
+    accounts: SettleNoneAndPrepareFill<'_, '_>,
     auction_bump_seed: u8,
-) -> Result<SettledNone<'ctx>> {
+) -> Result<SettledNone> {
     let SettleNoneAndPrepareFill {
         custodian,
         prepared_order_response,
+        fast_vaa,
+        auction,
         from_router_endpoint,
         to_router_endpoint,
         fee_recipient_token,
@@ -47,14 +45,15 @@ fn settle_none_and_prepare_fill<'ctx>(
         token_program,
     } = accounts;
 
+    let fast_vaa = VaaAccount::load(fast_vaa).unwrap();
     let order = LiquidityLayerMessage::try_from(fast_vaa.try_payload().unwrap())
         .unwrap()
         .to_fast_market_order_unchecked();
 
     // NOTE: We need to verify the router path, since an auction was never created and this check is
     // done in the `place_initial_offer` instruction.
-    crate::utils::verify_router_path(
-        fast_vaa,
+    crate::utils::require_valid_router_path(
+        &fast_vaa,
         from_router_endpoint,
         to_router_endpoint,
         order.target_chain(),
@@ -92,7 +91,7 @@ fn settle_none_and_prepare_fill<'ctx>(
     // This is a necessary security check. This will prevent a relayer from starting an auction with
     // the fast transfer VAA, even though the slow relayer already delivered the slow VAA. Not
     // setting this could lead to trapped funds (which would require an upgrade to fix).
-    *auction = Auction {
+    auction.set_inner(Auction {
         bump: auction_bump_seed,
         vaa_hash: fast_vaa.try_digest().unwrap().0,
         status: AuctionStatus::Settled {
@@ -100,11 +99,7 @@ fn settle_none_and_prepare_fill<'ctx>(
             penalty: None,
         },
         info: None,
-    };
+    });
 
-    Ok(SettledNone {
-        order,
-        user_amount,
-        fill,
-    })
+    Ok(SettledNone { user_amount, fill })
 }

@@ -1,6 +1,8 @@
 use crate::{
     error::MatchingEngineError,
-    state::{Auction, Custodian, PayerSequence, PreparedOrderResponse, RouterEndpoint},
+    state::{
+        Auction, Custodian, MessageProtocol, PayerSequence, PreparedOrderResponse, RouterEndpoint,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -8,7 +10,7 @@ use common::{
     wormhole_cctp_solana::{
         self,
         cctp::{message_transmitter_program, token_messenger_minter_program},
-        wormhole::core_bridge_program::{self, VaaAccount},
+        wormhole::core_bridge_program,
     },
     wormhole_io::TypePrefixedPayload,
 };
@@ -117,9 +119,6 @@ pub struct SettleAuctionNoneCctp<'info> {
             to_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
-        constraint = {
-            to_router_endpoint.chain != core_bridge_program::SOLANA_CHAIN
-        } @ MatchingEngineError::InvalidChain
     )]
     to_router_endpoint: Box<Account<'info, RouterEndpoint>>,
 
@@ -198,24 +197,32 @@ pub struct SettleAuctionNoneCctp<'info> {
 
 /// TODO: add docstring
 pub fn settle_auction_none_cctp(ctx: Context<SettleAuctionNoneCctp>) -> Result<()> {
-    let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa).unwrap();
+    match ctx.accounts.to_router_endpoint.protocol {
+        MessageProtocol::Cctp { domain } => handle_settle_auction_none_cctp(ctx, domain),
+        _ => err!(MatchingEngineError::InvalidCctpEndpoint),
+    }
+}
 
+/// TODO: add docstring
+fn handle_settle_auction_none_cctp(
+    ctx: Context<SettleAuctionNoneCctp>,
+    destination_cctp_domain: u32,
+) -> Result<()> {
     let super::SettledNone {
-        order,
         user_amount: amount,
         fill,
     } = super::settle_none_and_prepare_fill(
         super::SettleNoneAndPrepareFill {
             custodian: &ctx.accounts.custodian,
             prepared_order_response: &ctx.accounts.prepared_order_response,
+            fast_vaa: &ctx.accounts.fast_vaa,
+            auction: &mut ctx.accounts.auction,
             from_router_endpoint: &ctx.accounts.from_router_endpoint,
             to_router_endpoint: &ctx.accounts.to_router_endpoint,
             fee_recipient_token: &ctx.accounts.fee_recipient_token,
             custody_token: &ctx.accounts.custody_token,
             token_program: &ctx.accounts.token_program,
         },
-        &fast_vaa,
-        &mut ctx.accounts.auction,
         ctx.bumps["auction"],
     )?;
 
@@ -283,7 +290,7 @@ pub fn settle_auction_none_cctp(ctx: Context<SettleAuctionNoneCctp>) -> Result<(
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
             burn_source: None,
             destination_caller: ctx.accounts.to_router_endpoint.address,
-            destination_cctp_domain: order.destination_cctp_domain(),
+            destination_cctp_domain,
             amount,
             // TODO: add mint recipient to the router endpoint account to future proof this?
             mint_recipient: ctx.accounts.to_router_endpoint.address,

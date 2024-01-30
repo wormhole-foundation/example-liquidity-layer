@@ -31,7 +31,6 @@ struct PrepareFastExecution<'ctx, 'info> {
 struct PreparedFastExecution {
     pub user_amount: u64,
     pub fill: Fill,
-    pub destination_cctp_domain: u32,
 }
 
 fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFastExecution> {
@@ -135,7 +134,6 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
 
     Ok(PreparedFastExecution {
         user_amount,
-        destination_cctp_domain: order.destination_cctp_domain(),
         fill: Fill {
             source_chain: fast_vaa.try_emitter_chain()?,
             order_sender: order.sender(),

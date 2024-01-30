@@ -8,8 +8,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
-    wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount},
-    wormhole_io::TypePrefixedPayload,
+    wormhole_cctp_solana::wormhole::core_bridge_program, wormhole_io::TypePrefixedPayload,
 };
 
 /// Accounts required for [settle_auction_active_local].
@@ -152,25 +151,20 @@ pub struct SettleAuctionActiveLocal<'info> {
 
 /// TODO: add docstring
 pub fn settle_auction_active_local(ctx: Context<SettleAuctionActiveLocal>) -> Result<()> {
-    let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa).unwrap();
-
     let super::SettledActive {
-        order: _,
         user_amount: amount,
         fill,
-    } = super::settle_active_and_prepare_fill(
-        super::SettleActiveAndPrepareFill {
-            custodian: &ctx.accounts.custodian,
-            auction_config: &ctx.accounts.auction_config,
-            prepared_order_response: &ctx.accounts.prepared_order_response,
-            executor_token: &ctx.accounts.executor_token,
-            best_offer_token: &ctx.accounts.best_offer_token,
-            custody_token: &ctx.accounts.custody_token,
-            token_program: &ctx.accounts.token_program,
-        },
-        &fast_vaa,
-        &mut ctx.accounts.auction,
-    )?;
+    } = super::settle_active_and_prepare_fill(super::SettleActiveAndPrepareFill {
+        custodian: &ctx.accounts.custodian,
+        auction_config: &ctx.accounts.auction_config,
+        fast_vaa: &ctx.accounts.fast_vaa,
+        auction: &mut ctx.accounts.auction,
+        prepared_order_response: &ctx.accounts.prepared_order_response,
+        executor_token: &ctx.accounts.executor_token,
+        best_offer_token: &ctx.accounts.best_offer_token,
+        custody_token: &ctx.accounts.custody_token,
+        token_program: &ctx.accounts.token_program,
+    })?;
 
     // Publish message via Core Bridge.
     core_bridge_program::cpi::post_message(

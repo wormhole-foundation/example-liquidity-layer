@@ -67,11 +67,11 @@ pub mod matching_engine {
         processor::initialize(ctx, auction_params)
     }
 
-    pub fn add_router_endpoint(
-        ctx: Context<AddRouterEndpoint>,
-        args: AddRouterEndpointArgs,
+    pub fn add_cctp_router_endpoint(
+        ctx: Context<AddCctpRouterEndpoint>,
+        args: AddCctpRouterEndpointArgs,
     ) -> Result<()> {
-        processor::add_router_endpoint(ctx, args)
+        processor::add_cctp_router_endpoint(ctx, args)
     }
 
     pub fn add_local_router_endpoint(ctx: Context<AddLocalRouterEndpoint>) -> Result<()> {

@@ -5,8 +5,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
-    wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount},
-    wormhole_io::TypePrefixedPayload,
+    wormhole_cctp_solana::wormhole::core_bridge_program, wormhole_io::TypePrefixedPayload,
 };
 
 /// Accounts required for [settle_auction_none_local].
@@ -155,24 +154,21 @@ pub struct SettleAuctionNoneLocal<'info> {
 
 /// TODO: add docstring
 pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result<()> {
-    let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa).unwrap();
-
     let super::SettledNone {
-        order: _,
         user_amount: amount,
         fill,
     } = super::settle_none_and_prepare_fill(
         super::SettleNoneAndPrepareFill {
             custodian: &ctx.accounts.custodian,
             prepared_order_response: &ctx.accounts.prepared_order_response,
+            fast_vaa: &ctx.accounts.fast_vaa,
+            auction: &mut ctx.accounts.auction,
             from_router_endpoint: &ctx.accounts.from_router_endpoint,
             to_router_endpoint: &ctx.accounts.to_router_endpoint,
             fee_recipient_token: &ctx.accounts.fee_recipient_token,
             custody_token: &ctx.accounts.custody_token,
             token_program: &ctx.accounts.token_program,
         },
-        &fast_vaa,
-        &mut ctx.accounts.auction,
         ctx.bumps["auction"],
     )?;
 

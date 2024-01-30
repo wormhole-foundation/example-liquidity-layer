@@ -33,8 +33,9 @@ export type ProgramId = (typeof PROGRAM_IDS)[number];
 
 export type VaaHash = Array<number> | Buffer | Uint8Array;
 
-export type AddRouterEndpointArgs = {
-    chain: wormholeSdk.ChainId;
+export type AddCctpRouterEndpointArgs = {
+    chain: number;
+    cctpDomain: number;
     address: Array<number>;
     mintRecipient: Array<number> | null;
 };
@@ -289,26 +290,32 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async addRouterEndpointIx(
+    async addCctpRouterEndpointIx(
         accounts: {
             ownerOrAssistant: PublicKey;
             custodian?: PublicKey;
             routerEndpoint?: PublicKey;
+            remoteTokenMessenger?: PublicKey;
         },
-        args: AddRouterEndpointArgs
+        args: AddCctpRouterEndpointArgs
     ): Promise<TransactionInstruction> {
         const {
             ownerOrAssistant,
             custodian: inputCustodian,
             routerEndpoint: inputRouterEndpoint,
+            remoteTokenMessenger: inputRemoteTokenMessenger,
         } = accounts;
-        const { chain } = args;
+        const { chain, cctpDomain } = args;
+        const derivedRemoteTokenMessenger =
+            this.tokenMessengerMinterProgram().remoteTokenMessengerAddress(cctpDomain);
+
         return this.program.methods
-            .addRouterEndpoint(args)
+            .addCctpRouterEndpoint(args)
             .accounts({
                 ownerOrAssistant,
                 custodian: inputCustodian ?? this.custodianAddress(),
                 routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
+                remoteTokenMessenger: inputRemoteTokenMessenger ?? derivedRemoteTokenMessenger,
             })
             .instruction();
     }

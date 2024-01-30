@@ -67,6 +67,9 @@ pub fn add_local_router_endpoint(ctx: Context<AddLocalRouterEndpoint>) -> Result
         chain: SOLANA_CHAIN,
         address: ctx.accounts.token_router_emitter.key().to_bytes(),
         mint_recipient: ctx.accounts.token_router_custody_token.key().to_bytes(),
+        protocol: crate::state::MessageProtocol::Local {
+            program_id: ctx.accounts.token_router_program.key(),
+        },
     });
 
     // Done.

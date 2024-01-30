@@ -404,9 +404,7 @@ describe("Token Router", function () {
 
                 await expectIxOk(connection, [ix], [ownerAssistant]);
 
-                const routerEndpointData = await tokenRouter.fetchRouterEndpoint(
-                    tokenRouter.routerEndpointAddress(foreignChain)
-                );
+                const routerEndpointData = await tokenRouter.fetchRouterEndpoint(foreignChain);
                 expect(routerEndpointData).to.eql(
                     new RouterEndpoint(
                         expectedEndpointBump,
@@ -433,9 +431,7 @@ describe("Token Router", function () {
 
                 await expectIxOk(connection, [ix], [owner]);
 
-                const routerEndpointData = await tokenRouter.fetchRouterEndpoint(
-                    tokenRouter.routerEndpointAddress(foreignChain)
-                );
+                const routerEndpointData = await tokenRouter.fetchRouterEndpoint(foreignChain);
                 expect(routerEndpointData).to.eql(
                     new RouterEndpoint(
                         expectedEndpointBump,
@@ -1004,9 +1000,7 @@ describe("Token Router", function () {
 
                 const {
                     protocol: { cctp: cctpProtocol },
-                } = await tokenRouter.fetchRouterEndpoint(
-                    tokenRouter.routerEndpointAddress(foreignChain)
-                );
+                } = await tokenRouter.fetchRouterEndpoint(foreignChain);
                 expect(cctpProtocol).is.not.null;
                 const { domain: destinationCctpDomain } = cctpProtocol!;
 

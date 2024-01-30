@@ -11,16 +11,15 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
-    messages::{
-        raw::{FastMarketOrder, LiquidityLayerMessage},
-        Fill,
-    },
+    messages::{raw::LiquidityLayerMessage, Fill},
     wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount,
 };
 
 struct SettleActiveAndPrepareFill<'ctx, 'info> {
     custodian: &'ctx AccountInfo<'info>,
     auction_config: &'ctx Account<'info, AuctionConfig>,
+    fast_vaa: &'ctx AccountInfo<'info>,
+    auction: &'ctx mut Account<'info, Auction>,
     prepared_order_response: &'ctx Account<'info, PreparedOrderResponse>,
     executor_token: &'ctx Account<'info, token::TokenAccount>,
     best_offer_token: &'ctx AccountInfo<'info>,
@@ -28,20 +27,19 @@ struct SettleActiveAndPrepareFill<'ctx, 'info> {
     token_program: &'ctx Program<'info, token::Token>,
 }
 
-struct SettledActive<'ctx> {
-    order: FastMarketOrder<'ctx>,
+struct SettledActive {
     user_amount: u64,
     fill: Fill,
 }
 
-fn settle_active_and_prepare_fill<'ctx>(
-    accounts: SettleActiveAndPrepareFill<'ctx, '_>,
-    fast_vaa: &'ctx VaaAccount<'ctx>,
-    auction: &'ctx mut Auction,
-) -> Result<SettledActive<'ctx>> {
+fn settle_active_and_prepare_fill(
+    accounts: SettleActiveAndPrepareFill<'_, '_>,
+) -> Result<SettledActive> {
     let SettleActiveAndPrepareFill {
         custodian,
         auction_config,
+        fast_vaa,
+        auction,
         prepared_order_response,
         executor_token,
         best_offer_token,
@@ -49,6 +47,7 @@ fn settle_active_and_prepare_fill<'ctx>(
         token_program,
     } = accounts;
 
+    let fast_vaa = VaaAccount::load(fast_vaa).unwrap();
     let order = LiquidityLayerMessage::try_from(fast_vaa.try_payload().unwrap())
         .unwrap()
         .to_fast_market_order_unchecked();
@@ -131,9 +130,5 @@ fn settle_active_and_prepare_fill<'ctx>(
     // Everyone's whole, set the auction as completed.
     auction.status = final_status;
 
-    Ok(SettledActive {
-        order,
-        user_amount,
-        fill,
-    })
+    Ok(SettledActive { user_amount, fill })
 }

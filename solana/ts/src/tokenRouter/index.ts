@@ -176,7 +176,8 @@ export class TokenRouterProgram {
         return RouterEndpoint.address(this.ID, chain);
     }
 
-    async fetchRouterEndpoint(addr: PublicKey): Promise<RouterEndpoint> {
+    async fetchRouterEndpoint(chain: number | { address: PublicKey }): Promise<RouterEndpoint> {
+        const addr = typeof chain === "number" ? this.routerEndpointAddress(chain) : chain.address;
         return this.program.account.routerEndpoint.fetch(addr);
     }
 
@@ -188,6 +189,7 @@ export class TokenRouterProgram {
         return PreparedFill.address(this.ID, vaaHash);
     }
 
+    // TODO: fix
     async fetchPreparedFill(addr: PublicKey): Promise<PreparedFill> {
         return this.program.account.preparedFill.fetch(addr);
     }
@@ -345,7 +347,7 @@ export class TokenRouterProgram {
             if (inputRemoteDomain !== undefined) {
                 return inputRemoteDomain;
             } else {
-                const { protocol } = await this.fetchRouterEndpoint(routerEndpoint);
+                const { protocol } = await this.fetchRouterEndpoint({ address: routerEndpoint });
                 if (protocol.cctp !== undefined) {
                     return protocol.cctp.domain;
                 } else {

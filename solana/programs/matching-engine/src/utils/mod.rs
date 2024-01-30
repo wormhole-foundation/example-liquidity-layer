@@ -7,7 +7,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use common::wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 
-pub fn verify_router_path(
+pub fn require_valid_router_path(
     vaa: &VaaAccount<'_>,
     source_endpoint: &RouterEndpoint,
     target_endpoint: &RouterEndpoint,
