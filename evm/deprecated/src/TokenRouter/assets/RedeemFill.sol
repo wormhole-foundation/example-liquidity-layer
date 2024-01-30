@@ -7,6 +7,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 
+import {IMatchingEngine} from "../../interfaces/IMatchingEngine.sol";
+
 import {Admin} from "../../shared/Admin.sol";
 import {Messages} from "../../shared/Messages.sol";
 import {Utils} from "../../shared/Utils.sol";
@@ -25,8 +27,18 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
     /// @inheritdoc IRedeemFill
     function redeemFill(OrderResponse calldata response) external returns (RedeemedFill memory) {
         uint16 emitterChain = response.encodedWormholeMessage.unsafeEmitterChainFromVaa();
+        bytes32 emitterAddress = response.encodedWormholeMessage.unsafeEmitterAddressFromVaa();
 
-        return _handleFill(emitterChain, response);
+        // If the emitter is the matching engine, and this TokenRouter is on the same chain
+        // as the matching engine, then this is a fast fill.
+        if (
+            (emitterChain == _matchingEngineChain && _chainId == _matchingEngineChain)
+                && emitterAddress == _matchingEngineAddress
+        ) {
+            return _handleFastFill(response.encodedWormholeMessage);
+        } else {
+            return _handleFill(emitterChain, response);
+        }
     }
 
     // ------------------------------- Private ---------------------------------
@@ -62,6 +74,26 @@ abstract contract RedeemFill is IRedeemFill, Admin, State {
             token: address(_orderToken),
             amount: amount,
             message: fill.redeemerMessage
+        });
+    }
+
+    function _handleFastFill(bytes calldata fastFillVaa) private returns (RedeemedFill memory) {
+        // Call the Matching Engine to redeem the fill directly.
+        Messages.FastFill memory fastFill = IMatchingEngine(
+            _matchingEngineAddress.fromUniversalAddress()
+        ).redeemFastFill(fastFillVaa);
+
+        _verifyRedeemer(fastFill.fill.redeemer);
+
+        // Transfer token amount to redeemer.
+        SafeERC20.safeTransfer(_orderToken, msg.sender, fastFill.fillAmount);
+
+        return RedeemedFill({
+            sender: fastFill.fill.orderSender,
+            senderChain: fastFill.fill.sourceChain,
+            token: address(_orderToken),
+            amount: fastFill.fillAmount,
+            message: fastFill.fill.redeemerMessage
         });
     }
 

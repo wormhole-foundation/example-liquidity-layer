@@ -196,7 +196,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 amountIn: amountIn,
                 minAmountOut: minAmountOut,
                 targetChain: targetChain,
-                targetDomain: getCircleDomainsState().domains[targetChain],
                 redeemer: redeemer,
                 sender: msg.sender.toUniversalAddress(),
                 refundAddress: refundAddress.toUniversalAddress(),

@@ -38,7 +38,6 @@ library Messages {
         uint64 amountIn;
         uint64 minAmountOut;
         uint16 targetChain;
-        uint32 targetDomain;
         bytes32 redeemer;
         bytes32 sender;
         bytes32 refundAddress;
@@ -79,7 +78,6 @@ library Messages {
             order.amountIn,
             order.minAmountOut,
             order.targetChain,
-            order.targetDomain,
             order.redeemer,
             order.sender,
             order.refundAddress,
@@ -101,7 +99,6 @@ library Messages {
         (order.amountIn, offset) = encoded.asUint64Unchecked(offset);
         (order.minAmountOut, offset) = encoded.asUint64Unchecked(offset);
         (order.targetChain, offset) = encoded.asUint16Unchecked(offset);
-        (order.targetDomain, offset) = encoded.asUint32Unchecked(offset);
         (order.redeemer, offset) = encoded.asBytes32Unchecked(offset);
         (order.sender, offset) = encoded.asBytes32Unchecked(offset);
         (order.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
