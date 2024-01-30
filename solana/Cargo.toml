@@ -21,7 +21,7 @@ path = "modules/common"
 path = "programs/matching-engine"
 
 [workspace.dependencies.wormhole-cctp-solana]
-version = "0.0.1-alpha.7"
+version = "0.0.1-alpha.9"
 default-features = false
 
 [workspace.dependencies.wormhole-raw-vaas]

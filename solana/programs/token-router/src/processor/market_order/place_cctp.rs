@@ -4,13 +4,10 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{
-    wormhole_cctp_solana::{
-        self,
-        cctp::{message_transmitter_program, token_messenger_minter_program},
-        wormhole::core_bridge_program,
-    },
-    wormhole_io::TypePrefixedPayload,
+use common::wormhole_cctp_solana::{
+    self,
+    cctp::{message_transmitter_program, token_messenger_minter_program},
+    wormhole::core_bridge_program,
 };
 
 /// Accounts required for [place_market_order_cctp].
@@ -246,8 +243,7 @@ fn handle_place_market_order_cctp(
                 order_sender: ctx.accounts.order_sender.key().to_bytes(),
                 redeemer: ctx.accounts.prepared_order.redeemer,
                 redeemer_message: redeemer_message.into(),
-            }
-            .to_vec_payload(),
+            },
         },
     )?;
 

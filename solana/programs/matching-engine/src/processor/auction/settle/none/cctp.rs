@@ -6,13 +6,10 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{
-    wormhole_cctp_solana::{
-        self,
-        cctp::{message_transmitter_program, token_messenger_minter_program},
-        wormhole::core_bridge_program,
-    },
-    wormhole_io::TypePrefixedPayload,
+use common::wormhole_cctp_solana::{
+    self,
+    cctp::{message_transmitter_program, token_messenger_minter_program},
+    wormhole::core_bridge_program,
 };
 
 /// Accounts required for [settle_auction_none_cctp].
@@ -295,7 +292,7 @@ fn handle_settle_auction_none_cctp(
             // TODO: add mint recipient to the router endpoint account to future proof this?
             mint_recipient: ctx.accounts.to_router_endpoint.address,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
-            payload: fill.to_vec_payload(),
+            payload: fill,
         },
     )?;
 
