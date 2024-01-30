@@ -7,7 +7,6 @@ pub struct FastMarketOrder {
     pub amount_in: u64,
     pub min_amount_out: u64,
     pub target_chain: u16,
-    pub destination_cctp_domain: u32,
     pub redeemer: [u8; 32],
     pub sender: [u8; 32],
     pub refund_address: [u8; 32],
@@ -29,7 +28,6 @@ impl Readable for FastMarketOrder {
             amount_in: Readable::read(reader)?,
             min_amount_out: Readable::read(reader)?,
             target_chain: Readable::read(reader)?,
-            destination_cctp_domain: Readable::read(reader)?,
             redeemer: Readable::read(reader)?,
             sender: Readable::read(reader)?,
             refund_address: Readable::read(reader)?,
@@ -54,7 +52,6 @@ impl Writeable for FastMarketOrder {
         self.amount_in.write(writer)?;
         self.min_amount_out.write(writer)?;
         self.target_chain.write(writer)?;
-        self.destination_cctp_domain.write(writer)?;
         self.redeemer.write(writer)?;
         self.sender.write(writer)?;
         self.refund_address.write(writer)?;
@@ -85,7 +82,6 @@ mod test {
             amount_in: 1234567890,
             min_amount_out: 69420,
             target_chain: 69,
-            destination_cctp_domain: 420,
             redeemer: hex!("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
             sender: hex!("beefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdead"),
             refund_address: hex!(
@@ -106,7 +102,6 @@ mod test {
             amount_in: parsed.amount_in(),
             min_amount_out: parsed.min_amount_out(),
             target_chain: parsed.target_chain(),
-            destination_cctp_domain: parsed.destination_cctp_domain(),
             redeemer: parsed.redeemer(),
             sender: parsed.sender(),
             refund_address: parsed.refund_address(),

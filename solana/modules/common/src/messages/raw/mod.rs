@@ -188,45 +188,41 @@ impl<'a> FastMarketOrder<'a> {
         u16::from_be_bytes(self.0[16..18].try_into().unwrap())
     }
 
-    pub fn destination_cctp_domain(&self) -> u32 {
-        u32::from_be_bytes(self.0[18..22].try_into().unwrap())
-    }
-
     pub fn redeemer(&self) -> [u8; 32] {
-        self.0[22..54].try_into().unwrap()
+        self.0[18..50].try_into().unwrap()
     }
 
     pub fn sender(&self) -> [u8; 32] {
-        self.0[54..86].try_into().unwrap()
+        self.0[50..82].try_into().unwrap()
     }
 
     pub fn refund_address(&self) -> [u8; 32] {
-        self.0[86..118].try_into().unwrap()
+        self.0[82..114].try_into().unwrap()
     }
 
     pub fn max_fee(&self) -> u64 {
-        u64::from_be_bytes(self.0[118..126].try_into().unwrap())
+        u64::from_be_bytes(self.0[114..122].try_into().unwrap())
     }
 
     pub fn init_auction_fee(&self) -> u64 {
-        u64::from_be_bytes(self.0[126..134].try_into().unwrap())
+        u64::from_be_bytes(self.0[122..130].try_into().unwrap())
     }
 
     pub fn deadline(&self) -> u32 {
-        u32::from_be_bytes(self.0[134..138].try_into().unwrap())
+        u32::from_be_bytes(self.0[130..134].try_into().unwrap())
     }
 
     pub fn redeemer_message_len(&self) -> u32 {
-        u32::from_be_bytes(self.0[138..142].try_into().unwrap())
+        u32::from_be_bytes(self.0[134..138].try_into().unwrap())
     }
 
     pub fn redeemer_message(&'a self) -> Payload<'a> {
-        Payload::parse(&self.0[142..])
+        Payload::parse(&self.0[138..])
     }
 
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
-        if span.len() < 142 {
-            return Err("FastMarketOrder span too short. Need at least 142 bytes");
+        if span.len() < 138 {
+            return Err("FastMarketOrder span too short. Need at least 138 bytes");
         }
 
         let fast_market_order = Self(span);

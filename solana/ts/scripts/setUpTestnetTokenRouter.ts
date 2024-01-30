@@ -48,9 +48,9 @@ async function main() {
         );
     }
     {
-        // https://testnet.snowtrace.io/address/0xdf5af760f3093034C7A6580FBd4CE66A8bEDd90A
+        // https://testnet.snowtrace.io/address/0x7353B29FDc79435dcC7ECc9Ac9F9b61d83B4E0F4
         const foreignChain = "avalanche";
-        const foreignEmitter = "0xdf5af760f3093034C7A6580FBd4CE66A8bEDd90A";
+        const foreignEmitter = "0x7353B29FDc79435dcC7ECc9Ac9F9b61d83B4E0F4";
         const cctpDomain = 1;
 
         await addCctpRouterEndpoint(

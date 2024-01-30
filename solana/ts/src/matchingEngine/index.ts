@@ -760,6 +760,7 @@ export class MatchingEngineProgram {
         payer: PublicKey;
         fastVaa: PublicKey;
         preparedOrderResponse: PublicKey;
+        toRouterEndpoint?: PublicKey;
     }) {
         const { payer, fastVaa, preparedOrderResponse } = accounts;
 
@@ -769,7 +770,7 @@ export class MatchingEngineProgram {
             throw new Error("Message not FastMarketOrder");
         }
 
-        const { targetChain, destinationCctpDomain } = fastMarketOrder;
+        const { targetChain } = fastMarketOrder;
 
         const { preparedBy } = await this.fetchPreparedOrderResponse({
             address: preparedOrderResponse,
@@ -792,7 +793,7 @@ export class MatchingEngineProgram {
             localToken,
             messageTransmitterProgram,
             tokenMessengerMinterProgram,
-        } = await this.burnAndPublishAccounts({ payer }, { targetChain, destinationCctpDomain });
+        } = await this.burnAndPublishAccounts({ payer }, { targetChain });
 
         const { feeRecipientToken } = await this.fetchCustodian();
 
@@ -1072,11 +1073,25 @@ export class MatchingEngineProgram {
         },
         args: {
             targetChain: number;
-            destinationCctpDomain: number;
+            destinationCctpDomain?: number;
         }
     ): Promise<BurnAndPublishAccounts> {
         const { payer, mint: inputMint } = base;
-        const { targetChain, destinationCctpDomain } = args;
+        const { targetChain, destinationCctpDomain: inputDestinationCctpDomain } = args;
+
+        const destinationCctpDomain = await (async () => {
+            if (inputDestinationCctpDomain === undefined) {
+                const {
+                    protocol: { cctp },
+                } = await this.fetchRouterEndpoint(targetChain);
+                if (cctp === undefined) {
+                    throw new Error("not CCTP endpoint");
+                }
+                return cctp.domain;
+            } else {
+                return inputDestinationCctpDomain;
+            }
+        })();
 
         const {
             senderAuthority: tokenMessengerMinterSenderAuthority,

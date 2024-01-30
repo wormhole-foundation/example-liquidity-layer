@@ -18,7 +18,6 @@ export type FastMarketOrder = {
     // u64
     minAmountOut: bigint;
     targetChain: number;
-    destinationCctpDomain: number;
     redeemer: Array<number>;
     sender: Array<number>;
     refundAddress: Array<number>;
@@ -67,8 +66,6 @@ export class LiquidityLayerMessage {
                     offset += 8;
                     const targetChain = buf.readUInt16BE(offset);
                     offset += 2;
-                    const destinationCctpDomain = buf.readUInt32BE(offset);
-                    offset += 4;
                     const redeemer = Array.from(buf.subarray(offset, (offset += 32)));
                     const sender = Array.from(buf.subarray(offset, (offset += 32)));
                     const refundAddress = Array.from(buf.subarray(offset, (offset += 32)));
@@ -87,7 +84,6 @@ export class LiquidityLayerMessage {
                             amountIn,
                             minAmountOut,
                             targetChain,
-                            destinationCctpDomain,
                             redeemer,
                             sender,
                             refundAddress,
@@ -156,7 +152,6 @@ export class LiquidityLayerMessage {
                     amountIn,
                     minAmountOut,
                     targetChain,
-                    destinationCctpDomain,
                     redeemer,
                     sender,
                     refundAddress,
@@ -166,14 +161,13 @@ export class LiquidityLayerMessage {
                     redeemerMessage,
                 } = fastMarketOrder;
 
-                const messageBuf = Buffer.alloc(1 + 142 + redeemerMessage.length);
+                const messageBuf = Buffer.alloc(1 + 138 + redeemerMessage.length);
 
                 let offset = 0;
                 offset = messageBuf.writeUInt8(ID_FAST_MARKET_ORDER, offset);
                 offset = messageBuf.writeBigUInt64BE(amountIn, offset);
                 offset = messageBuf.writeBigUInt64BE(minAmountOut, offset);
                 offset = messageBuf.writeUInt16BE(targetChain, offset);
-                offset = messageBuf.writeUInt32BE(destinationCctpDomain, offset);
                 messageBuf.set(redeemer, offset);
                 offset += redeemer.length;
                 messageBuf.set(sender, offset);

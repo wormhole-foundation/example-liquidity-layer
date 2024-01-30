@@ -773,7 +773,6 @@ describe("Matching Engine", function () {
             amountIn: 50000000000n,
             minAmountOut: 0n,
             targetChain: arbChain,
-            destinationCctpDomain: arbDomain,
             redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
             sender: Array.from(Buffer.alloc(32, "beefdead", "hex")),
             refundAddress: Array.from(Buffer.alloc(32, "beef", "hex")),
@@ -1815,7 +1814,6 @@ describe("Matching Engine", function () {
             it.skip("Cannot Execute Fast Order (Invalid Chain)", async function () {
                 const fastOrder = { ...baseFastOrder };
                 fastOrder.targetChain = ethChain;
-                fastOrder.destinationCctpDomain = ethDomain;
 
                 const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
                     offerAuthorityOne,
@@ -2073,8 +2071,8 @@ describe("Matching Engine", function () {
                 );
 
                 const {
+                    targetChain,
                     initAuctionFee,
-                    destinationCctpDomain,
                     sender: orderSender,
                     redeemer,
                     redeemerMessage,
@@ -2142,18 +2140,19 @@ describe("Matching Engine", function () {
                 expect(parsed.deposit?.message.fill).is.not.undefined;
 
                 const {
-                    header: {
-                        amount: actualAmount,
-                        destinationCctpDomain: actualDestinationCctpDomain,
-                        mintRecipient,
-                    },
+                    protocol: { cctp },
+                } = await engine.fetchRouterEndpoint(targetChain);
+                expect(cctp).is.not.undefined;
+
+                const {
+                    header: { amount: actualAmount, destinationCctpDomain, mintRecipient },
                     message: { fill },
                 } = parsed.deposit!;
 
                 const userAmount =
                     BigInt(amountIn.sub(offerPrice).toString()) - initAuctionFee + userReward;
                 expect(actualAmount).equals(userAmount);
-                expect(actualDestinationCctpDomain).equals(destinationCctpDomain);
+                expect(destinationCctpDomain).equals(cctp!.domain);
 
                 const sourceChain = wormholeSdk.coalesceChainId(fromChainName);
                 const { mintRecipient: expectedMintRecipient } = await engine.fetchRouterEndpoint(
@@ -2193,7 +2192,6 @@ describe("Matching Engine", function () {
                         amountIn,
                         minAmountOut: 0n,
                         targetChain: wormholeSdk.CHAIN_ID_SOLANA as number,
-                        destinationCctpDomain,
                         redeemer: Array.from(redeemer.publicKey.toBuffer()),
                         sender: new Array(32).fill(0),
                         refundAddress: new Array(32).fill(0),
@@ -2428,7 +2426,6 @@ describe("Matching Engine", function () {
                         amountIn,
                         minAmountOut: 0n,
                         targetChain: arbChain,
-                        destinationCctpDomain: arbDomain,
                         redeemer: Array.from(redeemer.publicKey.toBuffer()),
                         sender: new Array(32).fill(0),
                         refundAddress: new Array(32).fill(0),
