@@ -126,17 +126,6 @@ pub mod token_router {
         processor::update_owner_assistant(ctx)
     }
 
-    pub fn add_cctp_router_endpoint(
-        ctx: Context<AddCctpRouterEndpoint>,
-        args: AddCctpRouterEndpointArgs,
-    ) -> Result<()> {
-        processor::add_cctp_router_endpoint(ctx, args)
-    }
-
-    pub fn remove_router_endpoint(ctx: Context<RemoveRouterEndpoint>) -> Result<()> {
-        processor::remove_router_endpoint(ctx)
-    }
-
     /// This instruction updates the `paused` boolean in the `SenderConfig`
     /// account. This instruction is owner-only, meaning that only the owner
     /// of the program (defined in the [Config] account) can pause outbound

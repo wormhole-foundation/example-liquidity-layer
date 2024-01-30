@@ -18,7 +18,7 @@ import {
 import * as matchingEngineSdk from "../matchingEngine";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { VaaAccount } from "../wormhole";
-import { Custodian, PayerSequence, PreparedFill, PreparedOrder, RouterEndpoint } from "./state";
+import { Custodian, PayerSequence, PreparedFill, PreparedOrder } from "./state";
 
 export const PROGRAM_IDS = [
     "TokenRouter11111111111111111111111111111111",
@@ -170,15 +170,6 @@ export class TokenRouterProgram {
         return this.fetchPayerSequence(addr)
             .then((acct) => acct.value)
             .catch((_) => new BN(0));
-    }
-
-    routerEndpointAddress(chain: number): PublicKey {
-        return RouterEndpoint.address(this.ID, chain);
-    }
-
-    async fetchRouterEndpoint(chain: number | { address: PublicKey }): Promise<RouterEndpoint> {
-        const addr = typeof chain === "number" ? this.routerEndpointAddress(chain) : chain.address;
-        return this.program.account.routerEndpoint.fetch(addr);
     }
 
     async fetchPreparedOrder(addr: PublicKey): Promise<PreparedOrder> {
@@ -342,12 +333,15 @@ export class TokenRouterProgram {
     ): Promise<PlaceMarketOrderCctpAccounts> {
         const { remoteDomain: inputRemoteDomain } = overrides;
 
-        const routerEndpoint = this.routerEndpointAddress(targetChain);
+        const matchingEngine = this.matchingEngineProgram();
+        const routerEndpoint = matchingEngine.routerEndpointAddress(targetChain);
         const remoteDomain = await (async () => {
             if (inputRemoteDomain !== undefined) {
                 return inputRemoteDomain;
             } else {
-                const { protocol } = await this.fetchRouterEndpoint({ address: routerEndpoint });
+                const { protocol } = await matchingEngine.fetchRouterEndpoint({
+                    address: routerEndpoint,
+                });
                 if (protocol.cctp !== undefined) {
                     return protocol.cctp.domain;
                 } else {
@@ -511,7 +505,7 @@ export class TokenRouterProgram {
             custodian: this.custodianAddress(),
             preparedFill,
             custodyToken,
-            routerEndpoint: this.routerEndpointAddress(chain),
+            routerEndpoint: this.matchingEngineProgram().routerEndpointAddress(chain),
             messageTransmitterAuthority,
             messageTransmitterConfig,
             usedNonces,
@@ -725,59 +719,6 @@ export class TokenRouterProgram {
                 custodian: inputCustodian ?? this.custodianAddress(),
                 programData: getProgramData(this.ID),
                 bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
-            })
-            .instruction();
-    }
-
-    async addCctpRouterEndpointIx(
-        accounts: {
-            ownerOrAssistant: PublicKey;
-            custodian?: PublicKey;
-            routerEndpoint?: PublicKey;
-            remoteTokenMessenger?: PublicKey;
-        },
-        args: AddCctpRouterEndpointArgs
-    ): Promise<TransactionInstruction> {
-        const {
-            ownerOrAssistant,
-            custodian: inputCustodian,
-            routerEndpoint: inputRouterEndpoint,
-            remoteTokenMessenger: inputRemoteTokenMessenger,
-        } = accounts;
-        const { chain, cctpDomain } = args;
-        const derivedRemoteTokenMessenger =
-            this.tokenMessengerMinterProgram().remoteTokenMessengerAddress(cctpDomain);
-
-        return this.program.methods
-            .addCctpRouterEndpoint(args)
-            .accounts({
-                ownerOrAssistant,
-                custodian: inputCustodian ?? this.custodianAddress(),
-                routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
-                remoteTokenMessenger: inputRemoteTokenMessenger ?? derivedRemoteTokenMessenger,
-            })
-            .instruction();
-    }
-
-    async removeRouterEndpointIx(
-        accounts: {
-            ownerOrAssistant: PublicKey;
-            custodian?: PublicKey;
-            routerEndpoint?: PublicKey;
-        },
-        chain: number
-    ): Promise<TransactionInstruction> {
-        const {
-            ownerOrAssistant,
-            custodian: inputCustodian,
-            routerEndpoint: inputRouterEndpoint,
-        } = accounts;
-        return this.program.methods
-            .removeRouterEndpoint()
-            .accounts({
-                ownerOrAssistant,
-                custodian: inputCustodian ?? this.custodianAddress(),
-                routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
             })
             .instruction();
     }

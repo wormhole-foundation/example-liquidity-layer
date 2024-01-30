@@ -1,6 +1,6 @@
 use crate::{
     error::TokenRouterError,
-    state::{Custodian, MessageProtocol, PayerSequence, PreparedOrder, RouterEndpoint},
+    state::{Custodian, PayerSequence, PreparedOrder},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -83,12 +83,13 @@ pub struct PlaceMarketOrderCctp<'info> {
     /// error is thrown (whereas here the account would not exist).
     #[account(
         seeds = [
-            RouterEndpoint::SEED_PREFIX,
+            matching_engine::state::RouterEndpoint::SEED_PREFIX,
             router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = router_endpoint.bump,
+        seeds::program = matching_engine::id(),
     )]
-    router_endpoint: Account<'info, RouterEndpoint>,
+    router_endpoint: Account<'info, matching_engine::state::RouterEndpoint>,
 
     /// CHECK: Seeds must be \["Bridge"\] (Wormhole Core Bridge program).
     #[account(mut)]
@@ -159,7 +160,9 @@ pub struct PlaceMarketOrderCctp<'info> {
 /// See [burn_and_publish](wormhole_cctp_solana::cpi::burn_and_publish) for more details.
 pub fn place_market_order_cctp(ctx: Context<PlaceMarketOrderCctp>) -> Result<()> {
     match ctx.accounts.router_endpoint.protocol {
-        MessageProtocol::Cctp { domain } => handle_place_market_order_cctp(ctx, domain),
+        matching_engine::state::MessageProtocol::Cctp { domain } => {
+            handle_place_market_order_cctp(ctx, domain)
+        }
         _ => err!(TokenRouterError::InvalidCctpEndpoint),
     }
 }

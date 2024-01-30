@@ -1,6 +1,6 @@
 use crate::{
     error::TokenRouterError,
-    state::{Custodian, FillType, PreparedFill, RouterEndpoint},
+    state::{Custodian, FillType, PreparedFill},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -64,12 +64,13 @@ pub struct RedeemCctpFill<'info> {
     /// Seeds must be \["registered_emitter", target_chain.to_be_bytes()\].
     #[account(
         seeds = [
-            RouterEndpoint::SEED_PREFIX,
+            matching_engine::state::RouterEndpoint::SEED_PREFIX,
             router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = router_endpoint.bump,
+        seeds::program = matching_engine::id(),
     )]
-    router_endpoint: Account<'info, RouterEndpoint>,
+    router_endpoint: Box<Account<'info, matching_engine::state::RouterEndpoint>>,
 
     /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
     message_transmitter_authority: UncheckedAccount<'info>,

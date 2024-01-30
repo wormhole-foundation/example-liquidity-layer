@@ -9,6 +9,3 @@ pub use prepared_fill::*;
 
 mod prepared_order;
 pub use prepared_order::*;
-
-mod router_endpoint;
-pub use router_endpoint::*;
