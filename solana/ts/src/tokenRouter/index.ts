@@ -5,6 +5,7 @@ import * as splToken from "@solana/spl-token";
 import {
     Connection,
     PublicKey,
+    SYSVAR_CLOCK_PUBKEY,
     SYSVAR_RENT_PUBKEY,
     SystemProgram,
     TransactionInstruction,
@@ -46,6 +47,7 @@ export type TokenRouterCommonAccounts = PublishMessageAccounts & {
     tokenRouterProgram: PublicKey;
     systemProgram: PublicKey;
     rent: PublicKey;
+    clock: PublicKey;
     custodian: PublicKey;
     custodyToken: PublicKey;
     tokenMessenger: PublicKey;
@@ -59,6 +61,9 @@ export type TokenRouterCommonAccounts = PublishMessageAccounts & {
     mint: PublicKey;
     localToken: PublicKey;
     tokenMessengerMinterCustodyToken: PublicKey;
+    matchingEngineProgram: PublicKey;
+    matchingEngineCustodian: PublicKey;
+    matchingEngineCustodyToken: PublicKey;
 };
 
 export type PlaceMarketOrderCctpAccounts = PublishMessageAccounts & {
@@ -196,10 +201,13 @@ export class TokenRouterProgram {
         const custodyToken = this.custodyTokenAccountAddress();
         const mint = this.mint;
 
+        const matchingEngine = this.matchingEngineProgram();
+
         return {
             tokenRouterProgram: this.ID,
             systemProgram: SystemProgram.programId,
             rent: SYSVAR_RENT_PUBKEY,
+            clock: SYSVAR_CLOCK_PUBKEY,
             custodian,
             custodyToken,
             coreBridgeConfig,
@@ -217,6 +225,9 @@ export class TokenRouterProgram {
             mint,
             localToken: tokenMessengerMinterProgram.localTokenAddress(mint),
             tokenMessengerMinterCustodyToken: tokenMessengerMinterProgram.custodyTokenAddress(mint),
+            matchingEngineProgram: matchingEngine.ID,
+            matchingEngineCustodian: matchingEngine.custodianAddress(),
+            matchingEngineCustodyToken: matchingEngine.custodyTokenAccountAddress(),
         };
     }
 

@@ -2,6 +2,7 @@ import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { getPostedMessage } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import * as splToken from "@solana/spl-token";
 import {
+    AddressLookupTableProgram,
     ComputeBudgetProgram,
     Connection,
     Keypair,
@@ -81,6 +82,8 @@ describe("Matching Engine", function () {
 
     // Matching Engine program.
     const engine = new MatchingEngineProgram(connection, localnet(), USDC_MINT_ADDRESS);
+
+    let lookupTableAddress: PublicKey;
 
     describe("Admin", function () {
         describe("Initialize", function () {
@@ -276,6 +279,35 @@ describe("Matching Engine", function () {
                     USDC_MINT_ADDRESS,
                     SystemProgram.programId
                 );
+            });
+
+            after("Setup Lookup Table", async function () {
+                // Create.
+                const [createIx, lookupTable] = await connection.getSlot("finalized").then((slot) =>
+                    AddressLookupTableProgram.createLookupTable({
+                        authority: payer.publicKey,
+                        payer: payer.publicKey,
+                        recentSlot: slot,
+                    })
+                );
+
+                await expectIxOk(connection, [createIx], [payer]);
+
+                const usdcCommonAccounts = await engine.commonAccounts();
+
+                // Extend.
+                const extendIx = AddressLookupTableProgram.extendLookupTable({
+                    payer: payer.publicKey,
+                    authority: payer.publicKey,
+                    lookupTable,
+                    addresses: Object.values(usdcCommonAccounts).filter((key) => key !== undefined),
+                });
+
+                await expectIxOk(connection, [extendIx], [payer], {
+                    confirmOptions: { commitment: "finalized" },
+                });
+
+                lookupTableAddress = lookupTable;
             });
 
             after("Transfer Lamports to Owner and Owner Assistant", async function () {
@@ -2285,7 +2317,7 @@ describe("Matching Engine", function () {
                         await prepareOrderResponse({
                             initAuction: true,
                             executeOrder: false,
-                            prepareOrderRespsonse: false,
+                            prepareOrderResponse: false,
                         });
 
                     const settleIx = await engine.settleAuctionCompleteIx({
@@ -2313,7 +2345,7 @@ describe("Matching Engine", function () {
                     } = await prepareOrderResponse({
                         initAuction: true,
                         executeOrder: true,
-                        prepareOrderRespsonse: false,
+                        prepareOrderResponse: false,
                     });
 
                     const settleIx = await engine.settleAuctionCompleteIx({
@@ -2326,6 +2358,110 @@ describe("Matching Engine", function () {
                 });
             });
 
+            describe("Active Auction", function () {
+                it("Cannot Settle Executed Auction", async function () {
+                    const { auction, fastVaa, fastVaaAccount, prepareIx, preparedOrderResponse } =
+                        await prepareOrderResponse({
+                            executeOrder: true,
+                            initAuction: true,
+                            prepareOrderResponse: false,
+                        });
+                    expect(prepareIx).is.not.null;
+
+                    const liquidatorToken = await splToken.getAssociatedTokenAddress(
+                        USDC_MINT_ADDRESS,
+                        liquidator.publicKey
+                    );
+
+                    const sourceCctpDomain = 0;
+                    const cctpNonce = testCctpNonce++;
+                    const amountIn = 690000n; // 69 cents
+                    const { encodedCctpMessage } = await craftCctpTokenBurnMessage(
+                        engine,
+                        sourceCctpDomain,
+                        cctpNonce,
+                        amountIn
+                    );
+
+                    const settleIx = await engine.settleAuctionActiveCctpIx(
+                        {
+                            payer: payer.publicKey,
+                            fastVaa,
+                            fastVaaAccount,
+                            preparedOrderResponse,
+                            executorToken: liquidatorToken,
+                            auction,
+                            preparedBy: payer.publicKey,
+                            encodedCctpMessage,
+                        },
+                        { targetChain: ethChain, remoteDomain: solanaChain }
+                    );
+
+                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                        lookupTableAddress
+                    );
+                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                        units: 500_000,
+                    });
+                    await expectIxErr(
+                        connection,
+                        [prepareIx!, settleIx, computeIx],
+                        [payer],
+                        "Error Code: AuctionNotActive",
+                        {
+                            addressLookupTableAccounts: [lookupTableAccount!],
+                        }
+                    );
+                });
+                it("Settle", async function () {
+                    const { auction, fastVaa, fastVaaAccount, prepareIx, preparedOrderResponse } =
+                        await prepareOrderResponse({
+                            executeOrder: false,
+                            initAuction: true,
+                            prepareOrderResponse: false,
+                        });
+                    expect(prepareIx).is.not.null;
+
+                    const liquidatorToken = await splToken.getAssociatedTokenAddress(
+                        USDC_MINT_ADDRESS,
+                        liquidator.publicKey
+                    );
+
+                    const sourceCctpDomain = 0;
+                    const cctpNonce = testCctpNonce++;
+                    const amountIn = 690000n; // 69 cents
+                    const { encodedCctpMessage } = await craftCctpTokenBurnMessage(
+                        engine,
+                        sourceCctpDomain,
+                        cctpNonce,
+                        amountIn
+                    );
+                    const settleIx = await engine.settleAuctionActiveCctpIx(
+                        {
+                            payer: payer.publicKey,
+                            fastVaa,
+                            fastVaaAccount,
+                            preparedOrderResponse,
+                            executorToken: liquidatorToken,
+                            auction,
+                            preparedBy: payer.publicKey,
+                            encodedCctpMessage,
+                        },
+                        { targetChain: ethChain, remoteDomain: solanaChain }
+                    );
+
+                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                        lookupTableAddress
+                    );
+                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                        units: 500_000,
+                    });
+                    await expectIxOk(connection, [prepareIx!, settleIx, computeIx], [payer], {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    });
+                });
+            });
+
             describe("Settle No Auction (CCTP)", function () {
                 const localVariables = new Map<string, any>();
 
@@ -2334,7 +2470,7 @@ describe("Matching Engine", function () {
                         await prepareOrderResponse({
                             initAuction: false,
                             executeOrder: false,
-                            prepareOrderRespsonse: true,
+                            prepareOrderResponse: true,
                         });
 
                     const settleIx = await engine.settleAuctionNoneCctpIx({
@@ -2392,9 +2528,9 @@ describe("Matching Engine", function () {
             async function prepareOrderResponse(args: {
                 initAuction: boolean;
                 executeOrder: boolean;
-                prepareOrderRespsonse: boolean;
+                prepareOrderResponse: boolean;
             }) {
-                const { initAuction, executeOrder, prepareOrderRespsonse } = args;
+                const { initAuction, executeOrder, prepareOrderResponse } = args;
 
                 const redeemer = Keypair.generate();
                 const sourceCctpDomain = 0;
@@ -2495,11 +2631,29 @@ describe("Matching Engine", function () {
                     await expectIxOk(connection, [ix], [offerAuthorityOne]);
 
                     if (executeOrder) {
-                        // TODO
+                        const { info } = await engine.fetchAuction({ address: auction });
+                        if (info === null) {
+                            throw new Error("No auction info found");
+                        }
+                        const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
+                        const auctionConfig = engine.auctionConfigAddress(configId);
+                        const duration = (await engine.fetchAuctionConfig(configId)).parameters.duration;
+
+                        await new Promise((f) => setTimeout(f, startSlot.toNumber() + duration + 200));
+
+                        const ix = await engine.executeFastOrderCctpIx({
+                            payer: payer.publicKey,
+                            fastVaa,
+                            auction,
+                            auctionConfig,
+                            bestOfferToken,
+                            initialOfferToken,
+                        });
+                        await expectIxOk(connection, [ix], [payer]);
                     }
                 }
 
-                if (prepareOrderRespsonse) {
+                if (prepareOrderResponse) {
                     await expectIxOk(connection, [prepareIx], [payer]);
                 }
 
@@ -2508,7 +2662,7 @@ describe("Matching Engine", function () {
                     fastVaaAccount,
                     finalizedVaa,
                     finalizedVaaAccount,
-                    prepareIx: prepareOrderRespsonse ? null : prepareIx,
+                    prepareIx: prepareOrderResponse ? null : prepareIx,
                     preparedOrderResponse,
                     auction,
                     preparedBy,

@@ -126,6 +126,7 @@ pub struct SettleAuctionActiveCctp<'info> {
     message_transmitter_authority: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
+    #[account(mut)]
     message_transmitter_config: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["used_nonces", remote_domain.to_string(),
