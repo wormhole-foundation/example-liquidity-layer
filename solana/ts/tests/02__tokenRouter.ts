@@ -12,7 +12,13 @@ import {
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import { CctpTokenBurnMessage, LiquidityLayerDeposit, LiquidityLayerMessage } from "../src";
-import { Custodian, PreparedOrder, RouterEndpoint, TokenRouterProgram } from "../src/tokenRouter";
+import {
+    Custodian,
+    PreparedOrder,
+    RouterEndpoint,
+    TokenRouterProgram,
+    localnet,
+} from "../src/tokenRouter";
 import {
     CircleAttester,
     ETHEREUM_USDC_ADDRESS,
@@ -42,11 +48,7 @@ describe("Token Router", function () {
     const foreignEndpointAddress = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
     const foreignCctpDomain = 0;
     const unregisteredContractAddress = Buffer.alloc(32, "deafbeef", "hex");
-    const tokenRouter = new TokenRouterProgram(
-        connection,
-        "TokenRouter11111111111111111111111111111111",
-        USDC_MINT_ADDRESS
-    );
+    const tokenRouter = new TokenRouterProgram(connection, localnet(), USDC_MINT_ADDRESS);
 
     let lookupTableAddress: PublicKey;
 

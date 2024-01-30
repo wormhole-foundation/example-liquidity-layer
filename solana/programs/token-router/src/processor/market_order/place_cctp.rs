@@ -4,10 +4,13 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::wormhole_io::TypePrefixedPayload;
-use wormhole_cctp_solana::{
-    cctp::{message_transmitter_program, token_messenger_minter_program},
-    wormhole::core_bridge_program,
+use common::{
+    wormhole_cctp_solana::{
+        self,
+        cctp::{message_transmitter_program, token_messenger_minter_program},
+        wormhole::core_bridge_program,
+    },
+    wormhole_io::TypePrefixedPayload,
 };
 
 /// Accounts required for [place_market_order_cctp].

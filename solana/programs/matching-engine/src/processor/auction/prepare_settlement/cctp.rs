@@ -4,10 +4,13 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::messages::raw::{LiquidityLayerDepositMessage, LiquidityLayerMessage};
-use wormhole_cctp_solana::{
-    cctp::{message_transmitter_program, token_messenger_minter_program},
-    wormhole::core_bridge_program::{self, VaaAccount},
+use common::{
+    messages::raw::{LiquidityLayerDepositMessage, LiquidityLayerMessage},
+    wormhole_cctp_solana::{
+        self,
+        cctp::{message_transmitter_program, token_messenger_minter_program},
+        wormhole::core_bridge_program::{self, VaaAccount},
+    },
 };
 
 #[derive(Accounts)]

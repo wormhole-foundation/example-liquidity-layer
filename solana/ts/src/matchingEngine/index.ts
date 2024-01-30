@@ -22,7 +22,10 @@ import {
 } from "./state";
 import { LiquidityLayerMessage } from "../messages";
 
-export const PROGRAM_IDS = ["MatchingEngine11111111111111111111111111111"] as const;
+export const PROGRAM_IDS = [
+    "MatchingEngine11111111111111111111111111111",
+    "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS",
+] as const;
 
 export const FEE_PRECISION_MAX = 1_000_000n;
 
@@ -1120,7 +1123,7 @@ export class MatchingEngineProgram {
                     "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
                 );
             }
-            case mainnet(): {
+            case localnet(): {
                 return new TokenMessengerMinterProgram(
                     this.program.provider.connection,
                     "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
@@ -1140,7 +1143,7 @@ export class MatchingEngineProgram {
                     "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
                 );
             }
-            case mainnet(): {
+            case localnet(): {
                 return new MessageTransmitterProgram(
                     this.program.provider.connection,
                     "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
@@ -1157,8 +1160,8 @@ export class MatchingEngineProgram {
             case testnet(): {
                 return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
             }
-            case mainnet(): {
-                return new PublicKey("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
+            case localnet(): {
+                return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
             }
             default: {
                 throw new Error("unsupported network");
@@ -1202,9 +1205,9 @@ export class MatchingEngineProgram {
 }
 
 export function testnet(): ProgramId {
-    return "MatchingEngine11111111111111111111111111111";
+    return "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 }
 
-export function mainnet(): ProgramId {
+export function localnet(): ProgramId {
     return "MatchingEngine11111111111111111111111111111";
 }

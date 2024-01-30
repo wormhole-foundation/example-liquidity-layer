@@ -20,7 +20,10 @@ import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
 import { VaaAccount } from "../wormhole";
 import { Custodian, PayerSequence, PreparedFill, PreparedOrder, RouterEndpoint } from "./state";
 
-export const PROGRAM_IDS = ["TokenRouter11111111111111111111111111111111"] as const;
+export const PROGRAM_IDS = [
+    "TokenRouter11111111111111111111111111111111",
+    "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md",
+] as const;
 
 export type ProgramId = (typeof PROGRAM_IDS)[number];
 
@@ -103,7 +106,6 @@ export type RedeemFastFillAccounts = {
     matchingEngineRouterEndpoint: PublicKey;
     matchingEngineCustodyToken: PublicKey;
     matchingEngineProgram: PublicKey;
-    tokenProgram: PublicKey;
 };
 
 export type AddCctpRouterEndpointArgs = {
@@ -591,7 +593,6 @@ export class TokenRouterProgram {
                 routerEndpoint: matchingEngineRouterEndpoint,
                 custodyToken: matchingEngineCustodyToken,
                 matchingEngineProgram,
-                tokenProgram,
             },
         } = await this.matchingEngineProgram().redeemFastFillAccounts(vaa);
 
@@ -604,7 +605,6 @@ export class TokenRouterProgram {
             matchingEngineRouterEndpoint,
             matchingEngineCustodyToken,
             matchingEngineProgram,
-            tokenProgram,
         };
     }
 
@@ -622,7 +622,6 @@ export class TokenRouterProgram {
             matchingEngineRouterEndpoint,
             matchingEngineCustodyToken,
             matchingEngineProgram,
-            tokenProgram,
         } = await this.redeemFastFillAccounts(vaa);
 
         return this.program.methods
@@ -638,7 +637,6 @@ export class TokenRouterProgram {
                 matchingEngineRouterEndpoint,
                 matchingEngineCustodyToken,
                 matchingEngineProgram,
-                tokenProgram,
             })
             .instruction();
     }
@@ -798,68 +796,6 @@ export class TokenRouterProgram {
             .instruction();
     }
 
-    tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new TokenMessengerMinterProgram(
-                    this.program.provider.connection,
-                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
-                );
-            }
-            case mainnet(): {
-                return new TokenMessengerMinterProgram(
-                    this.program.provider.connection,
-                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
-    }
-
-    messageTransmitterProgram(): MessageTransmitterProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new MessageTransmitterProgram(
-                    this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
-                );
-            }
-            case mainnet(): {
-                return new MessageTransmitterProgram(
-                    this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
-    }
-
-    matchingEngineProgram(): matchingEngineSdk.MatchingEngineProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new matchingEngineSdk.MatchingEngineProgram(
-                    this.program.provider.connection,
-                    matchingEngineSdk.testnet(),
-                    this.mint
-                );
-            }
-            case mainnet(): {
-                return new matchingEngineSdk.MatchingEngineProgram(
-                    this.program.provider.connection,
-                    matchingEngineSdk.mainnet(),
-                    this.mint
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
-    }
-
     publishMessageAccounts(emitter: PublicKey): PublishMessageAccounts {
         const coreBridgeProgram = this.coreBridgeProgramId();
 
@@ -880,13 +816,75 @@ export class TokenRouterProgram {
         };
     }
 
+    tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
+        switch (this._programId) {
+            case testnet(): {
+                return new TokenMessengerMinterProgram(
+                    this.program.provider.connection,
+                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
+                );
+            }
+            case localnet(): {
+                return new TokenMessengerMinterProgram(
+                    this.program.provider.connection,
+                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
+                );
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
+    }
+
+    messageTransmitterProgram(): MessageTransmitterProgram {
+        switch (this._programId) {
+            case testnet(): {
+                return new MessageTransmitterProgram(
+                    this.program.provider.connection,
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
+                );
+            }
+            case localnet(): {
+                return new MessageTransmitterProgram(
+                    this.program.provider.connection,
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
+                );
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
+    }
+
+    matchingEngineProgram(): matchingEngineSdk.MatchingEngineProgram {
+        switch (this._programId) {
+            case testnet(): {
+                return new matchingEngineSdk.MatchingEngineProgram(
+                    this.program.provider.connection,
+                    matchingEngineSdk.testnet(),
+                    this.mint
+                );
+            }
+            case localnet(): {
+                return new matchingEngineSdk.MatchingEngineProgram(
+                    this.program.provider.connection,
+                    matchingEngineSdk.localnet(),
+                    this.mint
+                );
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
+    }
+
     coreBridgeProgramId(): PublicKey {
         switch (this._programId) {
             case testnet(): {
                 return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
             }
-            case mainnet(): {
-                return new PublicKey("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
+            case localnet(): {
+                return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
             }
             default: {
                 throw new Error("unsupported network");
@@ -895,10 +893,10 @@ export class TokenRouterProgram {
     }
 }
 
-export function testnet(): ProgramId {
+export function localnet(): ProgramId {
     return "TokenRouter11111111111111111111111111111111";
 }
 
-export function mainnet(): ProgramId {
-    return "TokenRouter11111111111111111111111111111111";
+export function testnet(): ProgramId {
+    return "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md";
 }

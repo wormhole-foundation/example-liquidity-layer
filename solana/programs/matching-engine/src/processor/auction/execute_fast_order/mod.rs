@@ -11,8 +11,10 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::messages::{raw::LiquidityLayerPayload, Fill};
-use wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
+use common::{
+    messages::{raw::LiquidityLayerPayload, Fill},
+    wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount,
+};
 
 struct PrepareFastExecution<'ctx, 'info> {
     custodian: &'ctx AccountInfo<'info>,

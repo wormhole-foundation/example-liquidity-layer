@@ -17,6 +17,9 @@ use anchor_lang::prelude::*;
 cfg_if::cfg_if! {
     if #[cfg(feature = "testnet")] {
         // Placeholder.
+        declare_id!("mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS");
+        const CUSTODIAN_BUMP: u8 = 254;
+    } else if #[cfg(feature = "localnet")] {
         declare_id!("MatchingEngine11111111111111111111111111111");
         const CUSTODIAN_BUMP: u8 = 254;
     }

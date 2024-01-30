@@ -4,8 +4,10 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::admin::utils::assistant::only_authorized;
-use wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN;
+use common::{
+    admin::utils::assistant::only_authorized,
+    wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
+};
 
 #[derive(Accounts)]
 pub struct AddLocalRouterEndpoint<'info> {

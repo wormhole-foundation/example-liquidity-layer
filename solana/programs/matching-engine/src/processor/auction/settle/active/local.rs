@@ -7,8 +7,10 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::wormhole_io::TypePrefixedPayload;
-use wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount};
+use common::{
+    wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount},
+    wormhole_io::TypePrefixedPayload,
+};
 
 /// Accounts required for [settle_auction_active_local].
 #[derive(Accounts)]
@@ -174,7 +176,7 @@ pub fn settle_auction_active_local(ctx: Context<SettleAuctionActiveLocal>) -> Re
     core_bridge_program::cpi::post_message(
         CpiContext::new_with_signer(
             ctx.accounts.core_bridge_program.to_account_info(),
-            wormhole_cctp_solana::cpi::PostMessage {
+            core_bridge_program::cpi::PostMessage {
                 payer: ctx.accounts.payer.to_account_info(),
                 message: ctx.accounts.core_message.to_account_info(),
                 emitter: ctx.accounts.custodian.to_account_info(),

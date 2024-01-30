@@ -1211,7 +1211,6 @@ dependencies = [
  "liquidity-layer-common-solana",
  "ruint",
  "solana-program",
- "wormhole-cctp-solana",
 ]
 
 [[package]]
@@ -2159,7 +2158,6 @@ dependencies = [
  "matching-engine",
  "ruint",
  "solana-program",
- "wormhole-cctp-solana",
 ]
 
 [[package]]

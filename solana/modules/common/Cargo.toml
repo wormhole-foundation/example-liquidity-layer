@@ -11,9 +11,10 @@ repository.workspace = true
 
 [features]
 testnet = ["wormhole-cctp-solana/testnet"]
+localnet = ["wormhole-cctp-solana/testnet"]
 
 [dependencies]
-wormhole-cctp-solana.workspace = true
+wormhole-cctp-solana = { workspace = true, features = ["cpi"] }
 wormhole-io.workspace = true
 wormhole-raw-vaas.workspace = true
 

@@ -5,7 +5,7 @@ import { MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
 export const WORMHOLE_CONTRACTS = CONTRACTS.TESTNET;
 export const CORE_BRIDGE_PID = new PublicKey(WORMHOLE_CONTRACTS.solana.core);
 
-export const TOKEN_ROUTER_PID = new PublicKey("TokenRouter11111111111111111111111111111111");
+export const TOKEN_ROUTER_PID = new PublicKey("tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md");
 
 export const LOCALHOST = "http://localhost:8899";
 

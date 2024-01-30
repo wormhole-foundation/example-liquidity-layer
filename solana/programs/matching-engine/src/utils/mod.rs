@@ -5,7 +5,7 @@ use crate::{
     state::{Auction, AuctionConfig, AuctionStatus, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
-use wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
+use common::wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 
 pub fn verify_router_path(
     vaa: &VaaAccount<'_>,

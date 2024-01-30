@@ -14,7 +14,9 @@ use anchor_lang::prelude::*;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "testnet")] {
-        // Placeholder.
+        declare_id!("tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md");
+        const CUSTODIAN_BUMP: u8 = 255;
+    } else if #[cfg(feature = "localnet")] {
         declare_id!("TokenRouter11111111111111111111111111111111");
         const CUSTODIAN_BUMP: u8 = 253;
     }

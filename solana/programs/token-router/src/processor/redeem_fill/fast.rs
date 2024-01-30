@@ -4,8 +4,10 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::messages::raw::LiquidityLayerMessage;
-use wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount};
+use common::{
+    messages::raw::LiquidityLayerMessage,
+    wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount},
+};
 
 /// Accounts required for [redeem_fast_fill].
 #[derive(Accounts)]
@@ -105,9 +107,7 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
         &[Custodian::SIGNER_SEEDS],
     ))?;
 
-    let vaa =
-        wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount::load(&ctx.accounts.vaa)
-            .unwrap();
+    let vaa = VaaAccount::load(&ctx.accounts.vaa).unwrap();
     let fast_fill = LiquidityLayerMessage::try_from(vaa.try_payload().unwrap())
         .unwrap()
         .to_fast_fill_unchecked();

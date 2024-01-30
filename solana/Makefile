@@ -5,7 +5,7 @@ out_mainnet=artifacts-mainnet
 out_testnet=artifacts-testnet
 out_localnet=artifacts-localnet
 
-.PHONY: all clean check build test lint ci
+.PHONY: all clean check build test lint ci cargo-test
 
 all: check
 
@@ -19,8 +19,11 @@ clean:
 node_modules:
 	npm ci
 
+cargo-test $(NETWORK):
+	cargo test --features "$(NETWORK)" --no-default-features
+
 build: $(out_$(NETWORK))
-$(out_$(NETWORK)):
+$(out_$(NETWORK)): cargo-test
 ifdef out_$(NETWORK)
 	anchor build -p token_router --arch sbf -- --features "$(NETWORK),no-idl" -- --no-default-features
 	anchor build -p matching_engine --arch sbf -- --features "$(NETWORK),no-idl" -- --no-default-features
@@ -29,7 +32,8 @@ ifdef out_$(NETWORK)
 endif
 
 test: node_modules
-	cargo test --all-features
+	NETWORK=localnet $(MAKE) cargo-test
+	NETWORK=testnet $(MAKE) cargo-test
 	anchor build -p token_router --arch sbf -- --features testnet
 	mkdir -p ts/tests/artifacts && cp target/deploy/token_router.so ts/tests/artifacts/testnet_token_router.so
 	anchor build -p matching_engine --arch sbf -- --features testnet

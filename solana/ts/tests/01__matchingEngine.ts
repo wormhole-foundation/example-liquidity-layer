@@ -27,6 +27,7 @@ import {
     Custodian,
     MatchingEngineProgram,
     RouterEndpoint,
+    localnet,
 } from "../src/matchingEngine";
 import { VaaAccount } from "../src/wormhole";
 import {
@@ -79,11 +80,7 @@ describe("Matching Engine", function () {
     const solanaDomain = 5;
 
     // Matching Engine program.
-    const engine = new MatchingEngineProgram(
-        connection,
-        "MatchingEngine11111111111111111111111111111",
-        USDC_MINT_ADDRESS
-    );
+    const engine = new MatchingEngineProgram(connection, localnet(), USDC_MINT_ADDRESS);
 
     describe("Admin", function () {
         describe("Initialize", function () {

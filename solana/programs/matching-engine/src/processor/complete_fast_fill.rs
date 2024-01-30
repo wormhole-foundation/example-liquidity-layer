@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::messages::raw::LiquidityLayerMessage;
-use wormhole_cctp_solana::wormhole::core_bridge_program;
+use common::{
+    messages::raw::LiquidityLayerMessage, wormhole_cctp_solana::wormhole::core_bridge_program,
+};
 
 use crate::{
     error::MatchingEngineError,

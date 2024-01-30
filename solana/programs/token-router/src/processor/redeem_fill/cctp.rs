@@ -4,12 +4,15 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::messages::raw::LiquidityLayerDepositMessage;
-use wormhole_cctp_solana::{
-    cctp::{message_transmitter_program, token_messenger_minter_program},
-    cpi::ReceiveMessageArgs,
-    utils::WormholeCctpPayload,
-    wormhole::core_bridge_program::VaaAccount,
+use common::{
+    messages::raw::LiquidityLayerDepositMessage,
+    wormhole_cctp_solana::{
+        self,
+        cctp::{message_transmitter_program, token_messenger_minter_program},
+        cpi::ReceiveMessageArgs,
+        utils::WormholeCctpPayload,
+        wormhole::core_bridge_program::VaaAccount,
+    },
 };
 
 /// Accounts required for [redeem_cctp_fill].

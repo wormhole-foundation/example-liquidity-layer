@@ -1,7 +1,7 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { BN } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
-import { Connection, Keypair, PublicKey, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import { LiquidityLayerDeposit, LiquidityLayerMessage } from "../src";
@@ -31,12 +31,12 @@ describe("Matching Engine <> Token Router", function () {
     const foreignChain = wormholeSdk.CHAINS.ethereum;
     const matchingEngine = new matchingEngineSdk.MatchingEngineProgram(
         connection,
-        "MatchingEngine11111111111111111111111111111",
+        matchingEngineSdk.localnet(),
         USDC_MINT_ADDRESS
     );
     const tokenRouter = new tokenRouterSdk.TokenRouterProgram(
         connection,
-        "TokenRouter11111111111111111111111111111111",
+        tokenRouterSdk.localnet(),
         matchingEngine.mint
     );
 

@@ -7,11 +7,13 @@ pub use local::*;
 use crate::state::{Auction, AuctionStatus, Custodian, PreparedOrderResponse, RouterEndpoint};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::messages::{
-    raw::{FastMarketOrder, LiquidityLayerMessage},
-    Fill,
+use common::{
+    messages::{
+        raw::{FastMarketOrder, LiquidityLayerMessage},
+        Fill,
+    },
+    wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount,
 };
-use wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 
 struct SettleNoneAndPrepareFill<'ctx, 'info> {
     custodian: &'ctx Account<'info, Custodian>,

@@ -3,10 +3,13 @@ use crate::{
     state::{Custodian, MessageProtocol, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
-use common::admin::utils::assistant::only_authorized;
-use wormhole_cctp_solana::{
-    cctp::token_messenger_minter_program::{self, RemoteTokenMessenger},
-    utils::ExternalAccount,
+use common::{
+    admin::utils::assistant::only_authorized,
+    wormhole_cctp_solana::{
+        cctp::token_messenger_minter_program::{self, RemoteTokenMessenger},
+        utils::ExternalAccount,
+        wormhole::core_bridge_program,
+    },
 };
 
 #[derive(Accounts)]
@@ -71,7 +74,7 @@ pub fn add_cctp_router_endpoint(
     } = args;
 
     require!(
-        chain != 0 && chain != wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
+        chain != 0 && chain != core_bridge_program::SOLANA_CHAIN,
         TokenRouterError::ChainNotAllowed
     );
 

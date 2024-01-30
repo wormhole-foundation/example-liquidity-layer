@@ -56,7 +56,8 @@ pub fn add_router_endpoint(
     } = args;
 
     require!(
-        chain != 0 && chain != wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
+        chain != 0
+            && chain != common::wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
         MatchingEngineError::ChainNotAllowed
     );
 
