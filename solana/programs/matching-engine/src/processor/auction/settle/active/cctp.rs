@@ -85,13 +85,11 @@ pub struct SettleAuctionActiveCctp<'info> {
     #[account(mut)]
     best_offer_token: AccountInfo<'info>,
 
-    /// Destination token account, which the redeemer may not own. But because the redeemer is a
-    /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
-    /// to any account he chooses (this one).
-    ///
-    /// CHECK: This token account must already exist.
-    #[account(mut)]
-    liquidator_token: AccountInfo<'info>,
+    #[account(
+        mut,
+        token::mint = common::constants::usdc::id(),
+    )]
+    executor_token: Box<Account<'info, token::TokenAccount>>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -218,7 +216,7 @@ pub fn settle_auction_active_cctp(ctx: Context<SettleAuctionActiveCctp>) -> Resu
             custodian: &ctx.accounts.custodian,
             auction_config: &ctx.accounts.auction_config,
             prepared_order_response: &ctx.accounts.prepared_order_response,
-            liquidator_token: &ctx.accounts.liquidator_token,
+            executor_token: &ctx.accounts.executor_token,
             best_offer_token: &ctx.accounts.best_offer_token,
             custody_token: &ctx.accounts.custody_token,
             token_program: &ctx.accounts.token_program,

@@ -69,10 +69,9 @@ pub struct ExecuteFastOrderLocal<'info> {
 
     #[account(
         mut,
-        associated_token::mint = common::constants::usdc::id(),
-        associated_token::authority = payer
+        token::mint = common::constants::usdc::id(),
     )]
-    executor_token: Account<'info, token::TokenAccount>,
+    executor_token: Box<Account<'info, token::TokenAccount>>,
 
     /// CHECK: Mutable. Must equal [best_offer](Auction::best_offer).
     #[account(mut)]
@@ -130,9 +129,9 @@ pub struct ExecuteFastOrderLocal<'info> {
 
 pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<()> {
     let super::PreparedFastExecution {
-        transfer_amount: amount,
-        destination_cctp_domain: _,
+        user_amount: amount,
         fill,
+        ..
     } = super::prepare_fast_execution(super::PrepareFastExecution {
         custodian: &ctx.accounts.custodian,
         auction_config: &ctx.accounts.auction_config,

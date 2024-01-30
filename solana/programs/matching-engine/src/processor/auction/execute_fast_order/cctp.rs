@@ -74,11 +74,9 @@ pub struct ExecuteFastOrderCctp<'info> {
     )]
     to_router_endpoint: Account<'info, RouterEndpoint>,
 
-    // TODO: add executor in case contract executes?
     #[account(
         mut,
-        associated_token::mint = mint,
-        associated_token::authority = payer
+        token::mint = mint,
     )]
     executor_token: Box<Account<'info, token::TokenAccount>>,
 
@@ -172,9 +170,9 @@ pub struct ExecuteFastOrderCctp<'info> {
 /// TODO: add docstring
 pub fn execute_fast_order_cctp(ctx: Context<ExecuteFastOrderCctp>) -> Result<()> {
     let super::PreparedFastExecution {
-        transfer_amount: amount,
-        destination_cctp_domain,
+        user_amount: amount,
         fill,
+        destination_cctp_domain,
     } = super::prepare_fast_execution(super::PrepareFastExecution {
         custodian: &ctx.accounts.custodian,
         auction_config: &ctx.accounts.auction_config,

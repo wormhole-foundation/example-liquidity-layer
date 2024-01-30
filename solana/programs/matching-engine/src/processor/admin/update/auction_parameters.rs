@@ -77,8 +77,7 @@ pub fn update_auction_parameters(ctx: Context<UpdateAuctionParameters>) -> Resul
     ctx.accounts.custodian.auction_config_id += 1;
 
     // Set the slot enacted at so it cannot be replayed.
-    let Clock { slot, .. } = Clock::get()?;
-    ctx.accounts.proposal.slot_enacted_at = Some(slot);
+    ctx.accounts.proposal.slot_enacted_at = Some(Clock::get().map(|clock| clock.slot)?);
 
     // Done.
     Ok(())

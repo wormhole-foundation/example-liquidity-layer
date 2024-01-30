@@ -156,7 +156,6 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
             best_offer_token: initial_offer_token,
             initial_offer_token,
             start_slot: slot,
-            end_slot: slot + u64::from(ctx.accounts.auction_config.duration),
             amount_in,
             security_deposit: max_fee,
             offer_price: fee_offer,

@@ -11,36 +11,36 @@ pub struct DepositPenalty {
     pub user_reward: u64,
 }
 
+#[inline]
 pub fn compute_deposit_penalty(
-    auction_params: &AuctionParameters,
-    auction_info: &AuctionInfo,
+    params: &AuctionParameters,
+    info: &AuctionInfo,
     current_slot: u64,
 ) -> DepositPenalty {
-    let slots_elapsed =
-        current_slot.saturating_sub(auction_info.start_slot + auction_params.duration as u64);
+    let slots_elapsed = current_slot.saturating_sub(info.start_slot + params.duration as u64);
 
-    if slots_elapsed <= auction_params.grace_period as u64 {
+    if slots_elapsed <= params.grace_period as u64 {
         Default::default()
     } else {
-        let deposit = auction_info.security_deposit;
-        let penalty_period = slots_elapsed - auction_params.grace_period as u64;
-        if penalty_period >= auction_params.penalty_slots as u64
-            || auction_params.initial_penalty_bps == FEE_PRECISION_MAX
+        let deposit = info.security_deposit;
+        let penalty_period = slots_elapsed - params.grace_period as u64;
+        if penalty_period >= params.penalty_slots as u64
+            || params.initial_penalty_bps == FEE_PRECISION_MAX
         {
-            split_user_penalty_reward(auction_params, deposit)
+            split_user_penalty_reward(params, deposit)
         } else {
-            let base_penalty = mul_bps_unsafe(deposit, auction_params.initial_penalty_bps);
+            let base_penalty = mul_bps_unsafe(deposit, params.initial_penalty_bps);
 
             // Adjust the base amount to determine scaled penalty.
             let scaled = (((deposit - base_penalty) as u128 * penalty_period as u128)
-                / auction_params.penalty_slots as u128) as u64;
+                / params.penalty_slots as u128) as u64;
 
-            split_user_penalty_reward(auction_params, base_penalty + scaled)
+            split_user_penalty_reward(params, base_penalty + scaled)
         }
     }
 }
 
-pub fn require_valid_auction_parameters(params: &AuctionParameters) -> Result<()> {
+pub fn require_valid_parameters(params: &AuctionParameters) -> Result<()> {
     require!(
         params.duration > 0,
         MatchingEngineError::InvalidAuctionDuration
@@ -73,8 +73,7 @@ fn split_user_penalty_reward(params: &AuctionParameters, amount: u64) -> Deposit
 
 #[inline]
 fn mul_bps_unsafe(amount: u64, bps: u32) -> u64 {
-    const FEE_PRECISION_MAX: u128 = common::constants::FEE_PRECISION_MAX as u128;
-    ((amount as u128 * bps as u128) / FEE_PRECISION_MAX) as u64
+    ((amount as u128 * bps as u128) / FEE_PRECISION_MAX as u128) as u64
 }
 
 #[cfg(test)]
@@ -279,7 +278,6 @@ mod test {
             AuctionInfo {
                 security_deposit,
                 start_slot: START,
-                end_slot: 420,
                 config_id: Default::default(),
                 best_offer_token: Default::default(),
                 initial_offer_token: Default::default(),
@@ -300,7 +298,7 @@ mod test {
             penalty_slots: 20,
         };
 
-        require_valid_auction_parameters(&params).unwrap();
+        require_valid_parameters(&params).unwrap();
 
         params
     }

@@ -19,10 +19,7 @@ fn propose(accounts: Propose, action: ProposalAction, proposal_bump_seed: u8) ->
         epoch_schedule,
     } = accounts;
 
-    let Clock {
-        slot: slot_proposed_at,
-        ..
-    } = Clock::get()?;
+    let slot_proposed_at = Clock::get().map(|clock| clock.slot)?;
 
     // Create the proposal.
     proposal.set_inner(Proposal {

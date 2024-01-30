@@ -1,4 +1,4 @@
-pub mod math;
+pub mod auction;
 
 use crate::{
     error::MatchingEngineError,

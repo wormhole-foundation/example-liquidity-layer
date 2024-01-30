@@ -1,4 +1,6 @@
 import { postVaaSolana, solana as wormSolana } from "@certusone/wormhole-sdk";
+import { BN } from "@coral-xyz/anchor";
+import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableAccount,
     ConfirmOptions,
@@ -13,12 +15,7 @@ import {
 import { expect } from "chai";
 import { execSync } from "child_process";
 import { Err, Ok } from "ts-results";
-import { CORE_BRIDGE_PID } from "./consts";
-import { BN } from "@coral-xyz/anchor";
-
-export function expectDeepEqual<T>(a: T, b: T) {
-    expect(JSON.stringify(a)).to.equal(JSON.stringify(b));
-}
+import { CORE_BRIDGE_PID, USDC_MINT_ADDRESS } from "./consts";
 
 async function confirmLatest(connection: Connection, signature: string) {
     return connection.getLatestBlockhash().then(({ blockhash, lastValidBlockHeight }) =>
@@ -235,4 +232,12 @@ export async function waitUntilSlot(connection: Connection, targetSlot: number) 
             }
         });
     });
+}
+
+export async function getUsdcAtaBalance(connection: Connection, owner: PublicKey) {
+    const { amount } = await splToken.getAccount(
+        connection,
+        splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner)
+    );
+    return amount;
 }

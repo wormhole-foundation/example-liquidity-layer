@@ -1,4 +1,5 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
+import { getPostedMessage } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import * as splToken from "@solana/spl-token";
 import {
     ComputeBudgetProgram,
@@ -15,6 +16,7 @@ import chaiAsPromised from "chai-as-promised";
 import {
     CctpTokenBurnMessage,
     FastMarketOrder,
+    Fill,
     LiquidityLayerDeposit,
     LiquidityLayerMessage,
 } from "../src";
@@ -39,16 +41,11 @@ import {
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,
+    getUsdcAtaBalance,
     numberToU64BN,
     postLiquidityLayerVaa,
-    waitBySlots,
     waitUntilSlot,
 } from "./helpers";
-import {
-    getUsdcAtaBalance,
-    verifyFastFillMessage,
-    verifyFillMessage,
-} from "./helpers/matching_engine_utils";
 
 chaiUse(chaiAsPromised);
 
@@ -68,6 +65,7 @@ describe("Matching Engine", function () {
     const newFeeRecipient = Keypair.generate().publicKey;
     const offerAuthorityOne = Keypair.generate();
     const offerAuthorityTwo = Keypair.generate();
+    const liquidator = Keypair.generate();
 
     // Foreign endpoints.
     const ethChain = wormholeSdk.CHAINS.ethereum;
@@ -93,7 +91,7 @@ describe("Matching Engine", function () {
                 userPenaltyRewardBps: 250000,
                 initialPenaltyBps: 250000,
                 duration: 2,
-                gracePeriod: 5, // 2 + 5 slots after end. TODO: fix this
+                gracePeriod: 5,
                 penaltySlots: 10,
             };
 
@@ -603,7 +601,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(connection, [ix], [owner], "InvalidEndpoint");
             });
 
-            it(`Add Router Endpoint as Owner Assistant`, async function () {
+            it("Add Router Endpoint as Owner Assistant", async function () {
                 const contractAddress = Array.from(Buffer.alloc(32, "fbadc0de", "hex"));
                 const mintRecipient = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
                 const ix = await engine.addRouterEndpointIx(
@@ -622,7 +620,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it(`Update Router Endpoint as Owner`, async function () {
+            it("Update Router Endpoint as Owner", async function () {
                 const ix = await engine.addRouterEndpointIx(
                     { ownerOrAssistant: owner.publicKey },
                     {
@@ -819,13 +817,18 @@ describe("Matching Engine", function () {
                         toPubkey: offerAuthorityTwo.publicKey,
                         lamports: 1000000000,
                     }),
+                    SystemProgram.transfer({
+                        fromPubkey: payer.publicKey,
+                        toPubkey: liquidator.publicKey,
+                        lamports: 1000000000,
+                    }),
                 ],
                 [payer]
             );
         });
 
         before("Create ATAs For Offer Authorities", async function () {
-            for (const wallet of [offerAuthorityOne, offerAuthorityTwo]) {
+            for (const wallet of [offerAuthorityOne, offerAuthorityTwo, liquidator]) {
                 const destination = await splToken.createAccount(
                     connection,
                     wallet,
@@ -864,7 +867,6 @@ describe("Matching Engine", function () {
                         await engine.fetchCustodyTokenAccount();
 
                     const { fastVaa, txDetails } = await placeInitialOfferForTest(
-                        engine,
                         offerAuthorityOne,
                         wormholeSequence++,
                         baseFastOrder,
@@ -887,10 +889,9 @@ describe("Matching Engine", function () {
                 });
             }
 
-            it(`Place Initial Offer (Offer == Max Fee; Max Fee == Amount Minus 1)`, async function () {
+            it("Place Initial Offer (Offer == Max Fee; Max Fee == Amount Minus 1)", async function () {
                 const fastOrder = { ...baseFastOrder } as FastMarketOrder;
                 fastOrder.maxFee = fastOrder.amountIn - 1n;
-                const { maxFee: offerPrice } = fastOrder;
 
                 // Fetch the balances before.
                 const offerBalanceBefore = await getUsdcAtaBalance(
@@ -900,12 +901,10 @@ describe("Matching Engine", function () {
                 const { amount: custodyBalanceBefore } = await engine.fetchCustodyTokenAccount();
 
                 const { fastVaa, txDetails } = await placeInitialOfferForTest(
-                    engine,
                     offerAuthorityOne,
                     wormholeSequence++,
                     fastOrder,
-                    ethRouter,
-                    offerPrice
+                    ethRouter
                 );
 
                 // Validate balance changes.
@@ -918,10 +917,10 @@ describe("Matching Engine", function () {
                 expect(offerBalanceAfter).equals(offerBalanceBefore - balanceChange);
                 expect(custodyBalanceAfter).equals(custodyBalanceBefore + balanceChange);
 
-                await checkAfterEffects({ txDetails, fastVaa, offerPrice });
+                await checkAfterEffects({ txDetails, fastVaa, offerPrice: fastOrder.maxFee });
             });
 
-            it(`Place Initial Offer (With Deadline)`, async function () {
+            it("Place Initial Offer (With Deadline)", async function () {
                 const fastOrder = { ...baseFastOrder } as FastMarketOrder;
                 const { maxFee: offerPrice } = fastOrder;
 
@@ -940,7 +939,6 @@ describe("Matching Engine", function () {
                 const { amount: custodyBalanceBefore } = await engine.fetchCustodyTokenAccount();
 
                 const { fastVaa, txDetails } = await placeInitialOfferForTest(
-                    engine,
                     offerAuthorityOne,
                     wormholeSequence++,
                     fastOrder,
@@ -961,7 +959,7 @@ describe("Matching Engine", function () {
                 await checkAfterEffects({ txDetails, fastVaa, offerPrice });
             });
 
-            it(`Cannot Place Initial Offer (Invalid VAA)`, async function () {
+            it("Cannot Place Initial Offer (Invalid VAA)", async function () {
                 const fastVaa = await postLiquidityLayerVaa(
                     connection,
                     offerAuthorityOne,
@@ -975,26 +973,20 @@ describe("Matching Engine", function () {
                     engine.auctionAddress(vaa.digest())
                 );
 
-                await expectIxErr(
-                    connection,
-                    [
-                        await engine.placeInitialOfferIx(
-                            {
-                                payer: offerAuthorityOne.publicKey,
-                                fastVaa,
-                                auction,
-                                fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
-                                toRouterEndpoint: engine.routerEndpointAddress(arbChain),
-                            },
-                            baseFastOrder.maxFee
-                        ),
-                    ],
-                    [offerAuthorityOne],
-                    "InvalidVaa"
+                const ix = await engine.placeInitialOfferIx(
+                    {
+                        payer: offerAuthorityOne.publicKey,
+                        fastVaa,
+                        auction,
+                        fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
+                        toRouterEndpoint: engine.routerEndpointAddress(arbChain),
+                    },
+                    baseFastOrder.maxFee
                 );
+                await expectIxErr(connection, [ix], [offerAuthorityOne], "InvalidVaa");
             });
 
-            it(`Cannot Place Initial Offer (Invalid Payload)`, async function () {
+            it("Cannot Place Initial Offer (Invalid Payload)", async function () {
                 const message = new LiquidityLayerMessage({
                     fastFill: {
                         amount: 1000n,
@@ -1020,27 +1012,20 @@ describe("Matching Engine", function () {
                     engine.auctionAddress(vaa.digest())
                 );
 
-                const { maxFee: offerPrice } = baseFastOrder;
-                await expectIxErr(
-                    connection,
-                    [
-                        await engine.placeInitialOfferIx(
-                            {
-                                payer: offerAuthorityOne.publicKey,
-                                fastVaa,
-                                auction,
-                                fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
-                                toRouterEndpoint: engine.routerEndpointAddress(arbChain),
-                            },
-                            offerPrice
-                        ),
-                    ],
-                    [offerAuthorityOne],
-                    "NotFastMarketOrder"
+                const ix = await engine.placeInitialOfferIx(
+                    {
+                        payer: offerAuthorityOne.publicKey,
+                        fastVaa,
+                        auction,
+                        fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
+                        toRouterEndpoint: engine.routerEndpointAddress(arbChain),
+                    },
+                    baseFastOrder.maxFee
                 );
+                await expectIxErr(connection, [ix], [offerAuthorityOne], "NotFastMarketOrder");
             });
 
-            it(`Cannot Place Initial Offer (Deadline Exceeded)`, async function () {
+            it("Cannot Place Initial Offer (Deadline Exceeded)", async function () {
                 const fastMarketOrder = { ...baseFastOrder } as FastMarketOrder;
 
                 // Set the deadline to the previous block timestamp.
@@ -1058,24 +1043,18 @@ describe("Matching Engine", function () {
                     new LiquidityLayerMessage({ fastMarketOrder })
                 );
 
-                const { maxFee: offerPrice } = fastMarketOrder;
-                await expectIxErr(
-                    connection,
-                    [
-                        await engine.placeInitialOfferIx(
-                            {
-                                payer: offerAuthorityOne.publicKey,
-                                fastVaa,
-                            },
-                            offerPrice
-                        ),
-                    ],
-                    [offerAuthorityOne],
-                    "FastMarketOrderExpired"
+                const ix = await engine.placeInitialOfferIx(
+                    {
+                        payer: offerAuthorityOne.publicKey,
+                        fastVaa,
+                    },
+                    fastMarketOrder.maxFee
                 );
+
+                await expectIxErr(connection, [ix], [offerAuthorityOne], "FastMarketOrderExpired");
             });
 
-            it(`Cannot Place Initial Offer (Offer Price Too High)`, async function () {
+            it("Cannot Place Initial Offer (Offer Price Too High)", async function () {
                 const offerPrice = baseFastOrder.maxFee + 1n;
 
                 const fastVaa = await postLiquidityLayerVaa(
@@ -1087,23 +1066,17 @@ describe("Matching Engine", function () {
                     new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder })
                 );
 
-                await expectIxErr(
-                    connection,
-                    [
-                        await engine.placeInitialOfferIx(
-                            {
-                                payer: offerAuthorityOne.publicKey,
-                                fastVaa,
-                            },
-                            offerPrice
-                        ),
-                    ],
-                    [offerAuthorityOne],
-                    "OfferPriceTooHigh"
+                const ix = await engine.placeInitialOfferIx(
+                    {
+                        payer: offerAuthorityOne.publicKey,
+                        fastVaa,
+                    },
+                    offerPrice
                 );
+                await expectIxErr(connection, [ix], [offerAuthorityOne], "OfferPriceTooHigh");
             });
 
-            it(`Cannot Place Initial Offer (Invalid Emitter Chain)`, async function () {
+            it("Cannot Place Initial Offer (Invalid Emitter Chain)", async function () {
                 const fastVaa = await postLiquidityLayerVaa(
                     connection,
                     payer,
@@ -1132,7 +1105,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it(`Cannot Place Initial Offer (Invalid Emitter Address)`, async function () {
+            it("Cannot Place Initial Offer (Invalid Emitter Address)", async function () {
                 const fastVaa = await postLiquidityLayerVaa(
                     connection,
                     payer,
@@ -1159,7 +1132,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it(`Cannot Place Initial Offer (Invalid Target Router Chain)`, async function () {
+            it("Cannot Place Initial Offer (Invalid Target Router Chain)", async function () {
                 // Change the fast order chain Id.
                 const fastMarketOrder = { ...baseFastOrder } as FastMarketOrder;
                 fastMarketOrder.targetChain = wormholeSdk.CHAINS.acala;
@@ -1191,7 +1164,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it(`Cannot Place Initial Offer Again`, async function () {
+            it("Cannot Place Initial Offer Again", async function () {
                 const fastVaa = await postLiquidityLayerVaa(
                     connection,
                     payer,
@@ -1230,7 +1203,6 @@ describe("Matching Engine", function () {
                 const auctionData = await engine.fetchAuction(vaaHash);
                 const { bump } = auctionData;
 
-                const { duration } = await engine.fetchAuctionParameters();
                 const offerToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     offerAuthorityOne.publicKey
@@ -1250,7 +1222,6 @@ describe("Matching Engine", function () {
                             bestOfferToken: offerToken,
                             initialOfferToken: offerToken,
                             startSlot: numberToU64BN(txDetails.slot),
-                            endSlot: numberToU64BN(txDetails.slot + duration),
                             amountIn: expectedAmountIn,
                             securityDeposit: bigintToU64BN(maxFee),
                             offerPrice: bigintToU64BN(offerPrice),
@@ -1264,13 +1235,11 @@ describe("Matching Engine", function () {
         describe("Improve Offer", function () {
             for (const newOffer of [0n, baseFastOrder.maxFee / 2n, baseFastOrder.maxFee - 1n]) {
                 it(`Improve Offer (Price == ${newOffer})`, async function () {
-                    const { fastVaaAccount } = await placeInitialOfferForTest(
-                        engine,
+                    const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                         offerAuthorityOne,
                         wormholeSequence++,
                         baseFastOrder,
-                        ethRouter,
-                        baseFastOrder.maxFee
+                        ethRouter
                     );
 
                     const initialOfferBalanceBefore = await getUsdcAtaBalance(
@@ -1284,80 +1253,82 @@ describe("Matching Engine", function () {
                     const { amount: custodyBalanceBefore } =
                         await engine.fetchCustodyTokenAccount();
 
-                    // New Offer from offerAuthorityTwo.
-                    const vaaHash = fastVaaAccount.digest();
-                    const auctionDataBefore = await engine.fetchAuction(vaaHash);
-                    const { info: infoBefore } = auctionDataBefore;
-                    expect(infoBefore).is.not.null;
-                    const { bestOfferToken } = infoBefore!;
+                    const ix = await engine.improveOfferIx(
+                        {
+                            auction,
+                            offerAuthority: offerAuthorityTwo.publicKey,
+                        },
+                        newOffer
+                    );
 
-                    await expectIxOk(
-                        connection,
-                        [
-                            await engine.improveOfferIx(newOffer, vaaHash, {
-                                offerAuthority: offerAuthorityTwo.publicKey,
-                                bestOfferToken,
-                            }),
-                        ],
-                        [offerAuthorityTwo]
+                    await expectIxOk(connection, [ix], [offerAuthorityTwo]);
+
+                    await checkAfterEffects(
+                        auction,
+                        offerAuthorityTwo.publicKey,
+                        newOffer,
+                        auctionDataBefore,
+                        {
+                            custodyToken: custodyBalanceBefore,
+                            bestOfferToken: newOfferBalanceBefore,
+                            prevBestOfferToken: initialOfferBalanceBefore,
+                        }
                     );
 
                     // Validate balance changes.
-                    const initialOfferBalanceAfter = await getUsdcAtaBalance(
-                        connection,
-                        offerAuthorityOne.publicKey
-                    );
-                    const newOfferBalanceAfter = await getUsdcAtaBalance(
-                        connection,
-                        offerAuthorityTwo.publicKey
-                    );
-                    const { amount: custodyBalanceAfter } = await engine.fetchCustodyTokenAccount();
+                    // const initialOfferBalanceAfter = await getUsdcAtaBalance(
+                    //     connection,
+                    //     offerAuthorityOne.publicKey
+                    // );
+                    // const newOfferBalanceAfter = await getUsdcAtaBalance(
+                    //     connection,
+                    //     offerAuthorityTwo.publicKey
+                    // );
+                    // const { amount: custodyBalanceAfter } = await engine.fetchCustodyTokenAccount();
 
-                    const balanceChange = baseFastOrder.maxFee + baseFastOrder.amountIn;
-                    expect(newOfferBalanceAfter).equals(newOfferBalanceBefore - balanceChange);
-                    expect(initialOfferBalanceAfter).equals(
-                        initialOfferBalanceBefore + balanceChange
-                    );
-                    expect(custodyBalanceAfter).equals(custodyBalanceBefore);
+                    // const balanceChange = baseFastOrder.maxFee + baseFastOrder.amountIn;
+                    // expect(newOfferBalanceAfter).equals(newOfferBalanceBefore - balanceChange);
+                    // expect(initialOfferBalanceAfter).equals(
+                    //     initialOfferBalanceBefore + balanceChange
+                    // );
+                    // expect(custodyBalanceAfter).equals(custodyBalanceBefore);
 
-                    // Confirm the auction data.
-                    const auctionDataAfter = await engine.fetchAuction(vaaHash);
-                    const { info: infoAfter } = auctionDataAfter;
-                    expect(infoAfter).is.not.null;
+                    // // Confirm the auction data.
+                    // const auctionDataAfter = await engine.fetchAuction(vaaHash);
+                    // const { info: infoAfter } = auctionDataAfter;
+                    // expect(infoAfter).is.not.null;
 
-                    const newOfferToken = splToken.getAssociatedTokenAddressSync(
-                        USDC_MINT_ADDRESS,
-                        offerAuthorityTwo.publicKey
-                    );
-                    const initialOfferToken = splToken.getAssociatedTokenAddressSync(
-                        USDC_MINT_ADDRESS,
-                        offerAuthorityOne.publicKey
-                    );
+                    // const newOfferToken = splToken.getAssociatedTokenAddressSync(
+                    //     USDC_MINT_ADDRESS,
+                    //     offerAuthorityTwo.publicKey
+                    // );
+                    // const initialOfferToken = splToken.getAssociatedTokenAddressSync(
+                    //     USDC_MINT_ADDRESS,
+                    //     offerAuthorityOne.publicKey
+                    // );
 
-                    // TODO: clean up to check deep equal Auction vs Auction
-                    expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
-                    expect(auctionDataAfter.status).to.eql({ active: {} });
-                    expect(infoAfter!.bestOfferToken).to.eql(newOfferToken);
-                    expect(infoAfter!.initialOfferToken).to.eql(initialOfferToken);
-                    expect(infoAfter!.startSlot.toString()).to.eql(
-                        infoBefore!.startSlot.toString()
-                    );
-                    expect(infoAfter!.amountIn.toString()).to.eql(infoBefore!.amountIn.toString());
-                    expect(infoAfter!.securityDeposit.toString()).to.eql(
-                        infoBefore!.securityDeposit.toString()
-                    );
-                    expect(infoAfter!.offerPrice.toString()).to.eql(newOffer.toString());
+                    // // TODO: clean up to check deep equal Auction vs Auction
+                    // expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
+                    // expect(auctionDataAfter.status).to.eql({ active: {} });
+                    // expect(infoAfter!.bestOfferToken).to.eql(newOfferToken);
+                    // expect(infoAfter!.initialOfferToken).to.eql(initialOfferToken);
+                    // expect(infoAfter!.startSlot.toString()).to.eql(
+                    //     infoBefore!.startSlot.toString()
+                    // );
+                    // expect(infoAfter!.amountIn.toString()).to.eql(infoBefore!.amountIn.toString());
+                    // expect(infoAfter!.securityDeposit.toString()).to.eql(
+                    //     infoBefore!.securityDeposit.toString()
+                    // );
+                    // expect(infoAfter!.offerPrice.toString()).to.eql(newOffer.toString());
                 });
             }
 
-            it(`Improve Offer With Highest Offer Account`, async function () {
-                const { fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
+            it("Improve Offer With Same Best Offer Token Account", async function () {
+                const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
                 );
 
                 const initialOfferBalanceBefore = await getUsdcAtaBalance(
@@ -1367,1182 +1338,842 @@ describe("Matching Engine", function () {
                 const { amount: custodyBalanceBefore } = await engine.fetchCustodyTokenAccount();
 
                 // New Offer from offerAuthorityOne.
-                const vaaHash = fastVaaAccount.digest();
-                const newOffer = baseFastOrder.maxFee - 100n;
-                const auctionDataBefore = await engine.fetchAuction(vaaHash);
-                const { info: infoBefore } = auctionDataBefore;
-                expect(infoBefore).is.not.null;
+                const newOffer = BigInt(auctionDataBefore.info!.offerPrice.subn(100).toString());
 
-                const { bestOfferToken } = infoBefore!;
-
-                await expectIxOk(
-                    connection,
-                    [
-                        await engine.improveOfferIx(newOffer, vaaHash, {
-                            offerAuthority: offerAuthorityOne.publicKey,
-                            bestOfferToken,
-                        }),
-                    ],
-                    [offerAuthorityOne]
+                const ix = await engine.improveOfferIx(
+                    {
+                        auction,
+                        offerAuthority: offerAuthorityOne.publicKey,
+                    },
+                    newOffer
                 );
 
-                // Validate balance changes (nothing should change).
-                const initialOfferBalanceAfter = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityOne.publicKey
+                await expectIxOk(connection, [ix], [offerAuthorityOne]);
+
+                await checkAfterEffects(
+                    auction,
+                    offerAuthorityOne.publicKey,
+                    newOffer,
+                    auctionDataBefore,
+                    {
+                        custodyToken: custodyBalanceBefore,
+                        bestOfferToken: initialOfferBalanceBefore,
+                    }
                 );
-                const { amount: custodyBalanceAfter } = await engine.fetchCustodyTokenAccount();
-
-                expect(initialOfferBalanceAfter).equals(initialOfferBalanceBefore);
-                expect(custodyBalanceAfter).equals(custodyBalanceBefore);
-
-                // Confirm the auction data.
-                const auctionDataAfter = await engine.fetchAuction(vaaHash);
-                const { info: infoAfter } = auctionDataAfter;
-                expect(infoAfter).is.not.null;
-
-                const initialOfferToken = splToken.getAssociatedTokenAddressSync(
-                    USDC_MINT_ADDRESS,
-                    offerAuthorityOne.publicKey
-                );
-
-                expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
-                expect(auctionDataAfter.status).to.eql({ active: {} });
-                expect(infoAfter!.bestOfferToken).to.eql(infoBefore!.bestOfferToken);
-                expect(infoAfter!.initialOfferToken).to.eql(initialOfferToken);
-                expect(infoAfter!.startSlot.toString()).to.eql(infoBefore!.startSlot.toString());
-                expect(infoAfter!.amountIn.toString()).to.eql(infoBefore!.amountIn.toString());
-                expect(infoAfter!.securityDeposit.toString()).to.eql(
-                    infoBefore!.securityDeposit.toString()
-                );
-                expect(infoAfter!.offerPrice.toString()).to.eql(newOffer.toString());
             });
 
-            it(`Cannot Improve Offer (Auction Expired)`, async function () {
-                const { fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
+            it("Cannot Improve Offer (Auction Expired)", async function () {
+                const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
+                );
+
+                const { startSlot, offerPrice } = auctionDataBefore.info!;
+                const { duration, gracePeriod } = await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    startSlot.addn(duration + gracePeriod - 1).toNumber()
                 );
 
                 // New Offer from offerAuthorityOne.
-                const vaaHash = fastVaaAccount.digest();
-                const newOffer = baseFastOrder.maxFee - 100n;
-                const { info } = await engine.fetchAuction(vaaHash);
-                expect(info).is.not.null;
+                const newOffer = BigInt(offerPrice.subn(100).toString());
 
-                const { endSlot, bestOfferToken } = info!;
-
-                await waitUntilSlot(connection, endSlot.toNumber() + 3);
+                const ix = await engine.improveOfferIx(
+                    {
+                        auction,
+                        offerAuthority: offerAuthorityOne.publicKey,
+                    },
+                    newOffer
+                );
 
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.improveOfferIx(newOffer, vaaHash, {
-                            offerAuthority: offerAuthorityOne.publicKey,
-                            bestOfferToken,
-                        }),
-                    ],
+                    [ix],
                     [offerAuthorityOne],
                     "Error Code: AuctionPeriodExpired"
                 );
             });
 
-            it(`Cannot Improve Offer (Invalid Best Offer Token Account)`, async function () {
-                const { fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
+            it("Cannot Improve Offer (Invalid Best Offer Token Account)", async function () {
+                const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
                 );
 
                 // New Offer from offerAuthorityOne.
-                const vaaHash = fastVaaAccount.digest();
-                const newOffer = baseFastOrder.maxFee - 100n;
+                const newOffer = BigInt(auctionDataBefore.info!.offerPrice.subn(100).toString());
 
-                // Pass the wrong address for the best offer token account.
+                const ix = await engine.improveOfferIx(
+                    {
+                        auction,
+                        offerAuthority: offerAuthorityOne.publicKey,
+                        bestOfferToken: engine.custodyTokenAccountAddress(),
+                    },
+                    newOffer
+                );
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.improveOfferIx(newOffer, vaaHash, {
-                            offerAuthority: offerAuthorityOne.publicKey,
-                            bestOfferToken: engine.custodyTokenAccountAddress(),
-                        }),
-                    ],
+                    [ix],
                     [offerAuthorityOne],
                     "Error Code: BestOfferTokenMismatch"
                 );
             });
 
-            it(`Cannot Improve Offer (Auction Not Active)`, async function () {
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
+            it("Cannot Improve Offer (Offer Price Not Improved)", async function () {
+                const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
                 );
 
-                await waitBySlots(connection, 5);
-
-                // New Offer from offerAuthorityOne.
-                const vaaHash = fastVaaAccount.digest();
-                const newOffer = baseFastOrder.maxFee - 100n;
-                const { info } = await engine.fetchAuction(vaaHash);
-                expect(info).is.not.null;
-
-                const { bestOfferToken } = info!;
-
-                // Excute the fast order so that the auction status changes.
-                await expectIxOk(
-                    connection,
-                    [
-                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                        }),
-                    ],
-                    [offerAuthorityOne]
+                const newOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
+                const ix = await engine.improveOfferIx(
+                    {
+                        auction,
+                        offerAuthority: offerAuthorityTwo.publicKey,
+                    },
+                    newOffer
                 );
 
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.improveOfferIx(newOffer, vaaHash, {
-                            offerAuthority: offerAuthorityOne.publicKey,
-                            bestOfferToken,
-                        }),
-                    ],
+                    [ix],
+                    [offerAuthorityTwo],
+                    "Error Code: OfferPriceNotImproved"
+                );
+            });
+
+            async function checkAfterEffects(
+                auction: PublicKey,
+                newOfferAuthority: PublicKey,
+                offerPrice: bigint,
+                auctionDataBefore: Auction,
+                balancesBefore: {
+                    custodyToken: bigint;
+                    bestOfferToken: bigint;
+                    prevBestOfferToken?: bigint;
+                }
+            ) {
+                const {
+                    custodyToken: custodyTokenBefore,
+                    bestOfferToken: bestOfferTokenBefore,
+                    prevBestOfferToken: prevBestOfferTokenBefore,
+                } = balancesBefore;
+
+                const bestOfferToken = splToken.getAssociatedTokenAddressSync(
+                    USDC_MINT_ADDRESS,
+                    newOfferAuthority
+                );
+
+                const { bump, vaaHash, status, info } = auctionDataBefore;
+                const {
+                    configId,
+                    bestOfferToken: prevBestOfferToken,
+                    initialOfferToken,
+                    startSlot,
+                    amountIn,
+                    securityDeposit,
+                    offerPrice: prevOfferPrice,
+                    amountOut,
+                } = info!;
+                expect(offerPrice).not.equals(BigInt(prevOfferPrice.toString()));
+
+                const auctionDataAfter = await engine.fetchAuction({ address: auction });
+                expect(auctionDataAfter).to.eql(
+                    new Auction(bump, vaaHash, status, {
+                        configId,
+                        bestOfferToken,
+                        initialOfferToken,
+                        startSlot,
+                        amountIn,
+                        securityDeposit,
+                        offerPrice: bigintToU64BN(offerPrice),
+                        amountOut,
+                    })
+                );
+
+                // Custody token should be unchanged.
+                const { amount: custodyTokenAfter } = await engine.fetchCustodyTokenAccount();
+                expect(custodyTokenAfter).equals(custodyTokenBefore);
+
+                const balanceChange = BigInt(amountIn.add(securityDeposit).toString());
+
+                if (prevBestOfferTokenBefore !== undefined) {
+                    expect(bestOfferToken).to.not.eql(prevBestOfferToken);
+
+                    // New offer change.
+                    const { amount: bestOfferTokenAfter } = await splToken.getAccount(
+                        connection,
+                        bestOfferToken
+                    );
+                    expect(bestOfferTokenAfter).equals(bestOfferTokenBefore - balanceChange);
+
+                    // Previous offer refunded.
+                    const { amount: prevBestOfferTokenAfter } = await splToken.getAccount(
+                        connection,
+                        prevBestOfferToken
+                    );
+                    expect(prevBestOfferTokenAfter).equals(
+                        prevBestOfferTokenBefore + balanceChange
+                    );
+                } else {
+                    expect(bestOfferToken).to.eql(prevBestOfferToken);
+
+                    // Should be no change.
+                    const { amount: bestOfferTokenAfter } = await splToken.getAccount(
+                        connection,
+                        bestOfferToken
+                    );
+                    expect(bestOfferTokenAfter).equals(bestOfferTokenBefore);
+                }
+            }
+        });
+
+        describe("Execute Fast Order", function () {
+            const localVariables = new Map<string, any>();
+
+            it("Execute Fast Order Within Grace Period", async function () {
+                // Start the auction with offer two so that we can
+                // check that the initial offer is refunded.
+                const { fastVaa, fastVaaAccount, auction } = await placeInitialOfferForTest(
+                    offerAuthorityTwo,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter
+                );
+
+                const { auctionDataBefore } = await improveOfferForTest(
+                    auction,
+                    offerAuthorityOne,
+                    100
+                );
+                const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
+
+                // Fetch the balances before.
+                const { amount: bestOfferTokenBefore } = await splToken.getAccount(
+                    connection,
+                    bestOfferToken
+                );
+                const { amount: initialOfferTokenBefore } = await splToken.getAccount(
+                    connection,
+                    initialOfferToken
+                );
+                const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
+
+                const { duration, gracePeriod } = await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 1).toNumber()
+                );
+
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: offerAuthorityOne.publicKey,
+                    fastVaa,
+                });
+
+                const txDetails = await expectIxOkDetails(connection, [ix], [offerAuthorityOne]);
+
+                await checkAfterEffects(
+                    txDetails!,
+                    auction,
+                    auctionDataBefore,
+                    {
+                        custodyToken: custodyTokenBefore,
+                        bestOfferToken: bestOfferTokenBefore,
+                        initialOfferToken: initialOfferTokenBefore,
+                    },
+                    offerAuthorityOne.publicKey,
+                    false, // hasPenalty
+                    "ethereum",
+                    "arbitrum"
+                );
+
+                localVariables.set("auction", auction);
+            });
+
+            it("Cannot Improve Offer", async function () {
+                const auction = localVariables.get("auction") as PublicKey;
+                expect(localVariables.delete("auction")).is.true;
+
+                const ix = await engine.improveOfferIx(
+                    {
+                        offerAuthority: offerAuthorityOne.publicKey,
+                        auction,
+                    },
+                    baseFastOrder.maxFee
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
                     [offerAuthorityOne],
                     "Error Code: AuctionNotActive"
                 );
             });
 
-            it(`Cannot Improve Offer (Offer Price Not Improved)`, async function () {
-                const { fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
-                    wormholeSequence++,
-                    baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
-                );
-
-                // New Offer from offerAuthorityOne.
-                const vaaHash = fastVaaAccount.digest();
-                const { info } = await engine.fetchAuction(vaaHash);
-                expect(info).is.not.null;
-
-                const { bestOfferToken } = info!;
-
-                await expectIxErr(
-                    connection,
-                    [
-                        await engine.improveOfferIx(
-                            baseFastOrder.maxFee, // Offer price not improved.
-                            vaaHash,
-                            {
-                                offerAuthority: offerAuthorityOne.publicKey,
-                                bestOfferToken,
-                            }
-                        ),
-                    ],
-                    [offerAuthorityOne],
-                    "Error Code: OfferPriceNotImproved"
-                );
-            });
-        });
-
-        describe("Execute Fast Order", function () {
-            it("Execute Fast Order Within Grace Period", async function () {
-                // Start the auction with offer two so that we can
-                // check that the initial offer is refunded.
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityTwo,
-                    wormholeSequence++,
-                    baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
-                );
-
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
-                const { info } = await engine.fetchAuction(vaaHash);
-                expect(info).is.not.null;
-
-                const { bestOfferToken: firstBestOfferToken, initialOfferToken } = info!;
-                const newOffer = baseFastOrder.maxFee - 100n;
-
-                // Improve the bid with offer one.
-                await expectIxOk(
-                    connection,
-                    [
-                        await engine.improveOfferIx(newOffer, vaaHash, {
-                            offerAuthority: offerAuthorityOne.publicKey,
-                            bestOfferToken: firstBestOfferToken,
-                        }),
-                    ],
-                    [offerAuthorityOne]
-                );
-
-                // Fetch the balances before.
-                const highestOfferBefore = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityOne.publicKey
-                );
-                const custodyBefore = (
-                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
-                ).amount;
-                const initialBefore = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityTwo.publicKey
-                );
-                const { info: infoBefore } = await engine.fetchAuction(vaaHash);
-                expect(infoBefore).is.not.null;
-
-                const { endSlot, bestOfferToken } = infoBefore!;
-
-                // Fast forward into the grace period.
-                await waitUntilSlot(connection, endSlot.toNumber() + 2);
-
-                const message = await engine.getCoreMessage(offerAuthorityOne.publicKey);
-                const txDetails = await expectIxOkDetails(
-                    connection,
-                    [
-                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                            bestOfferToken,
-                            initialOfferToken,
-                        }),
-                    ],
-                    [offerAuthorityOne]
-                );
-                const auctionDataAfter = await engine.fetchAuction(vaaHash);
-                const { info: infoAfter } = auctionDataAfter;
-                expect(infoAfter).is.not.null;
-
-                // Validate balance changes.
-                const highestOfferAfter = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityOne.publicKey
-                );
-                const custodyAfter = (
-                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
-                ).amount;
-                const initialAfter = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityTwo.publicKey
-                );
-
-                // console.log(
-                //     "sometimes this fails?",
-                //     initialBefore,
-                //     initialAfter,
-                //     baseFastOrder.initAuctionFee
-                // );
-                expect(initialAfter - initialBefore).equals(baseFastOrder.initAuctionFee);
-                expect(highestOfferAfter - highestOfferBefore).equals(
-                    baseFastOrder.maxFee + newOffer
-                );
-                expect(custodyBefore - custodyAfter).equals(
-                    baseFastOrder.amountIn + baseFastOrder.maxFee
-                );
-
-                const slot = bigintToU64BN(BigInt(txDetails!.slot));
-
-                // Validate auction data account.
-                expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
-                expect(auctionDataAfter.status).to.eql({ completed: { slot } });
-                expect(infoAfter!.bestOfferToken).to.eql(bestOfferToken);
-                expect(infoAfter!.initialOfferToken).to.eql(initialOfferToken);
-                expect(infoAfter!.startSlot.toString()).to.eql(infoBefore!.startSlot.toString());
-                expect(infoAfter!.amountIn.toString()).to.eql(infoBefore!.amountIn.toString());
-                expect(infoAfter!.securityDeposit.toString()).to.eql(
-                    infoBefore!.securityDeposit.toString()
-                );
-                expect(infoAfter!.offerPrice.toString()).to.eql(newOffer.toString());
-
-                // Validate the core message.
-                await verifyFillMessage(
-                    connection,
-                    message,
-                    baseFastOrder.amountIn - newOffer - baseFastOrder.initAuctionFee,
-                    arbDomain,
-                    {
-                        sourceChain: ethChain,
-                        orderSender: Array.from(baseFastOrder.sender),
-                        redeemer: Array.from(baseFastOrder.redeemer),
-                        redeemerMessage: baseFastOrder.redeemerMessage,
-                    }
-                );
-            });
-
-            it.skip("Execute Fast Order Within Grace Period (Target == Solana)", async function () {
-                const fastOrder = { ...baseFastOrder };
-                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.destinationCctpDomain = solanaDomain;
-
-                // Start the auction with offer two so that we can
-                // check that the initial offer is refunded.
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityTwo,
-                    wormholeSequence++,
-                    fastOrder,
-                    ethRouter,
-                    fastOrder.maxFee
-                );
-
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
-                const { info } = await engine.fetchAuction(vaaHash);
-                expect(info).is.not.null;
-
-                const { bestOfferToken: firstBestOfferToken, initialOfferToken } = info!;
-                const newOffer = fastOrder.maxFee - 100n;
-
-                // Improve the bid with offer one.
-                await expectIxOk(
-                    connection,
-                    [
-                        await engine.improveOfferIx(newOffer, vaaHash, {
-                            offerAuthority: offerAuthorityOne.publicKey,
-                            bestOfferToken: firstBestOfferToken,
-                        }),
-                    ],
-                    [offerAuthorityOne]
-                );
-
-                // Fetch the balances before.
-                const highestOfferBefore = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityOne.publicKey
-                );
-                const custodyBefore = (
-                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
-                ).amount;
-                const initialBefore = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityTwo.publicKey
-                );
-                const auctionDataBefore = await engine.fetchAuction(vaaHash);
-                const { info: infoBefore } = auctionDataBefore;
-                expect(infoBefore).is.not.null;
-
-                const { bestOfferToken } = infoBefore!;
-
-                // Fast forward into the grace period.
-                await waitBySlots(connection, 3);
-                const message = await engine.getCoreMessage(offerAuthorityOne.publicKey);
-                await expectIxOk(
-                    connection,
-                    [
-                        await engine.executeFastOrderLocalIx(vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                            bestOfferToken,
-                            initialOfferToken,
-                        }),
-                    ],
-                    [offerAuthorityOne]
-                );
-
-                // Validate balance changes.
-                const highestOfferAfter = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityOne.publicKey
-                );
-                const custodyAfter = (
-                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
-                ).amount;
-                const initialAfter = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityTwo.publicKey
-                );
-                const auctionDataAfter = await engine.fetchAuction(vaaHash);
-                const { info: infoAfter } = auctionDataAfter;
-                expect(infoAfter).is.not.null;
-
-                expect(initialAfter - initialBefore).equals(fastOrder.initAuctionFee);
-                expect(highestOfferAfter - highestOfferBefore).equals(fastOrder.maxFee + newOffer);
-                expect(custodyBefore - custodyAfter).equals(
-                    fastOrder.maxFee + newOffer + fastOrder.initAuctionFee
-                );
-
-                // Validate auction data account.
-                expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
-                expect(auctionDataAfter.status).to.eql({ completed: {} });
-                expect(infoAfter!.bestOfferToken).to.eql(bestOfferToken);
-                expect(infoAfter!.initialOfferToken).to.eql(initialOfferToken);
-                expect(infoAfter!.startSlot.toString()).to.eql(infoBefore!.startSlot.toString());
-                expect(infoAfter!.amountIn.toString()).to.eql(infoBefore!.amountIn.toString());
-                expect(infoAfter!.securityDeposit.toString()).to.eql(
-                    infoBefore!.securityDeposit.toString()
-                );
-                expect(infoAfter!.offerPrice.toString()).to.eql(newOffer.toString());
-
-                // Validate the core message.
-                await verifyFastFillMessage(
-                    connection,
-                    message,
-                    fastOrder.amountIn - newOffer - fastOrder.initAuctionFee,
-                    {
-                        sourceChain: ethChain,
-                        orderSender: Array.from(fastOrder.sender),
-                        redeemer: Array.from(fastOrder.redeemer),
-                        redeemerMessage: fastOrder.redeemerMessage,
-                    }
-                );
-            });
-
             it("Execute Fast Order After Grace Period", async function () {
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
+                // Start the auction with offer two so that we can
+                // check that the initial offer is refunded.
+                const { fastVaa, fastVaaAccount, auction } = await placeInitialOfferForTest(
+                    offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
                 );
 
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
-                const { info: infoBefore } = await engine.fetchAuction(vaaHash);
-                expect(infoBefore).is.not.null;
-
-                const { bestOfferToken, initialOfferToken } = infoBefore!;
+                const { auctionDataBefore } = await improveOfferForTest(
+                    auction,
+                    offerAuthorityOne,
+                    100
+                );
+                const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
 
                 // Fetch the balances before.
-                const highestOfferBefore = await getUsdcAtaBalance(
+                const { amount: bestOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    offerAuthorityOne.publicKey
+                    bestOfferToken
                 );
-                const custodyBefore = (
-                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
-                ).amount;
-                const auctionDataBefore = await engine.fetchAuction(vaaHash);
-
-                // Fast forward into the grace period.
-                await waitBySlots(connection, 7);
-                const message = await engine.getCoreMessage(offerAuthorityOne.publicKey);
-                const txDetails = await expectIxOkDetails(
+                const { amount: initialOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    [
-                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                            bestOfferToken,
-                            initialOfferToken,
-                        }),
-                    ],
-                    [offerAuthorityOne]
+                    initialOfferToken
                 );
-                const { slot: txSlot } = txDetails!;
+                const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
 
-                const auctionDataAfter = await engine.fetchAuction(vaaHash);
-                const { info: infoAfter } = auctionDataAfter;
-                expect(infoAfter).is.not.null;
-
-                // Compute the expected penalty and user reward.
-                const { reward: expectedReward } = await engine.calculateDynamicPenalty(
-                    infoAfter!,
-                    BigInt(txSlot)
-                );
-
-                // Validate balance changes.
-                const highestOfferAfter = await getUsdcAtaBalance(
+                const { duration, gracePeriod, penaltySlots } =
+                    await engine.fetchAuctionParameters();
+                await waitUntilSlot(
                     connection,
-                    offerAuthorityOne.publicKey
-                );
-                const custodyAfter = (
-                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
-                ).amount;
-
-                // The highest bidder is also the initial bidder in this case. The highest bidder
-                // is also executing the fast order after the grace period has ended, so they will
-                // be penalized by the expected user reward portion of the penalty.
-                expect(highestOfferAfter - highestOfferBefore).equals(
-                    baseFastOrder.maxFee +
-                        baseFastOrder.maxFee +
-                        baseFastOrder.initAuctionFee -
-                        BigInt(expectedReward)
-                );
-                expect(custodyBefore - custodyAfter).equals(
-                    baseFastOrder.amountIn + baseFastOrder.maxFee
+                    auctionDataBefore
+                        .info!.startSlot.addn(duration + gracePeriod + penaltySlots / 2)
+                        .toNumber()
                 );
 
-                // Validate auction data account.
-                expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
-                expect(auctionDataAfter.status).to.eql({
-                    completed: { slot: bigintToU64BN(BigInt(txSlot)) },
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: offerAuthorityOne.publicKey,
+                    fastVaa,
                 });
-                expect(infoAfter!.bestOfferToken).to.eql(bestOfferToken);
-                expect(infoAfter!.initialOfferToken).to.eql(initialOfferToken);
-                expect(infoAfter!.startSlot.toString()).to.eql(infoBefore!.startSlot.toString());
-                expect(infoAfter!.amountIn.toString()).to.eql(infoBefore!.amountIn.toString());
-                expect(infoAfter!.securityDeposit.toString()).to.eql(
-                    infoBefore!.securityDeposit.toString()
-                );
-                expect(infoAfter!.offerPrice.toString()).to.eql(baseFastOrder.maxFee.toString());
 
-                // Validate the core message.
-                await verifyFillMessage(
-                    connection,
-                    message,
-                    baseFastOrder.amountIn -
-                        baseFastOrder.maxFee -
-                        baseFastOrder.initAuctionFee +
-                        BigInt(expectedReward),
-                    arbDomain,
+                const txDetails = await expectIxOkDetails(connection, [ix], [offerAuthorityOne]);
+
+                await checkAfterEffects(
+                    txDetails!,
+                    auction,
+                    auctionDataBefore,
                     {
-                        sourceChain: ethChain,
-                        orderSender: Array.from(baseFastOrder.sender),
-                        redeemer: Array.from(baseFastOrder.redeemer),
-                        redeemerMessage: baseFastOrder.redeemerMessage,
-                    }
+                        custodyToken: custodyTokenBefore,
+                        bestOfferToken: bestOfferTokenBefore,
+                        initialOfferToken: initialOfferTokenBefore,
+                    },
+                    offerAuthorityOne.publicKey,
+                    true, // hasPenalty
+                    "ethereum",
+                    "arbitrum"
                 );
             });
 
-            it(`Execute Fast Order With Liquidator (Within Penalty Period)`, async function () {
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
+            it("Execute Fast Order After Grace Period with Liquidator", async function () {
+                // Start the auction with offer two so that we can
+                // check that the initial offer is refunded.
+                const { fastVaa, fastVaaAccount, auction } = await placeInitialOfferForTest(
+                    offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
                 );
 
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
-                const { info: infoBefore } = await engine.fetchAuction(vaaHash);
-                expect(infoBefore).is.not.null;
-                const { bestOfferToken, initialOfferToken } = infoBefore!;
+                const { auctionDataBefore } = await improveOfferForTest(
+                    auction,
+                    offerAuthorityOne,
+                    100
+                );
+                const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
 
                 // Fetch the balances before.
-                const highestOfferBefore = await getUsdcAtaBalance(
+                const { amount: bestOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    offerAuthorityOne.publicKey
+                    bestOfferToken
                 );
-                const custodyBefore = (
-                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
-                ).amount;
-                const liquidatorBefore = await getUsdcAtaBalance(
+                const { amount: initialOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    offerAuthorityTwo.publicKey
+                    initialOfferToken
                 );
-                const auctionDataBefore = await engine.fetchAuction(vaaHash);
+                const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
 
-                // Fast forward into tge penalty period.
-                await waitBySlots(connection, 10);
-
-                // Execute the fast order with the liquidator (offerAuthorityTwo).
-                const message = await engine.getCoreMessage(offerAuthorityTwo.publicKey);
-                const txnSignature = await expectIxOk(
-                    connection,
-                    [
-                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
-                            payer: offerAuthorityTwo.publicKey,
-                            fastVaa,
-                            bestOfferToken,
-                            initialOfferToken,
-                        }),
-                    ],
-                    [offerAuthorityTwo]
+                const liquidatorToken = splToken.getAssociatedTokenAddressSync(
+                    USDC_MINT_ADDRESS,
+                    liquidator.publicKey
                 );
-                const txnSlot = await connection.getSignatureStatus(txnSignature).then((status) => {
-                    return status.value!.slot;
+                const { amount: executorTokenBefore } = await splToken.getAccount(
+                    connection,
+                    liquidatorToken
+                );
+
+                const { duration, gracePeriod, penaltySlots } =
+                    await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    auctionDataBefore
+                        .info!.startSlot.addn(duration + gracePeriod + penaltySlots / 2)
+                        .toNumber()
+                );
+
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: liquidator.publicKey,
+                    fastVaa,
                 });
-                const auctionDataAfter = await engine.fetchAuction(vaaHash);
-                const { info: infoAfter } = auctionDataAfter;
-                expect(infoAfter).is.not.null;
 
-                // Compute the expected penalty and user reward.
-                const { penalty: expectedPenalty, reward: expectedReward } =
-                    await engine.calculateDynamicPenalty(infoAfter!, BigInt(txnSlot));
+                const txDetails = await expectIxOkDetails(connection, [ix], [liquidator]);
 
-                // Validate balance changes.
-                const highestOfferAfter = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityOne.publicKey
-                );
-                const liquidatorAfter = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityTwo.publicKey
-                );
-                const custodyAfter = (
-                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
-                ).amount;
-
-                expect(highestOfferAfter - highestOfferBefore).equals(
-                    baseFastOrder.maxFee +
-                        baseFastOrder.maxFee +
-                        baseFastOrder.initAuctionFee -
-                        BigInt(expectedReward) -
-                        BigInt(expectedPenalty)
-                );
-                expect(liquidatorAfter - liquidatorBefore).equals(BigInt(expectedPenalty));
-                expect(custodyBefore - custodyAfter).equals(
-                    baseFastOrder.amountIn + baseFastOrder.maxFee
-                );
-
-                // Validate auction data account.
-                expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
-                expect(auctionDataAfter.status).to.eql({
-                    completed: { slot: bigintToU64BN(BigInt(txnSlot)) },
-                });
-                expect(infoAfter!.bestOfferToken).to.eql(bestOfferToken);
-                expect(infoAfter!.initialOfferToken).to.eql(initialOfferToken);
-                expect(infoAfter!.startSlot.toString()).to.eql(infoBefore!.startSlot.toString());
-                expect(infoAfter!.amountIn.toString()).to.eql(infoBefore!.amountIn.toString());
-                expect(infoAfter!.securityDeposit.toString()).to.eql(
-                    infoBefore!.securityDeposit.toString()
-                );
-                expect(infoAfter!.offerPrice.toString()).to.eql(baseFastOrder.maxFee.toString());
-
-                // Validate the core message.
-                await verifyFillMessage(
-                    connection,
-                    message,
-                    baseFastOrder.amountIn -
-                        baseFastOrder.maxFee -
-                        baseFastOrder.initAuctionFee +
-                        BigInt(expectedReward),
-                    arbDomain,
+                await checkAfterEffects(
+                    txDetails!,
+                    auction,
+                    auctionDataBefore,
                     {
-                        sourceChain: ethChain,
-                        orderSender: Array.from(baseFastOrder.sender),
-                        redeemer: Array.from(baseFastOrder.redeemer),
-                        redeemerMessage: baseFastOrder.redeemerMessage,
-                    }
+                        custodyToken: custodyTokenBefore,
+                        bestOfferToken: bestOfferTokenBefore,
+                        initialOfferToken: initialOfferTokenBefore,
+                        executorToken: executorTokenBefore,
+                    },
+                    liquidator.publicKey,
+                    true, // hasPenalty
+                    "ethereum",
+                    "arbitrum"
                 );
             });
 
-            it(`Execute Fast Order With Liquidator (Post Penalty Period)`, async function () {
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
+            it("Execute Fast Order After Penalty Period with Liquidator", async function () {
+                // Start the auction with offer two so that we can
+                // check that the initial offer is refunded.
+                const { fastVaa, fastVaaAccount, auction } = await placeInitialOfferForTest(
+                    offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
                 );
 
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
-                const { info: infoBefore } = await engine.fetchAuction(vaaHash);
-                expect(infoBefore).is.not.null;
-
-                const { bestOfferToken, initialOfferToken } = infoBefore!;
+                const { auctionDataBefore } = await improveOfferForTest(
+                    auction,
+                    offerAuthorityOne,
+                    100
+                );
+                const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
 
                 // Fetch the balances before.
-                const highestOfferBefore = await getUsdcAtaBalance(
+                const { amount: bestOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    offerAuthorityOne.publicKey
+                    bestOfferToken
                 );
-                const custodyBefore = (
-                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
-                ).amount;
-                const liquidatorBefore = await getUsdcAtaBalance(
+                const { amount: initialOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    offerAuthorityTwo.publicKey
+                    initialOfferToken
                 );
-                const auctionDataBefore = await engine.fetchAuction(vaaHash);
+                const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
 
-                // Fast forward past the penalty period.
-                await waitBySlots(connection, 20);
-
-                // Execute the fast order with the liquidator (offerAuthorityTwo).
-                const message = await engine.getCoreMessage(offerAuthorityTwo.publicKey);
-                const txnSignature = await expectIxOk(
-                    connection,
-                    [
-                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
-                            payer: offerAuthorityTwo.publicKey,
-                            fastVaa,
-                            bestOfferToken,
-                            initialOfferToken,
-                        }),
-                    ],
-                    [offerAuthorityTwo]
+                const liquidatorToken = splToken.getAssociatedTokenAddressSync(
+                    USDC_MINT_ADDRESS,
+                    liquidator.publicKey
                 );
-                const txnSlot = await connection.getSignatureStatus(txnSignature).then((status) => {
-                    return status.value!.slot;
+                const { amount: executorTokenBefore } = await splToken.getAccount(
+                    connection,
+                    liquidatorToken
+                );
+
+                const { duration, gracePeriod, penaltySlots } =
+                    await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    auctionDataBefore
+                        .info!.startSlot.addn(duration + gracePeriod + penaltySlots + 2)
+                        .toNumber()
+                );
+
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: liquidator.publicKey,
+                    fastVaa,
                 });
-                const auctionDataAfter = await engine.fetchAuction(vaaHash);
-                const { info: infoAfter } = auctionDataAfter;
-                expect(infoAfter).is.not.null;
 
-                // Compute the expected penalty and user reward.
-                const { penalty: expectedPenalty, reward: expectedReward } =
-                    await engine.calculateDynamicPenalty(infoAfter!, BigInt(txnSlot));
+                const txDetails = await expectIxOkDetails(connection, [ix], [liquidator]);
 
-                // Since we are beyond the penalty period, the entire security deposit
-                // is divided between the highest bidder and the liquidator.
-                expect(baseFastOrder.maxFee).equals(expectedReward + expectedPenalty);
-
-                // Validate balance changes.
-                const highestOfferAfter = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityOne.publicKey
-                );
-                const liquidatorAfter = await getUsdcAtaBalance(
-                    connection,
-                    offerAuthorityTwo.publicKey
-                );
-                const custodyAfter = (
-                    await splToken.getAccount(connection, engine.custodyTokenAccountAddress())
-                ).amount;
-
-                expect(highestOfferAfter - highestOfferBefore).equals(
-                    baseFastOrder.maxFee +
-                        baseFastOrder.maxFee +
-                        baseFastOrder.initAuctionFee -
-                        BigInt(expectedReward) -
-                        BigInt(expectedPenalty)
-                );
-                expect(liquidatorAfter - liquidatorBefore).equals(BigInt(expectedPenalty));
-                expect(custodyBefore - custodyAfter).equals(
-                    baseFastOrder.amountIn + baseFastOrder.maxFee
-                );
-
-                // Validate auction data account.
-                expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
-                expect(auctionDataAfter.status).to.eql({
-                    completed: { slot: bigintToU64BN(BigInt(txnSlot)) },
-                });
-                expect(infoAfter!.bestOfferToken).to.eql(bestOfferToken);
-                expect(infoAfter!.initialOfferToken).to.eql(initialOfferToken);
-                expect(infoAfter!.startSlot.toString()).to.eql(infoBefore!.startSlot.toString());
-                expect(infoAfter!.amountIn.toString()).to.eql(infoBefore!.amountIn.toString());
-                expect(infoAfter!.securityDeposit.toString()).to.eql(
-                    infoBefore!.securityDeposit.toString()
-                );
-                expect(infoAfter!.offerPrice.toString()).to.eql(baseFastOrder.maxFee.toString());
-
-                // Validate the core message.
-                await verifyFillMessage(
-                    connection,
-                    message,
-                    baseFastOrder.amountIn -
-                        baseFastOrder.maxFee -
-                        baseFastOrder.initAuctionFee +
-                        BigInt(expectedReward),
-                    arbDomain,
+                await checkAfterEffects(
+                    txDetails!,
+                    auction,
+                    auctionDataBefore,
                     {
-                        sourceChain: ethChain,
-                        orderSender: Array.from(baseFastOrder.sender),
-                        redeemer: Array.from(baseFastOrder.redeemer),
-                        redeemerMessage: baseFastOrder.redeemerMessage,
-                    }
+                        custodyToken: custodyTokenBefore,
+                        bestOfferToken: bestOfferTokenBefore,
+                        initialOfferToken: initialOfferTokenBefore,
+                        executorToken: executorTokenBefore,
+                    },
+                    liquidator.publicKey,
+                    true, // hasPenalty
+                    "ethereum",
+                    "arbitrum"
                 );
             });
 
-            it.skip(`Cannot Execute Fast Order (Invalid Chain)`, async function () {
+            // Cannot perform this test w/o solana endpoint.
+            it.skip("Cannot Execute Fast Order (Invalid Chain)", async function () {
                 const fastOrder = { ...baseFastOrder };
-                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.destinationCctpDomain = solanaDomain;
+                fastOrder.targetChain = ethChain;
+                fastOrder.destinationCctpDomain = ethDomain;
 
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
+                const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
                     offerAuthorityOne,
                     wormholeSequence++,
                     fastOrder,
-                    ethRouter,
-                    fastOrder.maxFee
+                    ethRouter
                 );
 
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
-                const { info } = await engine.fetchAuction(vaaHash);
-                expect(info).is.not.null;
+                const { duration, gracePeriod } = await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 2).toNumber()
+                );
 
-                const { bestOfferToken, initialOfferToken } = info!;
-
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: offerAuthorityOne.publicKey,
+                    fastVaa,
+                });
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.executeFastOrderCctpIx(solanaChain, solanaDomain, vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                            bestOfferToken,
-                            initialOfferToken,
-                        }),
-                    ],
+                    [ix],
                     [offerAuthorityOne],
                     "Error Code: InvalidChain"
                 );
             });
 
-            it.skip(`Cannot Execute Fast Order (Vaa Hash Mismatch)`, async function () {
-                const { fastVaa } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
-                    wormholeSequence++,
-                    baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+            it("Cannot Execute Fast Order with VAA Hash Mismatch", async function () {
+                const { fastVaaAccount, auction, auctionDataBefore } =
+                    await placeInitialOfferForTest(
+                        offerAuthorityOne,
+                        wormholeSequence++,
+                        baseFastOrder,
+                        ethRouter,
+                        baseFastOrder.maxFee
+                    );
+
+                const { fastVaa: anotherFastVaa, fastVaaAccount: anotherFastVaaAccount } =
+                    await placeInitialOfferForTest(
+                        offerAuthorityOne,
+                        wormholeSequence++,
+                        baseFastOrder,
+                        ethRouter,
+                        baseFastOrder.maxFee
+                    );
+                expect(fastVaaAccount.digest()).to.not.eql(anotherFastVaaAccount.digest());
+
+                const { duration, gracePeriod } = await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 2).toNumber()
                 );
 
-                const { fastVaa: anotherFastVaa } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
-                    wormholeSequence++,
-                    baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: offerAuthorityOne.publicKey,
+                    fastVaa: anotherFastVaa,
+                    auction,
+                });
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [offerAuthorityOne],
+                    "account: auction. Error Code: ConstraintSeeds"
                 );
-
-                // TODO: This should be a constraint seeds error.
-
-                // Accounts for the instruction.
-                // const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                // const vaaHash2 = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa2).hash);
-                // const { bestOfferToken, initialOfferToken } = await engine.fetchAuction(vaaHash);
-
-                // // Fast forward past the penalty period.
-                // await waitBySlots(connection, 15);
-
-                // await expectIxErr(
-                //     connection,
-                //     [
-                //         await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash2, {
-                //             payer: offerAuthorityOne.publicKey,
-                //             vaa: vaaKey,
-                //             bestOfferToken,
-                //             initialOfferToken,
-                //         }),
-                //     ],
-                //     [offerAuthorityOne],
-                //     "MismatchedVaaHash"
-                // );
             });
 
-            it(`Cannot Execute Fast Order (Invalid Best Offer Token Account)`, async function () {
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
+            it("Cannot Execute Fast Order (Invalid Best Offer Token Account)", async function () {
+                const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
                 );
 
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
+                const bogusToken = engine.custodyTokenAccountAddress();
+
+                const { bestOfferToken } = auctionDataBefore.info!;
+                expect(bogusToken).to.not.eql(bestOfferToken);
+
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: offerAuthorityOne.publicKey,
+                    fastVaa,
+                    bestOfferToken: bogusToken,
+                });
 
                 // Pass the wrong address for the best offer token account.
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                            bestOfferToken: engine.custodyTokenAccountAddress(),
-                        }),
-                    ],
+                    [ix],
                     [offerAuthorityOne],
                     "Error Code: BestOfferTokenMismatch"
                 );
             });
 
-            it(`Cannot Execute Fast Order (Invalid Initial Offer Token Account)`, async function () {
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
+            it("Cannot Execute Fast Order (Invalid Initial Offer Token Account)", async function () {
+                const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
                 );
 
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
+                const bogusToken = engine.custodyTokenAccountAddress();
 
-                // Pass the wrong address for the initial offer token account.
+                const { initialOfferToken } = auctionDataBefore.info!;
+                expect(bogusToken).to.not.eql(initialOfferToken);
+
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: offerAuthorityOne.publicKey,
+                    fastVaa,
+                    initialOfferToken: bogusToken,
+                });
+
+                // Pass the wrong address for the best offer token account.
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                            initialOfferToken: engine.custodyTokenAccountAddress(),
-                        }),
-                    ],
+                    [ix],
                     [offerAuthorityOne],
                     "Error Code: InitialOfferTokenMismatch"
                 );
             });
 
-            it(`Cannot Execute Fast Order (Auction Not Active)`, async function () {
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
+            it("Execute Fast Order", async function () {
+                // Start the auction with offer two so that we can
+                // check that the initial offer is refunded.
+                const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
+                    offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
                 );
 
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
-                const { info } = await engine.fetchAuction(vaaHash);
-                expect(info).is.not.null;
-
-                const { endSlot } = info!;
-
-                // Fast forward into the grace period.
-                await waitUntilSlot(connection, endSlot.addn(2).toNumber());
-
-                await expectIxOk(
+                const { duration, gracePeriod } = await engine.fetchAuctionParameters();
+                await waitUntilSlot(
                     connection,
-                    [
-                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                        }),
-                    ],
-                    [offerAuthorityOne]
+                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 1).toNumber()
                 );
 
-                // Should already be completed.
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: offerAuthorityOne.publicKey,
+                    fastVaa,
+                });
+
+                await expectIxOk(connection, [ix], [offerAuthorityOne]);
+
+                localVariables.set("ix", ix);
+            });
+
+            it("Cannot Execute Fast Order on Auction Completed", async function () {
+                const ix = localVariables.get("ix") as TransactionInstruction;
+                expect(localVariables.delete("ix")).is.true;
+
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                        }),
-                    ],
+                    [ix],
                     [offerAuthorityOne],
                     "Error Code: AuctionNotActive"
                 );
             });
 
-            it(`Cannot Execute Fast Order (Auction Period Not Expired)`, async function () {
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
+            it("Cannot Execute Fast Order (Auction Period Not Expired)", async function () {
+                const { fastVaa } = await placeInitialOfferForTest(
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
                 );
 
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: offerAuthorityOne.publicKey,
+                    fastVaa,
+                });
 
-                // Do not fast forward into the grace period.
-
-                // Pass the wrong address for the initial offer token account.
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.executeFastOrderCctpIx(arbChain, arbDomain, vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                        }),
-                    ],
+                    [ix],
                     [offerAuthorityOne],
                     "Error Code: AuctionPeriodNotExpired"
                 );
             });
 
-            it.skip(`Cannot Execute Fast Order Solana (Invalid Chain)`, async function () {
+            it("Cannot Execute Fast Order Solana (Invalid Chain)", async function () {
                 const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                    ethRouter
                 );
-
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
 
                 await expectIxErr(
                     connection,
                     [
-                        await engine.executeFastOrderLocalIx(vaaHash, {
+                        await engine.executeFastOrderLocalIx({
                             payer: offerAuthorityOne.publicKey,
                             fastVaa,
                             toRouterEndpoint: engine.routerEndpointAddress(arbChain),
                         }),
                     ],
                     [offerAuthorityOne],
-                    "Error Code: InvalidChain"
+                    "Error Code: ConstraintSeeds"
                 );
             });
 
-            it.skip(`Cannot Execute Fast Order Solana (Vaa Hash Mismatch)`, async function () {
-                const fastOrder = { ...baseFastOrder };
-                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.destinationCctpDomain = solanaDomain;
+            async function checkAfterEffects(
+                txDetails: VersionedTransactionResponse,
+                auction: PublicKey,
+                auctionDataBefore: Auction,
+                balancesBefore: {
+                    custodyToken: bigint;
+                    bestOfferToken: bigint;
+                    initialOfferToken: bigint;
+                    executorToken?: bigint;
+                },
+                executor: PublicKey,
+                hasPenalty: boolean,
+                fromChainName: wormholeSdk.ChainName,
+                toChainName: wormholeSdk.ChainName
+            ) {
+                const {
+                    custodyToken: custodyTokenBefore,
+                    bestOfferToken: bestOfferTokenBefore,
+                    initialOfferToken: initialOfferTokenBefore,
+                    executorToken: executorTokenBefore,
+                } = balancesBefore;
 
-                const { fastVaa } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
-                    wormholeSequence++,
-                    fastOrder,
-                    ethRouter,
-                    baseFastOrder.maxFee
+                const { bump, vaaHash, info } = auctionDataBefore;
+
+                const auctionDataAfter = await engine.fetchAuction({ address: auction });
+                expect(auctionDataAfter).to.eql(
+                    new Auction(
+                        bump,
+                        vaaHash,
+                        { completed: { slot: bigintToU64BN(BigInt(txDetails.slot)) } },
+                        info
+                    )
                 );
 
-                const { fastVaa: anotherFastVaa } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
-                    wormholeSequence++,
-                    fastOrder,
-                    ethRouter,
-                    fastOrder.maxFee
-                );
+                const { bestOfferToken, initialOfferToken, securityDeposit, amountIn, offerPrice } =
+                    info!;
 
-                // Accounts for the instruction.
-                // const vaaHash = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa).hash);
-                // const vaaHash2 = wormholeSdk.keccak256(wormholeSdk.parseVaa(signedVaa2).hash);
-                // const { bestOfferToken, initialOfferToken } = await engine.fetchAuction(vaaHash);
-
-                // // Fast forward past the penalty period.
-                // await waitBySlots(connection, 15);
-
-                // await expectIxErr(
-                //     connection,
-                //     [
-                //         await engine.executeFastOrderLocalIx(vaaHash2, {
-                //             payer: offerAuthorityOne.publicKey,
-                //             vaa: vaaKey,
-                //             bestOfferToken,
-                //             initialOfferToken,
-                //         }),
-                //     ],
-                //     [offerAuthorityOne],
-                //     "MismatchedVaaHash"
-                // );
-            });
-
-            it.skip(`Cannot Execute Fast Order Solana (Invalid Best Offer Token Account)`, async function () {
-                const fastOrder = { ...baseFastOrder };
-                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.destinationCctpDomain = solanaDomain;
-
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
-                    wormholeSequence++,
-                    fastOrder,
-                    ethRouter,
-                    fastOrder.maxFee
-                );
-
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
-
-                // Pass the wrong address for the best offer token account.
-                await expectIxErr(
+                // Validate balance changes.
+                const { amount: bestOfferTokenAfter } = await splToken.getAccount(
                     connection,
-                    [
-                        await engine.executeFastOrderLocalIx(vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                            bestOfferToken: engine.custodyTokenAccountAddress(),
-                        }),
-                    ],
-                    [offerAuthorityOne],
-                    "Error Code: BestOfferTokenMismatch"
+                    bestOfferToken
                 );
-            });
-
-            it.skip(`Cannot Execute Fast Order Solana (Invalid Initial Offer Token Account)`, async function () {
-                const fastOrder = { ...baseFastOrder };
-                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.destinationCctpDomain = solanaDomain;
-
-                const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
-                    wormholeSequence++,
-                    fastOrder,
-                    ethRouter,
-                    fastOrder.maxFee
-                );
-
-                // Accounts for the instruction.
-                const vaaHash = fastVaaAccount.digest();
-
-                // Pass the wrong address for the initial offer token account.
-                await expectIxErr(
+                const { amount: initialOfferTokenAfter } = await splToken.getAccount(
                     connection,
-                    [
-                        await engine.executeFastOrderLocalIx(vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                            initialOfferToken: engine.custodyTokenAccountAddress(),
-                        }),
-                    ],
-                    [offerAuthorityOne],
-                    "Error Code: InitialOfferTokenMismatch"
-                );
-            });
-
-            it.skip(`Cannot Execute Fast Order Solana (Auction Not Active)`, async function () {
-                const fastOrder = { ...baseFastOrder };
-                fastOrder.targetChain = wormholeSdk.CHAIN_ID_SOLANA;
-                fastOrder.destinationCctpDomain = solanaDomain;
-
-                const { fastVaa } = await placeInitialOfferForTest(
-                    engine,
-                    offerAuthorityOne,
-                    wormholeSequence++,
-                    fastOrder,
-                    ethRouter,
-                    fastOrder.maxFee
+                    initialOfferToken
                 );
 
-                // Accounts for the instruction.
-                const vaaHash = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
-                    vaa.digest()
-                );
-                const { info } = await engine.fetchAuction(vaaHash);
-                expect(info).is.not.null;
-
-                const { endSlot } = info!;
-
-                // Fast forward into the grace period.
-                await waitUntilSlot(connection, endSlot.addn(2).toNumber());
-
-                await expectIxOk(
-                    connection,
-                    [
-                        await engine.executeFastOrderLocalIx(vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                        }),
-                    ],
-                    [offerAuthorityOne]
+                const { penalty, userReward } = await engine.computeDepositPenalty(
+                    info!,
+                    BigInt(txDetails.slot),
+                    info!.configId
                 );
 
-                // Should already be completed.
-                await expectIxErr(
-                    connection,
-                    [
-                        await engine.executeFastOrderLocalIx(vaaHash, {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                        }),
-                    ],
-                    [offerAuthorityOne],
-                    "Error Code: AuctionNotActive"
+                const {
+                    initAuctionFee,
+                    destinationCctpDomain,
+                    sender: orderSender,
+                    redeemer,
+                    redeemerMessage,
+                } = baseFastOrder;
+
+                if (hasPenalty) {
+                    expect(penalty > 0n).is.true;
+                    expect(userReward > 0n).is.true;
+
+                    let depositAndFee =
+                        BigInt(offerPrice.add(securityDeposit).toString()) - userReward;
+                    const executorToken = splToken.getAssociatedTokenAddressSync(
+                        USDC_MINT_ADDRESS,
+                        executor
+                    );
+                    if (!executorToken.equals(bestOfferToken)) {
+                        depositAndFee -= penalty;
+
+                        const { amount: executorTokenAfter } = await splToken.getAccount(
+                            connection,
+                            executorToken
+                        );
+                        expect(executorTokenAfter).equals(executorTokenBefore! + penalty);
+                    }
+
+                    if (bestOfferToken.equals(initialOfferToken)) {
+                        expect(bestOfferTokenAfter).equals(
+                            bestOfferTokenBefore + depositAndFee + initAuctionFee
+                        );
+                    } else {
+                        expect(bestOfferTokenAfter).equals(bestOfferTokenBefore + depositAndFee);
+                        expect(initialOfferTokenAfter).equals(
+                            initialOfferTokenBefore + initAuctionFee
+                        );
+                    }
+                } else {
+                    expect(penalty).equals(0n);
+                    expect(userReward).equals(0n);
+
+                    const depositAndFee = BigInt(offerPrice.add(securityDeposit).toString());
+
+                    if (bestOfferToken.equals(initialOfferToken)) {
+                        expect(bestOfferTokenAfter).equals(
+                            bestOfferTokenBefore + depositAndFee + initAuctionFee
+                        );
+                    } else {
+                        expect(bestOfferTokenAfter).equals(bestOfferTokenBefore + depositAndFee);
+                        expect(initialOfferTokenAfter).equals(
+                            initialOfferTokenBefore + initAuctionFee
+                        );
+                    }
+                }
+
+                const { amount: custodyTokenAfter } = await engine.fetchCustodyTokenAccount();
+                expect(custodyTokenAfter).equals(
+                    custodyTokenBefore - BigInt(amountIn.add(securityDeposit).toString())
                 );
-            });
+
+                // Validate the core message.
+                const message = await engine.getCoreMessage(executor);
+                const {
+                    message: { payload },
+                } = await getPostedMessage(connection, message);
+                const parsed = LiquidityLayerMessage.decode(payload);
+                expect(parsed.deposit?.message.fill).is.not.undefined;
+
+                const {
+                    header: {
+                        amount: actualAmount,
+                        destinationCctpDomain: actualDestinationCctpDomain,
+                        mintRecipient,
+                    },
+                    message: { fill },
+                } = parsed.deposit!;
+
+                const userAmount =
+                    BigInt(amountIn.sub(offerPrice).toString()) - initAuctionFee + userReward;
+                expect(actualAmount).equals(userAmount);
+                expect(actualDestinationCctpDomain).equals(destinationCctpDomain);
+
+                const sourceChain = wormholeSdk.coalesceChainId(fromChainName);
+                const { mintRecipient: expectedMintRecipient } = await engine.fetchRouterEndpoint(
+                    wormholeSdk.coalesceChainId(toChainName)
+                );
+                expect(mintRecipient).to.eql(expectedMintRecipient);
+
+                const expectedFill: Fill = {
+                    sourceChain,
+                    orderSender,
+                    redeemer,
+                    redeemerMessage,
+                };
+                expect(fill).to.eql(expectedFill);
+            }
         });
 
         describe("Prepare Order Response", function () {
@@ -2906,50 +2537,79 @@ describe("Matching Engine", function () {
             }
         });
     });
-});
 
-async function placeInitialOfferForTest(
-    engine: MatchingEngineProgram,
-    offerAuthority: Keypair,
-    sequence: bigint,
-    fastMarketOrder: FastMarketOrder,
-    emitter: number[],
-    feeOffer: bigint,
-    chainName?: wormholeSdk.ChainName
-): Promise<{
-    fastVaa: PublicKey;
-    fastVaaAccount: VaaAccount;
-    txDetails: VersionedTransactionResponse;
-}> {
-    const connection = engine.program.provider.connection;
-    const fastVaa = await postLiquidityLayerVaa(
-        connection,
-        offerAuthority,
-        MOCK_GUARDIANS,
-        emitter,
-        sequence,
-        new LiquidityLayerMessage({ fastMarketOrder }),
-        chainName
-    );
+    async function placeInitialOfferForTest(
+        offerAuthority: Keypair,
+        sequence: bigint,
+        fastMarketOrder: FastMarketOrder,
+        emitter: number[],
+        feeOffer?: bigint,
+        chainName?: wormholeSdk.ChainName
+    ): Promise<{
+        fastVaa: PublicKey;
+        fastVaaAccount: VaaAccount;
+        txDetails: VersionedTransactionResponse;
+        auction: PublicKey;
+        auctionDataBefore: Auction;
+    }> {
+        const fastVaa = await postLiquidityLayerVaa(
+            connection,
+            offerAuthority,
+            MOCK_GUARDIANS,
+            emitter,
+            sequence,
+            new LiquidityLayerMessage({ fastMarketOrder }),
+            chainName
+        );
 
-    // Place the initial offer.
-    const ix = await engine.placeInitialOfferIx(
-        {
-            payer: offerAuthority.publicKey,
-            fastVaa,
-        },
-        feeOffer
-    );
+        // Place the initial offer.
+        const ix = await engine.placeInitialOfferIx(
+            {
+                payer: offerAuthority.publicKey,
+                fastVaa,
+            },
+            feeOffer ?? fastMarketOrder.maxFee
+        );
 
-    const txDetails = await expectIxOkDetails(connection, [ix], [offerAuthority]);
-    if (txDetails === null) {
-        throw new Error("Transaction details is null");
+        const txDetails = await expectIxOkDetails(connection, [ix], [offerAuthority]);
+        if (txDetails === null) {
+            throw new Error("Transaction details is null");
+        }
+
+        const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+        const auction = engine.auctionAddress(fastVaaAccount.digest());
+        const auctionDataBefore = await engine.fetchAuction({ address: auction });
+
+        return { fastVaa, fastVaaAccount, txDetails, auction, auctionDataBefore };
     }
 
-    const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+    async function improveOfferForTest(
+        auction: PublicKey,
+        offerAuthority: Keypair,
+        improveBy: number
+    ) {
+        const auctionData = await engine.fetchAuction({ address: auction });
+        const newOffer = BigInt(auctionData.info!.offerPrice.subn(improveBy).toString());
 
-    return { fastVaa, fastVaaAccount, txDetails };
-}
+        const improveIx = await engine.improveOfferIx(
+            {
+                auction,
+                offerAuthority: offerAuthority.publicKey,
+            },
+            newOffer
+        );
+
+        // Improve the bid with offer one.
+        await expectIxOk(connection, [improveIx], [offerAuthority]);
+
+        const auctionDataBefore = await engine.fetchAuction({ address: auction });
+        expect(BigInt(auctionDataBefore.info!.offerPrice.toString())).equals(newOffer);
+
+        return {
+            auctionDataBefore,
+        };
+    }
+});
 
 async function craftCctpTokenBurnMessage(
     engine: MatchingEngineProgram,

@@ -88,13 +88,11 @@ pub struct SettleAuctionActiveLocal<'info> {
     )]
     to_router_endpoint: Box<Account<'info, RouterEndpoint>>,
 
-    /// Destination token account, which the redeemer may not own. But because the redeemer is a
-    /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
-    /// to any account he chooses (this one).
-    ///
-    /// CHECK: This token account must already exist.
-    #[account(mut)]
-    liquidator_token: AccountInfo<'info>,
+    #[account(
+        mut,
+        token::mint = common::constants::usdc::id(),
+    )]
+    executor_token: Box<Account<'info, token::TokenAccount>>,
 
     /// CHECK: Must equal the best offer token in the auction data account.
     #[account(mut)]
@@ -163,7 +161,7 @@ pub fn settle_auction_active_local(ctx: Context<SettleAuctionActiveLocal>) -> Re
             custodian: &ctx.accounts.custodian,
             auction_config: &ctx.accounts.auction_config,
             prepared_order_response: &ctx.accounts.prepared_order_response,
-            liquidator_token: &ctx.accounts.liquidator_token,
+            executor_token: &ctx.accounts.executor_token,
             best_offer_token: &ctx.accounts.best_offer_token,
             custody_token: &ctx.accounts.custody_token,
             token_program: &ctx.accounts.token_program,

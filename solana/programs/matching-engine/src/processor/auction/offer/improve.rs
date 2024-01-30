@@ -60,19 +60,19 @@ pub struct ImproveOffer<'info> {
 }
 
 pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
-    let auction = ctx.accounts.auction.info.as_mut().unwrap();
+    let auction_info = ctx.accounts.auction.info.as_mut().unwrap();
 
     {
-        let Clock { slot, .. } = Clock::get()?;
+        let current_slot = Clock::get().map(|clock| clock.slot)?;
         require!(
-            slot <= auction.end_slot,
+            current_slot <= auction_info.auction_end_slot(&ctx.accounts.auction_config),
             MatchingEngineError::AuctionPeriodExpired
         );
     }
 
     // Make sure the new offer is less than the previous offer.
     require!(
-        fee_offer < auction.offer_price,
+        fee_offer < auction_info.offer_price,
         MatchingEngineError::OfferPriceNotImproved
     );
 
@@ -82,7 +82,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
     // TODO: change authority to custodian. Authority must be delegated to custodian before this
     // can work.
     let offer_token = ctx.accounts.offer_token.key();
-    if auction.best_offer_token != offer_token {
+    if auction_info.best_offer_token != offer_token {
         token::transfer(
             CpiContext::new(
                 ctx.accounts.token_program.to_account_info(),
@@ -92,14 +92,14 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
                     authority: ctx.accounts.offer_authority.to_account_info(),
                 },
             ),
-            auction.amount_in + auction.security_deposit,
+            auction_info.amount_in + auction_info.security_deposit,
         )?;
 
         // Update the `best_offer` token account and `amount` fields.
-        auction.best_offer_token = offer_token;
+        auction_info.best_offer_token = offer_token;
     }
 
-    auction.offer_price = fee_offer;
+    auction_info.offer_price = fee_offer;
 
     Ok(())
 }

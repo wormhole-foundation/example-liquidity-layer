@@ -131,7 +131,7 @@ fn check_constraints(ctx: &Context<Initialize>, params: &AuctionParameters) -> R
     // This prevents the unused variables warning popping up when this program is built.
     let _ = ctx;
 
-    crate::utils::math::require_valid_auction_parameters(params)?;
+    crate::utils::auction::require_valid_parameters(params)?;
 
     // Done.
     Ok(())

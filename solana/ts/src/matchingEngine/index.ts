@@ -389,7 +389,15 @@ export class MatchingEngineProgram {
     }
 
     async getCoreMessage(payer: PublicKey, payerSequenceValue?: bigint): Promise<PublicKey> {
-        const value = payerSequenceValue ?? (await this.fetchPayerSequenceValue(payer));
+        const value = await (async () => {
+            if (payerSequenceValue === undefined) {
+                // Fetch the latest.
+                const { value } = await this.fetchPayerSequence(payer);
+                return BigInt(value.subn(1).toString());
+            } else {
+                return payerSequenceValue;
+            }
+        })();
         return this.coreMessageAddress(payer, value);
     }
 
@@ -491,14 +499,13 @@ export class MatchingEngineProgram {
     }
 
     async improveOfferIx(
-        feeOffer: bigint,
-        vaaHash: Buffer | Uint8Array,
         accounts: {
+            auction: PublicKey;
             offerAuthority: PublicKey;
-            auction?: PublicKey;
             auctionConfig?: PublicKey;
             bestOfferToken?: PublicKey;
-        }
+        },
+        feeOffer: bigint
     ) {
         const {
             offerAuthority,
@@ -507,22 +514,24 @@ export class MatchingEngineProgram {
             bestOfferToken: inputBestOfferToken,
         } = accounts;
 
-        const bestOfferToken = await (async () => {
-            if (inputBestOfferToken !== undefined) {
-                return inputBestOfferToken;
-            } else {
-                const { info } = await this.fetchAuction(vaaHash);
+        const { auctionConfig, bestOfferToken } = await (async () => {
+            if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
+                const { info } = await this.fetchAuction({ address: auction });
                 if (info === null) {
                     throw new Error("no auction info found");
                 }
 
-                return info.bestOfferToken;
+                return {
+                    auctionConfig: inputAuctionConfig ?? this.auctionConfigAddress(info.configId),
+                    bestOfferToken: inputBestOfferToken ?? info.bestOfferToken,
+                };
+            } else {
+                return {
+                    auctionConfig: inputAuctionConfig,
+                    bestOfferToken: inputBestOfferToken,
+                };
             }
         })();
-
-        // TODO: fix this
-        const { info } = await this.fetchAuction(vaaHash);
-        const auctionConfig = this.auctionConfigAddress(info!.configId);
 
         return this.program.methods
             .improveOffer(new BN(feeOffer.toString()))
@@ -530,7 +539,7 @@ export class MatchingEngineProgram {
                 offerAuthority,
                 custodian: this.custodianAddress(),
                 auctionConfig,
-                auction: this.auctionAddress(vaaHash),
+                auction,
                 offerToken: splToken.getAssociatedTokenAddressSync(this.mint, offerAuthority),
                 bestOfferToken,
                 custodyToken: this.custodyTokenAccountAddress(),
@@ -809,27 +818,33 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async executeFastOrderCctpIx(
-        targetChain: number,
-        remoteDomain: number,
-        vaaHash: VaaHash,
-        accounts: {
-            payer: PublicKey;
-            fastVaa: PublicKey;
-            auctionConfig?: PublicKey;
-            bestOfferToken?: PublicKey;
-            initialOfferToken?: PublicKey;
-        }
-    ) {
+    async executeFastOrderCctpIx(accounts: {
+        payer: PublicKey;
+        fastVaa: PublicKey;
+        executorToken?: PublicKey;
+        auction?: PublicKey;
+        auctionConfig?: PublicKey;
+        bestOfferToken?: PublicKey;
+        initialOfferToken?: PublicKey;
+    }) {
         const {
             payer,
             fastVaa,
+            executorToken: inputExecutorToken,
+            auction: inputAuction,
             auctionConfig: inputAuctionConfig,
             bestOfferToken: inputBestOfferToken,
             initialOfferToken: inputInitialOfferToken,
         } = accounts;
 
-        const auction = this.auctionAddress(vaaHash);
+        // TODO: Think of a way to not have to do this fetch.
+        const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(vaaAccount.payload());
+        if (fastMarketOrder === undefined) {
+            throw new Error("Message not FastMarketOrder");
+        }
+
+        const auction = inputAuction ?? this.auctionAddress(vaaAccount.digest());
 
         const { auctionConfig, initialOfferToken, bestOfferToken } = await (async () => {
             if (
@@ -873,10 +888,7 @@ export class MatchingEngineProgram {
             localToken,
             messageTransmitterProgram,
             tokenMessengerMinterProgram,
-        } = await this.burnAndPublishAccounts(
-            { payer },
-            { targetChain, destinationCctpDomain: remoteDomain }
-        );
+        } = await this.burnAndPublishAccounts({ payer }, fastMarketOrder);
 
         const mint = this.mint;
         return this.program.methods
@@ -888,7 +900,8 @@ export class MatchingEngineProgram {
                 fastVaa,
                 auction,
                 toRouterEndpoint,
-                executorToken: splToken.getAssociatedTokenAddressSync(mint, payer),
+                executorToken:
+                    inputExecutorToken ?? splToken.getAssociatedTokenAddressSync(mint, payer),
                 bestOfferToken,
                 initialOfferToken,
                 custodyToken: this.custodyTokenAccountAddress(),
@@ -911,27 +924,29 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async executeFastOrderLocalIx(
-        vaaHash: VaaHash,
-        accounts: {
-            payer: PublicKey;
-            fastVaa: PublicKey;
-            auctionConfig?: PublicKey;
-            bestOfferToken?: PublicKey;
-            initialOfferToken?: PublicKey;
-            toRouterEndpoint?: PublicKey;
-        }
-    ) {
+    async executeFastOrderLocalIx(accounts: {
+        payer: PublicKey;
+        fastVaa: PublicKey;
+        executorToken?: PublicKey;
+        auction?: PublicKey;
+        auctionConfig?: PublicKey;
+        bestOfferToken?: PublicKey;
+        initialOfferToken?: PublicKey;
+        toRouterEndpoint?: PublicKey;
+    }) {
         const {
             payer,
             fastVaa,
+            executorToken: inputExecutorToken,
+            auction: inputAuction,
             auctionConfig: inputAuctionConfig,
             bestOfferToken: inputBestOfferToken,
             initialOfferToken: inputInitialOfferToken,
             toRouterEndpoint: inputToRouterEndpoint,
         } = accounts;
 
-        const auction = this.auctionAddress(vaaHash);
+        const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+        const auction = inputAuction ?? this.auctionAddress(vaaAccount.digest());
 
         const { auctionConfig, initialOfferToken, bestOfferToken } = await (async () => {
             if (
@@ -979,7 +994,8 @@ export class MatchingEngineProgram {
                 toRouterEndpoint:
                     inputToRouterEndpoint ??
                     this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
-                executorToken: splToken.getAssociatedTokenAddressSync(this.mint, payer),
+                executorToken:
+                    inputExecutorToken ?? splToken.getAssociatedTokenAddressSync(this.mint, payer),
                 bestOfferToken,
                 initialOfferToken,
                 custodyToken: this.custodyTokenAccountAddress(),
@@ -1150,18 +1166,18 @@ export class MatchingEngineProgram {
         }
     }
 
-    async calculateDynamicPenalty(
+    async computeDepositPenalty(
         auctionInfo: AuctionInfo,
         currentSlot: bigint,
         configId?: number
-    ): Promise<{ penalty: bigint; reward: bigint }> {
+    ): Promise<{ penalty: bigint; userReward: bigint }> {
         const auctionParams = await this.fetchAuctionParameters(configId);
 
         const gracePeriod = BigInt(auctionParams.gracePeriod);
         const slotsElapsed =
             currentSlot - BigInt(auctionInfo.startSlot.toString()) - BigInt(auctionParams.duration);
         if (slotsElapsed <= gracePeriod) {
-            return { penalty: 0n, reward: 0n };
+            return { penalty: 0n, userReward: 0n };
         }
 
         const amount = BigInt(auctionInfo.securityDeposit.toString());
@@ -1173,14 +1189,14 @@ export class MatchingEngineProgram {
 
         if (penaltyPeriod >= auctionPenaltySlots || initialPenaltyBps == FEE_PRECISION_MAX) {
             const userReward = (amount * userPenaltyRewardBps) / FEE_PRECISION_MAX;
-            return { penalty: amount - userReward, reward: userReward };
+            return { penalty: amount - userReward, userReward };
         } else {
             const basePenalty = (amount * initialPenaltyBps) / FEE_PRECISION_MAX;
             const penalty =
                 basePenalty + ((amount - basePenalty) * penaltyPeriod) / auctionPenaltySlots;
             const userReward = (penalty * userPenaltyRewardBps) / FEE_PRECISION_MAX;
 
-            return { penalty: penalty - userReward, reward: userReward };
+            return { penalty: penalty - userReward, userReward };
         }
     }
 }

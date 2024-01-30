@@ -6,7 +6,7 @@ pub use local::*;
 
 use crate::{
     state::{Auction, AuctionConfig, AuctionStatus, Custodian, PreparedOrderResponse},
-    utils::{self, math::DepositPenalty},
+    utils::{self, auction::DepositPenalty},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -20,7 +20,7 @@ struct SettleActiveAndPrepareFill<'ctx, 'info> {
     custodian: &'ctx AccountInfo<'info>,
     auction_config: &'ctx Account<'info, AuctionConfig>,
     prepared_order_response: &'ctx Account<'info, PreparedOrderResponse>,
-    liquidator_token: &'ctx AccountInfo<'info>,
+    executor_token: &'ctx Account<'info, token::TokenAccount>,
     best_offer_token: &'ctx AccountInfo<'info>,
     custody_token: &'ctx AccountInfo<'info>,
     token_program: &'ctx Program<'info, token::Token>,
@@ -41,7 +41,7 @@ fn settle_active_and_prepare_fill<'ctx>(
         custodian,
         auction_config,
         prepared_order_response,
-        liquidator_token,
+        executor_token,
         best_offer_token,
         custody_token,
         token_program,
@@ -60,7 +60,7 @@ fn settle_active_and_prepare_fill<'ctx>(
         let DepositPenalty {
             penalty,
             user_reward,
-        } = utils::math::compute_deposit_penalty(
+        } = utils::auction::compute_deposit_penalty(
             auction_config,
             auction.info.as_ref().unwrap(),
             Clock::get().map(|clock| clock.slot)?,
@@ -83,7 +83,7 @@ fn settle_active_and_prepare_fill<'ctx>(
         )
     };
 
-    if liquidator_token.key() != best_offer_token.key() {
+    if executor_token.key() != best_offer_token.key() {
         // Transfer the penalty amount to the caller. The caller also earns the base fee for relaying
         // the slow VAA.
         token::transfer(
@@ -91,7 +91,7 @@ fn settle_active_and_prepare_fill<'ctx>(
                 token_program.to_account_info(),
                 token::Transfer {
                     from: custody_token.to_account_info(),
-                    to: liquidator_token.to_account_info(),
+                    to: executor_token.to_account_info(),
                     authority: custodian.to_account_info(),
                 },
                 &[Custodian::SIGNER_SEEDS],

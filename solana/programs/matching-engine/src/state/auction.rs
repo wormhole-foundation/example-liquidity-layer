@@ -1,3 +1,4 @@
+use crate::state::AuctionParameters;
 use anchor_lang::prelude::*;
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq, Eq)]
@@ -38,9 +39,8 @@ pub struct AuctionInfo {
     /// The slot when the auction started.
     pub start_slot: u64,
 
-    // TODO: remove
-    pub end_slot: u64,
-
+    /// The amount reflecting the amount of assets transferred into the matching engine. This plus
+    /// and the security deposit are used to participate in the auction.
     pub amount_in: u64,
 
     /// The additional deposit made by the highest bidder.
@@ -49,8 +49,35 @@ pub struct AuctionInfo {
     /// The offer price of the auction.
     pub offer_price: u64,
 
-    /// The amount of tokens to be sent to the user.
+    /// The amount of tokens to be sent to the user. For CCTP fast transfers, this amount will equal
+    /// the [amount_in](Self::amount_in).
     pub amount_out: u64,
+}
+
+impl AuctionInfo {
+    /// Compute start slot + duration.
+    #[inline]
+    pub fn auction_end_slot(&self, params: &AuctionParameters) -> u64 {
+        self.start_slot + u64::from(params.duration)
+    }
+
+    /// Compute start slot + duration + grace period.
+    #[inline]
+    pub fn grace_period_end_slot(&self, params: &AuctionParameters) -> u64 {
+        self.auction_end_slot(params) + u64::from(params.grace_period)
+    }
+
+    /// Compute start slot + duration + grace period + penalty slots.
+    #[inline]
+    pub fn penalty_period_end_slot(&self, params: &AuctionParameters) -> u64 {
+        self.grace_period_end_slot(params) + u64::from(params.penalty_slots)
+    }
+
+    /// Compute amount in + security deposit.
+    #[inline]
+    pub fn total_deposit(&self) -> u64 {
+        self.amount_in + self.security_deposit
+    }
 }
 
 #[account]

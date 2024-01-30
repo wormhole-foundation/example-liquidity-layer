@@ -43,7 +43,7 @@ pub fn propose_auction_parameters(
     ctx: Context<ProposeAuctionParameters>,
     parameters: AuctionParameters,
 ) -> Result<()> {
-    crate::utils::math::require_valid_auction_parameters(&parameters)?;
+    crate::utils::auction::require_valid_parameters(&parameters)?;
 
     let id = ctx.accounts.custodian.auction_config_id + 1;
     super::propose(

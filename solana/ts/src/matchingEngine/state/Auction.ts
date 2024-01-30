@@ -1,5 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
+import { AuctionParameters } from "./AuctionConfig";
 
 export type AuctionStatus = {
     notStarted?: {};
@@ -16,7 +17,6 @@ export type AuctionInfo = {
     bestOfferToken: PublicKey;
     initialOfferToken: PublicKey;
     startSlot: BN;
-    endSlot: BN;
     amountIn: BN;
     securityDeposit: BN;
     offerPrice: BN;
