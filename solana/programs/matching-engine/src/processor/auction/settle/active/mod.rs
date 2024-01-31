@@ -55,7 +55,7 @@ fn settle_active_and_prepare_fill(
     // This means the slow message beat the fast message. We need to refund the bidder and
     // (potentially) take a penalty for not fulfilling their obligation. The `penalty` CAN be zero
     // in this case, since the auction grace period might not have ended yet.
-    let (liquidator_amount, mut best_offer_amount, user_amount, final_status) = {
+    let (executor_amount, mut best_offer_amount, user_amount, final_status) = {
         let auction_info = auction.info.as_ref().unwrap();
 
         let DepositPenalty {
@@ -75,7 +75,7 @@ fn settle_active_and_prepare_fill(
         // * amount_in comes from the inbound transfer.
         (
             penalty + base_fee,
-            auction_info.amount_in + auction_info.security_deposit - penalty - user_reward,
+            auction_info.total_deposit() - penalty - user_reward,
             auction_info.amount_in + user_reward - base_fee,
             AuctionStatus::Settled {
                 base_fee,
@@ -97,10 +97,10 @@ fn settle_active_and_prepare_fill(
                 },
                 &[Custodian::SIGNER_SEEDS],
             ),
-            liquidator_amount,
+            executor_amount,
         )?;
     } else {
-        best_offer_amount += liquidator_amount;
+        best_offer_amount += executor_amount;
     }
 
     // Transfer to the best offer token what he deserves.
@@ -117,18 +117,16 @@ fn settle_active_and_prepare_fill(
         best_offer_amount,
     )?;
 
-    let mut redeemer_message = Vec::with_capacity(order.redeemer_message_len().try_into().unwrap());
-    <Vec<_> as std::io::Write>::write_all(&mut redeemer_message, order.redeemer_message().into())?;
-
-    let fill = Fill {
-        source_chain: prepared_order_response.source_chain,
-        order_sender: order.sender(),
-        redeemer: order.redeemer(),
-        redeemer_message: redeemer_message.into(),
-    };
-
     // Everyone's whole, set the auction as completed.
     auction.status = final_status;
 
-    Ok(SettledActive { user_amount, fill })
+    Ok(SettledActive {
+        user_amount,
+        fill: Fill {
+            source_chain: prepared_order_response.source_chain,
+            order_sender: order.sender(),
+            redeemer: order.redeemer(),
+            redeemer_message: utils::take_order_message(order).into(),
+        },
+    })
 }

@@ -92,7 +92,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
                     authority: ctx.accounts.offer_authority.to_account_info(),
                 },
             ),
-            auction_info.amount_in + auction_info.security_deposit,
+            auction_info.total_deposit(),
         )?;
 
         // Update the `best_offer` token account and `amount` fields.

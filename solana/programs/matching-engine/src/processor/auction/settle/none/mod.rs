@@ -4,7 +4,10 @@ pub use cctp::*;
 mod local;
 pub use local::*;
 
-use crate::state::{Auction, AuctionStatus, Custodian, PreparedOrderResponse, RouterEndpoint};
+use crate::{
+    state::{Auction, AuctionStatus, Custodian, PreparedOrderResponse, RouterEndpoint},
+    utils,
+};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
@@ -76,18 +79,6 @@ fn settle_none_and_prepare_fill(
         base_fee,
     )?;
 
-    let user_amount = order.amount_in() - base_fee;
-
-    let mut redeemer_message = Vec::with_capacity(order.redeemer_message_len().try_into().unwrap());
-    <Vec<_> as std::io::Write>::write_all(&mut redeemer_message, order.redeemer_message().into())?;
-
-    let fill = Fill {
-        source_chain: prepared_order_response.source_chain,
-        order_sender: order.sender(),
-        redeemer: order.redeemer(),
-        redeemer_message: redeemer_message.into(),
-    };
-
     // This is a necessary security check. This will prevent a relayer from starting an auction with
     // the fast transfer VAA, even though the slow relayer already delivered the slow VAA. Not
     // setting this could lead to trapped funds (which would require an upgrade to fix).
@@ -101,5 +92,13 @@ fn settle_none_and_prepare_fill(
         info: None,
     });
 
-    Ok(SettledNone { user_amount, fill })
+    Ok(SettledNone {
+        user_amount: order.amount_in() - base_fee,
+        fill: Fill {
+            source_chain: prepared_order_response.source_chain,
+            order_sender: order.sender(),
+            redeemer: order.redeemer(),
+            redeemer_message: utils::take_order_message(order).into(),
+        },
+    })
 }
