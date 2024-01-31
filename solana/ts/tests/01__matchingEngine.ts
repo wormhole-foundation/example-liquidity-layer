@@ -92,27 +92,20 @@ describe("Matching Engine", function () {
                 penaltySlots: 10,
             };
 
-            const createInitializeIx = (opts?: {
-                ownerAssistant?: PublicKey;
-                feeRecipient?: PublicKey;
-                mint?: PublicKey;
-            }) =>
-                engine.initializeIx(auctionParams, {
-                    owner: payer.publicKey,
-                    ownerAssistant: opts?.ownerAssistant ?? ownerAssistant.publicKey,
-                    feeRecipient: opts?.feeRecipient ?? feeRecipient,
-                    mint: opts?.mint ?? USDC_MINT_ADDRESS,
-                });
+            const localVariables = new Map<string, any>();
 
             it("Cannot Initialize without USDC Mint", async function () {
                 const mint = await splToken.createMint(connection, payer, payer.publicKey, null, 6);
 
-                const ix = await engine.initializeIx(auctionParams, {
-                    owner: payer.publicKey,
-                    ownerAssistant: ownerAssistant.publicKey,
-                    feeRecipient,
-                    mint,
-                });
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: ownerAssistant.publicKey,
+                        feeRecipient,
+                        mint,
+                    },
+                    auctionParams
+                );
                 const unknownAta = splToken.getAssociatedTokenAddressSync(
                     mint,
                     engine.custodianAddress(),
@@ -127,109 +120,105 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Initialize with Default Owner Assistant", async function () {
-                await expectIxErr(
-                    connection,
-                    [
-                        await createInitializeIx({
-                            ownerAssistant: PublicKey.default,
-                        }),
-                    ],
-                    [payer],
-                    "Error Code: AssistantZeroPubkey"
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: PublicKey.default,
+                        feeRecipient,
+                    },
+                    auctionParams
                 );
+                await expectIxErr(connection, [ix], [payer], "Error Code: AssistantZeroPubkey");
             });
 
             it("Cannot Initialize with Default Fee Recipient", async function () {
-                await expectIxErr(
-                    connection,
-                    [
-                        await createInitializeIx({
-                            feeRecipient: PublicKey.default,
-                        }),
-                    ],
-                    [payer],
-                    "Error Code: FeeRecipientZeroPubkey"
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: ownerAssistant.publicKey,
+                        feeRecipient: PublicKey.default,
+                    },
+                    auctionParams
                 );
+                await expectIxErr(connection, [ix], [payer], "Error Code: FeeRecipientZeroPubkey");
             });
 
             it("Cannot Initialize with Invalid Auction Duration", async function () {
-                const newAuctionParams: AuctionParameters = { ...auctionParams };
-                newAuctionParams.duration = 0;
+                const { duration: _, ...remaining } = auctionParams;
 
-                await expectIxErr(
-                    connection,
-                    [
-                        await engine.initializeIx(newAuctionParams, {
-                            owner: payer.publicKey,
-                            ownerAssistant: ownerAssistant.publicKey,
-                            feeRecipient,
-                            mint: USDC_MINT_ADDRESS,
-                        }),
-                    ],
-                    [payer],
-                    "Error Code: InvalidAuctionDuration"
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: ownerAssistant.publicKey,
+                        feeRecipient,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    { duration: 0, ...remaining }
                 );
+                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidAuctionDuration");
             });
 
             it("Cannot Initialize with Invalid Auction Grace Period", async function () {
-                const newAuctionParams: AuctionParameters = { ...auctionParams };
-                newAuctionParams.gracePeriod = 0;
+                const { gracePeriod: _, ...remaining } = auctionParams;
 
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: ownerAssistant.publicKey,
+                        feeRecipient,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    { gracePeriod: 0, ...remaining }
+                );
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.initializeIx(newAuctionParams, {
-                            owner: payer.publicKey,
-                            ownerAssistant: ownerAssistant.publicKey,
-                            feeRecipient,
-                            mint: USDC_MINT_ADDRESS,
-                        }),
-                    ],
+                    [ix],
                     [payer],
                     "Error Code: InvalidAuctionGracePeriod"
                 );
             });
 
             it("Cannot Initialize with Invalid User Penalty", async function () {
-                const newAuctionParams: AuctionParameters = { ...auctionParams };
-                newAuctionParams.userPenaltyRewardBps = 4294967295;
+                const { userPenaltyRewardBps: _, ...remaining } = auctionParams;
 
-                await expectIxErr(
-                    connection,
-                    [
-                        await engine.initializeIx(newAuctionParams, {
-                            owner: payer.publicKey,
-                            ownerAssistant: ownerAssistant.publicKey,
-                            feeRecipient,
-                            mint: USDC_MINT_ADDRESS,
-                        }),
-                    ],
-                    [payer],
-                    "Error Code: UserPenaltyTooLarge"
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: ownerAssistant.publicKey,
+                        feeRecipient,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    { userPenaltyRewardBps: 4294967295, ...remaining }
                 );
+                await expectIxErr(connection, [ix], [payer], "Error Code: UserPenaltyTooLarge");
             });
 
             it("Cannot Initialize with Invalid Initial Penalty", async function () {
-                const newAuctionParams: AuctionParameters = { ...auctionParams };
-                newAuctionParams.initialPenaltyBps = 4294967295;
+                const { initialPenaltyBps: _, ...remaining } = auctionParams;
 
-                await expectIxErr(
-                    connection,
-                    [
-                        await engine.initializeIx(newAuctionParams, {
-                            owner: payer.publicKey,
-                            ownerAssistant: ownerAssistant.publicKey,
-                            feeRecipient,
-                            mint: USDC_MINT_ADDRESS,
-                        }),
-                    ],
-                    [payer],
-                    "Error Code: InitialPenaltyTooLarge"
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: ownerAssistant.publicKey,
+                        feeRecipient,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    { initialPenaltyBps: 4294967295, ...remaining }
                 );
+                await expectIxErr(connection, [ix], [payer], "Error Code: InitialPenaltyTooLarge");
             });
 
             it("Finally Initialize Program", async function () {
-                await expectIxOk(connection, [await createInitializeIx()], [payer]);
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: ownerAssistant.publicKey,
+                        feeRecipient,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    auctionParams
+                );
+                await expectIxOk(connection, [ix], [payer]);
 
                 const expectedAuctionConfigId = 0;
                 const custodianData = await engine.fetchCustodian();
@@ -248,14 +237,21 @@ describe("Matching Engine", function () {
                 expect(auctionConfigData).to.eql(
                     new AuctionConfig(expectedAuctionConfigId, auctionParams)
                 );
+
+                localVariables.set("ix", ix);
             });
 
             it("Cannot Call Instruction Again: initialize", async function () {
+                const ix = localVariables.get("ix") as TransactionInstruction;
+                expect(localVariables.delete("ix")).is.true;
+
                 await expectIxErr(
                     connection,
-                    [await createInitializeIx({})],
+                    [ix],
                     [payer],
-                    "already in use"
+                    `Allocate: account Address { address: ${engine
+                        .custodianAddress()
+                        .toString()}, base: None } already in use`
                 );
             });
 
@@ -294,6 +290,21 @@ describe("Matching Engine", function () {
                         SystemProgram.transfer({
                             fromPubkey: payer.publicKey,
                             toPubkey: ownerAssistant.publicKey,
+                            lamports: 1000000000,
+                        }),
+                        SystemProgram.transfer({
+                            fromPubkey: payer.publicKey,
+                            toPubkey: offerAuthorityOne.publicKey,
+                            lamports: 1000000000,
+                        }),
+                        SystemProgram.transfer({
+                            fromPubkey: payer.publicKey,
+                            toPubkey: offerAuthorityTwo.publicKey,
+                            lamports: 1000000000,
+                        }),
+                        SystemProgram.transfer({
+                            fromPubkey: payer.publicKey,
+                            toPubkey: liquidator.publicKey,
                             lamports: 1000000000,
                         }),
                     ],
@@ -782,73 +793,6 @@ describe("Matching Engine", function () {
             redeemerMessage: Buffer.from("All your base are belong to us."),
         };
 
-        before("Register To Router Endpoints", async function () {
-            const ix = await engine.addCctpRouterEndpointIx(
-                {
-                    ownerOrAssistant: owner.publicKey,
-                },
-                {
-                    chain: arbChain,
-                    cctpDomain: arbDomain,
-                    address: arbRouter,
-                    mintRecipient: null,
-                }
-            );
-            await expectIxOk(connection, [ix], [owner]);
-        });
-
-        before("Transfer Lamports to Offer Authorities", async function () {
-            await expectIxOk(
-                connection,
-                [
-                    SystemProgram.transfer({
-                        fromPubkey: payer.publicKey,
-                        toPubkey: offerAuthorityOne.publicKey,
-                        lamports: 1000000000,
-                    }),
-                    SystemProgram.transfer({
-                        fromPubkey: payer.publicKey,
-                        toPubkey: offerAuthorityTwo.publicKey,
-                        lamports: 1000000000,
-                    }),
-                    SystemProgram.transfer({
-                        fromPubkey: payer.publicKey,
-                        toPubkey: liquidator.publicKey,
-                        lamports: 1000000000,
-                    }),
-                ],
-                [payer]
-            );
-        });
-
-        before("Create ATAs For Offer Authorities", async function () {
-            for (const wallet of [offerAuthorityOne, offerAuthorityTwo, liquidator]) {
-                const destination = await splToken.createAccount(
-                    connection,
-                    wallet,
-                    USDC_MINT_ADDRESS,
-                    wallet.publicKey
-                );
-
-                // Mint USDC.
-                const mintAmount = 10_000_000n * 1_000_000n;
-
-                await expect(
-                    splToken.mintTo(
-                        connection,
-                        payer,
-                        USDC_MINT_ADDRESS,
-                        destination,
-                        payer,
-                        mintAmount
-                    )
-                ).to.be.fulfilled;
-
-                const { amount } = await splToken.getAccount(connection, destination);
-                expect(amount).equals(mintAmount);
-            }
-        });
-
         describe("Place Initial Offer", function () {
             for (const offerPrice of [0n, baseFastOrder.maxFee / 2n, baseFastOrder.maxFee]) {
                 it(`Place Initial Offer (Price == ${offerPrice})`, async function () {
@@ -1224,6 +1168,49 @@ describe("Matching Engine", function () {
                     )
                 );
             }
+
+            before("Register To Router Endpoints", async function () {
+                const ix = await engine.addCctpRouterEndpointIx(
+                    {
+                        ownerOrAssistant: owner.publicKey,
+                    },
+                    {
+                        chain: arbChain,
+                        cctpDomain: arbDomain,
+                        address: arbRouter,
+                        mintRecipient: null,
+                    }
+                );
+                await expectIxOk(connection, [ix], [owner]);
+            });
+
+            before("Create ATAs For Offer Authorities", async function () {
+                for (const wallet of [offerAuthorityOne, offerAuthorityTwo, liquidator]) {
+                    const destination = await splToken.createAccount(
+                        connection,
+                        wallet,
+                        USDC_MINT_ADDRESS,
+                        wallet.publicKey
+                    );
+
+                    // Mint USDC.
+                    const mintAmount = 10_000_000n * 1_000_000n;
+
+                    await expect(
+                        splToken.mintTo(
+                            connection,
+                            payer,
+                            USDC_MINT_ADDRESS,
+                            destination,
+                            payer,
+                            mintAmount
+                        )
+                    ).to.be.fulfilled;
+
+                    const { amount } = await splToken.getAccount(connection, destination);
+                    expect(amount).equals(mintAmount);
+                }
+            });
         });
 
         describe("Improve Offer", function () {

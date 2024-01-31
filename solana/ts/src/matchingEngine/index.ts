@@ -198,13 +198,13 @@ export class MatchingEngineProgram {
     }
 
     async initializeIx(
-        auctionParams: AuctionParameters,
         accounts: {
             owner: PublicKey;
             ownerAssistant: PublicKey;
             feeRecipient: PublicKey;
             mint?: PublicKey;
-        }
+        },
+        auctionParams: AuctionParameters
     ): Promise<TransactionInstruction> {
         const { owner, ownerAssistant, feeRecipient, mint: inputMint } = accounts;
 
