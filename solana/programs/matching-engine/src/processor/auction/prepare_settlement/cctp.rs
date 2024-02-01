@@ -172,8 +172,8 @@ pub fn prepare_order_response_cctp(
             MatchingEngineError::VaaMismatch
         );
         require_eq!(
-            fast_emitter.sequence + 1,
-            finalized_emitter.sequence,
+            fast_emitter.sequence,
+            finalized_emitter.sequence + 1,
             MatchingEngineError::VaaMismatch
         );
         require!(

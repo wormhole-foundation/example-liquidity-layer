@@ -2242,14 +2242,6 @@ describe("Matching Engine", function () {
                     ),
                 });
 
-                const fastVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence++,
-                    fastMessage
-                );
                 const finalizedVaa = await postLiquidityLayerVaa(
                     connection,
                     payer,
@@ -2257,6 +2249,14 @@ describe("Matching Engine", function () {
                     ethRouter,
                     wormholeSequence++,
                     finalizedMessage
+                );
+                const fastVaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    fastMessage
                 );
 
                 const ix = await engine.prepareOrderResponseCctpIx(
@@ -2580,16 +2580,6 @@ describe("Matching Engine", function () {
                     ),
                 });
 
-                const fastVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence++,
-                    fastMessage
-                );
-                const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
-
                 const finalizedVaa = await postLiquidityLayerVaa(
                     connection,
                     payer,
@@ -2599,6 +2589,16 @@ describe("Matching Engine", function () {
                     finalizedMessage
                 );
                 const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
+
+                const fastVaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    fastMessage
+                );
+                const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
 
                 const prepareIx = await engine.prepareOrderResponseCctpIx(
                     {
@@ -2637,9 +2637,12 @@ describe("Matching Engine", function () {
                         }
                         const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
                         const auctionConfig = engine.auctionConfigAddress(configId);
-                        const duration = (await engine.fetchAuctionConfig(configId)).parameters.duration;
+                        const duration = (await engine.fetchAuctionConfig(configId)).parameters
+                            .duration;
 
-                        await new Promise((f) => setTimeout(f, startSlot.toNumber() + duration + 200));
+                        await new Promise((f) =>
+                            setTimeout(f, startSlot.toNumber() + duration + 200)
+                        );
 
                         const ix = await engine.executeFastOrderCctpIx({
                             payer: payer.publicKey,
