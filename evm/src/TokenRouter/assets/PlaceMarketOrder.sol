@@ -148,12 +148,6 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         uint64 maxFee,
         uint32 deadline
     ) private returns (uint64 sequence, uint64 fastSequence, uint256 protocolSequence) {
-        // The Matching Engine chain is a fast finality chain already,
-        // so we don't need to send a fast transfer message.
-        if (_chainId == _matchingEngineChain) {
-            revert ErrFastTransferNotSupported();
-        }
-
         // Verify the `amountIn` and specified auction price.
         FastTransferParameters memory fastParams = getFastTransferParametersState();
 
