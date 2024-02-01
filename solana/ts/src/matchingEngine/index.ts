@@ -7,11 +7,14 @@ import {
     Connection,
     PublicKey,
     SYSVAR_CLOCK_PUBKEY,
-    SYSVAR_RENT_PUBKEY,
     SYSVAR_EPOCH_SCHEDULE_PUBKEY,
+    SYSVAR_RENT_PUBKEY,
+    SendOptions,
+    Signer,
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
+import { PreparedTransaction, PreparedTransactionOptions } from "..";
 import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
@@ -677,6 +680,48 @@ export class MatchingEngineProgram {
         return [approveIx, placeInitialOfferIx];
     }
 
+    async placeInitialOfferTx(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            auction?: PublicKey;
+            fromRouterEndpoint?: PublicKey;
+            toRouterEndpoint?: PublicKey;
+            totalDeposit?: bigint;
+        },
+        offerPrice: bigint,
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        sendOptions?: SendOptions,
+    ): Promise<PreparedTransaction> {
+        const { payer, fastVaa, auction, fromRouterEndpoint, toRouterEndpoint, totalDeposit } =
+            accounts;
+        const ixs = await this.placeInitialOfferIx(
+            {
+                payer,
+                fastVaa,
+                auction,
+                fromRouterEndpoint,
+                toRouterEndpoint,
+                totalDeposit,
+            },
+            offerPrice,
+        );
+
+        const preparedTx: PreparedTransaction = {
+            ixs,
+            signers,
+            computeUnits: opts.computeUnits!,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "placeInitialOffer",
+            sendOptions,
+        };
+
+        return preparedTx;
+    }
+
     async improveOfferIx(
         accounts: {
             auction: PublicKey;
@@ -1208,15 +1253,21 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async executeFastOrderCctpIx(accounts: {
-        payer: PublicKey;
-        fastVaa: PublicKey;
-        executorToken?: PublicKey;
-        auction?: PublicKey;
-        auctionConfig?: PublicKey;
-        bestOfferToken?: PublicKey;
-        initialOfferToken?: PublicKey;
-    }) {
+    async executeFastOrderCctpIx(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            executorToken?: PublicKey;
+            auction?: PublicKey;
+            auctionConfig?: PublicKey;
+            bestOfferToken?: PublicKey;
+            initialOfferToken?: PublicKey;
+        },
+        opts: {
+            fastVaaAccount?: VaaAccount;
+            targetChain?: number;
+        } = {},
+    ) {
         const {
             payer,
             fastVaa,
@@ -1227,14 +1278,28 @@ export class MatchingEngineProgram {
             initialOfferToken: inputInitialOfferToken,
         } = accounts;
 
-        // TODO: Think of a way to not have to do this fetch.
-        const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
-        const { fastMarketOrder } = LiquidityLayerMessage.decode(vaaAccount.payload());
-        if (fastMarketOrder === undefined) {
-            throw new Error("Message not FastMarketOrder");
-        }
+        const { fastVaaAccount: optFastVaaAccount, targetChain: optTargetChain } = opts;
+        const fastVaaAccount = await (async () => {
+            if (optFastVaaAccount === undefined) {
+                return VaaAccount.fetch(this.program.provider.connection, fastVaa);
+            } else {
+                return optFastVaaAccount;
+            }
+        })();
 
-        const auction = inputAuction ?? this.auctionAddress(vaaAccount.digest());
+        const targetChain = (() => {
+            if (optTargetChain === undefined) {
+                const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+                if (fastMarketOrder === undefined) {
+                    throw new Error("Message not FastMarketOrder");
+                }
+                return fastMarketOrder.targetChain;
+            } else {
+                return optTargetChain;
+            }
+        })();
+
+        const auction = inputAuction ?? this.auctionAddress(fastVaaAccount.digest());
 
         const { auctionConfig, initialOfferToken, bestOfferToken } = await (async () => {
             if (
@@ -1280,7 +1345,7 @@ export class MatchingEngineProgram {
             tokenMessengerMinterEventAuthority,
             messageTransmitterProgram,
             tokenMessengerMinterProgram,
-        } = await this.burnAndPublishAccounts({ payer }, fastMarketOrder);
+        } = await this.burnAndPublishAccounts({ payer }, { targetChain });
 
         const mint = this.mint;
         return this.program.methods
@@ -1318,16 +1383,21 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async executeFastOrderLocalIx(accounts: {
-        payer: PublicKey;
-        fastVaa: PublicKey;
-        executorToken?: PublicKey;
-        auction?: PublicKey;
-        auctionConfig?: PublicKey;
-        bestOfferToken?: PublicKey;
-        initialOfferToken?: PublicKey;
-        toRouterEndpoint?: PublicKey;
-    }) {
+    async executeFastOrderLocalIx(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            executorToken?: PublicKey;
+            auction?: PublicKey;
+            auctionConfig?: PublicKey;
+            bestOfferToken?: PublicKey;
+            initialOfferToken?: PublicKey;
+            toRouterEndpoint?: PublicKey;
+        },
+        opts: {
+            fastVaaAccount?: VaaAccount;
+        } = {},
+    ) {
         const {
             payer,
             fastVaa,
@@ -1339,8 +1409,16 @@ export class MatchingEngineProgram {
             toRouterEndpoint: inputToRouterEndpoint,
         } = accounts;
 
-        const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
-        const auction = inputAuction ?? this.auctionAddress(vaaAccount.digest());
+        const { fastVaaAccount: optFastVaaAccount } = opts;
+        const fastVaaAccount = await (async () => {
+            if (optFastVaaAccount === undefined) {
+                return VaaAccount.fetch(this.program.provider.connection, fastVaa);
+            } else {
+                return optFastVaaAccount;
+            }
+        })();
+
+        const auction = inputAuction ?? this.auctionAddress(fastVaaAccount.digest());
 
         const { auctionConfig, initialOfferToken, bestOfferToken } = await (async () => {
             if (
@@ -1404,6 +1482,54 @@ export class MatchingEngineProgram {
                 coreBridgeProgram,
             })
             .instruction();
+    }
+
+    async executeOrderTx(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            auction?: PublicKey;
+        },
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        sendOptions?: SendOptions,
+    ): Promise<PreparedTransaction> {
+        const { payer, fastVaa, auction: inputAuction } = accounts;
+
+        const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+        if (fastMarketOrder === undefined) {
+            throw new Error("Message not FastMarketOrder");
+        }
+
+        const auction = inputAuction ?? this.auctionAddress(fastVaaAccount.digest());
+        const { targetChain } = fastMarketOrder;
+        const executeOrderIx = await (async () => {
+            if (targetChain === wormholeSdk.CHAIN_ID_SOLANA) {
+                return this.executeFastOrderLocalIx(
+                    { payer, fastVaa, auction },
+                    { fastVaaAccount },
+                );
+            } else {
+                return this.executeFastOrderCctpIx(
+                    { payer, fastVaa, auction },
+                    { fastVaaAccount, targetChain },
+                );
+            }
+        })();
+
+        const preparedTx: PreparedTransaction = {
+            ixs: [executeOrderIx],
+            signers,
+            computeUnits: opts.computeUnits!,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "executeOrder",
+            sendOptions,
+        };
+
+        return preparedTx;
     }
 
     async redeemFastFillAccounts(

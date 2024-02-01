@@ -19,7 +19,7 @@ clean:
 node_modules:
 	npm ci
 
-cargo-test $(NETWORK):
+cargo-test:
 	cargo test --features "$(NETWORK)" --no-default-features
 
 build: $(out_$(NETWORK))

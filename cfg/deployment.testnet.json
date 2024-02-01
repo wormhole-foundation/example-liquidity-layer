@@ -1,0 +1,78 @@
+{
+    "engine": {
+        "chain": "solana",
+        "address": "3e374fcd3aaf2ed067f3c93d21416855ec7916cfd2c2127bcbc68b3b1fb73077",
+        "mintRecipient": "58b82fca98f022ca29cfe822d1a3f92930020970910f0a99a0d9b995b21f99d5"
+    },
+    "routers": {
+        "sepolia": {
+            "address": "000000000000000000000000603541d1cf7178c407aa7369b67cb7e0274952e2",
+            "mintRecipient": "000000000000000000000000603541d1cf7178c407aa7369b67cb7e0274952e2",
+            "protocol": {
+                "cctp": {
+                    "domain": 0
+                }
+            }
+        },
+        "avalanche": {
+            "address": "0000000000000000000000007353b29fdc79435dcc7ecc9ac9f9b61d83b4e0f4",
+            "mintRecipient": "0000000000000000000000007353b29fdc79435dcc7ecc9ac9f9b61d83b4e0f4",
+            "protocol": {
+                "cctp": {
+                    "domain": 1
+                }
+            }
+        },
+        "optimism_sepolia": {
+            "address": "000000000000000000000000c1cf3501ef0b26c8a47759f738832563c7cb014a",
+            "mintRecipient": "000000000000000000000000c1cf3501ef0b26c8a47759f738832563c7cb014a",
+            "protocol": {
+                "cctp": {
+                    "domain": 2
+                }
+            }
+        },
+        "arbitrum_sepolia": {
+            "address": "000000000000000000000000c1cf3501ef0b26c8a47759f738832563c7cb014a",
+            "mintRecipient": "000000000000000000000000c1cf3501ef0b26c8a47759f738832563c7cb014a",
+            "protocol": {
+                "cctp": {
+                    "domain": 3
+                }
+            }
+        },
+        "solana": {
+            "address": "a72a75588ff6958ae0e239e4ec498f99ea69326afc48e0a59ea32ca9acb0d031",
+            "mintRecipient": "c6da540bc3364711d113f00e14df771a3de911b7ecbfeffadccaf82b73aabe82",
+            "protocol": {
+                "cctp": {
+                    "domain": 5
+                }
+            }
+        },
+        "base_sepolia": {
+            "address": "0000000000000000000000004452b708c01d6ad7058a7541a3a82f0ad0a1abb1",
+            "mintRecipient": "0000000000000000000000004452b708c01d6ad7058a7541a3a82f0ad0a1abb1",
+            "protocol": {
+                "cctp": {
+                    "domain": 6
+                }
+            }
+        },
+        "polygon": {
+            "address": "0000000000000000000000003ce8a3ac230eb4bce3688f2a1ab21d986a0a0b06",
+            "mintRecipient": "0000000000000000000000003ce8a3ac230eb4bce3688f2a1ab21d986a0a0b06",
+            "protocol": {
+                "cctp": {
+                    "domain": 7
+                }
+            }
+        }
+    },
+    "fastTransferParameters": {
+        "enabled": true,
+        "maxamount": 5000000000,
+        "basefee": 50000,
+        "initauctionfee": 250000
+    }
+}

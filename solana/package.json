@@ -14,6 +14,7 @@
     "@solana/web3.js": "^1.87.6",
     "dotenv": "^16.4.1",
     "ethers": "^5.7.2",
+    "winston": "^3.11.0",
     "yargs": "^17.7.2"
   },
   "devDependencies": {

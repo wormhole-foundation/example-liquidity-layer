@@ -1,6 +1,7 @@
 .DS_Store
 .anchor
 .env
+.out
 .private
 .vscode
 **/*.rs.bk
@@ -8,3 +9,5 @@ artifacts-*
 node_modules
 target
 ts/tests/artifacts
+cfg/**/*.json
+!cfg/**/sample.*.json
