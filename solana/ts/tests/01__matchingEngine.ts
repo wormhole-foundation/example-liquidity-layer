@@ -1144,6 +1144,11 @@ describe("Matching Engine", function () {
                     new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder })
                 );
 
+                const approveIx = await engine.approveCustodianIx(
+                    offerAuthorityOne.publicKey,
+                    baseFastOrder.amountIn + baseFastOrder.maxFee
+                );
+
                 const { maxFee: offerPrice } = baseFastOrder;
                 const ix = await engine.placeInitialOfferIx(
                     {
@@ -1152,10 +1157,15 @@ describe("Matching Engine", function () {
                     },
                     offerPrice
                 );
-                await expectIxOk(connection, [ix], [offerAuthorityOne]);
+                await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
 
                 // TODO: find specific address already in use
-                await expectIxErr(connection, [ix], [offerAuthorityOne], "already in use");
+                await expectIxErr(
+                    connection,
+                    [approveIx, ix],
+                    [offerAuthorityOne],
+                    "already in use"
+                );
             });
 
             async function checkAfterEffects(args: {
@@ -1265,6 +1275,14 @@ describe("Matching Engine", function () {
                     );
                     const { amount: custodyBalanceBefore } =
                         await engine.fetchCustodyTokenAccount();
+                    const totalDeposit = auctionDataBefore.info!.amountIn.add(
+                        auctionDataBefore.info!.securityDeposit
+                    );
+
+                    const approveIx = await engine.approveCustodianIx(
+                        offerAuthorityTwo.publicKey,
+                        totalDeposit.toNumber()
+                    );
 
                     const ix = await engine.improveOfferIx(
                         {
@@ -1274,7 +1292,7 @@ describe("Matching Engine", function () {
                         newOffer
                     );
 
-                    await expectIxOk(connection, [ix], [offerAuthorityTwo]);
+                    await expectIxOk(connection, [approveIx, ix], [offerAuthorityTwo]);
 
                     await checkAfterEffects(
                         auction,
@@ -1287,52 +1305,6 @@ describe("Matching Engine", function () {
                             prevBestOfferToken: initialOfferBalanceBefore,
                         }
                     );
-
-                    // Validate balance changes.
-                    // const initialOfferBalanceAfter = await getUsdcAtaBalance(
-                    //     connection,
-                    //     offerAuthorityOne.publicKey
-                    // );
-                    // const newOfferBalanceAfter = await getUsdcAtaBalance(
-                    //     connection,
-                    //     offerAuthorityTwo.publicKey
-                    // );
-                    // const { amount: custodyBalanceAfter } = await engine.fetchCustodyTokenAccount();
-
-                    // const balanceChange = baseFastOrder.maxFee + baseFastOrder.amountIn;
-                    // expect(newOfferBalanceAfter).equals(newOfferBalanceBefore - balanceChange);
-                    // expect(initialOfferBalanceAfter).equals(
-                    //     initialOfferBalanceBefore + balanceChange
-                    // );
-                    // expect(custodyBalanceAfter).equals(custodyBalanceBefore);
-
-                    // // Confirm the auction data.
-                    // const auctionDataAfter = await engine.fetchAuction(vaaHash);
-                    // const { info: infoAfter } = auctionDataAfter;
-                    // expect(infoAfter).is.not.null;
-
-                    // const newOfferToken = splToken.getAssociatedTokenAddressSync(
-                    //     USDC_MINT_ADDRESS,
-                    //     offerAuthorityTwo.publicKey
-                    // );
-                    // const initialOfferToken = splToken.getAssociatedTokenAddressSync(
-                    //     USDC_MINT_ADDRESS,
-                    //     offerAuthorityOne.publicKey
-                    // );
-
-                    // // TODO: clean up to check deep equal Auction vs Auction
-                    // expect(auctionDataAfter.vaaHash).to.eql(Array.from(vaaHash));
-                    // expect(auctionDataAfter.status).to.eql({ active: {} });
-                    // expect(infoAfter!.bestOfferToken).to.eql(newOfferToken);
-                    // expect(infoAfter!.initialOfferToken).to.eql(initialOfferToken);
-                    // expect(infoAfter!.startSlot.toString()).to.eql(
-                    //     infoBefore!.startSlot.toString()
-                    // );
-                    // expect(infoAfter!.amountIn.toString()).to.eql(infoBefore!.amountIn.toString());
-                    // expect(infoAfter!.securityDeposit.toString()).to.eql(
-                    //     infoBefore!.securityDeposit.toString()
-                    // );
-                    // expect(infoAfter!.offerPrice.toString()).to.eql(newOffer.toString());
                 });
             }
 
@@ -1352,6 +1324,14 @@ describe("Matching Engine", function () {
 
                 // New Offer from offerAuthorityOne.
                 const newOffer = BigInt(auctionDataBefore.info!.offerPrice.subn(100).toString());
+                const totalDeposit = auctionDataBefore.info!.amountIn.add(
+                    auctionDataBefore.info!.securityDeposit
+                );
+
+                const approveIx = await engine.approveCustodianIx(
+                    offerAuthorityOne.publicKey,
+                    totalDeposit.toNumber()
+                );
 
                 const ix = await engine.improveOfferIx(
                     {
@@ -1361,7 +1341,7 @@ describe("Matching Engine", function () {
                     newOffer
                 );
 
-                await expectIxOk(connection, [ix], [offerAuthorityOne]);
+                await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
 
                 await checkAfterEffects(
                     auction,
@@ -2621,6 +2601,11 @@ describe("Matching Engine", function () {
                 const auction = engine.auctionAddress(fastVaaHash);
 
                 if (initAuction) {
+                    const approveIx = await engine.approveCustodianIx(
+                        offerAuthorityOne.publicKey,
+                        fastMessage.fastMarketOrder!.amountIn + fastMessage.fastMarketOrder!.maxFee
+                    );
+
                     const ix = await engine.placeInitialOfferIx(
                         {
                             payer: offerAuthorityOne.publicKey,
@@ -2628,7 +2613,7 @@ describe("Matching Engine", function () {
                         },
                         maxFee
                     );
-                    await expectIxOk(connection, [ix], [offerAuthorityOne]);
+                    await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
 
                     if (executeOrder) {
                         const { info } = await engine.fetchAuction({ address: auction });
@@ -2698,6 +2683,11 @@ describe("Matching Engine", function () {
             chainName
         );
 
+        const approveIx = await engine.approveCustodianIx(
+            offerAuthority.publicKey,
+            fastMarketOrder.amountIn + fastMarketOrder.maxFee
+        );
+
         // Place the initial offer.
         const ix = await engine.placeInitialOfferIx(
             {
@@ -2707,7 +2697,7 @@ describe("Matching Engine", function () {
             feeOffer ?? fastMarketOrder.maxFee
         );
 
-        const txDetails = await expectIxOkDetails(connection, [ix], [offerAuthority]);
+        const txDetails = await expectIxOkDetails(connection, [approveIx, ix], [offerAuthority]);
         if (txDetails === null) {
             throw new Error("Transaction details is null");
         }
@@ -2726,6 +2716,12 @@ describe("Matching Engine", function () {
     ) {
         const auctionData = await engine.fetchAuction({ address: auction });
         const newOffer = BigInt(auctionData.info!.offerPrice.subn(improveBy).toString());
+        const totalDeposit = auctionData.info!.amountIn.add(auctionData.info!.securityDeposit);
+
+        const approveIx = await engine.approveCustodianIx(
+            offerAuthority.publicKey,
+            totalDeposit.toNumber()
+        );
 
         const improveIx = await engine.improveOfferIx(
             {
@@ -2736,7 +2732,7 @@ describe("Matching Engine", function () {
         );
 
         // Improve the bid with offer one.
-        await expectIxOk(connection, [improveIx], [offerAuthority]);
+        await expectIxOk(connection, [approveIx, improveIx], [offerAuthority]);
 
         const auctionDataBefore = await engine.fetchAuction({ address: auction });
         expect(BigInt(auctionDataBefore.info!.offerPrice.toString())).equals(newOffer);

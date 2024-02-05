@@ -227,6 +227,18 @@ export class MatchingEngineProgram {
         return this.program.account.preparedOrderResponse.fetch(addr);
     }
 
+    async approveCustodianIx(
+        owner: PublicKey,
+        amount: bigint | number
+    ): Promise<TransactionInstruction> {
+        return splToken.createApproveInstruction(
+            splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner),
+            this.custodianAddress(),
+            owner,
+            amount
+        );
+    }
+
     async commonAccounts(): Promise<MatchingEngineCommonAccounts> {
         const custodian = this.custodianAddress();
         const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
@@ -787,18 +799,20 @@ export class MatchingEngineProgram {
 
         const targetChain = await (async () => {
             const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());
-                if (message.fastMarketOrder == undefined) {
-                    throw new Error("Message not FastMarketOrder");
-                }
+            if (message.fastMarketOrder == undefined) {
+                throw new Error("Message not FastMarketOrder");
+            }
 
-                const targetChain = message.fastMarketOrder.targetChain;
+            const targetChain = message.fastMarketOrder.targetChain;
 
-                return targetChain;
+            return targetChain;
         })();
 
-        const { protocol: { cctp } } = await this.fetchRouterEndpoint(targetChain);
-        if (cctp === undefined ) {
-            throw new Error("CCTP domain is not undefined")
+        const {
+            protocol: { cctp },
+        } = await this.fetchRouterEndpoint(targetChain);
+        if (cctp === undefined) {
+            throw new Error("CCTP domain is not undefined");
         }
         const destinationCctpDomain = cctp.domain;
 
@@ -859,7 +873,10 @@ export class MatchingEngineProgram {
                 tokenMessengerMinterProgram,
                 tokenMessengerMinterSenderAuthority,
                 usedNonces,
-                remoteTokenMessenger: this.tokenMessengerMinterProgram().remoteTokenMessengerAddress(destinationCctpDomain),
+                remoteTokenMessenger:
+                    this.tokenMessengerMinterProgram().remoteTokenMessengerAddress(
+                        destinationCctpDomain
+                    ),
                 tokenMessengerMinterCustodyToken,
                 tokenPair,
                 tokenProgram,

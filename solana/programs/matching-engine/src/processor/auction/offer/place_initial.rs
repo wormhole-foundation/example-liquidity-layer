@@ -131,17 +131,15 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     let amount_in = fast_order.amount_in();
 
     // Transfer tokens from the offer authority's token account to the custodian.
-    //
-    // TODO: change authority to custodian. Authority must be delegated to custodian before this
-    // can work.
     token::transfer(
-        CpiContext::new(
+        CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             anchor_spl::token::Transfer {
                 from: ctx.accounts.offer_token.to_account_info(),
                 to: ctx.accounts.custody_token.to_account_info(),
-                authority: ctx.accounts.payer.to_account_info(),
+                authority: ctx.accounts.custodian.to_account_info(),
             },
+            &[Custodian::SIGNER_SEEDS],
         ),
         amount_in + max_fee,
     )?;

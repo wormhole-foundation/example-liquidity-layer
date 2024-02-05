@@ -78,19 +78,17 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
 
     // Transfer funds from the `best_offer` token account to the `offer_token` token account,
     // but only if the pubkeys are different.
-    //
-    // TODO: change authority to custodian. Authority must be delegated to custodian before this
-    // can work.
     let offer_token = ctx.accounts.offer_token.key();
     if auction_info.best_offer_token != offer_token {
         token::transfer(
-            CpiContext::new(
+            CpiContext::new_with_signer(
                 ctx.accounts.token_program.to_account_info(),
                 anchor_spl::token::Transfer {
                     from: ctx.accounts.offer_token.to_account_info(),
                     to: ctx.accounts.best_offer_token.to_account_info(),
-                    authority: ctx.accounts.offer_authority.to_account_info(),
+                    authority: ctx.accounts.custodian.to_account_info(),
                 },
+                &[Custodian::SIGNER_SEEDS],
             ),
             auction_info.total_deposit(),
         )?;
