@@ -53,9 +53,10 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
 
     async addRouterEndpoint(
         chain: number,
-        endpoint: RouterEndpoint
+        endpoint: RouterEndpoint,
+        domain: number
     ): Promise<ethers.ContractTransaction> {
-        return this.contract.addRouterEndpoint(chain, endpoint);
+        return this.contract.addRouterEndpoint(chain, endpoint, domain);
     }
 
     async placeInitialBid(

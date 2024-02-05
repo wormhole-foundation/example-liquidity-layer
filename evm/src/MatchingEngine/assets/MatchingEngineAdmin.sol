@@ -6,14 +6,14 @@ import {Admin} from "../../shared/Admin.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
-import {getRouterEndpointState, getFeeRecipientState} from "./Storage.sol";
+import {getRouterEndpointState, getFeeRecipientState, getCircleDomainsState} from "./Storage.sol";
 
 import {RouterEndpoint} from "../../interfaces/IMatchingEngineTypes.sol";
 import {IMatchingEngineAdmin} from "../../interfaces/IMatchingEngineAdmin.sol";
 
 abstract contract MatchingEngineAdmin is IMatchingEngineAdmin, Admin, State {
     /// @inheritdoc IMatchingEngineAdmin
-    function addRouterEndpoint(uint16 chain, RouterEndpoint memory endpoint)
+    function addRouterEndpoint(uint16 chain, RouterEndpoint memory endpoint, uint32 circleDomain)
         external
         onlyOwnerOrAssistant
     {
@@ -26,6 +26,7 @@ abstract contract MatchingEngineAdmin is IMatchingEngineAdmin, Admin, State {
         }
 
         getRouterEndpointState().endpoints[chain] = endpoint;
+        getCircleDomainsState().domains[chain] = circleDomain;
     }
 
     /// @inheritdoc IMatchingEngineAdmin

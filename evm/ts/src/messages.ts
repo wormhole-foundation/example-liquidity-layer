@@ -227,7 +227,6 @@ export class FastMarketOrder {
     amountIn: bigint;
     minAmountOut: bigint;
     targetChain: number;
-    targetDomain: number;
     redeemer: Buffer;
     sender: Buffer;
     refundAddress: Buffer;
@@ -240,7 +239,6 @@ export class FastMarketOrder {
         amountIn: bigint,
         minAmountOut: bigint,
         targetChain: number,
-        targetDomain: number,
         redeemer: Buffer,
         sender: Buffer,
         refundAddress: Buffer,
@@ -252,7 +250,6 @@ export class FastMarketOrder {
         this.amountIn = amountIn;
         this.minAmountOut = minAmountOut;
         this.targetChain = targetChain;
-        this.targetDomain = targetDomain;
         this.redeemer = redeemer;
         this.sender = sender;
         this.refundAddress = refundAddress;
@@ -272,20 +269,18 @@ export class FastMarketOrder {
         const amountIn = buf.readBigUInt64BE(0);
         const minAmountOut = buf.readBigUInt64BE(8);
         const targetChain = buf.readUInt16BE(16);
-        const targetDomain = buf.readUInt32BE(18);
-        const redeemer = buf.subarray(22, 54);
-        const sender = buf.subarray(54, 86);
-        const refundAddress = buf.subarray(86, 118);
-        const maxFee = buf.readBigUInt64BE(118);
-        const initAuctionFee = buf.readBigUInt64BE(126);
-        const deadline = buf.readUInt32BE(134);
-        const redeemerMsgLen = buf.readUInt32BE(138);
-        const redeemerMessage = buf.subarray(138, 138 + redeemerMsgLen);
+        const redeemer = buf.subarray(18, 50);
+        const sender = buf.subarray(50, 82);
+        const refundAddress = buf.subarray(82, 114);
+        const maxFee = buf.readBigUInt64BE(114);
+        const initAuctionFee = buf.readBigUInt64BE(122);
+        const deadline = buf.readUInt32BE(130);
+        const redeemerMsgLen = buf.readUInt32BE(134);
+        const redeemerMessage = buf.subarray(134, 134 + redeemerMsgLen);
         return new FastMarketOrder(
             amountIn,
             minAmountOut,
             targetChain,
-            targetDomain,
             redeemer,
             sender,
             refundAddress,

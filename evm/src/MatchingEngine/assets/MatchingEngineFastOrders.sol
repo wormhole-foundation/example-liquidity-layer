@@ -21,7 +21,8 @@ import {
     getLiveAuctionInfo,
     AuctionStatus,
     getFastFillsState,
-    FastFills
+    FastFills,
+    getCircleDomainsState
 } from "./Storage.sol";
 
 abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
@@ -302,7 +303,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             // Burn the tokens and publish the message to the target chain.
             (sequence,) = burnAndPublish(
                 endpoint.router,
-                order.targetDomain,
+                getCircleDomainsState().domains[order.targetChain],
                 address(_token),
                 amount,
                 endpoint.mintRecipient,

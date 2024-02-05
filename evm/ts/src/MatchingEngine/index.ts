@@ -29,7 +29,8 @@ export abstract class MatchingEngine<PreparedTransactionType extends PreparedIns
 
     abstract addRouterEndpoint(
         chain: number,
-        endpoint: RouterEndpoint
+        endpoint: RouterEndpoint,
+        domain: number
     ): Promise<PreparedTransactionType>;
 
     abstract liveAuctionInfo(auctionId: Buffer | Uint8Array): Promise<LiveAuctionData>;

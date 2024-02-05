@@ -56,6 +56,12 @@ interface IMatchingEngineState {
     function getRouterEndpoint(uint16 chain) external view returns (RouterEndpoint memory);
 
     /**
+     * @notice Returns the Circle domain for a given chain ID.
+     * @param chain The Wormhole chain ID.
+     */
+    function getDomain(uint16 chain) external view returns (uint32);
+
+    /**
      * @notice Returns the Wormhole contract interface.
      */
     function wormhole() external view returns (IWormhole);

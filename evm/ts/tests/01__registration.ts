@@ -42,10 +42,14 @@ describe("Registration", () => {
                 );
                 const targetChainId = coalesceChainId(chainName);
                 await engine
-                    .addRouterEndpoint(targetChainId, {
-                        router: formattedAddress,
-                        mintRecipient,
-                    })
+                    .addRouterEndpoint(
+                        targetChainId,
+                        {
+                            router: formattedAddress,
+                            mintRecipient,
+                        },
+                        targetEnv.domain
+                    )
                     .then((tx) => mineWait(provider, tx));
 
                 const registeredAddress = await engine.getRouter(targetChainId);

@@ -58,3 +58,8 @@ struct FastFills {
     // Mapping of VAA hash to redemption status.
     mapping(bytes32 vaaHash => bool redeemed) redeemed;
 }
+
+struct CircleDomains {
+    // Mapping of chain ID to Circle domain.
+    mapping(uint16 chain => uint32 domain) domains;
+}

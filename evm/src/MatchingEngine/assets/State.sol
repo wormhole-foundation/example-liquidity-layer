@@ -14,7 +14,8 @@ import {
     LiveAuctionData,
     AuctionStatus,
     getFastFillsState,
-    getFeeRecipientState
+    getFeeRecipientState,
+    getCircleDomainsState
 } from "./Storage.sol";
 
 import {WormholeCctpTokenMessenger} from "../../shared/WormholeCctpTokenMessenger.sol";
@@ -135,6 +136,11 @@ abstract contract State is IMatchingEngineState, WormholeCctpTokenMessenger {
     /// @inheritdoc IMatchingEngineState
     function getRouterEndpoint(uint16 chain) public view returns (RouterEndpoint memory) {
         return getRouterEndpointState().endpoints[chain];
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function getDomain(uint16 chain) public view returns (uint32) {
+        return getCircleDomainsState().domains[chain];
     }
 
     /// @inheritdoc IMatchingEngineState

@@ -9,9 +9,11 @@ interface IMatchingEngineAdmin {
      * @notice Add a `router` endpoint for the specified Wormhole `chain`.
      * @param chain The Wormhole chain ID.
      * @param endpoint The `Endpoint` for the specified `chain`.
+     * @param circleDomain The Circle domain for the specified `chain`.
      * @dev This function is only callable by the contract owner or assistant.
      */
-    function addRouterEndpoint(uint16 chain, RouterEndpoint memory endpoint) external;
+    function addRouterEndpoint(uint16 chain, RouterEndpoint memory endpoint, uint32 circleDomain)
+        external;
 
     /**
      * @notice Updates the `feeRecipient` state variable. This method can

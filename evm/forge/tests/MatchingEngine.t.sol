@@ -57,6 +57,7 @@ contract MatchingEngineTest is Test {
     uint16 constant ETH_CHAIN = 2;
     uint32 constant ARB_DOMAIN = 3;
     uint32 constant ETH_DOMAIN = 0;
+    uint32 constant AVAX_DOMAIN = 1;
 
     // Environment variables.
     uint256 immutable TESTING_SIGNER = uint256(vm.envBytes32("TESTING_DEVNET_GUARDIAN"));
@@ -139,10 +140,10 @@ contract MatchingEngineTest is Test {
 
         // Set up the router endpoints.
         engine.addRouterEndpoint(
-            ARB_CHAIN, RouterEndpoint({router: ARB_ROUTER, mintRecipient: ARB_ROUTER})
+            ARB_CHAIN, RouterEndpoint({router: ARB_ROUTER, mintRecipient: ARB_ROUTER}), ARB_DOMAIN
         );
         engine.addRouterEndpoint(
-            ETH_CHAIN, RouterEndpoint({router: ETH_ROUTER, mintRecipient: ETH_ROUTER})
+            ETH_CHAIN, RouterEndpoint({router: ETH_ROUTER, mintRecipient: ETH_ROUTER}), ETH_DOMAIN
         );
 
         vm.stopPrank();
@@ -283,28 +284,32 @@ contract MatchingEngineTest is Test {
         uint16 chain = 1;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
         bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
+        uint32 domain = 1;
 
         assertEq(engine.getRouter(chain), bytes32(0));
         assertEq(engine.getMintRecipient(chain), bytes32(0));
+        assertEq(engine.getDomain(chain), 0);
 
         vm.prank(makeAddr("owner"));
         engine.addRouterEndpoint(
-            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient})
+            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
         );
 
         assertEq(engine.getRouter(chain), routerEndpoint);
         assertEq(engine.getMintRecipient(chain), mintRecipient);
+        assertEq(engine.getDomain(chain), domain);
     }
 
     function testCannotAddRouterEndpointChainIdZero() public {
         uint16 chain = 0;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
         bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
+        uint32 domain = 1;
 
         vm.prank(makeAddr("owner"));
         vm.expectRevert(abi.encodeWithSignature("ErrChainNotAllowed(uint16)", chain));
         engine.addRouterEndpoint(
-            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient})
+            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
         );
     }
 
@@ -312,11 +317,12 @@ contract MatchingEngineTest is Test {
         uint16 chain = 1;
         bytes32 routerEndpoint = bytes32(0);
         bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
+        uint32 domain = 1;
 
         vm.prank(makeAddr("owner"));
         vm.expectRevert(abi.encodeWithSignature("ErrInvalidEndpoint(bytes32)", routerEndpoint));
         engine.addRouterEndpoint(
-            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient})
+            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
         );
     }
 
@@ -324,11 +330,12 @@ contract MatchingEngineTest is Test {
         uint16 chain = 1;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
         bytes32 mintRecipient = bytes32(0);
+        uint32 domain = 1;
 
         vm.prank(makeAddr("owner"));
         vm.expectRevert(abi.encodeWithSignature("ErrInvalidEndpoint(bytes32)", mintRecipient));
         engine.addRouterEndpoint(
-            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient})
+            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
         );
     }
 
@@ -336,11 +343,12 @@ contract MatchingEngineTest is Test {
         uint16 chain = 1;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
         bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
+        uint32 domain = 1;
 
         vm.prank(makeAddr("robber"));
         vm.expectRevert(abi.encodeWithSignature("NotTheOwnerOrAssistant()"));
         engine.addRouterEndpoint(
-            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient})
+            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
         );
     }
 
@@ -554,7 +562,6 @@ contract MatchingEngineTest is Test {
             amountIn: amountIn,
             minAmountOut: 0,
             targetChain: ETH_CHAIN,
-            targetDomain: ETH_DOMAIN,
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(this).toUniversalAddress(),
@@ -593,7 +600,6 @@ contract MatchingEngineTest is Test {
             amountIn: amountIn,
             minAmountOut: 0,
             targetChain: ETH_CHAIN,
-            targetDomain: ETH_DOMAIN,
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(this).toUniversalAddress(),
@@ -624,7 +630,6 @@ contract MatchingEngineTest is Test {
             amountIn: amountIn,
             minAmountOut: 0,
             targetChain: invalidChain,
-            targetDomain: ETH_DOMAIN,
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(this).toUniversalAddress(),
@@ -649,7 +654,6 @@ contract MatchingEngineTest is Test {
             amountIn: amountIn,
             minAmountOut: 0,
             targetChain: ETH_CHAIN,
-            targetDomain: ETH_DOMAIN,
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(this).toUniversalAddress(),
@@ -1169,7 +1173,6 @@ contract MatchingEngineTest is Test {
             amountIn: amountIn,
             minAmountOut: 0,
             targetChain: ETH_CHAIN,
-            targetDomain: ETH_DOMAIN,
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(this).toUniversalAddress(),
@@ -1192,7 +1195,8 @@ contract MatchingEngineTest is Test {
         vm.prank(makeAddr("owner"));
         engine.addRouterEndpoint(
             ARB_CHAIN,
-            RouterEndpoint({router: bytes32("deadbeef"), mintRecipient: bytes32("beefdead")})
+            RouterEndpoint({router: bytes32("deadbeef"), mintRecipient: bytes32("beefdead")}),
+            ARB_DOMAIN
         );
 
         vm.expectRevert(
@@ -1246,7 +1250,6 @@ contract MatchingEngineTest is Test {
             amountIn: amountIn,
             minAmountOut: 0,
             targetChain: invalidTargetChain,
-            targetDomain: ETH_DOMAIN,
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(this).toUniversalAddress(),
@@ -1572,7 +1575,8 @@ contract MatchingEngineTest is Test {
             RouterEndpoint({
                 router: proxy.toUniversalAddress(),
                 mintRecipient: proxy.toUniversalAddress()
-            })
+            }),
+            AVAX_DOMAIN
         );
 
         return ITokenRouter(proxy);
@@ -1785,7 +1789,6 @@ contract MatchingEngineTest is Test {
             amountIn: amountIn,
             minAmountOut: 0,
             targetChain: targetChain,
-            targetDomain: targetDomain,
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(this).toUniversalAddress(),
