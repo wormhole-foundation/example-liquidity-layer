@@ -18,7 +18,7 @@ const AUCTION_PARAMS: AuctionParameters = {
     initialPenaltyBps: 250000, // 25%
     duration: 5, // slots
     gracePeriod: 10, // slots
-    penaltySlots: 20, // slots
+    penaltyPeriod: 20, // slots
 };
 
 // Here we go.
@@ -102,19 +102,19 @@ async function main() {
         );
     }
     {
-        // TODO: This is a placeholder.
+        // https://sepolia.basescan.org/address/0x4452b708c01d6ad7058a7541a3a82f0ad0a1abb1
         const foreignChain = "base_sepolia";
-        const foreignEmitter = "0xc1Cf3501ef0b26c8A47759F738832563C7cB014A";
+        const foreignEmitter = "0x4452B708C01d6aD7058a7541A3A82f0aD0A1abB1";
         const cctpDomain = 6;
 
-        // await addCctpRouterEndpoint(
-        //     matchingEngine,
-        //     payer,
-        //     foreignChain,
-        //     cctpDomain,
-        //     foreignEmitter,
-        //     null
-        // );
+        await addCctpRouterEndpoint(
+            matchingEngine,
+            payer,
+            foreignChain,
+            cctpDomain,
+            foreignEmitter,
+            null
+        );
     }
     {
         // https://mumbai.polygonscan.com/address/0x3Ce8a3aC230Eb4bCE3688f2A1ab21d986a0A0B06
@@ -197,7 +197,7 @@ async function addCctpRouterEndpoint(
             Buffer.from(mintRecipient).equals(Buffer.from(endpointMintRecipient ?? endpointAddress))
         ) {
             console.log(
-                "already exists",
+                "endpoint already exists",
                 foreignChain,
                 "addr",
                 foreignEmitter,
@@ -223,7 +223,7 @@ async function addCctpRouterEndpoint(
     );
     const txSig = await sendAndConfirmTransaction(connection, new Transaction().add(ix), [payer]);
     console.log(
-        "register emitter and domain",
+        "added endpoint",
         txSig,
         "chain",
         foreignChain,

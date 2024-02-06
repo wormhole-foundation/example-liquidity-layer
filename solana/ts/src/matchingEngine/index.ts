@@ -1360,7 +1360,7 @@ export class MatchingEngineProgram {
         const amount = BigInt(auctionInfo.securityDeposit.toString());
 
         const penaltyPeriod = slotsElapsed - gracePeriod;
-        const auctionPenaltySlots = BigInt(auctionParams.penaltySlots);
+        const auctionPenaltySlots = BigInt(auctionParams.penaltyPeriod);
         const initialPenaltyBps = BigInt(auctionParams.initialPenaltyBps);
         const userPenaltyRewardBps = BigInt(auctionParams.userPenaltyRewardBps);
 

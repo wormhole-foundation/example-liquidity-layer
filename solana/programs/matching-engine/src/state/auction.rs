@@ -73,7 +73,7 @@ impl AuctionInfo {
     /// Compute start slot + duration + grace period + penalty slots.
     #[inline]
     pub fn penalty_period_end_slot(&self, params: &AuctionParameters) -> u64 {
-        self.grace_period_end_slot(params) + u64::from(params.penalty_slots)
+        self.grace_period_end_slot(params) + u64::from(params.penalty_period)
     }
 
     /// Compute amount in + security deposit.

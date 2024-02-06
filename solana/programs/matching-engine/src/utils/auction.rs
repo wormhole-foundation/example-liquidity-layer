@@ -24,7 +24,7 @@ pub fn compute_deposit_penalty(
     } else {
         let deposit = info.security_deposit;
         let penalty_period = slots_elapsed - params.grace_period as u64;
-        if penalty_period >= params.penalty_slots as u64
+        if penalty_period >= params.penalty_period as u64
             || params.initial_penalty_bps == FEE_PRECISION_MAX
         {
             split_user_penalty_reward(params, deposit)
@@ -33,7 +33,7 @@ pub fn compute_deposit_penalty(
 
             // Adjust the base amount to determine scaled penalty.
             let scaled = (((deposit - base_penalty) as u128 * penalty_period as u128)
-                / params.penalty_slots as u128) as u64;
+                / params.penalty_period as u128) as u64;
 
             split_user_penalty_reward(params, base_penalty + scaled)
         }
@@ -104,7 +104,7 @@ mod test {
         let params = params_for_test();
 
         let amount = 10000000;
-        let slots_elapsed = params.duration + params.grace_period + params.penalty_slots;
+        let slots_elapsed = params.duration + params.grace_period + params.penalty_period;
         let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
 
         let DepositPenalty {
@@ -138,7 +138,7 @@ mod test {
         let params = params_for_test();
 
         let amount = 10000000;
-        let slots_elapsed = params.duration + params.grace_period + params.penalty_slots / 2;
+        let slots_elapsed = params.duration + params.grace_period + params.penalty_period / 2;
         let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
 
         let DepositPenalty {
@@ -155,7 +155,7 @@ mod test {
         let params = params_for_test();
 
         let amount = 10000000;
-        let slots_elapsed = params.duration + params.grace_period + params.penalty_slots - 1;
+        let slots_elapsed = params.duration + params.grace_period + params.penalty_period - 1;
         let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
 
         let DepositPenalty {
@@ -175,7 +175,7 @@ mod test {
         };
 
         let amount = 10000000;
-        let slots_elapsed = params.duration + params.grace_period + params.penalty_slots / 2;
+        let slots_elapsed = params.duration + params.grace_period + params.penalty_period / 2;
         let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
 
         let DepositPenalty {
@@ -196,7 +196,7 @@ mod test {
         };
 
         let amount = 10000000;
-        let slots_elapsed = params.duration + params.grace_period + params.penalty_slots / 2;
+        let slots_elapsed = params.duration + params.grace_period + params.penalty_period / 2;
         let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
 
         let DepositPenalty {
@@ -238,7 +238,7 @@ mod test {
         };
 
         let amount = 10000000;
-        let slots_elapsed = params.duration + params.grace_period + params.penalty_slots / 2;
+        let slots_elapsed = params.duration + params.grace_period + params.penalty_period / 2;
         let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
 
         let DepositPenalty {
@@ -255,7 +255,7 @@ mod test {
         let params = AuctionParameters {
             user_penalty_reward_bps: common::constants::FEE_PRECISION_MAX / 2,
             initial_penalty_bps: common::constants::FEE_PRECISION_MAX / 2,
-            penalty_slots: 0,
+            penalty_period: 0,
             ..params_for_test()
         };
 
@@ -296,7 +296,7 @@ mod test {
             initial_penalty_bps: 100000,     // 10%
             duration: 2,
             grace_period: 4,
-            penalty_slots: 20,
+            penalty_period: 20,
         };
 
         require_valid_parameters(&params).unwrap();

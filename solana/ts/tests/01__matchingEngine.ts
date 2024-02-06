@@ -92,7 +92,7 @@ describe("Matching Engine", function () {
                 initialPenaltyBps: 250000,
                 duration: 2,
                 gracePeriod: 5,
-                penaltySlots: 10,
+                penaltyPeriod: 10,
             };
 
             const localVariables = new Map<string, any>();
@@ -1633,12 +1633,12 @@ describe("Matching Engine", function () {
                 );
                 const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
 
-                const { duration, gracePeriod, penaltySlots } =
+                const { duration, gracePeriod, penaltyPeriod } =
                     await engine.fetchAuctionParameters();
                 await waitUntilSlot(
                     connection,
                     auctionDataBefore
-                        .info!.startSlot.addn(duration + gracePeriod + penaltySlots / 2)
+                        .info!.startSlot.addn(duration + gracePeriod + penaltyPeriod / 2)
                         .toNumber(),
                 );
 
@@ -1702,12 +1702,12 @@ describe("Matching Engine", function () {
                     liquidatorToken,
                 );
 
-                const { duration, gracePeriod, penaltySlots } =
+                const { duration, gracePeriod, penaltyPeriod } =
                     await engine.fetchAuctionParameters();
                 await waitUntilSlot(
                     connection,
                     auctionDataBefore
-                        .info!.startSlot.addn(duration + gracePeriod + penaltySlots / 2)
+                        .info!.startSlot.addn(duration + gracePeriod + penaltyPeriod / 2)
                         .toNumber(),
                 );
 
@@ -1772,12 +1772,12 @@ describe("Matching Engine", function () {
                     liquidatorToken,
                 );
 
-                const { duration, gracePeriod, penaltySlots } =
+                const { duration, gracePeriod, penaltyPeriod } =
                     await engine.fetchAuctionParameters();
                 await waitUntilSlot(
                     connection,
                     auctionDataBefore
-                        .info!.startSlot.addn(duration + gracePeriod + penaltySlots + 2)
+                        .info!.startSlot.addn(duration + gracePeriod + penaltyPeriod + 2)
                         .toNumber(),
                 );
 
@@ -2373,8 +2373,9 @@ describe("Matching Engine", function () {
                         { targetChain: ethChain, remoteDomain: solanaChain },
                     );
 
-                    const { value: lookupTableAccount } =
-                        await connection.getAddressLookupTable(lookupTableAddress);
+                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                        lookupTableAddress,
+                    );
                     const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
                         units: 500_000,
                     });
@@ -2425,8 +2426,9 @@ describe("Matching Engine", function () {
                         { targetChain: ethChain, remoteDomain: solanaChain },
                     );
 
-                    const { value: lookupTableAccount } =
-                        await connection.getAddressLookupTable(lookupTableAddress);
+                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                        lookupTableAddress,
+                    );
                     const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
                         units: 500_000,
                     });
@@ -2466,9 +2468,8 @@ describe("Matching Engine", function () {
 
                     await expectIxOk(connection, [computeIx, settleIx], [payer]);
 
-                    const deposit = LiquidityLayerMessage.decode(
-                        finalizedVaaAccount.payload(),
-                    ).deposit!;
+                    const deposit = LiquidityLayerMessage.decode(finalizedVaaAccount.payload())
+                        .deposit!;
 
                     const { baseFee } = deposit.message.slowOrderResponse!;
                     const { amount: feeBalanceAfter } = await splToken.getAccount(

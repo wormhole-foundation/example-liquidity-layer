@@ -19,7 +19,7 @@ pub struct AuctionParameters {
     pub grace_period: u16,
 
     // The `securityDeposit` decays over the `penaltyslots` slots period.
-    pub penalty_slots: u16,
+    pub penalty_period: u16,
 }
 
 #[account]

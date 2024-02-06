@@ -5,7 +5,7 @@ export type AuctionParameters = {
     initialPenaltyBps: number;
     duration: number;
     gracePeriod: number;
-    penaltySlots: number;
+    penaltyPeriod: number;
 };
 
 export class AuctionConfig {
