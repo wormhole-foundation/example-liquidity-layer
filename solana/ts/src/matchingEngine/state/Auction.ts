@@ -14,6 +14,7 @@ export type AuctionStatus = {
 
 export type AuctionInfo = {
     configId: number;
+    sourceChain: number;
     bestOfferToken: PublicKey;
     initialOfferToken: PublicKey;
     startSlot: BN;
@@ -39,7 +40,7 @@ export class Auction {
     static address(programId: PublicKey, vaaHash: Array<number> | Buffer | Uint8Array) {
         return PublicKey.findProgramAddressSync(
             [Buffer.from("auction"), Buffer.from(vaaHash)],
-            programId
+            programId,
         )[0];
     }
 }

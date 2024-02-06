@@ -62,7 +62,7 @@ describe("Matching Engine", function () {
     const feeRecipient = Keypair.generate().publicKey;
     const feeRecipientToken = splToken.getAssociatedTokenAddressSync(
         USDC_MINT_ADDRESS,
-        feeRecipient
+        feeRecipient,
     );
     const newFeeRecipient = Keypair.generate().publicKey;
     const offerAuthorityOne = Keypair.generate();
@@ -107,18 +107,18 @@ describe("Matching Engine", function () {
                         feeRecipient,
                         mint,
                     },
-                    auctionParams
+                    auctionParams,
                 );
                 const unknownAta = splToken.getAssociatedTokenAddressSync(
                     mint,
                     engine.custodianAddress(),
-                    true
+                    true,
                 );
                 await expectIxErr(
                     connection,
                     [ix],
                     [payer],
-                    `Instruction references an unknown account ${unknownAta.toString()}`
+                    `Instruction references an unknown account ${unknownAta.toString()}`,
                 );
             });
 
@@ -129,7 +129,7 @@ describe("Matching Engine", function () {
                         ownerAssistant: PublicKey.default,
                         feeRecipient,
                     },
-                    auctionParams
+                    auctionParams,
                 );
                 await expectIxErr(connection, [ix], [payer], "Error Code: AssistantZeroPubkey");
             });
@@ -141,7 +141,7 @@ describe("Matching Engine", function () {
                         ownerAssistant: ownerAssistant.publicKey,
                         feeRecipient: PublicKey.default,
                     },
-                    auctionParams
+                    auctionParams,
                 );
                 await expectIxErr(connection, [ix], [payer], "Error Code: FeeRecipientZeroPubkey");
             });
@@ -156,7 +156,7 @@ describe("Matching Engine", function () {
                         feeRecipient,
                         mint: USDC_MINT_ADDRESS,
                     },
-                    { duration: 0, ...remaining }
+                    { duration: 0, ...remaining },
                 );
                 await expectIxErr(connection, [ix], [payer], "Error Code: InvalidAuctionDuration");
             });
@@ -171,13 +171,13 @@ describe("Matching Engine", function () {
                         feeRecipient,
                         mint: USDC_MINT_ADDRESS,
                     },
-                    { gracePeriod: 0, ...remaining }
+                    { gracePeriod: 0, ...remaining },
                 );
                 await expectIxErr(
                     connection,
                     [ix],
                     [payer],
-                    "Error Code: InvalidAuctionGracePeriod"
+                    "Error Code: InvalidAuctionGracePeriod",
                 );
             });
 
@@ -191,7 +191,7 @@ describe("Matching Engine", function () {
                         feeRecipient,
                         mint: USDC_MINT_ADDRESS,
                     },
-                    { userPenaltyRewardBps: 4294967295, ...remaining }
+                    { userPenaltyRewardBps: 4294967295, ...remaining },
                 );
                 await expectIxErr(connection, [ix], [payer], "Error Code: UserPenaltyTooLarge");
             });
@@ -206,7 +206,7 @@ describe("Matching Engine", function () {
                         feeRecipient,
                         mint: USDC_MINT_ADDRESS,
                     },
-                    { initialPenaltyBps: 4294967295, ...remaining }
+                    { initialPenaltyBps: 4294967295, ...remaining },
                 );
                 await expectIxErr(connection, [ix], [payer], "Error Code: InitialPenaltyTooLarge");
             });
@@ -219,7 +219,7 @@ describe("Matching Engine", function () {
                         feeRecipient,
                         mint: USDC_MINT_ADDRESS,
                     },
-                    auctionParams
+                    auctionParams,
                 );
                 await expectIxOk(connection, [ix], [payer]);
 
@@ -232,13 +232,13 @@ describe("Matching Engine", function () {
                         ownerAssistant.publicKey,
                         feeRecipientToken,
                         expectedAuctionConfigId,
-                        bigintToU64BN(0n)
-                    )
+                        bigintToU64BN(0n),
+                    ),
                 );
 
                 const auctionConfigData = await engine.fetchAuctionConfig(0);
                 expect(auctionConfigData).to.eql(
-                    new AuctionConfig(expectedAuctionConfigId, auctionParams)
+                    new AuctionConfig(expectedAuctionConfigId, auctionParams),
                 );
 
                 localVariables.set("ix", ix);
@@ -254,7 +254,7 @@ describe("Matching Engine", function () {
                     [payer],
                     `Allocate: account Address { address: ${engine
                         .custodianAddress()
-                        .toString()}, base: None } already in use`
+                        .toString()}, base: None } already in use`,
                 );
             });
 
@@ -263,21 +263,21 @@ describe("Matching Engine", function () {
                     connection,
                     payer,
                     USDC_MINT_ADDRESS,
-                    feeRecipient
+                    feeRecipient,
                 );
 
                 await splToken.getOrCreateAssociatedTokenAccount(
                     connection,
                     payer,
                     USDC_MINT_ADDRESS,
-                    PublicKey.default
+                    PublicKey.default,
                 );
 
                 await splToken.getOrCreateAssociatedTokenAccount(
                     connection,
                     payer,
                     USDC_MINT_ADDRESS,
-                    SystemProgram.programId
+                    SystemProgram.programId,
                 );
             });
 
@@ -288,7 +288,7 @@ describe("Matching Engine", function () {
                         authority: payer.publicKey,
                         payer: payer.publicKey,
                         recentSlot: slot,
-                    })
+                    }),
                 );
 
                 await expectIxOk(connection, [createIx], [payer]);
@@ -340,7 +340,7 @@ describe("Matching Engine", function () {
                             lamports: 1000000000,
                         }),
                     ],
-                    [payer]
+                    [payer],
                 );
             });
         });
@@ -379,7 +379,7 @@ describe("Matching Engine", function () {
                             newOwner: owner.publicKey,
                         }),
                     ],
-                    [payer]
+                    [payer],
                 );
 
                 // Confirm that the pending owner variable is set in the owner config.
@@ -392,7 +392,7 @@ describe("Matching Engine", function () {
                 await expectIxOk(
                     connection,
                     [await createConfirmOwnershipTransferIx({ sender: owner.publicKey })],
-                    [payer, owner]
+                    [payer, owner],
                 );
 
                 // Confirm that the owner config reflects the current ownership status.
@@ -412,7 +412,7 @@ describe("Matching Engine", function () {
                         }),
                     ],
                     [payer, owner],
-                    "InvalidNewOwner"
+                    "InvalidNewOwner",
                 );
             });
 
@@ -425,7 +425,7 @@ describe("Matching Engine", function () {
                         }),
                     ],
                     [payer, owner],
-                    "AlreadyOwner"
+                    "AlreadyOwner",
                 );
             });
 
@@ -438,7 +438,7 @@ describe("Matching Engine", function () {
                         }),
                     ],
                     [payer, ownerAssistant],
-                    "OwnerOnly"
+                    "OwnerOnly",
                 );
             });
 
@@ -446,7 +446,7 @@ describe("Matching Engine", function () {
                 await expectIxOk(
                     connection,
                     [await createSubmitOwnershipTransferIx()],
-                    [payer, owner]
+                    [payer, owner],
                 );
 
                 // Confirm that the pending owner variable is set in the owner config.
@@ -463,7 +463,7 @@ describe("Matching Engine", function () {
                         }),
                     ],
                     [payer, ownerAssistant],
-                    "NotPendingOwner"
+                    "NotPendingOwner",
                 );
             });
 
@@ -471,7 +471,7 @@ describe("Matching Engine", function () {
                 await expectIxOk(
                     connection,
                     [await createConfirmOwnershipTransferIx()],
-                    [payer, relayer]
+                    [payer, relayer],
                 );
 
                 // Confirm that the owner config reflects the current ownership status.
@@ -490,13 +490,13 @@ describe("Matching Engine", function () {
                             newOwner: owner.publicKey,
                         }),
                     ],
-                    [payer, relayer]
+                    [payer, relayer],
                 );
 
                 await expectIxOk(
                     connection,
                     [await createConfirmOwnershipTransferIx({ sender: owner.publicKey })],
-                    [payer, owner]
+                    [payer, owner],
                 );
 
                 // Confirm that the payer is the owner again.
@@ -512,7 +512,7 @@ describe("Matching Engine", function () {
                 await expectIxOk(
                     connection,
                     [await createSubmitOwnershipTransferIx()],
-                    [payer, owner]
+                    [payer, owner],
                 );
 
                 // Confirm that the pending owner variable is set in the owner config.
@@ -526,7 +526,7 @@ describe("Matching Engine", function () {
                     connection,
                     [await createCancelOwnershipTransferIx({ sender: ownerAssistant.publicKey })],
                     [payer, ownerAssistant],
-                    "OwnerOnly"
+                    "OwnerOnly",
                 );
             });
 
@@ -534,7 +534,7 @@ describe("Matching Engine", function () {
                 await expectIxOk(
                     connection,
                     [await createCancelOwnershipTransferIx()],
-                    [payer, owner]
+                    [payer, owner],
                 );
 
                 // Confirm the pending owner field was reset.
@@ -559,7 +559,7 @@ describe("Matching Engine", function () {
                     connection,
                     [await createUpdateOwnerAssistantIx({ newAssistant: PublicKey.default })],
                     [payer, owner],
-                    "InvalidNewAssistant"
+                    "InvalidNewAssistant",
                 );
             });
 
@@ -568,7 +568,7 @@ describe("Matching Engine", function () {
                     connection,
                     [await createUpdateOwnerAssistantIx({ sender: ownerAssistant.publicKey })],
                     [payer, ownerAssistant],
-                    "OwnerOnly"
+                    "OwnerOnly",
                 );
             });
 
@@ -576,7 +576,7 @@ describe("Matching Engine", function () {
                 await expectIxOk(
                     connection,
                     [await createUpdateOwnerAssistantIx()],
-                    [payer, owner]
+                    [payer, owner],
                 );
 
                 // Confirm the assistant field was updated.
@@ -591,7 +591,7 @@ describe("Matching Engine", function () {
                             newAssistant: ownerAssistant.publicKey,
                         }),
                     ],
-                    [payer, owner]
+                    [payer, owner],
                 );
             });
         });
@@ -605,7 +605,7 @@ describe("Matching Engine", function () {
                         cctpDomain: ethDomain,
                         address: ethRouter,
                         mintRecipient: null,
-                    }
+                    },
                 );
 
                 await expectIxErr(connection, [ix], [payer], "OwnerOrAssistantOnly");
@@ -617,10 +617,10 @@ describe("Matching Engine", function () {
 
                     const ix = await engine.addCctpRouterEndpointIx(
                         { ownerOrAssistant: owner.publicKey },
-                        { chain, cctpDomain: ethDomain, address: ethRouter, mintRecipient: null }
+                        { chain, cctpDomain: ethDomain, address: ethRouter, mintRecipient: null },
                     );
                     await expectIxErr(connection, [ix], [owner], "ChainNotAllowed");
-                })
+                }),
             );
 
             it("Cannot Register Zero Address", async function () {
@@ -631,7 +631,7 @@ describe("Matching Engine", function () {
                         cctpDomain: ethDomain,
                         address: new Array(32).fill(0),
                         mintRecipient: null,
-                    }
+                    },
                 );
 
                 await expectIxErr(connection, [ix], [owner], "InvalidEndpoint");
@@ -647,7 +647,7 @@ describe("Matching Engine", function () {
                         cctpDomain: ethDomain,
                         address: contractAddress,
                         mintRecipient,
-                    }
+                    },
                 );
                 await expectIxOk(connection, [ix], [ownerAssistant]);
 
@@ -655,7 +655,7 @@ describe("Matching Engine", function () {
                 expect(routerEndpointData).to.eql(
                     new RouterEndpoint(255, ethChain, contractAddress, mintRecipient, {
                         cctp: { domain: ethDomain },
-                    })
+                    }),
                 );
             });
 
@@ -667,7 +667,7 @@ describe("Matching Engine", function () {
                         cctpDomain: ethDomain,
                         address: ethRouter,
                         mintRecipient: null,
-                    }
+                    },
                 );
 
                 await expectIxOk(connection, [ix], [owner]);
@@ -676,7 +676,7 @@ describe("Matching Engine", function () {
                 expect(routerEndpointData).to.eql(
                     new RouterEndpoint(255, ethChain, ethRouter, ethRouter, {
                         cctp: { domain: ethDomain },
-                    })
+                    }),
                 );
             });
         });
@@ -690,21 +690,21 @@ describe("Matching Engine", function () {
 
                 const [bogusEmitter] = PublicKey.findProgramAddressSync(
                     [Buffer.from("emitter")],
-                    SYSVAR_RENT_PUBKEY
+                    SYSVAR_RENT_PUBKEY,
                 );
                 await splToken.getOrCreateAssociatedTokenAccount(
                     connection,
                     payer,
                     USDC_MINT_ADDRESS,
                     bogusEmitter,
-                    true
+                    true,
                 );
 
                 await expectIxErr(
                     connection,
                     [ix],
                     [ownerAssistant],
-                    "Error Code: ConstraintExecutable"
+                    "Error Code: ConstraintExecutable",
                 );
             });
 
@@ -716,21 +716,21 @@ describe("Matching Engine", function () {
 
                 const [bogusEmitter] = PublicKey.findProgramAddressSync(
                     [Buffer.from("emitter")],
-                    SystemProgram.programId
+                    SystemProgram.programId,
                 );
                 await splToken.getOrCreateAssociatedTokenAccount(
                     connection,
                     payer,
                     USDC_MINT_ADDRESS,
                     bogusEmitter,
-                    true
+                    true,
                 );
 
                 await expectIxErr(
                     connection,
                     [ix],
                     [ownerAssistant],
-                    "Error Code: InvalidEndpoint"
+                    "Error Code: InvalidEndpoint",
                 );
             });
         });
@@ -748,7 +748,7 @@ describe("Matching Engine", function () {
                     connection,
                     [ix],
                     [ownerAssistant],
-                    "new_fee_recipient_token. Error Code: AccountNotInitialized"
+                    "new_fee_recipient_token. Error Code: AccountNotInitialized",
                 );
 
                 localVariables.set("ix", ix);
@@ -762,14 +762,14 @@ describe("Matching Engine", function () {
                     connection,
                     payer,
                     USDC_MINT_ADDRESS,
-                    newFeeRecipient
+                    newFeeRecipient,
                 );
 
                 await expectIxOk(connection, [ix], [ownerAssistant]);
 
                 const custodianData = await engine.fetchCustodian();
                 expect(custodianData.feeRecipientToken).to.eql(
-                    splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, newFeeRecipient)
+                    splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, newFeeRecipient),
                 );
             });
 
@@ -831,7 +831,7 @@ describe("Matching Engine", function () {
                     // Fetch the balances before.
                     const offerBalanceBefore = await getUsdcAtaBalance(
                         connection,
-                        offerAuthorityOne.publicKey
+                        offerAuthorityOne.publicKey,
                     );
                     const { amount: custodyBalanceBefore } =
                         await engine.fetchCustodyTokenAccount();
@@ -841,13 +841,13 @@ describe("Matching Engine", function () {
                         wormholeSequence++,
                         baseFastOrder,
                         ethRouter,
-                        offerPrice
+                        offerPrice,
                     );
 
                     // Validate balance changes.
                     const offerBalanceAfter = await getUsdcAtaBalance(
                         connection,
-                        offerAuthorityOne.publicKey
+                        offerAuthorityOne.publicKey,
                     );
                     const { amount: custodyBalanceAfter } = await engine.fetchCustodyTokenAccount();
                     const balanceChange = baseFastOrder.amountIn + baseFastOrder.maxFee;
@@ -866,7 +866,7 @@ describe("Matching Engine", function () {
                 // Fetch the balances before.
                 const offerBalanceBefore = await getUsdcAtaBalance(
                     connection,
-                    offerAuthorityOne.publicKey
+                    offerAuthorityOne.publicKey,
                 );
                 const { amount: custodyBalanceBefore } = await engine.fetchCustodyTokenAccount();
 
@@ -874,13 +874,13 @@ describe("Matching Engine", function () {
                     offerAuthorityOne,
                     wormholeSequence++,
                     fastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 // Validate balance changes.
                 const offerBalanceAfter = await getUsdcAtaBalance(
                     connection,
-                    offerAuthorityOne.publicKey
+                    offerAuthorityOne.publicKey,
                 );
                 const { amount: custodyBalanceAfter } = await engine.fetchCustodyTokenAccount();
                 const balanceChange = fastOrder.amountIn + fastOrder.maxFee;
@@ -904,7 +904,7 @@ describe("Matching Engine", function () {
                 // Fetch the balances before.
                 const offerBalanceBefore = await getUsdcAtaBalance(
                     connection,
-                    offerAuthorityOne.publicKey
+                    offerAuthorityOne.publicKey,
                 );
                 const { amount: custodyBalanceBefore } = await engine.fetchCustodyTokenAccount();
 
@@ -913,13 +913,13 @@ describe("Matching Engine", function () {
                     wormholeSequence++,
                     fastOrder,
                     ethRouter,
-                    offerPrice
+                    offerPrice,
                 );
 
                 // Validate balance changes.
                 const offerBalanceAfter = await getUsdcAtaBalance(
                     connection,
-                    offerAuthorityOne.publicKey
+                    offerAuthorityOne.publicKey,
                 );
                 const { amount: custodyBalanceAfter } = await engine.fetchCustodyTokenAccount();
                 const balanceChange = fastOrder.amountIn + fastOrder.maxFee;
@@ -936,11 +936,11 @@ describe("Matching Engine", function () {
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
-                    Buffer.from("deadbeef", "hex")
+                    Buffer.from("deadbeef", "hex"),
                 );
 
                 const auction = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
-                    engine.auctionAddress(vaa.digest())
+                    engine.auctionAddress(vaa.digest()),
                 );
 
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
@@ -952,7 +952,7 @@ describe("Matching Engine", function () {
                         toRouterEndpoint: engine.routerEndpointAddress(arbChain),
                         totalDeposit: baseFastOrder.amountIn + baseFastOrder.maxFee,
                     },
-                    baseFastOrder.maxFee
+                    baseFastOrder.maxFee,
                 );
                 await expectIxErr(connection, [approveIx, ix], [offerAuthorityOne], "InvalidVaa");
             });
@@ -976,11 +976,11 @@ describe("Matching Engine", function () {
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
-                    message
+                    message,
                 );
 
                 const auction = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
-                    engine.auctionAddress(vaa.digest())
+                    engine.auctionAddress(vaa.digest()),
                 );
 
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
@@ -992,13 +992,13 @@ describe("Matching Engine", function () {
                         toRouterEndpoint: engine.routerEndpointAddress(arbChain),
                         totalDeposit: baseFastOrder.amountIn + baseFastOrder.maxFee,
                     },
-                    baseFastOrder.maxFee
+                    baseFastOrder.maxFee,
                 );
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
                     [offerAuthorityOne],
-                    "NotFastMarketOrder"
+                    "NotFastMarketOrder",
                 );
             });
 
@@ -1017,7 +1017,7 @@ describe("Matching Engine", function () {
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
-                    new LiquidityLayerMessage({ fastMarketOrder })
+                    new LiquidityLayerMessage({ fastMarketOrder }),
                 );
 
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
@@ -1025,14 +1025,14 @@ describe("Matching Engine", function () {
                         payer: offerAuthorityOne.publicKey,
                         fastVaa,
                     },
-                    fastMarketOrder.maxFee
+                    fastMarketOrder.maxFee,
                 );
 
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
                     [offerAuthorityOne],
-                    "FastMarketOrderExpired"
+                    "FastMarketOrderExpired",
                 );
             });
 
@@ -1045,7 +1045,7 @@ describe("Matching Engine", function () {
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
-                    new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder })
+                    new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder }),
                 );
 
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
@@ -1053,13 +1053,13 @@ describe("Matching Engine", function () {
                         payer: offerAuthorityOne.publicKey,
                         fastVaa,
                     },
-                    offerPrice
+                    offerPrice,
                 );
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
                     [offerAuthorityOne],
-                    "OfferPriceTooHigh"
+                    "OfferPriceTooHigh",
                 );
             });
 
@@ -1071,7 +1071,7 @@ describe("Matching Engine", function () {
                     ethRouter,
                     wormholeSequence++,
                     new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder }),
-                    "acala"
+                    "acala",
                 );
 
                 const { maxFee: offerPrice } = baseFastOrder;
@@ -1081,13 +1081,13 @@ describe("Matching Engine", function () {
                         fastVaa,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
                     },
-                    offerPrice
+                    offerPrice,
                 );
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
                     [offerAuthorityOne],
-                    "ErrInvalidSourceRouter"
+                    "ErrInvalidSourceRouter",
                 );
             });
 
@@ -1098,7 +1098,7 @@ describe("Matching Engine", function () {
                     MOCK_GUARDIANS,
                     arbRouter,
                     wormholeSequence++,
-                    new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder })
+                    new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder }),
                 );
 
                 const { maxFee: offerPrice } = baseFastOrder;
@@ -1107,13 +1107,13 @@ describe("Matching Engine", function () {
                         payer: offerAuthorityOne.publicKey,
                         fastVaa,
                     },
-                    offerPrice
+                    offerPrice,
                 );
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
                     [offerAuthorityOne],
-                    "ErrInvalidSourceRouter"
+                    "ErrInvalidSourceRouter",
                 );
             });
 
@@ -1128,7 +1128,7 @@ describe("Matching Engine", function () {
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
-                    new LiquidityLayerMessage({ fastMarketOrder })
+                    new LiquidityLayerMessage({ fastMarketOrder }),
                 );
 
                 const { maxFee: offerPrice } = fastMarketOrder;
@@ -1138,13 +1138,13 @@ describe("Matching Engine", function () {
                         fastVaa,
                         toRouterEndpoint: engine.routerEndpointAddress(arbChain),
                     },
-                    offerPrice
+                    offerPrice,
                 );
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
                     [offerAuthorityOne],
-                    "ErrInvalidTargetRouter"
+                    "ErrInvalidTargetRouter",
                 );
             });
 
@@ -1155,7 +1155,7 @@ describe("Matching Engine", function () {
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
-                    new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder })
+                    new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder }),
                 );
 
                 const { maxFee: offerPrice } = baseFastOrder;
@@ -1164,7 +1164,7 @@ describe("Matching Engine", function () {
                         payer: offerAuthorityOne.publicKey,
                         fastVaa,
                     },
-                    offerPrice
+                    offerPrice,
                 );
                 await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
 
@@ -1173,7 +1173,7 @@ describe("Matching Engine", function () {
                     connection,
                     [approveIx, ix],
                     [offerAuthorityOne],
-                    "already in use"
+                    "already in use",
                 );
             });
 
@@ -1194,7 +1194,7 @@ describe("Matching Engine", function () {
 
                 const offerToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
-                    offerAuthorityOne.publicKey
+                    offerAuthorityOne.publicKey,
                 );
 
                 expect(fastMarketOrder).is.not.undefined;
@@ -1208,6 +1208,7 @@ describe("Matching Engine", function () {
                         { active: {} },
                         {
                             configId: 0,
+                            sourceChain: ethChain,
                             bestOfferToken: offerToken,
                             initialOfferToken: offerToken,
                             startSlot: numberToU64BN(txDetails.slot),
@@ -1215,8 +1216,8 @@ describe("Matching Engine", function () {
                             securityDeposit: bigintToU64BN(maxFee),
                             offerPrice: bigintToU64BN(offerPrice),
                             amountOut: expectedAmountIn,
-                        }
-                    )
+                        },
+                    ),
                 );
             }
 
@@ -1230,7 +1231,7 @@ describe("Matching Engine", function () {
                         cctpDomain: arbDomain,
                         address: arbRouter,
                         mintRecipient: null,
-                    }
+                    },
                 );
                 await expectIxOk(connection, [ix], [owner]);
             });
@@ -1241,7 +1242,7 @@ describe("Matching Engine", function () {
                         connection,
                         wallet,
                         USDC_MINT_ADDRESS,
-                        wallet.publicKey
+                        wallet.publicKey,
                     );
 
                     // Mint USDC.
@@ -1254,8 +1255,8 @@ describe("Matching Engine", function () {
                             USDC_MINT_ADDRESS,
                             destination,
                             payer,
-                            mintAmount
-                        )
+                            mintAmount,
+                        ),
                     ).to.be.fulfilled;
 
                     const { amount } = await splToken.getAccount(connection, destination);
@@ -1271,16 +1272,16 @@ describe("Matching Engine", function () {
                         offerAuthorityOne,
                         wormholeSequence++,
                         baseFastOrder,
-                        ethRouter
+                        ethRouter,
                     );
 
                     const initialOfferBalanceBefore = await getUsdcAtaBalance(
                         connection,
-                        offerAuthorityOne.publicKey
+                        offerAuthorityOne.publicKey,
                     );
                     const newOfferBalanceBefore = await getUsdcAtaBalance(
                         connection,
-                        offerAuthorityTwo.publicKey
+                        offerAuthorityTwo.publicKey,
                     );
                     const { amount: custodyBalanceBefore } =
                         await engine.fetchCustodyTokenAccount();
@@ -1290,7 +1291,7 @@ describe("Matching Engine", function () {
                             auction,
                             offerAuthority: offerAuthorityTwo.publicKey,
                         },
-                        newOffer
+                        newOffer,
                     );
 
                     await expectIxOk(connection, [approveIx, ix], [offerAuthorityTwo]);
@@ -1304,7 +1305,7 @@ describe("Matching Engine", function () {
                             custodyToken: custodyBalanceBefore,
                             bestOfferToken: newOfferBalanceBefore,
                             prevBestOfferToken: initialOfferBalanceBefore,
-                        }
+                        },
                     );
                 });
             }
@@ -1314,12 +1315,12 @@ describe("Matching Engine", function () {
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const initialOfferBalanceBefore = await getUsdcAtaBalance(
                     connection,
-                    offerAuthorityOne.publicKey
+                    offerAuthorityOne.publicKey,
                 );
                 const { amount: custodyBalanceBefore } = await engine.fetchCustodyTokenAccount();
 
@@ -1331,7 +1332,7 @@ describe("Matching Engine", function () {
                         auction,
                         offerAuthority: offerAuthorityOne.publicKey,
                     },
-                    newOffer
+                    newOffer,
                 );
 
                 await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
@@ -1344,7 +1345,7 @@ describe("Matching Engine", function () {
                     {
                         custodyToken: custodyBalanceBefore,
                         bestOfferToken: initialOfferBalanceBefore,
-                    }
+                    },
                 );
             });
 
@@ -1353,14 +1354,14 @@ describe("Matching Engine", function () {
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const { startSlot, offerPrice } = auctionDataBefore.info!;
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
                 await waitUntilSlot(
                     connection,
-                    startSlot.addn(duration + gracePeriod - 1).toNumber()
+                    startSlot.addn(duration + gracePeriod - 1).toNumber(),
                 );
 
                 // New Offer from offerAuthorityOne.
@@ -1371,14 +1372,14 @@ describe("Matching Engine", function () {
                         auction,
                         offerAuthority: offerAuthorityOne.publicKey,
                     },
-                    newOffer
+                    newOffer,
                 );
 
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
                     [offerAuthorityOne],
-                    "Error Code: AuctionPeriodExpired"
+                    "Error Code: AuctionPeriodExpired",
                 );
             });
 
@@ -1387,7 +1388,7 @@ describe("Matching Engine", function () {
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 // New Offer from offerAuthorityOne.
@@ -1399,13 +1400,13 @@ describe("Matching Engine", function () {
                         offerAuthority: offerAuthorityOne.publicKey,
                         bestOfferToken: engine.custodyTokenAccountAddress(),
                     },
-                    newOffer
+                    newOffer,
                 );
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
                     [offerAuthorityOne],
-                    "Error Code: BestOfferTokenMismatch"
+                    "Error Code: BestOfferTokenMismatch",
                 );
             });
 
@@ -1414,7 +1415,7 @@ describe("Matching Engine", function () {
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const newOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
@@ -1423,14 +1424,14 @@ describe("Matching Engine", function () {
                         auction,
                         offerAuthority: offerAuthorityTwo.publicKey,
                     },
-                    newOffer
+                    newOffer,
                 );
 
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
                     [offerAuthorityTwo],
-                    "Error Code: OfferPriceNotImproved"
+                    "Error Code: OfferPriceNotImproved",
                 );
             });
 
@@ -1443,7 +1444,7 @@ describe("Matching Engine", function () {
                     custodyToken: bigint;
                     bestOfferToken: bigint;
                     prevBestOfferToken?: bigint;
-                }
+                },
             ) {
                 const {
                     custodyToken: custodyTokenBefore,
@@ -1453,7 +1454,7 @@ describe("Matching Engine", function () {
 
                 const bestOfferToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
-                    newOfferAuthority
+                    newOfferAuthority,
                 );
 
                 const { bump, vaaHash, status, info } = auctionDataBefore;
@@ -1466,6 +1467,7 @@ describe("Matching Engine", function () {
                     securityDeposit,
                     offerPrice: prevOfferPrice,
                     amountOut,
+                    sourceChain,
                 } = info!;
                 expect(offerPrice).not.equals(BigInt(prevOfferPrice.toString()));
 
@@ -1473,6 +1475,7 @@ describe("Matching Engine", function () {
                 expect(auctionDataAfter).to.eql(
                     new Auction(bump, vaaHash, status, {
                         configId,
+                        sourceChain,
                         bestOfferToken,
                         initialOfferToken,
                         startSlot,
@@ -1480,7 +1483,7 @@ describe("Matching Engine", function () {
                         securityDeposit,
                         offerPrice: bigintToU64BN(offerPrice),
                         amountOut,
-                    })
+                    }),
                 );
 
                 // Custody token should be unchanged.
@@ -1495,17 +1498,17 @@ describe("Matching Engine", function () {
                     // New offer change.
                     const { amount: bestOfferTokenAfter } = await splToken.getAccount(
                         connection,
-                        bestOfferToken
+                        bestOfferToken,
                     );
                     expect(bestOfferTokenAfter).equals(bestOfferTokenBefore - balanceChange);
 
                     // Previous offer refunded.
                     const { amount: prevBestOfferTokenAfter } = await splToken.getAccount(
                         connection,
-                        prevBestOfferToken
+                        prevBestOfferToken,
                     );
                     expect(prevBestOfferTokenAfter).equals(
-                        prevBestOfferTokenBefore + balanceChange
+                        prevBestOfferTokenBefore + balanceChange,
                     );
                 } else {
                     expect(bestOfferToken).to.eql(prevBestOfferToken);
@@ -1513,7 +1516,7 @@ describe("Matching Engine", function () {
                     // Should be no change.
                     const { amount: bestOfferTokenAfter } = await splToken.getAccount(
                         connection,
-                        bestOfferToken
+                        bestOfferToken,
                     );
                     expect(bestOfferTokenAfter).equals(bestOfferTokenBefore);
                 }
@@ -1530,31 +1533,31 @@ describe("Matching Engine", function () {
                     offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
                     offerAuthorityOne,
-                    100
+                    100,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
 
                 // Fetch the balances before.
                 const { amount: bestOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    bestOfferToken
+                    bestOfferToken,
                 );
                 const { amount: initialOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    initialOfferToken
+                    initialOfferToken,
                 );
                 const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
 
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
                 await waitUntilSlot(
                     connection,
-                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 1).toNumber()
+                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
@@ -1576,7 +1579,7 @@ describe("Matching Engine", function () {
                     offerAuthorityOne.publicKey,
                     false, // hasPenalty
                     "ethereum",
-                    "arbitrum"
+                    "arbitrum",
                 );
 
                 localVariables.set("auction", auction);
@@ -1591,14 +1594,14 @@ describe("Matching Engine", function () {
                         offerAuthority: offerAuthorityOne.publicKey,
                         auction,
                     },
-                    baseFastOrder.maxFee
+                    baseFastOrder.maxFee,
                 );
 
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
                     [offerAuthorityOne],
-                    "Error Code: AuctionNotActive"
+                    "Error Code: AuctionNotActive",
                 );
             });
 
@@ -1609,24 +1612,24 @@ describe("Matching Engine", function () {
                     offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
                     offerAuthorityOne,
-                    100
+                    100,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
 
                 // Fetch the balances before.
                 const { amount: bestOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    bestOfferToken
+                    bestOfferToken,
                 );
                 const { amount: initialOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    initialOfferToken
+                    initialOfferToken,
                 );
                 const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
 
@@ -1636,7 +1639,7 @@ describe("Matching Engine", function () {
                     connection,
                     auctionDataBefore
                         .info!.startSlot.addn(duration + gracePeriod + penaltySlots / 2)
-                        .toNumber()
+                        .toNumber(),
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
@@ -1658,7 +1661,7 @@ describe("Matching Engine", function () {
                     offerAuthorityOne.publicKey,
                     true, // hasPenalty
                     "ethereum",
-                    "arbitrum"
+                    "arbitrum",
                 );
             });
 
@@ -1669,34 +1672,34 @@ describe("Matching Engine", function () {
                     offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
                     offerAuthorityOne,
-                    100
+                    100,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
 
                 // Fetch the balances before.
                 const { amount: bestOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    bestOfferToken
+                    bestOfferToken,
                 );
                 const { amount: initialOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    initialOfferToken
+                    initialOfferToken,
                 );
                 const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
 
                 const liquidatorToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
-                    liquidator.publicKey
+                    liquidator.publicKey,
                 );
                 const { amount: executorTokenBefore } = await splToken.getAccount(
                     connection,
-                    liquidatorToken
+                    liquidatorToken,
                 );
 
                 const { duration, gracePeriod, penaltySlots } =
@@ -1705,7 +1708,7 @@ describe("Matching Engine", function () {
                     connection,
                     auctionDataBefore
                         .info!.startSlot.addn(duration + gracePeriod + penaltySlots / 2)
-                        .toNumber()
+                        .toNumber(),
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
@@ -1728,7 +1731,7 @@ describe("Matching Engine", function () {
                     liquidator.publicKey,
                     true, // hasPenalty
                     "ethereum",
-                    "arbitrum"
+                    "arbitrum",
                 );
             });
 
@@ -1739,34 +1742,34 @@ describe("Matching Engine", function () {
                     offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
                     offerAuthorityOne,
-                    100
+                    100,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
 
                 // Fetch the balances before.
                 const { amount: bestOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    bestOfferToken
+                    bestOfferToken,
                 );
                 const { amount: initialOfferTokenBefore } = await splToken.getAccount(
                     connection,
-                    initialOfferToken
+                    initialOfferToken,
                 );
                 const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
 
                 const liquidatorToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
-                    liquidator.publicKey
+                    liquidator.publicKey,
                 );
                 const { amount: executorTokenBefore } = await splToken.getAccount(
                     connection,
-                    liquidatorToken
+                    liquidatorToken,
                 );
 
                 const { duration, gracePeriod, penaltySlots } =
@@ -1775,7 +1778,7 @@ describe("Matching Engine", function () {
                     connection,
                     auctionDataBefore
                         .info!.startSlot.addn(duration + gracePeriod + penaltySlots + 2)
-                        .toNumber()
+                        .toNumber(),
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
@@ -1798,7 +1801,7 @@ describe("Matching Engine", function () {
                     liquidator.publicKey,
                     true, // hasPenalty
                     "ethereum",
-                    "arbitrum"
+                    "arbitrum",
                 );
             });
 
@@ -1811,13 +1814,13 @@ describe("Matching Engine", function () {
                     offerAuthorityOne,
                     wormholeSequence++,
                     fastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
                 await waitUntilSlot(
                     connection,
-                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 2).toNumber()
+                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 2).toNumber(),
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
@@ -1828,7 +1831,7 @@ describe("Matching Engine", function () {
                     connection,
                     [ix],
                     [offerAuthorityOne],
-                    "Error Code: InvalidChain"
+                    "Error Code: InvalidChain",
                 );
             });
 
@@ -1839,7 +1842,7 @@ describe("Matching Engine", function () {
                         wormholeSequence++,
                         baseFastOrder,
                         ethRouter,
-                        baseFastOrder.maxFee
+                        baseFastOrder.maxFee,
                     );
 
                 const { fastVaa: anotherFastVaa, fastVaaAccount: anotherFastVaaAccount } =
@@ -1848,14 +1851,14 @@ describe("Matching Engine", function () {
                         wormholeSequence++,
                         baseFastOrder,
                         ethRouter,
-                        baseFastOrder.maxFee
+                        baseFastOrder.maxFee,
                     );
                 expect(fastVaaAccount.digest()).to.not.eql(anotherFastVaaAccount.digest());
 
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
                 await waitUntilSlot(
                     connection,
-                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 2).toNumber()
+                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 2).toNumber(),
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
@@ -1868,7 +1871,7 @@ describe("Matching Engine", function () {
                     connection,
                     [ix],
                     [offerAuthorityOne],
-                    "account: auction. Error Code: ConstraintSeeds"
+                    "account: auction. Error Code: ConstraintSeeds",
                 );
             });
 
@@ -1877,7 +1880,7 @@ describe("Matching Engine", function () {
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const bogusToken = engine.custodyTokenAccountAddress();
@@ -1896,7 +1899,7 @@ describe("Matching Engine", function () {
                     connection,
                     [ix],
                     [offerAuthorityOne],
-                    "Error Code: BestOfferTokenMismatch"
+                    "Error Code: BestOfferTokenMismatch",
                 );
             });
 
@@ -1905,7 +1908,7 @@ describe("Matching Engine", function () {
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const bogusToken = engine.custodyTokenAccountAddress();
@@ -1924,7 +1927,7 @@ describe("Matching Engine", function () {
                     connection,
                     [ix],
                     [offerAuthorityOne],
-                    "Error Code: InitialOfferTokenMismatch"
+                    "Error Code: InitialOfferTokenMismatch",
                 );
             });
 
@@ -1935,13 +1938,13 @@ describe("Matching Engine", function () {
                     offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
                 await waitUntilSlot(
                     connection,
-                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 1).toNumber()
+                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
@@ -1962,7 +1965,7 @@ describe("Matching Engine", function () {
                     connection,
                     [ix],
                     [offerAuthorityOne],
-                    "Error Code: AuctionNotActive"
+                    "Error Code: AuctionNotActive",
                 );
             });
 
@@ -1971,7 +1974,7 @@ describe("Matching Engine", function () {
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
@@ -1983,7 +1986,7 @@ describe("Matching Engine", function () {
                     connection,
                     [ix],
                     [offerAuthorityOne],
-                    "Error Code: AuctionPeriodNotExpired"
+                    "Error Code: AuctionPeriodNotExpired",
                 );
             });
 
@@ -1992,7 +1995,7 @@ describe("Matching Engine", function () {
                     offerAuthorityOne,
                     wormholeSequence++,
                     baseFastOrder,
-                    ethRouter
+                    ethRouter,
                 );
 
                 await expectIxErr(
@@ -2005,7 +2008,7 @@ describe("Matching Engine", function () {
                         }),
                     ],
                     [offerAuthorityOne],
-                    "Error Code: ConstraintSeeds"
+                    "Error Code: ConstraintSeeds",
                 );
             });
 
@@ -2022,7 +2025,7 @@ describe("Matching Engine", function () {
                 executor: PublicKey,
                 hasPenalty: boolean,
                 fromChainName: wormholeSdk.ChainName,
-                toChainName: wormholeSdk.ChainName
+                toChainName: wormholeSdk.ChainName,
             ) {
                 const {
                     custodyToken: custodyTokenBefore,
@@ -2039,8 +2042,8 @@ describe("Matching Engine", function () {
                         bump,
                         vaaHash,
                         { completed: { slot: bigintToU64BN(BigInt(txDetails.slot)) } },
-                        info
-                    )
+                        info,
+                    ),
                 );
 
                 const { bestOfferToken, initialOfferToken, securityDeposit, amountIn, offerPrice } =
@@ -2049,17 +2052,17 @@ describe("Matching Engine", function () {
                 // Validate balance changes.
                 const { amount: bestOfferTokenAfter } = await splToken.getAccount(
                     connection,
-                    bestOfferToken
+                    bestOfferToken,
                 );
                 const { amount: initialOfferTokenAfter } = await splToken.getAccount(
                     connection,
-                    initialOfferToken
+                    initialOfferToken,
                 );
 
                 const { penalty, userReward } = await engine.computeDepositPenalty(
                     info!,
                     BigInt(txDetails.slot),
-                    info!.configId
+                    info!.configId,
                 );
 
                 const {
@@ -2078,26 +2081,26 @@ describe("Matching Engine", function () {
                         BigInt(offerPrice.add(securityDeposit).toString()) - userReward;
                     const executorToken = splToken.getAssociatedTokenAddressSync(
                         USDC_MINT_ADDRESS,
-                        executor
+                        executor,
                     );
                     if (!executorToken.equals(bestOfferToken)) {
                         depositAndFee -= penalty;
 
                         const { amount: executorTokenAfter } = await splToken.getAccount(
                             connection,
-                            executorToken
+                            executorToken,
                         );
                         expect(executorTokenAfter).equals(executorTokenBefore! + penalty);
                     }
 
                     if (bestOfferToken.equals(initialOfferToken)) {
                         expect(bestOfferTokenAfter).equals(
-                            bestOfferTokenBefore + depositAndFee + initAuctionFee
+                            bestOfferTokenBefore + depositAndFee + initAuctionFee,
                         );
                     } else {
                         expect(bestOfferTokenAfter).equals(bestOfferTokenBefore + depositAndFee);
                         expect(initialOfferTokenAfter).equals(
-                            initialOfferTokenBefore + initAuctionFee
+                            initialOfferTokenBefore + initAuctionFee,
                         );
                     }
                 } else {
@@ -2108,19 +2111,19 @@ describe("Matching Engine", function () {
 
                     if (bestOfferToken.equals(initialOfferToken)) {
                         expect(bestOfferTokenAfter).equals(
-                            bestOfferTokenBefore + depositAndFee + initAuctionFee
+                            bestOfferTokenBefore + depositAndFee + initAuctionFee,
                         );
                     } else {
                         expect(bestOfferTokenAfter).equals(bestOfferTokenBefore + depositAndFee);
                         expect(initialOfferTokenAfter).equals(
-                            initialOfferTokenBefore + initAuctionFee
+                            initialOfferTokenBefore + initAuctionFee,
                         );
                     }
                 }
 
                 const { amount: custodyTokenAfter } = await engine.fetchCustodyTokenAccount();
                 expect(custodyTokenAfter).equals(
-                    custodyTokenBefore - BigInt(amountIn.add(securityDeposit).toString())
+                    custodyTokenBefore - BigInt(amountIn.add(securityDeposit).toString()),
                 );
 
                 // Validate the core message.
@@ -2148,7 +2151,7 @@ describe("Matching Engine", function () {
 
                 const sourceChain = wormholeSdk.coalesceChainId(fromChainName);
                 const { mintRecipient: expectedMintRecipient } = await engine.fetchRouterEndpoint(
-                    wormholeSdk.coalesceChainId(toChainName)
+                    wormholeSdk.coalesceChainId(toChainName),
                 );
                 expect(mintRecipient).to.eql(expectedMintRecipient);
 
@@ -2204,14 +2207,14 @@ describe("Matching Engine", function () {
                             cctpNonce,
                             burnSource,
                             mintRecipient: Array.from(
-                                engine.custodyTokenAccountAddress().toBuffer()
+                                engine.custodyTokenAccountAddress().toBuffer(),
                             ),
                         },
                         {
                             slowOrderResponse: {
                                 baseFee: 420n,
                             },
-                        }
+                        },
                     ),
                 });
 
@@ -2221,7 +2224,7 @@ describe("Matching Engine", function () {
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
-                    finalizedMessage
+                    finalizedMessage,
                 );
                 const fastVaa = await postLiquidityLayerVaa(
                     connection,
@@ -2229,7 +2232,7 @@ describe("Matching Engine", function () {
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
-                    fastMessage
+                    fastMessage,
                 );
 
                 const ix = await engine.prepareOrderResponseCctpIx(
@@ -2242,7 +2245,7 @@ describe("Matching Engine", function () {
                     {
                         encodedCctpMessage,
                         cctpAttestation,
-                    }
+                    },
                 );
 
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
@@ -2253,11 +2256,11 @@ describe("Matching Engine", function () {
 
                 // TODO: validate prepared slow order
                 const fastVaaHash = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
-                    vaa.digest()
+                    vaa.digest(),
                 );
                 const preparedOrderResponse = engine.preparedOrderResponseAddress(
                     payer.publicKey,
-                    fastVaaHash
+                    fastVaaHash,
                 );
 
                 // Save for later.
@@ -2270,7 +2273,7 @@ describe("Matching Engine", function () {
                 expect(localVariables.delete("ix")).is.true;
 
                 const preparedOrderResponse = localVariables.get(
-                    "preparedOrderResponse"
+                    "preparedOrderResponse",
                 ) as PublicKey;
                 expect(localVariables.delete("preparedOrderResponse")).is.true;
 
@@ -2278,7 +2281,7 @@ describe("Matching Engine", function () {
                     connection,
                     [ix],
                     [payer],
-                    `Allocate: account Address { address: ${preparedOrderResponse.toString()}, base: None } already in use`
+                    `Allocate: account Address { address: ${preparedOrderResponse.toString()}, base: None } already in use`,
                 );
             });
         });
@@ -2303,7 +2306,7 @@ describe("Matching Engine", function () {
                         connection,
                         [prepareIx!, settleIx],
                         [payer],
-                        "Error Code: AuctionNotCompleted"
+                        "Error Code: AuctionNotCompleted",
                     );
                 });
 
@@ -2343,7 +2346,7 @@ describe("Matching Engine", function () {
 
                     const liquidatorToken = await splToken.getAssociatedTokenAddress(
                         USDC_MINT_ADDRESS,
-                        liquidator.publicKey
+                        liquidator.publicKey,
                     );
 
                     const sourceCctpDomain = 0;
@@ -2353,7 +2356,7 @@ describe("Matching Engine", function () {
                         engine,
                         sourceCctpDomain,
                         cctpNonce,
-                        amountIn
+                        amountIn,
                     );
 
                     const settleIx = await engine.settleAuctionActiveCctpIx(
@@ -2367,12 +2370,11 @@ describe("Matching Engine", function () {
                             preparedBy: payer.publicKey,
                             encodedCctpMessage,
                         },
-                        { targetChain: ethChain, remoteDomain: solanaChain }
+                        { targetChain: ethChain, remoteDomain: solanaChain },
                     );
 
-                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                        lookupTableAddress
-                    );
+                    const { value: lookupTableAccount } =
+                        await connection.getAddressLookupTable(lookupTableAddress);
                     const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
                         units: 500_000,
                     });
@@ -2383,7 +2385,7 @@ describe("Matching Engine", function () {
                         "Error Code: AuctionNotActive",
                         {
                             addressLookupTableAccounts: [lookupTableAccount!],
-                        }
+                        },
                     );
                 });
                 it("Settle", async function () {
@@ -2397,7 +2399,7 @@ describe("Matching Engine", function () {
 
                     const liquidatorToken = await splToken.getAssociatedTokenAddress(
                         USDC_MINT_ADDRESS,
-                        liquidator.publicKey
+                        liquidator.publicKey,
                     );
 
                     const sourceCctpDomain = 0;
@@ -2407,7 +2409,7 @@ describe("Matching Engine", function () {
                         engine,
                         sourceCctpDomain,
                         cctpNonce,
-                        amountIn
+                        amountIn,
                     );
                     const settleIx = await engine.settleAuctionActiveCctpIx(
                         {
@@ -2420,12 +2422,11 @@ describe("Matching Engine", function () {
                             preparedBy: payer.publicKey,
                             encodedCctpMessage,
                         },
-                        { targetChain: ethChain, remoteDomain: solanaChain }
+                        { targetChain: ethChain, remoteDomain: solanaChain },
                     );
 
-                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                        lookupTableAddress
-                    );
+                    const { value: lookupTableAccount } =
+                        await connection.getAddressLookupTable(lookupTableAddress);
                     const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
                         units: 500_000,
                     });
@@ -2458,20 +2459,21 @@ describe("Matching Engine", function () {
 
                     const { amount: feeBalanceBefore } = await splToken.getAccount(
                         connection,
-                        feeRecipientToken
+                        feeRecipientToken,
                     );
                     const { amount: custodyBalanceBefore } =
                         await engine.fetchCustodyTokenAccount();
 
                     await expectIxOk(connection, [computeIx, settleIx], [payer]);
 
-                    const deposit = LiquidityLayerMessage.decode(finalizedVaaAccount.payload())
-                        .deposit!;
+                    const deposit = LiquidityLayerMessage.decode(
+                        finalizedVaaAccount.payload(),
+                    ).deposit!;
 
                     const { baseFee } = deposit.message.slowOrderResponse!;
                     const { amount: feeBalanceAfter } = await splToken.getAccount(
                         connection,
-                        feeRecipientToken
+                        feeRecipientToken,
                     );
                     expect(feeBalanceAfter).equals(feeBalanceBefore + baseFee);
 
@@ -2492,8 +2494,8 @@ describe("Matching Engine", function () {
                                     penalty: null,
                                 },
                             },
-                            null
-                        )
+                            null,
+                        ),
                     );
                 });
             });
@@ -2542,14 +2544,14 @@ describe("Matching Engine", function () {
                             cctpNonce,
                             burnSource,
                             mintRecipient: Array.from(
-                                engine.custodyTokenAccountAddress().toBuffer()
+                                engine.custodyTokenAccountAddress().toBuffer(),
                             ),
                         },
                         {
                             slowOrderResponse: {
                                 baseFee: 420n,
                             },
-                        }
+                        },
                     ),
                 });
 
@@ -2559,7 +2561,7 @@ describe("Matching Engine", function () {
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
-                    finalizedMessage
+                    finalizedMessage,
                 );
                 const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
 
@@ -2569,7 +2571,7 @@ describe("Matching Engine", function () {
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
-                    fastMessage
+                    fastMessage,
                 );
                 const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
 
@@ -2582,14 +2584,14 @@ describe("Matching Engine", function () {
                     {
                         encodedCctpMessage,
                         cctpAttestation,
-                    }
+                    },
                 );
 
                 const fastVaaHash = fastVaaAccount.digest();
                 const preparedBy = payer.publicKey;
                 const preparedOrderResponse = engine.preparedOrderResponseAddress(
                     preparedBy,
-                    fastVaaHash
+                    fastVaaHash,
                 );
                 const auction = engine.auctionAddress(fastVaaHash);
 
@@ -2599,7 +2601,7 @@ describe("Matching Engine", function () {
                             payer: offerAuthorityOne.publicKey,
                             fastVaa,
                         },
-                        maxFee
+                        maxFee,
                     );
                     await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
 
@@ -2614,7 +2616,7 @@ describe("Matching Engine", function () {
                             .duration;
 
                         await new Promise((f) =>
-                            setTimeout(f, startSlot.toNumber() + duration + 200)
+                            setTimeout(f, startSlot.toNumber() + duration + 200),
                         );
 
                         const ix = await engine.executeFastOrderCctpIx({
@@ -2653,7 +2655,7 @@ describe("Matching Engine", function () {
         fastMarketOrder: FastMarketOrder,
         emitter: number[],
         feeOffer?: bigint,
-        chainName?: wormholeSdk.ChainName
+        chainName?: wormholeSdk.ChainName,
     ): Promise<{
         fastVaa: PublicKey;
         fastVaaAccount: VaaAccount;
@@ -2668,7 +2670,7 @@ describe("Matching Engine", function () {
             emitter,
             sequence,
             new LiquidityLayerMessage({ fastMarketOrder }),
-            chainName
+            chainName,
         );
 
         // Place the initial offer.
@@ -2677,7 +2679,7 @@ describe("Matching Engine", function () {
                 payer: offerAuthority.publicKey,
                 fastVaa,
             },
-            feeOffer ?? fastMarketOrder.maxFee
+            feeOffer ?? fastMarketOrder.maxFee,
         );
 
         const txDetails = await expectIxOkDetails(connection, [approveIx, ix], [offerAuthority]);
@@ -2695,7 +2697,7 @@ describe("Matching Engine", function () {
     async function improveOfferForTest(
         auction: PublicKey,
         offerAuthority: Keypair,
-        improveBy: number
+        improveBy: number,
     ) {
         const auctionData = await engine.fetchAuction({ address: auction });
         const newOffer = BigInt(auctionData.info!.offerPrice.subn(improveBy).toString());
@@ -2705,7 +2707,7 @@ describe("Matching Engine", function () {
                 auction,
                 offerAuthority: offerAuthority.publicKey,
             },
-            newOffer
+            newOffer,
         );
 
         // Improve the bid with offer one.
@@ -2725,20 +2727,20 @@ async function craftCctpTokenBurnMessage(
     sourceCctpDomain: number,
     cctpNonce: bigint,
     amount: bigint,
-    overrides: { destinationCctpDomain?: number } = {}
+    overrides: { destinationCctpDomain?: number } = {},
 ) {
     const { destinationCctpDomain: inputDestinationCctpDomain } = overrides;
 
     const messageTransmitterProgram = engine.messageTransmitterProgram();
     const { version, localDomain } = await messageTransmitterProgram.fetchMessageTransmitterConfig(
-        messageTransmitterProgram.messageTransmitterConfigAddress()
+        messageTransmitterProgram.messageTransmitterConfigAddress(),
     );
     const destinationCctpDomain = inputDestinationCctpDomain ?? localDomain;
 
     const tokenMessengerMinterProgram = engine.tokenMessengerMinterProgram();
     const { tokenMessenger: sourceTokenMessenger } =
         await tokenMessengerMinterProgram.fetchRemoteTokenMessenger(
-            tokenMessengerMinterProgram.remoteTokenMessengerAddress(sourceCctpDomain)
+            tokenMessengerMinterProgram.remoteTokenMessengerAddress(sourceCctpDomain),
         );
 
     const burnMessage = new CctpTokenBurnMessage(
@@ -2755,7 +2757,7 @@ async function craftCctpTokenBurnMessage(
         Array.from(wormholeSdk.tryNativeToUint8Array(ETHEREUM_USDC_ADDRESS, "ethereum")), // sourceTokenAddress
         Array.from(engine.custodyTokenAccountAddress().toBuffer()), // mint recipient
         amount,
-        new Array(32).fill(0) // burnSource
+        new Array(32).fill(0), // burnSource
     );
 
     const encodedCctpMessage = burnMessage.encode();

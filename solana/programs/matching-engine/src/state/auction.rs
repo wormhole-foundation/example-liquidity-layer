@@ -30,6 +30,9 @@ impl std::fmt::Display for AuctionStatus {
 pub struct AuctionInfo {
     pub config_id: u32,
 
+    /// The chain where the transfer is initiated.
+    pub source_chain: u16,
+
     /// The highest bidder of the auction.
     pub best_offer_token: Pubkey,
 

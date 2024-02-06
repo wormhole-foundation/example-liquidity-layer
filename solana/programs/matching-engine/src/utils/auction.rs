@@ -279,6 +279,7 @@ mod test {
                 security_deposit,
                 start_slot: START,
                 config_id: Default::default(),
+                source_chain: Default::default(),
                 best_offer_token: Default::default(),
                 initial_offer_token: Default::default(),
                 amount_in: Default::default(),
