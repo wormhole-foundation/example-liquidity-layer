@@ -943,17 +943,18 @@ describe("Matching Engine", function () {
                     engine.auctionAddress(vaa.digest())
                 );
 
-                const ix = await engine.placeInitialOfferIx(
+                const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
                         payer: offerAuthorityOne.publicKey,
                         fastVaa,
                         auction,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
                         toRouterEndpoint: engine.routerEndpointAddress(arbChain),
+                        totalDeposit: baseFastOrder.amountIn + baseFastOrder.maxFee,
                     },
                     baseFastOrder.maxFee
                 );
-                await expectIxErr(connection, [ix], [offerAuthorityOne], "InvalidVaa");
+                await expectIxErr(connection, [approveIx, ix], [offerAuthorityOne], "InvalidVaa");
             });
 
             it("Cannot Place Initial Offer (Invalid Payload)", async function () {
@@ -982,17 +983,23 @@ describe("Matching Engine", function () {
                     engine.auctionAddress(vaa.digest())
                 );
 
-                const ix = await engine.placeInitialOfferIx(
+                const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
                         payer: offerAuthorityOne.publicKey,
                         fastVaa,
                         auction,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
                         toRouterEndpoint: engine.routerEndpointAddress(arbChain),
+                        totalDeposit: baseFastOrder.amountIn + baseFastOrder.maxFee,
                     },
                     baseFastOrder.maxFee
                 );
-                await expectIxErr(connection, [ix], [offerAuthorityOne], "NotFastMarketOrder");
+                await expectIxErr(
+                    connection,
+                    [approveIx, ix],
+                    [offerAuthorityOne],
+                    "NotFastMarketOrder"
+                );
             });
 
             it("Cannot Place Initial Offer (Deadline Exceeded)", async function () {
@@ -1013,7 +1020,7 @@ describe("Matching Engine", function () {
                     new LiquidityLayerMessage({ fastMarketOrder })
                 );
 
-                const ix = await engine.placeInitialOfferIx(
+                const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
                         payer: offerAuthorityOne.publicKey,
                         fastVaa,
@@ -1021,7 +1028,12 @@ describe("Matching Engine", function () {
                     fastMarketOrder.maxFee
                 );
 
-                await expectIxErr(connection, [ix], [offerAuthorityOne], "FastMarketOrderExpired");
+                await expectIxErr(
+                    connection,
+                    [approveIx, ix],
+                    [offerAuthorityOne],
+                    "FastMarketOrderExpired"
+                );
             });
 
             it("Cannot Place Initial Offer (Offer Price Too High)", async function () {
@@ -1036,14 +1048,19 @@ describe("Matching Engine", function () {
                     new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder })
                 );
 
-                const ix = await engine.placeInitialOfferIx(
+                const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
                         payer: offerAuthorityOne.publicKey,
                         fastVaa,
                     },
                     offerPrice
                 );
-                await expectIxErr(connection, [ix], [offerAuthorityOne], "OfferPriceTooHigh");
+                await expectIxErr(
+                    connection,
+                    [approveIx, ix],
+                    [offerAuthorityOne],
+                    "OfferPriceTooHigh"
+                );
             });
 
             it("Cannot Place Initial Offer (Invalid Emitter Chain)", async function () {
@@ -1058,18 +1075,17 @@ describe("Matching Engine", function () {
                 );
 
                 const { maxFee: offerPrice } = baseFastOrder;
+                const [approveIx, ix] = await engine.placeInitialOfferIx(
+                    {
+                        payer: offerAuthorityOne.publicKey,
+                        fastVaa,
+                        fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
+                    },
+                    offerPrice
+                );
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.placeInitialOfferIx(
-                            {
-                                payer: offerAuthorityOne.publicKey,
-                                fastVaa,
-                                fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
-                            },
-                            offerPrice
-                        ),
-                    ],
+                    [approveIx, ix],
                     [offerAuthorityOne],
                     "ErrInvalidSourceRouter"
                 );
@@ -1086,17 +1102,16 @@ describe("Matching Engine", function () {
                 );
 
                 const { maxFee: offerPrice } = baseFastOrder;
+                const [approveIx, ix] = await engine.placeInitialOfferIx(
+                    {
+                        payer: offerAuthorityOne.publicKey,
+                        fastVaa,
+                    },
+                    offerPrice
+                );
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.placeInitialOfferIx(
-                            {
-                                payer: offerAuthorityOne.publicKey,
-                                fastVaa,
-                            },
-                            offerPrice
-                        ),
-                    ],
+                    [approveIx, ix],
                     [offerAuthorityOne],
                     "ErrInvalidSourceRouter"
                 );
@@ -1117,18 +1132,17 @@ describe("Matching Engine", function () {
                 );
 
                 const { maxFee: offerPrice } = fastMarketOrder;
+                const [approveIx, ix] = await engine.placeInitialOfferIx(
+                    {
+                        payer: offerAuthorityOne.publicKey,
+                        fastVaa,
+                        toRouterEndpoint: engine.routerEndpointAddress(arbChain),
+                    },
+                    offerPrice
+                );
                 await expectIxErr(
                     connection,
-                    [
-                        await engine.placeInitialOfferIx(
-                            {
-                                payer: offerAuthorityOne.publicKey,
-                                fastVaa,
-                                toRouterEndpoint: engine.routerEndpointAddress(arbChain),
-                            },
-                            offerPrice
-                        ),
-                    ],
+                    [approveIx, ix],
                     [offerAuthorityOne],
                     "ErrInvalidTargetRouter"
                 );
@@ -1144,13 +1158,8 @@ describe("Matching Engine", function () {
                     new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder })
                 );
 
-                const approveIx = await engine.approveCustodianIx(
-                    offerAuthorityOne.publicKey,
-                    baseFastOrder.amountIn + baseFastOrder.maxFee
-                );
-
                 const { maxFee: offerPrice } = baseFastOrder;
-                const ix = await engine.placeInitialOfferIx(
+                const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
                         payer: offerAuthorityOne.publicKey,
                         fastVaa,
@@ -1275,16 +1284,8 @@ describe("Matching Engine", function () {
                     );
                     const { amount: custodyBalanceBefore } =
                         await engine.fetchCustodyTokenAccount();
-                    const totalDeposit = auctionDataBefore.info!.amountIn.add(
-                        auctionDataBefore.info!.securityDeposit
-                    );
 
-                    const approveIx = await engine.approveCustodianIx(
-                        offerAuthorityTwo.publicKey,
-                        totalDeposit.toNumber()
-                    );
-
-                    const ix = await engine.improveOfferIx(
+                    const [approveIx, ix] = await engine.improveOfferIx(
                         {
                             auction,
                             offerAuthority: offerAuthorityTwo.publicKey,
@@ -1324,16 +1325,8 @@ describe("Matching Engine", function () {
 
                 // New Offer from offerAuthorityOne.
                 const newOffer = BigInt(auctionDataBefore.info!.offerPrice.subn(100).toString());
-                const totalDeposit = auctionDataBefore.info!.amountIn.add(
-                    auctionDataBefore.info!.securityDeposit
-                );
 
-                const approveIx = await engine.approveCustodianIx(
-                    offerAuthorityOne.publicKey,
-                    totalDeposit.toNumber()
-                );
-
-                const ix = await engine.improveOfferIx(
+                const [approveIx, ix] = await engine.improveOfferIx(
                     {
                         auction,
                         offerAuthority: offerAuthorityOne.publicKey,
@@ -1373,7 +1366,7 @@ describe("Matching Engine", function () {
                 // New Offer from offerAuthorityOne.
                 const newOffer = BigInt(offerPrice.subn(100).toString());
 
-                const ix = await engine.improveOfferIx(
+                const [approveIx, ix] = await engine.improveOfferIx(
                     {
                         auction,
                         offerAuthority: offerAuthorityOne.publicKey,
@@ -1383,7 +1376,7 @@ describe("Matching Engine", function () {
 
                 await expectIxErr(
                     connection,
-                    [ix],
+                    [approveIx, ix],
                     [offerAuthorityOne],
                     "Error Code: AuctionPeriodExpired"
                 );
@@ -1400,7 +1393,7 @@ describe("Matching Engine", function () {
                 // New Offer from offerAuthorityOne.
                 const newOffer = BigInt(auctionDataBefore.info!.offerPrice.subn(100).toString());
 
-                const ix = await engine.improveOfferIx(
+                const [approveIx, ix] = await engine.improveOfferIx(
                     {
                         auction,
                         offerAuthority: offerAuthorityOne.publicKey,
@@ -1410,7 +1403,7 @@ describe("Matching Engine", function () {
                 );
                 await expectIxErr(
                     connection,
-                    [ix],
+                    [approveIx, ix],
                     [offerAuthorityOne],
                     "Error Code: BestOfferTokenMismatch"
                 );
@@ -1425,7 +1418,7 @@ describe("Matching Engine", function () {
                 );
 
                 const newOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
-                const ix = await engine.improveOfferIx(
+                const [approveIx, ix] = await engine.improveOfferIx(
                     {
                         auction,
                         offerAuthority: offerAuthorityTwo.publicKey,
@@ -1435,7 +1428,7 @@ describe("Matching Engine", function () {
 
                 await expectIxErr(
                     connection,
-                    [ix],
+                    [approveIx, ix],
                     [offerAuthorityTwo],
                     "Error Code: OfferPriceNotImproved"
                 );
@@ -1593,7 +1586,7 @@ describe("Matching Engine", function () {
                 const auction = localVariables.get("auction") as PublicKey;
                 expect(localVariables.delete("auction")).is.true;
 
-                const ix = await engine.improveOfferIx(
+                const [approveIx, ix] = await engine.improveOfferIx(
                     {
                         offerAuthority: offerAuthorityOne.publicKey,
                         auction,
@@ -1603,7 +1596,7 @@ describe("Matching Engine", function () {
 
                 await expectIxErr(
                     connection,
-                    [ix],
+                    [approveIx, ix],
                     [offerAuthorityOne],
                     "Error Code: AuctionNotActive"
                 );
@@ -2601,12 +2594,7 @@ describe("Matching Engine", function () {
                 const auction = engine.auctionAddress(fastVaaHash);
 
                 if (initAuction) {
-                    const approveIx = await engine.approveCustodianIx(
-                        offerAuthorityOne.publicKey,
-                        fastMessage.fastMarketOrder!.amountIn + fastMessage.fastMarketOrder!.maxFee
-                    );
-
-                    const ix = await engine.placeInitialOfferIx(
+                    const [approveIx, ix] = await engine.placeInitialOfferIx(
                         {
                             payer: offerAuthorityOne.publicKey,
                             fastVaa,
@@ -2683,13 +2671,8 @@ describe("Matching Engine", function () {
             chainName
         );
 
-        const approveIx = await engine.approveCustodianIx(
-            offerAuthority.publicKey,
-            fastMarketOrder.amountIn + fastMarketOrder.maxFee
-        );
-
         // Place the initial offer.
-        const ix = await engine.placeInitialOfferIx(
+        const [approveIx, ix] = await engine.placeInitialOfferIx(
             {
                 payer: offerAuthority.publicKey,
                 fastVaa,
@@ -2716,14 +2699,8 @@ describe("Matching Engine", function () {
     ) {
         const auctionData = await engine.fetchAuction({ address: auction });
         const newOffer = BigInt(auctionData.info!.offerPrice.subn(improveBy).toString());
-        const totalDeposit = auctionData.info!.amountIn.add(auctionData.info!.securityDeposit);
 
-        const approveIx = await engine.approveCustodianIx(
-            offerAuthority.publicKey,
-            totalDeposit.toNumber()
-        );
-
-        const improveIx = await engine.improveOfferIx(
+        const [approveIx, improveIx] = await engine.improveOfferIx(
             {
                 auction,
                 offerAuthority: offerAuthority.publicKey,

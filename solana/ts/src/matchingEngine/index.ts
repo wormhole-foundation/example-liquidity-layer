@@ -505,9 +505,10 @@ export class MatchingEngineProgram {
             auctionConfig?: PublicKey;
             fromRouterEndpoint?: PublicKey;
             toRouterEndpoint?: PublicKey;
+            totalDeposit?: bigint;
         },
         feeOffer: bigint
-    ): Promise<TransactionInstruction> {
+    ): Promise<[approveIx: TransactionInstruction, placeInitialOfferIx: TransactionInstruction]> {
         const {
             payer,
             fastVaa,
@@ -516,6 +517,7 @@ export class MatchingEngineProgram {
             auctionConfig: inputAuctionConfig,
             fromRouterEndpoint: inputFromRouterEndpoint,
             toRouterEndpoint: inputToRouterEndpoint,
+            totalDeposit: inputTotalDeposit,
         } = accounts;
 
         const custodyToken = this.custodyTokenAccountAddress();
@@ -528,11 +530,12 @@ export class MatchingEngineProgram {
             }
         })();
 
-        const { auction, fromRouterEndpoint, toRouterEndpoint } = await (async () => {
+        const { auction, fromRouterEndpoint, toRouterEndpoint, totalDeposit } = await (async () => {
             if (
                 inputAuction === undefined ||
                 inputFromRouterEndpoint === undefined ||
-                inputToRouterEndpoint === undefined
+                inputToRouterEndpoint === undefined ||
+                inputTotalDeposit === undefined
             ) {
                 const vaaAccount = await VaaAccount.fetch(
                     this.program.provider.connection,
@@ -551,12 +554,14 @@ export class MatchingEngineProgram {
                     toRouterEndpoint:
                         inputToRouterEndpoint ??
                         this.routerEndpointAddress(fastMarketOrder.targetChain),
+                    totalDeposit: fastMarketOrder.amountIn + fastMarketOrder.maxFee,
                 };
             } else {
                 return {
                     auction: inputAuction,
                     fromRouterEndpoint: inputFromRouterEndpoint,
                     toRouterEndpoint: inputToRouterEndpoint,
+                    totalDeposit: inputTotalDeposit,
                 };
             }
         })();
@@ -570,7 +575,8 @@ export class MatchingEngineProgram {
             }
         })();
 
-        return this.program.methods
+        const approveIx = await this.approveCustodianIx(payer, totalDeposit);
+        const placeInitialOfferIx = await this.program.methods
             .placeInitialOffer(new BN(feeOffer.toString()))
             .accounts({
                 payer,
@@ -584,6 +590,8 @@ export class MatchingEngineProgram {
                 fastVaa,
             })
             .instruction();
+
+        return [approveIx, placeInitialOfferIx];
     }
 
     async improveOfferIx(
@@ -594,7 +602,7 @@ export class MatchingEngineProgram {
             bestOfferToken?: PublicKey;
         },
         feeOffer: bigint
-    ) {
+    ): Promise<[approveIx: TransactionInstruction, improveOfferIx: TransactionInstruction]> {
         const {
             offerAuthority,
             auction,
@@ -602,13 +610,12 @@ export class MatchingEngineProgram {
             bestOfferToken: inputBestOfferToken,
         } = accounts;
 
+        const { info } = await this.fetchAuction({ address: auction });
+        if (info === null) {
+            throw new Error("no auction info found");
+        }
         const { auctionConfig, bestOfferToken } = await (async () => {
             if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
-                const { info } = await this.fetchAuction({ address: auction });
-                if (info === null) {
-                    throw new Error("no auction info found");
-                }
-
                 return {
                     auctionConfig: inputAuctionConfig ?? this.auctionConfigAddress(info.configId),
                     bestOfferToken: inputBestOfferToken ?? info.bestOfferToken,
@@ -621,7 +628,11 @@ export class MatchingEngineProgram {
             }
         })();
 
-        return this.program.methods
+        const approveIx = await this.approveCustodianIx(
+            offerAuthority,
+            info.amountIn.add(info.securityDeposit).toNumber()
+        );
+        const improveOfferIx = await this.program.methods
             .improveOffer(new BN(feeOffer.toString()))
             .accounts({
                 offerAuthority,
@@ -633,6 +644,8 @@ export class MatchingEngineProgram {
                 custodyToken: this.custodyTokenAccountAddress(),
             })
             .instruction();
+
+        return [approveIx, improveOfferIx];
     }
 
     async prepareOrderResponseCctpIx(
