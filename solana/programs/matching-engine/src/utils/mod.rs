@@ -5,9 +5,7 @@ use crate::{
     state::{Auction, AuctionConfig, AuctionStatus, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
-use common::{
-    messages::raw::FastMarketOrder, wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount,
-};
+use common::wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
 
 pub fn require_valid_router_path(
     vaa: &VaaAccount<'_>,
@@ -68,10 +66,4 @@ pub fn is_valid_active_auction(
         }
         _ => err!(MatchingEngineError::AuctionNotActive),
     }
-}
-
-#[inline]
-pub fn take_order_message(order: FastMarketOrder<'_>) -> Vec<u8> {
-    let msg: &[_] = order.redeemer_message().into();
-    msg.to_vec()
 }

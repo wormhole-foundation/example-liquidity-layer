@@ -59,13 +59,13 @@ describe("Token Router", function () {
                 const unknownAta = splToken.getAssociatedTokenAddressSync(
                     mint,
                     tokenRouter.custodianAddress(),
-                    true
+                    true,
                 );
                 await expectIxErr(
                     connection,
                     [ix],
                     [payer],
-                    `Instruction references an unknown account ${unknownAta.toString()}`
+                    `Instruction references an unknown account ${unknownAta.toString()}`,
                 );
             });
 
@@ -93,13 +93,13 @@ describe("Token Router", function () {
                         payer.publicKey, // owner
                         null, // pendingOwner
                         ownerAssistant.publicKey,
-                        payer.publicKey // pausedSetBy
-                    )
+                        payer.publicKey, // pausedSetBy
+                    ),
                 );
 
                 const { amount } = await splToken.getAccount(
                     connection,
-                    tokenRouter.custodyTokenAccountAddress()
+                    tokenRouter.custodyTokenAccountAddress(),
                 );
                 expect(amount).to.equal(0n);
             });
@@ -116,7 +116,7 @@ describe("Token Router", function () {
                     [payer],
                     `Allocate: account Address { address: ${tokenRouter
                         .custodianAddress()
-                        .toString()}, base: None } already in use`
+                        .toString()}, base: None } already in use`,
                 );
             });
 
@@ -127,7 +127,7 @@ describe("Token Router", function () {
                         authority: payer.publicKey,
                         payer: payer.publicKey,
                         recentSlot: slot,
-                    })
+                    }),
                 );
 
                 await expectIxOk(connection, [createIx], [payer]);
@@ -169,7 +169,7 @@ describe("Token Router", function () {
                             lamports: 1000000000,
                         }),
                     ],
-                    [payer]
+                    [payer],
                 );
             });
         });
@@ -232,7 +232,7 @@ describe("Token Router", function () {
                     connection,
                     [ix],
                     [ownerAssistant],
-                    "Error Code: NotPendingOwner"
+                    "Error Code: NotPendingOwner",
                 );
             });
 
@@ -319,7 +319,7 @@ describe("Token Router", function () {
                             newOwnerAssistant: ownerAssistant.publicKey,
                         }),
                     ],
-                    [owner]
+                    [owner],
                 );
             });
         });
@@ -330,7 +330,7 @@ describe("Token Router", function () {
                     {
                         ownerOrAssistant: payer.publicKey,
                     },
-                    true // paused
+                    true, // paused
                 );
 
                 await expectIxErr(connection, [ix], [payer], "Error Code: OwnerOrAssistantOnly");
@@ -342,7 +342,7 @@ describe("Token Router", function () {
                     {
                         ownerOrAssistant: ownerAssistant.publicKey,
                     },
-                    paused
+                    paused,
                 );
 
                 await expectIxOk(connection, [ix], [ownerAssistant]);
@@ -358,7 +358,7 @@ describe("Token Router", function () {
                     {
                         ownerOrAssistant: owner.publicKey,
                     },
-                    paused
+                    paused,
                 );
 
                 await expectIxOk(connection, [ix], [owner]);
@@ -381,7 +381,7 @@ describe("Token Router", function () {
         describe("Preparing Order", function () {
             const payerToken = splToken.getAssociatedTokenAddressSync(
                 USDC_MINT_ADDRESS,
-                payer.publicKey
+                payer.publicKey,
             );
 
             const localVariables = new Map<string, any>();
@@ -421,14 +421,14 @@ describe("Token Router", function () {
                         targetChain,
                         redeemer,
                         redeemerMessage,
-                    }
+                    },
                 );
 
                 const approveIx = splToken.createApproveInstruction(
                     payerToken,
                     tokenRouter.custodianAddress(),
                     payer.publicKey,
-                    amountIn
+                    amountIn,
                 );
 
                 const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
@@ -439,7 +439,7 @@ describe("Token Router", function () {
                 expect(balanceAfter).equals(balanceBefore - amountIn);
 
                 const preparedOrderData = await tokenRouter.fetchPreparedOrder(
-                    preparedOrder.publicKey
+                    preparedOrder.publicKey,
                 );
                 expect(preparedOrderData).to.eql(
                     new PreparedOrder(
@@ -457,8 +457,8 @@ describe("Token Router", function () {
                             targetChain,
                             redeemer,
                         },
-                        redeemerMessage
-                    )
+                        redeemerMessage,
+                    ),
                 );
             });
 
@@ -481,14 +481,14 @@ describe("Token Router", function () {
                         targetChain: foreignChain,
                         redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
                         redeemerMessage: Buffer.from("All your base are belong to us"),
-                    }
+                    },
                 );
 
                 const approveIx = splToken.createApproveInstruction(
                     payerToken,
                     tokenRouter.custodianAddress(),
                     payer.publicKey,
-                    amountIn
+                    amountIn,
                 );
 
                 const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
@@ -524,7 +524,7 @@ describe("Token Router", function () {
                     connection,
                     [ix],
                     [ownerAssistant, orderSender],
-                    "Error Code: PreparedByMismatch"
+                    "Error Code: PreparedByMismatch",
                 );
             });
 
@@ -540,7 +540,7 @@ describe("Token Router", function () {
                     connection,
                     [ix],
                     [payer, ownerAssistant],
-                    "Error Code: OrderSenderMismatch"
+                    "Error Code: OrderSenderMismatch",
                 );
             });
 
@@ -559,7 +559,7 @@ describe("Token Router", function () {
                     connection,
                     [ix],
                     [payer, orderSender],
-                    "Error Code: RefundTokenMismatch"
+                    "Error Code: RefundTokenMismatch",
                 );
             });
 
@@ -590,7 +590,7 @@ describe("Token Router", function () {
         describe("Place Market Order (CCTP)", function () {
             const payerToken = splToken.getAssociatedTokenAddressSync(
                 USDC_MINT_ADDRESS,
-                payer.publicKey
+                payer.publicKey,
             );
             const orderSender = Keypair.generate();
 
@@ -610,7 +610,7 @@ describe("Token Router", function () {
                 await expectIxOk(
                     connection,
                     [approveIx, prepareIx],
-                    [payer, orderSender, preparedOrder]
+                    [payer, orderSender, preparedOrder],
                 );
 
                 // Save for later.
@@ -631,7 +631,7 @@ describe("Token Router", function () {
                 });
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
+                    lookupTableAddress,
                 );
                 await expectIxErr(
                     connection,
@@ -640,7 +640,7 @@ describe("Token Router", function () {
                     "Error Code: AccountNotInitialized",
                     {
                         addressLookupTableAccounts: [lookupTableAccount!],
-                    }
+                    },
                 );
             });
 
@@ -664,7 +664,7 @@ describe("Token Router", function () {
                     connection,
                     [ix],
                     [payer, someoneElse],
-                    "Error Code: OrderSenderMismatch"
+                    "Error Code: OrderSenderMismatch",
                 );
             });
 
@@ -682,11 +682,11 @@ describe("Token Router", function () {
                 const custodyToken = tokenRouter.custodyTokenAccountAddress();
                 const { amount: balanceBefore } = await splToken.getAccount(
                     connection,
-                    custodyToken
+                    custodyToken,
                 );
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
+                    lookupTableAddress,
                 );
                 await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
@@ -695,7 +695,7 @@ describe("Token Router", function () {
                 // Check balance of custody account.
                 const { amount: balanceAfter } = await splToken.getAccount(
                     connection,
-                    custodyToken
+                    custodyToken,
                 );
                 expect(balanceAfter).equals(balanceBefore - amountIn);
 
@@ -707,7 +707,7 @@ describe("Token Router", function () {
                     {
                         ownerOrAssistant: owner.publicKey,
                     },
-                    true // paused
+                    true, // paused
                 );
 
                 await expectIxOk(connection, [ix], [owner]);
@@ -720,7 +720,7 @@ describe("Token Router", function () {
                 await expectIxOk(
                     connection,
                     [approveIx, approveIx, prepareIx],
-                    [payer, orderSender, preparedOrder]
+                    [payer, orderSender, preparedOrder],
                 );
 
                 // Save for later.
@@ -744,7 +744,7 @@ describe("Token Router", function () {
                     {
                         ownerOrAssistant: ownerAssistant.publicKey,
                     },
-                    false // paused
+                    false, // paused
                 );
 
                 await expectIxOk(connection, [ix], [ownerAssistant]);
@@ -764,11 +764,11 @@ describe("Token Router", function () {
                 const custodyToken = tokenRouter.custodyTokenAccountAddress();
                 const { amount: balanceBefore } = await splToken.getAccount(
                     connection,
-                    custodyToken
+                    custodyToken,
                 );
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
+                    lookupTableAddress,
                 );
                 await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
@@ -777,7 +777,7 @@ describe("Token Router", function () {
                 // Check balance.
                 const { amount: balanceAfter } = await splToken.getAccount(
                     connection,
-                    custodyToken
+                    custodyToken,
                 );
                 expect(balanceAfter).equals(balanceBefore - amountIn);
 
@@ -796,13 +796,13 @@ describe("Token Router", function () {
                     },
                     {
                         targetChain: foreignChain,
-                    }
+                    },
                 );
 
                 const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
+                    lookupTableAddress,
                 );
                 await expectIxOk(
                     connection,
@@ -810,7 +810,7 @@ describe("Token Router", function () {
                     [payer, orderSender, preparedOrder],
                     {
                         addressLookupTableAccounts: [lookupTableAccount!],
-                    }
+                    },
                 );
 
                 const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
@@ -839,14 +839,14 @@ describe("Token Router", function () {
                         targetChain: foreignChain,
                         redeemer,
                         redeemerMessage,
-                    }
+                    },
                 );
 
                 const approveIx = splToken.createApproveInstruction(
                     payerToken,
                     tokenRouter.custodianAddress(),
                     payer.publicKey,
-                    amountIn
+                    amountIn,
                 );
 
                 return { preparedOrder, approveIx, prepareIx };
@@ -860,13 +860,13 @@ describe("Token Router", function () {
                 const { preparedOrder, amountIn, burnSource } = args;
 
                 const { value: payerSequenceValue } = await tokenRouter.fetchPayerSequence(
-                    tokenRouter.payerSequenceAddress(payer.publicKey)
+                    tokenRouter.payerSequenceAddress(payer.publicKey),
                 );
                 const {
                     message: { emitterAddress, payload },
                 } = await getPostedMessage(
                     connection,
-                    tokenRouter.coreMessageAddress(payer.publicKey, payerSequenceValue.subn(1))
+                    tokenRouter.coreMessageAddress(payer.publicKey, payerSequenceValue.subn(1)),
                 );
                 expect(emitterAddress).to.eql(tokenRouter.custodianAddress().toBuffer());
 
@@ -904,9 +904,9 @@ describe("Token Router", function () {
                                     redeemer,
                                     redeemerMessage,
                                 },
-                            }
+                            },
                         ),
-                    })
+                    }),
                 );
 
                 const accInfo = await connection.getAccountInfo(preparedOrder);
@@ -916,7 +916,7 @@ describe("Token Router", function () {
 
         describe("Redeem Fill (CCTP)", function () {
             const encodedMintRecipient = Array.from(
-                tokenRouter.custodyTokenAccountAddress().toBuffer()
+                tokenRouter.custodyTokenAccountAddress().toBuffer(),
             );
             const sourceCctpDomain = 0;
             const amount = 69n;
@@ -936,276 +936,7 @@ describe("Token Router", function () {
                         cctpNonce,
                         encodedMintRecipient,
                         amount,
-                        burnSource
-                    );
-
-                const message = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: burnMessage.burnTokenAddress,
-                            amount,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource,
-                            mintRecipient: encodedMintRecipient,
-                        },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 69n,
-                            },
-                        }
-                    ),
-                });
-
-                const vaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    foreignEndpointAddress,
-                    wormholeSequence++,
-                    message,
-                    "polygon"
-                );
-                const ix = await tokenRouter.redeemCctpFillIx(
-                    {
-                        payer: payer.publicKey,
-                        vaa,
-                        routerEndpoint: tokenRouter
-                            .matchingEngineProgram()
-                            .routerEndpointAddress(foreignChain),
-                    },
-                    {
-                        encodedCctpMessage,
-                        cctpAttestation,
-                    }
-                );
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
-                );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidSourceRouter", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
-            });
-
-            it("Cannot Redeem Fill from Invalid Source Router Address", async function () {
-                const cctpNonce = testCctpNonce++;
-
-                // Concoct a Circle message.
-                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                    await craftCctpTokenBurnMessage(
-                        tokenRouter,
-                        sourceCctpDomain,
-                        cctpNonce,
-                        encodedMintRecipient,
-                        amount,
-                        burnSource
-                    );
-
-                const message = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: burnMessage.burnTokenAddress,
-                            amount,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource,
-                            mintRecipient: encodedMintRecipient,
-                        },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 69n,
-                            },
-                        }
-                    ),
-                });
-
-                const vaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    new Array(32).fill(0), // emitter address
-                    wormholeSequence++,
-                    message
-                );
-                const ix = await tokenRouter.redeemCctpFillIx(
-                    {
-                        payer: payer.publicKey,
-                        vaa,
-                    },
-                    {
-                        encodedCctpMessage,
-                        cctpAttestation,
-                    }
-                );
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
-                );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidSourceRouter", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
-            });
-
-            it("Cannot Redeem Fill with Invalid Deposit Message", async function () {
-                const cctpNonce = testCctpNonce++;
-
-                // Concoct a Circle message.
-                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                    await craftCctpTokenBurnMessage(
-                        tokenRouter,
-                        sourceCctpDomain,
-                        cctpNonce,
-                        encodedMintRecipient,
-                        amount,
-                        burnSource
-                    );
-
-                const message = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: burnMessage.burnTokenAddress,
-                            amount,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource,
-                            mintRecipient: encodedMintRecipient,
-                        },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 69n,
-                            },
-                        }
-                    ),
-                });
-
-                // Override the payload ID in the deposit message.
-                const encodedMessage = message.encode();
-                encodedMessage[147] = 69;
-
-                const vaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    foreignEndpointAddress,
-                    wormholeSequence++,
-                    encodedMessage
-                );
-                const ix = await tokenRouter.redeemCctpFillIx(
-                    {
-                        payer: payer.publicKey,
-                        vaa,
-                    },
-                    {
-                        encodedCctpMessage,
-                        cctpAttestation,
-                    }
-                );
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 250_000,
-                });
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
-                );
-                await expectIxErr(
-                    connection,
-                    [computeIx, ix],
-                    [payer],
-                    "Error Code: InvalidDepositMessage",
-                    {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    }
-                );
-            });
-
-            it("Cannot Redeem Fill with Invalid Payload ID", async function () {
-                const cctpNonce = testCctpNonce++;
-
-                // Concoct a Circle message.
-                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                    await craftCctpTokenBurnMessage(
-                        tokenRouter,
-                        sourceCctpDomain,
-                        cctpNonce,
-                        encodedMintRecipient,
-                        amount,
-                        burnSource
-                    );
-
-                const message = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: burnMessage.burnTokenAddress,
-                            amount,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource,
-                            mintRecipient: encodedMintRecipient,
-                        },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 69n,
-                            },
-                        }
-                    ),
-                });
-
-                const vaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    foreignEndpointAddress,
-                    wormholeSequence++,
-                    message
-                );
-                const ix = await tokenRouter.redeemCctpFillIx(
-                    {
-                        payer: payer.publicKey,
-                        vaa,
-                    },
-                    {
-                        encodedCctpMessage,
-                        cctpAttestation,
-                    }
-                );
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
-                );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidPayloadId", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
-            });
-
-            it("Remove Router Endpoint on Matching Engine", async function () {
-                const ix = await tokenRouter.matchingEngineProgram().removeRouterEndpointIx(
-                    {
-                        ownerOrAssistant: ownerAssistant.publicKey,
-                    },
-                    foreignChain
-                );
-
-                await expectIxOk(connection, [ix], [ownerAssistant]);
-            });
-
-            it("Cannot Redeem Fill without Router Endpoint", async function () {
-                const cctpNonce = testCctpNonce++;
-
-                // Concoct a Circle message.
-                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                    await craftCctpTokenBurnMessage(
-                        tokenRouter,
-                        sourceCctpDomain,
-                        cctpNonce,
-                        encodedMintRecipient,
-                        amount,
-                        burnSource
+                        burnSource,
                     );
 
                 const message = new LiquidityLayerMessage({
@@ -1226,7 +957,7 @@ describe("Token Router", function () {
                                 redeemer: Array.from(redeemer.publicKey.toBuffer()),
                                 redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                             },
-                        }
+                        },
                     ),
                 });
 
@@ -1236,7 +967,74 @@ describe("Token Router", function () {
                     MOCK_GUARDIANS,
                     foreignEndpointAddress,
                     wormholeSequence++,
-                    message
+                    message,
+                    "polygon",
+                );
+                const ix = await tokenRouter.redeemCctpFillIx(
+                    {
+                        payer: payer.publicKey,
+                        vaa,
+                        routerEndpoint: tokenRouter
+                            .matchingEngineProgram()
+                            .routerEndpointAddress(foreignChain),
+                    },
+                    {
+                        encodedCctpMessage,
+                        cctpAttestation,
+                    },
+                );
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidSourceRouter", {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
+            });
+
+            it("Cannot Redeem Fill from Invalid Source Router Address", async function () {
+                const cctpNonce = testCctpNonce++;
+
+                // Concoct a Circle message.
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(
+                        tokenRouter,
+                        sourceCctpDomain,
+                        cctpNonce,
+                        encodedMintRecipient,
+                        amount,
+                        burnSource,
+                    );
+
+                const message = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit(
+                        {
+                            tokenAddress: burnMessage.burnTokenAddress,
+                            amount,
+                            sourceCctpDomain,
+                            destinationCctpDomain,
+                            cctpNonce,
+                            burnSource,
+                            mintRecipient: encodedMintRecipient,
+                        },
+                        {
+                            fill: {
+                                sourceChain: foreignChain,
+                                orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
+                                redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                            },
+                        },
+                    ),
+                });
+
+                const vaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    new Array(32).fill(0), // emitter address
+                    wormholeSequence++,
+                    message,
                 );
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
@@ -1246,11 +1044,219 @@ describe("Token Router", function () {
                     {
                         encodedCctpMessage,
                         cctpAttestation,
-                    }
+                    },
                 );
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
+                    lookupTableAddress,
+                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidSourceRouter", {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
+            });
+
+            it("Cannot Redeem Fill with Invalid Deposit Message", async function () {
+                const cctpNonce = testCctpNonce++;
+
+                // Concoct a Circle message.
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(
+                        tokenRouter,
+                        sourceCctpDomain,
+                        cctpNonce,
+                        encodedMintRecipient,
+                        amount,
+                        burnSource,
+                    );
+
+                const message = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit(
+                        {
+                            tokenAddress: burnMessage.burnTokenAddress,
+                            amount,
+                            sourceCctpDomain,
+                            destinationCctpDomain,
+                            cctpNonce,
+                            burnSource,
+                            mintRecipient: encodedMintRecipient,
+                        },
+                        {
+                            slowOrderResponse: {
+                                baseFee: 69n,
+                            },
+                        },
+                    ),
+                });
+
+                // Override the payload ID in the deposit message.
+                const encodedMessage = message.encode();
+                encodedMessage[147] = 69;
+
+                const vaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    foreignEndpointAddress,
+                    wormholeSequence++,
+                    encodedMessage,
+                );
+                const ix = await tokenRouter.redeemCctpFillIx(
+                    {
+                        payer: payer.publicKey,
+                        vaa,
+                    },
+                    {
+                        encodedCctpMessage,
+                        cctpAttestation,
+                    },
+                );
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 250_000,
+                });
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                await expectIxErr(
+                    connection,
+                    [computeIx, ix],
+                    [payer],
+                    "Error Code: InvalidDepositMessage",
+                    {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    },
+                );
+            });
+
+            it("Cannot Redeem Fill with Invalid Payload ID", async function () {
+                const cctpNonce = testCctpNonce++;
+
+                // Concoct a Circle message.
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(
+                        tokenRouter,
+                        sourceCctpDomain,
+                        cctpNonce,
+                        encodedMintRecipient,
+                        amount,
+                        burnSource,
+                    );
+
+                const message = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit(
+                        {
+                            tokenAddress: burnMessage.burnTokenAddress,
+                            amount,
+                            sourceCctpDomain,
+                            destinationCctpDomain,
+                            cctpNonce,
+                            burnSource,
+                            mintRecipient: encodedMintRecipient,
+                        },
+                        {
+                            slowOrderResponse: {
+                                baseFee: 69n,
+                            },
+                        },
+                    ),
+                });
+
+                const vaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    foreignEndpointAddress,
+                    wormholeSequence++,
+                    message,
+                );
+                const ix = await tokenRouter.redeemCctpFillIx(
+                    {
+                        payer: payer.publicKey,
+                        vaa,
+                    },
+                    {
+                        encodedCctpMessage,
+                        cctpAttestation,
+                    },
+                );
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidPayloadId", {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
+            });
+
+            it("Remove Router Endpoint on Matching Engine", async function () {
+                const ix = await tokenRouter.matchingEngineProgram().removeRouterEndpointIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    foreignChain,
+                );
+
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+            });
+
+            it("Cannot Redeem Fill without Router Endpoint", async function () {
+                const cctpNonce = testCctpNonce++;
+
+                // Concoct a Circle message.
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(
+                        tokenRouter,
+                        sourceCctpDomain,
+                        cctpNonce,
+                        encodedMintRecipient,
+                        amount,
+                        burnSource,
+                    );
+
+                const message = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit(
+                        {
+                            tokenAddress: burnMessage.burnTokenAddress,
+                            amount,
+                            sourceCctpDomain,
+                            destinationCctpDomain,
+                            cctpNonce,
+                            burnSource,
+                            mintRecipient: encodedMintRecipient,
+                        },
+                        {
+                            fill: {
+                                sourceChain: foreignChain,
+                                orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
+                                redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                            },
+                        },
+                    ),
+                });
+
+                const vaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    foreignEndpointAddress,
+                    wormholeSequence++,
+                    message,
+                );
+                const ix = await tokenRouter.redeemCctpFillIx(
+                    {
+                        payer: payer.publicKey,
+                        vaa,
+                    },
+                    {
+                        encodedCctpMessage,
+                        cctpAttestation,
+                    },
+                );
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
                 );
                 await expectIxErr(connection, [ix], [payer], "Error Code: AccountNotInitialized", {
                     addressLookupTableAccounts: [lookupTableAccount!],
@@ -1271,7 +1277,7 @@ describe("Token Router", function () {
                         address: foreignEndpointAddress,
                         cctpDomain: foreignCctpDomain,
                         mintRecipient: null,
-                    }
+                    },
                 );
 
                 await expectIxOk(connection, [ix], [ownerAssistant]);
@@ -1289,7 +1295,7 @@ describe("Token Router", function () {
                         payer: payer.publicKey,
                         vaa,
                     },
-                    args
+                    args,
                 );
 
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
@@ -1299,11 +1305,11 @@ describe("Token Router", function () {
                 const custodyToken = tokenRouter.custodyTokenAccountAddress();
                 const { amount: balanceBefore } = await splToken.getAccount(
                     connection,
-                    custodyToken
+                    custodyToken,
                 );
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
+                    lookupTableAddress,
                 );
                 await expectIxOk(connection, [computeIx, ix], [payer], {
                     addressLookupTableAccounts: [lookupTableAccount!],
@@ -1312,7 +1318,7 @@ describe("Token Router", function () {
                 // Check balance.
                 const { amount: balanceAfter } = await splToken.getAccount(
                     connection,
-                    custodyToken
+                    custodyToken,
                 );
                 expect(balanceAfter).equals(balanceBefore + amount);
 
@@ -1334,11 +1340,11 @@ describe("Token Router", function () {
                         payer: payer.publicKey,
                         vaa,
                     },
-                    args
+                    args,
                 );
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress
+                    lookupTableAddress,
                 );
                 await expectIxOk(connection, [ix], [payer], {
                     addressLookupTableAccounts: [lookupTableAccount!],
@@ -1367,7 +1373,7 @@ describe("Token Router", function () {
 
             async function redeemFillCctp() {
                 const encodedMintRecipient = Array.from(
-                    tokenRouter.custodyTokenAccountAddress().toBuffer()
+                    tokenRouter.custodyTokenAccountAddress().toBuffer(),
                 );
                 const sourceCctpDomain = 0;
                 const cctpNonce = testCctpNonce++;
@@ -1382,7 +1388,7 @@ describe("Token Router", function () {
                         cctpNonce,
                         encodedMintRecipient,
                         amount,
-                        burnSource
+                        burnSource,
                     );
 
                 const message = new LiquidityLayerMessage({
@@ -1403,7 +1409,7 @@ describe("Token Router", function () {
                                 redeemer: Array.from(redeemer.publicKey.toBuffer()),
                                 redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                             },
-                        }
+                        },
                     ),
                 });
 
@@ -1413,7 +1419,7 @@ describe("Token Router", function () {
                     MOCK_GUARDIANS,
                     foreignEndpointAddress,
                     wormholeSequence++,
-                    message
+                    message,
                 );
                 const redeemIx = await tokenRouter.redeemCctpFillIx(
                     {
@@ -1423,7 +1429,7 @@ describe("Token Router", function () {
                     {
                         encodedCctpMessage,
                         cctpAttestation,
-                    }
+                    },
                 );
 
                 return { amount, message, vaa, redeemIx };
@@ -1439,20 +1445,20 @@ async function craftCctpTokenBurnMessage(
     encodedMintRecipient: number[],
     amount: bigint,
     burnSource: number[],
-    overrides: { destinationCctpDomain?: number } = {}
+    overrides: { destinationCctpDomain?: number } = {},
 ) {
     const { destinationCctpDomain: inputDestinationCctpDomain } = overrides;
 
     const messageTransmitterProgram = tokenRouter.messageTransmitterProgram();
     const { version, localDomain } = await messageTransmitterProgram.fetchMessageTransmitterConfig(
-        messageTransmitterProgram.messageTransmitterConfigAddress()
+        messageTransmitterProgram.messageTransmitterConfigAddress(),
     );
     const destinationCctpDomain = inputDestinationCctpDomain ?? localDomain;
 
     const tokenMessengerMinterProgram = tokenRouter.tokenMessengerMinterProgram();
     const { tokenMessenger: sourceTokenMessenger } =
         await tokenMessengerMinterProgram.fetchRemoteTokenMessenger(
-            tokenMessengerMinterProgram.remoteTokenMessengerAddress(sourceCctpDomain)
+            tokenMessengerMinterProgram.remoteTokenMessengerAddress(sourceCctpDomain),
         );
 
     const burnMessage = new CctpTokenBurnMessage(
@@ -1469,7 +1475,7 @@ async function craftCctpTokenBurnMessage(
         Array.from(wormholeSdk.tryNativeToUint8Array(ETHEREUM_USDC_ADDRESS, "ethereum")), // sourceTokenAddress
         encodedMintRecipient,
         amount,
-        burnSource
+        burnSource,
     );
 
     const encodedCctpMessage = burnMessage.encode();

@@ -11,7 +11,10 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
-    messages::{raw::LiquidityLayerMessage, Fill},
+    messages::{
+        raw::{LiquidityLayerMessage, MessageToVec},
+        Fill,
+    },
     wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount,
 };
 
@@ -126,7 +129,7 @@ fn settle_active_and_prepare_fill(
             source_chain: prepared_order_response.source_chain,
             order_sender: order.sender(),
             redeemer: order.redeemer(),
-            redeemer_message: utils::take_order_message(order).into(),
+            redeemer_message: order.message_to_vec().into(),
         },
     })
 }

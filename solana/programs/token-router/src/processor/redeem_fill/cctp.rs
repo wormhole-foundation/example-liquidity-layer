@@ -2,10 +2,10 @@ use crate::{
     error::TokenRouterError,
     state::{Custodian, FillType, PreparedFill},
 };
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, system_program};
 use anchor_spl::token;
 use common::{
-    messages::raw::LiquidityLayerDepositMessage,
+    messages::raw::{LiquidityLayerDepositMessage, LiquidityLayerMessage, MessageToVec},
     wormhole_cctp_solana::{
         self,
         cctp::{message_transmitter_program, token_messenger_minter_program},
@@ -37,7 +37,7 @@ pub struct RedeemCctpFill<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        space = 8 + PreparedFill::INIT_SPACE,
+        space = compute_prepared_fill_size(&vaa)?,
         seeds = [
             PreparedFill::SEED_PREFIX,
             VaaAccount::load(&vaa)?.try_digest()?.as_ref(),
@@ -201,9 +201,29 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
     let amount = u64::try_from(ruint::aliases::U256::from_be_bytes(deposit.amount())).unwrap();
 
     // Verify as Liquiditiy Layer Deposit message.
-    let msg = LiquidityLayerDepositMessage::try_from(deposit.payload())
-        .map_err(|_| TokenRouterError::InvalidDepositMessage)?;
-    let fill = msg.fill().ok_or(TokenRouterError::InvalidPayloadId)?;
+    let fill = LiquidityLayerDepositMessage::try_from(deposit.payload())
+        .unwrap()
+        .to_fill_unchecked();
+
+    {
+        let data_len = PreparedFill::compute_size(fill.redeemer_message_len().try_into().unwrap());
+        let acc_info: &AccountInfo = ctx.accounts.prepared_fill.as_ref();
+        let lamport_diff = Rent::get().map(|rent| {
+            rent.minimum_balance(data_len)
+                .saturating_sub(acc_info.lamports())
+        })?;
+        system_program::transfer(
+            CpiContext::new(
+                ctx.accounts.system_program.to_account_info(),
+                system_program::Transfer {
+                    from: ctx.accounts.payer.to_account_info(),
+                    to: ctx.accounts.prepared_fill.to_account_info(),
+                },
+            ),
+            lamport_diff,
+        )?;
+        acc_info.realloc(data_len, false)?;
+    }
 
     // Set prepared fill data.
     ctx.accounts.prepared_fill.set_inner(PreparedFill {
@@ -212,11 +232,28 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
         redeemer: Pubkey::from(fill.redeemer()),
         prepared_by: ctx.accounts.payer.key(),
         fill_type: FillType::WormholeCctpDeposit,
+        amount,
         source_chain: fill.source_chain(),
         order_sender: fill.order_sender(),
-        amount,
+        redeemer_message: fill.message_to_vec(),
     });
 
     // Done.
     Ok(())
+}
+
+fn compute_prepared_fill_size(vaa_acc_info: &AccountInfo<'_>) -> Result<usize> {
+    let vaa = VaaAccount::load(vaa_acc_info)?;
+    let msg = LiquidityLayerMessage::try_from(vaa.try_payload()?)
+        .map_err(|_| TokenRouterError::InvalidVaa)?;
+
+    let deposit = msg.deposit().ok_or(TokenRouterError::InvalidPayloadId)?;
+    let msg = LiquidityLayerDepositMessage::try_from(deposit.payload())
+        .map_err(|_| TokenRouterError::InvalidDepositMessage)?;
+    let fill = msg.fill().ok_or(TokenRouterError::InvalidPayloadId)?;
+    Ok(fill
+        .redeemer_message_len()
+        .try_into()
+        .map(PreparedFill::compute_size)
+        .unwrap())
 }

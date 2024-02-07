@@ -77,6 +77,9 @@ pub enum TokenRouterError {
     #[msg("InvalidSourceRouter")]
     InvalidSourceRouter = 0x200,
 
+    #[msg("InvalidVaa")]
+    InvalidVaa = 0x201,
+
     #[msg("InvalidDepositMessage")]
     InvalidDepositMessage = 0x202,
 

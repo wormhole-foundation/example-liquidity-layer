@@ -2,10 +2,10 @@ use crate::{
     error::TokenRouterError,
     state::{Custodian, FillType, PreparedFill},
 };
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, system_program};
 use anchor_spl::token;
 use common::{
-    messages::raw::LiquidityLayerMessage,
+    messages::raw::{LiquidityLayerMessage, MessageToVec},
     wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount},
 };
 
@@ -32,7 +32,7 @@ pub struct RedeemFastFill<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        space = 8 + PreparedFill::INIT_SPACE,
+        space = compute_prepared_fill_size(&vaa)?,
         seeds = [
             PreparedFill::SEED_PREFIX,
             VaaAccount::load(&vaa)?.try_digest()?.as_ref(),
@@ -114,6 +114,26 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
 
     let fill = fast_fill.fill();
 
+    {
+        let data_len = PreparedFill::compute_size(fill.redeemer_message_len().try_into().unwrap());
+        let acc_info: &AccountInfo = ctx.accounts.prepared_fill.as_ref();
+        let lamport_diff = Rent::get().map(|rent| {
+            rent.minimum_balance(data_len)
+                .saturating_sub(acc_info.lamports())
+        })?;
+        system_program::transfer(
+            CpiContext::new(
+                ctx.accounts.system_program.to_account_info(),
+                system_program::Transfer {
+                    from: ctx.accounts.payer.to_account_info(),
+                    to: ctx.accounts.prepared_fill.to_account_info(),
+                },
+            ),
+            lamport_diff,
+        )?;
+        acc_info.realloc(data_len, false)?;
+    }
+
     // Set prepared fill data.
     ctx.accounts.prepared_fill.set_inner(PreparedFill {
         vaa_hash: vaa.try_digest().unwrap().0,
@@ -121,11 +141,26 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
         redeemer: Pubkey::from(fill.redeemer()),
         prepared_by: ctx.accounts.payer.key(),
         fill_type: FillType::FastFill,
+        amount: fast_fill.amount(),
         source_chain: fill.source_chain(),
         order_sender: fill.order_sender(),
-        amount: fast_fill.amount(),
+        redeemer_message: fill.message_to_vec(),
     });
 
     // Done.
     Ok(())
+}
+
+fn compute_prepared_fill_size(vaa_acc_info: &AccountInfo<'_>) -> Result<usize> {
+    let vaa = VaaAccount::load(vaa_acc_info)?;
+    let msg = LiquidityLayerMessage::try_from(vaa.try_payload().unwrap())
+        .map_err(|_| TokenRouterError::InvalidVaa)?;
+
+    let fast_fill = msg.fast_fill().ok_or(TokenRouterError::InvalidPayloadId)?;
+    Ok(fast_fill
+        .fill()
+        .redeemer_message_len()
+        .try_into()
+        .map(PreparedFill::compute_size)
+        .unwrap())
 }

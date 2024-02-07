@@ -32,18 +32,18 @@ describe("Matching Engine <> Token Router", function () {
     const matchingEngine = new matchingEngineSdk.MatchingEngineProgram(
         connection,
         matchingEngineSdk.localnet(),
-        USDC_MINT_ADDRESS
+        USDC_MINT_ADDRESS,
     );
     const tokenRouter = new tokenRouterSdk.TokenRouterProgram(
         connection,
         tokenRouterSdk.localnet(),
-        matchingEngine.mint
+        matchingEngine.mint,
     );
 
     describe("Redeem Fast Fill", function () {
         const payerToken = splToken.getAssociatedTokenAddressSync(
             USDC_MINT_ADDRESS,
-            payer.publicKey
+            payer.publicKey,
         );
 
         const orderSender = Array.from(Buffer.alloc(32, "d00d", "hex"));
@@ -55,13 +55,14 @@ describe("Matching Engine <> Token Router", function () {
 
         it("Token Router ..... Cannot Redeem Fast Fill without Local Router Endpoint", async function () {
             const amount = 69n;
+            const redeemerMessage = Buffer.from("Somebody set up us the bomb");
             const message = new LiquidityLayerMessage({
                 fastFill: {
                     fill: {
                         sourceChain: foreignChain,
                         orderSender,
                         redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                        redeemerMessage,
                     },
                     amount,
                 },
@@ -74,7 +75,7 @@ describe("Matching Engine <> Token Router", function () {
                 Array.from(matchingEngine.custodianAddress().toBuffer()),
                 wormholeSequence++,
                 message,
-                "solana"
+                "solana",
             );
 
             const ix = await tokenRouter.redeemFastFillIx({
@@ -87,6 +88,7 @@ describe("Matching Engine <> Token Router", function () {
             // Save for later.
             localVariables.set("vaa", vaa);
             localVariables.set("amount", amount);
+            localVariables.set("redeemerMessage", redeemerMessage);
         });
 
         it("Matching Engine .. Add Local Router Endpoint using Token Router Program", async function () {
@@ -97,7 +99,7 @@ describe("Matching Engine <> Token Router", function () {
             await expectIxOk(connection, [ix], [ownerAssistant]);
 
             const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
-                wormholeSdk.CHAIN_ID_SOLANA
+                wormholeSdk.CHAIN_ID_SOLANA,
             );
             const { bump } = routerEndpointData;
             expect(routerEndpointData).to.eql(
@@ -106,14 +108,15 @@ describe("Matching Engine <> Token Router", function () {
                     wormholeSdk.CHAIN_ID_SOLANA,
                     Array.from(tokenRouter.custodianAddress().toBuffer()),
                     Array.from(tokenRouter.custodyTokenAccountAddress().toBuffer()),
-                    { local: { programId: tokenRouter.ID } }
-                )
+                    { local: { programId: tokenRouter.ID } },
+                ),
             );
         });
 
         it("Token Router ..... Redeem Fast Fill", async function () {
             const vaa = localVariables.get("vaa") as PublicKey;
             const amount = localVariables.get("amount") as bigint;
+            const redeemerMessage = localVariables.get("redeemerMessage") as Buffer;
 
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
@@ -146,8 +149,8 @@ describe("Matching Engine <> Token Router", function () {
                     new matchingEngineSdk.RedeemedFastFill(
                         bump,
                         Array.from(vaaHash),
-                        new BN(new BN(wormholeSequence.toString()).subn(1).toBuffer("be", 8))
-                    )
+                        new BN(new BN(wormholeSequence.toString()).subn(1).toBuffer("be", 8)),
+                    ),
                 );
             }
 
@@ -161,10 +164,11 @@ describe("Matching Engine <> Token Router", function () {
                         redeemer.publicKey,
                         payer.publicKey,
                         { fastFill: {} },
+                        bigintToU64BN(amount),
                         foreignChain,
                         orderSender,
-                        bigintToU64BN(amount)
-                    )
+                        redeemerMessage,
+                    ),
                 );
             }
 
@@ -191,6 +195,9 @@ describe("Matching Engine <> Token Router", function () {
             const amount = localVariables.get("amount") as bigint;
             expect(localVariables.delete("amount")).is.true;
 
+            const redeemerMessage = localVariables.get("redeemerMessage") as Buffer;
+            expect(localVariables.delete("redeemerMessage")).is.true;
+
             const rentRecipient = Keypair.generate().publicKey;
             const ix = await tokenRouter.consumePreparedFillIx({
                 preparedFill,
@@ -209,7 +216,9 @@ describe("Matching Engine <> Token Router", function () {
             expect(balanceAfter).equals(balanceBefore + amount);
 
             const solBalanceAfter = await connection.getBalance(rentRecipient);
-            const preparedFillRent = await connection.getMinimumBalanceForRentExemption(148);
+            const preparedFillRent = await connection.getMinimumBalanceForRentExemption(
+                152 + redeemerMessage.length,
+            );
             expect(solBalanceAfter).equals(solBalanceBefore + preparedFillRent);
 
             const accInfo = await connection.getAccountInfo(preparedFill);
@@ -232,7 +241,7 @@ describe("Matching Engine <> Token Router", function () {
                 connection,
                 [ix],
                 [payer],
-                `Allocate: account Address { address: ${redeemedFastFill.toString()}, base: None } already in use`
+                `Allocate: account Address { address: ${redeemedFastFill.toString()}, base: None } already in use`,
             );
         });
 
@@ -257,7 +266,7 @@ describe("Matching Engine <> Token Router", function () {
                 Array.from(matchingEngine.custodianAddress().toBuffer()),
                 wormholeSequence++,
                 message,
-                "avalanche"
+                "avalanche",
             );
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
@@ -288,7 +297,7 @@ describe("Matching Engine <> Token Router", function () {
                 Array.from(Buffer.alloc(32, "deadbeef", "hex")),
                 wormholeSequence++,
                 message,
-                "solana"
+                "solana",
             );
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,
@@ -306,7 +315,7 @@ describe("Matching Engine <> Token Router", function () {
                 Array.from(matchingEngine.custodianAddress().toBuffer()),
                 wormholeSequence++,
                 Buffer.from("Oh noes!"), // message
-                "solana"
+                "solana",
             );
 
             const ix = await tokenRouter.redeemFastFillIx({
@@ -337,7 +346,7 @@ describe("Matching Engine <> Token Router", function () {
                             redeemer: new Array(32).fill(0),
                             redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                         },
-                    }
+                    },
                 ),
             });
 
@@ -348,7 +357,7 @@ describe("Matching Engine <> Token Router", function () {
                 Array.from(matchingEngine.custodianAddress().toBuffer()),
                 wormholeSequence++,
                 message,
-                "solana"
+                "solana",
             );
             const ix = await tokenRouter.redeemFastFillIx({
                 payer: payer.publicKey,

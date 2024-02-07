@@ -237,3 +237,21 @@ impl<'a> FastMarketOrder<'a> {
         Ok(fast_market_order)
     }
 }
+
+pub trait MessageToVec {
+    fn message_to_vec(&self) -> Vec<u8>;
+}
+
+impl<'a> MessageToVec for Fill<'a> {
+    fn message_to_vec(&self) -> Vec<u8> {
+        let msg: &[_] = self.redeemer_message().into();
+        msg.to_vec()
+    }
+}
+
+impl<'a> MessageToVec for FastMarketOrder<'a> {
+    fn message_to_vec(&self) -> Vec<u8> {
+        let msg: &[_] = self.redeemer_message().into();
+        msg.to_vec()
+    }
+}
