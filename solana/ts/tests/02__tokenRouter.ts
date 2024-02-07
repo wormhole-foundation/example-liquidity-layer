@@ -441,6 +441,9 @@ describe("Token Router", function () {
                 const preparedOrderData = await tokenRouter.fetchPreparedOrder(
                     preparedOrder.publicKey,
                 );
+                const {
+                    info: { preparedCustodyTokenBump },
+                } = preparedOrderData;
                 expect(preparedOrderData).to.eql(
                     new PreparedOrder(
                         {
@@ -453,13 +456,19 @@ describe("Token Router", function () {
                             },
                             orderToken: payerToken,
                             refundToken: payerToken,
-                            amountIn: bigintToU64BN(amountIn),
                             targetChain,
                             redeemer,
+                            preparedCustodyTokenBump,
                         },
                         redeemerMessage,
                     ),
                 );
+
+                const { amount: preparedCustodyTokenBalance } = await splToken.getAccount(
+                    connection,
+                    tokenRouter.preparedCustodyTokenAddress(preparedOrder.publicKey),
+                );
+                expect(preparedCustodyTokenBalance).equals(amountIn);
             });
 
             it("Prepare Market Order without Min Amount Out", async function () {
@@ -497,6 +506,12 @@ describe("Token Router", function () {
 
                 const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
                 expect(balanceAfter).equals(balanceBefore - amountIn);
+
+                const { amount: preparedCustodyTokenBalance } = await splToken.getAccount(
+                    connection,
+                    tokenRouter.preparedCustodyTokenAddress(preparedOrder.publicKey),
+                );
+                expect(preparedCustodyTokenBalance).equals(amountIn);
 
                 // We've checked other fields in a previous test. Just make sure the min amount out
                 // is null.
@@ -582,8 +597,13 @@ describe("Token Router", function () {
                 const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
                 expect(balanceAfter).equals(balanceBefore + amountIn);
 
-                const accInfo = await connection.getAccountInfo(preparedOrder);
-                expect(accInfo).is.null;
+                for (const key of [
+                    preparedOrder,
+                    tokenRouter.preparedCustodyTokenAddress(preparedOrder),
+                ]) {
+                    const accInfo = await connection.getAccountInfo(key);
+                    expect(accInfo).is.null;
+                }
             });
         });
 
@@ -679,25 +699,12 @@ describe("Token Router", function () {
                     preparedOrder,
                 });
 
-                const custodyToken = tokenRouter.custodyTokenAccountAddress();
-                const { amount: balanceBefore } = await splToken.getAccount(
-                    connection,
-                    custodyToken,
-                );
-
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress,
                 );
                 await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
-
-                // Check balance of custody account.
-                const { amount: balanceAfter } = await splToken.getAccount(
-                    connection,
-                    custodyToken,
-                );
-                expect(balanceAfter).equals(balanceBefore - amountIn);
 
                 checkAfterEffects({ preparedOrder, amountIn, burnSource: payerToken });
             });
@@ -761,25 +768,12 @@ describe("Token Router", function () {
                     preparedOrder,
                 });
 
-                const custodyToken = tokenRouter.custodyTokenAccountAddress();
-                const { amount: balanceBefore } = await splToken.getAccount(
-                    connection,
-                    custodyToken,
-                );
-
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress,
                 );
                 await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
-
-                // Check balance.
-                const { amount: balanceAfter } = await splToken.getAccount(
-                    connection,
-                    custodyToken,
-                );
-                expect(balanceAfter).equals(balanceBefore - amountIn);
 
                 checkAfterEffects({ preparedOrder, amountIn, burnSource: payerToken });
             });
@@ -909,8 +903,13 @@ describe("Token Router", function () {
                     }),
                 );
 
-                const accInfo = await connection.getAccountInfo(preparedOrder);
-                expect(accInfo).is.null;
+                for (const key of [
+                    preparedOrder,
+                    tokenRouter.preparedCustodyTokenAddress(preparedOrder),
+                ]) {
+                    const accInfo = await connection.getAccountInfo(key);
+                    expect(accInfo).is.null;
+                }
             }
         });
 
@@ -984,12 +983,22 @@ describe("Token Router", function () {
                     },
                 );
 
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 250_000,
+                });
+
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress,
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidSourceRouter", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
+                await expectIxErr(
+                    connection,
+                    [computeIx, ix],
+                    [payer],
+                    "Error Code: InvalidSourceRouter",
+                    {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    },
+                );
             });
 
             it("Cannot Redeem Fill from Invalid Source Router Address", async function () {
@@ -1047,12 +1056,22 @@ describe("Token Router", function () {
                     },
                 );
 
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 250_000,
+                });
+
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress,
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidSourceRouter", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
+                await expectIxErr(
+                    connection,
+                    [computeIx, ix],
+                    [payer],
+                    "Error Code: InvalidSourceRouter",
+                    {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    },
+                );
             });
 
             it("Cannot Redeem Fill with Invalid Deposit Message", async function () {

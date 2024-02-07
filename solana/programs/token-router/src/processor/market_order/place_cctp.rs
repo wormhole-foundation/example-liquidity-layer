@@ -66,9 +66,13 @@ pub struct PlaceMarketOrderCctp<'info> {
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
+        seeds = [
+            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
+            prepared_order.key().as_ref(),
+        ],
+        bump = prepared_order.prepared_custody_token_bump,
     )]
-    custody_token: AccountInfo<'info>,
+    prepared_custody_token: Box<Account<'info, token::TokenAccount>>,
 
     /// Registered router endpoint representing a foreign Token Router. This account may have a
     /// CCTP domain encoded if this route is CCTP-enabled. For this instruction, it is required that
@@ -182,7 +186,7 @@ fn handle_place_market_order_cctp(
                     .accounts
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
-                src_token: ctx.accounts.custody_token.to_account_info(),
+                src_token: ctx.accounts.prepared_custody_token.to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
                     .message_transmitter_config
@@ -235,7 +239,7 @@ fn handle_place_market_order_cctp(
             burn_source: Some(ctx.accounts.prepared_order.order_token),
             destination_caller: ctx.accounts.router_endpoint.address,
             destination_cctp_domain,
-            amount: ctx.accounts.prepared_order.amount_in,
+            amount: ctx.accounts.prepared_custody_token.amount,
             mint_recipient: ctx.accounts.router_endpoint.mint_recipient,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
             payload: common::messages::Fill {
@@ -247,6 +251,14 @@ fn handle_place_market_order_cctp(
         },
     )?;
 
-    // Done.
-    Ok(())
+    // Finally close token account.
+    token::close_account(CpiContext::new_with_signer(
+        ctx.accounts.token_program.to_account_info(),
+        token::CloseAccount {
+            account: ctx.accounts.prepared_custody_token.to_account_info(),
+            destination: ctx.accounts.payer.to_account_info(),
+            authority: ctx.accounts.custodian.to_account_info(),
+        },
+        &[Custodian::SIGNER_SEEDS],
+    ))
 }

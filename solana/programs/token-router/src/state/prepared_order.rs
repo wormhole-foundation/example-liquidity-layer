@@ -14,9 +14,9 @@ pub struct PreparedOrderInfo {
     pub order_token: Pubkey,
     pub refund_token: Pubkey,
 
-    pub amount_in: u64,
     pub target_chain: u16,
     pub redeemer: [u8; 32],
+    pub prepared_custody_token_bump: u8,
 }
 
 #[account]

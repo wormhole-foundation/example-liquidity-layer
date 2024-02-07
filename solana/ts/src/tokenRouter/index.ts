@@ -156,10 +156,17 @@ export class TokenRouterProgram {
         return splToken.getAssociatedTokenAddressSync(this.mint, this.custodianAddress(), true);
     }
 
+    preparedCustodyTokenAddress(preparedOrder: PublicKey): PublicKey {
+        return PublicKey.findProgramAddressSync(
+            [Buffer.from("prepared-custody"), preparedOrder.toBuffer()],
+            this.ID,
+        )[0];
+    }
+
     coreMessageAddress(payer: PublicKey, payerSequenceValue: BN): PublicKey {
         return PublicKey.findProgramAddressSync(
             [Buffer.from("msg"), payer.toBuffer(), payerSequenceValue.toBuffer("be", 8)],
-            this.ID
+            this.ID,
         )[0];
     }
 
@@ -239,7 +246,7 @@ export class TokenRouterProgram {
             orderToken: PublicKey;
             refundToken: PublicKey;
         },
-        args: PrepareMarketOrderArgs
+        args: PrepareMarketOrderArgs,
     ): Promise<TransactionInstruction> {
         const { payer, orderSender, preparedOrder, orderToken, refundToken } = accounts;
         const { amountIn, minAmountOut, ...remainingArgs } = args;
@@ -257,7 +264,8 @@ export class TokenRouterProgram {
                 preparedOrder,
                 orderToken,
                 refundToken,
-                custodyToken: this.custodyTokenAccountAddress(),
+                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrder),
+                mint: this.mint,
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
             })
             .instruction();
@@ -308,7 +316,7 @@ export class TokenRouterProgram {
                 orderSender,
                 preparedOrder,
                 refundToken,
-                custodyToken: this.custodyTokenAccountAddress(),
+                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrder),
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
             })
             .instruction();
@@ -336,71 +344,6 @@ export class TokenRouterProgram {
             .instruction();
     }
 
-    async placeMarketOrderCctpAccounts(
-        targetChain: number,
-        overrides: {
-            remoteDomain?: number;
-        } = {}
-    ): Promise<PlaceMarketOrderCctpAccounts> {
-        const { remoteDomain: inputRemoteDomain } = overrides;
-
-        const matchingEngine = this.matchingEngineProgram();
-        const routerEndpoint = matchingEngine.routerEndpointAddress(targetChain);
-        const remoteDomain = await (async () => {
-            if (inputRemoteDomain !== undefined) {
-                return inputRemoteDomain;
-            } else {
-                const { protocol } = await matchingEngine.fetchRouterEndpoint({
-                    address: routerEndpoint,
-                });
-                if (protocol.cctp !== undefined) {
-                    return protocol.cctp.domain;
-                } else {
-                    throw new Error("invalid router endpoint");
-                }
-            }
-        })();
-
-        const custodyToken = this.custodyTokenAccountAddress();
-        const mint = this.mint;
-
-        const {
-            senderAuthority: tokenMessengerMinterSenderAuthority,
-            messageTransmitterConfig,
-            tokenMessenger,
-            remoteTokenMessenger,
-            tokenMinter,
-            localToken,
-            messageTransmitterProgram,
-            tokenMessengerMinterProgram,
-            tokenProgram,
-        } = this.tokenMessengerMinterProgram().depositForBurnWithCallerAccounts(mint, remoteDomain);
-
-        const custodian = this.custodianAddress();
-        const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
-            this.publishMessageAccounts(custodian);
-
-        return {
-            custodian,
-            custodyToken,
-            mint,
-            routerEndpoint,
-            coreBridgeConfig,
-            coreEmitterSequence,
-            coreFeeCollector,
-            tokenMessengerMinterSenderAuthority,
-            messageTransmitterConfig,
-            tokenMessenger,
-            remoteTokenMessenger,
-            tokenMinter,
-            localToken,
-            coreBridgeProgram,
-            tokenMessengerMinterProgram,
-            messageTransmitterProgram,
-            tokenProgram,
-        };
-    }
-
     async placeMarketOrderCctpIx(
         accounts: {
             payer: PublicKey;
@@ -410,7 +353,7 @@ export class TokenRouterProgram {
         },
         args?: {
             targetChain: number;
-        }
+        },
     ): Promise<TransactionInstruction> {
         const {
             payer,
@@ -424,7 +367,7 @@ export class TokenRouterProgram {
                     info: { orderSender, targetChain },
                 } = await this.fetchPreparedOrder(preparedOrder).catch((_) => {
                     throw new Error(
-                        "Cannot find prepared order. If it doesn't exist, please provide orderSender and targetChain."
+                        "Cannot find prepared order. If it doesn't exist, please provide orderSender and targetChain.",
                     );
                 });
                 return { orderSender, targetChain };
@@ -435,27 +378,57 @@ export class TokenRouterProgram {
 
         const payerSequence = this.payerSequenceAddress(payer);
         const coreMessage = await this.fetchPayerSequenceValue(payerSequence).then((value) =>
-            this.coreMessageAddress(payer, value)
+            this.coreMessageAddress(payer, value),
         );
+        // const {
+        //     custodian,
+        //     custodyToken,
+        //     mint,
+        //     routerEndpoint,
+        //     coreBridgeConfig,
+        //     coreEmitterSequence,
+        //     coreFeeCollector,
+        //     coreBridgeProgram,
+        //     tokenMessengerMinterSenderAuthority,
+        //     messageTransmitterConfig,
+        //     tokenMessenger,
+        //     remoteTokenMessenger,
+        //     tokenMinter,
+        //     localToken,
+        //     tokenMessengerMinterProgram,
+        //     messageTransmitterProgram,
+        //     tokenProgram,
+        // } = await this.placeMarketOrderCctpAccounts(targetChain);
+
+        const matchingEngine = this.matchingEngineProgram();
+        const routerEndpoint = matchingEngine.routerEndpointAddress(targetChain);
+
+        const { protocol } = await matchingEngine.fetchRouterEndpoint({
+            address: routerEndpoint,
+        });
+        if (protocol.cctp === undefined) {
+            throw new Error("invalid router endpoint");
+        }
+        const mint = this.mint;
+
         const {
-            custodian,
-            custodyToken,
-            mint,
-            routerEndpoint,
-            coreBridgeConfig,
-            coreEmitterSequence,
-            coreFeeCollector,
-            coreBridgeProgram,
-            tokenMessengerMinterSenderAuthority,
+            senderAuthority: tokenMessengerMinterSenderAuthority,
             messageTransmitterConfig,
             tokenMessenger,
             remoteTokenMessenger,
             tokenMinter,
             localToken,
-            tokenMessengerMinterProgram,
             messageTransmitterProgram,
+            tokenMessengerMinterProgram,
             tokenProgram,
-        } = await this.placeMarketOrderCctpAccounts(targetChain);
+        } = this.tokenMessengerMinterProgram().depositForBurnWithCallerAccounts(
+            mint,
+            protocol.cctp.domain,
+        );
+
+        const custodian = this.custodianAddress();
+        const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
+            this.publishMessageAccounts(custodian);
 
         return this.program.methods
             .placeMarketOrderCctp()
@@ -466,7 +439,7 @@ export class TokenRouterProgram {
                 preparedOrder,
                 orderSender: inputOrderSender ?? orderSender,
                 mint,
-                custodyToken,
+                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrder),
                 routerEndpoint: inputRouterEndpoint ?? routerEndpoint,
                 coreBridgeConfig,
                 coreMessage,
@@ -488,7 +461,7 @@ export class TokenRouterProgram {
 
     async redeemCctpFillAccounts(
         vaa: PublicKey,
-        cctpMessage: CctpTokenBurnMessage | Buffer
+        cctpMessage: CctpTokenBurnMessage | Buffer,
     ): Promise<RedeemFillCctpAccounts> {
         const msg = CctpTokenBurnMessage.from(cctpMessage);
         const custodyToken = this.custodyTokenAccountAddress();
@@ -541,7 +514,7 @@ export class TokenRouterProgram {
         args: {
             encodedCctpMessage: Buffer;
             cctpAttestation: Buffer;
-        }
+        },
     ): Promise<TransactionInstruction> {
         const { payer, vaa, routerEndpoint: inputRouterEndpoint } = accounts;
 
@@ -672,7 +645,7 @@ export class TokenRouterProgram {
             ownerOrAssistant: PublicKey;
             custodian?: PublicKey;
         },
-        paused: boolean
+        paused: boolean,
     ): Promise<TransactionInstruction> {
         const { ownerOrAssistant, custodian: inputCustodian } = accounts;
         return this.program.methods
@@ -756,15 +729,15 @@ export class TokenRouterProgram {
         return {
             coreBridgeConfig: PublicKey.findProgramAddressSync(
                 [Buffer.from("Bridge")],
-                coreBridgeProgram
+                coreBridgeProgram,
             )[0],
             coreEmitterSequence: PublicKey.findProgramAddressSync(
                 [Buffer.from("Sequence"), emitter.toBuffer()],
-                coreBridgeProgram
+                coreBridgeProgram,
             )[0],
             coreFeeCollector: PublicKey.findProgramAddressSync(
                 [Buffer.from("fee_collector")],
-                coreBridgeProgram
+                coreBridgeProgram,
             )[0],
             coreBridgeProgram,
         };
@@ -775,13 +748,13 @@ export class TokenRouterProgram {
             case testnet(): {
                 return new TokenMessengerMinterProgram(
                     this.program.provider.connection,
-                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
+                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
                 );
             }
             case localnet(): {
                 return new TokenMessengerMinterProgram(
                     this.program.provider.connection,
-                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"
+                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
                 );
             }
             default: {
@@ -795,13 +768,13 @@ export class TokenRouterProgram {
             case testnet(): {
                 return new MessageTransmitterProgram(
                     this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
                 );
             }
             case localnet(): {
                 return new MessageTransmitterProgram(
                     this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
                 );
             }
             default: {
@@ -816,14 +789,14 @@ export class TokenRouterProgram {
                 return new matchingEngineSdk.MatchingEngineProgram(
                     this.program.provider.connection,
                     matchingEngineSdk.testnet(),
-                    this.mint
+                    this.mint,
                 );
             }
             case localnet(): {
                 return new matchingEngineSdk.MatchingEngineProgram(
                     this.program.provider.connection,
                     matchingEngineSdk.localnet(),
-                    this.mint
+                    this.mint,
                 );
             }
             default: {

@@ -13,9 +13,9 @@ export type PreparedOrderInfo = {
     orderType: OrderType;
     orderToken: PublicKey;
     refundToken: PublicKey;
-    amountIn: BN;
     targetChain: number;
     redeemer: Array<number>;
+    preparedCustodyTokenBump: number;
 };
 
 export class PreparedOrder {

@@ -44,7 +44,7 @@ pub struct PrepareMarketOrder<'info> {
     #[account(mut)]
     order_token: AccountInfo<'info>,
 
-    #[account(token::mint = common::constants::usdc::id())]
+    #[account(token::mint = mint)]
     refund_token: Account<'info, token::TokenAccount>,
 
     /// Custody token account. This account will be closed at the end of this instruction. It just
@@ -52,10 +52,21 @@ pub struct PrepareMarketOrder<'info> {
     ///
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
-        mut,
-        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
+        init,
+        payer = payer,
+        token::mint = mint,
+        token::authority = custodian,
+        seeds = [
+            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
+            prepared_order.key().as_ref(),
+        ],
+        bump,
     )]
-    custody_token: AccountInfo<'info>,
+    prepared_custody_token: Account<'info, token::TokenAccount>,
+
+    /// CHECK: This mint must be USDC.
+    #[account(address = common::constants::usdc::id())]
+    mint: AccountInfo<'info>,
 
     token_program: Program<'info, token::Token>,
     system_program: Program<'info, System>,
@@ -116,9 +127,9 @@ pub fn prepare_market_order(
             order_type: OrderType::Market { min_amount_out },
             order_token: ctx.accounts.order_token.key(),
             refund_token: ctx.accounts.refund_token.key(),
-            amount_in,
             target_chain,
             redeemer,
+            prepared_custody_token_bump: ctx.bumps["prepared_custody_token"],
         }),
         redeemer_message,
     });
@@ -129,7 +140,7 @@ pub fn prepare_market_order(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
                 from: ctx.accounts.order_token.to_account_info(),
-                to: ctx.accounts.custody_token.to_account_info(),
+                to: ctx.accounts.prepared_custody_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
             &[Custodian::SIGNER_SEEDS],
