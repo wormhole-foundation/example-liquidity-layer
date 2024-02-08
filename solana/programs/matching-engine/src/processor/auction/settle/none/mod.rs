@@ -25,7 +25,7 @@ struct SettleNoneAndPrepareFill<'ctx, 'info> {
     from_router_endpoint: &'ctx Account<'info, RouterEndpoint>,
     to_router_endpoint: &'ctx Account<'info, RouterEndpoint>,
     fee_recipient_token: &'ctx AccountInfo<'info>,
-    custody_token: &'ctx AccountInfo<'info>,
+    cctp_mint_recipient: &'ctx AccountInfo<'info>,
     payer_sequence: &'ctx mut Account<'info, PayerSequence>,
     token_program: &'ctx Program<'info, token::Token>,
 }
@@ -48,7 +48,7 @@ fn settle_none_and_prepare_fill(
         from_router_endpoint,
         to_router_endpoint,
         fee_recipient_token,
-        custody_token,
+        cctp_mint_recipient,
         payer_sequence,
         token_program,
     } = accounts;
@@ -75,7 +75,7 @@ fn settle_none_and_prepare_fill(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
             token::Transfer {
-                from: custody_token.to_account_info(),
+                from: cctp_mint_recipient.to_account_info(),
                 to: fee_recipient_token.to_account_info(),
                 authority: custodian.to_account_info(),
             },

@@ -49,13 +49,6 @@ pub struct ImproveOffer<'info> {
     #[account(mut)]
     best_offer_token: AccountInfo<'info>,
 
-    /// CHECK: Mutable. Seeds must be \["custody"\].
-    #[account(
-        mut,
-        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
-    )]
-    custody_token: AccountInfo<'info>,
-
     token_program: Program<'info, token::Token>,
 }
 

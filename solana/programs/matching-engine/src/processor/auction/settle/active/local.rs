@@ -104,9 +104,9 @@ pub struct SettleAuctionActiveLocal<'info> {
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
-    custody_token: AccountInfo<'info>,
+    cctp_mint_recipient: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["Bridge"\] (Wormhole Core Bridge program).
     #[account(mut)]
@@ -159,7 +159,7 @@ pub fn settle_auction_active_local(ctx: Context<SettleAuctionActiveLocal>) -> Re
         prepared_order_response: &ctx.accounts.prepared_order_response,
         executor_token: &ctx.accounts.executor_token,
         best_offer_token: &ctx.accounts.best_offer_token,
-        custody_token: &ctx.accounts.custody_token,
+        cctp_mint_recipient: &ctx.accounts.cctp_mint_recipient,
         payer_sequence: &mut ctx.accounts.payer_sequence,
         token_program: &ctx.accounts.token_program,
     })?;

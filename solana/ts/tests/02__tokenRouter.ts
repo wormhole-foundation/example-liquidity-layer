@@ -99,7 +99,7 @@ describe("Token Router", function () {
 
                 const { amount } = await splToken.getAccount(
                     connection,
-                    tokenRouter.custodyTokenAccountAddress(),
+                    tokenRouter.cctpMintRecipientAddress(),
                 );
                 expect(amount).to.equal(0n);
             });
@@ -918,7 +918,7 @@ describe("Token Router", function () {
 
         describe("Redeem Fill (CCTP)", function () {
             const encodedMintRecipient = Array.from(
-                tokenRouter.custodyTokenAccountAddress().toBuffer(),
+                tokenRouter.cctpMintRecipientAddress().toBuffer(),
             );
             const sourceCctpDomain = 0;
             const amount = 69n;
@@ -987,7 +987,7 @@ describe("Token Router", function () {
                 );
 
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 250_000,
+                    units: 300_000,
                 });
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
@@ -1060,7 +1060,7 @@ describe("Token Router", function () {
                 );
 
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 250_000,
+                    units: 300_000,
                 });
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
@@ -1134,7 +1134,7 @@ describe("Token Router", function () {
                 );
 
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 250_000,
+                    units: 300_000,
                 });
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
@@ -1321,13 +1321,13 @@ describe("Token Router", function () {
                 );
 
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 250_000,
+                    units: 300_000,
                 });
 
-                const custodyToken = tokenRouter.custodyTokenAccountAddress();
+                const cctpMintRecipient = tokenRouter.cctpMintRecipientAddress();
                 const { amount: balanceBefore } = await splToken.getAccount(
                     connection,
-                    custodyToken,
+                    cctpMintRecipient,
                 );
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
@@ -1340,7 +1340,7 @@ describe("Token Router", function () {
                 // Check balance.
                 const { amount: balanceAfter } = await splToken.getAccount(
                     connection,
-                    custodyToken,
+                    cctpMintRecipient,
                 );
                 expect(balanceAfter).equals(balanceBefore);
 
@@ -1395,7 +1395,7 @@ describe("Token Router", function () {
 
             async function redeemFillCctp() {
                 const encodedMintRecipient = Array.from(
-                    tokenRouter.custodyTokenAccountAddress().toBuffer(),
+                    tokenRouter.cctpMintRecipientAddress().toBuffer(),
                 );
                 const sourceCctpDomain = 0;
                 const cctpNonce = testCctpNonce++;

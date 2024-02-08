@@ -65,7 +65,7 @@ export type MatchingEngineCommonAccounts = WormholeCoreBridgeAccounts & {
     rent: PublicKey;
     clock: PublicKey;
     custodian: PublicKey;
-    custodyToken: PublicKey;
+    cctpMintRecipient: PublicKey;
     tokenMessenger: PublicKey;
     tokenMinter: PublicKey;
     tokenMessengerMinterSenderAuthority: PublicKey;
@@ -104,7 +104,7 @@ export type RedeemFastFillAccounts = {
     custodian: PublicKey;
     redeemedFastFill: PublicKey;
     routerEndpoint: PublicKey;
-    custodyToken: PublicKey;
+    cctpMintRecipient: PublicKey;
     matchingEngineProgram: PublicKey;
 };
 
@@ -161,7 +161,7 @@ export class MatchingEngineProgram {
         return this.fetchAuctionConfig(id).then((config) => config.parameters);
     }
 
-    custodyTokenAccountAddress(): PublicKey {
+    cctpMintRecipientAddress(): PublicKey {
         return splToken.getAssociatedTokenAddressSync(this.mint, this.custodianAddress(), true);
     }
 
@@ -257,7 +257,7 @@ export class MatchingEngineProgram {
         const tokenMessengerMinterProgram = this.tokenMessengerMinterProgram();
         const messageTransmitterProgram = this.messageTransmitterProgram();
 
-        const custodyToken = this.custodyTokenAccountAddress();
+        const cctpMintRecipient = this.cctpMintRecipientAddress();
         const mint = this.mint;
 
         return {
@@ -266,7 +266,7 @@ export class MatchingEngineProgram {
             rent: SYSVAR_RENT_PUBKEY,
             clock: SYSVAR_CLOCK_PUBKEY,
             custodian,
-            custodyToken,
+            cctpMintRecipient,
             coreBridgeConfig,
             coreEmitterSequence,
             coreFeeCollector,
@@ -308,7 +308,7 @@ export class MatchingEngineProgram {
                 ownerAssistant,
                 feeRecipient,
                 feeRecipientToken: splToken.getAssociatedTokenAddressSync(this.mint, feeRecipient),
-                custodyToken: this.custodyTokenAccountAddress(),
+                cctpMintRecipient: this.cctpMintRecipientAddress(),
                 mint: inputMint ?? this.mint,
                 programData: getProgramData(this.ID),
             })
@@ -502,10 +502,10 @@ export class MatchingEngineProgram {
         return this.coreMessageAddress(payer, value);
     }
 
-    async fetchCustodyTokenAccount(): Promise<splToken.Account> {
+    async fetchCctpMintRecipient(): Promise<splToken.Account> {
         return splToken.getAccount(
             this.program.provider.connection,
-            this.custodyTokenAccountAddress(),
+            this.cctpMintRecipientAddress(),
         );
     }
 
@@ -533,7 +533,7 @@ export class MatchingEngineProgram {
             totalDeposit: inputTotalDeposit,
         } = accounts;
 
-        const custodyToken = this.custodyTokenAccountAddress();
+        const cctpMintRecipient = this.cctpMintRecipientAddress();
 
         const offerToken = await (async () => {
             if (inputOfferToken !== undefined) {
@@ -599,7 +599,7 @@ export class MatchingEngineProgram {
                 fromRouterEndpoint,
                 toRouterEndpoint,
                 offerToken,
-                custodyToken,
+                cctpMintRecipient,
                 fastVaa,
             })
             .instruction();
@@ -654,7 +654,6 @@ export class MatchingEngineProgram {
                 auction,
                 offerToken: splToken.getAssociatedTokenAddressSync(this.mint, offerAuthority),
                 bestOfferToken,
-                custodyToken: this.custodyTokenAccountAddress(),
             })
             .instruction();
 
@@ -704,7 +703,7 @@ export class MatchingEngineProgram {
                     payer,
                     fastVaaAcct.digest(),
                 ),
-                custodyToken: this.custodyTokenAccountAddress(),
+                cctpMintRecipient: this.cctpMintRecipientAddress(),
                 messageTransmitterAuthority,
                 messageTransmitterConfig,
                 usedNonces,
@@ -772,7 +771,7 @@ export class MatchingEngineProgram {
                 preparedOrderResponse,
                 auction,
                 bestOfferToken,
-                custodyToken: this.custodyTokenAccountAddress(),
+                cctpMintRecipient: this.cctpMintRecipientAddress(),
             })
             .instruction();
     }
@@ -877,7 +876,7 @@ export class MatchingEngineProgram {
                 preparedOrderResponse,
                 auction: auctionAddress,
                 executorToken,
-                custodyToken: this.custodyTokenAccountAddress(),
+                cctpMintRecipient: this.cctpMintRecipientAddress(),
                 auctionConfig,
                 bestOfferToken,
                 toRouterEndpoint: routerEndpoint,
@@ -961,7 +960,7 @@ export class MatchingEngineProgram {
                 fastVaa,
                 preparedOrderResponse,
                 auction: this.auctionAddress(fastVaaAccount.digest()),
-                custodyToken: this.custodyTokenAccountAddress(),
+                cctpMintRecipient: this.cctpMintRecipientAddress(),
                 feeRecipientToken,
                 mint: this.mint,
                 fromRouterEndpoint: this.routerEndpointAddress(fastVaaAccount.emitterInfo().chain),
@@ -1073,7 +1072,7 @@ export class MatchingEngineProgram {
                     inputExecutorToken ?? splToken.getAssociatedTokenAddressSync(mint, payer),
                 bestOfferToken,
                 initialOfferToken,
-                custodyToken: this.custodyTokenAccountAddress(),
+                cctpMintRecipient: this.cctpMintRecipientAddress(),
                 mint,
                 payerSequence,
                 coreBridgeConfig,
@@ -1172,7 +1171,7 @@ export class MatchingEngineProgram {
                     inputExecutorToken ?? splToken.getAssociatedTokenAddressSync(this.mint, payer),
                 bestOfferToken,
                 initialOfferToken,
-                custodyToken: this.custodyTokenAccountAddress(),
+                cctpMintRecipient: this.cctpMintRecipientAddress(),
                 payerSequence,
                 coreBridgeConfig,
                 coreMessage,
@@ -1194,7 +1193,7 @@ export class MatchingEngineProgram {
                 custodian: this.custodianAddress(),
                 redeemedFastFill: this.redeemedFastFillAddress(vaaAccount.digest()),
                 routerEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
-                custodyToken: this.custodyTokenAccountAddress(),
+                cctpMintRecipient: this.cctpMintRecipientAddress(),
                 matchingEngineProgram: this.ID,
             },
         };

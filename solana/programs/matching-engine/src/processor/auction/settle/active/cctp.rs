@@ -100,9 +100,9 @@ pub struct SettleAuctionActiveCctp<'info> {
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
-    custody_token: AccountInfo<'info>,
+    cctp_mint_recipient: AccountInfo<'info>,
 
     /// Seeds must be \["endpoint", chain.to_be_bytes()\].
     #[account(
@@ -223,7 +223,7 @@ fn handle_settle_auction_active_cctp(
         prepared_order_response: &ctx.accounts.prepared_order_response,
         executor_token: &ctx.accounts.executor_token,
         best_offer_token: &ctx.accounts.best_offer_token,
-        custody_token: &ctx.accounts.custody_token,
+        cctp_mint_recipient: &ctx.accounts.cctp_mint_recipient,
         payer_sequence: &mut ctx.accounts.payer_sequence,
         token_program: &ctx.accounts.token_program,
     })?;
@@ -241,7 +241,7 @@ fn handle_settle_auction_active_cctp(
                     .accounts
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
-                burn_token: ctx.accounts.custody_token.to_account_info(),
+                burn_token: ctx.accounts.cctp_mint_recipient.to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
                     .message_transmitter_config

@@ -833,8 +833,7 @@ describe("Matching Engine", function () {
                         connection,
                         offerAuthorityOne.publicKey,
                     );
-                    const { amount: custodyBalanceBefore } =
-                        await engine.fetchCustodyTokenAccount();
+                    const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
                     const { fastVaa, txDetails } = await placeInitialOfferForTest(
                         offerAuthorityOne,
@@ -849,7 +848,7 @@ describe("Matching Engine", function () {
                         connection,
                         offerAuthorityOne.publicKey,
                     );
-                    const { amount: custodyBalanceAfter } = await engine.fetchCustodyTokenAccount();
+                    const { amount: custodyBalanceAfter } = await engine.fetchCctpMintRecipient();
                     const balanceChange = baseFastOrder.amountIn + baseFastOrder.maxFee;
 
                     expect(offerBalanceAfter).equals(offerBalanceBefore - balanceChange);
@@ -868,7 +867,7 @@ describe("Matching Engine", function () {
                     connection,
                     offerAuthorityOne.publicKey,
                 );
-                const { amount: custodyBalanceBefore } = await engine.fetchCustodyTokenAccount();
+                const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
                 const { fastVaa, txDetails } = await placeInitialOfferForTest(
                     offerAuthorityOne,
@@ -882,7 +881,7 @@ describe("Matching Engine", function () {
                     connection,
                     offerAuthorityOne.publicKey,
                 );
-                const { amount: custodyBalanceAfter } = await engine.fetchCustodyTokenAccount();
+                const { amount: custodyBalanceAfter } = await engine.fetchCctpMintRecipient();
                 const balanceChange = fastOrder.amountIn + fastOrder.maxFee;
                 expect(offerBalanceAfter).equals(offerBalanceBefore - balanceChange);
                 expect(custodyBalanceAfter).equals(custodyBalanceBefore + balanceChange);
@@ -906,7 +905,7 @@ describe("Matching Engine", function () {
                     connection,
                     offerAuthorityOne.publicKey,
                 );
-                const { amount: custodyBalanceBefore } = await engine.fetchCustodyTokenAccount();
+                const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
                 const { fastVaa, txDetails } = await placeInitialOfferForTest(
                     offerAuthorityOne,
@@ -921,7 +920,7 @@ describe("Matching Engine", function () {
                     connection,
                     offerAuthorityOne.publicKey,
                 );
-                const { amount: custodyBalanceAfter } = await engine.fetchCustodyTokenAccount();
+                const { amount: custodyBalanceAfter } = await engine.fetchCctpMintRecipient();
                 const balanceChange = fastOrder.amountIn + fastOrder.maxFee;
                 expect(offerBalanceAfter).equals(offerBalanceBefore - balanceChange);
                 expect(custodyBalanceAfter).equals(custodyBalanceBefore + balanceChange);
@@ -1283,8 +1282,7 @@ describe("Matching Engine", function () {
                         connection,
                         offerAuthorityTwo.publicKey,
                     );
-                    const { amount: custodyBalanceBefore } =
-                        await engine.fetchCustodyTokenAccount();
+                    const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
                     const [approveIx, ix] = await engine.improveOfferIx(
                         {
@@ -1322,7 +1320,7 @@ describe("Matching Engine", function () {
                     connection,
                     offerAuthorityOne.publicKey,
                 );
-                const { amount: custodyBalanceBefore } = await engine.fetchCustodyTokenAccount();
+                const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
                 // New Offer from offerAuthorityOne.
                 const newOffer = BigInt(auctionDataBefore.info!.offerPrice.subn(100).toString());
@@ -1398,7 +1396,7 @@ describe("Matching Engine", function () {
                     {
                         auction,
                         offerAuthority: offerAuthorityOne.publicKey,
-                        bestOfferToken: engine.custodyTokenAccountAddress(),
+                        bestOfferToken: engine.cctpMintRecipientAddress(),
                     },
                     newOffer,
                 );
@@ -1487,7 +1485,7 @@ describe("Matching Engine", function () {
                 );
 
                 // Custody token should be unchanged.
-                const { amount: custodyTokenAfter } = await engine.fetchCustodyTokenAccount();
+                const { amount: custodyTokenAfter } = await engine.fetchCctpMintRecipient();
                 expect(custodyTokenAfter).equals(custodyTokenBefore);
 
                 const balanceChange = BigInt(amountIn.add(securityDeposit).toString());
@@ -1552,7 +1550,7 @@ describe("Matching Engine", function () {
                     connection,
                     initialOfferToken,
                 );
-                const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
+                const { amount: custodyTokenBefore } = await engine.fetchCctpMintRecipient();
 
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
                 await waitUntilSlot(
@@ -1631,7 +1629,7 @@ describe("Matching Engine", function () {
                     connection,
                     initialOfferToken,
                 );
-                const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
+                const { amount: custodyTokenBefore } = await engine.fetchCctpMintRecipient();
 
                 const { duration, gracePeriod, penaltyPeriod } =
                     await engine.fetchAuctionParameters();
@@ -1691,7 +1689,7 @@ describe("Matching Engine", function () {
                     connection,
                     initialOfferToken,
                 );
-                const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
+                const { amount: custodyTokenBefore } = await engine.fetchCctpMintRecipient();
 
                 const liquidatorToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
@@ -1716,7 +1714,15 @@ describe("Matching Engine", function () {
                     fastVaa,
                 });
 
-                const txDetails = await expectIxOkDetails(connection, [ix], [liquidator]);
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+
+                const txDetails = await expectIxOkDetails(
+                    connection,
+                    [computeIx, ix],
+                    [liquidator],
+                );
 
                 await checkAfterEffects(
                     txDetails!,
@@ -1761,7 +1767,7 @@ describe("Matching Engine", function () {
                     connection,
                     initialOfferToken,
                 );
-                const { amount: custodyTokenBefore } = await engine.fetchCustodyTokenAccount();
+                const { amount: custodyTokenBefore } = await engine.fetchCctpMintRecipient();
 
                 const liquidatorToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
@@ -1883,7 +1889,7 @@ describe("Matching Engine", function () {
                     ethRouter,
                 );
 
-                const bogusToken = engine.custodyTokenAccountAddress();
+                const bogusToken = engine.cctpMintRecipientAddress();
 
                 const { bestOfferToken } = auctionDataBefore.info!;
                 expect(bogusToken).to.not.eql(bestOfferToken);
@@ -1911,7 +1917,7 @@ describe("Matching Engine", function () {
                     ethRouter,
                 );
 
-                const bogusToken = engine.custodyTokenAccountAddress();
+                const bogusToken = engine.cctpMintRecipientAddress();
 
                 const { initialOfferToken } = auctionDataBefore.info!;
                 expect(bogusToken).to.not.eql(initialOfferToken);
@@ -2121,7 +2127,7 @@ describe("Matching Engine", function () {
                     }
                 }
 
-                const { amount: custodyTokenAfter } = await engine.fetchCustodyTokenAccount();
+                const { amount: custodyTokenAfter } = await engine.fetchCctpMintRecipient();
                 expect(custodyTokenAfter).equals(
                     custodyTokenBefore - BigInt(amountIn.add(securityDeposit).toString()),
                 );
@@ -2206,9 +2212,7 @@ describe("Matching Engine", function () {
                             destinationCctpDomain,
                             cctpNonce,
                             burnSource,
-                            mintRecipient: Array.from(
-                                engine.custodyTokenAccountAddress().toBuffer(),
-                            ),
+                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
                         },
                         {
                             slowOrderResponse: {
@@ -2470,8 +2474,7 @@ describe("Matching Engine", function () {
                         connection,
                         feeRecipientToken,
                     );
-                    const { amount: custodyBalanceBefore } =
-                        await engine.fetchCustodyTokenAccount();
+                    const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
                     await expectIxOk(connection, [computeIx, settleIx], [payer]);
 
@@ -2486,7 +2489,7 @@ describe("Matching Engine", function () {
                     expect(feeBalanceAfter).equals(feeBalanceBefore + baseFee);
 
                     const { amount } = deposit.header;
-                    const { amount: custodyBalanceAfter } = await engine.fetchCustodyTokenAccount();
+                    const { amount: custodyBalanceAfter } = await engine.fetchCctpMintRecipient();
                     expect(custodyBalanceAfter).equals(custodyBalanceBefore - amount);
 
                     const fastVaaHash = fastVaaAccount.digest();
@@ -2551,9 +2554,7 @@ describe("Matching Engine", function () {
                             destinationCctpDomain,
                             cctpNonce,
                             burnSource,
-                            mintRecipient: Array.from(
-                                engine.custodyTokenAccountAddress().toBuffer(),
-                            ),
+                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
                         },
                         {
                             slowOrderResponse: {
@@ -2769,7 +2770,7 @@ async function craftCctpTokenBurnMessage(
         },
         0,
         Array.from(wormholeSdk.tryNativeToUint8Array(ETHEREUM_USDC_ADDRESS, "ethereum")), // sourceTokenAddress
-        Array.from(engine.custodyTokenAccountAddress().toBuffer()), // mint recipient
+        Array.from(engine.cctpMintRecipientAddress().toBuffer()), // mint recipient
         amount,
         new Array(32).fill(0), // burnSource
     );

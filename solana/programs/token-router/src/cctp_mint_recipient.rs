@@ -23,7 +23,7 @@ mod test {
                 &custodian,
                 &common::constants::usdc::id()
             ),
-            "custody ata mismatch"
+            "cctp mint recipient mismatch"
         );
     }
 }

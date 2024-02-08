@@ -107,7 +107,7 @@ describe("Matching Engine <> Token Router", function () {
                     bump,
                     wormholeSdk.CHAIN_ID_SOLANA,
                     Array.from(tokenRouter.custodianAddress().toBuffer()),
-                    Array.from(tokenRouter.custodyTokenAccountAddress().toBuffer()),
+                    Array.from(tokenRouter.cctpMintRecipientAddress().toBuffer()),
                     { local: { programId: tokenRouter.ID } },
                 ),
             );

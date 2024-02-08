@@ -49,9 +49,9 @@ pub struct RedeemCctpFill<'info> {
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id() @ TokenRouterError::InvalidCustodyToken,
     )]
-    custody_token: AccountInfo<'info>,
+    cctp_mint_recipient: AccountInfo<'info>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -195,7 +195,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
                 token_minter: ctx.accounts.token_minter.to_account_info(),
                 local_token: ctx.accounts.local_token.to_account_info(),
                 token_pair: ctx.accounts.token_pair.to_account_info(),
-                mint_recipient: ctx.accounts.custody_token.to_account_info(),
+                mint_recipient: ctx.accounts.cctp_mint_recipient.to_account_info(),
                 custody_token: ctx
                     .accounts
                     .token_messenger_minter_custody_token
@@ -279,7 +279,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
-                from: ctx.accounts.custody_token.to_account_info(),
+                from: ctx.accounts.cctp_mint_recipient.to_account_info(),
                 to: ctx.accounts.prepared_custody_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },

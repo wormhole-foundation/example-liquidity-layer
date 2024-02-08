@@ -58,9 +58,9 @@ pub struct PrepareOrderResponseCctp<'info> {
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
-    custody_token: AccountInfo<'info>,
+    cctp_mint_recipient: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
     message_transmitter_authority: UncheckedAccount<'info>,
@@ -157,7 +157,7 @@ pub fn prepare_order_response_cctp(
                 token_minter: ctx.accounts.token_minter.to_account_info(),
                 local_token: ctx.accounts.local_token.to_account_info(),
                 token_pair: ctx.accounts.token_pair.to_account_info(),
-                mint_recipient: ctx.accounts.custody_token.to_account_info(),
+                mint_recipient: ctx.accounts.cctp_mint_recipient.to_account_info(),
                 custody_token: ctx
                     .accounts
                     .token_messenger_minter_custody_token

@@ -68,9 +68,9 @@ pub struct Initialize<'info> {
         payer = owner,
         associated_token::mint = mint,
         associated_token::authority = custodian,
-        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
-    custody_token: Account<'info, token::TokenAccount>,
+    cctp_mint_recipient: Account<'info, token::TokenAccount>,
 
     #[account(address = common::constants::usdc::id() @ MatchingEngineError::NotUsdc)]
     mint: Account<'info, token::Mint>,

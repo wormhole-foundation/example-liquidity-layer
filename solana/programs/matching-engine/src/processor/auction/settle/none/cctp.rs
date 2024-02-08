@@ -89,9 +89,9 @@ pub struct SettleAuctionNoneCctp<'info> {
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
-    custody_token: AccountInfo<'info>,
+    cctp_mint_recipient: AccountInfo<'info>,
 
     /// Destination token account, which the redeemer may not own. But because the redeemer is a
     /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
@@ -238,7 +238,7 @@ fn handle_settle_auction_none_cctp(
             from_router_endpoint: &ctx.accounts.from_router_endpoint,
             to_router_endpoint: &ctx.accounts.to_router_endpoint,
             fee_recipient_token: &ctx.accounts.fee_recipient_token,
-            custody_token: &ctx.accounts.custody_token,
+            cctp_mint_recipient: &ctx.accounts.cctp_mint_recipient,
             payer_sequence: &mut ctx.accounts.payer_sequence,
             token_program: &ctx.accounts.token_program,
         },
@@ -258,7 +258,7 @@ fn handle_settle_auction_none_cctp(
                     .accounts
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
-                burn_token: ctx.accounts.custody_token.to_account_info(),
+                burn_token: ctx.accounts.cctp_mint_recipient.to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
                     .message_transmitter_config

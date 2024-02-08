@@ -76,7 +76,7 @@ pub struct RedeemFastFill<'info> {
 
     /// CHECK: Mutable. Seeds must be \["custody"] (Matching Engine program).
     #[account(mut)]
-    matching_engine_custody_token: UncheckedAccount<'info>,
+    matching_engine_cctp_mint_recipient: UncheckedAccount<'info>,
 
     matching_engine_program: Program<'info, matching_engine::program::MatchingEngine>,
     token_program: Program<'info, token::Token>,
@@ -111,7 +111,10 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
                 .accounts
                 .matching_engine_router_endpoint
                 .to_account_info(),
-            custody_token: ctx.accounts.matching_engine_custody_token.to_account_info(),
+            cctp_mint_recipient: ctx
+                .accounts
+                .matching_engine_cctp_mint_recipient
+                .to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),
         },

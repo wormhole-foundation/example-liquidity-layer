@@ -92,9 +92,9 @@ pub struct ExecuteFastOrderCctp<'info> {
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
-    custody_token: AccountInfo<'info>,
+    cctp_mint_recipient: AccountInfo<'info>,
 
     /// Circle-supported mint.
     ///
@@ -202,7 +202,7 @@ pub fn handle_execute_fast_order_cctp(
         auction_config: &ctx.accounts.auction_config,
         fast_vaa: &ctx.accounts.fast_vaa,
         auction: &mut ctx.accounts.auction,
-        custody_token: &ctx.accounts.custody_token,
+        cctp_mint_recipient: &ctx.accounts.cctp_mint_recipient,
         executor_token: &ctx.accounts.executor_token,
         best_offer_token: &ctx.accounts.best_offer_token,
         initial_offer_token: &ctx.accounts.initial_offer_token,
@@ -223,7 +223,7 @@ pub fn handle_execute_fast_order_cctp(
                     .accounts
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
-                burn_token: ctx.accounts.custody_token.to_account_info(),
+                burn_token: ctx.accounts.cctp_mint_recipient.to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
                     .message_transmitter_config

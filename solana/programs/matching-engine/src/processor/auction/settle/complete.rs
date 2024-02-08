@@ -71,9 +71,9 @@ pub struct SettleAuctionComplete<'info> {
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
-    custody_token: Account<'info, token::TokenAccount>,
+    cctp_mint_recipient: Account<'info, token::TokenAccount>,
 
     token_program: Program<'info, token::Token>,
 }
@@ -89,7 +89,7 @@ pub fn settle_auction_complete(ctx: Context<SettleAuctionComplete>) -> Result<()
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
-                from: ctx.accounts.custody_token.to_account_info(),
+                from: ctx.accounts.cctp_mint_recipient.to_account_info(),
                 to: ctx.accounts.best_offer_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },

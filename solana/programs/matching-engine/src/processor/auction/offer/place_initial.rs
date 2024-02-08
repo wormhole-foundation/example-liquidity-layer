@@ -77,16 +77,16 @@ pub struct PlaceInitialOffer<'info> {
 
     #[account(
         mut,
-        associated_token::mint = custody_token.mint,
+        associated_token::mint = cctp_mint_recipient.mint,
         associated_token::authority = payer
     )]
     offer_token: Account<'info, token::TokenAccount>,
 
     #[account(
         mut,
-        address = crate::custody_token::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
     )]
-    custody_token: Account<'info, token::TokenAccount>,
+    cctp_mint_recipient: Account<'info, token::TokenAccount>,
 
     system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,
@@ -138,7 +138,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
             ctx.accounts.token_program.to_account_info(),
             anchor_spl::token::Transfer {
                 from: ctx.accounts.offer_token.to_account_info(),
-                to: ctx.accounts.custody_token.to_account_info(),
+                to: ctx.accounts.cctp_mint_recipient.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
             &[Custodian::SIGNER_SEEDS],

@@ -1,7 +1,7 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::result_large_err)]
 
-pub mod custody_token;
+pub mod cctp_mint_recipient;
 
 pub mod error;
 

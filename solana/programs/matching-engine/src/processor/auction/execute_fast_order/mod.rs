@@ -21,7 +21,7 @@ struct PrepareFastExecution<'ctx, 'info> {
     auction_config: &'ctx Account<'info, AuctionConfig>,
     fast_vaa: &'ctx AccountInfo<'info>,
     auction: &'ctx mut Box<Account<'info, Auction>>,
-    custody_token: &'ctx AccountInfo<'info>,
+    cctp_mint_recipient: &'ctx AccountInfo<'info>,
     executor_token: &'ctx Account<'info, token::TokenAccount>,
     best_offer_token: &'ctx AccountInfo<'info>,
     initial_offer_token: &'ctx AccountInfo<'info>,
@@ -41,7 +41,7 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
         auction_config,
         fast_vaa,
         auction,
-        custody_token,
+        cctp_mint_recipient,
         executor_token,
         best_offer_token,
         initial_offer_token,
@@ -79,7 +79,7 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
                 CpiContext::new_with_signer(
                     token_program.to_account_info(),
                     anchor_spl::token::Transfer {
-                        from: custody_token.to_account_info(),
+                        from: cctp_mint_recipient.to_account_info(),
                         to: executor_token.to_account_info(),
                         authority: custodian.to_account_info(),
                     },
@@ -98,7 +98,7 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
                 CpiContext::new_with_signer(
                     token_program.to_account_info(),
                     anchor_spl::token::Transfer {
-                        from: custody_token.to_account_info(),
+                        from: cctp_mint_recipient.to_account_info(),
                         to: initial_offer_token.to_account_info(),
                         authority: custodian.to_account_info(),
                     },
@@ -116,7 +116,7 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
             CpiContext::new_with_signer(
                 token_program.to_account_info(),
                 anchor_spl::token::Transfer {
-                    from: custody_token.to_account_info(),
+                    from: cctp_mint_recipient.to_account_info(),
                     to: best_offer_token.to_account_info(),
                     authority: custodian.to_account_info(),
                 },

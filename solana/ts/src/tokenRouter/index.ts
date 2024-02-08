@@ -49,7 +49,7 @@ export type TokenRouterCommonAccounts = PublishMessageAccounts & {
     rent: PublicKey;
     clock: PublicKey;
     custodian: PublicKey;
-    custodyToken: PublicKey;
+    cctpMintRecipient: PublicKey;
     tokenMessenger: PublicKey;
     tokenMinter: PublicKey;
     tokenMessengerMinterSenderAuthority: PublicKey;
@@ -63,30 +63,13 @@ export type TokenRouterCommonAccounts = PublishMessageAccounts & {
     tokenMessengerMinterCustodyToken: PublicKey;
     matchingEngineProgram: PublicKey;
     matchingEngineCustodian: PublicKey;
-    matchingEngineCustodyToken: PublicKey;
-};
-
-export type PlaceMarketOrderCctpAccounts = PublishMessageAccounts & {
-    custodian: PublicKey;
-    custodyToken: PublicKey;
-    mint: PublicKey;
-    routerEndpoint: PublicKey;
-    tokenMessengerMinterSenderAuthority: PublicKey;
-    messageTransmitterConfig: PublicKey;
-    tokenMessenger: PublicKey;
-    remoteTokenMessenger: PublicKey;
-    tokenMinter: PublicKey;
-    localToken: PublicKey;
-    coreBridgeProgram: PublicKey;
-    tokenMessengerMinterProgram: PublicKey;
-    messageTransmitterProgram: PublicKey;
-    tokenProgram: PublicKey;
+    matchingEngineCctpMintRecipient: PublicKey;
 };
 
 export type RedeemFillCctpAccounts = {
     custodian: PublicKey;
     preparedFill: PublicKey;
-    custodyToken: PublicKey;
+    cctpMintRecipient: PublicKey;
     routerEndpoint: PublicKey;
     messageTransmitterAuthority: PublicKey;
     messageTransmitterConfig: PublicKey;
@@ -106,11 +89,11 @@ export type RedeemFillCctpAccounts = {
 export type RedeemFastFillAccounts = {
     custodian: PublicKey;
     preparedFill: PublicKey;
-    custodyToken: PublicKey;
+    cctpMintRecipient: PublicKey;
     matchingEngineCustodian: PublicKey;
     matchingEngineRedeemedFastFill: PublicKey;
     matchingEngineRouterEndpoint: PublicKey;
-    matchingEngineCustodyToken: PublicKey;
+    matchingEngineCctpMintRecipient: PublicKey;
     matchingEngineProgram: PublicKey;
 };
 
@@ -153,7 +136,7 @@ export class TokenRouterProgram {
         return this.program.account.custodian.fetch(addr);
     }
 
-    custodyTokenAccountAddress(): PublicKey {
+    cctpMintRecipientAddress(): PublicKey {
         return splToken.getAssociatedTokenAddressSync(this.mint, this.custodianAddress(), true);
     }
 
@@ -213,7 +196,7 @@ export class TokenRouterProgram {
         const tokenMessengerMinterProgram = this.tokenMessengerMinterProgram();
         const messageTransmitterProgram = this.messageTransmitterProgram();
 
-        const custodyToken = this.custodyTokenAccountAddress();
+        const cctpMintRecipient = this.cctpMintRecipientAddress();
         const mint = this.mint;
 
         const matchingEngine = this.matchingEngineProgram();
@@ -224,7 +207,7 @@ export class TokenRouterProgram {
             rent: SYSVAR_RENT_PUBKEY,
             clock: SYSVAR_CLOCK_PUBKEY,
             custodian,
-            custodyToken,
+            cctpMintRecipient,
             coreBridgeConfig,
             coreEmitterSequence,
             coreFeeCollector,
@@ -245,7 +228,7 @@ export class TokenRouterProgram {
             tokenMessengerMinterCustodyToken: tokenMessengerMinterProgram.custodyTokenAddress(mint),
             matchingEngineProgram: matchingEngine.ID,
             matchingEngineCustodian: matchingEngine.custodianAddress(),
-            matchingEngineCustodyToken: matchingEngine.custodyTokenAccountAddress(),
+            matchingEngineCctpMintRecipient: matchingEngine.cctpMintRecipientAddress(),
         };
     }
 
@@ -461,7 +444,7 @@ export class TokenRouterProgram {
         cctpMessage: CctpTokenBurnMessage | Buffer,
     ): Promise<RedeemFillCctpAccounts> {
         const msg = CctpTokenBurnMessage.from(cctpMessage);
-        const custodyToken = this.custodyTokenAccountAddress();
+        const cctpMintRecipient = this.cctpMintRecipientAddress();
 
         const vaaAcct = await VaaAccount.fetch(this.program.provider.connection, vaa);
         const { chain } = vaaAcct.emitterInfo();
@@ -489,7 +472,7 @@ export class TokenRouterProgram {
         return {
             custodian: this.custodianAddress(),
             preparedFill,
-            custodyToken,
+            cctpMintRecipient,
             routerEndpoint: this.matchingEngineProgram().routerEndpointAddress(chain),
             messageTransmitterAuthority,
             messageTransmitterConfig,
@@ -525,7 +508,7 @@ export class TokenRouterProgram {
         const {
             custodian,
             preparedFill,
-            custodyToken,
+            cctpMintRecipient,
             routerEndpoint,
             messageTransmitterAuthority,
             messageTransmitterConfig,
@@ -549,7 +532,7 @@ export class TokenRouterProgram {
                 custodian,
                 vaa,
                 preparedFill,
-                custodyToken,
+                cctpMintRecipient,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
                 mint: this.mint,
                 routerEndpoint: inputRouterEndpoint ?? routerEndpoint,
@@ -577,7 +560,7 @@ export class TokenRouterProgram {
                 custodian: matchingEngineCustodian,
                 redeemedFastFill: matchingEngineRedeemedFastFill,
                 routerEndpoint: matchingEngineRouterEndpoint,
-                custodyToken: matchingEngineCustodyToken,
+                cctpMintRecipient: matchingEngineCctpMintRecipient,
                 matchingEngineProgram,
             },
         } = await this.matchingEngineProgram().redeemFastFillAccounts(vaa);
@@ -585,11 +568,11 @@ export class TokenRouterProgram {
         return {
             custodian: this.custodianAddress(),
             preparedFill: this.preparedFillAddress(vaaAccount.digest()),
-            custodyToken: this.custodyTokenAccountAddress(),
+            cctpMintRecipient: this.cctpMintRecipientAddress(),
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
             matchingEngineRouterEndpoint,
-            matchingEngineCustodyToken,
+            matchingEngineCctpMintRecipient,
             matchingEngineProgram,
         };
     }
@@ -605,7 +588,7 @@ export class TokenRouterProgram {
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
             matchingEngineRouterEndpoint,
-            matchingEngineCustodyToken,
+            matchingEngineCctpMintRecipient,
             matchingEngineProgram,
         } = await this.redeemFastFillAccounts(vaa);
 
@@ -621,7 +604,7 @@ export class TokenRouterProgram {
                 matchingEngineCustodian,
                 matchingEngineRedeemedFastFill,
                 matchingEngineRouterEndpoint,
-                matchingEngineCustodyToken,
+                matchingEngineCctpMintRecipient,
                 matchingEngineProgram,
             })
             .instruction();
@@ -640,7 +623,7 @@ export class TokenRouterProgram {
                 custodian: this.custodianAddress(),
                 ownerAssistant,
                 mint: inputMint ?? this.mint,
-                custodyToken: this.custodyTokenAccountAddress(),
+                cctpMintRecipient: this.cctpMintRecipientAddress(),
                 programData: getProgramData(this.ID),
             })
             .instruction();
