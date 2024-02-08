@@ -33,7 +33,7 @@ default-features = false
 wormhole-io = "0.1.2"
 anchor-lang = "0.29.0"
 anchor-spl = "0.29.0"
-solana-program = "=1.16.27"
+solana-program = "1.17.20"
 hex = "0.4.3"
 ruint = "1.9.0"
 cfg-if = "1.0"
