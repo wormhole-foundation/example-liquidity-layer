@@ -33,9 +33,9 @@ export class CctpMessage {
         const sourceDomain = buf.readUInt32BE(4);
         const destinationDomain = buf.readUInt32BE(8);
         const nonce = buf.readBigUInt64BE(12);
-        const sender = Array.from(buf.subarray(20, 52));
-        const recipient = Array.from(buf.subarray(52, 84));
-        const targetCaller = Array.from(buf.subarray(84, 116));
+        const sender = Array.from(buf.slice(20, 52));
+        const recipient = Array.from(buf.slice(52, 84));
+        const targetCaller = Array.from(buf.slice(84, 116));
         const message = buf.subarray(116);
 
         return new CctpMessage(
@@ -48,7 +48,7 @@ export class CctpMessage {
                 recipient,
                 targetCaller,
             },
-            message
+            message,
         );
     }
 
@@ -72,7 +72,7 @@ export class CctpTokenBurnMessage {
         burnTokenAddress: Array<number>,
         mintRecipient: Array<number>,
         amount: bigint,
-        sender: Array<number>
+        sender: Array<number>,
     ) {
         this.cctp = cctp;
         this.version = version;
@@ -104,7 +104,7 @@ export class CctpTokenBurnMessage {
             burnTokenAddress,
             mintRecipient,
             amount,
-            sender
+            sender,
         );
     }
 

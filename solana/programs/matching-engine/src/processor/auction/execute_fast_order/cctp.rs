@@ -5,10 +5,13 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::wormhole_cctp_solana::{
-    self,
-    cctp::{message_transmitter_program, token_messenger_minter_program},
-    wormhole::core_bridge_program::{self, VaaAccount},
+use common::{
+    wormhole_cctp_solana::{
+        self,
+        cctp::{message_transmitter_program, token_messenger_minter_program},
+        wormhole::core_bridge_program::{self, VaaAccount},
+    },
+    wormhole_io::TypePrefixedPayload,
 };
 
 /// Accounts required for [execute_fast_order_cctp].
@@ -104,7 +107,7 @@ pub struct ExecuteFastOrderCctp<'info> {
     #[account(mut)]
     core_bridge_config: UncheckedAccount<'info>,
 
-    /// CHECK: Mutable. Seeds must be \["msg", payer, payer_sequence.value\].
+    /// CHECK: Mutable. Seeds must be \["core-msg", payer, payer_sequence.value\].
     #[account(
         mut,
         seeds = [
@@ -115,6 +118,18 @@ pub struct ExecuteFastOrderCctp<'info> {
         bump,
     )]
     core_message: AccountInfo<'info>,
+
+    /// CHECK: Mutable. Seeds must be \["cctp-msg", payer, payer_sequence.value\].
+    #[account(
+        mut,
+        seeds = [
+            common::constants::CCTP_MESSAGE_SEED_PREFIX,
+            payer.key().as_ref(),
+            payer_sequence.value.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    cctp_message: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["Sequence"\, custodian] (Wormhole Core Bridge program).
     #[account(mut)]
@@ -147,6 +162,9 @@ pub struct ExecuteFastOrderCctp<'info> {
     #[account(mut)]
     local_token: UncheckedAccount<'info>,
 
+    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
+    token_messenger_minter_event_authority: UncheckedAccount<'info>,
+
     core_bridge_program: Program<'info, core_bridge_program::CoreBridge>,
     token_messenger_minter_program:
         Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
@@ -178,6 +196,7 @@ pub fn handle_execute_fast_order_cctp(
     let super::PreparedFastExecution {
         user_amount: amount,
         fill,
+        sequence_seed,
     } = super::prepare_fast_execution(super::PrepareFastExecution {
         custodian: &ctx.accounts.custodian,
         auction_config: &ctx.accounts.auction_config,
@@ -187,6 +206,7 @@ pub fn handle_execute_fast_order_cctp(
         executor_token: &ctx.accounts.executor_token,
         best_offer_token: &ctx.accounts.best_offer_token,
         initial_offer_token: &ctx.accounts.initial_offer_token,
+        payer_sequence: &mut ctx.accounts.payer_sequence,
         token_program: &ctx.accounts.token_program,
     })?;
 
@@ -197,12 +217,13 @@ pub fn handle_execute_fast_order_cctp(
                 .token_messenger_minter_program
                 .to_account_info(),
             wormhole_cctp_solana::cpi::DepositForBurnWithCaller {
-                src_token_owner: ctx.accounts.custodian.to_account_info(),
+                burn_token_owner: ctx.accounts.custodian.to_account_info(),
+                payer: ctx.accounts.payer.to_account_info(),
                 token_messenger_minter_sender_authority: ctx
                     .accounts
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
-                src_token: ctx.accounts.custody_token.to_account_info(),
+                burn_token: ctx.accounts.custody_token.to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
                     .message_transmitter_config
@@ -212,6 +233,7 @@ pub fn handle_execute_fast_order_cctp(
                 token_minter: ctx.accounts.token_minter.to_account_info(),
                 local_token: ctx.accounts.local_token.to_account_info(),
                 mint: ctx.accounts.mint.to_account_info(),
+                cctp_message: ctx.accounts.cctp_message.to_account_info(),
                 message_transmitter_program: ctx
                     .accounts
                     .message_transmitter_program
@@ -221,8 +243,21 @@ pub fn handle_execute_fast_order_cctp(
                     .token_messenger_minter_program
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
+                system_program: ctx.accounts.system_program.to_account_info(),
+                event_authority: ctx
+                    .accounts
+                    .token_messenger_minter_event_authority
+                    .to_account_info(),
             },
-            &[Custodian::SIGNER_SEEDS],
+            &[
+                Custodian::SIGNER_SEEDS,
+                &[
+                    common::constants::CCTP_MESSAGE_SEED_PREFIX,
+                    ctx.accounts.payer.key().as_ref(),
+                    sequence_seed.as_ref(),
+                    &[ctx.bumps.cctp_message],
+                ],
+            ],
         ),
         CpiContext::new_with_signer(
             ctx.accounts.core_bridge_program.to_account_info(),
@@ -242,12 +277,8 @@ pub fn handle_execute_fast_order_cctp(
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),
-                    ctx.accounts
-                        .payer_sequence
-                        .take_and_uptick()
-                        .to_be_bytes()
-                        .as_ref(),
-                    &[ctx.bumps["core_message"]],
+                    sequence_seed.as_ref(),
+                    &[ctx.bumps.core_message],
                 ],
             ],
         ),
@@ -258,7 +289,7 @@ pub fn handle_execute_fast_order_cctp(
             amount,
             mint_recipient: ctx.accounts.to_router_endpoint.mint_recipient,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
-            payload: fill,
+            payload: fill.to_vec_payload(),
         },
     )?;
 

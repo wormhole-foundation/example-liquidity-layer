@@ -42,7 +42,7 @@ pub struct PrepareMarketOrder<'info> {
     /// NOTE: This token account must have delegated transfer authority to the custodian prior to
     /// invoking this instruction.
     #[account(mut)]
-    order_token: AccountInfo<'info>,
+    src_token: AccountInfo<'info>,
 
     #[account(token::mint = mint)]
     refund_token: Account<'info, token::TokenAccount>,
@@ -121,16 +121,16 @@ pub fn prepare_market_order(
 
     // Set the values in prepared order account.
     ctx.accounts.prepared_order.set_inner(PreparedOrder {
-        info: Box::new(PreparedOrderInfo {
+        info: PreparedOrderInfo {
             order_sender: ctx.accounts.order_sender.key(),
             prepared_by: ctx.accounts.payer.key(),
             order_type: OrderType::Market { min_amount_out },
-            order_token: ctx.accounts.order_token.key(),
+            src_token: ctx.accounts.src_token.key(),
             refund_token: ctx.accounts.refund_token.key(),
             target_chain,
             redeemer,
-            prepared_custody_token_bump: ctx.bumps["prepared_custody_token"],
-        }),
+            prepared_custody_token_bump: ctx.bumps.prepared_custody_token,
+        },
         redeemer_message,
     });
 
@@ -139,7 +139,7 @@ pub fn prepare_market_order(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
-                from: ctx.accounts.order_token.to_account_info(),
+                from: ctx.accounts.src_token.to_account_info(),
                 to: ctx.accounts.prepared_custody_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },

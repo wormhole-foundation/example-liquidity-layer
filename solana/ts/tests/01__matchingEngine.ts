@@ -2249,7 +2249,7 @@ describe("Matching Engine", function () {
                 );
 
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 250_000,
+                    units: 300_000,
                 });
 
                 await expectIxOk(connection, [computeIx, ix], [payer]);
@@ -2298,15 +2298,24 @@ describe("Matching Engine", function () {
 
                     const settleIx = await engine.settleAuctionCompleteIx({
                         preparedOrderResponse,
-                        preparedBy: payer.publicKey,
                         auction,
+                        preparedBy: payer.publicKey,
                     });
 
+                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                        lookupTableAddress,
+                    );
+                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                        units: 500_000,
+                    });
                     await expectIxErr(
                         connection,
-                        [prepareIx!, settleIx],
+                        [computeIx, prepareIx!, settleIx],
                         [payer],
                         "Error Code: AuctionNotCompleted",
+                        {
+                            addressLookupTableAccounts: [lookupTableAccount!],
+                        },
                     );
                 });
 
@@ -2326,7 +2335,6 @@ describe("Matching Engine", function () {
 
                     const settleIx = await engine.settleAuctionCompleteIx({
                         preparedOrderResponse,
-                        preparedBy: payer.publicKey,
                         auction,
                     });
 
@@ -2367,7 +2375,6 @@ describe("Matching Engine", function () {
                             preparedOrderResponse,
                             executorToken: liquidatorToken,
                             auction,
-                            preparedBy: payer.publicKey,
                             encodedCctpMessage,
                         },
                         { targetChain: ethChain, remoteDomain: solanaChain },
@@ -2389,6 +2396,7 @@ describe("Matching Engine", function () {
                         },
                     );
                 });
+
                 it("Settle", async function () {
                     const { auction, fastVaa, fastVaaAccount, prepareIx, preparedOrderResponse } =
                         await prepareOrderResponse({
@@ -2420,7 +2428,6 @@ describe("Matching Engine", function () {
                             preparedOrderResponse,
                             executorToken: liquidatorToken,
                             auction,
-                            preparedBy: payer.publicKey,
                             encodedCctpMessage,
                         },
                         { targetChain: ethChain, remoteDomain: solanaChain },
@@ -2456,7 +2463,7 @@ describe("Matching Engine", function () {
                     });
 
                     const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                        units: 250_000,
+                        units: 300_000,
                     });
 
                     const { amount: feeBalanceBefore } = await splToken.getAccount(
@@ -2620,6 +2627,9 @@ describe("Matching Engine", function () {
                             setTimeout(f, startSlot.toNumber() + duration + 200),
                         );
 
+                        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                            units: 300_000,
+                        });
                         const ix = await engine.executeFastOrderCctpIx({
                             payer: payer.publicKey,
                             fastVaa,
@@ -2628,12 +2638,15 @@ describe("Matching Engine", function () {
                             bestOfferToken,
                             initialOfferToken,
                         });
-                        await expectIxOk(connection, [ix], [payer]);
+                        await expectIxOk(connection, [computeIx, ix], [payer]);
                     }
                 }
 
                 if (prepareOrderResponse) {
-                    await expectIxOk(connection, [prepareIx], [payer]);
+                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                        units: 300_000,
+                    });
+                    await expectIxOk(connection, [computeIx, prepareIx], [payer]);
                 }
 
                 return {

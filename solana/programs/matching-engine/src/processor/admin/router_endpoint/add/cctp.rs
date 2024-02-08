@@ -92,7 +92,7 @@ pub fn add_cctp_router_endpoint(
     };
 
     ctx.accounts.router_endpoint.set_inner(RouterEndpoint {
-        bump: ctx.bumps["router_endpoint"],
+        bump: ctx.bumps.router_endpoint,
         chain,
         address,
         mint_recipient,

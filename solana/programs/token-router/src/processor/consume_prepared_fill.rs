@@ -48,9 +48,13 @@ pub struct ConsumePreparedFill<'info> {
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
+        seeds = [
+            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
+            prepared_fill.key().as_ref(),
+        ],
+        bump = prepared_fill.prepared_custody_token_bump,
     )]
-    custody_token: AccountInfo<'info>,
+    prepared_custody_token: Account<'info, token::TokenAccount>,
 
     token_program: Program<'info, token::Token>,
 }
@@ -61,12 +65,23 @@ pub fn consume_prepared_fill(ctx: Context<ConsumePreparedFill>) -> Result<()> {
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
-                from: ctx.accounts.custody_token.to_account_info(),
+                from: ctx.accounts.prepared_custody_token.to_account_info(),
                 to: ctx.accounts.dst_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
             &[Custodian::SIGNER_SEEDS],
         ),
-        ctx.accounts.prepared_fill.amount,
-    )
+        ctx.accounts.prepared_custody_token.amount,
+    )?;
+
+    // Finally close token account.
+    token::close_account(CpiContext::new_with_signer(
+        ctx.accounts.token_program.to_account_info(),
+        token::CloseAccount {
+            account: ctx.accounts.prepared_custody_token.to_account_info(),
+            destination: ctx.accounts.rent_recipient.to_account_info(),
+            authority: ctx.accounts.custodian.to_account_info(),
+        },
+        &[Custodian::SIGNER_SEEDS],
+    ))
 }

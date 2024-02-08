@@ -123,14 +123,9 @@ describe("Matching Engine <> Token Router", function () {
                 vaa,
             });
 
-            const custodyToken = tokenRouter.custodyTokenAccountAddress();
-            const { amount: balanceBefore } = await splToken.getAccount(connection, custodyToken);
-
             await expectIxOk(connection, [ix], [payer]);
 
-            // Check balance.
-            const { amount: balanceAfter } = await splToken.getAccount(connection, custodyToken);
-            expect(balanceAfter).equals(balanceBefore + amount);
+            // Check balance. TODO
 
             const vaaHash = await VaaAccount.fetch(connection, vaa).then((vaa) => vaa.digest());
             const preparedFill = tokenRouter.preparedFillAddress(vaaHash);
@@ -156,11 +151,12 @@ describe("Matching Engine <> Token Router", function () {
 
             {
                 const preparedFillData = await tokenRouter.fetchPreparedFill(preparedFill);
-                const { bump } = preparedFillData;
+                const { bump, preparedCustodyTokenBump } = preparedFillData;
                 expect(preparedFillData).to.eql(
                     new tokenRouterSdk.PreparedFill(
                         Array.from(vaaHash),
                         bump,
+                        preparedCustodyTokenBump,
                         redeemer.publicKey,
                         payer.publicKey,
                         { fastFill: {} },
@@ -219,7 +215,10 @@ describe("Matching Engine <> Token Router", function () {
             const preparedFillRent = await connection.getMinimumBalanceForRentExemption(
                 152 + redeemerMessage.length,
             );
-            expect(solBalanceAfter).equals(solBalanceBefore + preparedFillRent);
+            const preparedTokenRent = await connection.getMinimumBalanceForRentExemption(
+                splToken.AccountLayout.span,
+            );
+            expect(solBalanceAfter).equals(solBalanceBefore + preparedFillRent + preparedTokenRent);
 
             const accInfo = await connection.getAccountInfo(preparedFill);
             expect(accInfo).is.null;

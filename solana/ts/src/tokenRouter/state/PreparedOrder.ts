@@ -8,14 +8,14 @@ export type OrderType = {
 };
 
 export type PreparedOrderInfo = {
+    preparedCustodyTokenBump: number;
     orderSender: PublicKey;
     preparedBy: PublicKey;
     orderType: OrderType;
-    orderToken: PublicKey;
+    srcToken: PublicKey;
     refundToken: PublicKey;
     targetChain: number;
     redeemer: Array<number>;
-    preparedCustodyTokenBump: number;
 };
 
 export class PreparedOrder {

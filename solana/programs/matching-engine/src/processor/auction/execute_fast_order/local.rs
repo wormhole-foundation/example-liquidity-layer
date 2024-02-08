@@ -132,6 +132,7 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
     let super::PreparedFastExecution {
         user_amount: amount,
         fill,
+        sequence_seed,
     } = super::prepare_fast_execution(super::PrepareFastExecution {
         custodian: &ctx.accounts.custodian,
         auction_config: &ctx.accounts.auction_config,
@@ -141,6 +142,7 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         executor_token: &ctx.accounts.executor_token,
         best_offer_token: &ctx.accounts.best_offer_token,
         initial_offer_token: &ctx.accounts.initial_offer_token,
+        payer_sequence: &mut ctx.accounts.payer_sequence,
         token_program: &ctx.accounts.token_program,
     })?;
 
@@ -164,12 +166,8 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),
-                    ctx.accounts
-                        .payer_sequence
-                        .take_and_uptick()
-                        .to_be_bytes()
-                        .as_ref(),
-                    &[ctx.bumps["core_message"]],
+                    sequence_seed.as_ref(),
+                    &[ctx.bumps.core_message],
                 ],
             ],
         ),

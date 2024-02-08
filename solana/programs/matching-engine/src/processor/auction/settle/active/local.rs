@@ -14,7 +14,10 @@ use common::{
 /// Accounts required for [settle_auction_active_local].
 #[derive(Accounts)]
 pub struct SettleAuctionActiveLocal<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        address = prepared_order_response.prepared_by, // TODO: add err
+    )]
     payer: Signer<'info>,
 
     #[account(
@@ -45,17 +48,12 @@ pub struct SettleAuctionActiveLocal<'info> {
     #[account(owner = core_bridge_program::id())]
     fast_vaa: AccountInfo<'info>,
 
-    /// CHECK: Must be the account that created the prepared slow order. This account will most
-    /// likely be the same as the payer.
-    #[account(mut)]
-    prepared_by: AccountInfo<'info>,
-
     #[account(
         mut,
-        close = prepared_by,
+        close = payer,
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
-            prepared_by.key().as_ref(),
+            payer.key().as_ref(),
             core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
         ],
         bump = prepared_order_response.bump,
@@ -89,15 +87,13 @@ pub struct SettleAuctionActiveLocal<'info> {
     )]
     to_router_endpoint: Box<Account<'info, RouterEndpoint>>,
 
-    #[account(
-        mut,
-        token::mint = common::constants::usdc::id(),
-    )]
-    executor_token: Box<Account<'info, token::TokenAccount>>,
-
     /// CHECK: Must equal the best offer token in the auction data account.
     #[account(mut)]
     best_offer_token: AccountInfo<'info>,
+
+    /// CHECK: Must be the same mint as the best offer token.
+    #[account(mut)]
+    executor_token: AccountInfo<'info>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -154,6 +150,7 @@ pub fn settle_auction_active_local(ctx: Context<SettleAuctionActiveLocal>) -> Re
     let super::SettledActive {
         user_amount: amount,
         fill,
+        sequence_seed,
     } = super::settle_active_and_prepare_fill(super::SettleActiveAndPrepareFill {
         custodian: &ctx.accounts.custodian,
         auction_config: &ctx.accounts.auction_config,
@@ -163,6 +160,7 @@ pub fn settle_auction_active_local(ctx: Context<SettleAuctionActiveLocal>) -> Re
         executor_token: &ctx.accounts.executor_token,
         best_offer_token: &ctx.accounts.best_offer_token,
         custody_token: &ctx.accounts.custody_token,
+        payer_sequence: &mut ctx.accounts.payer_sequence,
         token_program: &ctx.accounts.token_program,
     })?;
 
@@ -186,12 +184,8 @@ pub fn settle_auction_active_local(ctx: Context<SettleAuctionActiveLocal>) -> Re
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),
-                    ctx.accounts
-                        .payer_sequence
-                        .take_and_uptick()
-                        .to_be_bytes()
-                        .as_ref(),
-                    &[ctx.bumps["core_message"]],
+                    sequence_seed.as_ref(),
+                    &[ctx.bumps.core_message],
                 ],
             ],
         ),

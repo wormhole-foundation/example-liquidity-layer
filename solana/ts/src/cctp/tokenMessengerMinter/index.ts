@@ -1,15 +1,10 @@
 import { Program } from "@coral-xyz/anchor";
-import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { MessageTransmitterProgram } from "../messageTransmitter";
 import { IDL, TokenMessengerMinter } from "../types/token_messenger_minter";
 import { RemoteTokenMessenger } from "./RemoteTokenMessenger";
 
 export const PROGRAM_IDS = ["CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"] as const;
-
-export const DEPOSIT_FOR_BURN_WITH_CALLER_IX_SELECTOR = Uint8Array.from([
-    167, 222, 19, 114, 85, 21, 14, 118,
-]);
 
 export type ProgramId = (typeof PROGRAM_IDS)[number];
 
@@ -20,9 +15,9 @@ export type DepositForBurnWithCallerAccounts = {
     remoteTokenMessenger: PublicKey;
     tokenMinter: PublicKey;
     localToken: PublicKey;
+    tokenMessengerMinterEventAuthority: PublicKey;
     messageTransmitterProgram: PublicKey;
     tokenMessengerMinterProgram: PublicKey;
-    tokenProgram: PublicKey;
 };
 
 export class TokenMessengerMinterProgram {
@@ -52,7 +47,7 @@ export class TokenMessengerMinterProgram {
     custodyTokenAddress(mint: PublicKey): PublicKey {
         return PublicKey.findProgramAddressSync(
             [Buffer.from("custody"), mint.toBuffer()],
-            this.ID
+            this.ID,
         )[0];
     }
 
@@ -63,7 +58,7 @@ export class TokenMessengerMinterProgram {
                 Buffer.from(remoteDomain.toString()),
                 Buffer.from(remoteTokenAddress),
             ],
-            this.ID
+            this.ID,
         )[0];
     }
 
@@ -73,7 +68,7 @@ export class TokenMessengerMinterProgram {
 
     async fetchRemoteTokenMessenger(addr: PublicKey): Promise<RemoteTokenMessenger> {
         const { domain, tokenMessenger } = await this.program.account.remoteTokenMessenger.fetch(
-            addr
+            addr,
         );
         return new RemoteTokenMessenger(domain, Array.from(tokenMessenger.toBuffer()));
     }
@@ -81,12 +76,16 @@ export class TokenMessengerMinterProgram {
     localTokenAddress(mint: PublicKey): PublicKey {
         return PublicKey.findProgramAddressSync(
             [Buffer.from("local_token"), mint.toBuffer()],
-            this.ID
+            this.ID,
         )[0];
     }
 
-    senderAuthority(): PublicKey {
+    senderAuthorityAddress(): PublicKey {
         return PublicKey.findProgramAddressSync([Buffer.from("sender_authority")], this.ID)[0];
+    }
+
+    eventAuthorityAddress(): PublicKey {
+        return PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], this.ID)[0];
     }
 
     messageTransmitterProgram(): MessageTransmitterProgram {
@@ -94,13 +93,13 @@ export class TokenMessengerMinterProgram {
             case testnet(): {
                 return new MessageTransmitterProgram(
                     this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
                 );
             }
             case mainnet(): {
                 return new MessageTransmitterProgram(
                     this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"
+                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
                 );
             }
             default: {
@@ -111,19 +110,19 @@ export class TokenMessengerMinterProgram {
 
     depositForBurnWithCallerAccounts(
         mint: PublicKey,
-        remoteDomain: number
+        remoteDomain: number,
     ): DepositForBurnWithCallerAccounts {
         const messageTransmitterProgram = this.messageTransmitterProgram();
         return {
-            senderAuthority: this.senderAuthority(),
+            senderAuthority: this.senderAuthorityAddress(),
             messageTransmitterConfig: messageTransmitterProgram.messageTransmitterConfigAddress(),
             tokenMessenger: this.tokenMessengerAddress(),
             remoteTokenMessenger: this.remoteTokenMessengerAddress(remoteDomain),
             tokenMinter: this.tokenMinterAddress(),
             localToken: this.localTokenAddress(mint),
+            tokenMessengerMinterEventAuthority: this.eventAuthorityAddress(),
             messageTransmitterProgram: messageTransmitterProgram.ID,
             tokenMessengerMinterProgram: this.ID,
-            tokenProgram: TOKEN_PROGRAM_ID,
         };
     }
 }

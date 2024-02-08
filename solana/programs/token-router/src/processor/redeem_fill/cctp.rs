@@ -44,7 +44,14 @@ pub struct RedeemCctpFill<'info> {
         ],
         bump,
     )]
-    prepared_fill: Account<'info, PreparedFill>,
+    prepared_fill: Box<Account<'info, PreparedFill>>,
+
+    /// CHECK: Mutable. Seeds must be \["custody"\].
+    #[account(
+        mut,
+        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
+    )]
+    custody_token: AccountInfo<'info>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -54,10 +61,21 @@ pub struct RedeemCctpFill<'info> {
     ///
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
-        mut,
-        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
+        init_if_needed,
+        payer = payer,
+        token::mint = mint,
+        token::authority = custodian,
+        seeds = [
+            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
+            prepared_fill.key().as_ref(),
+        ],
+        bump,
     )]
-    custody_token: AccountInfo<'info>,
+    prepared_custody_token: Box<Account<'info, token::TokenAccount>>,
+
+    /// CHECK: This mint must be USDC.
+    #[account(address = common::constants::usdc::id())]
+    mint: AccountInfo<'info>,
 
     /// Registered emitter account representing a Circle Integration on another network.
     ///
@@ -83,6 +101,9 @@ pub struct RedeemCctpFill<'info> {
     #[account(mut)]
     used_nonces: UncheckedAccount<'info>,
 
+    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Message Transmitter program)).
+    message_transmitter_event_authority: UncheckedAccount<'info>,
+
     /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
     token_messenger: UncheckedAccount<'info>,
 
@@ -107,6 +128,9 @@ pub struct RedeemCctpFill<'info> {
     /// CHECK: Mutable. Seeds must be \["custody", mint\] (CCTP Token Messenger Minter program).
     #[account(mut)]
     token_messenger_minter_custody_token: UncheckedAccount<'info>,
+
+    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program)).
+    token_messenger_minter_event_authority: UncheckedAccount<'info>,
 
     token_messenger_minter_program:
         Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
@@ -158,6 +182,14 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
                     .token_messenger_minter_program
                     .to_account_info(),
                 system_program: ctx.accounts.system_program.to_account_info(),
+                message_transmitter_event_authority: ctx
+                    .accounts
+                    .message_transmitter_event_authority
+                    .to_account_info(),
+                message_transmitter_program: ctx
+                    .accounts
+                    .message_transmitter_program
+                    .to_account_info(),
                 token_messenger: ctx.accounts.token_messenger.to_account_info(),
                 remote_token_messenger: ctx.accounts.remote_token_messenger.to_account_info(),
                 token_minter: ctx.accounts.token_minter.to_account_info(),
@@ -169,6 +201,10 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
                     .token_messenger_minter_custody_token
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
+                token_messenger_minter_event_authority: ctx
+                    .accounts
+                    .token_messenger_minter_event_authority
+                    .to_account_info(),
             },
             &[Custodian::SIGNER_SEEDS],
         ),
@@ -207,7 +243,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
 
     {
         let data_len = PreparedFill::compute_size(fill.redeemer_message_len().try_into().unwrap());
-        let acc_info: &AccountInfo = ctx.accounts.prepared_fill.as_ref();
+        let acc_info: &AccountInfo = ctx.accounts.prepared_fill.as_ref().as_ref();
         let lamport_diff = Rent::get().map(|rent| {
             rent.minimum_balance(data_len)
                 .saturating_sub(acc_info.lamports())
@@ -228,17 +264,31 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
     // Set prepared fill data.
     ctx.accounts.prepared_fill.set_inner(PreparedFill {
         vaa_hash: vaa.try_digest().unwrap().0,
-        bump: ctx.bumps["prepared_fill"],
+        bump: ctx.bumps.prepared_fill,
+        prepared_custody_token_bump: ctx.bumps.prepared_custody_token,
         redeemer: Pubkey::from(fill.redeemer()),
         prepared_by: ctx.accounts.payer.key(),
         fill_type: FillType::WormholeCctpDeposit,
-        amount,
         source_chain: fill.source_chain(),
         order_sender: fill.order_sender(),
         redeemer_message: fill.message_to_vec(),
     });
 
-    // Done.
+    // Transfer to prepared custody account.
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            token::Transfer {
+                from: ctx.accounts.custody_token.to_account_info(),
+                to: ctx.accounts.prepared_custody_token.to_account_info(),
+                authority: ctx.accounts.custodian.to_account_info(),
+            },
+            &[Custodian::SIGNER_SEEDS],
+        ),
+        amount,
+    )?;
+
+    // TODO: close custody token.
     Ok(())
 }
 

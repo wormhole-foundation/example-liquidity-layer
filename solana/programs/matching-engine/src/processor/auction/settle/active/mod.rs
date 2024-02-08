@@ -5,7 +5,9 @@ mod local;
 pub use local::*;
 
 use crate::{
-    state::{Auction, AuctionConfig, AuctionStatus, Custodian, PreparedOrderResponse},
+    state::{
+        Auction, AuctionConfig, AuctionStatus, Custodian, PayerSequence, PreparedOrderResponse,
+    },
     utils::{self, auction::DepositPenalty},
 };
 use anchor_lang::prelude::*;
@@ -24,15 +26,17 @@ struct SettleActiveAndPrepareFill<'ctx, 'info> {
     fast_vaa: &'ctx AccountInfo<'info>,
     auction: &'ctx mut Account<'info, Auction>,
     prepared_order_response: &'ctx Account<'info, PreparedOrderResponse>,
-    executor_token: &'ctx Account<'info, token::TokenAccount>,
+    executor_token: &'ctx AccountInfo<'info>,
     best_offer_token: &'ctx AccountInfo<'info>,
     custody_token: &'ctx AccountInfo<'info>,
+    payer_sequence: &'ctx mut Account<'info, PayerSequence>,
     token_program: &'ctx Program<'info, token::Token>,
 }
 
 struct SettledActive {
     user_amount: u64,
     fill: Fill,
+    sequence_seed: [u8; 8],
 }
 
 fn settle_active_and_prepare_fill(
@@ -47,6 +51,7 @@ fn settle_active_and_prepare_fill(
         executor_token,
         best_offer_token,
         custody_token,
+        payer_sequence,
         token_program,
     } = accounts;
 
@@ -131,5 +136,6 @@ fn settle_active_and_prepare_fill(
             redeemer: order.redeemer(),
             redeemer_message: order.message_to_vec().into(),
         },
+        sequence_seed: payer_sequence.take_and_uptick().to_be_bytes(),
     })
 }

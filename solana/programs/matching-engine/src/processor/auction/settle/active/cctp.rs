@@ -8,16 +8,22 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::wormhole_cctp_solana::{
-    self,
-    cctp::{message_transmitter_program, token_messenger_minter_program},
-    wormhole::core_bridge_program,
+use common::{
+    wormhole_cctp_solana::{
+        self,
+        cctp::{message_transmitter_program, token_messenger_minter_program},
+        wormhole::core_bridge_program,
+    },
+    wormhole_io::TypePrefixedPayload,
 };
 
 /// Accounts required for [settle_auction_active_cctp].
 #[derive(Accounts)]
 pub struct SettleAuctionActiveCctp<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        address = prepared_order_response.prepared_by, // TODO: add err
+    )]
     payer: Signer<'info>,
 
     #[account(
@@ -48,17 +54,12 @@ pub struct SettleAuctionActiveCctp<'info> {
     #[account(owner = core_bridge_program::id())]
     fast_vaa: AccountInfo<'info>,
 
-    /// CHECK: Must be the account that created the prepared slow order. This account will most
-    /// likely be the same as the payer.
-    #[account(mut)]
-    prepared_by: AccountInfo<'info>,
-
     #[account(
         mut,
-        close = prepared_by,
+        close = payer,
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
-            prepared_by.key().as_ref(),
+            payer.key().as_ref(),
             core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
         ],
         bump = prepared_order_response.bump,
@@ -86,11 +87,9 @@ pub struct SettleAuctionActiveCctp<'info> {
     #[account(mut)]
     best_offer_token: AccountInfo<'info>,
 
-    #[account(
-        mut,
-        token::mint = common::constants::usdc::id(),
-    )]
-    executor_token: Box<Account<'info, token::TokenAccount>>,
+    /// CHECK: Must be the same mint as the best offer token.
+    #[account(mut)]
+    executor_token: AccountInfo<'info>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -122,48 +121,11 @@ pub struct SettleAuctionActiveCctp<'info> {
     #[account(mut)]
     mint: AccountInfo<'info>,
 
-    /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
-    message_transmitter_authority: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
-    #[account(mut)]
-    message_transmitter_config: UncheckedAccount<'info>,
-
-    /// CHECK: Mutable. Seeds must be \["used_nonces", remote_domain.to_string(),
-    /// first_nonce.to_string()\] (CCTP Message Transmitter program).
-    #[account(mut)]
-    used_nonces: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
-    token_messenger: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
-    /// Messenger Minter program).
-    remote_token_messenger: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
-    token_minter: UncheckedAccount<'info>,
-
-    /// Token Messenger Minter's Local Token account. This program uses the mint of this account to
-    /// validate the `mint_recipient` token account's mint.
-    ///
-    /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
-    #[account(mut)]
-    local_token: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["token_pair", remote_domain.to_string(), remote_token_address\] (CCTP
-    /// Token Messenger Minter program).
-    token_pair: UncheckedAccount<'info>,
-
-    /// CHECK: Mutable. Seeds must be \["custody", mint\] (CCTP Token Messenger Minter program).
-    #[account(mut)]
-    token_messenger_minter_custody_token: UncheckedAccount<'info>,
-
     /// CHECK: Seeds must be \["Bridge"\] (Wormhole Core Bridge program).
     #[account(mut)]
     core_bridge_config: UncheckedAccount<'info>,
 
-    /// CHECK: Mutable. Seeds must be \["msg", payer, payer_sequence.value\].
+    /// CHECK: Mutable. Seeds must be \["core-msg", payer, payer_sequence.value\].
     #[account(
         mut,
         seeds = [
@@ -175,6 +137,18 @@ pub struct SettleAuctionActiveCctp<'info> {
     )]
     core_message: AccountInfo<'info>,
 
+    /// CHECK: Mutable. Seeds must be \["cctp-msg", payer, payer_sequence.value\].
+    #[account(
+        mut,
+        seeds = [
+            common::constants::CCTP_MESSAGE_SEED_PREFIX,
+            payer.key().as_ref(),
+            payer_sequence.value.to_be_bytes().as_ref(),
+        ],
+        bump,
+    )]
+    cctp_message: AccountInfo<'info>,
+
     /// CHECK: Seeds must be \["Sequence"\, custodian] (Wormhole Core Bridge program).
     #[account(mut)]
     core_emitter_sequence: UncheckedAccount<'info>,
@@ -185,6 +159,29 @@ pub struct SettleAuctionActiveCctp<'info> {
 
     /// CHECK: Seeds must be \["sender_authority"\] (CCTP Token Messenger Minter program).
     token_messenger_minter_sender_authority: UncheckedAccount<'info>,
+
+    /// CHECK: Mutable. Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
+    #[account(mut)]
+    message_transmitter_config: UncheckedAccount<'info>,
+
+    /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
+    token_messenger: UncheckedAccount<'info>,
+
+    /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
+    /// Messenger Minter program).
+    remote_token_messenger: UncheckedAccount<'info>,
+
+    /// CHECK Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
+    token_minter: UncheckedAccount<'info>,
+
+    /// Local token account, which this program uses to validate the `mint` used to burn.
+    ///
+    /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
+    #[account(mut)]
+    local_token: UncheckedAccount<'info>,
+
+    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
+    token_messenger_minter_event_authority: UncheckedAccount<'info>,
 
     core_bridge_program: Program<'info, core_bridge_program::CoreBridge>,
     token_messenger_minter_program:
@@ -217,6 +214,7 @@ fn handle_settle_auction_active_cctp(
     let super::SettledActive {
         user_amount: amount,
         fill,
+        sequence_seed,
     } = super::settle_active_and_prepare_fill(super::SettleActiveAndPrepareFill {
         custodian: &ctx.accounts.custodian,
         auction_config: &ctx.accounts.auction_config,
@@ -226,6 +224,7 @@ fn handle_settle_auction_active_cctp(
         executor_token: &ctx.accounts.executor_token,
         best_offer_token: &ctx.accounts.best_offer_token,
         custody_token: &ctx.accounts.custody_token,
+        payer_sequence: &mut ctx.accounts.payer_sequence,
         token_program: &ctx.accounts.token_program,
     })?;
 
@@ -236,12 +235,13 @@ fn handle_settle_auction_active_cctp(
                 .token_messenger_minter_program
                 .to_account_info(),
             wormhole_cctp_solana::cpi::DepositForBurnWithCaller {
-                src_token_owner: ctx.accounts.custodian.to_account_info(),
+                burn_token_owner: ctx.accounts.custodian.to_account_info(),
+                payer: ctx.accounts.payer.to_account_info(),
                 token_messenger_minter_sender_authority: ctx
                     .accounts
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
-                src_token: ctx.accounts.custody_token.to_account_info(),
+                burn_token: ctx.accounts.custody_token.to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
                     .message_transmitter_config
@@ -251,6 +251,7 @@ fn handle_settle_auction_active_cctp(
                 token_minter: ctx.accounts.token_minter.to_account_info(),
                 local_token: ctx.accounts.local_token.to_account_info(),
                 mint: ctx.accounts.mint.to_account_info(),
+                cctp_message: ctx.accounts.cctp_message.to_account_info(),
                 message_transmitter_program: ctx
                     .accounts
                     .message_transmitter_program
@@ -260,8 +261,21 @@ fn handle_settle_auction_active_cctp(
                     .token_messenger_minter_program
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
+                system_program: ctx.accounts.system_program.to_account_info(),
+                event_authority: ctx
+                    .accounts
+                    .token_messenger_minter_event_authority
+                    .to_account_info(),
             },
-            &[Custodian::SIGNER_SEEDS],
+            &[
+                Custodian::SIGNER_SEEDS,
+                &[
+                    common::constants::CCTP_MESSAGE_SEED_PREFIX,
+                    ctx.accounts.payer.key().as_ref(),
+                    sequence_seed.as_ref(),
+                    &[ctx.bumps.cctp_message],
+                ],
+            ],
         ),
         CpiContext::new_with_signer(
             ctx.accounts.core_bridge_program.to_account_info(),
@@ -281,12 +295,8 @@ fn handle_settle_auction_active_cctp(
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),
-                    ctx.accounts
-                        .payer_sequence
-                        .take_and_uptick()
-                        .to_be_bytes()
-                        .as_ref(),
-                    &[ctx.bumps["core_message"]],
+                    sequence_seed.as_ref(),
+                    &[ctx.bumps.core_message],
                 ],
             ],
         ),
@@ -297,7 +307,7 @@ fn handle_settle_auction_active_cctp(
             amount,
             mint_recipient: ctx.accounts.to_router_endpoint.mint_recipient,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
-            payload: fill,
+            payload: fill.to_vec_payload(),
         },
     )?;
 

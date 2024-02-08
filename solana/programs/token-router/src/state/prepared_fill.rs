@@ -12,15 +12,15 @@ pub enum FillType {
 pub struct PreparedFill {
     pub vaa_hash: [u8; 32],
     pub bump: u8,
+    pub prepared_custody_token_bump: u8,
 
-    pub redeemer: Pubkey,
     pub prepared_by: Pubkey,
 
     pub fill_type: FillType,
-    pub amount: u64,
 
     pub source_chain: u16,
     pub order_sender: [u8; 32],
+    pub redeemer: Pubkey,
     pub redeemer_message: Vec<u8>,
 }
 

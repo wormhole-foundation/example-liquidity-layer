@@ -10,17 +10,18 @@ export type FillType = {
 export class PreparedFill {
     vaaHash: Array<number>;
     bump: number;
-    redeemer: PublicKey;
+    preparedCustodyTokenBump: number;
     preparedBy: PublicKey;
     fillType: FillType;
-    amount: BN;
     sourceChain: number;
     orderSender: Array<number>;
+    redeemer: PublicKey;
     redeemerMessage: Buffer;
 
     constructor(
         vaaHash: Array<number>,
         bump: number,
+        preparedCustodyTokenBump: number,
         redeemer: PublicKey,
         preparedBy: PublicKey,
         fillType: FillType,
@@ -31,12 +32,12 @@ export class PreparedFill {
     ) {
         this.vaaHash = vaaHash;
         this.bump = bump;
-        this.redeemer = redeemer;
+        this.preparedCustodyTokenBump = preparedCustodyTokenBump;
         this.preparedBy = preparedBy;
         this.fillType = fillType;
-        this.amount = amount;
         this.sourceChain = sourceChain;
         this.orderSender = orderSender;
+        this.redeemer = redeemer;
         this.redeemerMessage = redeemerMessage;
     }
 

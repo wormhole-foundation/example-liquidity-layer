@@ -47,10 +47,21 @@ pub struct RedeemFastFill<'info> {
     ///
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
-        mut,
-        address = crate::custody_token::id() @ TokenRouterError::InvalidCustodyToken,
+        init_if_needed,
+        payer = payer,
+        token::mint = mint,
+        token::authority = custodian,
+        seeds = [
+            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
+            prepared_fill.key().as_ref(),
+        ],
+        bump,
     )]
-    custody_token: AccountInfo<'info>,
+    prepared_custody_token: Account<'info, token::TokenAccount>,
+
+    /// CHECK: This mint must be USDC.
+    #[account(address = common::constants::usdc::id())]
+    mint: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["emitter"] (Matching Engine program).
     #[account(mut)]
@@ -95,7 +106,7 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
                 .matching_engine_redeemed_fast_fill
                 .to_account_info(),
             token_router_emitter: ctx.accounts.custodian.to_account_info(),
-            token_router_custody_token: ctx.accounts.custody_token.to_account_info(),
+            token_router_custody_token: ctx.accounts.prepared_custody_token.to_account_info(),
             router_endpoint: ctx
                 .accounts
                 .matching_engine_router_endpoint
@@ -137,11 +148,11 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
     // Set prepared fill data.
     ctx.accounts.prepared_fill.set_inner(PreparedFill {
         vaa_hash: vaa.try_digest().unwrap().0,
-        bump: ctx.bumps["prepared_fill"],
+        bump: ctx.bumps.prepared_fill,
+        prepared_custody_token_bump: ctx.bumps.prepared_custody_token,
         redeemer: Pubkey::from(fill.redeemer()),
         prepared_by: ctx.accounts.payer.key(),
         fill_type: FillType::FastFill,
-        amount: fast_fill.amount(),
         source_chain: fill.source_chain(),
         order_sender: fill.order_sender(),
         redeemer_message: fill.message_to_vec(),

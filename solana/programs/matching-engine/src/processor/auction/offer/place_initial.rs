@@ -149,7 +149,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     // Set up the Auction account for this auction.
     let initial_offer_token = ctx.accounts.offer_token.key();
     ctx.accounts.auction.set_inner(Auction {
-        bump: ctx.bumps["auction"],
+        bump: ctx.bumps.auction,
         vaa_hash: fast_vaa.try_digest().unwrap().0,
         status: AuctionStatus::Active,
         info: Some(AuctionInfo {

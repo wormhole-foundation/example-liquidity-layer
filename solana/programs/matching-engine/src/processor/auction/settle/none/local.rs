@@ -11,7 +11,10 @@ use common::{
 /// Accounts required for [settle_auction_none_local].
 #[derive(Accounts)]
 pub struct SettleAuctionNoneLocal<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        address = prepared_order_response.prepared_by, // TODO: add err
+    )]
     payer: Signer<'info>,
 
     #[account(
@@ -41,17 +44,12 @@ pub struct SettleAuctionNoneLocal<'info> {
     #[account(owner = core_bridge_program::id())]
     fast_vaa: AccountInfo<'info>,
 
-    /// CHECK: Must be the account that created the prepared slow order. This account will most
-    /// likely be the same as the payer.
-    #[account(mut)]
-    prepared_by: AccountInfo<'info>,
-
     #[account(
         mut,
-        close = prepared_by,
+        close = payer,
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
-            prepared_by.key().as_ref(),
+            payer.key().as_ref(),
             core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
         ],
         bump = prepared_order_response.bump,
@@ -157,6 +155,7 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
     let super::SettledNone {
         user_amount: amount,
         fill,
+        sequence_seed,
     } = super::settle_none_and_prepare_fill(
         super::SettleNoneAndPrepareFill {
             custodian: &ctx.accounts.custodian,
@@ -167,9 +166,10 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
             to_router_endpoint: &ctx.accounts.to_router_endpoint,
             fee_recipient_token: &ctx.accounts.fee_recipient_token,
             custody_token: &ctx.accounts.custody_token,
+            payer_sequence: &mut ctx.accounts.payer_sequence,
             token_program: &ctx.accounts.token_program,
         },
-        ctx.bumps["auction"],
+        ctx.bumps.auction,
     )?;
 
     // Publish message via Core Bridge.
@@ -192,12 +192,8 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),
-                    ctx.accounts
-                        .payer_sequence
-                        .take_and_uptick()
-                        .to_be_bytes()
-                        .as_ref(),
-                    &[ctx.bumps["core_message"]],
+                    sequence_seed.as_ref(),
+                    &[ctx.bumps.core_message],
                 ],
             ],
         ),

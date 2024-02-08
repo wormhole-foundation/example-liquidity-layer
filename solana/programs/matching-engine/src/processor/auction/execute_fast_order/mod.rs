@@ -6,7 +6,7 @@ pub use local::*;
 
 use crate::{
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, AuctionStatus, Custodian},
+    state::{Auction, AuctionConfig, AuctionStatus, Custodian, PayerSequence},
     utils::{self, auction::DepositPenalty},
 };
 use anchor_lang::prelude::*;
@@ -25,12 +25,14 @@ struct PrepareFastExecution<'ctx, 'info> {
     executor_token: &'ctx Account<'info, token::TokenAccount>,
     best_offer_token: &'ctx AccountInfo<'info>,
     initial_offer_token: &'ctx AccountInfo<'info>,
+    payer_sequence: &'ctx mut Account<'info, PayerSequence>,
     token_program: &'ctx Program<'info, token::Token>,
 }
 
 struct PreparedFastExecution {
     pub user_amount: u64,
     pub fill: Fill,
+    pub sequence_seed: [u8; 8],
 }
 
 fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFastExecution> {
@@ -43,6 +45,7 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
         executor_token,
         best_offer_token,
         initial_offer_token,
+        payer_sequence,
         token_program,
     } = accounts;
 
@@ -140,5 +143,6 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
             redeemer: order.redeemer(),
             redeemer_message: <&[u8]>::from(order.redeemer_message()).to_vec().into(),
         },
+        sequence_seed: payer_sequence.take_and_uptick().to_be_bytes(),
     })
 }

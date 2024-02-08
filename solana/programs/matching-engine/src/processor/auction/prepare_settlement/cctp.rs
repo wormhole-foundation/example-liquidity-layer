@@ -73,6 +73,9 @@ pub struct PrepareOrderResponseCctp<'info> {
     #[account(mut)]
     used_nonces: UncheckedAccount<'info>,
 
+    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Message Transmitter program)).
+    message_transmitter_event_authority: AccountInfo<'info>,
+
     /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
     token_messenger: UncheckedAccount<'info>,
 
@@ -97,6 +100,9 @@ pub struct PrepareOrderResponseCctp<'info> {
     /// CHECK: Mutable. Seeds must be \["custody", mint\] (CCTP Token Messenger Minter program).
     #[account(mut)]
     token_messenger_minter_custody_token: UncheckedAccount<'info>,
+
+    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
+    token_messenger_minter_event_authority: AccountInfo<'info>,
 
     token_messenger_minter_program:
         Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
@@ -138,6 +144,14 @@ pub fn prepare_order_response_cctp(
                     .token_messenger_minter_program
                     .to_account_info(),
                 system_program: ctx.accounts.system_program.to_account_info(),
+                message_transmitter_event_authority: ctx
+                    .accounts
+                    .message_transmitter_event_authority
+                    .to_account_info(),
+                message_transmitter_program: ctx
+                    .accounts
+                    .message_transmitter_program
+                    .to_account_info(),
                 token_messenger: ctx.accounts.token_messenger.to_account_info(),
                 remote_token_messenger: ctx.accounts.remote_token_messenger.to_account_info(),
                 token_minter: ctx.accounts.token_minter.to_account_info(),
@@ -149,6 +163,10 @@ pub fn prepare_order_response_cctp(
                     .token_messenger_minter_custody_token
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
+                token_messenger_minter_event_authority: ctx
+                    .accounts
+                    .token_messenger_minter_event_authority
+                    .to_account_info(),
             },
             &[Custodian::SIGNER_SEEDS],
         ),
@@ -210,7 +228,7 @@ pub fn prepare_order_response_cctp(
     ctx.accounts
         .prepared_order_response
         .set_inner(PreparedOrderResponse {
-            bump: ctx.bumps["prepared_order_response"],
+            bump: ctx.bumps.prepared_order_response,
             fast_vaa_hash: fast_vaa.try_digest().unwrap().0,
             prepared_by: ctx.accounts.payer.key(),
             source_chain,

@@ -412,7 +412,7 @@ describe("Token Router", function () {
                         payer: payer.publicKey,
                         orderSender: orderSender.publicKey,
                         preparedOrder: preparedOrder.publicKey,
-                        orderToken: payerToken,
+                        srcToken: payerToken,
                         refundToken: payerToken,
                     },
                     {
@@ -454,7 +454,7 @@ describe("Token Router", function () {
                                     minAmountOut: bigintToU64BN(minAmountOut),
                                 },
                             },
-                            orderToken: payerToken,
+                            srcToken: payerToken,
                             refundToken: payerToken,
                             targetChain,
                             redeemer,
@@ -481,7 +481,7 @@ describe("Token Router", function () {
                         payer: payer.publicKey,
                         orderSender: orderSender.publicKey,
                         preparedOrder: preparedOrder.publicKey,
-                        orderToken: payerToken,
+                        srcToken: payerToken,
                         refundToken: payerToken,
                     },
                     {
@@ -824,7 +824,7 @@ describe("Token Router", function () {
                         payer: payer.publicKey,
                         orderSender: orderSender.publicKey,
                         preparedOrder: preparedOrder.publicKey,
-                        orderToken: payerToken,
+                        srcToken: payerToken,
                         refundToken: payerToken,
                     },
                     {
@@ -869,7 +869,10 @@ describe("Token Router", function () {
                     const config = transmitter.messageTransmitterConfigAddress();
                     const { localDomain, nextAvailableNonce } =
                         await transmitter.fetchMessageTransmitterConfig(config);
-                    return { sourceCctpDomain: localDomain, cctpNonce: nextAvailableNonce - 1n };
+                    return {
+                        sourceCctpDomain: localDomain,
+                        cctpNonce: BigInt(nextAvailableNonce.subn(1).toString()),
+                    };
                 })();
 
                 const {
@@ -1339,7 +1342,7 @@ describe("Token Router", function () {
                     connection,
                     custodyToken,
                 );
-                expect(balanceAfter).equals(balanceBefore + amount);
+                expect(balanceAfter).equals(balanceBefore);
 
                 // TODO: check prepared fill account.
             });

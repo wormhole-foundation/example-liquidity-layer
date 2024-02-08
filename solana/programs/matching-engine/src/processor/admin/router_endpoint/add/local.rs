@@ -63,7 +63,7 @@ pub struct AddLocalRouterEndpoint<'info> {
 
 pub fn add_local_router_endpoint(ctx: Context<AddLocalRouterEndpoint>) -> Result<()> {
     ctx.accounts.router_endpoint.set_inner(RouterEndpoint {
-        bump: ctx.bumps["router_endpoint"],
+        bump: ctx.bumps.router_endpoint,
         chain: SOLANA_CHAIN,
         address: ctx.accounts.token_router_emitter.key().to_bytes(),
         mint_recipient: ctx.accounts.token_router_custody_token.key().to_bytes(),

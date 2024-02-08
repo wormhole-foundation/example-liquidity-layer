@@ -95,7 +95,7 @@ pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
 
         // Fill redeemed fast fill data.
         ctx.accounts.redeemed_fast_fill.set_inner(RedeemedFastFill {
-            bump: ctx.bumps["redeemed_fast_fill"],
+            bump: ctx.bumps.redeemed_fast_fill,
             vaa_hash: vaa.try_digest().unwrap().0,
             sequence: emitter.sequence,
         });

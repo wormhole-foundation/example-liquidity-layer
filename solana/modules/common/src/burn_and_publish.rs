@@ -69,7 +69,7 @@ pub fn burn_and_publish_fill(
                         .take_and_uptick()
                         .to_be_bytes()
                         .as_ref(),
-                    &[ctx.bumps["core_message"]],
+                    &[ctx.bumps.core_message],
                 ],
             ],
         ),

@@ -91,6 +91,7 @@ export type RedeemFillCctpAccounts = {
     messageTransmitterAuthority: PublicKey;
     messageTransmitterConfig: PublicKey;
     usedNonces: PublicKey;
+    messageTransmitterEventAuthority: PublicKey;
     tokenMessenger: PublicKey;
     remoteTokenMessenger: PublicKey;
     tokenMinter: PublicKey;
@@ -99,7 +100,7 @@ export type RedeemFillCctpAccounts = {
     tokenMessengerMinterCustodyToken: PublicKey;
     tokenMessengerMinterProgram: PublicKey;
     messageTransmitterProgram: PublicKey;
-    tokenProgram: PublicKey;
+    tokenMessengerMinterEventAuthority: PublicKey;
 };
 
 export type RedeemFastFillAccounts = {
@@ -165,7 +166,14 @@ export class TokenRouterProgram {
 
     coreMessageAddress(payer: PublicKey, payerSequenceValue: BN): PublicKey {
         return PublicKey.findProgramAddressSync(
-            [Buffer.from("msg"), payer.toBuffer(), payerSequenceValue.toBuffer("be", 8)],
+            [Buffer.from("core-msg"), payer.toBuffer(), payerSequenceValue.toBuffer("be", 8)],
+            this.ID,
+        )[0];
+    }
+
+    cctpMessageAddress(payer: PublicKey, payerSequenceValue: BN): PublicKey {
+        return PublicKey.findProgramAddressSync(
+            [Buffer.from("cctp-msg"), payer.toBuffer(), payerSequenceValue.toBuffer("be", 8)],
             this.ID,
         )[0];
     }
@@ -223,9 +231,12 @@ export class TokenRouterProgram {
             coreBridgeProgram,
             tokenMessenger: tokenMessengerMinterProgram.tokenMessengerAddress(),
             tokenMinter: tokenMessengerMinterProgram.tokenMinterAddress(),
-            tokenMessengerMinterSenderAuthority: tokenMessengerMinterProgram.senderAuthority(),
+            tokenMessengerMinterSenderAuthority:
+                tokenMessengerMinterProgram.senderAuthorityAddress(),
             tokenMessengerMinterProgram: tokenMessengerMinterProgram.ID,
-            messageTransmitterAuthority: messageTransmitterProgram.authorityAddress(),
+            messageTransmitterAuthority: messageTransmitterProgram.authorityAddress(
+                tokenMessengerMinterProgram.ID,
+            ),
             messageTransmitterConfig: messageTransmitterProgram.messageTransmitterConfigAddress(),
             messageTransmitterProgram: messageTransmitterProgram.ID,
             tokenProgram: splToken.TOKEN_PROGRAM_ID,
@@ -243,12 +254,12 @@ export class TokenRouterProgram {
             payer: PublicKey;
             orderSender: PublicKey;
             preparedOrder: PublicKey;
-            orderToken: PublicKey;
+            srcToken: PublicKey;
             refundToken: PublicKey;
         },
         args: PrepareMarketOrderArgs,
     ): Promise<TransactionInstruction> {
-        const { payer, orderSender, preparedOrder, orderToken, refundToken } = accounts;
+        const { payer, orderSender, preparedOrder, srcToken, refundToken } = accounts;
         const { amountIn, minAmountOut, ...remainingArgs } = args;
 
         return this.program.methods
@@ -262,7 +273,7 @@ export class TokenRouterProgram {
                 custodian: this.custodianAddress(),
                 orderSender,
                 preparedOrder,
-                orderToken,
+                srcToken,
                 refundToken,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrder),
                 mint: this.mint,
@@ -338,8 +349,7 @@ export class TokenRouterProgram {
                 rentRecipient,
                 preparedFill,
                 dstToken,
-                custodyToken: this.custodyTokenAccountAddress(),
-                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
             })
             .instruction();
     }
@@ -377,28 +387,14 @@ export class TokenRouterProgram {
         })();
 
         const payerSequence = this.payerSequenceAddress(payer);
-        const coreMessage = await this.fetchPayerSequenceValue(payerSequence).then((value) =>
-            this.coreMessageAddress(payer, value),
+        const { coreMessage, cctpMessage } = await this.fetchPayerSequenceValue(payerSequence).then(
+            (value) => {
+                return {
+                    coreMessage: this.coreMessageAddress(payer, value),
+                    cctpMessage: this.cctpMessageAddress(payer, value),
+                };
+            },
         );
-        // const {
-        //     custodian,
-        //     custodyToken,
-        //     mint,
-        //     routerEndpoint,
-        //     coreBridgeConfig,
-        //     coreEmitterSequence,
-        //     coreFeeCollector,
-        //     coreBridgeProgram,
-        //     tokenMessengerMinterSenderAuthority,
-        //     messageTransmitterConfig,
-        //     tokenMessenger,
-        //     remoteTokenMessenger,
-        //     tokenMinter,
-        //     localToken,
-        //     tokenMessengerMinterProgram,
-        //     messageTransmitterProgram,
-        //     tokenProgram,
-        // } = await this.placeMarketOrderCctpAccounts(targetChain);
 
         const matchingEngine = this.matchingEngineProgram();
         const routerEndpoint = matchingEngine.routerEndpointAddress(targetChain);
@@ -418,9 +414,9 @@ export class TokenRouterProgram {
             remoteTokenMessenger,
             tokenMinter,
             localToken,
+            tokenMessengerMinterEventAuthority,
             messageTransmitterProgram,
             tokenMessengerMinterProgram,
-            tokenProgram,
         } = this.tokenMessengerMinterProgram().depositForBurnWithCallerAccounts(
             mint,
             protocol.cctp.domain,
@@ -443,6 +439,7 @@ export class TokenRouterProgram {
                 routerEndpoint: inputRouterEndpoint ?? routerEndpoint,
                 coreBridgeConfig,
                 coreMessage,
+                cctpMessage,
                 coreEmitterSequence,
                 coreFeeCollector,
                 tokenMessengerMinterSenderAuthority,
@@ -451,10 +448,10 @@ export class TokenRouterProgram {
                 remoteTokenMessenger,
                 tokenMinter,
                 localToken,
+                tokenMessengerMinterEventAuthority,
                 coreBridgeProgram,
                 tokenMessengerMinterProgram,
                 messageTransmitterProgram,
-                tokenProgram,
             })
             .instruction();
     }
@@ -470,11 +467,11 @@ export class TokenRouterProgram {
         const { chain } = vaaAcct.emitterInfo();
         const preparedFill = this.preparedFillAddress(vaaAcct.digest());
 
-        const messageTransmitterProgram = this.messageTransmitterProgram();
         const {
             authority: messageTransmitterAuthority,
             messageTransmitterConfig,
             usedNonces,
+            messageTransmitterEventAuthority,
             tokenMessengerMinterProgram,
             tokenMessenger,
             remoteTokenMessenger,
@@ -482,8 +479,12 @@ export class TokenRouterProgram {
             localToken,
             tokenPair,
             custodyToken: tokenMessengerMinterCustodyToken,
-            tokenProgram,
-        } = messageTransmitterProgram.receiveMessageAccounts(this.mint, msg);
+            tokenMessengerMinterEventAuthority,
+            messageTransmitterProgram,
+        } = this.messageTransmitterProgram().receiveTokenMessengerMinterMessageAccounts(
+            this.mint,
+            msg,
+        );
 
         return {
             custodian: this.custodianAddress(),
@@ -493,6 +494,7 @@ export class TokenRouterProgram {
             messageTransmitterAuthority,
             messageTransmitterConfig,
             usedNonces,
+            messageTransmitterEventAuthority,
             tokenMessenger,
             remoteTokenMessenger,
             tokenMinter,
@@ -500,8 +502,8 @@ export class TokenRouterProgram {
             tokenPair,
             tokenMessengerMinterCustodyToken,
             tokenMessengerMinterProgram,
-            messageTransmitterProgram: messageTransmitterProgram.ID,
-            tokenProgram,
+            messageTransmitterProgram,
+            tokenMessengerMinterEventAuthority,
         };
     }
 
@@ -528,6 +530,7 @@ export class TokenRouterProgram {
             messageTransmitterAuthority,
             messageTransmitterConfig,
             usedNonces,
+            messageTransmitterEventAuthority,
             tokenMessenger,
             remoteTokenMessenger,
             tokenMinter,
@@ -536,7 +539,7 @@ export class TokenRouterProgram {
             tokenMessengerMinterCustodyToken,
             tokenMessengerMinterProgram,
             messageTransmitterProgram,
-            tokenProgram,
+            tokenMessengerMinterEventAuthority,
         } = await this.redeemCctpFillAccounts(vaa, encodedCctpMessage);
 
         return this.program.methods
@@ -547,19 +550,22 @@ export class TokenRouterProgram {
                 vaa,
                 preparedFill,
                 custodyToken,
+                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
+                mint: this.mint,
                 routerEndpoint: inputRouterEndpoint ?? routerEndpoint,
                 messageTransmitterAuthority,
                 messageTransmitterConfig,
                 usedNonces,
+                messageTransmitterEventAuthority,
                 tokenMessenger,
                 remoteTokenMessenger,
                 tokenMinter,
                 localToken,
                 tokenPair,
                 tokenMessengerMinterCustodyToken,
+                tokenMessengerMinterEventAuthority,
                 tokenMessengerMinterProgram,
                 messageTransmitterProgram,
-                tokenProgram,
             })
             .instruction();
     }
@@ -596,7 +602,6 @@ export class TokenRouterProgram {
         const {
             custodian,
             preparedFill,
-            custodyToken,
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
             matchingEngineRouterEndpoint,
@@ -611,7 +616,8 @@ export class TokenRouterProgram {
                 custodian,
                 vaa,
                 preparedFill,
-                custodyToken,
+                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
+                mint: this.mint,
                 matchingEngineCustodian,
                 matchingEngineRedeemedFastFill,
                 matchingEngineRouterEndpoint,

@@ -54,6 +54,6 @@ pub fn propose_auction_parameters(
             epoch_schedule: &ctx.accounts.epoch_schedule,
         },
         ProposalAction::UpdateAuctionParameters { id, parameters },
-        ctx.bumps["proposal"],
+        ctx.bumps.proposal,
     )
 }

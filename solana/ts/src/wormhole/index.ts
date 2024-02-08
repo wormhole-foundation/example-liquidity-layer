@@ -121,7 +121,7 @@ export class VaaAccount {
     digest(): Uint8Array {
         if (this._encodedVaa !== undefined) {
             return ethers.utils.arrayify(
-                ethers.utils.keccak256(parseVaa(this._encodedVaa.buf).hash)
+                ethers.utils.keccak256(parseVaa(this._encodedVaa.buf).hash),
             );
         } else if (this._postedVaaV1 !== undefined) {
             const {
@@ -173,33 +173,5 @@ export class VaaAccount {
 
         this._encodedVaa = encodedVaa;
         this._postedVaaV1 = postedVaaV1;
-    }
-}
-
-export class Claim {
-    static address(
-        programId: PublicKey,
-        address: Array<number>,
-        chain: number,
-        sequence: bigint,
-        prefix?: Buffer
-    ): PublicKey {
-        const chainBuf = Buffer.alloc(2);
-        chainBuf.writeUInt16BE(chain);
-
-        const sequenceBuf = Buffer.alloc(8);
-        sequenceBuf.writeBigUInt64BE(sequence);
-
-        if (prefix !== undefined) {
-            return PublicKey.findProgramAddressSync(
-                [prefix, Buffer.from(address), chainBuf, sequenceBuf],
-                new PublicKey(programId)
-            )[0];
-        } else {
-            return PublicKey.findProgramAddressSync(
-                [Buffer.from(address), chainBuf, sequenceBuf],
-                new PublicKey(programId)
-            )[0];
-        }
     }
 }
