@@ -98,6 +98,9 @@ pub struct SettleAuctionNoneLocal<'info> {
             from_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = from_router_endpoint.bump,
+        constraint = {
+            from_router_endpoint.chain != SOLANA_CHAIN
+        } @ MatchingEngineError::InvalidChain
     )]
     from_router_endpoint: Box<Account<'info, RouterEndpoint>>,
 

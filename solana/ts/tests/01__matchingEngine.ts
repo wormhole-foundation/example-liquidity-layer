@@ -302,7 +302,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            after("Setup Lookup Table", async function () {
+            after("Set Up Lookup Table", async function () {
                 // Create.
                 const [createIx, lookupTable] = await connection.getSlot("finalized").then((slot) =>
                     AddressLookupTableProgram.createLookupTable({
@@ -1182,7 +1182,7 @@ describe("Matching Engine", function () {
         // Hack to prevent math overflow error when invoking CCTP programs.
         testCctpNonce -= 10n * 6400n;
 
-        let wormholeSequence = 0n;
+        let wormholeSequence = 1000n;
 
         const baseFastOrder: FastMarketOrder = {
             amountIn: 50000000000n,

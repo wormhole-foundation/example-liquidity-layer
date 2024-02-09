@@ -846,6 +846,103 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    async settleAuctionActiveLocalIx(accounts: {
+        payer: PublicKey;
+        fastVaa: PublicKey;
+        executorToken: PublicKey;
+        preparedOrderResponse?: PublicKey;
+        auction?: PublicKey;
+        bestOfferToken?: PublicKey;
+        auctionConfig?: PublicKey;
+    }) {
+        const {
+            payer,
+            preparedOrderResponse,
+            auction,
+            fastVaa,
+            executorToken,
+            bestOfferToken: inputBestOfferToken,
+            auctionConfig: inputAuctionConfig,
+        } = accounts;
+        const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+
+        const mint = this.mint;
+        const auctionAddress = auction ?? this.auctionAddress(fastVaaAccount.digest());
+
+        const { auctionConfig, bestOfferToken } = await (async () => {
+            if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
+                const { info } = await this.fetchAuction({ address: auctionAddress });
+                if (info === null) {
+                    throw new Error("no auction info found");
+                }
+                const { configId, bestOfferToken } = info;
+                return {
+                    auctionConfig: inputAuctionConfig ?? this.auctionConfigAddress(configId),
+                    bestOfferToken: inputBestOfferToken ?? bestOfferToken,
+                };
+            } else {
+                return {
+                    auctionConfig: inputAuctionConfig,
+                    bestOfferToken: inputBestOfferToken,
+                };
+            }
+        })();
+        const { targetChain, toRouterEndpoint } = await (async () => {
+            const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+            if (message.fastMarketOrder == undefined) {
+                throw new Error("Message not FastMarketOrder");
+            }
+
+            const targetChain = message.fastMarketOrder.targetChain;
+            const toRouterEndpoint = this.routerEndpointAddress(
+                message.fastMarketOrder.targetChain,
+            );
+
+            return { targetChain, toRouterEndpoint };
+        })();
+
+        const payerSequence = this.payerSequenceAddress(payer);
+        const payerSequenceValue = await this.fetchPayerSequenceValue({
+            address: payerSequence,
+        });
+        const {
+            custodian,
+            coreMessage,
+            coreBridgeConfig,
+            coreEmitterSequence,
+            coreFeeCollector,
+            coreBridgeProgram,
+        } = await this.publishMessageAccounts(payer, payerSequenceValue);
+
+        const cctpMintRecipient = this.cctpMintRecipientAddress();
+
+        return this.program.methods
+            .settleAuctionActiveLocal()
+            .accounts({
+                payer,
+                payerSequence,
+                custodian,
+                auctionConfig,
+                fastVaa,
+                preparedOrderResponse,
+                auction,
+                cctpMintRecipient,
+                toRouterEndpoint,
+                coreBridgeConfig,
+                coreMessage,
+                coreEmitterSequence,
+                coreBridgeProgram,
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
+                clock: SYSVAR_CLOCK_PUBKEY,
+                coreFeeCollector,
+                rent: SYSVAR_RENT_PUBKEY,
+                bestOfferToken,
+                executorToken,
+            })
+            .instruction();
+    }
+
     async settleAuctionActiveCctpIx(
         accounts: {
             payer: PublicKey;
@@ -973,11 +1070,68 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async settleAuctionNoneLocalIx() {
+    async settleAuctionNoneLocalIx(accounts: {
+        payer: PublicKey;
+        preparedOrderResponse?: PublicKey;
+        auction?: PublicKey;
+        fastVaa: PublicKey;
+    }) {
+        const { payer, preparedOrderResponse, auction, fastVaa } = accounts;
+        const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+
+        const mint = this.mint;
+        const { targetChain, toRouterEndpoint } = await (async () => {
+            const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+            if (message.fastMarketOrder == undefined) {
+                throw new Error("Message not FastMarketOrder");
+            }
+
+            const targetChain = message.fastMarketOrder.targetChain;
+            const toRouterEndpoint = this.routerEndpointAddress(
+                message.fastMarketOrder.targetChain,
+            );
+
+            return { targetChain, toRouterEndpoint };
+        })();
+
+        const payerSequence = this.payerSequenceAddress(payer);
+        const payerSequenceValue = await this.fetchPayerSequenceValue({
+            address: payerSequence,
+        });
+        const {
+            custodian,
+            coreMessage,
+            coreBridgeConfig,
+            coreEmitterSequence,
+            coreFeeCollector,
+            coreBridgeProgram,
+        } = await this.publishMessageAccounts(payer, payerSequenceValue);
+
+        const { feeRecipientToken } = await this.fetchCustodian();
+        const cctpMintRecipient = this.cctpMintRecipientAddress();
+
         return this.program.methods
-            .settleAuctionNoneCctp()
+            .settleAuctionNoneLocal()
             .accounts({
-                custodian: this.custodianAddress(),
+                payer,
+                payerSequence,
+                custodian,
+                fastVaa,
+                preparedOrderResponse,
+                auction,
+                cctpMintRecipient,
+                feeRecipientToken,
+                fromRouterEndpoint: this.routerEndpointAddress(fastVaaAccount.emitterInfo().chain),
+                toRouterEndpoint,
+                coreBridgeConfig,
+                coreMessage,
+                coreEmitterSequence,
+                coreBridgeProgram,
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
+                clock: SYSVAR_CLOCK_PUBKEY,
+                coreFeeCollector,
+                rent: SYSVAR_RENT_PUBKEY,
             })
             .instruction();
     }
