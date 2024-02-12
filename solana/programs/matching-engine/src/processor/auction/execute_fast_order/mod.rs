@@ -13,7 +13,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
     messages::{raw::LiquidityLayerPayload, Fill},
-    wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount,
+    wormhole_cctp_solana::wormhole::VaaAccount,
 };
 
 struct PrepareFastExecution<'ctx, 'info> {
@@ -50,8 +50,8 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
     } = accounts;
 
     // Create zero copy reference to `FastMarketOrder` payload.
-    let fast_vaa = VaaAccount::load(fast_vaa).unwrap();
-    let order = LiquidityLayerPayload::try_from(fast_vaa.try_payload().unwrap())
+    let fast_vaa = VaaAccount::load_unchecked(fast_vaa);
+    let order = LiquidityLayerPayload::try_from(fast_vaa.payload())
         .map_err(|_| MatchingEngineError::InvalidVaa)?
         .message()
         .to_fast_market_order_unchecked();
@@ -138,7 +138,7 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
     Ok(PreparedFastExecution {
         user_amount,
         fill: Fill {
-            source_chain: fast_vaa.try_emitter_chain()?,
+            source_chain: fast_vaa.emitter_chain(),
             order_sender: order.sender(),
             redeemer: order.redeemer(),
             redeemer_message: <&[u8]>::from(order.redeemer_message()).to_vec().into(),

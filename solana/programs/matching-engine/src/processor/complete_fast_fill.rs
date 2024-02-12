@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
-    messages::raw::LiquidityLayerMessage, wormhole_cctp_solana::wormhole::core_bridge_program,
+    messages::raw::LiquidityLayerMessage,
+    wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount, SOLANA_CHAIN},
 };
 
 use crate::{
@@ -35,7 +36,7 @@ pub struct CompleteFastFill<'info> {
         space = 8 + RedeemedFastFill::INIT_SPACE,
         seeds = [
             RedeemedFastFill::SEED_PREFIX,
-            core_bridge_program::VaaAccount::load(&vaa)?.try_digest()?.as_ref()
+            VaaAccount::load(&vaa)?.digest().as_ref()
         ],
         bump
     )]
@@ -54,7 +55,7 @@ pub struct CompleteFastFill<'info> {
     #[account(
         seeds = [
             RouterEndpoint::SEED_PREFIX,
-            &core_bridge_program::SOLANA_CHAIN.to_be_bytes()
+            SOLANA_CHAIN.to_be_bytes().as_ref()
         ],
         bump = router_endpoint.bump,
     )]
@@ -77,14 +78,14 @@ pub struct CompleteFastFill<'info> {
 
 /// TODO: docstring
 pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
-    let vaa = core_bridge_program::VaaAccount::load(&ctx.accounts.vaa).unwrap();
+    let vaa = VaaAccount::load_unchecked(&ctx.accounts.vaa);
 
     // Emitter must be the matching engine (this program).
     {
-        let emitter = vaa.try_emitter_info()?;
+        let emitter = vaa.emitter_info();
         require_eq!(
             emitter.chain,
-            core_bridge_program::SOLANA_CHAIN,
+            SOLANA_CHAIN,
             MatchingEngineError::InvalidEmitterForFastFill
         );
         require_keys_eq!(
@@ -96,13 +97,13 @@ pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
         // Fill redeemed fast fill data.
         ctx.accounts.redeemed_fast_fill.set_inner(RedeemedFastFill {
             bump: ctx.bumps.redeemed_fast_fill,
-            vaa_hash: vaa.try_digest().unwrap().0,
+            vaa_hash: vaa.digest().0,
             sequence: emitter.sequence,
         });
     }
 
     // Check whether this message is a deposit message we recognize.
-    let msg = LiquidityLayerMessage::try_from(vaa.try_payload()?)
+    let msg = LiquidityLayerMessage::try_from(vaa.payload())
         .map_err(|_| error!(MatchingEngineError::InvalidVaa))?;
 
     // Is this a fast fill?

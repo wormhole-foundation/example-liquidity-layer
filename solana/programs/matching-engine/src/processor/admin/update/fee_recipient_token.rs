@@ -21,7 +21,7 @@ pub struct UpdateFeeRecipient<'info> {
     custodian: Account<'info, Custodian>,
 
     #[account(
-        associated_token::mint = common::constants::usdc::id(),
+        associated_token::mint = common::constants::USDC_MINT,
         associated_token::authority = new_fee_recipient,
     )]
     new_fee_recipient_token: Account<'info, token::TokenAccount>,

@@ -8,7 +8,8 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
-    wormhole_cctp_solana::wormhole::core_bridge_program, wormhole_io::TypePrefixedPayload,
+    wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount, SOLANA_CHAIN},
+    wormhole_io::TypePrefixedPayload,
 };
 
 /// Accounts required for [settle_auction_active_local].
@@ -54,7 +55,7 @@ pub struct SettleAuctionActiveLocal<'info> {
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
             payer.key().as_ref(),
-            core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
+            VaaAccount::load(&fast_vaa)?.digest().as_ref()
         ],
         bump = prepared_order_response.bump,
     )]
@@ -81,7 +82,7 @@ pub struct SettleAuctionActiveLocal<'info> {
     #[account(
         seeds = [
             RouterEndpoint::SEED_PREFIX,
-            core_bridge_program::SOLANA_CHAIN.to_be_bytes().as_ref(),
+            SOLANA_CHAIN.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
     )]

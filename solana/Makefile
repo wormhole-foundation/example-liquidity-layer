@@ -43,7 +43,8 @@ test: node_modules
 
 lint:
 	cargo fmt --check
-	cargo clippy --no-deps --all-targets --all-features -- -D warnings
+	cargo clippy --no-deps --all-targets --features testnet -- -D warnings
+	cargo clippy --no-deps --all-targets --features localnet -- -D warnings
 
 ci:
 	DOCKER_BUILDKIT=1 docker build -f Dockerfile.ci \

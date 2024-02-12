@@ -6,7 +6,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
-    wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount},
+    wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount, SOLANA_CHAIN},
     wormhole_io::TypePrefixedPayload,
 };
 
@@ -47,7 +47,7 @@ pub struct ExecuteFastOrderLocal<'info> {
         mut,
         seeds = [
             Auction::SEED_PREFIX,
-            VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
+            VaaAccount::load(&fast_vaa)?.digest().as_ref()
         ],
         bump = auction.bump,
         constraint = utils::is_valid_active_auction(
@@ -62,7 +62,7 @@ pub struct ExecuteFastOrderLocal<'info> {
     #[account(
         seeds = [
             RouterEndpoint::SEED_PREFIX,
-            core_bridge_program::SOLANA_CHAIN.to_be_bytes().as_ref(),
+            SOLANA_CHAIN.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
     )]
@@ -70,7 +70,7 @@ pub struct ExecuteFastOrderLocal<'info> {
 
     #[account(
         mut,
-        token::mint = common::constants::usdc::id(),
+        token::mint = common::constants::USDC_MINT,
     )]
     executor_token: Box<Account<'info, token::TokenAccount>>,
 

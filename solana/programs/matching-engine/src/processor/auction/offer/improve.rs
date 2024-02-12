@@ -40,7 +40,7 @@ pub struct ImproveOffer<'info> {
 
     #[account(
         mut,
-        associated_token::mint = common::constants::usdc::id(),
+        associated_token::mint = common::constants::USDC_MINT,
         associated_token::authority = offer_authority
     )]
     offer_token: Account<'info, token::TokenAccount>,

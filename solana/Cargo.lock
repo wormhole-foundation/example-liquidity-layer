@@ -1199,6 +1199,7 @@ dependencies = [
  "wormhole-cctp-solana",
  "wormhole-io",
  "wormhole-raw-vaas",
+ "wormhole-solana-consts",
 ]
 
 [[package]]
@@ -2585,18 +2586,19 @@ dependencies = [
 
 [[package]]
 name = "wormhole-cctp-solana"
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7f30cd8dd31f573cc3005aeb586d80b728e901835089f730b7af4d68589ac40"
+checksum = "34cb8cf6dd00dfb05b6fa251ef8b691a2fde580faf694fb7463fcbf1eecca215"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
  "cfg-if",
  "hex",
  "ruint",
- "solana-program",
  "wormhole-io",
  "wormhole-raw-vaas",
+ "wormhole-solana-consts",
+ "wormhole-solana-vaas",
 ]
 
 [[package]]
@@ -2607,12 +2609,35 @@ checksum = "b021a14ea7bcef9517ed9f81d4466c4a663dd90e726c5724707a976fa83ad8f3"
 
 [[package]]
 name = "wormhole-raw-vaas"
-version = "0.1.3"
+version = "0.2.0-alpha.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d05bc16d11c8eb6f956c5de65bff05759ac2b961b16b054bef3666fe029db7c9"
+checksum = "e4b8fed51f54543a57b009ce057df3380269c70971d4d096cc9f5dcc2cb1fdb7"
 dependencies = [
  "ruint",
  "ruint-macro",
+]
+
+[[package]]
+name = "wormhole-solana-consts"
+version = "0.2.0-alpha.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "037dcc895cb45b18d898ccb52358c6dfa02a68bd99f0c68d883c15bb9fb8b423"
+dependencies = [
+ "cfg-if",
+ "solana-program",
+]
+
+[[package]]
+name = "wormhole-solana-vaas"
+version = "0.2.0-alpha.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f6b6c2691fe29bea24748f8a810704f86ce811f807e856d2ee428142acf6b955"
+dependencies = [
+ "anchor-lang",
+ "borsh 0.10.3",
+ "solana-program",
+ "wormhole-raw-vaas",
+ "wormhole-solana-consts",
 ]
 
 [[package]]

@@ -5,8 +5,7 @@ use crate::{
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
-    admin::utils::assistant::only_authorized,
-    wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
+    admin::utils::assistant::only_authorized, wormhole_cctp_solana::wormhole::SOLANA_CHAIN,
 };
 
 #[derive(Accounts)]
@@ -53,7 +52,7 @@ pub struct AddLocalRouterEndpoint<'info> {
     token_router_emitter: AccountInfo<'info>,
 
     #[account(
-        associated_token::mint = common::constants::usdc::id(),
+        associated_token::mint = common::constants::USDC_MINT,
         associated_token::authority = token_router_emitter,
     )]
     token_router_custody_token: Account<'info, token::TokenAccount>,

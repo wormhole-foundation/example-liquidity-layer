@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
     messages::raw::LiquidityLayerPayload,
-    wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount},
+    wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount},
 };
 
 use crate::{
@@ -51,7 +51,7 @@ pub struct PlaceInitialOffer<'info> {
         space = 8 + Auction::INIT_SPACE,
         seeds = [
             Auction::SEED_PREFIX,
-            VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref(),
+            VaaAccount::load(&fast_vaa)?.digest().as_ref(),
         ],
         bump
     )]
@@ -95,14 +95,14 @@ pub struct PlaceInitialOffer<'info> {
 pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> Result<()> {
     // Create zero copy reference to `FastMarketOrder` payload.
     let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa)?;
-    let msg = LiquidityLayerPayload::try_from(fast_vaa.try_payload()?)
+    let msg = LiquidityLayerPayload::try_from(fast_vaa.payload())
         .map_err(|_| MatchingEngineError::InvalidVaa)?
         .message();
     let fast_order = msg
         .fast_market_order()
         .ok_or(MatchingEngineError::NotFastMarketOrder)?;
 
-    let source_chain = fast_vaa.try_emitter_chain()?;
+    let source_chain = fast_vaa.emitter_chain();
 
     // We need to fetch clock values for a couple of operations in this instruction.
     let Clock {
@@ -150,7 +150,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     let initial_offer_token = ctx.accounts.offer_token.key();
     ctx.accounts.auction.set_inner(Auction {
         bump: ctx.bumps.auction,
-        vaa_hash: fast_vaa.try_digest().unwrap().0,
+        vaa_hash: fast_vaa.digest().0,
         status: AuctionStatus::Active,
         info: Some(AuctionInfo {
             config_id: ctx.accounts.auction_config.id,

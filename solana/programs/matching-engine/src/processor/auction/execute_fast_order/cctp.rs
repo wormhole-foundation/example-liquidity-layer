@@ -9,7 +9,7 @@ use common::{
     wormhole_cctp_solana::{
         self,
         cctp::{message_transmitter_program, token_messenger_minter_program},
-        wormhole::core_bridge_program::{self, VaaAccount},
+        wormhole::{core_bridge_program, VaaAccount},
     },
     wormhole_io::TypePrefixedPayload,
 };
@@ -52,7 +52,7 @@ pub struct ExecuteFastOrderCctp<'info> {
         mut,
         seeds = [
             Auction::SEED_PREFIX,
-            VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
+            VaaAccount::load(&fast_vaa)?.digest().as_ref()
         ],
         bump = auction.bump,
         constraint = utils::is_valid_active_auction(

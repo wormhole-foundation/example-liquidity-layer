@@ -8,7 +8,7 @@ use common::{
     wormhole_cctp_solana::{
         cctp::token_messenger_minter_program::{self, RemoteTokenMessenger},
         utils::ExternalAccount,
-        wormhole::core_bridge_program,
+        wormhole::SOLANA_CHAIN,
     },
 };
 
@@ -74,7 +74,7 @@ pub fn add_cctp_router_endpoint(
     } = args;
 
     require!(
-        chain != 0 && chain != core_bridge_program::SOLANA_CHAIN,
+        chain != 0 && chain != SOLANA_CHAIN,
         MatchingEngineError::ChainNotAllowed
     );
 

@@ -8,7 +8,7 @@ use common::{
     wormhole_cctp_solana::{
         self,
         cctp::{message_transmitter_program, token_messenger_minter_program},
-        wormhole::core_bridge_program,
+        wormhole::{core_bridge_program, SOLANA_CHAIN},
     },
     wormhole_io::TypePrefixedPayload,
 };
@@ -274,7 +274,7 @@ fn handle_place_market_order_cctp(
             mint_recipient: ctx.accounts.router_endpoint.mint_recipient,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
             payload: common::messages::Fill {
-                source_chain: wormhole_cctp_solana::wormhole::core_bridge_program::SOLANA_CHAIN,
+                source_chain: SOLANA_CHAIN,
                 order_sender: ctx.accounts.order_sender.key().to_bytes(),
                 redeemer: ctx.accounts.prepared_order.redeemer,
                 redeemer_message: redeemer_message.into(),

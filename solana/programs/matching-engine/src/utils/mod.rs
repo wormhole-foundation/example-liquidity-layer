@@ -5,7 +5,7 @@ use crate::{
     state::{Auction, AuctionConfig, AuctionStatus, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
-use common::wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount;
+use common::wormhole_cctp_solana::wormhole::VaaAccount;
 
 pub fn require_valid_router_path(
     vaa: &VaaAccount<'_>,
@@ -13,7 +13,7 @@ pub fn require_valid_router_path(
     target_endpoint: &RouterEndpoint,
     expected_target_chain: u16,
 ) -> Result<()> {
-    let emitter = vaa.try_emitter_info()?;
+    let emitter = vaa.emitter_info();
     require_eq!(
         source_endpoint.chain,
         emitter.chain,

@@ -65,7 +65,7 @@ pub struct PrepareMarketOrder<'info> {
     prepared_custody_token: Account<'info, token::TokenAccount>,
 
     /// CHECK: This mint must be USDC.
-    #[account(address = common::constants::usdc::id())]
+    #[account(address = common::constants::USDC_MINT)]
     mint: AccountInfo<'info>,
 
     token_program: Program<'info, token::Token>,

@@ -21,7 +21,7 @@ mod test {
             super::id(),
             anchor_spl::associated_token::get_associated_token_address(
                 &custodian,
-                &common::constants::usdc::id()
+                &common::constants::USDC_MINT
             ),
             "cctp mint recipient mismatch"
         );

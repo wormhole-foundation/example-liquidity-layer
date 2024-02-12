@@ -10,7 +10,7 @@ use common::{
     wormhole_cctp_solana::{
         self,
         cctp::{message_transmitter_program, token_messenger_minter_program},
-        wormhole::core_bridge_program,
+        wormhole::{core_bridge_program, VaaAccount, SOLANA_CHAIN},
     },
     wormhole_io::TypePrefixedPayload,
 };
@@ -61,7 +61,7 @@ pub struct SettleAuctionNoneCctp<'info> {
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
             payer.key().as_ref(),
-            core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
+            VaaAccount::load(&fast_vaa)?.digest().as_ref()
         ],
         bump = prepared_order_response.bump,
     )]
@@ -108,9 +108,6 @@ pub struct SettleAuctionNoneCctp<'info> {
             from_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = from_router_endpoint.bump,
-        constraint = {
-            to_router_endpoint.chain != core_bridge_program::SOLANA_CHAIN
-        } @ MatchingEngineError::InvalidChain
     )]
     from_router_endpoint: Box<Account<'info, RouterEndpoint>>,
 
@@ -121,6 +118,9 @@ pub struct SettleAuctionNoneCctp<'info> {
             to_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
+        constraint = {
+            to_router_endpoint.chain != SOLANA_CHAIN
+        } @ MatchingEngineError::InvalidChain
     )]
     to_router_endpoint: Box<Account<'info, RouterEndpoint>>,
 
@@ -130,7 +130,7 @@ pub struct SettleAuctionNoneCctp<'info> {
     /// Token Messenger Minter program's local token account.
     #[account(
         mut,
-        address = common::constants::usdc::id(),
+        address = common::constants::USDC_MINT,
     )]
     mint: AccountInfo<'info>,
 

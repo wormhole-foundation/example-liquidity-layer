@@ -72,7 +72,7 @@ pub struct Initialize<'info> {
     )]
     cctp_mint_recipient: Account<'info, token::TokenAccount>,
 
-    #[account(address = common::constants::usdc::id() @ MatchingEngineError::NotUsdc)]
+    #[account(address = common::constants::USDC_MINT @ MatchingEngineError::NotUsdc)]
     mint: Account<'info, token::Mint>,
 
     /// We use the program data to make sure this owner is the upgrade authority (the true owner,

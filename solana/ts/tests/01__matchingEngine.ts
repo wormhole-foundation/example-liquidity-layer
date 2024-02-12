@@ -1792,7 +1792,15 @@ describe("Matching Engine", function () {
                     fastVaa,
                 });
 
-                const txDetails = await expectIxOkDetails(connection, [ix], [liquidator]);
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+
+                const txDetails = await expectIxOkDetails(
+                    connection,
+                    [computeIx, ix],
+                    [liquidator],
+                );
 
                 await checkAfterEffects(
                     txDetails!,

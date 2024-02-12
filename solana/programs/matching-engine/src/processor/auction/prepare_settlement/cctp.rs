@@ -9,7 +9,7 @@ use common::{
     wormhole_cctp_solana::{
         self,
         cctp::{message_transmitter_program, token_messenger_minter_program},
-        wormhole::core_bridge_program::{self, VaaAccount},
+        wormhole::{core_bridge_program, VaaAccount},
     },
 };
 
@@ -43,7 +43,7 @@ pub struct PrepareOrderResponseCctp<'info> {
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
             payer.key().as_ref(),
-            core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
+            VaaAccount::load(&fast_vaa)?.digest().as_ref()
         ],
         bump,
     )]
@@ -121,7 +121,7 @@ pub fn prepare_order_response_cctp(
     ctx: Context<PrepareOrderResponseCctp>,
     args: CctpMessageArgs,
 ) -> Result<()> {
-    let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa).unwrap();
+    let fast_vaa = VaaAccount::load_unchecked(&ctx.accounts.fast_vaa);
 
     let finalized_vaa = wormhole_cctp_solana::cpi::verify_vaa_and_mint(
         &ctx.accounts.finalized_vaa,
@@ -178,8 +178,8 @@ pub fn prepare_order_response_cctp(
 
     // Reconcile fast VAA with finalized VAA.
     let source_chain = {
-        let fast_emitter = fast_vaa.try_emitter_info().unwrap();
-        let finalized_emitter = finalized_vaa.try_emitter_info().unwrap();
+        let fast_emitter = fast_vaa.emitter_info();
+        let finalized_emitter = finalized_vaa.emitter_info();
         require_eq!(
             fast_emitter.chain,
             finalized_emitter.chain,
@@ -195,7 +195,7 @@ pub fn prepare_order_response_cctp(
             MatchingEngineError::VaaMismatch
         );
         require!(
-            fast_vaa.try_timestamp().unwrap() == finalized_vaa.try_timestamp().unwrap(),
+            fast_vaa.timestamp() == finalized_vaa.timestamp(),
             MatchingEngineError::VaaMismatch
         );
 
@@ -209,7 +209,7 @@ pub fn prepare_order_response_cctp(
     //
     // However, we will still process results in case Token Router implementation renders any of
     // these assumptions invalid.
-    let finalized_msg = LiquidityLayerMessage::try_from(finalized_vaa.try_payload().unwrap())
+    let finalized_msg = LiquidityLayerMessage::try_from(finalized_vaa.payload())
         .map_err(|_| error!(MatchingEngineError::InvalidVaa))?;
     let deposit = finalized_msg
         .deposit()
@@ -229,7 +229,7 @@ pub fn prepare_order_response_cctp(
         .prepared_order_response
         .set_inner(PreparedOrderResponse {
             bump: ctx.bumps.prepared_order_response,
-            fast_vaa_hash: fast_vaa.try_digest().unwrap().0,
+            fast_vaa_hash: fast_vaa.digest().0,
             prepared_by: ctx.accounts.payer.key(),
             source_chain,
             base_fee: slow_order_response.base_fee(),

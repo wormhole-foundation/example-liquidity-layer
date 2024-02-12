@@ -14,7 +14,7 @@ use common::{
         raw::{LiquidityLayerMessage, MessageToVec},
         Fill,
     },
-    wormhole_cctp_solana::wormhole::core_bridge_program::VaaAccount,
+    wormhole_cctp_solana::wormhole::VaaAccount,
 };
 
 struct SettleNoneAndPrepareFill<'ctx, 'info> {
@@ -53,8 +53,8 @@ fn settle_none_and_prepare_fill(
         token_program,
     } = accounts;
 
-    let fast_vaa = VaaAccount::load(fast_vaa).unwrap();
-    let order = LiquidityLayerMessage::try_from(fast_vaa.try_payload().unwrap())
+    let fast_vaa = VaaAccount::load_unchecked(fast_vaa);
+    let order = LiquidityLayerMessage::try_from(fast_vaa.payload())
         .unwrap()
         .to_fast_market_order_unchecked();
 
@@ -89,7 +89,7 @@ fn settle_none_and_prepare_fill(
     // setting this could lead to trapped funds (which would require an upgrade to fix).
     auction.set_inner(Auction {
         bump: auction_bump_seed,
-        vaa_hash: fast_vaa.try_digest().unwrap().0,
+        vaa_hash: fast_vaa.digest().0,
         status: AuctionStatus::Settled {
             base_fee,
             penalty: None,

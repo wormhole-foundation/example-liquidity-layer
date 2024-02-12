@@ -6,7 +6,7 @@ use anchor_lang::{prelude::*, system_program};
 use anchor_spl::token;
 use common::{
     messages::raw::{LiquidityLayerMessage, MessageToVec},
-    wormhole_cctp_solana::wormhole::core_bridge_program::{self, VaaAccount},
+    wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount},
 };
 
 /// Accounts required for [redeem_fast_fill].
@@ -35,7 +35,7 @@ pub struct RedeemFastFill<'info> {
         space = compute_prepared_fill_size(&vaa)?,
         seeds = [
             PreparedFill::SEED_PREFIX,
-            VaaAccount::load(&vaa)?.try_digest()?.as_ref(),
+            VaaAccount::load(&vaa)?.digest().as_ref(),
         ],
         bump,
     )]
@@ -60,7 +60,7 @@ pub struct RedeemFastFill<'info> {
     prepared_custody_token: Account<'info, token::TokenAccount>,
 
     /// CHECK: This mint must be USDC.
-    #[account(address = common::constants::usdc::id())]
+    #[account(address = common::constants::USDC_MINT)]
     mint: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["emitter"] (Matching Engine program).
@@ -121,8 +121,8 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
         &[Custodian::SIGNER_SEEDS],
     ))?;
 
-    let vaa = VaaAccount::load(&ctx.accounts.vaa).unwrap();
-    let fast_fill = LiquidityLayerMessage::try_from(vaa.try_payload().unwrap())
+    let vaa = VaaAccount::load_unchecked(&ctx.accounts.vaa);
+    let fast_fill = LiquidityLayerMessage::try_from(vaa.payload())
         .unwrap()
         .to_fast_fill_unchecked();
 
@@ -150,7 +150,7 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
 
     // Set prepared fill data.
     ctx.accounts.prepared_fill.set_inner(PreparedFill {
-        vaa_hash: vaa.try_digest().unwrap().0,
+        vaa_hash: vaa.digest().0,
         bump: ctx.bumps.prepared_fill,
         prepared_custody_token_bump: ctx.bumps.prepared_custody_token,
         redeemer: Pubkey::from(fill.redeemer()),
@@ -167,8 +167,8 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
 
 fn compute_prepared_fill_size(vaa_acc_info: &AccountInfo<'_>) -> Result<usize> {
     let vaa = VaaAccount::load(vaa_acc_info)?;
-    let msg = LiquidityLayerMessage::try_from(vaa.try_payload().unwrap())
-        .map_err(|_| TokenRouterError::InvalidVaa)?;
+    let msg =
+        LiquidityLayerMessage::try_from(vaa.payload()).map_err(|_| TokenRouterError::InvalidVaa)?;
 
     let fast_fill = msg.fast_fill().ok_or(TokenRouterError::InvalidPayloadId)?;
     Ok(fast_fill

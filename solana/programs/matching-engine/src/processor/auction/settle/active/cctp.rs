@@ -60,7 +60,7 @@ pub struct SettleAuctionActiveCctp<'info> {
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
             payer.key().as_ref(),
-            core_bridge_program::VaaAccount::load(&fast_vaa)?.try_digest()?.as_ref()
+            wormhole_cctp_solana::wormhole::VaaAccount::load(&fast_vaa)?.digest().as_ref()
         ],
         bump = prepared_order_response.bump,
     )]

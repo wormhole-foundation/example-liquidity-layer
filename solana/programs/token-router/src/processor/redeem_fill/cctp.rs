@@ -11,7 +11,7 @@ use common::{
         cctp::{message_transmitter_program, token_messenger_minter_program},
         cpi::ReceiveMessageArgs,
         utils::WormholeCctpPayload,
-        wormhole::core_bridge_program::VaaAccount,
+        wormhole::VaaAccount,
     },
 };
 
@@ -40,7 +40,7 @@ pub struct RedeemCctpFill<'info> {
         space = compute_prepared_fill_size(&vaa)?,
         seeds = [
             PreparedFill::SEED_PREFIX,
-            VaaAccount::load(&vaa)?.try_digest()?.as_ref(),
+            VaaAccount::load(&vaa)?.digest().as_ref(),
         ],
         bump,
     )]
@@ -74,7 +74,7 @@ pub struct RedeemCctpFill<'info> {
     prepared_custody_token: Box<Account<'info, token::TokenAccount>>,
 
     /// CHECK: This mint must be USDC.
-    #[account(address = common::constants::usdc::id())]
+    #[account(address = common::constants::USDC_MINT)]
     mint: AccountInfo<'info>,
 
     /// Registered emitter account representing a Circle Integration on another network.
@@ -216,7 +216,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
 
     // Validate that this message originated from a registered emitter.
     let endpoint = &ctx.accounts.router_endpoint;
-    let emitter = vaa.try_emitter_info().unwrap();
+    let emitter = vaa.emitter_info();
     require_eq!(
         emitter.chain,
         endpoint.chain,
@@ -228,7 +228,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
     );
 
     // Wormhole CCTP deposit should be ours, so make sure this is a fill we recognize.
-    let deposit = WormholeCctpPayload::try_from(vaa.try_payload().unwrap())
+    let deposit = WormholeCctpPayload::try_from(vaa.payload())
         .unwrap()
         .message()
         .to_deposit_unchecked();
@@ -263,7 +263,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
 
     // Set prepared fill data.
     ctx.accounts.prepared_fill.set_inner(PreparedFill {
-        vaa_hash: vaa.try_digest().unwrap().0,
+        vaa_hash: vaa.digest().0,
         bump: ctx.bumps.prepared_fill,
         prepared_custody_token_bump: ctx.bumps.prepared_custody_token,
         redeemer: Pubkey::from(fill.redeemer()),
@@ -294,8 +294,8 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
 
 fn compute_prepared_fill_size(vaa_acc_info: &AccountInfo<'_>) -> Result<usize> {
     let vaa = VaaAccount::load(vaa_acc_info)?;
-    let msg = LiquidityLayerMessage::try_from(vaa.try_payload()?)
-        .map_err(|_| TokenRouterError::InvalidVaa)?;
+    let msg =
+        LiquidityLayerMessage::try_from(vaa.payload()).map_err(|_| TokenRouterError::InvalidVaa)?;
 
     let deposit = msg.deposit().ok_or(TokenRouterError::InvalidPayloadId)?;
     let msg = LiquidityLayerDepositMessage::try_from(deposit.payload())

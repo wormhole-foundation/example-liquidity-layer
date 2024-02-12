@@ -21,16 +21,23 @@ path = "modules/common"
 path = "programs/matching-engine"
 
 [workspace.dependencies.wormhole-cctp-solana]
-version = "0.1.0-alpha.5"
+version = "0.1.0-alpha.6"
 default-features = false
 
+[workspace.dependencies.wormhole-solana-utils]
+version = "0.2.0-alpha.11"
+features = ["anchor"]
+
+[workspace.dependencies.wormhole-solana-vaas]
+version = "0.2.0-alpha.11"
+features = ["anchor"]
+
 [workspace.dependencies.wormhole-raw-vaas]
-version = "0.1.3"
-features = ["on-chain"]
-default-features = false
+version = "0.2.0-alpha.2"
 
 [workspace.dependencies]
 wormhole-io = "0.1.2"
+wormhole-solana-consts = "0.2.0-alpha.11"
 anchor-lang = "0.29.0"
 anchor-spl = "0.29.0"
 solana-program = "1.17.20"
