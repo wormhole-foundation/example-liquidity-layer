@@ -88,11 +88,12 @@ describe("Matching Engine", function () {
     describe("Admin", function () {
         describe("Initialize", function () {
             const auctionParams: AuctionParameters = {
-                userPenaltyRewardBps: 250000,
-                initialPenaltyBps: 250000,
+                userPenaltyRewardBps: 250000, // 25%
+                initialPenaltyBps: 250000, // 25%
                 duration: 2,
                 gracePeriod: 5,
                 penaltyPeriod: 10,
+                minOfferDeltaBps: 20000, // 2%
             };
 
             const localVariables = new Map<string, any>();
@@ -209,6 +210,21 @@ describe("Matching Engine", function () {
                     { initialPenaltyBps: 4294967295, ...remaining },
                 );
                 await expectIxErr(connection, [ix], [payer], "Error Code: InitialPenaltyTooLarge");
+            });
+
+            it("Cannot Initialize with Invalid Min Offer Delta", async function () {
+                const { minOfferDeltaBps: _, ...remaining } = auctionParams;
+
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: ownerAssistant.publicKey,
+                        feeRecipient,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    { minOfferDeltaBps: 4294967295, ...remaining },
+                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: MinOfferDeltaTooLarge");
             });
 
             it("Finally Initialize Program", async function () {
@@ -1265,7 +1281,7 @@ describe("Matching Engine", function () {
         });
 
         describe("Improve Offer", function () {
-            for (const newOffer of [0n, baseFastOrder.maxFee / 2n, baseFastOrder.maxFee - 1n]) {
+            for (const newOffer of [0n, baseFastOrder.maxFee / 2n]) {
                 it(`Improve Offer (Price == ${newOffer})`, async function () {
                     const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                         offerAuthorityOne,
@@ -1308,6 +1324,51 @@ describe("Matching Engine", function () {
                 });
             }
 
+            it("Improve Offer By Min Offer Delta", async function () {
+                const { auction, auctionDataBefore } = await placeInitialOfferForTest(
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                );
+
+                const currentOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
+                const newOffer =
+                    currentOffer - (await engine.computeMinOfferDelta(currentOffer)) - 100n;
+
+                const initialOfferBalanceBefore = await getUsdcAtaBalance(
+                    connection,
+                    offerAuthorityOne.publicKey,
+                );
+                const newOfferBalanceBefore = await getUsdcAtaBalance(
+                    connection,
+                    offerAuthorityTwo.publicKey,
+                );
+                const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
+
+                const [approveIx, ix] = await engine.improveOfferIx(
+                    {
+                        auction,
+                        offerAuthority: offerAuthorityTwo.publicKey,
+                    },
+                    newOffer,
+                );
+
+                await expectIxOk(connection, [approveIx, ix], [offerAuthorityTwo]);
+
+                await checkAfterEffects(
+                    auction,
+                    offerAuthorityTwo.publicKey,
+                    newOffer,
+                    auctionDataBefore,
+                    {
+                        custodyToken: custodyBalanceBefore,
+                        bestOfferToken: newOfferBalanceBefore,
+                        prevBestOfferToken: initialOfferBalanceBefore,
+                    },
+                );
+            });
+
             it("Improve Offer With Same Best Offer Token Account", async function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     offerAuthorityOne,
@@ -1323,7 +1384,8 @@ describe("Matching Engine", function () {
                 const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
                 // New Offer from offerAuthorityOne.
-                const newOffer = BigInt(auctionDataBefore.info!.offerPrice.subn(100).toString());
+                const currentOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
+                const newOffer = currentOffer - (await engine.computeMinOfferDelta(currentOffer));
 
                 const [approveIx, ix] = await engine.improveOfferIx(
                     {
@@ -1433,6 +1495,32 @@ describe("Matching Engine", function () {
                 );
             });
 
+            it("Cannot Improve Offer (Carping Not Allowed)", async function () {
+                const { auction, auctionDataBefore } = await placeInitialOfferForTest(
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    baseFastOrder,
+                    ethRouter,
+                );
+
+                // Attempt to improve by the minimum allowed.
+                const newOffer = BigInt(auctionDataBefore.info!.offerPrice.toString()) - 1n;
+                const [approveIx, ix] = await engine.improveOfferIx(
+                    {
+                        auction,
+                        offerAuthority: offerAuthorityTwo.publicKey,
+                    },
+                    newOffer,
+                );
+
+                await expectIxErr(
+                    connection,
+                    [approveIx, ix],
+                    [offerAuthorityTwo],
+                    "Error Code: CarpingNotAllowed",
+                );
+            });
+
             async function checkAfterEffects(
                 auction: PublicKey,
                 newOfferAuthority: PublicKey,
@@ -1527,17 +1615,26 @@ describe("Matching Engine", function () {
             it("Execute Fast Order Within Grace Period", async function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
-                const { fastVaa, fastVaaAccount, auction } = await placeInitialOfferForTest(
+                const {
+                    fastVaa,
+                    auction,
+                    auctionDataBefore: initialData,
+                } = await placeInitialOfferForTest(
                     offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
                     ethRouter,
                 );
 
+                const improveBy = Number(
+                    await engine.computeMinOfferDelta(
+                        BigInt(initialData.info!.offerPrice.toString()),
+                    ),
+                );
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
                     offerAuthorityOne,
-                    100,
+                    improveBy,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
 
@@ -1606,17 +1703,26 @@ describe("Matching Engine", function () {
             it("Execute Fast Order After Grace Period", async function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
-                const { fastVaa, fastVaaAccount, auction } = await placeInitialOfferForTest(
+                const {
+                    fastVaa,
+                    auction,
+                    auctionDataBefore: initialData,
+                } = await placeInitialOfferForTest(
                     offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
                     ethRouter,
                 );
 
+                const improveBy = Number(
+                    await engine.computeMinOfferDelta(
+                        BigInt(initialData.info!.offerPrice.toString()),
+                    ),
+                );
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
                     offerAuthorityOne,
-                    100,
+                    improveBy,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
 
@@ -1666,17 +1772,26 @@ describe("Matching Engine", function () {
             it("Execute Fast Order After Grace Period with Liquidator", async function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
-                const { fastVaa, fastVaaAccount, auction } = await placeInitialOfferForTest(
+                const {
+                    fastVaa,
+                    auction,
+                    auctionDataBefore: initialData,
+                } = await placeInitialOfferForTest(
                     offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
                     ethRouter,
                 );
 
+                const improveBy = Number(
+                    await engine.computeMinOfferDelta(
+                        BigInt(initialData.info!.offerPrice.toString()),
+                    ),
+                );
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
                     offerAuthorityOne,
-                    100,
+                    improveBy,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
 
@@ -1744,17 +1859,26 @@ describe("Matching Engine", function () {
             it("Execute Fast Order After Penalty Period with Liquidator", async function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
-                const { fastVaa, fastVaaAccount, auction } = await placeInitialOfferForTest(
+                const {
+                    fastVaa,
+                    auction,
+                    auctionDataBefore: initialData,
+                } = await placeInitialOfferForTest(
                     offerAuthorityTwo,
                     wormholeSequence++,
                     baseFastOrder,
                     ethRouter,
                 );
 
+                const improveBy = Number(
+                    await engine.computeMinOfferDelta(
+                        BigInt(initialData.info!.offerPrice.toString()),
+                    ),
+                );
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
                     offerAuthorityOne,
-                    100,
+                    improveBy,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
 

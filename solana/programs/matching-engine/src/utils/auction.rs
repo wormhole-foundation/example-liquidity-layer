@@ -40,6 +40,11 @@ pub fn compute_deposit_penalty(
     }
 }
 
+#[inline]
+pub fn compute_min_offer_delta(params: &AuctionParameters, info: &AuctionInfo) -> u64 {
+    mul_bps_unsafe(info.offer_price, params.min_offer_delta_bps)
+}
+
 pub fn require_valid_parameters(params: &AuctionParameters) -> Result<()> {
     require!(
         params.duration > 0,
@@ -56,6 +61,10 @@ pub fn require_valid_parameters(params: &AuctionParameters) -> Result<()> {
     require!(
         params.initial_penalty_bps <= FEE_PRECISION_MAX,
         MatchingEngineError::InitialPenaltyTooLarge
+    );
+    require!(
+        params.min_offer_delta_bps <= FEE_PRECISION_MAX,
+        MatchingEngineError::MinOfferDeltaTooLarge
     );
 
     Ok(())
@@ -88,7 +97,7 @@ mod test {
 
         let amount = 10000000;
         let slots_elapsed = params.duration + params.grace_period - 1;
-        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
+        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()), 0);
 
         let DepositPenalty {
             penalty,
@@ -105,7 +114,7 @@ mod test {
 
         let amount = 10000000;
         let slots_elapsed = params.duration + params.grace_period + params.penalty_period;
-        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
+        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()), 0);
 
         let DepositPenalty {
             penalty,
@@ -122,7 +131,7 @@ mod test {
 
         let amount = 10000000;
         let slots_elapsed = params.duration + params.grace_period + 1;
-        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
+        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()), 0);
 
         let DepositPenalty {
             penalty,
@@ -139,7 +148,7 @@ mod test {
 
         let amount = 10000000;
         let slots_elapsed = params.duration + params.grace_period + params.penalty_period / 2;
-        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
+        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()), 0);
 
         let DepositPenalty {
             penalty,
@@ -156,7 +165,7 @@ mod test {
 
         let amount = 10000000;
         let slots_elapsed = params.duration + params.grace_period + params.penalty_period - 1;
-        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
+        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()), 0);
 
         let DepositPenalty {
             penalty,
@@ -176,7 +185,7 @@ mod test {
 
         let amount = 10000000;
         let slots_elapsed = params.duration + params.grace_period + params.penalty_period / 2;
-        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
+        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()), 0);
 
         let DepositPenalty {
             penalty,
@@ -197,7 +206,7 @@ mod test {
 
         let amount = 10000000;
         let slots_elapsed = params.duration + params.grace_period + params.penalty_period / 2;
-        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
+        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()), 0);
 
         let DepositPenalty {
             penalty,
@@ -218,7 +227,7 @@ mod test {
 
         let amount = 10000000;
         let slots_elapsed = params.duration + params.grace_period + 5;
-        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
+        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()), 0);
 
         let DepositPenalty {
             penalty,
@@ -239,7 +248,7 @@ mod test {
 
         let amount = 10000000;
         let slots_elapsed = params.duration + params.grace_period + params.penalty_period / 2;
-        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
+        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()), 0);
 
         let DepositPenalty {
             penalty,
@@ -261,7 +270,7 @@ mod test {
 
         let amount = 10000000;
         let slots_elapsed = params.duration + params.grace_period + 10;
-        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()));
+        let (info, current_slot) = set_up(amount, Some(slots_elapsed.into()), 0);
 
         let DepositPenalty {
             penalty,
@@ -272,7 +281,49 @@ mod test {
         assert_eq!(user_reward, 5000000);
     }
 
-    fn set_up(security_deposit: u64, slots_elapsed: Option<u64>) -> (AuctionInfo, u64) {
+    #[test]
+    fn compute_min_offer_delta_max() {
+        let mut params = params_for_test();
+        params.min_offer_delta_bps = common::constants::FEE_PRECISION_MAX;
+
+        let offer_price = 10000000;
+        let (info, _) = set_up(0, None, offer_price);
+
+        let min_offer_delta = compute_min_offer_delta(&params, &info);
+
+        assert_eq!(min_offer_delta, offer_price);
+    }
+
+    #[test]
+    fn compute_min_offer_delta_zero() {
+        let mut params = params_for_test();
+        params.min_offer_delta_bps = 0;
+
+        let offer_price = 10000000;
+        let (info, _) = set_up(0, None, offer_price);
+
+        let min_offer_delta = compute_min_offer_delta(&params, &info);
+
+        assert_eq!(min_offer_delta, 0);
+    }
+
+    #[test]
+    fn compute_min_offer_delta_five_percent() {
+        let params = params_for_test();
+
+        let offer_price = 10000000;
+        let (info, _) = set_up(0, None, offer_price);
+
+        let min_offer_delta = compute_min_offer_delta(&params, &info);
+
+        assert_eq!(min_offer_delta, 500000);
+    }
+
+    fn set_up(
+        security_deposit: u64,
+        slots_elapsed: Option<u64>,
+        offer_price: u64,
+    ) -> (AuctionInfo, u64) {
         const START: u64 = 69;
         (
             AuctionInfo {
@@ -283,7 +334,7 @@ mod test {
                 best_offer_token: Default::default(),
                 initial_offer_token: Default::default(),
                 amount_in: Default::default(),
-                offer_price: Default::default(),
+                offer_price,
                 amount_out: Default::default(),
             },
             START + slots_elapsed.unwrap_or_default(),
@@ -297,6 +348,7 @@ mod test {
             duration: 2,
             grace_period: 4,
             penalty_period: 20,
+            min_offer_delta_bps: 50000, // 5%
         };
 
         require_valid_parameters(&params).unwrap();

@@ -18,8 +18,11 @@ pub struct AuctionParameters {
      */
     pub grace_period: u16,
 
-    // The `securityDeposit` decays over the `penaltyslots` slots period.
+    // The `securityDeposit` decays over the `penalty_slots` slots period.
     pub penalty_period: u16,
+
+    // The minimum offer increment in percentage terms.
+    pub min_offer_delta_bps: u32,
 }
 
 #[account]

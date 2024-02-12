@@ -19,6 +19,7 @@ const AUCTION_PARAMS: AuctionParameters = {
     duration: 5, // slots
     gracePeriod: 10, // slots
     penaltyPeriod: 20, // slots
+    minOfferDelta: 50000, // 5%
 };
 
 // Here we go.
@@ -53,7 +54,7 @@ async function main() {
             foreignChain,
             cctpDomain,
             foreignEmitter,
-            null
+            null,
         );
     }
     {
@@ -68,7 +69,7 @@ async function main() {
             foreignChain,
             cctpDomain,
             foreignEmitter,
-            null
+            null,
         );
     }
     {
@@ -83,7 +84,7 @@ async function main() {
             foreignChain,
             cctpDomain,
             foreignEmitter,
-            null
+            null,
         );
     }
     {
@@ -98,7 +99,7 @@ async function main() {
             foreignChain,
             cctpDomain,
             foreignEmitter,
-            null
+            null,
         );
     }
     {
@@ -113,7 +114,7 @@ async function main() {
             foreignChain,
             cctpDomain,
             foreignEmitter,
-            null
+            null,
         );
     }
     {
@@ -128,7 +129,7 @@ async function main() {
             foreignChain,
             cctpDomain,
             foreignEmitter,
-            null
+            null,
         );
     }
 }
@@ -151,7 +152,7 @@ async function intialize(matchingEngine: MatchingEngineProgram, payer: Keypair) 
             ownerAssistant: payer.publicKey,
             feeRecipient: payer.publicKey,
         },
-        AUCTION_PARAMS
+        AUCTION_PARAMS,
     );
 
     await splToken.getOrCreateAssociatedTokenAccount(connection, payer, USDC_MINT, payer.publicKey);
@@ -172,7 +173,7 @@ async function addCctpRouterEndpoint(
     foreignChain: ChainName,
     cctpDomain: number,
     foreignEmitter: string,
-    foreignMintRecipient: string | null
+    foreignMintRecipient: string | null,
 ) {
     await matchingEngine.fetchCustodian().catch((_) => {
         throw new Error("no custodian found");
@@ -204,7 +205,7 @@ async function addCctpRouterEndpoint(
                 "domain",
                 cctpDomain,
                 "mintRecipient",
-                foreignMintRecipient
+                foreignMintRecipient,
             );
             return;
         }
@@ -219,7 +220,7 @@ async function addCctpRouterEndpoint(
             address: endpointAddress,
             mintRecipient: endpointMintRecipient,
             cctpDomain,
-        }
+        },
     );
     const txSig = await sendAndConfirmTransaction(connection, new Transaction().add(ix), [payer]);
     console.log(
@@ -232,6 +233,6 @@ async function addCctpRouterEndpoint(
         "domain",
         cctpDomain,
         "mintRecipient",
-        foreignMintRecipient
+        foreignMintRecipient,
     );
 }

@@ -69,6 +69,16 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
         MatchingEngineError::OfferPriceNotImproved
     );
 
+    // This check is safe because we already checked that `fee_offer` is less than `offer_price`.
+    {
+        let min_offer_delta =
+            utils::auction::compute_min_offer_delta(&ctx.accounts.auction_config, auction_info);
+        require!(
+            auction_info.offer_price - fee_offer >= min_offer_delta,
+            MatchingEngineError::CarpingNotAllowed
+        );
+    }
+
     // Transfer funds from the `best_offer` token account to the `offer_token` token account,
     // but only if the pubkeys are different.
     let offer_token = ctx.accounts.offer_token.key();

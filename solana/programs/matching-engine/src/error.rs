@@ -77,6 +77,9 @@ pub enum MatchingEngineError {
     #[msg("InitialPenaltyTooLarge")]
     InitialPenaltyTooLarge,
 
+    #[msg("MinOfferDeltaTooLarge")]
+    MinOfferDeltaTooLarge,
+
     #[msg("InvalidVaa")]
     InvalidVaa,
 
@@ -148,4 +151,7 @@ pub enum MatchingEngineError {
 
     #[msg("InvalidCctpEndpoint")]
     InvalidCctpEndpoint,
+
+    #[msg("CarpingNotAllowed")]
+    CarpingNotAllowed,
 }

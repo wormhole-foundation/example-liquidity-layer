@@ -1391,6 +1391,11 @@ export class MatchingEngineProgram {
             return { penalty: penalty - userReward, userReward };
         }
     }
+
+    async computeMinOfferDelta(offerPrice: bigint): Promise<bigint> {
+        const auctionParams = await this.fetchAuctionParameters();
+        return (offerPrice * BigInt(auctionParams.minOfferDeltaBps)) / FEE_PRECISION_MAX;
+    }
 }
 
 export function testnet(): ProgramId {

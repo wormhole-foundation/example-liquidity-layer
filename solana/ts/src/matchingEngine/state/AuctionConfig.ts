@@ -6,6 +6,7 @@ export type AuctionParameters = {
     duration: number;
     gracePeriod: number;
     penaltyPeriod: number;
+    minOfferDeltaBps: number;
 };
 
 export class AuctionConfig {
@@ -22,7 +23,7 @@ export class AuctionConfig {
         encodedId.writeUInt32BE(id);
         return PublicKey.findProgramAddressSync(
             [Buffer.from("auction-config"), encodedId],
-            programId
+            programId,
         )[0];
     }
 }
