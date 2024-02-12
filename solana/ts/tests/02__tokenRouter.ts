@@ -19,6 +19,7 @@ import {
     LOCALHOST,
     MOCK_GUARDIANS,
     OWNER_ASSISTANT_KEYPAIR,
+    OWNER_KEYPAIR,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
     bigintToU64BN,
@@ -34,7 +35,7 @@ describe("Token Router", function () {
     // payer is also the recipient in all tests
     const payer = PAYER_KEYPAIR;
     const relayer = Keypair.generate();
-    const owner = Keypair.generate();
+    const owner = OWNER_KEYPAIR;
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
 
     const foreignChain = wormholeSdk.CHAINS.ethereum;
@@ -1321,7 +1322,7 @@ describe("Token Router", function () {
                 );
 
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
+                    units: 400_000,
                 });
 
                 const cctpMintRecipient = tokenRouter.cctpMintRecipientAddress();

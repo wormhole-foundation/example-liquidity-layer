@@ -1,3 +1,6 @@
+mod authorize_upgrade;
+pub use authorize_upgrade::*;
+
 mod initialize;
 pub use initialize::*;
 

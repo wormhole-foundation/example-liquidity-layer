@@ -9,16 +9,19 @@ skip-lint = false
 [workspace]
 members = [
     "programs/token-router",
-    "programs/matching-engine"
+    "programs/matching-engine",
+    "programs/upgrade-manager"
 ]
 
 [programs.localnet]
 token_router = "TokenRouter11111111111111111111111111111111"
 matching_engine = "MatchingEngine11111111111111111111111111111"
+upgrade_manager = "UpgradeManager11111111111111111111111111111"
 
 [programs.devnet]
 token_router = "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md"
 matching_engine = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS"
+upgrade_manager = "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt"
 
 [registry]
 url = "https://api.apr.dev"
@@ -121,3 +124,43 @@ filename = "ts/tests/accounts/core_bridge/fee_collector.json"
 [[test.validator.account]]
 address = "dxZtypiKT5D9LYzdPxjvSZER9MgYfeRVU5qpMTMTRs4"
 filename = "ts/tests/accounts/core_bridge/guardian_set_0.json"
+
+### Testnet Matching Engine Program
+###
+### NOTE: Change this back to clone from Solana devnet once the program is
+### fixed.
+[[test.validator.clone]]
+###[[test.genesis]]
+address = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS"
+###program = "ts/tests/artifacts/testnet_matching_engine.so"
+###upgradeable = true
+
+### Testnet Matching Engine -- Custodian
+[[test.validator.account]]
+address = "5BsCKkzuZXLygduw6RorCqEB61AdzNkxp5VzQrFGzYWr"
+filename = "ts/tests/accounts/testnet/matching_engine_custodian.json"
+
+### Testnet Token Router Program
+###
+### NOTE: Change this back to clone from Solana devnet once the program is
+### fixed.
+[[test.validator.clone]]
+###[[test.genesis]]
+address = "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md"
+###program = "ts/tests/artifacts/testnet_token_router.so"
+###upgradeable = true
+
+### Testnet Token Router -- Custodian
+[[test.validator.account]]
+address = "CFYdtHYDnQgCAcwetWVjVg5V8Uiy1CpJaoYJxmV19Z7N"
+filename = "ts/tests/accounts/testnet/token_router_custodian.json"
+
+### Upgrade Manager (Testnet)
+###
+### NOTE: This is not forked from Solana devnet because the owner cannot be
+### modified in the program data. We instead load this program as an upgradeable
+### program so the wallet above ends up as the upgrade authority.
+[[test.genesis]]
+address = "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt"
+program = "ts/tests/artifacts/testnet_upgrade_manager.so"
+upgradeable = true

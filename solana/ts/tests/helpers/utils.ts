@@ -25,8 +25,8 @@ async function confirmLatest(connection: Connection, signature: string) {
                 lastValidBlockHeight,
                 signature,
             },
-            "confirmed"
-        )
+            "confirmed",
+        ),
     );
 }
 
@@ -37,7 +37,7 @@ export async function expectIxOk(
     options: {
         addressLookupTableAccounts?: AddressLookupTableAccount[];
         confirmOptions?: ConfirmOptions;
-    } = {}
+    } = {},
 ) {
     const { addressLookupTableAccounts, confirmOptions } = options;
     return debugSendAndConfirmTransaction(connection, instructions, signers, {
@@ -55,7 +55,7 @@ export async function expectIxErr(
     options: {
         addressLookupTableAccounts?: AddressLookupTableAccount[];
         confirmOptions?: ConfirmOptions;
-    } = {}
+    } = {},
 ) {
     const { addressLookupTableAccounts, confirmOptions } = options;
     const errorMsg = await debugSendAndConfirmTransaction(connection, instructions, signers, {
@@ -84,7 +84,7 @@ export async function expectIxOkDetails(
     options: {
         addressLookupTableAccounts?: AddressLookupTableAccount[];
         confirmOptions?: ConfirmOptions;
-    } = {}
+    } = {},
 ) {
     const txSig = await expectIxOk(connection, ixs, signers, options);
     await confirmLatest(connection, txSig);
@@ -102,7 +102,7 @@ async function debugSendAndConfirmTransaction(
         addressLookupTableAccounts?: AddressLookupTableAccount[];
         logError?: boolean;
         confirmOptions?: ConfirmOptions;
-    } = {}
+    } = {},
 ) {
     const { logError, confirmOptions, addressLookupTableAccounts } = options;
 
@@ -127,7 +127,7 @@ async function debugSendAndConfirmTransaction(
                     signature,
                     ...latestBlockhash,
                 },
-                confirmOptions === undefined ? "confirmed" : confirmOptions.commitment
+                confirmOptions === undefined ? "confirmed" : confirmOptions.commitment,
             );
             return new Ok(signature);
         })
@@ -148,35 +148,26 @@ export async function postVaa(
     connection: Connection,
     payer: Keypair,
     vaaBuf: Buffer,
-    coreBridgeAddress?: PublicKey
+    coreBridgeAddress?: PublicKey,
 ) {
     await postVaaSolana(
         connection,
         new wormSolana.NodeWallet(payer).signTransaction,
         coreBridgeAddress ?? CORE_BRIDGE_PID,
         payer.publicKey,
-        vaaBuf
+        vaaBuf,
     );
 }
 
-export function loadProgramBpf(artifactPath: string, bufferAuthority: PublicKey): PublicKey {
+export function loadProgramBpf(artifactPath: string): PublicKey {
     // Write keypair to temporary file.
     const keypath = `${__dirname}/../keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json`;
 
     // Invoke BPF Loader Upgradeable `write-buffer` instruction.
     const buffer = (() => {
         const output = execSync(`solana -u l -k ${keypath} program write-buffer ${artifactPath}`);
-        const pubkeyStr = output.toString().match(/^.{8}([A-Za-z0-9]+)/);
-        if (pubkeyStr === null) {
-            throw new Error("Could not parse pubkey from output");
-        }
-        return new PublicKey(pubkeyStr);
+        return new PublicKey(output.toString().match(/^Buffer: ([A-Za-z0-9]+)/)![1]);
     })();
-
-    // Invoke BPF Loader Upgradeable `set-buffer-authority` instruction.
-    execSync(
-        `solana -k ${keypath} program set-buffer-authority ${buffer.toString()} --new-buffer-authority ${bufferAuthority.toString()} -u localhost`
-    );
 
     // Return the pubkey for the buffer (our new program implementation).
     return buffer;
@@ -237,7 +228,7 @@ export async function waitUntilSlot(connection: Connection, targetSlot: number) 
 export async function getUsdcAtaBalance(connection: Connection, owner: PublicKey) {
     const { amount } = await splToken.getAccount(
         connection,
-        splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner)
+        splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner),
     );
     return amount;
 }

@@ -1,7 +1,7 @@
 use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use solana_program::bpf_loader_upgradeable;
+use wormhole_solana_utils::cpi::bpf_loader_upgradeable::{self, BpfLoaderUpgradeable};
 
 #[derive(Accounts)]
 pub struct Initialize<'info> {
@@ -56,6 +56,18 @@ pub struct Initialize<'info> {
     )]
     program_data: Account<'info, ProgramData>,
 
+    /// CHECK: This program PDA will be the upgrade authority for the Token Router program.
+    #[account(address = common::constants::UPGRADE_MANAGER_AUTHORITY)]
+    upgrade_manager_authority: AccountInfo<'info>,
+
+    /// CHECK: This program must exist.
+    #[account(
+        executable,
+        address = common::constants::UPGRADE_MANAGER_PROGRAM_ID,
+    )]
+    upgrade_manager_program: AccountInfo<'info>,
+
+    bpf_loader_upgradeable_program: Program<'info, BpfLoaderUpgradeable>,
     system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,
     associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
@@ -68,10 +80,24 @@ pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
     #[cfg(not(feature = "integration-test"))]
     {
         require_keys_eq!(
-            owner,
+            ctx.accounts.owner.key(),
             ctx.accounts.program_data.upgrade_authority_address.unwrap(),
             TokenRouterError::OwnerOnly
         );
+
+        bpf_loader_upgradeable::set_upgrade_authority(
+            CpiContext::new(
+                ctx.accounts
+                    .bpf_loader_upgradeable_program
+                    .to_account_info(),
+                bpf_loader_upgradeable::SetUpgradeAuthority {
+                    program_data: ctx.accounts.program_data.to_account_info(),
+                    current_authority: ctx.accounts.owner.to_account_info(),
+                    new_authority: Some(ctx.accounts.upgrade_manager_authority.to_account_info()),
+                },
+            ),
+            &crate::id(),
+        )?;
     }
 
     ctx.accounts.custodian.set_inner(Custodian {

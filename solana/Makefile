@@ -25,8 +25,7 @@ cargo-test $(NETWORK):
 build: $(out_$(NETWORK))
 $(out_$(NETWORK)): cargo-test
 ifdef out_$(NETWORK)
-	anchor build -p token_router --arch sbf -- --features "$(NETWORK),no-idl" -- --no-default-features
-	anchor build -p matching_engine --arch sbf -- --features "$(NETWORK),no-idl" -- --no-default-features
+	anchor build --arch sbf -- --features $(NETWORK)
 	mkdir -p $(out_$(NETWORK))
 	cp target/deploy/*.so $(out_$(NETWORK))/
 endif
@@ -34,10 +33,11 @@ endif
 test: node_modules
 	NETWORK=localnet $(MAKE) cargo-test
 	NETWORK=testnet $(MAKE) cargo-test
-	anchor build -p token_router --arch sbf -- --features testnet
-	mkdir -p ts/tests/artifacts && cp target/deploy/token_router.so ts/tests/artifacts/testnet_token_router.so
-	anchor build -p matching_engine --arch sbf -- --features testnet
-	mkdir -p ts/tests/artifacts && cp target/deploy/matching_engine.so ts/tests/artifacts/testnet_matching_engine.so
+	anchor build --arch sbf -- --features testnet
+	mkdir -p ts/tests/artifacts
+	cp target/deploy/matching_engine.so ts/tests/artifacts/testnet_matching_engine.so
+	cp target/deploy/token_router.so ts/tests/artifacts/testnet_token_router.so
+	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
 	anchor build --arch sbf -- --features integration-test
 	anchor test --skip-build
 

@@ -12,15 +12,22 @@ export const LOCALHOST = "http://localhost:8899";
 export const PAYER_KEYPAIR = Keypair.fromSecretKey(
     Buffer.from(
         "cDfpY+VbRFXPPwouZwAx+ha9HqedkhqUr5vUaFa2ucAMGliG/hCT35/EOMKW+fcnW3cYtrwOFW2NM2xY8IOZbQ==",
-        "base64"
-    )
+        "base64",
+    ),
 );
 
 export const OWNER_ASSISTANT_KEYPAIR = Keypair.fromSecretKey(
     Buffer.from(
         "900mlHo1RRdhxUKuBnnPowQ7yqb4rJ1dC7K1PM+pRxeuCWamoSkQdY+3hXAeX0OBXanyqg4oyBl8g1z1sDnSWg==",
-        "base64"
-    )
+        "base64",
+    ),
+);
+
+export const OWNER_KEYPAIR = Keypair.fromSecretKey(
+    Buffer.from(
+        "t0zuiHtsaDJBSUFzkvXNttgXOMvZy0bbuUPGEByIJEHAUdFeBdSAesMbgbuH1v/y+B8CdTSkCIZZNuCntHQ+Ig==",
+        "base64",
+    ),
 );
 
 export const GOVERNANCE_EMITTER_ADDRESS = new PublicKey("11111111111111111111111111111115");

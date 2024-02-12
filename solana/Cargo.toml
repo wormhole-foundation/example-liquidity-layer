@@ -20,12 +20,15 @@ path = "modules/common"
 [workspace.dependencies.matching-engine]
 path = "programs/matching-engine"
 
+[workspace.dependencies.token-router]
+path = "programs/token-router"
+
 [workspace.dependencies.wormhole-cctp-solana]
 version = "0.1.0-alpha.6"
 default-features = false
 
 [workspace.dependencies.wormhole-solana-utils]
-version = "0.2.0-alpha.11"
+version = "0.2.0-alpha.15"
 features = ["anchor"]
 
 [workspace.dependencies.wormhole-solana-vaas]

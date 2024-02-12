@@ -39,6 +39,7 @@ import {
     LOCALHOST,
     MOCK_GUARDIANS,
     OWNER_ASSISTANT_KEYPAIR,
+    OWNER_KEYPAIR,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
     bigintToU64BN,
@@ -60,7 +61,7 @@ describe("Matching Engine", function () {
 
     // owner is also the recipient in all tests
     const payer = PAYER_KEYPAIR;
-    const owner = Keypair.generate();
+    const owner = OWNER_KEYPAIR;
     const relayer = Keypair.generate();
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
     const feeRecipient = Keypair.generate().publicKey;

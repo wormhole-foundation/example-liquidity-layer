@@ -6,6 +6,7 @@ import {
     Connection,
     PublicKey,
     SYSVAR_CLOCK_PUBKEY,
+    SYSVAR_INSTRUCTIONS_PUBKEY,
     SYSVAR_RENT_PUBKEY,
     SystemProgram,
     TransactionInstruction,
@@ -17,9 +18,10 @@ import {
     TokenMessengerMinterProgram,
 } from "../cctp";
 import * as matchingEngineSdk from "../matchingEngine";
-import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
+import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import { Custodian, PayerSequence, PreparedFill, PreparedOrder } from "./state";
+import { UpgradeManagerProgram } from "../upgradeManager";
 
 export const PROGRAM_IDS = [
     "TokenRouter11111111111111111111111111111111",
@@ -616,6 +618,8 @@ export class TokenRouterProgram {
         mint?: PublicKey;
     }): Promise<TransactionInstruction> {
         const { owner, ownerAssistant, mint: inputMint } = accounts;
+
+        const upgradeManager = this.upgradeManagerProgram();
         return this.program.methods
             .initialize()
             .accounts({
@@ -624,7 +628,10 @@ export class TokenRouterProgram {
                 ownerAssistant,
                 mint: inputMint ?? this.mint,
                 cctpMintRecipient: this.cctpMintRecipientAddress(),
-                programData: getProgramData(this.ID),
+                programData: programDataAddress(this.ID),
+                upgradeManagerAuthority: upgradeManager.upgradeAuthorityAddress(),
+                upgradeManagerProgram: upgradeManager.ID,
+                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -658,8 +665,6 @@ export class TokenRouterProgram {
                 owner,
                 custodian: inputCustodian ?? this.custodianAddress(),
                 newOwner,
-                programData: getProgramData(this.ID),
-                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -674,8 +679,6 @@ export class TokenRouterProgram {
             .accounts({
                 pendingOwner,
                 custodian: inputCustodian ?? this.custodianAddress(),
-                programData: getProgramData(this.ID),
-                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -690,8 +693,6 @@ export class TokenRouterProgram {
             .accounts({
                 owner,
                 custodian: inputCustodian ?? this.custodianAddress(),
-                programData: getProgramData(this.ID),
-                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -730,6 +731,26 @@ export class TokenRouterProgram {
             )[0],
             coreBridgeProgram,
         };
+    }
+
+    upgradeManagerProgram(): UpgradeManagerProgram {
+        switch (this._programId) {
+            case testnet(): {
+                return new UpgradeManagerProgram(
+                    this.program.provider.connection,
+                    "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
+                );
+            }
+            case localnet(): {
+                return new UpgradeManagerProgram(
+                    this.program.provider.connection,
+                    "UpgradeManager11111111111111111111111111111",
+                );
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {

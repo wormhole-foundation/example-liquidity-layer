@@ -12,12 +12,12 @@ pub mod state;
 
 use anchor_lang::prelude::*;
 
+declare_id!(common::constants::TOKEN_ROUTER_PROGRAM_ID);
+
 cfg_if::cfg_if! {
     if #[cfg(feature = "testnet")] {
-        declare_id!("tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md");
         const CUSTODIAN_BUMP: u8 = 255;
     } else if #[cfg(feature = "localnet")] {
-        declare_id!("TokenRouter11111111111111111111111111111111");
         const CUSTODIAN_BUMP: u8 = 253;
     }
 }
@@ -210,4 +210,8 @@ pub mod token_router {
     // ) -> Result<()> {
     //     processor::complete_wrapped_transfer_with_relay(ctx, _vaa_hash)
     // }
+
+    pub fn authorize_upgrade(ctx: Context<AuthorizeUpgrade>) -> Result<()> {
+        processor::authorize_upgrade(ctx)
+    }
 }

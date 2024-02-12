@@ -15,21 +15,22 @@ import {
 import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
-import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, getProgramData } from "../utils";
+import { LiquidityLayerMessage } from "../messages";
+import { UpgradeManagerProgram } from "../upgradeManager";
+import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import {
-    AuctionConfig,
     Auction,
+    AuctionConfig,
+    AuctionInfo,
+    AuctionParameters,
     Custodian,
     PayerSequence,
     PreparedOrderResponse,
     Proposal,
     RedeemedFastFill,
     RouterEndpoint,
-    AuctionParameters,
-    AuctionInfo,
 } from "./state";
-import { LiquidityLayerMessage } from "../messages";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -315,6 +316,7 @@ export class MatchingEngineProgram {
     ): Promise<TransactionInstruction> {
         const { owner, ownerAssistant, feeRecipient, mint: inputMint } = accounts;
 
+        const upgradeManager = this.upgradeManagerProgram();
         return this.program.methods
             .initialize(auctionParams)
             .accounts({
@@ -326,7 +328,10 @@ export class MatchingEngineProgram {
                 feeRecipientToken: splToken.getAssociatedTokenAddressSync(this.mint, feeRecipient),
                 cctpMintRecipient: this.cctpMintRecipientAddress(),
                 mint: inputMint ?? this.mint,
-                programData: getProgramData(this.ID),
+                programData: programDataAddress(this.ID),
+                upgradeManagerAuthority: upgradeManager.upgradeAuthorityAddress(),
+                upgradeManagerProgram: upgradeManager.ID,
+                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -343,8 +348,6 @@ export class MatchingEngineProgram {
                 owner,
                 custodian: inputCustodian ?? this.custodianAddress(),
                 newOwner,
-                programData: getProgramData(this.ID),
-                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -359,8 +362,6 @@ export class MatchingEngineProgram {
             .accounts({
                 pendingOwner,
                 custodian: inputCustodian ?? this.custodianAddress(),
-                programData: getProgramData(this.ID),
-                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -375,8 +376,6 @@ export class MatchingEngineProgram {
             .accounts({
                 owner,
                 custodian: inputCustodian ?? this.custodianAddress(),
-                programData: getProgramData(this.ID),
-                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
             })
             .instruction();
     }
@@ -1373,6 +1372,26 @@ export class MatchingEngineProgram {
             messageTransmitterProgram,
             tokenMessengerMinterProgram,
         };
+    }
+
+    upgradeManagerProgram(): UpgradeManagerProgram {
+        switch (this._programId) {
+            case testnet(): {
+                return new UpgradeManagerProgram(
+                    this.program.provider.connection,
+                    "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
+                );
+            }
+            case localnet(): {
+                return new UpgradeManagerProgram(
+                    this.program.provider.connection,
+                    "UpgradeManager11111111111111111111111111111",
+                );
+            }
+            default: {
+                throw new Error("unsupported network");
+            }
+        }
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {

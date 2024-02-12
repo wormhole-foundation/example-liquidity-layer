@@ -1230,6 +1230,7 @@ dependencies = [
  "liquidity-layer-common-solana",
  "ruint",
  "solana-program",
+ "wormhole-solana-utils",
 ]
 
 [[package]]
@@ -2330,6 +2331,7 @@ dependencies = [
  "matching-engine",
  "ruint",
  "solana-program",
+ "wormhole-solana-utils",
 ]
 
 [[package]]
@@ -2393,6 +2395,21 @@ checksum = "9f214e8f697e925001e66ec2c6e37a4ef93f0f78c2eed7814394e10c62025b05"
 dependencies = [
  "generic-array",
  "subtle",
+]
+
+[[package]]
+name = "upgrade-manager"
+version = "0.0.0"
+dependencies = [
+ "anchor-lang",
+ "cfg-if",
+ "hex",
+ "hex-literal",
+ "liquidity-layer-common-solana",
+ "matching-engine",
+ "solana-program",
+ "token-router",
+ "wormhole-solana-utils",
 ]
 
 [[package]]
@@ -2624,6 +2641,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "037dcc895cb45b18d898ccb52358c6dfa02a68bd99f0c68d883c15bb9fb8b423"
 dependencies = [
  "cfg-if",
+ "solana-program",
+]
+
+[[package]]
+name = "wormhole-solana-utils"
+version = "0.2.0-alpha.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eae4412bb88773852fe58215601cda7d8f7f0204a700526f25a9ece951715774"
+dependencies = [
+ "anchor-lang",
  "solana-program",
 ]
 
