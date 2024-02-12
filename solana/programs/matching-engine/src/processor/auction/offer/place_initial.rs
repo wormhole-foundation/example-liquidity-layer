@@ -154,6 +154,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
         status: AuctionStatus::Active,
         info: Some(AuctionInfo {
             config_id: ctx.accounts.auction_config.id,
+            vaa_sequence: fast_vaa.sequence(),
             source_chain,
             best_offer_token: initial_offer_token,
             initial_offer_token,

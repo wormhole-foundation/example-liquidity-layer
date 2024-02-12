@@ -30,6 +30,9 @@ impl std::fmt::Display for AuctionStatus {
 pub struct AuctionInfo {
     pub config_id: u32,
 
+    /// Sequence of the fast market order VAA.
+    pub vaa_sequence: u64,
+
     /// The chain where the transfer is initiated.
     pub source_chain: u16,
 

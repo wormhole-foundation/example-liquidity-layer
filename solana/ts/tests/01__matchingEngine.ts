@@ -1223,6 +1223,7 @@ describe("Matching Engine", function () {
                         { active: {} },
                         {
                             configId: 0,
+                            vaaSequence: bigintToU64BN(vaaAccount.emitterInfo().sequence),
                             sourceChain: ethChain,
                             bestOfferToken: offerToken,
                             initialOfferToken: offerToken,
@@ -1546,6 +1547,7 @@ describe("Matching Engine", function () {
                 const { bump, vaaHash, status, info } = auctionDataBefore;
                 const {
                     configId,
+                    vaaSequence,
                     bestOfferToken: prevBestOfferToken,
                     initialOfferToken,
                     startSlot,
@@ -1561,6 +1563,7 @@ describe("Matching Engine", function () {
                 expect(auctionDataAfter).to.eql(
                     new Auction(bump, vaaHash, status, {
                         configId,
+                        vaaSequence,
                         sourceChain,
                         bestOfferToken,
                         initialOfferToken,

@@ -14,6 +14,7 @@ export type AuctionStatus = {
 
 export type AuctionInfo = {
     configId: number;
+    vaaSequence: BN;
     sourceChain: number;
     bestOfferToken: PublicKey;
     initialOfferToken: PublicKey;
