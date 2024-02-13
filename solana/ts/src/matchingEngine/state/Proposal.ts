@@ -17,7 +17,7 @@ export class Proposal {
     by: PublicKey;
     owner: PublicKey;
     slotProposedAt: BN;
-    slotEnactBy: BN;
+    slotEnactDelay: BN;
     slotEnactedAt: BN | null;
     constructor(
         id: BN,
@@ -26,7 +26,7 @@ export class Proposal {
         by: PublicKey,
         owner: PublicKey,
         slotProposedAt: BN,
-        slotEnactBy: BN,
+        slotEnactDelay: BN,
         slotEnactedAt: BN | null,
     ) {
         this.id = id;
@@ -35,7 +35,7 @@ export class Proposal {
         this.by = by;
         this.owner = owner;
         this.slotProposedAt = slotProposedAt;
-        this.slotEnactBy = slotEnactBy;
+        this.slotEnactDelay = slotEnactDelay;
         this.slotEnactedAt = slotEnactedAt;
     }
 

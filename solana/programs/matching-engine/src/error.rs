@@ -158,6 +158,9 @@ pub enum MatchingEngineError {
     #[msg("ProposalAlreadyEnacted")]
     ProposalAlreadyEnacted,
 
+    #[msg("ProposalDelayNotExpired")]
+    ProposalDelayNotExpired,
+
     #[msg("InvalidProposalAction")]
     InvalidProposalAction,
 }

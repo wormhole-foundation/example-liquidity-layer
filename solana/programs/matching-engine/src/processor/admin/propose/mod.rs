@@ -29,7 +29,7 @@ fn propose(accounts: Propose, action: ProposalAction, proposal_bump_seed: u8) ->
         by: by.key(),
         owner: custodian.owner.key(),
         slot_proposed_at,
-        slot_enact_by: slot_proposed_at + epoch_schedule.slots_per_epoch,
+        slot_enact_delay: slot_proposed_at + epoch_schedule.slots_per_epoch,
         slot_enacted_at: None,
     });
 

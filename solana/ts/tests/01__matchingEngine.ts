@@ -1011,6 +1011,116 @@ describe("Matching Engine", function () {
                 );
             });
         });
+
+        describe("Update Auction Parameters", async function () {
+            const localVariables = new Map<string, any>();
+
+            // Create a new set of auction parameters.
+            const newAuctionParameters: AuctionParameters = {
+                userPenaltyRewardBps: 300000, // 30%
+                initialPenaltyBps: 200000, // 20%
+                duration: 3,
+                gracePeriod: 4,
+                penaltyPeriod: 8,
+                minOfferDeltaBps: 50000, // 5%
+            };
+
+            before("Propose New Auction Parameters as Owner Assistant", async function () {
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    newAuctionParameters,
+                );
+
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+            });
+
+            it("Cannot Update Auction Config (Owner Only)", async function () {
+                const { nextProposalId } = await engine.fetchCustodian();
+
+                // Substract one to get the proposal ID for the auction parameters proposal.
+                const proposal = await engine.proposalAddress(
+                    nextProposalId.sub(bigintToU64BN(1n)),
+                );
+
+                const ix = await engine.updateAuctionParametersIx({
+                    owner: ownerAssistant.publicKey,
+                    proposal,
+                });
+
+                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
+            });
+
+            it("Cannot Update Auction Config (Proposal Delay Not Expired)", async function () {
+                const { nextProposalId } = await engine.fetchCustodian();
+
+                // Substract one to get the proposal ID for the auction parameters proposal.
+                const proposal = await engine.proposalAddress(
+                    nextProposalId.sub(bigintToU64BN(1n)),
+                );
+
+                const ix = await engine.updateAuctionParametersIx({
+                    owner: owner.publicKey,
+                    proposal,
+                });
+
+                await expectIxErr(connection, [ix], [owner], "Error Code: ProposalDelayNotExpired");
+            });
+
+            it("Update Auction Config as Owner", async function () {
+                const { nextProposalId, auctionConfigId } = await engine.fetchCustodian();
+
+                // Substract one to get the proposal ID for the auction parameters proposal.
+                const proposal = await engine.proposalAddress(
+                    nextProposalId.sub(bigintToU64BN(1n)),
+                );
+                const proposalDataBefore = await engine.fetchProposal({ address: proposal });
+
+                await waitUntilSlot(
+                    connection,
+                    proposalDataBefore.slotEnactDelay.toNumber() + SLOTS_PER_EPOCH + 1,
+                );
+
+                const ix = await engine.updateAuctionParametersIx({
+                    owner: owner.publicKey,
+                    proposal,
+                });
+
+                await expectIxOk(connection, [ix], [owner]);
+
+                const auctionConfigData = await engine.fetchAuctionConfig(auctionConfigId + 1);
+                expect(auctionConfigData).to.eql(
+                    new AuctionConfig(auctionConfigId + 1, newAuctionParameters),
+                );
+
+                // Verify that the proposal was updated with the enacted at slot.
+                const proposalDataAfter = await engine
+                    .proposalAddress(nextProposalId.sub(bigintToU64BN(1n)))
+                    .then((addr) => engine.fetchProposal({ address: addr }));
+                expect(proposalDataAfter.slotEnactedAt).to.eql(
+                    numberToU64BN(await connection.getSlot()),
+                );
+            });
+
+            it("Cannot Update Auction Config (Proposal Already Enacted)", async function () {
+                const { nextProposalId } = await engine.fetchCustodian();
+
+                // Substract one to get the proposal ID for the auction parameters proposal.
+                const proposal = await engine.proposalAddress(
+                    nextProposalId.sub(bigintToU64BN(1n)),
+                );
+
+                const ix = await engine.updateAuctionParametersIx({
+                    owner: owner.publicKey,
+                    proposal,
+                });
+
+                await expectIxErr(connection, [ix], [owner], "Error Code: ProposalAlreadyEnacted");
+            });
+
+            it.skip("Cannot Update Auction Config (Auction Config Mismatch)", async function () {});
+        });
     });
 
     describe("Business Logic", function () {
@@ -1415,7 +1525,7 @@ describe("Matching Engine", function () {
                         Array.from(vaaHash),
                         { active: {} },
                         {
-                            configId: 0,
+                            configId: 1,
                             vaaSequence: bigintToU64BN(vaaAccount.emitterInfo().sequence),
                             sourceChain: ethChain,
                             bestOfferToken: offerToken,
@@ -1452,6 +1562,7 @@ describe("Matching Engine", function () {
                         wallet,
                         USDC_MINT_ADDRESS,
                         wallet.publicKey,
+                        undefined,
                     );
 
                     // Mint USDC.

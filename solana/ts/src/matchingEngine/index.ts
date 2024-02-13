@@ -448,6 +448,40 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    async updateAuctionParametersIx(accounts: {
+        owner: PublicKey;
+        custodian?: PublicKey;
+        proposal?: PublicKey;
+        auctionConfig?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const {
+            owner,
+            custodian: inputCustodian,
+            proposal: inputProposal,
+            auctionConfig: inputAuctionConfig,
+        } = accounts;
+
+        // Add 1 to the current auction config ID to get the next one.
+        const auctionConfig = await (async () => {
+            if (inputAuctionConfig === undefined) {
+                const { auctionConfigId } = await this.fetchCustodian();
+                return this.auctionConfigAddress(auctionConfigId + 1);
+            } else {
+                return inputAuctionConfig;
+            }
+        })();
+
+        return this.program.methods
+            .updateAuctionParameters()
+            .accounts({
+                owner,
+                custodian: inputCustodian ?? this.custodianAddress(),
+                proposal: inputProposal ?? (await this.proposalAddress()),
+                auctionConfig,
+            })
+            .instruction();
+    }
+
     async addLocalRouterEndpointIx(accounts: {
         ownerOrAssistant: PublicKey;
         tokenRouterProgram: PublicKey;

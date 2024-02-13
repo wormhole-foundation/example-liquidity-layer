@@ -31,6 +31,11 @@ pub struct UpdateAuctionParameters<'info> {
                 MatchingEngineError::ProposalAlreadyEnacted
             );
 
+            require!(
+                Clock::get()?.slot >= proposal.slot_enact_delay,
+                MatchingEngineError::ProposalDelayNotExpired
+            );
+
             match &proposal.action {
                 ProposalAction::UpdateAuctionParameters { id, .. } => {
                     require_eq!(

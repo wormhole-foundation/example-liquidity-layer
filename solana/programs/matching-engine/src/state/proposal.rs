@@ -22,7 +22,7 @@ pub struct Proposal {
     pub owner: Pubkey,
 
     pub slot_proposed_at: u64,
-    pub slot_enact_by: u64,
+    pub slot_enact_delay: u64,
     pub slot_enacted_at: Option<u64>,
 }
 
