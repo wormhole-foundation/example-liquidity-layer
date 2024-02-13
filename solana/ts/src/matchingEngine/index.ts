@@ -8,6 +8,7 @@ import {
     PublicKey,
     SYSVAR_CLOCK_PUBKEY,
     SYSVAR_RENT_PUBKEY,
+    SYSVAR_EPOCH_SCHEDULE_PUBKEY,
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
@@ -22,6 +23,7 @@ import {
     Custodian,
     PayerSequence,
     PreparedOrderResponse,
+    Proposal,
     RedeemedFastFill,
     RouterEndpoint,
     AuctionParameters,
@@ -196,6 +198,20 @@ export class MatchingEngineProgram {
         return this.fetchPayerSequence(input)
             .then((acct) => BigInt(acct.value.toString()))
             .catch((_) => 0n);
+    }
+
+    async proposalAddress(proposalId?: BN): Promise<PublicKey> {
+        if (proposalId === undefined) {
+            const { nextProposalId } = await this.fetchCustodian();
+            proposalId = nextProposalId;
+        }
+
+        return Proposal.address(this.ID, proposalId);
+    }
+
+    async fetchProposal(input?: { address: PublicKey }): Promise<Proposal> {
+        const addr = input === undefined ? await this.proposalAddress() : input.address;
+        return this.program.account.proposal.fetch(addr);
     }
 
     coreMessageAddress(payer: PublicKey, payerSequenceValue: BN | bigint): PublicKey {
@@ -407,6 +423,27 @@ export class MatchingEngineProgram {
                 custodian: inputCustodian ?? this.custodianAddress(),
                 routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
                 remoteTokenMessenger: inputRemoteTokenMessenger ?? derivedRemoteTokenMessenger,
+            })
+            .instruction();
+    }
+
+    async proposeAuctionParametersIx(
+        accounts: {
+            ownerOrAssistant: PublicKey;
+            custodian?: PublicKey;
+            proposal?: PublicKey;
+        },
+        parameters: AuctionParameters,
+    ): Promise<TransactionInstruction> {
+        const { ownerOrAssistant, custodian: inputCustodian, proposal: inputProposal } = accounts;
+
+        return this.program.methods
+            .proposeAuctionParameters(parameters)
+            .accounts({
+                ownerOrAssistant,
+                custodian: inputCustodian ?? this.custodianAddress(),
+                proposal: inputProposal ?? (await this.proposalAddress()),
+                epochSchedule: SYSVAR_EPOCH_SCHEDULE_PUBKEY,
             })
             .instruction();
     }

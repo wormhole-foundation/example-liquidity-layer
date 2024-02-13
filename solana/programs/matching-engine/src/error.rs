@@ -154,4 +154,10 @@ pub enum MatchingEngineError {
 
     #[msg("CarpingNotAllowed")]
     CarpingNotAllowed,
+
+    #[msg("ProposalAlreadyEnacted")]
+    ProposalAlreadyEnacted,
+
+    #[msg("InvalidProposalAction")]
+    InvalidProposalAction,
 }

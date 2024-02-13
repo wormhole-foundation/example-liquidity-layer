@@ -28,8 +28,7 @@ pub struct UpdateAuctionParameters<'info> {
         constraint = {
             require!(
                 proposal.slot_enacted_at.is_none(),
-                ErrorCode::InstructionMissing,
-                // TODO: add err
+                MatchingEngineError::ProposalAlreadyEnacted
             );
 
             match &proposal.action {
@@ -37,7 +36,7 @@ pub struct UpdateAuctionParameters<'info> {
                     require_eq!(
                         *id,
                         custodian.auction_config_id + 1,
-                        // TODO: add err
+                        MatchingEngineError::AuctionConfigMismatch
                     );
                 },
                 _ => return err!(ErrorCode::InstructionMissing),

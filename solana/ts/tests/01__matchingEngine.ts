@@ -1,5 +1,6 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { getPostedMessage } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
+import { BN } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -27,6 +28,7 @@ import {
     AuctionParameters,
     Custodian,
     MatchingEngineProgram,
+    Proposal,
     RouterEndpoint,
     localnet,
 } from "../src/matchingEngine";
@@ -50,6 +52,8 @@ import {
 } from "./helpers";
 
 chaiUse(chaiAsPromised);
+
+const SLOTS_PER_EPOCH = 32;
 
 describe("Matching Engine", function () {
     const connection = new Connection(LOCALHOST, "confirmed");
@@ -85,17 +89,17 @@ describe("Matching Engine", function () {
 
     let lookupTableAddress: PublicKey;
 
+    const auctionParams: AuctionParameters = {
+        userPenaltyRewardBps: 250000, // 25%
+        initialPenaltyBps: 250000, // 25%
+        duration: 2,
+        gracePeriod: 5,
+        penaltyPeriod: 10,
+        minOfferDeltaBps: 20000, // 2%
+    };
+
     describe("Admin", function () {
         describe("Initialize", function () {
-            const auctionParams: AuctionParameters = {
-                userPenaltyRewardBps: 250000, // 25%
-                initialPenaltyBps: 250000, // 25%
-                duration: 2,
-                gracePeriod: 5,
-                penaltyPeriod: 10,
-                minOfferDeltaBps: 20000, // 2%
-            };
-
             const localVariables = new Map<string, any>();
 
             it("Cannot Initialize without USDC Mint", async function () {
@@ -816,6 +820,195 @@ describe("Matching Engine", function () {
 
                 const custodianData = await engine.fetchCustodian();
                 expect(custodianData.feeRecipientToken).to.eql(feeRecipientToken);
+            });
+        });
+
+        describe("Propose New Auction Parameters", async function () {
+            // Create a new set of auction parameters.
+            const newAuctionParameters: AuctionParameters = {
+                userPenaltyRewardBps: 1000000,
+                initialPenaltyBps: 1000000,
+                duration: 1,
+                gracePeriod: 3,
+                penaltyPeriod: 5,
+                minOfferDeltaBps: 10000,
+            };
+
+            it("Propose New Auction Parameters as Owner Assistant", async function () {
+                const { nextProposalId, auctionConfigId } = await engine.fetchCustodian();
+
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    newAuctionParameters,
+                );
+
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+
+                const currentSlot = await connection.getSlot();
+
+                // Fetch the proposal data and validate it.
+                const proposalData = await engine
+                    .proposalAddress(nextProposalId)
+                    .then((addr) => engine.fetchProposal({ address: addr }));
+
+                expect(proposalData).to.eql(
+                    new Proposal(
+                        nextProposalId,
+                        255,
+                        {
+                            updateAuctionParameters: {
+                                id: auctionConfigId + 1,
+                                parameters: newAuctionParameters,
+                            },
+                        },
+                        ownerAssistant.publicKey,
+                        owner.publicKey,
+                        numberToU64BN(currentSlot),
+                        numberToU64BN(currentSlot + SLOTS_PER_EPOCH),
+                        null,
+                    ),
+                );
+            });
+
+            it("Cannot Propose New Auction Parameters without Owner or Assistant", async function () {
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: payer.publicKey,
+                    },
+                    newAuctionParameters,
+                );
+
+                await expectIxErr(connection, [ix], [payer], "OwnerOrAssistantOnly");
+            });
+
+            it("Cannot Propose New Auction Parameters (Invalid Auction Duration)", async function () {
+                const { duration: _, ...remaining } = newAuctionParameters;
+
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    { duration: 0, ...remaining },
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: InvalidAuctionDuration",
+                );
+            });
+
+            it("Cannot Propose New Auction Parameters (Invalid Auction Grace Period)", async function () {
+                const { gracePeriod: _, ...remaining } = newAuctionParameters;
+
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    { gracePeriod: 0, ...remaining },
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: InvalidAuctionGracePeriod",
+                );
+            });
+
+            it("Cannot Propose New Auction Parameters (Invalid User Penalty)", async function () {
+                const { userPenaltyRewardBps: _, ...remaining } = newAuctionParameters;
+
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    { userPenaltyRewardBps: 4294967295, ...remaining },
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: UserPenaltyTooLarge",
+                );
+            });
+
+            it("Cannot Propose New Auction Parameters (Invalid Initial Penalty)", async function () {
+                const { initialPenaltyBps: _, ...remaining } = newAuctionParameters;
+
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    { initialPenaltyBps: 4294967295, ...remaining },
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: InitialPenaltyTooLarge",
+                );
+            });
+
+            it("Cannot Propose New Auction Parameters (Invalid Min Offer Delta)", async function () {
+                const { minOfferDeltaBps: _, ...remaining } = newAuctionParameters;
+
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    { minOfferDeltaBps: 4294967295, ...remaining },
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: MinOfferDeltaTooLarge",
+                );
+            });
+
+            it("Propose New Auction Parameters as Owner", async function () {
+                const { nextProposalId, auctionConfigId } = await engine.fetchCustodian();
+
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    auctionParams,
+                );
+
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+
+                const currentSlot = await connection.getSlot();
+
+                // Fetch the proposal data and validate it.
+                const proposalData = await engine
+                    .proposalAddress(nextProposalId)
+                    .then((addr) => engine.fetchProposal({ address: addr }));
+
+                expect(proposalData).to.eql(
+                    new Proposal(
+                        nextProposalId,
+                        255,
+                        {
+                            updateAuctionParameters: {
+                                id: auctionConfigId + 1,
+                                parameters: auctionParams,
+                            },
+                        },
+                        ownerAssistant.publicKey,
+                        owner.publicKey,
+                        numberToU64BN(currentSlot),
+                        numberToU64BN(currentSlot + SLOTS_PER_EPOCH),
+                        null,
+                    ),
+                );
             });
         });
     });
