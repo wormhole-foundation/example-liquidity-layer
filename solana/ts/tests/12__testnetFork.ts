@@ -56,7 +56,7 @@ if (process.env.MAGIC_PRIVATE_KEY !== undefined) {
 
         describe("Set Up Environment", function () {
             // TODO: remove
-            it("Upgrade Matching Engine to Current Implementation (REMOVE ME)", async function () {
+            it.skip("Upgrade Matching Engine to Current Implementation (REMOVE ME)", async function () {
                 console.log("It'sa me!", devnetOwner.publicKey.toString());
 
                 const buffer = loadProgramBpf(MATCHING_ENGINE_ARTIFACT_PATH);
@@ -107,7 +107,7 @@ if (process.env.MAGIC_PRIVATE_KEY !== undefined) {
             });
 
             // TODO: remove
-            it("Upgrade Token Router to Current Implementation (REMOVE ME)", async function () {
+            it.skip("Upgrade Token Router to Current Implementation (REMOVE ME)", async function () {
                 console.log("It'sa me!", devnetOwner.publicKey.toString());
 
                 const buffer = loadProgramBpf(TOKEN_ROUTER_ARTIFACT_PATH);

@@ -39,9 +39,9 @@ export class Proposal {
         this.slotEnactedAt = slotEnactedAt;
     }
 
-    static address(programId: PublicKey, nextProposalId: BN) {
+    static address(programId: PublicKey, nextProposalId: bigint) {
         const encodedProposalId = Buffer.alloc(8);
-        encodedProposalId.writeBigUInt64BE(BigInt(nextProposalId.toString()));
+        encodedProposalId.writeBigUInt64BE(nextProposalId);
 
         return PublicKey.findProgramAddressSync(
             [Buffer.from("proposal"), encodedProposalId],

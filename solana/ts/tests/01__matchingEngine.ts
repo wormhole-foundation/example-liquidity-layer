@@ -836,7 +836,8 @@ describe("Matching Engine", function () {
             };
 
             it("Propose New Auction Parameters as Owner Assistant", async function () {
-                const { nextProposalId, auctionConfigId } = await engine.fetchCustodian();
+                const { nextProposalId: proposalId, auctionConfigId } =
+                    await engine.fetchCustodian();
 
                 const ix = await engine.proposeAuctionParametersIx(
                     {
@@ -850,13 +851,11 @@ describe("Matching Engine", function () {
                 const currentSlot = await connection.getSlot();
 
                 // Fetch the proposal data and validate it.
-                const proposalData = await engine
-                    .proposalAddress(nextProposalId)
-                    .then((addr) => engine.fetchProposal({ address: addr }));
+                const proposalData = await engine.fetchProposal(proposalId);
 
                 expect(proposalData).to.eql(
                     new Proposal(
-                        nextProposalId,
+                        proposalId,
                         255,
                         {
                             updateAuctionParameters: {
@@ -975,7 +974,8 @@ describe("Matching Engine", function () {
             });
 
             it("Propose New Auction Parameters as Owner", async function () {
-                const { nextProposalId, auctionConfigId } = await engine.fetchCustodian();
+                const { nextProposalId: proposalId, auctionConfigId } =
+                    await engine.fetchCustodian();
 
                 const ix = await engine.proposeAuctionParametersIx(
                     {
@@ -989,13 +989,11 @@ describe("Matching Engine", function () {
                 const currentSlot = await connection.getSlot();
 
                 // Fetch the proposal data and validate it.
-                const proposalData = await engine
-                    .proposalAddress(nextProposalId)
-                    .then((addr) => engine.fetchProposal({ address: addr }));
+                const proposalData = await engine.fetchProposal(proposalId);
 
                 expect(proposalData).to.eql(
                     new Proposal(
-                        nextProposalId,
+                        proposalId,
                         255,
                         {
                             updateAuctionParameters: {
@@ -1079,9 +1077,7 @@ describe("Matching Engine", function () {
                 const { nextProposalId, auctionConfigId } = await engine.fetchCustodian();
 
                 // Substract one to get the proposal ID for the auction parameters proposal.
-                const proposal = await engine.proposalAddress(
-                    nextProposalId.sub(bigintToU64BN(1n)),
-                );
+                const proposal = engine.proposalAddress(nextProposalId.sub(bigintToU64BN(1n)));
                 const proposalDataBefore = await engine.fetchProposal({ address: proposal });
 
                 await waitUntilSlot(
@@ -1102,9 +1098,9 @@ describe("Matching Engine", function () {
                 );
 
                 // Verify that the proposal was updated with the enacted at slot.
-                const proposalDataAfter = await engine
-                    .proposalAddress(nextProposalId.sub(bigintToU64BN(1n)))
-                    .then((addr) => engine.fetchProposal({ address: addr }));
+                const proposalDataAfter = await engine.fetchProposal(
+                    nextProposalId.sub(bigintToU64BN(1n)),
+                );
                 expect(proposalDataAfter.slotEnactedAt).to.eql(
                     numberToU64BN(await connection.getSlot()),
                 );
@@ -1127,7 +1123,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Update Auction Config (Auction Config Mismatch)", async function () {
-                const { nextProposalId } = await engine.fetchCustodian();
+                const { nextProposalId: proposalId } = await engine.fetchCustodian();
 
                 const proposalIx = await engine.proposeAuctionParametersIx(
                     {
@@ -1137,9 +1133,7 @@ describe("Matching Engine", function () {
                 );
                 await expectIxOk(connection, [proposalIx], [ownerAssistant]);
 
-                const proposalData = await engine
-                    .proposalAddress(nextProposalId)
-                    .then((addr) => engine.fetchProposal({ address: addr }));
+                const proposalData = await engine.fetchProposal(proposalId);
 
                 await waitUntilSlot(
                     connection,
@@ -1148,7 +1142,7 @@ describe("Matching Engine", function () {
 
                 // Fetch the duplicate proposal ID saved earlier.
                 const duplicateProposalId = localVariables.get("duplicateProposalId") as BN;
-                const proposal = await engine.proposalAddress(duplicateProposalId);
+                const proposal = engine.proposalAddress(duplicateProposalId);
 
                 const ix = await engine.updateAuctionParametersIx({
                     owner: owner.publicKey,

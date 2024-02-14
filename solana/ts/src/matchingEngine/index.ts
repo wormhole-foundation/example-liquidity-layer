@@ -204,18 +204,22 @@ export class MatchingEngineProgram {
             .catch((_) => 0n);
     }
 
-    async proposalAddress(proposalId?: BN): Promise<PublicKey> {
-        if (proposalId === undefined) {
-            const { nextProposalId } = await this.fetchCustodian();
-            proposalId = nextProposalId;
-        }
-
-        return Proposal.address(this.ID, proposalId);
+    proposalAddress(proposalId: bigint | BN): PublicKey {
+        return Proposal.address(this.ID, BigInt(proposalId.toString()));
     }
 
-    async fetchProposal(input?: { address: PublicKey }): Promise<Proposal> {
-        const addr = input === undefined ? await this.proposalAddress() : input.address;
+    async fetchProposal(input: bigint | BN | { address: PublicKey }): Promise<Proposal> {
+        const addr =
+            typeof input === "bigint" || input instanceof BN
+                ? this.proposalAddress(input)
+                : input.address;
+        // @ts-ignore I don't know what to tell ya, this is right.
         return this.program.account.proposal.fetch(addr);
+    }
+
+    async fetchLastProposal(): Promise<Proposal> {
+        const { nextProposalId } = await this.fetchCustodian();
+        return this.fetchProposal(nextProposalId.subn(1));
     }
 
     coreMessageAddress(payer: PublicKey, payerSequenceValue: BN | bigint): PublicKey {
@@ -439,12 +443,21 @@ export class MatchingEngineProgram {
     ): Promise<TransactionInstruction> {
         const { ownerOrAssistant, custodian: inputCustodian, proposal: inputProposal } = accounts;
 
+        const proposal = await (async () => {
+            if (inputProposal === undefined) {
+                const { nextProposalId } = await this.fetchCustodian();
+                return this.proposalAddress(nextProposalId);
+            } else {
+                return inputProposal;
+            }
+        })();
+
         return this.program.methods
             .proposeAuctionParameters(parameters)
             .accounts({
                 ownerOrAssistant,
                 custodian: inputCustodian ?? this.custodianAddress(),
-                proposal: inputProposal ?? (await this.proposalAddress()),
+                proposal,
                 epochSchedule: SYSVAR_EPOCH_SCHEDULE_PUBKEY,
             })
             .instruction();
@@ -452,14 +465,14 @@ export class MatchingEngineProgram {
 
     async updateAuctionParametersIx(accounts: {
         owner: PublicKey;
+        proposal: PublicKey;
         custodian?: PublicKey;
-        proposal?: PublicKey;
         auctionConfig?: PublicKey;
     }): Promise<TransactionInstruction> {
         const {
             owner,
             custodian: inputCustodian,
-            proposal: inputProposal,
+            proposal,
             auctionConfig: inputAuctionConfig,
         } = accounts;
 
@@ -478,7 +491,7 @@ export class MatchingEngineProgram {
             .accounts({
                 owner,
                 custodian: inputCustodian ?? this.custodianAddress(),
-                proposal: inputProposal ?? (await this.proposalAddress()),
+                proposal,
                 auctionConfig,
             })
             .instruction();
