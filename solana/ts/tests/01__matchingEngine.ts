@@ -53,7 +53,7 @@ import {
 
 chaiUse(chaiAsPromised);
 
-const SLOTS_PER_EPOCH = 32;
+const SLOTS_PER_EPOCH = 8;
 
 describe("Matching Engine", function () {
     const connection = new Connection(LOCALHOST, "confirmed");
@@ -1026,14 +1026,20 @@ describe("Matching Engine", function () {
             };
 
             before("Propose New Auction Parameters as Owner Assistant", async function () {
-                const ix = await engine.proposeAuctionParametersIx(
-                    {
-                        ownerOrAssistant: ownerAssistant.publicKey,
-                    },
-                    newAuctionParameters,
-                );
+                const { nextProposalId } = await engine.fetchCustodian();
 
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                localVariables.set("duplicateProposalId", nextProposalId);
+
+                for (let i = 0; i < 2; i++) {
+                    const ix = await engine.proposeAuctionParametersIx(
+                        {
+                            ownerOrAssistant: ownerAssistant.publicKey,
+                        },
+                        newAuctionParameters,
+                    );
+
+                    await expectIxOk(connection, [ix], [ownerAssistant]);
+                }
             });
 
             it("Cannot Update Auction Config (Owner Only)", async function () {
@@ -1119,7 +1125,53 @@ describe("Matching Engine", function () {
                 await expectIxErr(connection, [ix], [owner], "Error Code: ProposalAlreadyEnacted");
             });
 
-            it.skip("Cannot Update Auction Config (Auction Config Mismatch)", async function () {});
+            it("Cannot Update Auction Config (Auction Config Mismatch)", async function () {
+                const { nextProposalId } = await engine.fetchCustodian();
+
+                const proposalIx = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    auctionParams,
+                );
+                await expectIxOk(connection, [proposalIx], [ownerAssistant]);
+
+                const proposalData = await engine
+                    .proposalAddress(nextProposalId)
+                    .then((addr) => engine.fetchProposal({ address: addr }));
+
+                await waitUntilSlot(
+                    connection,
+                    proposalData.slotEnactDelay.toNumber() + SLOTS_PER_EPOCH + 1,
+                );
+
+                // Fetch the duplicate proposal ID saved earlier.
+                const duplicateProposalId = localVariables.get("duplicateProposalId") as BN;
+                const proposal = await engine.proposalAddress(duplicateProposalId);
+
+                const ix = await engine.updateAuctionParametersIx({
+                    owner: owner.publicKey,
+                    proposal,
+                });
+
+                await expectIxErr(connection, [ix], [owner], "Error Code: AuctionConfigMismatch");
+            });
+
+            after("Enact Last Proposal to Reset Auction Parameters", async function () {
+                const { nextProposalId } = await engine.fetchCustodian();
+
+                // Substract one to get the proposal ID for the auction parameters proposal.
+                const proposal = await engine.proposalAddress(
+                    nextProposalId.sub(bigintToU64BN(1n)),
+                );
+
+                const ix = await engine.updateAuctionParametersIx({
+                    owner: owner.publicKey,
+                    proposal,
+                });
+
+                await expectIxOk(connection, [ix], [owner]);
+            });
         });
     });
 
@@ -1510,6 +1562,8 @@ describe("Matching Engine", function () {
                 const auctionData = await engine.fetchAuction(vaaHash);
                 const { bump } = auctionData;
 
+                const { auctionConfigId } = await engine.fetchCustodian();
+
                 const offerToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
                     offerAuthorityOne.publicKey,
@@ -1525,7 +1579,7 @@ describe("Matching Engine", function () {
                         Array.from(vaaHash),
                         { active: {} },
                         {
-                            configId: 1,
+                            configId: auctionConfigId,
                             vaaSequence: bigintToU64BN(vaaAccount.emitterInfo().sequence),
                             sourceChain: ethChain,
                             bestOfferToken: offerToken,
@@ -1557,27 +1611,25 @@ describe("Matching Engine", function () {
 
             before("Create ATAs For Offer Authorities", async function () {
                 for (const wallet of [offerAuthorityOne, offerAuthorityTwo, liquidator]) {
-                    const destination = await splToken.createAccount(
-                        connection,
-                        wallet,
+                    const destination = splToken.getAssociatedTokenAddressSync(
                         USDC_MINT_ADDRESS,
                         wallet.publicKey,
-                        undefined,
+                    );
+                    const createIx = splToken.createAssociatedTokenAccountInstruction(
+                        payer.publicKey,
+                        destination,
+                        wallet.publicKey,
+                        USDC_MINT_ADDRESS,
                     );
 
-                    // Mint USDC.
                     const mintAmount = 10_000_000n * 1_000_000n;
-
-                    await expect(
-                        splToken.mintTo(
-                            connection,
-                            payer,
-                            USDC_MINT_ADDRESS,
-                            destination,
-                            payer,
-                            mintAmount,
-                        ),
-                    ).to.be.fulfilled;
+                    const mintIx = splToken.createMintToInstruction(
+                        USDC_MINT_ADDRESS,
+                        destination,
+                        payer.publicKey,
+                        mintAmount,
+                    );
+                    await expectIxOk(connection, [createIx, mintIx], [payer]);
 
                     const { amount } = await splToken.getAccount(connection, destination);
                     expect(amount).equals(mintAmount);

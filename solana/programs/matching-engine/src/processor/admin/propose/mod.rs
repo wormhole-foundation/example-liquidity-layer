@@ -21,6 +21,16 @@ fn propose(accounts: Propose, action: ProposalAction, proposal_bump_seed: u8) ->
 
     let slot_proposed_at = Clock::get().map(|clock| clock.slot)?;
 
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "integration-test")] {
+            let _ = epoch_schedule;
+            // Arbitrary set for fast testing.
+            let slot_enact_delay = slot_proposed_at + 8;
+        } else {
+            let slot_enact_delay = slot_proposed_at + epoch_schedule.slots_per_epoch;
+        }
+    }
+
     // Create the proposal.
     proposal.set_inner(Proposal {
         id: custodian.next_proposal_id,
@@ -29,7 +39,7 @@ fn propose(accounts: Propose, action: ProposalAction, proposal_bump_seed: u8) ->
         by: by.key(),
         owner: custodian.owner.key(),
         slot_proposed_at,
-        slot_enact_delay: slot_proposed_at + epoch_schedule.slots_per_epoch,
+        slot_enact_delay,
         slot_enacted_at: None,
     });
 
