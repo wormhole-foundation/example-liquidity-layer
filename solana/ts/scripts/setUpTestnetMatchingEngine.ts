@@ -9,6 +9,7 @@ import {
 } from "@solana/web3.js";
 import "dotenv/config";
 import { AuctionParameters, MatchingEngineProgram } from "../src/matchingEngine";
+import * as tokenRouterSdk from "../src/tokenRouter";
 
 const PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
@@ -19,7 +20,7 @@ const AUCTION_PARAMS: AuctionParameters = {
     duration: 5, // slots
     gracePeriod: 10, // slots
     penaltyPeriod: 20, // slots
-    minOfferDelta: 50000, // 5%
+    minOfferDeltaBps: 50000, // 5%
 };
 
 // Here we go.
@@ -34,10 +35,14 @@ async function main() {
     if (process.env.SOLANA_PRIVATE_KEY === undefined) {
         throw new Error("SOLANA_PRIVATE_KEY is undefined");
     }
-    const payer = Keypair.fromSecretKey(Buffer.from(process.env.SOLANA_PRIVATE_KEY, "hex"));
+    const payer = Keypair.fromSecretKey(Buffer.from(process.env.SOLANA_PRIVATE_KEY, "base64"));
 
     // Set up program.
     await intialize(matchingEngine, payer);
+
+    {
+        await addLocalRouterEndpoint(matchingEngine, payer);
+    }
 
     // Add endpoints.
     //
@@ -235,4 +240,33 @@ async function addCctpRouterEndpoint(
         "mintRecipient",
         foreignMintRecipient,
     );
+}
+
+async function addLocalRouterEndpoint(matchingEngine: MatchingEngineProgram, payer: Keypair) {
+    await matchingEngine.fetchCustodian().catch((_) => {
+        throw new Error("no custodian found");
+    });
+
+    const connection = matchingEngine.program.provider.connection;
+
+    const chain = coalesceChainId("solana");
+    const endpoint = matchingEngine.routerEndpointAddress(chain);
+    const exists = await connection.getAccountInfo(endpoint).then((acct) => acct != null);
+
+    const tokenRouterProgram = new PublicKey(tokenRouterSdk.testnet());
+
+    if (exists) {
+        const { address, mintRecipient } = await matchingEngine.fetchRouterEndpoint(chain);
+        if (Buffer.from(address).equals(tokenRouterProgram.toBuffer())) {
+            console.log("local endpoint already exists");
+            return;
+        }
+    }
+
+    const ix = await matchingEngine.addLocalRouterEndpointIx({
+        ownerOrAssistant: payer.publicKey,
+        tokenRouterProgram,
+    });
+    const txSig = await sendAndConfirmTransaction(connection, new Transaction().add(ix), [payer]);
+    console.log("added local endpoint", txSig);
 }
