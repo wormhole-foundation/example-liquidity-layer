@@ -364,18 +364,21 @@ describe("Matching Engine <> Token Router", function () {
 
                 {
                     const preparedFillData = await tokenRouter.fetchPreparedFill(preparedFill);
-                    const { bump, preparedCustodyTokenBump } = preparedFillData;
+                    const {
+                        info: { bump, preparedCustodyTokenBump },
+                    } = preparedFillData;
                     expect(preparedFillData).to.eql(
                         new tokenRouterSdk.PreparedFill(
-                            Array.from(vaaHash),
-                            bump,
-                            preparedCustodyTokenBump,
-                            redeemer.publicKey,
-                            payer.publicKey,
-                            { fastFill: {} },
-                            bigintToU64BN(amount),
-                            foreignChain,
-                            orderSender,
+                            {
+                                vaaHash: Array.from(vaaHash),
+                                bump,
+                                preparedCustodyTokenBump,
+                                redeemer: redeemer.publicKey,
+                                preparedBy: payer.publicKey,
+                                fillType: { fastFill: {} },
+                                sourceChain: foreignChain,
+                                orderSender,
+                            },
                             redeemerMessage,
                         ),
                     );

@@ -1,0 +1,20 @@
+[package]
+name = "token-router-sdk"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+testnet = ["token-router/testnet"]
+localnet = ["token-router/localnet"]
+
+[dependencies]
+token-router = { workspace = true, features = ["cpi"] }
+
+wormhole-io.workspace = true
+anchor-lang.workspace = true

@@ -2335,6 +2335,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "token-router-sdk"
+version = "0.0.0"
+dependencies = [
+ "anchor-lang",
+ "token-router",
+ "wormhole-io",
+]
+
+[[package]]
 name = "toml"
 version = "0.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"

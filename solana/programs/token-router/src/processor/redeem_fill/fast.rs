@@ -1,6 +1,6 @@
 use crate::{
     error::TokenRouterError,
-    state::{Custodian, FillType, PreparedFill},
+    state::{Custodian, FillType, PreparedFill, PreparedFillInfo},
 };
 use anchor_lang::{prelude::*, system_program};
 use anchor_spl::token;
@@ -150,14 +150,16 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
 
     // Set prepared fill data.
     ctx.accounts.prepared_fill.set_inner(PreparedFill {
-        vaa_hash: vaa.digest().0,
-        bump: ctx.bumps.prepared_fill,
-        prepared_custody_token_bump: ctx.bumps.prepared_custody_token,
-        redeemer: Pubkey::from(fill.redeemer()),
-        prepared_by: ctx.accounts.payer.key(),
-        fill_type: FillType::FastFill,
-        source_chain: fill.source_chain(),
-        order_sender: fill.order_sender(),
+        info: PreparedFillInfo {
+            vaa_hash: vaa.digest().0,
+            bump: ctx.bumps.prepared_fill,
+            prepared_custody_token_bump: ctx.bumps.prepared_custody_token,
+            redeemer: Pubkey::from(fill.redeemer()),
+            prepared_by: ctx.accounts.payer.key(),
+            fill_type: FillType::FastFill,
+            source_chain: fill.source_chain(),
+            order_sender: fill.order_sender(),
+        },
         redeemer_message: fill.message_to_vec(),
     });
 

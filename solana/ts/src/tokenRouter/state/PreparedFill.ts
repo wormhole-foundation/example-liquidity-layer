@@ -7,7 +7,7 @@ export type FillType = {
     fastFill?: {};
 };
 
-export class PreparedFill {
+export type PreparedFillInfo = {
     vaaHash: Array<number>;
     bump: number;
     preparedCustodyTokenBump: number;
@@ -16,28 +16,14 @@ export class PreparedFill {
     sourceChain: number;
     orderSender: Array<number>;
     redeemer: PublicKey;
+};
+
+export class PreparedFill {
+    info: PreparedFillInfo;
     redeemerMessage: Buffer;
 
-    constructor(
-        vaaHash: Array<number>,
-        bump: number,
-        preparedCustodyTokenBump: number,
-        redeemer: PublicKey,
-        preparedBy: PublicKey,
-        fillType: FillType,
-        amount: BN,
-        sourceChain: number,
-        orderSender: Array<number>,
-        redeemerMessage: Buffer,
-    ) {
-        this.vaaHash = vaaHash;
-        this.bump = bump;
-        this.preparedCustodyTokenBump = preparedCustodyTokenBump;
-        this.preparedBy = preparedBy;
-        this.fillType = fillType;
-        this.sourceChain = sourceChain;
-        this.orderSender = orderSender;
-        this.redeemer = redeemer;
+    constructor(info: PreparedFillInfo, redeemerMessage: Buffer) {
+        this.info = info;
         this.redeemerMessage = redeemerMessage;
     }
 
