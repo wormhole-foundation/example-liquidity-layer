@@ -24,7 +24,7 @@ export async function preparePostVaaTxs(
     matchingEngine: MatchingEngineProgram,
     payer: Keypair,
     vaa: ParsedVaaWithBytes,
-    sendOptions?: SendOptions
+    sendOptions?: SendOptions,
 ): Promise<PreparedTransaction[]> {
     const vaaSignatureSet = Keypair.generate();
 
@@ -35,15 +35,15 @@ export async function preparePostVaaTxs(
             matchingEngine.coreBridgeProgramId(),
             payer.publicKey,
             vaa,
-            vaaSignatureSet.publicKey
+            vaaSignatureSet.publicKey,
         );
     vaaVerifySignaturesIxs.reverse();
 
-    const fastVaaPostIx = wormholeSdk.solana.createPostVaaInstructionSolana(
+    const vaaPostIx = wormholeSdk.solana.createPostVaaInstructionSolana(
         matchingEngine.coreBridgeProgramId(),
         payer.publicKey,
         vaa,
-        vaaSignatureSet.publicKey
+        vaaSignatureSet.publicKey,
     );
 
     let preparedTransactions: PreparedTransaction[] = [];
@@ -60,15 +60,17 @@ export async function preparePostVaaTxs(
             computeUnits: cfg.verifySignaturesComputeUnits(),
             feeMicroLamports: 10,
             nonceAccount: cfg.solanaNonceAccount(),
+            txName: "verifySignatures",
             sendOptions,
         };
 
         const preparedPost: PreparedTransaction = {
-            ixs: [fastVaaPostIx],
+            ixs: [vaaPostIx],
             signers: [payer],
             computeUnits: cfg.postVaaComputeUnits(),
             feeMicroLamports: 10,
             nonceAccount: cfg.solanaNonceAccount(),
+            txName: "postVAA",
             sendOptions,
         };
 

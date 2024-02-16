@@ -76,9 +76,11 @@ export type MatchingEngineCommonAccounts = WormholeCoreBridgeAccounts & {
     tokenMinter: PublicKey;
     tokenMessengerMinterSenderAuthority: PublicKey;
     tokenMessengerMinterProgram: PublicKey;
+    tokenMessengerMinterEventAuthority: PublicKey;
     messageTransmitterAuthority: PublicKey;
     messageTransmitterConfig: PublicKey;
     messageTransmitterProgram: PublicKey;
+    messageTransmitterEventAuthority: PublicKey;
     tokenProgram: PublicKey;
     mint: PublicKey;
     localToken: PublicKey;
@@ -303,8 +305,10 @@ export class MatchingEngineProgram {
             messageTransmitterAuthority: messageTransmitterProgram.authorityAddress(
                 tokenMessengerMinterProgram.ID,
             ),
+            tokenMessengerMinterEventAuthority: tokenMessengerMinterProgram.eventAuthorityAddress(),
             messageTransmitterConfig: messageTransmitterProgram.messageTransmitterConfigAddress(),
             messageTransmitterProgram: messageTransmitterProgram.ID,
+            messageTransmitterEventAuthority: messageTransmitterProgram.eventAuthorityAddress(),
             tokenProgram: splToken.TOKEN_PROGRAM_ID,
             mint,
             localToken: tokenMessengerMinterProgram.localTokenAddress(mint),
@@ -786,6 +790,68 @@ export class MatchingEngineProgram {
             .instruction();
 
         return [approveIx, improveOfferIx];
+    }
+
+    async settleAuctionActiveTx(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            finalizedVaa: PublicKey;
+            executorToken: PublicKey;
+            auction?: PublicKey;
+        },
+        args: CctpMessageArgs,
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        sendOptions?: SendOptions,
+    ): Promise<PreparedTransaction> {
+        const prepareOrderResponseIx = await this.prepareOrderResponseCctpIx(accounts, args);
+
+        const { payer, fastVaa, executorToken, auction: inputAuction } = accounts;
+
+        const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+        if (fastMarketOrder === undefined) {
+            throw new Error("Message not FastMarketOrder");
+        }
+        const { targetChain } = fastMarketOrder;
+
+        // Fetch the prepared order response.
+        const preparedOrderResponse = this.preparedOrderResponseAddress(
+            payer,
+            fastVaaAccount.digest(),
+        );
+
+        const settleAuctionActiveIx = await (async () => {
+            if (targetChain === wormholeSdk.CHAIN_ID_SOLANA) {
+                // Settle auction local.
+            } else {
+                return this.settleAuctionActiveCctpIx(
+                    {
+                        payer,
+                        executorToken,
+                        fastVaa,
+                        fastVaaAccount,
+                        preparedOrderResponse,
+                        encodedCctpMessage: args.encodedCctpMessage,
+                    },
+                    { targetChain: targetChain as wormholeSdk.ChainId },
+                );
+            }
+        })();
+
+        const preparedTx: PreparedTransaction = {
+            ixs: [prepareOrderResponseIx, settleAuctionActiveIx!],
+            signers,
+            computeUnits: opts.computeUnits!,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "settleAuctionActive",
+            sendOptions,
+        };
+
+        return preparedTx;
     }
 
     async prepareOrderResponseCctpIx(

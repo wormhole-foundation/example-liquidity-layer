@@ -1,20 +1,14 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
+import * as splToken from "@solana/spl-token";
 import { IWormhole__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 import { Commitment, PublicKey, PublicKeyInitData } from "@solana/web3.js";
 import {
-    ChainConfigInfo,
     Environment,
     ParsedVaaWithBytes,
     ProvidersOpts,
-    StandardRelayerApp,
-    StandardRelayerContext,
-    fetchVaaHash,
 } from "@wormhole-foundation/relayer-engine";
-import { defaultLogger } from "./logger";
-import * as winston from "winston";
-import { LiquidityLayerMessage } from "../../src";
 import { ethers } from "ethers";
-import { log } from "console";
+import { USDC_MINT_ADDRESS } from "../../tests/helpers";
 
 export const EVM_FAST_CONSISTENCY_LEVEL = 200;
 
@@ -37,6 +31,7 @@ export type SolanaConnectionConfig = {
     rpc: string;
     commitment: Commitment;
     nonceAccount: PublicKeyInitData;
+    addressLookupTable: PublicKeyInitData;
 };
 
 export type LoggingConfig = {
@@ -49,6 +44,7 @@ export type ComputeUnitsConfig = {
     postVaa: number;
     settleAuctionNoneCctp: number;
     settleAuctionNoneLocal: number;
+    settleAuctionActive: number;
     initiateAuction: number;
 };
 
@@ -66,6 +62,7 @@ export type EnvironmentConfig = {
     computeUnits: ComputeUnitsConfig;
     pricing?: PricingParameters[];
     endpointConfig: InputEndpointChainConfig[];
+    knownAtaOwners: PublicKey[];
 };
 
 export type ChainConfig = InputEndpointChainConfig & {
@@ -77,7 +74,7 @@ export enum ChainType {
     Solana,
 }
 
-interface StartingSeqeunces {
+interface StartingSequences {
     [key: number | wormholeSdk.ChainId]: number;
 }
 export class AppConfig {
@@ -131,6 +128,10 @@ export class AppConfig {
         return new PublicKey(this._cfg.connection.nonceAccount);
     }
 
+    solanaAddressLookupTable(): PublicKey {
+        return new PublicKey(this._cfg.connection.addressLookupTable);
+    }
+
     verifySignaturesComputeUnits(): number {
         return this._cfg.computeUnits.verifySignatures;
     }
@@ -151,6 +152,20 @@ export class AppConfig {
         return this._cfg.computeUnits.initiateAuction;
     }
 
+    settleAuctionActiveComputeUnits(): number {
+        return this._cfg.computeUnits.settleAuctionActive;
+    }
+
+    knownAtaOwners(): PublicKey[] {
+        return this._cfg.knownAtaOwners;
+    }
+
+    recognizedTokenAccounts(): PublicKey[] {
+        return this._cfg.knownAtaOwners.map((key) => {
+            return splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, new PublicKey(key));
+        });
+    }
+
     relayerAppProviderOpts(): ProvidersOpts {
         return {
             chains: this._cfg.endpointConfig.reduce(
@@ -158,7 +173,7 @@ export class AppConfig {
                     ...acc,
                     [wormholeSdk.coalesceChainId(cfg.chain)]: { endpoints: [cfg.endpoint] },
                 }),
-                {}
+                {},
             ),
         };
     }
@@ -169,7 +184,7 @@ export class AppConfig {
         }
 
         const pricing = this._cfg.pricing.find(
-            (p) => wormholeSdk.coalesceChainId(p.chain) === chainId
+            (p) => wormholeSdk.coalesceChainId(p.chain) === chainId,
         );
 
         if (pricing === undefined) {
@@ -187,8 +202,8 @@ export class AppConfig {
         };
     }
 
-    async startingSeqeunces(): Promise<StartingSeqeunces> {
-        const sequences: StartingSeqeunces = {};
+    async startingSeqeunces(): Promise<StartingSequences> {
+        const sequences: StartingSequences = {};
         for (const cfg of this._cfg.endpointConfig) {
             const chainId = wormholeSdk.coalesceChainId(cfg.chain);
             if (wormholeSdk.isEVMChain(cfg.chain)) {
@@ -209,7 +224,7 @@ export class AppConfig {
         const provider = new ethers.providers.JsonRpcProvider(chainCfg.rpc);
         const wormhole = IWormhole__factory.connect(
             this._wormholeAddresses[chainCfg.chain].core!,
-            provider
+            provider,
         );
         const sequence = await wormhole.nextSequence(chainCfg.endpoint);
         return sequence.toNumber();
@@ -225,7 +240,7 @@ export class AppConfig {
                     ...acc,
                     [wormholeSdk.coalesceChainId(cfg.chain)]: 0n,
                 }),
-                {}
+                {},
             ),
             forceSeenKeysReindex: false,
         };
@@ -240,7 +255,7 @@ export class AppConfig {
     emitterFilter(): Partial<{ [k in wormholeSdk.ChainId]: string[] | string }> {
         return this._cfg.endpointConfig.reduce(
             (acc, cfg) => ({ ...acc, [wormholeSdk.coalesceChainId(cfg.chain)]: cfg.endpoint }),
-            {}
+            {},
         );
     }
 
@@ -262,7 +277,8 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
             key !== "sourceTxHash" &&
             key !== "computeUnits" &&
             key !== "endpointConfig" &&
-            key !== "pricing"
+            key !== "pricing" &&
+            key !== "knownAtaOwners"
         ) {
             throw new Error(`unexpected key: ${key}`);
         } else if (cfg[key] === undefined) {
@@ -273,13 +289,18 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
     // environment
     if (cfg.environment !== Environment.MAINNET && cfg.environment !== Environment.TESTNET) {
         throw new Error(
-            `environment must be either ${Environment.MAINNET} or ${Environment.TESTNET}`
+            `environment must be either ${Environment.MAINNET} or ${Environment.TESTNET}`,
         );
     }
 
     // connection
     for (const key of Object.keys(cfg.connection)) {
-        if (key !== "rpc" && key !== "commitment" && key !== "nonceAccount") {
+        if (
+            key !== "rpc" &&
+            key !== "commitment" &&
+            key !== "nonceAccount" &&
+            key !== "addressLookupTable"
+        ) {
             throw new Error(`unexpected key: connection.${key}`);
         } else if (cfg.connection[key] === undefined) {
             throw new Error(`connection.${key} is required`);
@@ -288,6 +309,14 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
 
     // check nonce account pubkey
     new PublicKey(cfg.connection.nonceAccount);
+
+    // check address lookup table pubkey
+    new PublicKey(cfg.connection.addressLookupTable);
+
+    // Make sure the ATA owners list is nonzero.
+    if (cfg.knownAtaOwners === undefined || cfg.knownAtaOwners.length === 0) {
+        throw new Error("knownAtaOwners must be a non-empty array");
+    }
 
     // logging
     for (const key of Object.keys(cfg.logging)) {
@@ -314,6 +343,7 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
             key !== "postVaa" &&
             key !== "settleAuctionNoneCctp" &&
             key !== "settleAuctionNoneLocal" &&
+            key !== "settleAuctionActive" &&
             key !== "initiateAuction"
         ) {
             throw new Error(`unexpected key: computeUnits.${key}`);
@@ -381,7 +411,7 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
         // Address should be checksummed.
         if (endpoint != ethers.utils.getAddress(endpoint)) {
             throw new Error(
-                `chain=${chain} address must be check-summed: ${ethers.utils.getAddress(endpoint)}`
+                `chain=${chain} address must be check-summed: ${ethers.utils.getAddress(endpoint)}`,
             );
         }
         // This should succeed.
@@ -394,6 +424,7 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
             rpc: cfg.connection.rpc,
             commitment: cfg.connection.commitment,
             nonceAccount: cfg.connection.nonceAccount,
+            addressLookupTable: cfg.connection.addressLookupTable,
         },
         logging: {
             app: cfg.logging.app,
@@ -408,9 +439,11 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
             postVaa: cfg.computeUnits.postVaa,
             settleAuctionNoneCctp: cfg.computeUnits.settleAuctionNoneCctp,
             settleAuctionNoneLocal: cfg.computeUnits.settleAuctionNoneLocal,
+            settleAuctionActive: cfg.computeUnits.settleAuctionActive,
             initiateAuction: cfg.computeUnits.initiateAuction,
         },
         pricing: cfg.pricing,
+        knownAtaOwners: cfg.knownAtaOwners,
         endpointConfig: cfg.endpointConfig,
     };
 }

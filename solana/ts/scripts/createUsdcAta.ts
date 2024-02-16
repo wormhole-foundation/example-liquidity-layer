@@ -1,9 +1,8 @@
 import { Keypair, Connection, PublicKey } from "@solana/web3.js";
 import { getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
+import { USDC_MINT_ADDRESS } from "../tests/helpers";
 import yargs from "yargs";
 import * as fs from "fs";
-
-const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 
 export function getArgs() {
     const argv = yargs.options({
@@ -41,8 +40,8 @@ async function main() {
     const tx = await getOrCreateAssociatedTokenAccount(
         connection,
         payer,
-        USDC_MINT,
-        payer.publicKey
+        USDC_MINT_ADDRESS,
+        payer.publicKey,
     );
 
     console.log("ATA", tx);

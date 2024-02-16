@@ -12,7 +12,7 @@ import { PreparedTransaction } from "../../src";
 
 export async function getNonceAccountData(
     connection: Connection,
-    nonceAccount: PublicKey
+    nonceAccount: PublicKey,
 ): Promise<{ nonce: string; recentSlot: number; advanceIxs: TransactionInstruction[] }> {
     const { context, value } = await connection.getNonceAndContext(nonceAccount);
     if (context === null || value === null) {
@@ -34,7 +34,7 @@ export async function getNonceAccountData(
 export async function sendTx(
     connection: Connection,
     preparedTransaction: PreparedTransaction,
-    logger: winston.Logger
+    logger?: winston.Logger,
 ): Promise<VersionedTransaction> {
     const {
         nonceAccount,
@@ -76,21 +76,34 @@ export async function sendTx(
                         nonceValue: nonce,
                         signature,
                     },
-                    commitment
+                    commitment,
                 );
             }
             return signature;
         })
         .catch((err) => {
+            console.log(err);
             if (err.logs !== undefined) {
                 const logs: string[] = err.logs;
-                logger.warn(logs.join("\n"));
+                if (logger !== undefined) {
+                    logger.warn(logs.join("\n"));
+                }
             } else {
-                logger.warn(err.message);
+                if (logger !== undefined) {
+                    logger.warn(err.message);
+                }
             }
         });
 
-    logger.debug(`Transaction signature: ${txnSignature}`);
+    if (logger !== undefined) {
+        if (preparedTransaction.txName !== undefined) {
+            logger.debug(
+                `Transaction type: ${preparedTransaction.txName}, signature: ${txnSignature}`,
+            );
+        } else {
+            logger.debug(`Transaction signature: ${txnSignature}`);
+        }
+    }
 
     return tx;
 }
