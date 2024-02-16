@@ -62,7 +62,7 @@ export type EnvironmentConfig = {
     computeUnits: ComputeUnitsConfig;
     pricing?: PricingParameters[];
     endpointConfig: InputEndpointChainConfig[];
-    knownAtaOwners: PublicKey[];
+    knownAtaOwners: string[];
 };
 
 export type ChainConfig = InputEndpointChainConfig & {
@@ -157,12 +157,12 @@ export class AppConfig {
     }
 
     knownAtaOwners(): PublicKey[] {
-        return this._cfg.knownAtaOwners;
+        return this._cfg.knownAtaOwners.map((key) => new PublicKey(key));
     }
 
     recognizedTokenAccounts(): PublicKey[] {
-        return this._cfg.knownAtaOwners.map((key) => {
-            return splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, new PublicKey(key));
+        return this.knownAtaOwners().map((key) => {
+            return splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, key);
         });
     }
 
@@ -376,6 +376,14 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
                 }
             }
         }
+    }
+
+    // knownAtaOwners
+    if (!Array.isArray(cfg.knownAtaOwners)) {
+        throw new Error("knownAtaOwners must be an array");
+    }
+    for (const knownAtaOwner of cfg.knownAtaOwners) {
+        new PublicKey(knownAtaOwner);
     }
 
     // endpointConfig
