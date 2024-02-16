@@ -1841,8 +1841,13 @@ export class MatchingEngineProgram {
         }
     }
 
-    async computeMinOfferDelta(offerPrice: bigint): Promise<bigint> {
-        const auctionParams = await this.fetchAuctionParameters();
+    async computeMinOfferDelta(
+        offerPrice: bigint,
+        auctionParams?: AuctionParameters,
+    ): Promise<bigint> {
+        if (auctionParams === undefined) {
+            auctionParams = await this.fetchAuctionParameters();
+        }
         return (offerPrice * BigInt(auctionParams.minOfferDeltaBps)) / FEE_PRECISION_MAX;
     }
 }

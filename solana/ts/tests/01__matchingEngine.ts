@@ -1822,31 +1822,6 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Improve Offer (Offer Price Not Improved)", async function () {
-                const { auction, auctionDataBefore } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
-                    wormholeSequence++,
-                    baseFastOrder,
-                    ethRouter,
-                );
-
-                const newOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
-                const [approveIx, ix] = await engine.improveOfferIx(
-                    {
-                        auction,
-                        offerAuthority: offerAuthorityTwo.publicKey,
-                    },
-                    newOffer,
-                );
-
-                await expectIxErr(
-                    connection,
-                    [approveIx, ix],
-                    [offerAuthorityTwo],
-                    "Error Code: OfferPriceNotImproved",
-                );
-            });
-
             it("Cannot Improve Offer (Carping Not Allowed)", async function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     offerAuthorityOne,

@@ -5,6 +5,8 @@ pub mod cctp_mint_recipient;
 
 pub mod error;
 
+pub mod events;
+
 mod processor;
 pub(crate) use processor::*;
 

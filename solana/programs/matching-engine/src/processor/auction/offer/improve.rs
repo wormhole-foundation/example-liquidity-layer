@@ -52,32 +52,24 @@ pub struct ImproveOffer<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
+pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()> {
     let auction_info = ctx.accounts.auction.info.as_mut().unwrap();
 
+    let end_slot = auction_info.auction_end_slot(&ctx.accounts.auction_config);
     {
         let current_slot = Clock::get().map(|clock| clock.slot)?;
         require!(
-            current_slot <= auction_info.auction_end_slot(&ctx.accounts.auction_config),
+            current_slot <= end_slot,
             MatchingEngineError::AuctionPeriodExpired
         );
     }
 
-    // Make sure the new offer is less than the previous offer.
+    // This check is safe because we already checked the new offer is less than `offer_price`.
     require!(
-        fee_offer < auction_info.offer_price,
-        MatchingEngineError::OfferPriceNotImproved
+        offer_price
+            <= utils::auction::max_offer_price_allowed(&ctx.accounts.auction_config, auction_info),
+        MatchingEngineError::CarpingNotAllowed
     );
-
-    // This check is safe because we already checked that `fee_offer` is less than `offer_price`.
-    {
-        let min_offer_delta =
-            utils::auction::compute_min_offer_delta(&ctx.accounts.auction_config, auction_info);
-        require!(
-            auction_info.offer_price - fee_offer >= min_offer_delta,
-            MatchingEngineError::CarpingNotAllowed
-        );
-    }
 
     // Transfer funds from the `best_offer` token account to the `offer_token` token account,
     // but only if the pubkeys are different.
@@ -100,7 +92,19 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
         auction_info.best_offer_token = offer_token;
     }
 
-    auction_info.offer_price = fee_offer;
+    auction_info.offer_price = offer_price;
+
+    // Emit event for auction participants to listen to.
+    emit!(crate::events::AuctionUpdate {
+        source_chain: auction_info.source_chain,
+        vaa_sequence: auction_info.vaa_sequence,
+        end_slot,
+        amount_in: auction_info.amount_in,
+        max_offer_price_allowed: utils::auction::max_offer_price_allowed(
+            &ctx.accounts.auction_config,
+            auction_info
+        ),
+    });
 
     Ok(())
 }

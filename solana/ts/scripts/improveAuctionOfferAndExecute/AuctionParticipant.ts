@@ -72,15 +72,12 @@ export class AuctionParticipant {
                 return;
             }
 
-            if (
-                recognizedPayers.find((recognized) =>
-                    recognized.equals(txMessage.staticAccountKeys[0]),
-                ) !== undefined
-            ) {
+            const txPayer = txMessage.staticAccountKeys[0];
+            if (recognizedPayers.find((recognized) => recognized.equals(txPayer)) !== undefined) {
                 logger.debug("I recognize a payer. Disregard?");
                 // return;
             } else {
-                logger.debug(`Who is this? ${txMessage.staticAccountKeys[0].toString()}`);
+                logger.debug(`Who is this? ${txPayer.toString()}`);
             }
 
             for (const ix of txMessage.compiledInstructions) {

@@ -45,6 +45,10 @@ pub fn compute_min_offer_delta(params: &AuctionParameters, info: &AuctionInfo) -
     mul_bps_unsafe(info.offer_price, params.min_offer_delta_bps)
 }
 
+pub fn max_offer_price_allowed(params: &AuctionParameters, info: &AuctionInfo) -> u64 {
+    info.offer_price - compute_min_offer_delta(params, info)
+}
+
 pub fn require_valid_parameters(params: &AuctionParameters) -> Result<()> {
     require!(
         params.duration > 0,

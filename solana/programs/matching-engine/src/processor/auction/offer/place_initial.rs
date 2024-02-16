@@ -8,6 +8,7 @@ use common::{
 use crate::{
     error::MatchingEngineError,
     state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian, RouterEndpoint},
+    utils,
 };
 
 #[derive(Accounts)]
@@ -92,7 +93,7 @@ pub struct PlaceInitialOffer<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> Result<()> {
+pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) -> Result<()> {
     // Create zero copy reference to `FastMarketOrder` payload.
     let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa)?;
     let msg = LiquidityLayerPayload::try_from(fast_vaa.payload())
@@ -119,7 +120,10 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     );
 
     let max_fee = fast_order.max_fee();
-    require!(fee_offer <= max_fee, MatchingEngineError::OfferPriceTooHigh);
+    require!(
+        offer_price <= max_fee,
+        MatchingEngineError::OfferPriceTooHigh
+    );
 
     // Verify that the to and from router endpoints are valid.
     crate::utils::require_valid_router_path(
@@ -148,23 +152,41 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
 
     // Set up the Auction account for this auction.
     let initial_offer_token = ctx.accounts.offer_token.key();
+    let vaa_sequence = fast_vaa.sequence();
+
+    let info = AuctionInfo {
+        config_id: ctx.accounts.auction_config.id,
+        vaa_sequence,
+        source_chain,
+        best_offer_token: initial_offer_token,
+        initial_offer_token,
+        start_slot: slot,
+        amount_in,
+        security_deposit: max_fee,
+        offer_price,
+        amount_out: amount_in,
+    };
+
+    // Emit event for auction participants to listen to.
+    emit!(crate::events::AuctionUpdate {
+        source_chain,
+        vaa_sequence,
+        amount_in,
+        end_slot: slot.saturating_add(ctx.accounts.auction_config.duration.into()),
+        max_offer_price_allowed: utils::auction::max_offer_price_allowed(
+            &ctx.accounts.auction_config,
+            &info,
+        ),
+    });
+
+    // Set the Auction account.
     ctx.accounts.auction.set_inner(Auction {
         bump: ctx.bumps.auction,
         vaa_hash: fast_vaa.digest().0,
         status: AuctionStatus::Active,
-        info: Some(AuctionInfo {
-            config_id: ctx.accounts.auction_config.id,
-            vaa_sequence: fast_vaa.sequence(),
-            source_chain,
-            best_offer_token: initial_offer_token,
-            initial_offer_token,
-            start_slot: slot,
-            amount_in,
-            security_deposit: max_fee,
-            offer_price: fee_offer,
-            amount_out: amount_in,
-        }),
+        info: Some(info),
     });
 
+    // Done.
     Ok(())
 }
