@@ -702,9 +702,9 @@ export class MatchingEngineProgram {
             payer: PublicKey;
             fastVaa: PublicKey;
             auction?: PublicKey;
-            fromRouterEndpoint?: PublicKey;
-            toRouterEndpoint?: PublicKey;
-            totalDeposit?: bigint;
+            fromRouterEndpoint: PublicKey;
+            toRouterEndpoint: PublicKey;
+            totalDeposit: bigint;
         },
         offerPrice: bigint,
         signers: Signer[],
@@ -816,6 +816,11 @@ export class MatchingEngineProgram {
         }
         const { targetChain } = fastMarketOrder;
 
+        const txName =
+            targetChain === wormholeSdk.CHAIN_ID_SOLANA
+                ? "settleAuctionActiveLocal"
+                : "settleAuctionActiveCctp";
+
         // Fetch the prepared order response.
         const preparedOrderResponse = this.preparedOrderResponseAddress(
             payer,
@@ -824,7 +829,12 @@ export class MatchingEngineProgram {
 
         const settleAuctionActiveIx = await (async () => {
             if (targetChain === wormholeSdk.CHAIN_ID_SOLANA) {
-                // Settle auction local.
+                return this.settleAuctionActiveLocalIx({
+                    payer,
+                    executorToken,
+                    fastVaa,
+                    preparedOrderResponse,
+                });
             } else {
                 return this.settleAuctionActiveCctpIx(
                     {
@@ -847,7 +857,7 @@ export class MatchingEngineProgram {
             feeMicroLamports: opts.feeMicroLamports,
             nonceAccount: opts.nonceAccount,
             addressLookupTableAccounts: opts.addressLookupTableAccounts,
-            txName: "settleAuctionActive",
+            txName,
             sendOptions,
         };
 
@@ -974,7 +984,7 @@ export class MatchingEngineProgram {
         payer: PublicKey;
         fastVaa: PublicKey;
         executorToken: PublicKey;
-        preparedOrderResponse?: PublicKey;
+        preparedOrderResponse: PublicKey;
         auction?: PublicKey;
         bestOfferToken?: PublicKey;
         auctionConfig?: PublicKey;
@@ -982,17 +992,14 @@ export class MatchingEngineProgram {
         const {
             payer,
             preparedOrderResponse,
-            auction,
+            auction: inputAuction,
             fastVaa,
             executorToken,
             bestOfferToken: inputBestOfferToken,
             auctionConfig: inputAuctionConfig,
         } = accounts;
         const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
-
-        const mint = this.mint;
-        const auctionAddress = auction ?? this.auctionAddress(fastVaaAccount.digest());
-
+        const auctionAddress = inputAuction ?? this.auctionAddress(fastVaaAccount.digest());
         const { auctionConfig, bestOfferToken } = await (async () => {
             if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
                 const { info } = await this.fetchAuction({ address: auctionAddress });
@@ -1024,7 +1031,6 @@ export class MatchingEngineProgram {
 
             return { targetChain, toRouterEndpoint };
         })();
-
         const payerSequence = this.payerSequenceAddress(payer);
         const payerSequenceValue = await this.fetchPayerSequenceValue({
             address: payerSequence,
@@ -1037,9 +1043,7 @@ export class MatchingEngineProgram {
             coreFeeCollector,
             coreBridgeProgram,
         } = await this.publishMessageAccounts(payer, payerSequenceValue);
-
         const cctpMintRecipient = this.cctpMintRecipientAddress();
-
         return this.program.methods
             .settleAuctionActiveLocal()
             .accounts({
@@ -1049,7 +1053,7 @@ export class MatchingEngineProgram {
                 auctionConfig,
                 fastVaa,
                 preparedOrderResponse,
-                auction,
+                auction: auctionAddress,
                 cctpMintRecipient,
                 toRouterEndpoint,
                 coreBridgeConfig,
@@ -1071,7 +1075,7 @@ export class MatchingEngineProgram {
         accounts: {
             payer: PublicKey;
             executorToken: PublicKey;
-            preparedOrderResponse?: PublicKey;
+            preparedOrderResponse: PublicKey;
             auction?: PublicKey;
             fastVaa: PublicKey;
             fastVaaAccount: VaaAccount;
