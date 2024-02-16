@@ -18,17 +18,17 @@ contract TestTransfer is Script {
     // Transfer params.
     uint64 _amountIn = uint64(vm.envUint("TEST_AMOUNT_IN"));
     uint16 _targetChain = uint16(vm.envUint("TEST_TARGET_CHAIN"));
+    uint64 _fastTransferFee = uint64(vm.envUint("TEST_FAST_TRANSFER_FEE"));
     bytes32 _redeemer = vm.envBytes32("TEST_REDEEMER");
     bool isFast = vm.envBool("TEST_IS_FAST");
     bytes _redeemerMessage = hex"deadbeef";
     uint32 _deadline = uint32(vm.envUint("TEST_DEADLINE"));
-    uint64 _maxFee = _amountIn - 1;
 
     function transfer() public {
         SafeERC20.safeIncreaseAllowance(IERC20(_token), _router, _amountIn);
         if (isFast) {
             ITokenRouter(_router).placeFastMarketOrder(
-                _amountIn, _targetChain, _redeemer, _redeemerMessage, _maxFee, _deadline
+                _amountIn, _targetChain, _redeemer, _redeemerMessage, _fastTransferFee, _deadline
             );
         } else {
             ITokenRouter(_router).placeMarketOrder(
