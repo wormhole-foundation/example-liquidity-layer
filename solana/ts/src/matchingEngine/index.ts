@@ -121,6 +121,14 @@ export type CctpMessageArgs = {
     cctpAttestation: Buffer;
 };
 
+export type AuctionUpdate = {
+    sourceChain: number;
+    vaaSequence: BN;
+    endSlot: BN;
+    amountIn: BN;
+    maxOfferPriceAllowed: BN;
+};
+
 export class MatchingEngineProgram {
     private _programId: ProgramId;
     private _mint: PublicKey;
@@ -141,6 +149,10 @@ export class MatchingEngineProgram {
 
     get mint(): PublicKey {
         return this._mint;
+    }
+
+    onAuctionUpdate(callback: (event: AuctionUpdate, slot: number, signature: string) => void) {
+        return this.program.addEventListener("AuctionUpdate", callback);
     }
 
     custodianAddress(): PublicKey {

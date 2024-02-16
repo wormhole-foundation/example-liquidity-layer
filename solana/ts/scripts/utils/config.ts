@@ -353,28 +353,31 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
     }
 
     // Pricing
-    if (cfg.pricing !== undefined && Array.isArray(cfg.pricing)) {
-        for (const pricingParameter of cfg.pricing) {
-            if (pricingParameter.chain === undefined) {
-                throw new Error("pricingParameter.chain is required");
-            }
-            if (!(pricingParameter.chain in wormholeSdk.CHAINS)) {
-                throw new Error(`invalid chain: ${pricingParameter.chain}`);
-            }
-            if (pricingParameter.probability === undefined) {
-                throw new Error("pricingParameter.probability is required");
-            } else {
-                if (pricingParameter.probability <= 0 || pricingParameter.probability > 1) {
-                    throw new Error("pricingParameter.probability must be in (0, 1]");
-                }
-            }
-            if (pricingParameter.edgePctOfFv === undefined) {
-                throw new Error("pricingParameter.edgePctOfFv is required");
-            } else {
-                if (pricingParameter.edgePctOfFv < 0) {
-                    throw new Error("pricingParameter.edgePctOfFv must be non-negative");
-                }
-            }
+    if (!Array.isArray(cfg.pricing)) {
+        throw new Error("pricing must be an array");
+    }
+
+    for (const { chain, probability, edgePctOfFv } of cfg.pricing) {
+        if (chain === undefined) {
+            throw new Error("pricingParameter.chain is required");
+        } else if (!(chain in wormholeSdk.CHAINS)) {
+            throw new Error(`invalid chain: ${chain}`);
+        }
+
+        if (probability === undefined) {
+            throw new Error("pricingParameter.probability is required");
+        } else if (typeof probability !== "number") {
+            throw new Error("pricingParameter.probability must be a number");
+        } else if (probability <= 0 || probability > 1) {
+            throw new Error("pricingParameter.probability must be in (0, 1]");
+        }
+
+        if (edgePctOfFv === undefined) {
+            throw new Error("pricingParameter.edgePctOfFv is required");
+        } else if (typeof edgePctOfFv !== "number") {
+            throw new Error("pricingParameter.edgePctOfFv must be a number");
+        } else if (edgePctOfFv < 0) {
+            throw new Error("pricingParameter.edgePctOfFv must be non-negative");
         }
     }
 
@@ -393,21 +396,17 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
     if (cfg.endpointConfig.length === 0) {
         throw new Error("endpointConfig must contain at least one element");
     }
-    for (const endpointConfig of cfg.endpointConfig) {
-        const { chain, rpc, endpoint } = endpointConfig;
+    for (const { chain, rpc, endpoint, chainType } of cfg.endpointConfig) {
         if (chain === undefined) {
             throw new Error("endpointConfig.chain is required");
         }
         if (!(chain in wormholeSdk.CHAINS)) {
             throw new Error(`invalid chain: ${chain}`);
         }
-        if (endpointConfig.chainType === undefined) {
+        if (chainType === undefined) {
             throw new Error("endpointConfig.chainType is required");
         }
-        if (
-            endpointConfig.chainType !== ChainType.Evm &&
-            endpointConfig.chainType !== ChainType.Solana
-        ) {
+        if (chainType !== ChainType.Evm && chainType !== ChainType.Solana) {
             throw new Error("endpointConfig.chainType must be either Evm or Solana");
         }
         if (rpc === undefined) {

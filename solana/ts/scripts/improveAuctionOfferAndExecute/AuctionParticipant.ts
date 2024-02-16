@@ -1,6 +1,6 @@
 import { Connection, Context, Logs, MessageCompiledInstruction, PublicKey } from "@solana/web3.js";
 import * as winston from "winston";
-import { MatchingEngineProgram } from "../../src/matchingEngine";
+import { AuctionUpdate, MatchingEngineProgram } from "../../src/matchingEngine";
 
 const PLACE_INITIAL_OFFER_SELECTOR = Uint8Array.from([170, 227, 204, 195, 210, 9, 219, 220]);
 const IMPROVE_OFFER_SELECTOR = Uint8Array.from([171, 112, 46, 172, 194, 135, 23, 102]);
@@ -28,7 +28,7 @@ export class AuctionParticipant {
         this._ourAuctions = new Map();
     }
 
-    async onLogsCallback() {
+    async onAuctionUpdateCallback() {
         const logger = this._logger;
         const matchingEngine = this._matchingEngine;
 
@@ -50,25 +50,19 @@ export class AuctionParticipant {
         logger.info(
             `Listen to transaction logs from Matching Engine: ${matchingEngine.ID.toString()}`,
         );
-        return async function (logs: Logs, ctx: Context) {
-            if (logs.err !== null) {
-                return;
-            }
-
-            logger.debug(
-                `Found signature: ${logs.signature} at slot ${ctx.slot}. Fetching transaction.`,
-            );
+        return async function (event: AuctionUpdate, slot: number, signature: string) {
+            logger.debug(`Found signature: ${signature} at slot ${slot}. Fetching transaction.`);
 
             // TODO: save sigs to db and check if we've already processed this.
 
             // WARNING: When using get parsed transaction and there is a LUT involved,
             const txMessage = await connection
-                .getTransaction(logs.signature, {
+                .getTransaction(signature, {
                     maxSupportedTransactionVersion: 0,
                 })
                 .then((response) => response?.transaction.message);
             if (txMessage === undefined) {
-                logger.warn(`Failed to fetch transaction with ${logs.signature}`);
+                logger.warn(`Failed to fetch transaction with ${signature}`);
                 return;
             }
 

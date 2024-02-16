@@ -35,5 +35,5 @@ async function main(argv: string[]) {
     const recognizedPayers = ["2SiZZ6cUrrjCjQdTrBjW5qv6jLdCzfCP4aDeAB3AKXWM"];
     const participant = new AuctionParticipant(matchingEngine, recognizedPayers, logicLogger);
 
-    connection.onLogs(matchingEngine.ID, await participant.onLogsCallback());
+    matchingEngine.onAuctionUpdate(await participant.onAuctionUpdateCallback());
 }
