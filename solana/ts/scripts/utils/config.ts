@@ -1,7 +1,7 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
 import { IWormhole__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
-import { Commitment, PublicKey, PublicKeyInitData } from "@solana/web3.js";
+import { Commitment, Connection, PublicKey, PublicKeyInitData } from "@solana/web3.js";
 import {
     Environment,
     ParsedVaaWithBytes,
@@ -29,6 +29,7 @@ export type SourceTxHashConfig = {
 
 export type SolanaConnectionConfig = {
     rpc: string;
+    ws?: string;
     commitment: Commitment;
     nonceAccount: PublicKeyInitData;
     addressLookupTable: PublicKeyInitData;
@@ -114,6 +115,13 @@ export class AppConfig {
 
     sourceTxHash(): { maxRetries: number; retryBackoff: number } {
         return this._cfg.sourceTxHash;
+    }
+
+    solanaConnection(): Connection {
+        return new Connection(this._cfg.connection.rpc, {
+            commitment: this._cfg.connection.commitment,
+            wsEndpoint: this._cfg.connection.ws,
+        });
     }
 
     solanaRpc(): string {
@@ -297,12 +305,13 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
     for (const key of Object.keys(cfg.connection)) {
         if (
             key !== "rpc" &&
+            key !== "ws" &&
             key !== "commitment" &&
             key !== "nonceAccount" &&
             key !== "addressLookupTable"
         ) {
             throw new Error(`unexpected key: connection.${key}`);
-        } else if (cfg.connection[key] === undefined) {
+        } else if (key !== "ws" && cfg.connection[key] === undefined) {
             throw new Error(`connection.${key} is required`);
         }
     }

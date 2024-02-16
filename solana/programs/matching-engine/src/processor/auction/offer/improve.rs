@@ -99,6 +99,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
         source_chain: auction_info.source_chain,
         vaa_sequence: auction_info.vaa_sequence,
         end_slot,
+        offer_token,
         amount_in: auction_info.amount_in,
         max_offer_price_allowed: utils::auction::max_offer_price_allowed(
             &ctx.accounts.auction_config,

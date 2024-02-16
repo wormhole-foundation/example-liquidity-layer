@@ -1,4 +1,4 @@
-import { Connection, Context, Logs, MessageCompiledInstruction, PublicKey } from "@solana/web3.js";
+import { Connection, MessageCompiledInstruction, PublicKey } from "@solana/web3.js";
 import * as winston from "winston";
 import { AuctionUpdate, MatchingEngineProgram } from "../../src/matchingEngine";
 
@@ -10,20 +10,20 @@ export class AuctionParticipant {
     private _matchingEngine: MatchingEngineProgram;
     private _connection: Connection;
 
-    private _recognizedPayers: PublicKey[];
+    private _recognizedTokenAccounts: PublicKey[];
 
     private _ourAuctions: Map<string, bigint>;
 
     constructor(
         matchingEngine: MatchingEngineProgram,
-        recognizedPayers: string[],
+        recognizedTokenAccounts: PublicKey[],
         logger: winston.Logger,
     ) {
         this._logger = logger;
         this._matchingEngine = matchingEngine;
         this._connection = matchingEngine.program.provider.connection;
 
-        this._recognizedPayers = recognizedPayers.map((keyInit) => new PublicKey(keyInit));
+        this._recognizedTokenAccounts = recognizedTokenAccounts;
 
         this._ourAuctions = new Map();
     }
@@ -37,9 +37,9 @@ export class AuctionParticipant {
             logger.info(`Connection established with "${connection.commitment}" commitment`);
         }
 
-        const recognizedPayers = this._recognizedPayers;
-        for (const recognized of recognizedPayers) {
-            logger.info(`Recognized payer: ${recognized.toString()}`);
+        const ourTokenAccounts = this._recognizedTokenAccounts;
+        for (const ours of ourTokenAccounts) {
+            logger.info(`Recognized token account: ${ours.toString()}`);
         }
 
         logger.info("Fetching active auction config");
@@ -53,37 +53,50 @@ export class AuctionParticipant {
         return async function (event: AuctionUpdate, slot: number, signature: string) {
             logger.debug(`Found signature: ${signature} at slot ${slot}. Fetching transaction.`);
 
+            // Do we want to play?
+            const { offerToken, amountIn, maxOfferPriceAllowed } = event;
+            logger.debug(
+                `Do we participate? offerToken: ${offerToken.toString()}, amountIn: ${amountIn.toString()}, maxOfferPriceAllowed: ${maxOfferPriceAllowed.toString()}`,
+            );
+
+            if (ourTokenAccounts.find((ours) => ours.equals(offerToken)) !== undefined) {
+                logger.debug("I recognize this guy. Disregard?");
+                // return;
+            } else {
+                logger.debug(`Let's play.`);
+            }
+
             // TODO: save sigs to db and check if we've already processed this.
 
             // WARNING: When using get parsed transaction and there is a LUT involved,
-            const txMessage = await connection
-                .getTransaction(signature, {
-                    maxSupportedTransactionVersion: 0,
-                })
-                .then((response) => response?.transaction.message);
-            if (txMessage === undefined) {
-                logger.warn(`Failed to fetch transaction with ${signature}`);
-                return;
-            }
+            // const txMessage = await connection
+            //     .getTransaction(signature, {
+            //         maxSupportedTransactionVersion: 0,
+            //     })
+            //     .then((response) => response?.transaction.message);
+            // if (txMessage === undefined) {
+            //     logger.warn(`Failed to fetch transaction with ${signature}`);
+            //     return;
+            // }
 
-            const txPayer = txMessage.staticAccountKeys[0];
-            if (recognizedPayers.find((recognized) => recognized.equals(txPayer)) !== undefined) {
-                logger.debug("I recognize a payer. Disregard?");
-                // return;
-            } else {
-                logger.debug(`Who is this? ${txPayer.toString()}`);
-            }
+            // const txPayer = txMessage.staticAccountKeys[0];
+            // if (recognizedPayers.find((recognized) => recognized.equals(txPayer)) !== undefined) {
+            //     logger.debug("I recognize a payer. Disregard?");
+            //     // return;
+            // } else {
+            //     logger.debug(`Who is this? ${txPayer.toString()}`);
+            // }
 
-            for (const ix of txMessage.compiledInstructions) {
-                const offerAmount = getOfferAmount(ix, logger);
-                if (offerAmount !== null) {
-                    const improveOfferBy = await matchingEngine.computeMinOfferDelta(
-                        offerAmount,
-                        parameters,
-                    );
-                    logger.debug(`Improve offer? ${offerAmount - improveOfferBy}`);
-                }
-            }
+            // for (const ix of txMessage.compiledInstructions) {
+            //     const offerAmount = getOfferAmount(ix, logger);
+            //     if (offerAmount !== null) {
+            //         const improveOfferBy = await matchingEngine.computeMinOfferDelta(
+            //             offerAmount,
+            //             parameters,
+            //         );
+            //         logger.debug(`Improve offer? ${offerAmount - improveOfferBy}`);
+            //     }
+            // }
         };
     }
 }

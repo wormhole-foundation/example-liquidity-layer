@@ -125,6 +125,7 @@ export type AuctionUpdate = {
     sourceChain: number;
     vaaSequence: BN;
     endSlot: BN;
+    offerToken: PublicKey;
     amountIn: BN;
     maxOfferPriceAllowed: BN;
 };

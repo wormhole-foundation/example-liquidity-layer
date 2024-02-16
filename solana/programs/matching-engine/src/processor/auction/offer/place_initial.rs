@@ -171,8 +171,9 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
     emit!(crate::events::AuctionUpdate {
         source_chain,
         vaa_sequence,
-        amount_in,
         end_slot: slot.saturating_add(ctx.accounts.auction_config.duration.into()),
+        offer_token: info.best_offer_token,
+        amount_in,
         max_offer_price_allowed: utils::auction::max_offer_price_allowed(
             &ctx.accounts.auction_config,
             &info,

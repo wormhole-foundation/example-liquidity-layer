@@ -6,6 +6,7 @@ pub struct AuctionUpdate {
     pub source_chain: u16,
     pub vaa_sequence: u64,
     pub end_slot: u64,
+    pub offer_token: Pubkey,
     pub amount_in: u64,
     pub max_offer_price_allowed: u64,
 }
