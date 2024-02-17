@@ -345,7 +345,8 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
             key !== "settleAuctionNoneCctp" &&
             key !== "settleAuctionNoneLocal" &&
             key !== "settleAuctionActive" &&
-            key !== "initiateAuction"
+            key !== "initiateAuction" &&
+            key !== "improveOffer"
         ) {
             throw new Error(`unexpected key: computeUnits.${key}`);
         } else if (cfg.computeUnits[key] === undefined) {

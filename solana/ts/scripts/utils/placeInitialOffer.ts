@@ -91,7 +91,7 @@ export async function handlePlaceInitialOffer(
     // See if the `maxFee` meets our minimum price threshold.
     const { shouldPlaceOffer, fvWithEdge } = isFeeHighEnough(
         order,
-        cfg.pricingParameters(fastVaa.emitterChain),
+        cfg.pricingParameters(fastVaa.emitterChain)!,
     );
     if (!shouldPlaceOffer) {
         logicLogger.warn(

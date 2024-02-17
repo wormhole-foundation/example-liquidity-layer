@@ -1,4 +1,4 @@
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import "dotenv/config";
 import * as fs from "fs";
 import { MatchingEngineProgram } from "../../src/matchingEngine";
@@ -14,20 +14,36 @@ async function main(argv: string[]) {
     const cfgJson = JSON.parse(fs.readFileSync(argv[2], "utf-8"));
     const cfg = new utils.AppConfig(cfgJson);
 
-    const logicLogger = utils.defaultLogger({ label: "logic", level: "debug" });
-    logicLogger.info("Start logging logic");
+    const auctionLogger = utils.defaultLogger({ label: "auction", level: "debug" });
+    auctionLogger.info("Start logging auction participation.");
 
+    const orderLogger = utils.defaultLogger({ label: "order", level: "debug" });
+    orderLogger.info("Start logging order execution.");
+
+    const connection = cfg.solanaConnection();
     const matchingEngine = new MatchingEngineProgram(
-        cfg.solanaConnection(),
+        connection,
         MATCHING_ENGINE_PROGRAM_ID,
         USDC_MINT,
     );
 
+    if (process.env.SOLANA_PRIVATE_KEY === undefined) {
+        throw new Error("SOLANA_PRIVATE_KEY is undefined");
+    }
+    const offerAuthority = Keypair.fromSecretKey(
+        Buffer.from(process.env.SOLANA_PRIVATE_KEY, "base64"),
+    );
+
     const participant = new AuctionParticipant(
         matchingEngine,
+        offerAuthority,
         cfg.recognizedTokenAccounts(),
-        logicLogger,
+        auctionLogger,
     );
 
     matchingEngine.onAuctionUpdate(await participant.onAuctionUpdateCallback());
+
+    connection.onSlotChange(async (info) => {
+        // orderLogger.debug(`Slot changed to ${info.slot}.`);
+    });
 }

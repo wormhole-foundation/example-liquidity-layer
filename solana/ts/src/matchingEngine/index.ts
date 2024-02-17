@@ -823,8 +823,8 @@ export class MatchingEngineProgram {
             bestOfferToken: PublicKey;
         },
         args: {
-            offerPrice: bigint;
-            totalDeposit: bigint;
+            offerPrice: BN;
+            totalDeposit: BN;
         },
         signers: Signer[],
         opts: PreparedTransactionOptions,
@@ -840,8 +840,8 @@ export class MatchingEngineProgram {
                 auctionConfig,
                 bestOfferToken,
             },
-            offerPrice,
-            { totalDeposit },
+            BigInt(offerPrice.toString()),
+            { totalDeposit: BigInt(totalDeposit.toString()) },
         );
 
         return {
