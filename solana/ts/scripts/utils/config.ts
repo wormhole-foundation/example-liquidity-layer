@@ -61,7 +61,7 @@ export type EnvironmentConfig = {
     connection: SolanaConnectionConfig;
     sourceTxHash: SourceTxHashConfig;
     computeUnits: ComputeUnitsConfig;
-    pricing?: PricingParameters[];
+    pricing: PricingParameters[];
     endpointConfig: InputEndpointChainConfig[];
     knownAtaOwners: string[];
 };
@@ -186,20 +186,12 @@ export class AppConfig {
         };
     }
 
-    pricingParameters(chainId: wormholeSdk.ChainId | number): PricingParameters {
-        if (this._cfg.pricing === undefined) {
-            throw new Error("pricing is not defined");
-        }
-
+    pricingParameters(chain: number): PricingParameters | null {
         const pricing = this._cfg.pricing.find(
-            (p) => wormholeSdk.coalesceChainId(p.chain) === chainId,
+            (p) => wormholeSdk.coalesceChainId(p.chain) == chain,
         );
 
-        if (pricing === undefined) {
-            throw new Error(`pricing for chain ${chainId} is not defined`);
-        } else {
-            return pricing;
-        }
+        return pricing === undefined ? null : pricing;
     }
 
     unsafeChainCfg(chain: number): { coreBridgeAddress: string } & ChainConfig {
