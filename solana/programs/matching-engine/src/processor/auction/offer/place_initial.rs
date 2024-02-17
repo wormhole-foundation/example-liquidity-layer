@@ -174,6 +174,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
         end_slot: slot.saturating_add(ctx.accounts.auction_config.duration.into()),
         offer_token: info.best_offer_token,
         amount_in,
+        total_deposit: info.total_deposit(),
         max_offer_price_allowed: utils::auction::max_offer_price_allowed(
             &ctx.accounts.auction_config,
             &info,

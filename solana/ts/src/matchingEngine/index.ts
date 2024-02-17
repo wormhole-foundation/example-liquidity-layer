@@ -127,6 +127,7 @@ export type AuctionUpdate = {
     endSlot: BN;
     offerToken: PublicKey;
     amountIn: BN;
+    totalDeposit: BN;
     maxOfferPriceAllowed: BN;
 };
 
@@ -276,10 +277,7 @@ export class MatchingEngineProgram {
         return this.program.account.preparedOrderResponse.fetch(addr);
     }
 
-    async approveCustodianIx(
-        owner: PublicKey,
-        amount: bigint | number,
-    ): Promise<TransactionInstruction> {
+    approveCustodianIx(owner: PublicKey, amount: bigint | number): TransactionInstruction {
         return splToken.createApproveInstruction(
             splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner),
             this.custodianAddress(),
@@ -759,7 +757,10 @@ export class MatchingEngineProgram {
             auctionConfig?: PublicKey;
             bestOfferToken?: PublicKey;
         },
-        feeOffer: bigint,
+        offerPrice: bigint,
+        cached: {
+            totalDeposit?: bigint;
+        } = {},
     ): Promise<[approveIx: TransactionInstruction, improveOfferIx: TransactionInstruction]> {
         const {
             offerAuthority,
@@ -768,30 +769,39 @@ export class MatchingEngineProgram {
             bestOfferToken: inputBestOfferToken,
         } = accounts;
 
-        const { info } = await this.fetchAuction({ address: auction });
-        if (info === null) {
-            throw new Error("no auction info found");
-        }
-        const { auctionConfig, bestOfferToken } = await (async () => {
-            if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
+        const { totalDeposit: inputTotalDeposit } = cached;
+
+        const { auctionConfig, bestOfferToken, totalDeposit } = await (async () => {
+            if (
+                inputAuctionConfig === undefined ||
+                inputBestOfferToken === undefined ||
+                inputTotalDeposit === undefined
+            ) {
+                const { info } = await this.fetchAuction({ address: auction });
+                if (info === null) {
+                    throw new Error("no auction info found");
+                }
+
                 return {
                     auctionConfig: inputAuctionConfig ?? this.auctionConfigAddress(info.configId),
                     bestOfferToken: inputBestOfferToken ?? info.bestOfferToken,
+                    totalDeposit:
+                        inputTotalDeposit ??
+                        BigInt(info.amountIn.add(info.securityDeposit).toString()),
                 };
             } else {
                 return {
                     auctionConfig: inputAuctionConfig,
                     bestOfferToken: inputBestOfferToken,
+                    totalDeposit: inputTotalDeposit,
                 };
             }
         })();
 
-        const approveIx = await this.approveCustodianIx(
-            offerAuthority,
-            info.amountIn.add(info.securityDeposit).toNumber(),
-        );
+        const approveIx = this.approveCustodianIx(offerAuthority, totalDeposit);
+
         const improveOfferIx = await this.program.methods
-            .improveOffer(new BN(feeOffer.toString()))
+            .improveOffer(new BN(offerPrice.toString()))
             .accounts({
                 offerAuthority,
                 custodian: this.custodianAddress(),
@@ -803,6 +813,47 @@ export class MatchingEngineProgram {
             .instruction();
 
         return [approveIx, improveOfferIx];
+    }
+
+    async improveOfferTx(
+        accounts: {
+            offerAuthority: PublicKey;
+            auction: PublicKey;
+            auctionConfig: PublicKey;
+            bestOfferToken: PublicKey;
+        },
+        args: {
+            offerPrice: bigint;
+            totalDeposit: bigint;
+        },
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        sendOptions?: SendOptions,
+    ): Promise<PreparedTransaction> {
+        const { offerAuthority, auction, auctionConfig, bestOfferToken } = accounts;
+        const { offerPrice, totalDeposit } = args;
+
+        const ixs = await this.improveOfferIx(
+            {
+                offerAuthority,
+                auction,
+                auctionConfig,
+                bestOfferToken,
+            },
+            offerPrice,
+            { totalDeposit },
+        );
+
+        return {
+            ixs,
+            signers,
+            computeUnits: opts.computeUnits,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "improveOffer",
+            sendOptions,
+        };
     }
 
     async settleAuctionActiveTx(

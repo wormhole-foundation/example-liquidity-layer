@@ -101,6 +101,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
         end_slot,
         offer_token,
         amount_in: auction_info.amount_in,
+        total_deposit: auction_info.total_deposit(),
         max_offer_price_allowed: utils::auction::max_offer_price_allowed(
             &ctx.accounts.auction_config,
             auction_info

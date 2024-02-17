@@ -23,7 +23,7 @@ export type PreparedTransaction = {
 
 export type PreparedTransactionOptions = {
     feeMicroLamports: number;
-    computeUnits?: number;
+    computeUnits: number;
     nonceAccount: PublicKey;
     addressLookupTableAccounts?: AddressLookupTableAccount[];
 };
