@@ -3,8 +3,8 @@ use anchor_lang::prelude::*;
 #[event]
 #[derive(Debug)]
 pub struct AuctionUpdate {
-    pub source_chain: u16,
-    pub vaa_sequence: u64,
+    pub auction: Pubkey,
+    pub vaa: Option<Pubkey>,
     pub end_slot: u64,
     pub offer_token: Pubkey,
     pub amount_in: u64,

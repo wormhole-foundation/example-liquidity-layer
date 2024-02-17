@@ -53,6 +53,7 @@ pub struct ImproveOffer<'info> {
 }
 
 pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()> {
+    let auction_key = ctx.accounts.auction.key();
     let auction_info = ctx.accounts.auction.info.as_mut().unwrap();
 
     let end_slot = auction_info.auction_end_slot(&ctx.accounts.auction_config);
@@ -96,8 +97,8 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
 
     // Emit event for auction participants to listen to.
     emit!(crate::events::AuctionUpdate {
-        source_chain: auction_info.source_chain,
-        vaa_sequence: auction_info.vaa_sequence,
+        auction: auction_key,
+        vaa: None,
         end_slot,
         offer_token,
         amount_in: auction_info.amount_in,

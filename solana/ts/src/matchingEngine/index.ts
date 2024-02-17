@@ -122,8 +122,8 @@ export type CctpMessageArgs = {
 };
 
 export type AuctionUpdate = {
-    sourceChain: number;
-    vaaSequence: BN;
+    auction: PublicKey;
+    vaa: PublicKey | null;
     endSlot: BN;
     offerToken: PublicKey;
     amountIn: BN;

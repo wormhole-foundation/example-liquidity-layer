@@ -169,8 +169,8 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
 
     // Emit event for auction participants to listen to.
     emit!(crate::events::AuctionUpdate {
-        source_chain,
-        vaa_sequence,
+        auction: ctx.accounts.auction.key(),
+        vaa: Some(ctx.accounts.fast_vaa.key()),
         end_slot: slot.saturating_add(ctx.accounts.auction_config.duration.into()),
         offer_token: info.best_offer_token,
         amount_in,
