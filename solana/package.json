@@ -15,7 +15,8 @@
     "dotenv": "^16.4.1",
     "ethers": "^5.7.2",
     "winston": "^3.11.0",
-    "yargs": "^17.7.2"
+    "yargs": "^17.7.2",
+    "@improbable-eng/grpc-web-node-http-transport": "^0.15.0"
   },
   "devDependencies": {
     "@types/bn.js": "^5.1.0",
