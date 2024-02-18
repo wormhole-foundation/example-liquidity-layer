@@ -131,6 +131,11 @@ export type AuctionUpdate = {
     maxOfferPriceAllowed: BN;
 };
 
+export type OrderExecuted = {
+    auction: PublicKey;
+    vaa: PublicKey;
+};
+
 export class MatchingEngineProgram {
     private _programId: ProgramId;
     private _mint: PublicKey;
@@ -155,6 +160,10 @@ export class MatchingEngineProgram {
 
     onAuctionUpdate(callback: (event: AuctionUpdate, slot: number, signature: string) => void) {
         return this.program.addEventListener("AuctionUpdate", callback);
+    }
+
+    onOrderExecuted(callback: (event: OrderExecuted, slot: number, signature: string) => void) {
+        return this.program.addEventListener("OrderExecuted", callback);
     }
 
     custodianAddress(): PublicKey {
