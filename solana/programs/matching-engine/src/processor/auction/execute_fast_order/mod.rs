@@ -49,6 +49,8 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
         token_program,
     } = accounts;
 
+    let vaa_key = fast_vaa.key;
+
     // Create zero copy reference to `FastMarketOrder` payload.
     let fast_vaa = VaaAccount::load_unchecked(fast_vaa);
     let order = LiquidityLayerPayload::try_from(fast_vaa.payload())
@@ -134,6 +136,11 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
 
     // Set the auction status to completed.
     auction.status = new_status;
+
+    emit!(crate::events::OrderExecuted {
+        auction: auction.key(),
+        vaa: *vaa_key,
+    });
 
     Ok(PreparedFastExecution {
         user_amount,
