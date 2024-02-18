@@ -131,7 +131,7 @@ export class AuctionParticipant {
             } else {
                 logger.debug(`Let's play.`);
 
-                if (endSlot.eqn(slot)) {
+                if (endSlot.lten(slot)) {
                     logger.debug("Skipping");
                     return;
                 }
