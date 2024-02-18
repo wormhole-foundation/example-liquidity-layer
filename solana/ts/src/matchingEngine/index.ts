@@ -4,6 +4,7 @@ import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { BN, Program } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
+    ConfirmOptions,
     Connection,
     PublicKey,
     SYSVAR_CLOCK_PUBKEY,
@@ -729,7 +730,7 @@ export class MatchingEngineProgram {
         offerPrice: bigint,
         signers: Signer[],
         opts: PreparedTransactionOptions,
-        sendOptions?: SendOptions,
+        confirmOptions?: ConfirmOptions,
     ): Promise<PreparedTransaction> {
         const { payer, fastVaa, auction, fromRouterEndpoint, toRouterEndpoint, totalDeposit } =
             accounts;
@@ -745,7 +746,7 @@ export class MatchingEngineProgram {
             offerPrice,
         );
 
-        const preparedTx: PreparedTransaction = {
+        return {
             ixs,
             signers,
             computeUnits: opts.computeUnits!,
@@ -753,10 +754,8 @@ export class MatchingEngineProgram {
             nonceAccount: opts.nonceAccount,
             addressLookupTableAccounts: opts.addressLookupTableAccounts,
             txName: "placeInitialOffer",
-            sendOptions,
+            confirmOptions,
         };
-
-        return preparedTx;
     }
 
     async improveOfferIx(
@@ -837,7 +836,7 @@ export class MatchingEngineProgram {
         },
         signers: Signer[],
         opts: PreparedTransactionOptions,
-        sendOptions?: SendOptions,
+        confirmOptions?: ConfirmOptions,
     ): Promise<PreparedTransaction> {
         const { offerAuthority, auction, auctionConfig, bestOfferToken } = accounts;
         const { offerPrice, totalDeposit } = args;
@@ -861,7 +860,7 @@ export class MatchingEngineProgram {
             nonceAccount: opts.nonceAccount,
             addressLookupTableAccounts: opts.addressLookupTableAccounts,
             txName: "improveOffer",
-            sendOptions,
+            confirmOptions,
         };
     }
 
@@ -876,7 +875,7 @@ export class MatchingEngineProgram {
         args: CctpMessageArgs,
         signers: Signer[],
         opts: PreparedTransactionOptions,
-        sendOptions?: SendOptions,
+        confirmOptions?: ConfirmOptions,
     ): Promise<PreparedTransaction> {
         const prepareOrderResponseIx = await this.prepareOrderResponseCctpIx(accounts, args);
 
@@ -923,7 +922,7 @@ export class MatchingEngineProgram {
             }
         })();
 
-        const preparedTx: PreparedTransaction = {
+        return {
             ixs: [prepareOrderResponseIx, settleAuctionActiveIx!],
             signers,
             computeUnits: opts.computeUnits!,
@@ -931,10 +930,8 @@ export class MatchingEngineProgram {
             nonceAccount: opts.nonceAccount,
             addressLookupTableAccounts: opts.addressLookupTableAccounts,
             txName,
-            sendOptions,
+            confirmOptions,
         };
-
-        return preparedTx;
     }
 
     async prepareOrderResponseCctpIx(
@@ -1648,7 +1645,7 @@ export class MatchingEngineProgram {
         },
         signers: Signer[],
         opts: PreparedTransactionOptions,
-        sendOptions?: SendOptions,
+        confirmOptions?: ConfirmOptions,
     ): Promise<PreparedTransaction> {
         const { payer, fastVaa, auction: inputAuction } = accounts;
 
@@ -1674,7 +1671,7 @@ export class MatchingEngineProgram {
             }
         })();
 
-        const preparedTx: PreparedTransaction = {
+        return {
             ixs: [executeOrderIx],
             signers,
             computeUnits: opts.computeUnits!,
@@ -1682,10 +1679,8 @@ export class MatchingEngineProgram {
             nonceAccount: opts.nonceAccount,
             addressLookupTableAccounts: opts.addressLookupTableAccounts,
             txName: "executeOrder",
-            sendOptions,
+            confirmOptions,
         };
-
-        return preparedTx;
     }
 
     async redeemFastFillAccounts(

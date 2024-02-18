@@ -111,7 +111,7 @@ async function main(argv: string[]) {
         // See if the `maxFee` meets our minimum price threshold.
         const { shouldPlaceOffer, fvWithEdge } = isFeeHighEnough(
             order,
-            cfg.pricingParameters(fetchedFastVaa.emitterChain),
+            cfg.pricingParameters(fetchedFastVaa.emitterChain)!,
         );
         if (!shouldPlaceOffer) {
             logicLogger.warn(
@@ -190,7 +190,7 @@ async function main(argv: string[]) {
                 nonceAccount: cfg.solanaNonceAccount(),
             },
             {
-                preflightCommitment: cfg.solanaCommitment(),
+                commitment: cfg.solanaCommitment(),
                 skipPreflight: isPosted ? false : true,
             },
         );

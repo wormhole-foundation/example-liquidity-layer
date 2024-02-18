@@ -1,4 +1,11 @@
-import { Connection, Keypair, PublicKey } from "@solana/web3.js";
+import {
+    Connection,
+    FetchFn,
+    FetchMiddleware,
+    Keypair,
+    PublicKey,
+    SystemProgram,
+} from "@solana/web3.js";
 import "dotenv/config";
 import * as fs from "fs";
 import { MatchingEngineProgram } from "../../src/matchingEngine";
@@ -20,7 +27,9 @@ async function main(argv: string[]) {
     const orderLogger = utils.defaultLogger({ label: "order", level: "debug" });
     orderLogger.info("Start logging order execution.");
 
-    const connection = cfg.solanaConnection();
+    const connection = cfg.solanaConnection(
+        true, // debug
+    );
     const matchingEngine = new MatchingEngineProgram(
         connection,
         MATCHING_ENGINE_PROGRAM_ID,
@@ -43,7 +52,36 @@ async function main(argv: string[]) {
 
     matchingEngine.onAuctionUpdate(await participant.onAuctionUpdateCallback());
 
+    const updateBlockhashFrequency = 16; // slots
     connection.onSlotChange(async (info) => {
-        // orderLogger.debug(`Slot changed to ${info.slot}.`);
+        const { slot } = info;
+
+        // Update the latest blockhash every `updateBlockhashFrequency` slots.
+        if (slot % updateBlockhashFrequency == 0) {
+            await connection
+                .getLatestBlockhash("finalized")
+                .then((blockhash) => participant.updateLatestBlockhash(blockhash));
+        }
+        // else {
+        //     const prepped = {
+        //         ixs: [
+        //             SystemProgram.transfer({
+        //                 fromPubkey: offerAuthority.publicKey,
+        //                 toPubkey: offerAuthority.publicKey,
+        //                 lamports: 1,
+        //             }),
+        //         ],
+        //         signers: [offerAuthority],
+        //         feeMicroLamports: participant.adjustedFeeMicroLamports(6969),
+        //         computeUnits: 1_000,
+        //         txName: "Test Tx",
+        //         confirmOptions: {
+        //             skipPreflight: true,
+        //         },
+        //     };
+        //     utils.sendTx(connection, prepped, orderLogger, participant.cachedBlockhash());
+        // }
+
+        // TODO: Check participant's winning auctions and execute orders.
     });
 }

@@ -1,7 +1,7 @@
 export * from "./cctp";
 export * from "./messages";
 
-import { SendOptions } from "@solana/web3.js";
+import { ConfirmOptions } from "@solana/web3.js";
 
 import {
     AddressLookupTableAccount,
@@ -15,15 +15,15 @@ export type PreparedTransaction = {
     signers: Signer[];
     computeUnits: number;
     feeMicroLamports: number;
-    nonceAccount: PublicKey;
+    nonceAccount?: PublicKey;
     addressLookupTableAccounts?: AddressLookupTableAccount[];
     txName?: string;
-    sendOptions?: SendOptions;
+    confirmOptions?: ConfirmOptions;
 };
 
 export type PreparedTransactionOptions = {
     feeMicroLamports: number;
     computeUnits: number;
-    nonceAccount: PublicKey;
+    nonceAccount?: PublicKey;
     addressLookupTableAccounts?: AddressLookupTableAccount[];
 };

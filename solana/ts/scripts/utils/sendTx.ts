@@ -6,6 +6,8 @@ import {
     TransactionMessage,
     VersionedTransaction,
     TransactionInstruction,
+    DurableNonce,
+    BlockhashWithExpiryBlockHeight,
 } from "@solana/web3.js";
 import * as winston from "winston";
 import { PreparedTransaction } from "../../src";
@@ -35,6 +37,7 @@ export async function sendTx(
     connection: Connection,
     preparedTransaction: PreparedTransaction,
     logger?: winston.Logger,
+    cachedBlockhash?: BlockhashWithExpiryBlockHeight,
 ): Promise<VersionedTransaction> {
     const {
         nonceAccount,
@@ -52,29 +55,51 @@ export async function sendTx(
     });
 
     // Uptick nonce account, or fetch recent block hash.
-    const { nonce, recentSlot, advanceIxs } = await getNonceAccountData(connection, nonceAccount);
+    const [messageV0, confirmStrategy] = await (async () => {
+        if (nonceAccount === undefined) {
+            const latestBlockhash = cachedBlockhash ?? (await connection.getLatestBlockhash());
 
-    // Format transaction.
-    const messageV0 = new TransactionMessage({
-        payerKey: payer.publicKey,
-        recentBlockhash: nonce,
-        instructions: [advanceIxs[0], computeLimitIx, computeUnitPriceIx, ...ixs],
-    }).compileToV0Message(addressLookupTableAccounts);
+            return [
+                new TransactionMessage({
+                    payerKey: payer.publicKey,
+                    recentBlockhash: latestBlockhash.blockhash,
+                    instructions: [computeLimitIx, computeUnitPriceIx, ...ixs],
+                }).compileToV0Message(addressLookupTableAccounts),
+                latestBlockhash,
+            ];
+        } else {
+            const { nonce, recentSlot, advanceIxs } = await getNonceAccountData(
+                connection,
+                nonceAccount,
+            );
+
+            return [
+                new TransactionMessage({
+                    payerKey: payer.publicKey,
+                    recentBlockhash: nonce,
+                    instructions: [...advanceIxs, computeLimitIx, computeUnitPriceIx, ...ixs],
+                }).compileToV0Message(addressLookupTableAccounts),
+                {
+                    minContextSlot: recentSlot,
+                    nonceAccountPubkey: nonceAccount,
+                    nonceValue: nonce,
+                },
+            ];
+        }
+    })();
+
     const tx = new VersionedTransaction(messageV0);
-
-    // Sign and send the transaction.
     tx.sign(signers);
-    const txnSignature = await connection
-        .sendTransaction(tx, preparedTransaction.sendOptions)
+
+    const txSignature = await connection
+        .sendTransaction(tx, preparedTransaction.confirmOptions)
         .then(async (signature) => {
-            const commitment = preparedTransaction.sendOptions?.preflightCommitment;
+            const commitment = preparedTransaction.confirmOptions?.commitment;
             if (commitment !== undefined) {
                 await connection.confirmTransaction(
                     {
-                        minContextSlot: recentSlot,
-                        nonceAccountPubkey: nonceAccount,
-                        nonceValue: nonce,
                         signature,
+                        ...confirmStrategy,
                     },
                     commitment,
                 );
@@ -98,10 +123,10 @@ export async function sendTx(
     if (logger !== undefined) {
         if (preparedTransaction.txName !== undefined) {
             logger.debug(
-                `Transaction type: ${preparedTransaction.txName}, signature: ${txnSignature}`,
+                `Transaction type: ${preparedTransaction.txName}, signature: ${txSignature}`,
             );
         } else {
-            logger.debug(`Transaction signature: ${txnSignature}`);
+            logger.debug(`Transaction signature: ${txSignature}`);
         }
     }
 

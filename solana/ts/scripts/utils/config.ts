@@ -1,7 +1,14 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
 import { IWormhole__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
-import { Commitment, Connection, PublicKey, PublicKeyInitData } from "@solana/web3.js";
+import {
+    Commitment,
+    Connection,
+    FetchFn,
+    FetchMiddleware,
+    PublicKey,
+    PublicKeyInitData,
+} from "@solana/web3.js";
 import {
     Environment,
     ParsedVaaWithBytes,
@@ -9,6 +16,8 @@ import {
 } from "@wormhole-foundation/relayer-engine";
 import { ethers } from "ethers";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
+import * as winston from "winston";
+import { defaultLogger } from "./logger";
 
 export const EVM_FAST_CONSISTENCY_LEVEL = 200;
 
@@ -117,10 +126,23 @@ export class AppConfig {
         return this._cfg.sourceTxHash;
     }
 
-    solanaConnection(): Connection {
+    solanaConnection(debug: boolean = false): Connection {
+        const fetchLogger = defaultLogger({ label: "fetch", level: debug ? "debug" : "error" });
+        fetchLogger.debug("Start debug logging Solana connection fetches.");
+
         return new Connection(this._cfg.connection.rpc, {
             commitment: this._cfg.connection.commitment,
             wsEndpoint: this._cfg.connection.ws,
+            fetchMiddleware: function (
+                info: Parameters<FetchFn>[0],
+                init: Parameters<FetchFn>[1],
+                fetch: (...a: Parameters<FetchFn>) => void,
+            ) {
+                if (init !== undefined) {
+                    fetchLogger.debug(init.body);
+                }
+                return fetch(info, init);
+            },
         });
     }
 
