@@ -54,6 +54,7 @@ export class AuctionParticipant {
 
     updateLatestBlockhash(update: BlockhashWithExpiryBlockHeight) {
         this._latestBlockhash = update;
+        this._logger.debug(`Updated blockhash: ${update.blockhash}`);
         this._updatedNoise = 0;
     }
 

@@ -58,7 +58,8 @@ async function main(argv: string[]) {
 
         // Update the latest blockhash every `updateBlockhashFrequency` slots.
         if (slot % updateBlockhashFrequency == 0) {
-            await connection
+            // No need to block. We'll just update the latest blockhash and use it when needed.
+            connection
                 .getLatestBlockhash("finalized")
                 .then((blockhash) => participant.updateLatestBlockhash(blockhash));
         }
