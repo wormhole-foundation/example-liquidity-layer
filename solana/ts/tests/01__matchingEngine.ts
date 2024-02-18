@@ -2784,7 +2784,7 @@ describe("Matching Engine", function () {
                     );
                 });
 
-                it.skip("Prepare and Settle", async function () {
+                it("Prepare and Settle", async function () {
                     const {
                         fastVaa,
                         fastVaaAccount,
@@ -2792,6 +2792,7 @@ describe("Matching Engine", function () {
                         prepareIx,
                         preparedOrderResponse,
                         auction,
+                        preparedBy,
                     } = await prepareOrderResponse({
                         initAuction: true,
                         executeOrder: true,
@@ -2801,9 +2802,15 @@ describe("Matching Engine", function () {
                     const settleIx = await engine.settleAuctionCompleteIx({
                         preparedOrderResponse,
                         auction,
+                        preparedBy,
                     });
 
-                    await expectIxOk(connection, [prepareIx!, settleIx], [payer]);
+                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                        lookupTableAddress,
+                    );
+                    await expectIxOk(connection, [prepareIx!, settleIx], [payer], {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    });
                 });
             });
 
@@ -3082,11 +3089,13 @@ describe("Matching Engine", function () {
                         }
                         const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
                         const auctionConfig = engine.auctionConfigAddress(configId);
-                        const duration = (await engine.fetchAuctionConfig(configId)).parameters
-                            .duration;
+                        const {
+                            parameters: { duration, gracePeriod },
+                        } = await engine.fetchAuctionConfig(configId);
 
-                        await new Promise((f) =>
-                            setTimeout(f, startSlot.toNumber() + duration + 200),
+                        await waitUntilSlot(
+                            connection,
+                            startSlot.addn(duration + gracePeriod - 1).toNumber(),
                         );
 
                         const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
