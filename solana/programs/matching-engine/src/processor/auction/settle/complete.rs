@@ -60,7 +60,7 @@ pub struct SettleAuctionComplete<'info> {
     ///
     /// CHECK: This token account must already exist.
     #[account(mut)]
-    best_offer_token: AccountInfo<'info>,
+    best_offer_token: Box<Account<'info, token::TokenAccount>>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
@@ -84,6 +84,18 @@ pub fn settle_auction_complete(ctx: Context<SettleAuctionComplete>) -> Result<()
         penalty: None,
     };
 
+    let amount_owed = ctx.accounts.auction.info.as_ref().unwrap().amount_in;
+
+    emit!(crate::events::AuctionSettled {
+        auction: ctx.accounts.auction.key(),
+        best_offer_token: ctx.accounts.best_offer_token.key(),
+        token_balance_after: ctx
+            .accounts
+            .best_offer_token
+            .amount
+            .saturating_add(amount_owed),
+    });
+
     // Finally transfer the funds back to the highest bidder.
     token::transfer(
         CpiContext::new_with_signer(
@@ -95,6 +107,6 @@ pub fn settle_auction_complete(ctx: Context<SettleAuctionComplete>) -> Result<()
             },
             &[Custodian::SIGNER_SEEDS],
         ),
-        ctx.accounts.auction.info.as_ref().unwrap().amount_in,
+        amount_owed,
     )
 }

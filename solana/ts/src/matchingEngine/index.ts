@@ -122,11 +122,18 @@ export type CctpMessageArgs = {
     cctpAttestation: Buffer;
 };
 
+export type AuctionSettled = {
+    auction: PublicKey;
+    bestOfferToken: PublicKey;
+    tokenBalanceAfter: BN;
+};
+
 export type AuctionUpdate = {
     auction: PublicKey;
     vaa: PublicKey | null;
     endSlot: BN;
-    offerToken: PublicKey;
+    bestOfferToken: PublicKey;
+    tokenBalanceBefore: BN;
     amountIn: BN;
     totalDeposit: BN;
     maxOfferPriceAllowed: BN;
@@ -157,6 +164,10 @@ export class MatchingEngineProgram {
 
     get mint(): PublicKey {
         return this._mint;
+    }
+
+    onAuctionSettled(callback: (event: AuctionSettled, slot: number, signature: string) => void) {
+        return this.program.addEventListener("AuctionSettled", callback);
     }
 
     onAuctionUpdate(callback: (event: AuctionUpdate, slot: number, signature: string) => void) {
@@ -1009,18 +1020,18 @@ export class MatchingEngineProgram {
         } = accounts;
 
         const { preparedBy, auction } = await (async () => {
-            if (inputPreparedBy !== undefined && inputAuction !== undefined) {
-                return {
-                    preparedBy: inputPreparedBy,
-                    auction: inputAuction,
-                };
-            } else {
+            if (inputPreparedBy === undefined || inputAuction === undefined) {
                 const { preparedBy, fastVaaHash } = await this.fetchPreparedOrderResponse({
                     address: preparedOrderResponse,
                 });
                 return {
                     preparedBy: inputPreparedBy ?? preparedBy,
                     auction: inputAuction ?? this.auctionAddress(fastVaaHash),
+                };
+            } else {
+                return {
+                    preparedBy: inputPreparedBy,
+                    auction: inputAuction,
                 };
             }
         })();

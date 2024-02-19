@@ -1,16 +1,10 @@
-import {
-    Connection,
-    FetchFn,
-    FetchMiddleware,
-    Keypair,
-    PublicKey,
-    SystemProgram,
-} from "@solana/web3.js";
+import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import "dotenv/config";
 import * as fs from "fs";
 import { MatchingEngineProgram } from "../../src/matchingEngine";
 import * as utils from "../utils";
-import { AuctionParticipant } from "./AuctionParticipant";
+import { onAuctionSettledCallback, onAuctionUpdateCallback } from "./callback";
+import { CachedBlockhash, OfferToken } from ".";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
@@ -43,14 +37,22 @@ async function main(argv: string[]) {
         Buffer.from(process.env.SOLANA_PRIVATE_KEY, "base64"),
     );
 
-    const participant = new AuctionParticipant(
-        matchingEngine,
-        offerAuthority,
-        cfg.recognizedTokenAccounts(),
-        auctionLogger,
-    );
+    const cachedBlockhash = await CachedBlockhash.initialize(connection, auctionLogger);
+    const offerToken = await OfferToken.initialize(matchingEngine, offerAuthority, auctionLogger);
 
-    matchingEngine.onAuctionUpdate(await participant.onAuctionUpdateCallback());
+    // We update token balances whenever we settle our own auctions.
+    matchingEngine.onAuctionSettled(onAuctionSettledCallback(offerToken, auctionLogger));
+
+    // We play here.
+    matchingEngine.onAuctionUpdate(
+        await onAuctionUpdateCallback(
+            matchingEngine,
+            offerToken,
+            cachedBlockhash,
+            cfg.recognizedTokenAccounts(),
+            auctionLogger,
+        ),
+    );
 
     const updateBlockhashFrequency = 16; // slots
     connection.onSlotChange(async (info) => {
@@ -61,9 +63,10 @@ async function main(argv: string[]) {
             // No need to block. We'll just update the latest blockhash and use it when needed.
             connection
                 .getLatestBlockhash("finalized")
-                .then((blockhash) => participant.updateLatestBlockhash(blockhash));
+                .then((blockhash) => cachedBlockhash.update(blockhash, auctionLogger, slot));
         }
-        // else {
+
+        // for (let i = 0; i < 20; ++i) {
         //     const prepped = {
         //         ixs: [
         //             SystemProgram.transfer({
@@ -73,14 +76,14 @@ async function main(argv: string[]) {
         //             }),
         //         ],
         //         signers: [offerAuthority],
-        //         feeMicroLamports: participant.adjustedFeeMicroLamports(6969),
+        //         feeMicroLamports: cachedBlockhash.addNoise(6969),
         //         computeUnits: 1_000,
         //         txName: "Test Tx",
         //         confirmOptions: {
         //             skipPreflight: true,
         //         },
         //     };
-        //     utils.sendTx(connection, prepped, orderLogger, participant.cachedBlockhash());
+        //     utils.sendTx(connection, prepped, orderLogger, cachedBlockhash.latest);
         // }
 
         // TODO: Check participant's winning auctions and execute orders.

@@ -85,7 +85,7 @@ pub struct SettleAuctionActiveCctp<'info> {
 
     /// CHECK: Must equal the best offer token in the auction data account.
     #[account(mut)]
-    best_offer_token: AccountInfo<'info>,
+    best_offer_token: Box<Account<'info, token::TokenAccount>>,
 
     /// CHECK: Must be the same mint as the best offer token.
     #[account(mut)]

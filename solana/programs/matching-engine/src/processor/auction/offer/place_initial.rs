@@ -172,7 +172,8 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
         auction: ctx.accounts.auction.key(),
         vaa: Some(ctx.accounts.fast_vaa.key()),
         end_slot: slot.saturating_add(ctx.accounts.auction_config.duration.into()),
-        offer_token: info.best_offer_token,
+        best_offer_token: initial_offer_token,
+        token_balance_before: ctx.accounts.offer_token.amount,
         amount_in,
         total_deposit: info.total_deposit(),
         max_offer_price_allowed: utils::auction::max_offer_price_allowed(

@@ -27,7 +27,7 @@ struct SettleActiveAndPrepareFill<'ctx, 'info> {
     auction: &'ctx mut Account<'info, Auction>,
     prepared_order_response: &'ctx Account<'info, PreparedOrderResponse>,
     executor_token: &'ctx AccountInfo<'info>,
-    best_offer_token: &'ctx AccountInfo<'info>,
+    best_offer_token: &'ctx Account<'info, token::TokenAccount>,
     cctp_mint_recipient: &'ctx AccountInfo<'info>,
     payer_sequence: &'ctx mut Account<'info, PayerSequence>,
     token_program: &'ctx Program<'info, token::Token>,
@@ -110,6 +110,12 @@ fn settle_active_and_prepare_fill(
     } else {
         best_offer_amount += executor_amount;
     }
+
+    emit!(crate::events::AuctionSettled {
+        auction: auction.key(),
+        best_offer_token: best_offer_token.key(),
+        token_balance_after: best_offer_token.amount.saturating_add(best_offer_amount),
+    });
 
     // Transfer to the best offer token what he deserves.
     token::transfer(
