@@ -15,8 +15,8 @@ jobs:
               uses: styfle/cancel-workflow-action@0.9.1
               with:
                 access_token: ${{ github.token }}
-    cargo-clippy-and-lint:
-        name: Clippy Checks
+    make-lint:
+        name: make lint
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
@@ -25,52 +25,19 @@ jobs:
               with:
                 toolchain: ${{ env.RUSTC_VERSION }}
                 components: clippy, rustfmt
-            - name: cargo fmt --check
-              run: cargo fmt --check
+            - name: make lint
+              run: make lint
               working-directory: ./solana
-            - name: cargo clippy --locked --no-deps --all-targets --features testnet -- -D warnings
-              run: cargo clippy --locked --no-deps --all-targets --features testnet -- -D warnings
-              working-directory: ./solana
-            - name: cargo clippy --locked --no-deps --all-targets --features localnet -- -D warnings
-              run: cargo clippy --locked --no-deps --all-targets --features localnet -- -D warnings
-              working-directory: ./solana
-    test:
-        name: Run Tests
+    make-test:
+        name: make test
         runs-on: ubuntu-latest
         # Anchor Docker image: https://www.anchor-lang.com/docs/verifiable-builds#images
         container: backpackapp/build:v0.29.0
         steps:
             - uses: actions/checkout@v4
-            - name: Install NPM dependencies
-              run: npm ci
-              working-directory: ./solana
             - name: Set default Rust toolchain
               run: rustup default stable
               working-directory: ./solana
-            - name: cargo test --features localnet --no-default-features
-              run: cargo test --features localnet --no-default-features
-              working-directory: ./solana
-            - name: cargo test --features testnet --no-default-features
-              run: cargo test --features testnet --no-default-features
-              working-directory: ./solana
-            - name: anchor build --arch sbf -- --features testnet
-              run: anchor build --arch sbf -- --features testnet
-              working-directory: ./solana
-            - name: Create artifact directory
-              run: mkdir -p ts/tests/artifacts
-              working-directory: ./solana
-            - name: Copy Testnet Matching Engine Object
-              run: cp target/deploy/matching_engine.so ts/tests/artifacts/testnet_matching_engine.so
-              working-directory: ./solana
-            - name: Copy Testnet Token Router Object
-              run: cp target/deploy/token_router.so ts/tests/artifacts/testnet_token_router.so
-              working-directory: ./solana
-            - name: Copy Upgrade Manager Object 
-              run: cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
-              working-directory: ./solana
-            - name: anchor build --arch sbf -- --features integration-test
-              run: anchor build --arch sbf -- --features integration-test
-              working-directory: ./solana
-            - name: anchor test --skip-build
-              run: anchor test --skip-build
+            - name: make test
+              run: make test
               working-directory: ./solana
