@@ -224,7 +224,7 @@ pub fn prepare_order_response_cctp(
     // instructions:
     // * settle_auction_active_cctp
     // * settle_auction_complete
-    // * execute_slow_order_no_auction
+    // * settle_auction_none
     ctx.accounts
         .prepared_order_response
         .set_inner(PreparedOrderResponse {

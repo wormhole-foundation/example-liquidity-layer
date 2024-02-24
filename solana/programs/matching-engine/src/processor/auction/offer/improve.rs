@@ -79,7 +79,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
         );
     }
 
-    // Transfer funds from the `best_offer` token account to the `offer_token` token account,
+    // Transfer funds from the `offer_token` token account to the `best_offer_token` token account,
     // but only if the pubkeys are different.
     let offer_token = ctx.accounts.offer_token.key();
     if auction_info.best_offer_token != offer_token {
