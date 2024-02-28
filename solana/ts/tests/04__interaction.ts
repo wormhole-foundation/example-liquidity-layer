@@ -32,6 +32,7 @@ import {
     expectIxErr,
     expectIxOk,
     postLiquidityLayerVaa,
+    waitUntilSlot,
 } from "./helpers";
 
 chaiUse(chaiAsPromised);
@@ -157,20 +158,6 @@ describe("Matching Engine <> Token Router", function () {
 
         let wormholeSequence = 4000n;
 
-        const baseFastOrder: FastMarketOrder = {
-            amountIn: 50000000000n,
-            minAmountOut: 0n,
-            targetChain: wormholeSdk.CHAINS.solana,
-            redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
-            sender: Array.from(Buffer.alloc(32, "beefdead", "hex")),
-            refundAddress: Array.from(Buffer.alloc(32, "beef", "hex")),
-            maxFee: 1000000n,
-            initAuctionFee: 100n,
-            deadline: 0,
-            redeemerMessage: Buffer.from("All your base are belong to us."),
-        };
-        const sourceCctpDomain = 0;
-
         describe("Settle Auction", function () {
             describe("Settle No Auction (Local)", function () {
                 it("Settle", async function () {
@@ -201,7 +188,7 @@ describe("Matching Engine <> Token Router", function () {
 
             describe("Settle Active Auction (Local)", function () {
                 it("Settle", async function () {
-                    const { prepareIx, preparedOrderResponse, auction, fastVaa, finalizedVaa } =
+                    const { prepareIx, preparedOrderResponse, auction, fastVaa } =
                         await prepareOrderResponse({
                             initAuction: true,
                             executeOrder: false,
@@ -233,6 +220,103 @@ describe("Matching Engine <> Token Router", function () {
                     await expectIxOk(connection, [prepareIx!, settleIx, computeIx], [payer], {
                         addressLookupTableAccounts: [lookupTableAccount!],
                     });
+                });
+            });
+
+            before("Add Local Router Endpoint", async function () {
+                const ix = await matchingEngine.addLocalRouterEndpointIx({
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                    tokenRouterProgram: tokenRouter.ID,
+                });
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+            });
+
+            after("Remove Local Router Endpoint", async function () {
+                const ix = await matchingEngine.removeRouterEndpointIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    wormholeSdk.CHAIN_ID_SOLANA,
+                );
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+            });
+        });
+
+        describe("Execute Fast Order (Local)", function () {
+            it("Cannot Execute Fast Order (Auction Period Not Expired)", async function () {
+                const { auction: auctionAddress, fastVaa } = await prepareOrderResponse({
+                    initAuction: true,
+                    executeOrder: false,
+                    prepareOrderResponse: false,
+                });
+
+                const { address: executorToken } = await splToken.getOrCreateAssociatedTokenAccount(
+                    connection,
+                    payer,
+                    USDC_MINT_ADDRESS,
+                    liquidator.publicKey,
+                );
+
+                const settleIx = await matchingEngine.executeFastOrderLocalIx({
+                    payer: payer.publicKey,
+                    fastVaa,
+                    auction: auctionAddress,
+                    executorToken,
+                });
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 250_000,
+                });
+
+                await expectIxErr(
+                    connection,
+                    [settleIx, computeIx],
+                    [payer],
+                    "Error Code: AuctionPeriodNotExpired",
+                );
+            });
+            it("Execute after Auction Period has Expired", async function () {
+                const {
+                    prepareIx,
+                    auction: auctionAddress,
+                    fastVaa,
+                } = await prepareOrderResponse({
+                    initAuction: true,
+                    executeOrder: false,
+                    prepareOrderResponse: false,
+                });
+
+                const { address: executorToken } = await splToken.getOrCreateAssociatedTokenAccount(
+                    connection,
+                    payer,
+                    USDC_MINT_ADDRESS,
+                    liquidator.publicKey,
+                );
+
+                const auction = await matchingEngine.fetchAuction({ address: auctionAddress });
+                const { duration, gracePeriod } = await matchingEngine.fetchAuctionParameters();
+
+                await waitUntilSlot(
+                    connection,
+                    auction.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
+                );
+
+                const settleIx = await matchingEngine.executeFastOrderLocalIx({
+                    payer: payer.publicKey,
+                    fastVaa,
+                    auction: auctionAddress,
+                    executorToken,
+                });
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 400_000,
+                });
+                await expectIxOk(connection, [prepareIx!, settleIx, computeIx], [payer], {
+                    addressLookupTableAccounts: [lookupTableAccount!],
                 });
             });
 
