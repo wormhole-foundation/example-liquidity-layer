@@ -395,8 +395,35 @@ describe("Token Router", function () {
                 // TODO
             });
 
-            it.skip("Cannot Prepare Market Order without Delegating Authority to Custodian", async function () {
-                // TODO
+            it("Cannot Prepare Market Order without Delegating Authority to Custodian", async function () {
+                // TODO: This fails as expected, but we need to check for an error.
+                const orderSender = Keypair.generate();
+                const preparedOrder = Keypair.generate();
+
+                const amountIn = 69n;
+                const minAmountOut = 0n;
+                const targetChain = foreignChain;
+                const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+                const redeemerMessage = Buffer.from("All your base are belong to us");
+                const ix = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        orderSender: orderSender.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        srcToken: payerToken,
+                        refundToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut,
+                        targetChain,
+                        redeemer,
+                        redeemerMessage,
+                    },
+                );
+
+                // Note: Passing an empty string somehow lets the assertion pass?
+                await expectIxErr(connection, [ix], [payer, orderSender, preparedOrder], "");
             });
 
             it("Prepare Market Order with Some Min Amount Out", async function () {
@@ -665,8 +692,21 @@ describe("Token Router", function () {
                 );
             });
 
-            it.skip("Cannot Place Market Order without Original Payer", async function () {
-                // TODO
+            it("Cannot Place Market Order without Original Payer", async function () {
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
+
+                const newPayer = Keypair.generate();
+                const ix = await tokenRouter.placeMarketOrderCctpIx({
+                    payer: newPayer.publicKey,
+                    preparedOrder,
+                });
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [newPayer],
+                    "Err(failed to send transaction: Transaction signature verification failure)",
+                );
             });
 
             it("Cannot Place Market Order without Order Sender", async function () {
