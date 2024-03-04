@@ -2667,6 +2667,258 @@ describe("Matching Engine", function () {
             const localVariables = new Map<string, any>();
 
             // TODO: add negative tests
+            it("Cannot Prepare Order Response with Emitter Chain Mismatch", async function () {
+                const redeemer = Keypair.generate();
+
+                const sourceCctpDomain = 0;
+                const cctpNonce = testCctpNonce++;
+                const amountIn = 690000n; // 69 cents
+
+                // Concoct a Circle message.
+                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(engine, sourceCctpDomain, cctpNonce, amountIn);
+
+                const fastMessage = new LiquidityLayerMessage({
+                    fastMarketOrder: {
+                        amountIn,
+                        minAmountOut: 0n,
+                        targetChain: wormholeSdk.CHAIN_ID_SOLANA as number,
+                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                        sender: new Array(32).fill(0),
+                        refundAddress: new Array(32).fill(0),
+                        maxFee: 42069n,
+                        initAuctionFee: 2000n,
+                        deadline: 2,
+                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                    },
+                });
+
+                const finalizedMessage = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit(
+                        {
+                            tokenAddress: burnMessage.burnTokenAddress,
+                            amount: amountIn,
+                            sourceCctpDomain,
+                            destinationCctpDomain,
+                            cctpNonce,
+                            burnSource,
+                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
+                        },
+                        {
+                            slowOrderResponse: {
+                                baseFee: 420n,
+                            },
+                        },
+                    ),
+                });
+
+                const finalizedVaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    finalizedMessage,
+                );
+                const fastVaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    fastMessage,
+                    "arbitrum",
+                );
+
+                const ix = await engine.prepareOrderResponseCctpIx(
+                    {
+                        payer: payer.publicKey,
+                        fastVaa,
+                        finalizedVaa,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    {
+                        encodedCctpMessage,
+                        cctpAttestation,
+                    },
+                );
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+
+                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch");
+            });
+
+            it("Cannot Prepare Order Response with Emitter Address Mismatch", async function () {
+                const redeemer = Keypair.generate();
+
+                const sourceCctpDomain = 0;
+                const cctpNonce = testCctpNonce++;
+                const amountIn = 690000n; // 69 cents
+
+                // Concoct a Circle message.
+                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(engine, sourceCctpDomain, cctpNonce, amountIn);
+
+                const fastMessage = new LiquidityLayerMessage({
+                    fastMarketOrder: {
+                        amountIn,
+                        minAmountOut: 0n,
+                        targetChain: wormholeSdk.CHAIN_ID_SOLANA as number,
+                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                        sender: new Array(32).fill(0),
+                        refundAddress: new Array(32).fill(0),
+                        maxFee: 42069n,
+                        initAuctionFee: 2000n,
+                        deadline: 2,
+                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                    },
+                });
+
+                const finalizedMessage = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit(
+                        {
+                            tokenAddress: burnMessage.burnTokenAddress,
+                            amount: amountIn,
+                            sourceCctpDomain,
+                            destinationCctpDomain,
+                            cctpNonce,
+                            burnSource,
+                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
+                        },
+                        {
+                            slowOrderResponse: {
+                                baseFee: 420n,
+                            },
+                        },
+                    ),
+                });
+
+                const finalizedVaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    finalizedMessage,
+                );
+                const fastVaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    arbRouter,
+                    wormholeSequence++,
+                    fastMessage,
+                );
+
+                const ix = await engine.prepareOrderResponseCctpIx(
+                    {
+                        payer: payer.publicKey,
+                        fastVaa,
+                        finalizedVaa,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    {
+                        encodedCctpMessage,
+                        cctpAttestation,
+                    },
+                );
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+
+                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch");
+            });
+
+            it("Cannot Prepare Order Response with Emitter Sequence Mismatch", async function () {
+                const redeemer = Keypair.generate();
+
+                const sourceCctpDomain = 0;
+                const cctpNonce = testCctpNonce++;
+                const amountIn = 690000n; // 69 cents
+
+                // Concoct a Circle message.
+                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(engine, sourceCctpDomain, cctpNonce, amountIn);
+
+                const fastMessage = new LiquidityLayerMessage({
+                    fastMarketOrder: {
+                        amountIn,
+                        minAmountOut: 0n,
+                        targetChain: wormholeSdk.CHAIN_ID_SOLANA as number,
+                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                        sender: new Array(32).fill(0),
+                        refundAddress: new Array(32).fill(0),
+                        maxFee: 42069n,
+                        initAuctionFee: 2000n,
+                        deadline: 2,
+                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                    },
+                });
+
+                const finalizedMessage = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit(
+                        {
+                            tokenAddress: burnMessage.burnTokenAddress,
+                            amount: amountIn,
+                            sourceCctpDomain,
+                            destinationCctpDomain,
+                            cctpNonce,
+                            burnSource,
+                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
+                        },
+                        {
+                            slowOrderResponse: {
+                                baseFee: 420n,
+                            },
+                        },
+                    ),
+                });
+
+                const finalizedVaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    finalizedMessage,
+                );
+                const fastVaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence + 2n,
+                    fastMessage,
+                );
+
+                const ix = await engine.prepareOrderResponseCctpIx(
+                    {
+                        payer: payer.publicKey,
+                        fastVaa,
+                        finalizedVaa,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    {
+                        encodedCctpMessage,
+                        cctpAttestation,
+                    },
+                );
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+
+                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch");
+            });
+
+            // TODO: Test timestamp mismatch
+            it.skip("Cannot Prepare Order Response with VAA Timestamp Mismatch", async function () {});
 
             it("Prepare Order Response", async function () {
                 const redeemer = Keypair.generate();

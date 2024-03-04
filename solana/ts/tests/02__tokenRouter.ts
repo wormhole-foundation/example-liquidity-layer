@@ -387,16 +387,161 @@ describe("Token Router", function () {
 
             const localVariables = new Map<string, any>();
 
-            it.skip("Cannot Prepare Market Order with Insufficient Amount", async function () {
-                // TODO
+            it("Cannot Prepare Market Order with Insufficient Amount", async function () {
+                const orderSender = Keypair.generate();
+                const preparedOrder = Keypair.generate();
+
+                const amountIn = 0n;
+                const minAmountOut = 0n;
+                const targetChain = foreignChain;
+                const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+                const redeemerMessage = Buffer.from("All your base are belong to us");
+                const ix = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        orderSender: orderSender.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        srcToken: payerToken,
+                        refundToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut,
+                        targetChain,
+                        redeemer,
+                        redeemerMessage,
+                    },
+                );
+
+                const approveIx = splToken.createApproveInstruction(
+                    payerToken,
+                    tokenRouter.custodianAddress(),
+                    payer.publicKey,
+                    amountIn,
+                );
+
+                await expectIxErr(
+                    connection,
+                    [approveIx, ix],
+                    [payer, orderSender, preparedOrder],
+                    "Error Code: InsufficientAmount",
+                );
             });
 
-            it.skip("Cannot Prepare Market Order with Invalid Redeemer", async function () {
-                // TODO
+            it("Cannot Prepare Market Order with Invalid Redeemer", async function () {
+                const orderSender = Keypair.generate();
+                const preparedOrder = Keypair.generate();
+
+                const amountIn = 69n;
+                const minAmountOut = 0n;
+                const targetChain = foreignChain;
+                const redeemer = Array.from(Buffer.alloc(32, 0, "hex"));
+                const redeemerMessage = Buffer.from("All your base are belong to us");
+                const ix = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        orderSender: orderSender.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        srcToken: payerToken,
+                        refundToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut,
+                        targetChain,
+                        redeemer,
+                        redeemerMessage,
+                    },
+                );
+
+                const approveIx = splToken.createApproveInstruction(
+                    payerToken,
+                    tokenRouter.custodianAddress(),
+                    payer.publicKey,
+                    amountIn,
+                );
+
+                await expectIxErr(
+                    connection,
+                    [approveIx, ix],
+                    [payer, orderSender, preparedOrder],
+                    "Error Code: InvalidRedeemer",
+                );
             });
 
-            it.skip("Cannot Prepare Market Order without Delegating Authority to Custodian", async function () {
-                // TODO
+            it("Cannot Prepare Market Order with Min Amount Too High", async function () {
+                const orderSender = Keypair.generate();
+                const preparedOrder = Keypair.generate();
+
+                const amountIn = 1n;
+                const minAmountOut = 2n;
+                const targetChain = foreignChain;
+                const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+                const redeemerMessage = Buffer.from("All your base are belong to us");
+                const ix = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        orderSender: orderSender.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        srcToken: payerToken,
+                        refundToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut,
+                        targetChain,
+                        redeemer,
+                        redeemerMessage,
+                    },
+                );
+
+                const approveIx = splToken.createApproveInstruction(
+                    payerToken,
+                    tokenRouter.custodianAddress(),
+                    payer.publicKey,
+                    amountIn,
+                );
+
+                await expectIxErr(
+                    connection,
+                    [approveIx, ix],
+                    [payer, orderSender, preparedOrder],
+                    "Error Code: MinAmountOutTooHigh",
+                );
+            });
+
+            it("Cannot Prepare Market Order without Delegating Authority to Custodian", async function () {
+                const orderSender = Keypair.generate();
+                const preparedOrder = Keypair.generate();
+
+                const amountIn = 69n;
+                const minAmountOut = 0n;
+                const targetChain = foreignChain;
+                const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+                const redeemerMessage = Buffer.from("All your base are belong to us");
+                const ix = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        orderSender: orderSender.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        srcToken: payerToken,
+                        refundToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut,
+                        targetChain,
+                        redeemer,
+                        redeemerMessage,
+                    },
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer, orderSender, preparedOrder],
+                    "Error: owner does not match",
+                );
             });
 
             it("Prepare Market Order with Some Min Amount Out", async function () {
@@ -651,9 +796,8 @@ describe("Token Router", function () {
                     routerEndpoint: unregisteredEndpoint,
                 });
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const { value: lookupTableAccount } =
+                    await connection.getAddressLookupTable(lookupTableAddress);
                 await expectIxErr(
                     connection,
                     [ix],
@@ -665,8 +809,21 @@ describe("Token Router", function () {
                 );
             });
 
-            it.skip("Cannot Place Market Order without Original Payer", async function () {
-                // TODO
+            it("Cannot Place Market Order without Original Payer", async function () {
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
+
+                const newPayer = Keypair.generate();
+                const ix = await tokenRouter.placeMarketOrderCctpIx({
+                    payer: newPayer.publicKey,
+                    preparedOrder,
+                });
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [newPayer],
+                    "Transaction signature verification failure",
+                );
             });
 
             it("Cannot Place Market Order without Order Sender", async function () {
@@ -700,9 +857,8 @@ describe("Token Router", function () {
                     preparedOrder,
                 });
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const { value: lookupTableAccount } =
+                    await connection.getAddressLookupTable(lookupTableAddress);
                 await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
@@ -769,9 +925,8 @@ describe("Token Router", function () {
                     preparedOrder,
                 });
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const { value: lookupTableAccount } =
+                    await connection.getAddressLookupTable(lookupTableAddress);
                 await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
@@ -796,9 +951,8 @@ describe("Token Router", function () {
 
                 const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const { value: lookupTableAccount } =
+                    await connection.getAddressLookupTable(lookupTableAddress);
                 await expectIxOk(
                     connection,
                     [approveIx, prepareIx, ix],
@@ -991,9 +1145,8 @@ describe("Token Router", function () {
                     units: 300_000,
                 });
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const { value: lookupTableAccount } =
+                    await connection.getAddressLookupTable(lookupTableAddress);
                 await expectIxErr(
                     connection,
                     [computeIx, ix],
@@ -1064,9 +1217,8 @@ describe("Token Router", function () {
                     units: 300_000,
                 });
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const { value: lookupTableAccount } =
+                    await connection.getAddressLookupTable(lookupTableAddress);
                 await expectIxErr(
                     connection,
                     [computeIx, ix],
@@ -1138,9 +1290,8 @@ describe("Token Router", function () {
                     units: 300_000,
                 });
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const { value: lookupTableAccount } =
+                    await connection.getAddressLookupTable(lookupTableAddress);
                 await expectIxErr(
                     connection,
                     [computeIx, ix],
@@ -1204,9 +1355,8 @@ describe("Token Router", function () {
                     },
                 );
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const { value: lookupTableAccount } =
+                    await connection.getAddressLookupTable(lookupTableAddress);
                 await expectIxErr(connection, [ix], [payer], "Error Code: InvalidPayloadId", {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
@@ -1278,9 +1428,8 @@ describe("Token Router", function () {
                     },
                 );
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const { value: lookupTableAccount } =
+                    await connection.getAddressLookupTable(lookupTableAddress);
                 await expectIxErr(connection, [ix], [payer], "Error Code: AccountNotInitialized", {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
@@ -1331,9 +1480,8 @@ describe("Token Router", function () {
                     cctpMintRecipient,
                 );
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const { value: lookupTableAccount } =
+                    await connection.getAddressLookupTable(lookupTableAddress);
                 await expectIxOk(connection, [computeIx, ix], [payer], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
@@ -1366,9 +1514,8 @@ describe("Token Router", function () {
                     args,
                 );
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const { value: lookupTableAccount } =
+                    await connection.getAddressLookupTable(lookupTableAddress);
                 await expectIxOk(connection, [ix], [payer], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
