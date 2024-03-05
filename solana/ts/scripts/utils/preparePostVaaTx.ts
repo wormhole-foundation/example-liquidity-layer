@@ -1,5 +1,5 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
-import { Connection, Keypair, SendOptions, TransactionInstruction } from "@solana/web3.js";
+import { ConfirmOptions, Connection, Keypair, TransactionInstruction } from "@solana/web3.js";
 import { PreparedTransaction } from "../../src";
 import { MatchingEngineProgram } from "../../src/matchingEngine";
 import { ParsedVaaWithBytes } from "@wormhole-foundation/relayer-engine";
@@ -24,7 +24,7 @@ export async function preparePostVaaTxs(
     matchingEngine: MatchingEngineProgram,
     payer: Keypair,
     vaa: ParsedVaaWithBytes,
-    sendOptions?: SendOptions,
+    confirmOptions?: ConfirmOptions,
 ): Promise<PreparedTransaction[]> {
     const vaaSignatureSet = Keypair.generate();
 
@@ -61,7 +61,7 @@ export async function preparePostVaaTxs(
             feeMicroLamports: 10,
             nonceAccount: cfg.solanaNonceAccount(),
             txName: "verifySignatures",
-            sendOptions,
+            confirmOptions,
         };
 
         const preparedPost: PreparedTransaction = {
@@ -71,7 +71,7 @@ export async function preparePostVaaTxs(
             feeMicroLamports: 10,
             nonceAccount: cfg.solanaNonceAccount(),
             txName: "postVAA",
-            sendOptions,
+            confirmOptions,
         };
 
         preparedTransactions.push(preparedVerify, preparedPost);

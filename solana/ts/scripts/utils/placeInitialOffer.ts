@@ -122,7 +122,7 @@ export async function handlePlaceInitialOffer(
             matchingEngine,
             payer,
             fastVaa,
-            { preflightCommitment: cfg.solanaCommitment() },
+            { commitment: cfg.solanaCommitment() },
         );
         unproccessedTxns.push(...preparedPostVaaTxs);
     }
@@ -145,7 +145,7 @@ export async function handlePlaceInitialOffer(
             nonceAccount: cfg.solanaNonceAccount(),
         },
         {
-            preflightCommitment: cfg.solanaCommitment(),
+            commitment: cfg.solanaCommitment(),
             skipPreflight: isPosted ? false : true,
         },
     );

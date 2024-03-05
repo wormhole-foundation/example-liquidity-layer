@@ -6,7 +6,6 @@ import {
     TransactionMessage,
     VersionedTransaction,
     TransactionInstruction,
-    DurableNonce,
     BlockhashWithExpiryBlockHeight,
 } from "@solana/web3.js";
 import * as winston from "winston";
@@ -107,7 +106,6 @@ export async function sendTx(
             return signature;
         })
         .catch((err) => {
-            console.log(err);
             if (err.logs !== undefined) {
                 const logs: string[] = err.logs;
                 if (logger !== undefined) {

@@ -196,6 +196,10 @@ export class AppConfig {
         });
     }
 
+    isRecognizedTokenAccount(tokenAccount: PublicKey): boolean {
+        return this.recognizedTokenAccounts().some((key) => key.equals(tokenAccount));
+    }
+
     relayerAppProviderOpts(): ProvidersOpts {
         return {
             chains: this._cfg.endpointConfig.reduce(

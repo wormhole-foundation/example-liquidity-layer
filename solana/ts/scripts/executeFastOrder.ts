@@ -1,4 +1,4 @@
-import { AddressLookupTableProgram, Keypair, Connection, PublicKey, Signer } from "@solana/web3.js";
+import { Keypair, Connection, Signer } from "@solana/web3.js";
 import { MatchingEngineProgram } from "../src/matchingEngine";
 import { USDC_MINT_ADDRESS } from "../tests/helpers";
 import {
@@ -7,12 +7,11 @@ import {
     getSignedVAAWithRetry,
     parseVaa,
 } from "@certusone/wormhole-sdk";
-import { LiquidityLayerMessage, PreparedTransaction } from "../src";
+import { LiquidityLayerMessage } from "../src";
 import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import * as utils from "./utils";
 import yargs from "yargs";
 import * as fs from "fs";
-import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { NodeHttpTransport } from "@improbable-eng/grpc-web-node-http-transport";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";

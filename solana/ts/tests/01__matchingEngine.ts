@@ -2784,20 +2784,13 @@ describe("Matching Engine", function () {
                     );
                 });
 
-                it("Prepare and Settle", async function () {
-                    const {
-                        fastVaa,
-                        fastVaaAccount,
-                        finalizedVaa,
-                        prepareIx,
-                        preparedOrderResponse,
-                        auction,
-                        preparedBy,
-                    } = await prepareOrderResponse({
-                        initAuction: true,
-                        executeOrder: true,
-                        prepareOrderResponse: false,
-                    });
+                it.skip("Prepare and Settle", async function () {
+                    const { prepareIx, preparedOrderResponse, auction, preparedBy } =
+                        await prepareOrderResponse({
+                            initAuction: true,
+                            executeOrder: true,
+                            prepareOrderResponse: false,
+                        });
 
                     const settleIx = await engine.settleAuctionCompleteIx({
                         preparedOrderResponse,

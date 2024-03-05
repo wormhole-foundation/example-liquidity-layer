@@ -35,9 +35,6 @@ async function main(argv: string[]) {
     // Contains the starting sequences for each chain.
     const startingSequences = await cfg.startingSeqeunces();
 
-    // Cache recognized token accounts.
-    const knownTokenAccounts = cfg.recognizedTokenAccounts();
-
     const app = new StandardRelayerApp<StandardRelayerContext>(Environment.TESTNET, {
         name: "Initialize Auctions",
         logger: utils.defaultLogger({ label: "app", level: cfg.appLogLevel() }),
@@ -103,7 +100,6 @@ async function main(argv: string[]) {
                 `Attempting to parse SlowOrderResponse, sequence=${signedVaa.sequence}`,
             );
             const slowOrderResponse = utils.tryParseSlowOrderResponse(signedVaa);
-
             if (slowOrderResponse !== undefined) {
                 const unprocessedTxns = await utils.handleSettleAuction(
                     connection,

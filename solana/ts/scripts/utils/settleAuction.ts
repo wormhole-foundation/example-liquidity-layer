@@ -98,7 +98,6 @@ export async function handleSettleAuction(
     logicLogger: winston.Logger,
     finalizedVaa: ParsedVaaWithBytes,
     payer: Keypair,
-    knownTokenAccounts: PublicKey[],
 ): Promise<PreparedTransaction[]> {
     await new Promise((resolve) => setTimeout(resolve, 20_000));
 
@@ -124,7 +123,7 @@ export async function handleSettleAuction(
     const fastOrder = utils.tryParseFastMarketOrder(fetchedFastVaa);
     if (fastOrder === undefined) {
         logicLogger.error(`Failed to parse FastMarketOrder, sequence=${finalizedVaa.sequence}`);
-        return unproccessedTxns;
+        return [];
     }
 
     // Fetch accounts needed to settle the auction.
@@ -138,9 +137,16 @@ export async function handleSettleAuction(
     let auctionData: Auction = {} as Auction;
     try {
         auctionData = await matchingEngine.fetchAuction({ address: auction });
+
+        if (!cfg.isRecognizedTokenAccount(auctionData.info!.bestOfferToken)) {
+            logicLogger.error(
+                `Auction winner token account is not recognized, sequence=${fetchedFastVaa.sequence}`,
+            );
+            return [];
+        }
     } catch (e) {
         logicLogger.error(`No auction found, sequence=${fetchedFastVaa.sequence}`);
-        return unproccessedTxns;
+        return [];
     }
 
     // Fetch the CCTP message and attestation.
@@ -156,7 +162,7 @@ export async function handleSettleAuction(
     );
     if (cctpArgs === undefined) {
         logicLogger.error("Failed to fetch CCTP args");
-        return unproccessedTxns;
+        return [];
     }
 
     // Create the instructions to post the fast VAA if it hasn't been posted already.
@@ -174,7 +180,7 @@ export async function handleSettleAuction(
             matchingEngine,
             payer,
             finalizedVaa,
-            { preflightCommitment: cfg.solanaCommitment() },
+            { commitment: cfg.solanaCommitment() },
         );
         unproccessedTxns.push(...preparedPostVaaTxs);
     }
@@ -187,20 +193,21 @@ export async function handleSettleAuction(
             finalizedVaa: finalizedVaaAccount,
             auction,
         },
+        auctionData.status,
         cctpArgs,
         [payer],
         matchingEngine,
         cfg,
-        knownTokenAccounts,
-        logicLogger,
     );
-    //unproccessedTxns.push(settleAuctionTx);
 
-    return unproccessedTxns;
+    if (settleAuctionTx === undefined) {
+        logicLogger.debug(`Auction is not active or completed`);
+        return [];
+    } else {
+        unproccessedTxns.push(settleAuctionTx!);
+        return unproccessedTxns;
+    }
 }
-
-// TODO: Fetch the auction data and see if one of the known token accounts is the winner.
-// TODO: Check auction status and determine which instruction to use.
 
 async function createSettleTx(
     connection: Connection,
@@ -210,22 +217,13 @@ async function createSettleTx(
         finalizedVaa: PublicKey;
         auction: PublicKey;
     },
+    status: AuctionStatus,
     cctpArgs: { encodedCctpMessage: Buffer; cctpAttestation: Buffer },
     signers: Signer[],
     matchingEngine: MatchingEngineProgram,
     cfg: utils.AppConfig,
-    knownTokenAccounts: PublicKey[],
-    logicLogger: winston.Logger,
-) {
+): Promise<PreparedTransaction | undefined> {
     const { payer, fastVaa, finalizedVaa, auction } = accounts;
-
-    // Fetch auction data again (could've changed since the last rpc request).
-    const { status, info } = await matchingEngine.fetchAuction({ address: auction });
-
-    if (!knownTokenAccounts.includes(info!.bestOfferToken)) {
-        logicLogger.debug("Auction winner is not a known token account");
-        return [];
-    }
 
     const { value: lookupTableAccount } = await connection.getAddressLookupTable(
         cfg.solanaAddressLookupTable(),
@@ -234,34 +232,52 @@ async function createSettleTx(
     // Fetch our token account.
     const executorToken = splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, payer);
 
-    console.log(status);
+    // Options for both txn types.
+    const preparedTransactionOptions = {
+        computeUnits: cfg.settleAuctionActiveComputeUnits(),
+        feeMicroLamports: 10,
+        nonceAccount: cfg.solanaNonceAccount(),
+        addressLookupTableAccounts: [lookupTableAccount!],
+    };
+    const confirmOptions = {
+        commitment: cfg.solanaCommitment(),
+        skipPreflight: false,
+    };
+
     // Prepare the settle auction transaction.
-    // const settleAuctionTx = (() => {
-    //     if (status === AuctionStatus.active)
-    // })
+    const settleAuctionTx = await (async () => {
+        if (status.active !== undefined) {
+            return matchingEngine.settleAuctionActiveTx(
+                {
+                    payer,
+                    fastVaa,
+                    finalizedVaa,
+                    executorToken,
+                    auction,
+                },
+                cctpArgs,
+                signers,
+                preparedTransactionOptions,
+                confirmOptions,
+            );
+        } else if (status.completed !== undefined) {
+            return matchingEngine.settleAuctionCompleteTx(
+                {
+                    payer,
+                    fastVaa,
+                    finalizedVaa,
+                    executorToken,
+                    auction,
+                },
+                cctpArgs,
+                signers,
+                preparedTransactionOptions,
+                confirmOptions,
+            );
+        } else {
+            return undefined;
+        }
+    })();
 
-    // await matchingEngine.settleAuctionActiveTx(
-    //     {
-    //         payer,
-    //         fastVaa,
-    //         finalizedVaa,
-    //         executorToken,
-    //         auction,
-    //     },
-    //     cctpArgs,
-    //     signers,
-    //     {
-    //         computeUnits: cfg.settleAuctionActiveComputeUnits(),
-    //         feeMicroLamports: 10,
-    //         nonceAccount: cfg.solanaNonceAccount(),
-    //         addressLookupTableAccounts: [lookupTableAccount!],
-    //     },
-    //     {
-    //         preflightCommitment: cfg.solanaCommitment(),
-    //         skipPreflight: false,
-    //     },
-    // );
-    // return settleAuctionActiveTx;
-
-    return [];
+    return settleAuctionTx;
 }

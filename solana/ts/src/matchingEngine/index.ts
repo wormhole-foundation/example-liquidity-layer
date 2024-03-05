@@ -769,71 +769,6 @@ export class MatchingEngineProgram {
         };
     }
 
-    async improveOfferIx(
-        accounts: {
-            auction: PublicKey;
-            offerAuthority: PublicKey;
-            auctionConfig?: PublicKey;
-            bestOfferToken?: PublicKey;
-        },
-        offerPrice: bigint,
-        cached: {
-            totalDeposit?: bigint;
-        } = {},
-    ): Promise<[approveIx: TransactionInstruction, improveOfferIx: TransactionInstruction]> {
-        const {
-            offerAuthority,
-            auction,
-            auctionConfig: inputAuctionConfig,
-            bestOfferToken: inputBestOfferToken,
-        } = accounts;
-
-        const { totalDeposit: inputTotalDeposit } = cached;
-
-        const { auctionConfig, bestOfferToken, totalDeposit } = await (async () => {
-            if (
-                inputAuctionConfig === undefined ||
-                inputBestOfferToken === undefined ||
-                inputTotalDeposit === undefined
-            ) {
-                const { info } = await this.fetchAuction({ address: auction });
-                if (info === null) {
-                    throw new Error("no auction info found");
-                }
-
-                return {
-                    auctionConfig: inputAuctionConfig ?? this.auctionConfigAddress(info.configId),
-                    bestOfferToken: inputBestOfferToken ?? info.bestOfferToken,
-                    totalDeposit:
-                        inputTotalDeposit ??
-                        BigInt(info.amountIn.add(info.securityDeposit).toString()),
-                };
-            } else {
-                return {
-                    auctionConfig: inputAuctionConfig,
-                    bestOfferToken: inputBestOfferToken,
-                    totalDeposit: inputTotalDeposit,
-                };
-            }
-        })();
-
-        const approveIx = this.approveCustodianIx(offerAuthority, totalDeposit);
-
-        const improveOfferIx = await this.program.methods
-            .improveOffer(new BN(offerPrice.toString()))
-            .accounts({
-                offerAuthority,
-                custodian: this.custodianAddress(),
-                auctionConfig,
-                auction,
-                offerToken: splToken.getAssociatedTokenAddressSync(this.mint, offerAuthority),
-                bestOfferToken,
-            })
-            .instruction();
-
-        return [approveIx, improveOfferIx];
-    }
-
     async improveOfferTx(
         accounts: {
             offerAuthority: PublicKey;
@@ -945,6 +880,116 @@ export class MatchingEngineProgram {
         };
     }
 
+    async settleAuctionCompleteTx(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            finalizedVaa: PublicKey;
+            executorToken: PublicKey;
+            auction: PublicKey;
+        },
+        args: CctpMessageArgs,
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        confirmOptions?: ConfirmOptions,
+    ) {
+        //: Promise<PreparedTransaction> {
+        const prepareOrderResponseIx = await this.prepareOrderResponseCctpIx(accounts, args);
+
+        const { payer, fastVaa, auction } = accounts;
+        const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+
+        // Fetch the prepared order response.
+        const preparedOrderResponse = this.preparedOrderResponseAddress(
+            payer,
+            fastVaaAccount.digest(),
+        );
+
+        const settleAuctionCompletedIx = await this.settleAuctionCompleteIx({
+            preparedBy: payer,
+            auction,
+            preparedOrderResponse,
+        });
+
+        const preparedTx: PreparedTransaction = {
+            ixs: [prepareOrderResponseIx, settleAuctionCompletedIx],
+            signers,
+            computeUnits: opts.computeUnits!,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "settleAuctionComplete",
+            confirmOptions,
+        };
+
+        return preparedTx;
+    }
+
+    async improveOfferIx(
+        accounts: {
+            auction: PublicKey;
+            offerAuthority: PublicKey;
+            auctionConfig?: PublicKey;
+            bestOfferToken?: PublicKey;
+        },
+        offerPrice: bigint,
+        cached: {
+            totalDeposit?: bigint;
+        } = {},
+    ): Promise<[approveIx: TransactionInstruction, improveOfferIx: TransactionInstruction]> {
+        const {
+            offerAuthority,
+            auction,
+            auctionConfig: inputAuctionConfig,
+            bestOfferToken: inputBestOfferToken,
+        } = accounts;
+
+        const { totalDeposit: inputTotalDeposit } = cached;
+
+        const { auctionConfig, bestOfferToken, totalDeposit } = await (async () => {
+            if (
+                inputAuctionConfig === undefined ||
+                inputBestOfferToken === undefined ||
+                inputTotalDeposit === undefined
+            ) {
+                const { info } = await this.fetchAuction({ address: auction });
+                if (info === null) {
+                    throw new Error("no auction info found");
+                }
+
+                return {
+                    auctionConfig: inputAuctionConfig ?? this.auctionConfigAddress(info.configId),
+                    bestOfferToken: inputBestOfferToken ?? info.bestOfferToken,
+                    totalDeposit:
+                        inputTotalDeposit ??
+                        BigInt(info.amountIn.add(info.securityDeposit).toString()),
+                };
+            } else {
+                return {
+                    auctionConfig: inputAuctionConfig,
+                    bestOfferToken: inputBestOfferToken,
+                    totalDeposit: inputTotalDeposit,
+                };
+            }
+        })();
+
+        const approveIx = this.approveCustodianIx(offerAuthority, totalDeposit);
+
+        const improveOfferIx = await this.program.methods
+            .improveOffer(new BN(offerPrice.toString()))
+            .accounts({
+                offerAuthority,
+                custodian: this.custodianAddress(),
+                auctionConfig,
+                auction,
+                offerToken: splToken.getAssociatedTokenAddressSync(this.mint, offerAuthority),
+                bestOfferToken,
+            })
+            .instruction();
+
+        return [approveIx, improveOfferIx];
+    }
+
     async prepareOrderResponseCctpIx(
         accounts: {
             payer: PublicKey;
@@ -1008,33 +1053,16 @@ export class MatchingEngineProgram {
 
     async settleAuctionCompleteIx(accounts: {
         preparedOrderResponse: PublicKey;
-        auction?: PublicKey;
-        preparedBy?: PublicKey;
+        auction: PublicKey;
+        preparedBy: PublicKey;
         bestOfferToken?: PublicKey;
     }) {
         const {
             preparedOrderResponse,
-            auction: inputAuction,
-            preparedBy: inputPreparedBy,
+            auction,
+            preparedBy,
             bestOfferToken: inputBestOfferToken,
         } = accounts;
-
-        const { preparedBy, auction } = await (async () => {
-            if (inputPreparedBy === undefined || inputAuction === undefined) {
-                const { preparedBy, fastVaaHash } = await this.fetchPreparedOrderResponse({
-                    address: preparedOrderResponse,
-                });
-                return {
-                    preparedBy: inputPreparedBy ?? preparedBy,
-                    auction: inputAuction ?? this.auctionAddress(fastVaaHash),
-                };
-            } else {
-                return {
-                    preparedBy: inputPreparedBy,
-                    auction: inputAuction,
-                };
-            }
-        })();
 
         const bestOfferToken = await (async () => {
             if (inputBestOfferToken !== undefined) {
