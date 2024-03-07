@@ -4,7 +4,9 @@
 .private
 .vscode
 **/*.rs.bk
-artifacts-*
-node_modules
-target
-ts/tests/artifacts
+/artifacts-*
+/node_modules
+/target/*
+!/target/idl
+!/target/types
+/ts/tests/artifacts

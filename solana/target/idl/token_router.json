@@ -1,0 +1,1367 @@
+{
+  "version": "0.0.0",
+  "name": "token_router",
+  "instructions": [
+    {
+      "name": "prepareMarketOrder",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "custodian",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Custodian, but does not need to be deserialized.",
+            ""
+          ]
+        },
+        {
+          "name": "orderSender",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "This signer will be encoded in the prepared order. He will also need to be present when",
+            "invoking any of the place market order instructions."
+          ]
+        },
+        {
+          "name": "preparedOrder",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "srcToken",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Token account where assets are burned from. The CCTP Token Messenger Minter program will",
+            "burn the configured [amount](TransferTokensWithPayloadArgs::amount) from this account.",
+            "",
+            "[burn_source_authority](Self::burn_source_authority). Its mint must be USDC.",
+            "",
+            "NOTE: This token account must have delegated transfer authority to the custodian prior to",
+            "invoking this instruction."
+          ]
+        },
+        {
+          "name": "refundToken",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "preparedCustodyToken",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Custody token account. This account will be closed at the end of this instruction. It just",
+            "acts as a conduit to allow this program to be the transfer initiator in the CCTP message.",
+            ""
+          ]
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": "PrepareMarketOrderArgs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "closePreparedOrder",
+      "accounts": [
+        {
+          "name": "custodian",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Custodian, but does not need to be deserialized.",
+            ""
+          ]
+        },
+        {
+          "name": "orderSender",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "This signer must be the same one encoded in the prepared order."
+          ]
+        },
+        {
+          "name": "preparedBy",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "preparedOrder",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "refundToken",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "preparedCustodyToken",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Custody token account. This account will be closed at the end of this instruction. It just",
+            "acts as a conduit to allow this program to be the transfer initiator in the CCTP message.",
+            ""
+          ]
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "placeMarketOrderCctp",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "This account must be the same pubkey as the one who prepared the order."
+          ]
+        },
+        {
+          "name": "payerSequence",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "custodian",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "This program's Wormhole (Core Bridge) emitter authority.",
+            "",
+            "Seeds must be \\[\"emitter\"\\]."
+          ]
+        },
+        {
+          "name": "preparedOrder",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "orderSender",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Signer who must be the same one encoded in the prepared order."
+          ]
+        },
+        {
+          "name": "mint",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Circle-supported mint.",
+            "",
+            "Token Messenger Minter program's local token account."
+          ]
+        },
+        {
+          "name": "preparedCustodyToken",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Temporary custody token account. This account will be closed at the end of this instruction.",
+            "It just acts as a conduit to allow this program to be the transfer initiator in the CCTP",
+            "message.",
+            ""
+          ]
+        },
+        {
+          "name": "routerEndpoint",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Registered router endpoint representing a foreign Token Router. This account may have a",
+            "CCTP domain encoded if this route is CCTP-enabled. For this instruction, it is required that",
+            "[RouterEndpoint::cctp_domain] is `Some(value)`.",
+            "",
+            "Seeds must be \\[\"registered_emitter\", target_chain.to_be_bytes()\\].",
+            "",
+            "NOTE: In the EVM implementation, if there is no router endpoint then \"ErrUnsupportedChain\"",
+            "error is thrown (whereas here the account would not exist)."
+          ]
+        },
+        {
+          "name": "coreBridgeConfig",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "coreMessage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "cctpMessage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "coreEmitterSequence",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "coreFeeCollector",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenMessengerMinterSenderAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "messageTransmitterConfig",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenMessenger",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "remoteTokenMessenger",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Messenger Minter program)."
+          ]
+        },
+        {
+          "name": "tokenMinter",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "CHECK Seeds must be \\[\"token_minter\"\\] (CCTP Token Messenger Minter program)."
+          ]
+        },
+        {
+          "name": "localToken",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Local token account, which this program uses to validate the `mint` used to burn.",
+            ""
+          ]
+        },
+        {
+          "name": "tokenMessengerMinterEventAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "coreBridgeProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenMessengerMinterProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "messageTransmitterProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "clock",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "redeemCctpFill",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "custodian",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Custodian, but does not need to be deserialized.",
+            ""
+          ]
+        },
+        {
+          "name": "vaa",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "[verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint)."
+          ]
+        },
+        {
+          "name": "preparedFill",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "cctpMintRecipient",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "preparedCustodyToken",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
+            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
+            "from its custody account to this account.",
+            "",
+            "",
+            "NOTE: This account must be encoded as the mint recipient in the CCTP message."
+          ]
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "routerEndpoint",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Registered emitter account representing a Circle Integration on another network.",
+            "",
+            "Seeds must be \\[\"registered_emitter\", target_chain.to_be_bytes()\\]."
+          ]
+        },
+        {
+          "name": "messageTransmitterAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "messageTransmitterConfig",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "usedNonces",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "first_nonce.to_string()\\] (CCTP Message Transmitter program)."
+          ]
+        },
+        {
+          "name": "messageTransmitterEventAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenMessenger",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "remoteTokenMessenger",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Messenger Minter program)."
+          ]
+        },
+        {
+          "name": "tokenMinter",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "localToken",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Token Messenger Minter's Local Token account. This program uses the mint of this account to",
+            "validate the `mint_recipient` token account's mint.",
+            ""
+          ]
+        },
+        {
+          "name": "tokenPair",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Token Messenger Minter program)."
+          ]
+        },
+        {
+          "name": "tokenMessengerMinterCustodyToken",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "tokenMessengerMinterEventAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenMessengerMinterProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "messageTransmitterProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": "CctpMessageArgs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "redeemFastFill",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "custodian",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Custodian, but does not need to be deserialized.",
+            ""
+          ]
+        },
+        {
+          "name": "vaa",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader."
+          ]
+        },
+        {
+          "name": "preparedFill",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "preparedCustodyToken",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
+            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
+            "from its custody account to this account.",
+            ""
+          ]
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "matchingEngineCustodian",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "matchingEngineRedeemedFastFill",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "matchingEngineRouterEndpoint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "matchingEngineCctpMintRecipient",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "matchingEngineProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "consumePreparedFill",
+      "accounts": [
+        {
+          "name": "custodian",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Custodian, but does not need to be deserialized.",
+            ""
+          ]
+        },
+        {
+          "name": "redeemer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "This signer must be the same one encoded in the prepared fill."
+          ]
+        },
+        {
+          "name": "rentRecipient",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "the payer). If someone were to prepare a fill via a redeem fill instruction and he had no",
+            "intention of consuming it, he will be out of luck. We will reward the redeemer with the",
+            "closed account funds with a payer of his choosing."
+          ]
+        },
+        {
+          "name": "preparedFill",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "dstToken",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Destination token account, which the redeemer may not own. But because the redeemer is a",
+            "signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent",
+            "to any account he chooses (this one).",
+            ""
+          ]
+        },
+        {
+          "name": "preparedCustodyToken",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Custody token account. This account will be closed at the end of this instruction. It just",
+            "acts as a conduit to allow this program to be the transfer initiator in the CCTP message.",
+            ""
+          ]
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "docs": [
+        "This instruction is be used to generate your program's config.",
+        "And for convenience, we will store Wormhole-related PDAs in the",
+        "config so we can verify these accounts with a simple == constraint."
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Owner of the program, who presumably deployed this program."
+          ]
+        },
+        {
+          "name": "custodian",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Sender Config account, which saves program data useful for other",
+            "instructions, specifically for outbound transfers. Also saves the payer",
+            "of the [`initialize`](crate::initialize) instruction as the program's",
+            "owner."
+          ]
+        },
+        {
+          "name": "ownerAssistant",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "cctpMintRecipient",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "programData",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "We use the program data to make sure this owner is the upgrade authority (the true owner,",
+            "who deployed this program)."
+          ]
+        },
+        {
+          "name": "upgradeManagerAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "upgradeManagerProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "bpfLoaderUpgradeableProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "associatedTokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "submitOwnershipTransferRequest",
+      "docs": [
+        "This instruction sets the `pending_owner` field in the `OwnerConfig`",
+        "account. This instruction is owner-only, meaning that only the owner",
+        "of the program (defined in the [Config] account) can submit an",
+        "ownership transfer request."
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "custodian",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Custodian, which can only be modified by the configured owner."
+          ]
+        },
+        {
+          "name": "newOwner",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "New Owner.",
+            ""
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "confirmOwnershipTransferRequest",
+      "docs": [
+        "This instruction confirms that the `pending_owner` is the signer of",
+        "the transaction and updates the `owner` field in the `SenderConfig`,",
+        "`RedeemerConfig`, and `OwnerConfig` accounts."
+      ],
+      "accounts": [
+        {
+          "name": "pendingOwner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Must be the pending owner of the program set in the [`OwnerConfig`]",
+            "account."
+          ]
+        },
+        {
+          "name": "custodian",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancelOwnershipTransferRequest",
+      "docs": [
+        "This instruction cancels the ownership transfer request by setting",
+        "the `pending_owner` field in the `OwnerConfig` account to `None`.",
+        "This instruction is owner-only, meaning that only the owner of the",
+        "program (defined in the [Config] account) can cancel an ownership",
+        "transfer request."
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "custodian",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Custodian, which can only be modified by the configured owner."
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateOwnerAssistant",
+      "docs": [
+        "This instruction updates the `assistant` field in the `OwnerConfig`",
+        "account. This instruction is owner-only, meaning that only the owner",
+        "of the program (defined in the [Config] account) can update the",
+        "assistant."
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Owner of the program set in the [`OwnerConfig`] account."
+          ]
+        },
+        {
+          "name": "custodian",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "newOwnerAssistant",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "New Assistant.",
+            ""
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "setPause",
+      "docs": [
+        "This instruction updates the `paused` boolean in the `SenderConfig`",
+        "account. This instruction is owner-only, meaning that only the owner",
+        "of the program (defined in the [Config] account) can pause outbound",
+        "transfers.",
+        "",
+        "# Arguments",
+        "",
+        "* `ctx` - `SetPause` context",
+        "* `paused` - Boolean indicating whether outbound transfers are paused."
+      ],
+      "accounts": [
+        {
+          "name": "ownerOrAssistant",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "custodian",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Sender Config account. This program requires that the `owner` specified",
+            "in the context equals the pubkey specified in this account. Mutable."
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "authorizeUpgrade",
+      "accounts": [
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true
+        },
+        {
+          "name": "custodian",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "upgradeManagerAuthority",
+          "isMut": false,
+          "isSigner": true
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Custodian",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "paused",
+            "docs": [
+              "Boolean indicating whether outbound transfers are paused."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "owner",
+            "docs": [
+              "Program's owner."
+            ],
+            "type": "publicKey"
+          },
+          {
+            "name": "pendingOwner",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "ownerAssistant",
+            "docs": [
+              "Program's assistant. Can be used to update the relayer fee and swap rate."
+            ],
+            "type": "publicKey"
+          },
+          {
+            "name": "pausedSetBy",
+            "docs": [
+              "Indicate who last set the `paused` value. When the program is first initialized, this is set",
+              "to the `owner`."
+            ],
+            "type": "publicKey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PayerSequence",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "value",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PreparedFill",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "info",
+            "type": {
+              "defined": "PreparedFillInfo"
+            }
+          },
+          {
+            "name": "redeemerMessage",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PreparedOrder",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "info",
+            "type": {
+              "defined": "PreparedOrderInfo"
+            }
+          },
+          {
+            "name": "redeemerMessage",
+            "type": "bytes"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "PrepareMarketOrderArgs",
+      "docs": [
+        "Arguments for [prepare_market_order]."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amountIn",
+            "docs": [
+              "Amount of tokens to transfer."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "minAmountOut",
+            "docs": [
+              "If provided, minimum amount of tokens to receive in exchange for",
+              "[amount_in](Self::amount_in)."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "targetChain",
+            "docs": [
+              "The Wormhole chain ID of the network to transfer tokens to."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "redeemer",
+            "docs": [
+              "The address of the redeeming contract on the target chain."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "redeemerMessage",
+            "docs": [
+              "Arbitrary payload to be sent to the [redeemer](Self::redeemer), which can be used to encode",
+              "instructions or data for another network's smart contract."
+            ],
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CctpMessageArgs",
+      "docs": [
+        "Arguments for [redeem_cctp_fill]."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "encodedCctpMessage",
+            "docs": [
+              "CCTP message."
+            ],
+            "type": "bytes"
+          },
+          {
+            "name": "cctpAttestation",
+            "docs": [
+              "Attestation of [encoded_cctp_message](Self::encoded_cctp_message)."
+            ],
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PreparedFillInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "preparedCustodyTokenBump",
+            "type": "u8"
+          },
+          {
+            "name": "preparedBy",
+            "type": "publicKey"
+          },
+          {
+            "name": "fillType",
+            "type": {
+              "defined": "FillType"
+            }
+          },
+          {
+            "name": "sourceChain",
+            "type": "u16"
+          },
+          {
+            "name": "orderSender",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "redeemer",
+            "type": "publicKey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PreparedOrderInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "preparedCustodyTokenBump",
+            "type": "u8"
+          },
+          {
+            "name": "orderSender",
+            "type": "publicKey"
+          },
+          {
+            "name": "preparedBy",
+            "type": "publicKey"
+          },
+          {
+            "name": "orderType",
+            "type": {
+              "defined": "OrderType"
+            }
+          },
+          {
+            "name": "srcToken",
+            "type": "publicKey"
+          },
+          {
+            "name": "refundToken",
+            "type": "publicKey"
+          },
+          {
+            "name": "targetChain",
+            "type": "u16"
+          },
+          {
+            "name": "redeemer",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "FillType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Unset"
+          },
+          {
+            "name": "WormholeCctpDeposit"
+          },
+          {
+            "name": "FastFill"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OrderType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Market",
+            "fields": [
+              {
+                "name": "minAmountOut",
+                "type": {
+                  "option": "u64"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6002,
+      "name": "OwnerOnly",
+      "msg": "OwnerOnly"
+    },
+    {
+      "code": 6004,
+      "name": "OwnerOrAssistantOnly",
+      "msg": "OwnerOrAssistantOnly"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidCustodyToken",
+      "msg": "InvalidCustodyToken"
+    },
+    {
+      "code": 6008,
+      "name": "CpiDisallowed",
+      "msg": "CpiDisallowed"
+    },
+    {
+      "code": 6016,
+      "name": "UpgradeManagerRequired",
+      "msg": "UpgradeManagerRequired"
+    },
+    {
+      "code": 6032,
+      "name": "AssistantZeroPubkey",
+      "msg": "AssistantZeroPubkey"
+    },
+    {
+      "code": 6033,
+      "name": "ImmutableProgram",
+      "msg": "ImmutableProgram"
+    },
+    {
+      "code": 6034,
+      "name": "InvalidNewOwner",
+      "msg": "InvalidNewOwner"
+    },
+    {
+      "code": 6035,
+      "name": "NotUsdc",
+      "msg": "NotUsdc"
+    },
+    {
+      "code": 6036,
+      "name": "AlreadyOwner",
+      "msg": "AlreadyOwner"
+    },
+    {
+      "code": 6038,
+      "name": "NoTransferOwnershipRequest",
+      "msg": "NoTransferOwnershipRequest"
+    },
+    {
+      "code": 6040,
+      "name": "InvalidNewAssistant",
+      "msg": "InvalidNewAssistant"
+    },
+    {
+      "code": 6042,
+      "name": "NotPendingOwner",
+      "msg": "NotPendingOwner"
+    },
+    {
+      "code": 6064,
+      "name": "ChainNotAllowed",
+      "msg": "ChainNotAllowed"
+    },
+    {
+      "code": 6066,
+      "name": "InvalidEndpoint",
+      "msg": "InvalidEndpoint"
+    },
+    {
+      "code": 6067,
+      "name": "InvalidMintRecipient",
+      "msg": "InvalidMintRecipient"
+    },
+    {
+      "code": 6068,
+      "name": "CctpRemoteTokenMessengerRequired",
+      "msg": "CctpRemoteTokenMessengerRequired"
+    },
+    {
+      "code": 6070,
+      "name": "InvalidCctpEndpoint",
+      "msg": "InvalidCctpEndpoint"
+    },
+    {
+      "code": 6128,
+      "name": "Paused",
+      "msg": "Paused"
+    },
+    {
+      "code": 6256,
+      "name": "InsufficientAmount",
+      "msg": "InsufficientAmount"
+    },
+    {
+      "code": 6258,
+      "name": "MinAmountOutTooHigh",
+      "msg": "MinAmountOutTooHigh"
+    },
+    {
+      "code": 6288,
+      "name": "PreparedByMismatch",
+      "msg": "PreparedByMismatch"
+    },
+    {
+      "code": 6290,
+      "name": "OrderSenderMismatch",
+      "msg": "OrderSenderMismatch"
+    },
+    {
+      "code": 6292,
+      "name": "RefundTokenMismatch",
+      "msg": "RefundTokenMismatch"
+    },
+    {
+      "code": 6294,
+      "name": "PayerNotPreparer",
+      "msg": "PayerNotPreparer"
+    },
+    {
+      "code": 6512,
+      "name": "InvalidSourceRouter",
+      "msg": "InvalidSourceRouter"
+    },
+    {
+      "code": 6513,
+      "name": "InvalidVaa",
+      "msg": "InvalidVaa"
+    },
+    {
+      "code": 6514,
+      "name": "InvalidDepositMessage",
+      "msg": "InvalidDepositMessage"
+    },
+    {
+      "code": 6516,
+      "name": "InvalidPayloadId",
+      "msg": "InvalidPayloadId"
+    },
+    {
+      "code": 6518,
+      "name": "InvalidRedeemer",
+      "msg": "InvalidRedeemer"
+    },
+    {
+      "code": 6544,
+      "name": "RedeemerMismatch",
+      "msg": "RedeemerMismatch"
+    }
+  ],
+  "metadata": {
+    "address": "TokenRouter11111111111111111111111111111111"
+  }
+}
