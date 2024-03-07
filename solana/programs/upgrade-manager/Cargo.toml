@@ -1,0 +1,38 @@
+[package]
+name = "upgrade-manager"
+description = "Example Liquidity Layer Upgrade Manager"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+default = ["no-idl"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+testnet = ["common/testnet", "matching-engine/testnet", "token-router/testnet"]
+localnet = ["common/localnet", "matching-engine/localnet", "token-router/localnet"]
+integration-test = ["localnet"]
+
+[dependencies]
+common.workspace = true
+wormhole-solana-utils.workspace = true
+
+matching-engine = { workspace = true, features = ["cpi"] }
+token-router = { workspace = true, features = ["cpi"] }
+
+anchor-lang = { workspace = true, features = ["derive"] }
+solana-program.workspace = true
+
+hex.workspace = true
+cfg-if.workspace = true
+
+[dev-dependencies]
+hex-literal.workspace = true

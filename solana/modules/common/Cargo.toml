@@ -1,0 +1,30 @@
+[package]
+name = "liquidity-layer-common-solana"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[features]
+testnet = ["wormhole-solana-consts/testnet", "wormhole-cctp-solana/testnet"]
+localnet = ["wormhole-solana-consts/testnet", "wormhole-cctp-solana/testnet"]
+
+[dependencies]
+wormhole-cctp-solana = { workspace = true, features = ["cpi"] }
+wormhole-io.workspace = true
+wormhole-raw-vaas.workspace = true
+
+wormhole-solana-consts.workspace = true
+
+anchor-lang.workspace = true
+solana-program.workspace = true
+cfg-if.workspace = true
+
+ruint.workspace = true
+
+[dev-dependencies]
+hex-literal.workspace = true

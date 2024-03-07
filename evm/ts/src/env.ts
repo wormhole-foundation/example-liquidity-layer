@@ -15,9 +15,11 @@ export type LiquidityLayerEnv = {
     tokenMessengerAddress: string;
     ownerAssistantAddress: string;
     tokenRouterAddress: string;
+    tokenRouterMintRecipient?: string;
     feeRecipient?: string;
     matchingEngineChain: string;
     matchingEngineAddress: string;
+    matchingEngineMintRecipient: string;
     matchingEngineDomain?: string;
 };
 
@@ -38,13 +40,19 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
         "TOKEN_MESSENGER_ADDRESS",
         "OWNER_ASSISTANT_ADDRESS",
         "TOKEN_ROUTER_ADDRESS",
+        "TOKEN_ROUTER_MINT_RECIPIENT",
         "FEE_RECIPIENT_ADDRESS",
         "MATCHING_ENGINE_CHAIN",
         "MATCHING_ENGINE_ADDRESS",
+        "MATCHING_ENGINE_MINT_RECIPIENT",
         "MATCHING_ENGINE_DOMAIN",
     ];
     for (const key of keys) {
-        if (!contents[key] && key != "FEE_RECIPIENT_ADDRESS") {
+        if (
+            !contents[key] &&
+            key != "FEE_RECIPIENT_ADDRESS" &&
+            key != "TOKEN_ROUTER_MINT_RECIPIENT"
+        ) {
             throw new Error(`no ${key}`);
         }
     }
@@ -58,9 +66,11 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
         tokenMessengerAddress: contents.TOKEN_MESSENGER_ADDRESS,
         ownerAssistantAddress: contents.OWNER_ASSISTANT_ADDRESS,
         tokenRouterAddress: contents.TOKEN_ROUTER_ADDRESS,
+        tokenRouterMintRecipient: contents.TOKEN_ROUTER_MINT_RECIPIENT,
         feeRecipient: contents.FEE_RECIPIENT_ADDRESS,
         matchingEngineChain: contents.MATCHING_ENGINE_CHAIN,
         matchingEngineAddress: contents.MATCHING_ENGINE_ADDRESS,
+        matchingEngineMintRecipient: contents.MATCHING_ENGINE_MINT_RECIPIENT,
         matchingEngineDomain: contents.MATCHING_ENGINE_DOMAIN,
     };
 }

@@ -1,6 +1,6 @@
 import { ChainId } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
-import { LiveAuctionData, MatchingEngine, RedeemParameters } from ".";
+import { RouterEndpoint, LiveAuctionData, MatchingEngine, RedeemParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {
     IMatchingEngine,
@@ -51,8 +51,12 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         return new EvmMatchingEngine(connection, this.address, this.circle.address);
     }
 
-    async addRouterEndpoint(chain: number, router: string): Promise<ethers.ContractTransaction> {
-        return this.contract.addRouterEndpoint(chain, router);
+    async addRouterEndpoint(
+        chain: number,
+        endpoint: RouterEndpoint,
+        domain: number
+    ): Promise<ethers.ContractTransaction> {
+        return this.contract.addRouterEndpoint(chain, endpoint, domain);
     }
 
     async placeInitialBid(
@@ -90,7 +94,7 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         if (auctionId !== undefined) {
             return this.contract["calculateDynamicPenalty(bytes32)"](auctionId);
         } else if (amount !== undefined && blocksElapsed !== undefined) {
-            return this.contract["calculateDynamicPenalty(uint128,uint128)"](amount, blocksElapsed);
+            return this.contract["calculateDynamicPenalty(uint64,uint64)"](amount, blocksElapsed);
         } else {
             throw new Error("Invalid arguments");
         }

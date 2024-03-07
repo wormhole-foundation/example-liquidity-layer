@@ -23,6 +23,7 @@ contract TokenRouterImplementation is TokenRouterAdmin, PlaceMarketOrder, Redeem
         address cctpTokenMessenger_,
         uint16 matchingEngineChain_,
         bytes32 matchingEngineAddress_,
+        bytes32 matchingEngineMintRecipient_,
         uint32 matchingEngineDomain_
     )
         State(
@@ -31,6 +32,7 @@ contract TokenRouterImplementation is TokenRouterAdmin, PlaceMarketOrder, Redeem
             cctpTokenMessenger_,
             matchingEngineChain_,
             matchingEngineAddress_,
+            matchingEngineMintRecipient_,
             matchingEngineDomain_
         )
     {}

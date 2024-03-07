@@ -25,7 +25,9 @@ contract DeployTokenRouterContracts is CheckWormholeContracts, Script {
     address immutable _wormhole = vm.envAddress("RELEASE_WORMHOLE_ADDRESS");
     address immutable _cctpTokenMessenger = vm.envAddress("RELEASE_TOKEN_MESSENGER_ADDRESS");
     address immutable _ownerAssistantAddress = vm.envAddress("RELEASE_OWNER_ASSISTANT_ADDRESS");
-    address immutable _matchingEngineAddress = vm.envAddress("RELEASE_MATCHING_ENGINE_ADDRESS");
+    bytes32 immutable _matchingEngineAddress = vm.envBytes32("RELEASE_MATCHING_ENGINE_ADDRESS");
+    bytes32 immutable _matchingEngineMintRecipient =
+        vm.envBytes32("RELEASE_MATCHING_ENGINE_MINT_RECIPIENT");
     uint16 immutable _matchingEngineChain = uint16(vm.envUint("RELEASE_MATCHING_ENGINE_CHAIN"));
     uint32 immutable _matchingEngineDomain = uint32(vm.envUint("RELEASE_MATCHING_ENGINE_DOMAIN"));
 
@@ -37,7 +39,8 @@ contract DeployTokenRouterContracts is CheckWormholeContracts, Script {
             _wormhole,
             _cctpTokenMessenger,
             _matchingEngineChain,
-            _matchingEngineAddress.toUniversalAddress(),
+            _matchingEngineAddress,
+            _matchingEngineMintRecipient,
             _matchingEngineDomain
         );
 

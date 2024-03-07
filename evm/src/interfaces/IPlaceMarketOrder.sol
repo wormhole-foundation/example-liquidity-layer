@@ -19,7 +19,10 @@ interface IPlaceMarketOrder {
      * parameter is currently unused, but is available to future proof
      * the contract.
      * @return sequence The sequence number of the `Fill` Wormhole message.
-     * @return cctpNonce The sequence of the CCTP message.
+     * @return protocolSequence The sequence returned by the bridge contract. For
+     * CCTP-enabled chains, this value is the sequence of the CCTP message. For
+     * non-CCTP enabled chains, this value is the sequence of the Token Bridge
+     * message.
      * @dev Currently, the `minAmountOut` and `refundAddress` parameters
      * are unused, but are available to future proof the contract. Eventually,
      * the `MatchingEngine` contract will faciliate transfers of cononical
@@ -30,13 +33,13 @@ interface IPlaceMarketOrder {
      * amount returned by `messageFee()` on the IWormhole.sol interface.
      */
     function placeMarketOrder(
-        uint128 amountIn,
-        uint128 minAmountOut,
+        uint64 amountIn,
+        uint64 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress
-    ) external payable returns (uint64 sequence, uint64 cctpNonce);
+    ) external payable returns (uint64 sequence, uint256 protocolSequence);
 
     /**
      * @notice Place an "order" to transfer USDC to a CCTP-enabled blockchain.
@@ -47,7 +50,10 @@ interface IPlaceMarketOrder {
      * @param redeemer The address of the redeeming contract on the target chain.
      * @param redeemerMessage Arbitrary payload to be sent to the `redeemer`.
      * @return sequence The sequence number of the `Fill` Wormhole message.
-     * @return cctpNonce The sequence of the CCTP message.
+     * @return protocolSequence The sequence returned by the bridge contract. For
+     * CCTP-enabled chains, this value is the sequence of the CCTP message. For
+     * non-CCTP enabled chains, this value is the sequence of the Token Bridge
+     * message.
      * @dev This interface is for CCTP-enabled chains only. If you plan to
      * support non-CCTP enabled chains in the future, use the other `placeMarketOrder`
      * interface which includes a `minAmountOut` and `refundAddress` parameter.
@@ -56,11 +62,11 @@ interface IPlaceMarketOrder {
      * amount returned by `messageFee()` on the IWormhole.sol interface.
      */
     function placeMarketOrder(
-        uint128 amountIn,
+        uint64 amountIn,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage
-    ) external payable returns (uint64 sequence, uint64 cctpNonce);
+    ) external payable returns (uint64 sequence, uint256 protocolSequence);
 
     /**
      * @notice Place a "fast order" to transfer USDC to another blockchain.
@@ -86,7 +92,10 @@ interface IPlaceMarketOrder {
      * different blockchains. Set this value to 0 to opt out of using a deadline.
      * @return sequence The sequence number of the `SlowOrderResponse` Wormhole message.
      * @return fastSequence The sequence number of the `FastMarketOrder` Wormhole message.
-     * @return cctpNonce The sequence of the CCTP message.
+     * @return protocolSequence The sequence returned by the bridge contract. For
+     * CCTP-enabled chains, this value is the sequence of the CCTP message. For
+     * non-CCTP enabled chains, this value is the sequence of the Token Bridge
+     * message.
      * @dev Currently, the `minAmountOut` and `refundAddress` parameters
      * are unused, but are available to future proof the contract. Eventually,
      * the `MatchingEngine` contract will faciliate transfers of cononical
@@ -98,15 +107,15 @@ interface IPlaceMarketOrder {
      *
      */
     function placeFastMarketOrder(
-        uint128 amountIn,
-        uint128 minAmountOut,
+        uint64 amountIn,
+        uint64 minAmountOut,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
         address refundAddress,
-        uint128 maxFee,
+        uint64 maxFee,
         uint32 deadline
-    ) external payable returns (uint64 sequence, uint64 fastSequence, uint64 cctpNonce);
+    ) external payable returns (uint64 sequence, uint64 fastSequence, uint256 protocolSequence);
 
     /**
      * @notice Place a "fast order" to transfer USDC to another blockchain.
@@ -128,7 +137,10 @@ interface IPlaceMarketOrder {
      * different blockchains. Set this value to 0 to opt out of using a deadline.
      * @return sequence The sequence number of the `SlowOrderResponse` Wormhole message.
      * @return fastSequence The sequence number of the `FastMarketOrder` Wormhole message.
-     * @return cctpNonce The sequence of the CCTP message.
+     * @return protocolSequence The sequence returned by the bridge contract. For
+     * CCTP-enabled chains, this value is the sequence of the CCTP message. For
+     * non-CCTP enabled chains, this value is the sequence of the Token Bridge
+     * message.
      * @dev This interface is for CCTP-enabled chains only. If you plan to
      * support non-CCTP enabled chains in the future, use the other `placeMarketOrder`
      * interface which includes a `minAmountOut` and `refundAddress` parameter.
@@ -137,11 +149,11 @@ interface IPlaceMarketOrder {
      * times the amount returned by `messageFee()` on the IWormhole.sol interface.
      */
     function placeFastMarketOrder(
-        uint128 amountIn,
+        uint64 amountIn,
         uint16 targetChain,
         bytes32 redeemer,
         bytes calldata redeemerMessage,
-        uint128 maxFee,
+        uint64 maxFee,
         uint32 deadline
-    ) external payable returns (uint64 sequence, uint64 fastSequence, uint64 cctpNonce);
+    ) external payable returns (uint64 sequence, uint64 fastSequence, uint256 protocolSequence);
 }

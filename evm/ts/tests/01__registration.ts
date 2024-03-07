@@ -1,4 +1,9 @@
-import { coalesceChainId, tryNativeToUint8Array } from "@certusone/wormhole-sdk";
+import {
+    CHAIN_ID_AVAX,
+    coalesceChainId,
+    tryHexToNativeAssetString,
+    tryNativeToUint8Array,
+} from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
 import { ITokenRouter__factory, IMatchingEngine__factory } from "../src/types";
 import {
@@ -10,7 +15,7 @@ import {
 } from "./helpers";
 import { expect } from "chai";
 
-import { parseLiquidityLayerEnvFile } from "../src";
+import { parseLiquidityLayerEnvFile, ChainType, LiquidityLayerEnv } from "../src";
 
 const CHAIN_PATHWAYS: ValidNetwork[] = ["ethereum", "avalanche", "arbitrum"];
 
@@ -23,18 +28,28 @@ describe("Registration", () => {
             LOCALHOSTS[MATCHING_ENGINE_NAME]
         );
         const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
-        const engine = IMatchingEngine__factory.connect(env.matchingEngineAddress, assistant);
+        const engine = IMatchingEngine__factory.connect(
+            tryHexToNativeAssetString(env.matchingEngineAddress, CHAIN_ID_AVAX),
+            assistant
+        );
 
         for (const chainName of CHAIN_PATHWAYS) {
             it(`Register ${chainName}`, async () => {
                 const targetEnv = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
-                const formattedAddress = tryNativeToUint8Array(
-                    targetEnv.tokenRouterAddress,
+                const [formattedAddress, mintRecipient] = fetchTokenRouterEndpoint(
+                    targetEnv,
                     chainName
                 );
                 const targetChainId = coalesceChainId(chainName);
                 await engine
-                    .addRouterEndpoint(targetChainId, formattedAddress)
+                    .addRouterEndpoint(
+                        targetChainId,
+                        {
+                            router: formattedAddress,
+                            mintRecipient,
+                        },
+                        targetEnv.domain
+                    )
                     .then((tx) => mineWait(provider, tx));
 
                 const registeredAddress = await engine.getRouter(targetChainId);
@@ -59,13 +74,17 @@ describe("Registration", () => {
 
                 it(`Register ${targetChain}`, async () => {
                     const targetEnv = parseLiquidityLayerEnvFile(`${envPath}/${targetChain}.env`);
-                    const formattedAddress = tryNativeToUint8Array(
-                        targetEnv.tokenRouterAddress,
-                        targetChain
+                    const [formattedAddress, mintRecipient] = fetchTokenRouterEndpoint(
+                        targetEnv,
+                        chainName
                     );
                     const targetChainId = coalesceChainId(targetChain);
                     await router
-                        .addRouterEndpoint(targetChainId, formattedAddress, targetEnv.domain)
+                        .addRouterEndpoint(
+                            targetChainId,
+                            { router: formattedAddress, mintRecipient },
+                            targetEnv.domain
+                        )
                         .then((tx) => mineWait(provider, tx));
 
                     const registeredAddress = await router.getRouter(targetChainId);
@@ -77,3 +96,24 @@ describe("Registration", () => {
         });
     }
 });
+
+function fetchTokenRouterEndpoint(
+    targetEnv: LiquidityLayerEnv,
+    chainName: ValidNetwork
+): [Uint8Array, Uint8Array] {
+    const formattedAddress = tryNativeToUint8Array(targetEnv.tokenRouterAddress, chainName);
+    let formattedMintRecipient;
+    if (targetEnv.chainType === ChainType.Evm) {
+        formattedMintRecipient = formattedAddress;
+    } else {
+        if (targetEnv.tokenRouterMintRecipient === undefined) {
+            throw new Error("no token router mint recipient specified");
+        } else {
+            formattedMintRecipient = tryNativeToUint8Array(
+                targetEnv.tokenRouterMintRecipient,
+                chainName
+            );
+        }
+    }
+    return [formattedAddress, formattedMintRecipient];
+}

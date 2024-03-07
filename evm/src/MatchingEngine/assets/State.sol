@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {IMatchingEngineState} from "../../interfaces/IMatchingEngineState.sol";
+import {RouterEndpoint} from "../../interfaces/IMatchingEngineTypes.sol";
 
 import "./Errors.sol";
 
@@ -13,7 +14,8 @@ import {
     LiveAuctionData,
     AuctionStatus,
     getFastFillsState,
-    getFeeRecipientState
+    getFeeRecipientState,
+    getCircleDomainsState
 } from "./Storage.sol";
 
 import {WormholeCctpTokenMessenger} from "../../shared/WormholeCctpTokenMessenger.sol";
@@ -84,55 +86,70 @@ abstract contract State is IMatchingEngineState, WormholeCctpTokenMessenger {
     function calculateDynamicPenalty(bytes32 auctionId)
         external
         view
-        returns (uint128 penalty, uint128 userReward)
+        returns (uint64 penalty, uint64 userReward)
     {
         LiveAuctionData memory auction = getLiveAuctionInfo().auctions[auctionId];
         return calculateDynamicPenalty(
-            auction.securityDeposit, uint128(block.number) - auction.startBlock
+            auction.securityDeposit, uint64(block.number) - auction.startBlock
         );
     }
 
     /// @inheritdoc IMatchingEngineState
-    function calculateDynamicPenalty(uint128 amount, uint128 blocksElapsed)
+    function calculateDynamicPenalty(uint64 amount, uint64 blocksElapsed)
         public
         view
-        returns (uint128, uint128)
+        returns (uint64, uint64)
     {
         if (blocksElapsed <= _auctionGracePeriod) {
             return (0, 0);
         }
 
-        uint128 penaltyPeriod = blocksElapsed - _auctionGracePeriod;
+        uint64 penaltyPeriod = blocksElapsed - _auctionGracePeriod;
         if (penaltyPeriod >= _auctionPenaltyBlocks || _initialPenaltyBps == MAX_BPS_FEE) {
-            uint128 userReward = amount * _userPenaltyRewardBps / MAX_BPS_FEE;
+            uint64 userReward = amount * _userPenaltyRewardBps / MAX_BPS_FEE;
             return (amount - userReward, userReward);
         } else {
-            uint128 basePenalty = amount * _initialPenaltyBps / MAX_BPS_FEE;
-            uint128 penalty =
+            uint64 basePenalty = amount * _initialPenaltyBps / MAX_BPS_FEE;
+            uint64 penalty =
                 basePenalty + ((amount - basePenalty) * penaltyPeriod / _auctionPenaltyBlocks);
-            uint128 userReward = penalty * _userPenaltyRewardBps / MAX_BPS_FEE;
+            uint64 userReward = penalty * _userPenaltyRewardBps / MAX_BPS_FEE;
 
             return (penalty - userReward, userReward);
         }
     }
 
     /// @inheritdoc IMatchingEngineState
-    function getDeployer() external view returns (address) {
+    function getDeployer() public view returns (address) {
         return _deployer;
     }
 
     /// @inheritdoc IMatchingEngineState
     function getRouter(uint16 chain) public view returns (bytes32) {
+        return getRouterEndpointState().endpoints[chain].router;
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function getMintRecipient(uint16 chain) public view returns (bytes32) {
+        return getRouterEndpointState().endpoints[chain].mintRecipient;
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function getRouterEndpoint(uint16 chain) public view returns (RouterEndpoint memory) {
         return getRouterEndpointState().endpoints[chain];
     }
 
     /// @inheritdoc IMatchingEngineState
-    function wormhole() external view returns (IWormhole) {
+    function getDomain(uint16 chain) public view returns (uint32) {
+        return getCircleDomainsState().domains[chain];
+    }
+
+    /// @inheritdoc IMatchingEngineState
+    function wormhole() public view returns (IWormhole) {
         return _wormhole;
     }
 
     /// @inheritdoc IMatchingEngineState
-    function wormholeChainId() external view returns (uint16) {
+    function wormholeChainId() public view returns (uint16) {
         return _chainId;
     }
 
@@ -142,7 +159,7 @@ abstract contract State is IMatchingEngineState, WormholeCctpTokenMessenger {
     }
 
     /// @inheritdoc IMatchingEngineState
-    function token() external view returns (IERC20) {
+    function token() public view returns (IERC20) {
         return _token;
     }
 
@@ -175,8 +192,8 @@ abstract contract State is IMatchingEngineState, WormholeCctpTokenMessenger {
     }
 
     /// @inheritdoc IMatchingEngineState
-    function getAuctionBlocksElapsed(bytes32 auctionId) public view returns (uint128) {
-        return uint128(block.number) - getLiveAuctionInfo().auctions[auctionId].startBlock;
+    function getAuctionBlocksElapsed(bytes32 auctionId) public view returns (uint64) {
+        return uint64(block.number) - getLiveAuctionInfo().auctions[auctionId].startBlock;
     }
 
     /// @inheritdoc IMatchingEngineState
@@ -195,12 +212,12 @@ abstract contract State is IMatchingEngineState, WormholeCctpTokenMessenger {
     }
 
     /// @inheritdoc IMatchingEngineState
-    function getAuctionAmount(bytes32 auctionId) public view returns (uint128) {
+    function getAuctionAmount(bytes32 auctionId) public view returns (uint64) {
         return getLiveAuctionInfo().auctions[auctionId].amount;
     }
 
     /// @inheritdoc IMatchingEngineState
-    function getSecurityDeposit(bytes32 auctionId) public view returns (uint128) {
+    function getSecurityDeposit(bytes32 auctionId) public view returns (uint64) {
         return getLiveAuctionInfo().auctions[auctionId].securityDeposit;
     }
 

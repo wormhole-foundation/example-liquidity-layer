@@ -13,11 +13,12 @@ import {
     FastTransferParameters
 } from "./Storage.sol";
 
+import {Endpoint} from "../../interfaces/ITokenRouterTypes.sol";
 import {ITokenRouterAdmin} from "../../interfaces/ITokenRouterAdmin.sol";
 
 abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
     /// @inheritdoc ITokenRouterAdmin
-    function addRouterEndpoint(uint16 chain, bytes32 router, uint32 circleDomain)
+    function addRouterEndpoint(uint16 chain, Endpoint memory endpoint, uint32 circleDomain)
         external
         onlyOwnerOrAssistant
     {
@@ -25,11 +26,11 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
             revert ErrChainNotAllowed(chain);
         }
 
-        if (router == bytes32(0)) {
+        if (endpoint.router == bytes32(0) || endpoint.mintRecipient == bytes32(0)) {
             revert ErrInvalidEndpoint(bytes32(0));
         }
 
-        getRouterEndpointState().endpoints[chain] = router;
+        getRouterEndpointState().endpoints[chain] = endpoint;
         getCircleDomainsState().domains[chain] = circleDomain;
     }
 

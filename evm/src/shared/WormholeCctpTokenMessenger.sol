@@ -39,6 +39,11 @@ abstract contract WormholeCctpTokenMessenger {
     error CctpVaaMismatch(uint32, uint32, uint64);
 
     /**
+     * @dev The emitter of the VAA must match the expected emitter.
+     */
+    error UnexpectedEmitter(bytes32, bytes32);
+
+    /**
      * @dev Wormhole message finality. This value indicates a "finalized" consistency level, where
      * finalized means the transaction where this message (event) lives will not be rolled back.
      */
@@ -139,8 +144,9 @@ abstract contract WormholeCctpTokenMessenger {
     /**
      * @dev Method to verify and reconcile CCTP and Wormhole messages in order to mint tokens for
      * the encoded mint recipient. This method will revert with custom errors.
-     * NOTE: This method requires the caller to be the mint recipient. The caller is NOT the
-     * contract inheriting this abstract to use this internal method, but is msg.sender.
+     * NOTE: This method does not require the caller to be the mint recipient. If your contract
+     * requires that the mint recipient is the caller, you should add a check after calling this
+     * method to see if msg.sender.toUniversalAddress() == mintRecipient.
      */
     function verifyVaaAndMint(
         bytes calldata encodedCctpMessage,
@@ -194,8 +200,9 @@ abstract contract WormholeCctpTokenMessenger {
      * @dev PLEASE USE `verifyVaaAndMint` INSTEAD. Method to verify and reconcile CCTP and Wormhole
      * messages in order to mint tokens for the encoded mint recipient. This method will revert with
      * Solidity's built-in Error(string).
-     * NOTE: This method requires the caller to be the mint recipient. The caller is NOT the
-     * contract inheriting this abstract to use this internal method, but is msg.sender.
+     * NOTE: This method does not require the caller to be the mint recipient. If your contract
+     * requires that the mint recipient is the caller, you should add a check after calling this
+     * method to see if msg.sender.toUniversalAddress() == mintRecipient.
      */
     function verifyVaaAndMintLegacy(
         bytes calldata encodedCctpMessage,
@@ -257,6 +264,30 @@ abstract contract WormholeCctpTokenMessenger {
         localToken = _tokenMinter.remoteTokensToLocalTokens(
             keccak256(abi.encodePacked(remoteDomain, remoteToken))
         ).toUniversalAddress();
+    }
+
+    /**
+     * @dev We encourage an integrator to use this method to make sure the VAA is emitted from one
+     * that his contract trusts. Usually foreign emitters are stored in a mapping keyed off by
+     * Wormhole Chain ID (uint16).
+     *
+     * NOTE: Reverts with `UnexpectedEmitter(bytes32, bytes32)`.
+     */
+    function requireEmitter(IWormhole.VM memory vaa, bytes32 expectedEmitter) internal pure {
+        if (expectedEmitter != 0 && vaa.emitterAddress != expectedEmitter) {
+            revert UnexpectedEmitter(vaa.emitterAddress, expectedEmitter);
+        }
+    }
+
+    /**
+     * @dev We encourage an integrator to use this method to make sure the VAA is emitted from one
+     * that his contract trusts. Usually foreign emitters are stored in a mapping keyed off by
+     * Wormhole Chain ID (uint16).
+     *
+     * NOTE: Reverts with built-in Error(string).
+     */
+    function requireEmitterLegacy(IWormhole.VM memory vaa, bytes32 expectedEmitter) internal pure {
+        require(expectedEmitter != 0 && vaa.emitterAddress == expectedEmitter, "unknown emitter");
     }
 
     // private

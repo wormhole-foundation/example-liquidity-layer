@@ -1,0 +1,60 @@
+[workspace]
+members = [
+    "modules/*",
+    "programs/*"
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+version = "0.0.0"
+authors = ["Wormhole Contributors"]
+license = "Apache-2.0"
+homepage = "https://wormhole.com"
+repository = "https://github.com/wormhole-foundation/example-liquidity-layer"
+
+[workspace.dependencies.common]
+package = "liquidity-layer-common-solana"
+path = "modules/common"
+
+[workspace.dependencies.matching-engine]
+path = "programs/matching-engine"
+
+[workspace.dependencies.token-router]
+path = "programs/token-router"
+
+[workspace.dependencies.wormhole-cctp-solana]
+version = "0.1.0-alpha.6"
+default-features = false
+
+[workspace.dependencies.wormhole-solana-utils]
+version = "0.2.0-alpha.15"
+features = ["anchor"]
+
+[workspace.dependencies.wormhole-solana-vaas]
+version = "0.2.0-alpha.11"
+features = ["anchor"]
+
+[workspace.dependencies.wormhole-raw-vaas]
+version = "0.2.0-alpha.2"
+
+[workspace.dependencies]
+wormhole-io = "0.1.2"
+wormhole-solana-consts = "0.2.0-alpha.11"
+anchor-lang = "0.29.0"
+anchor-spl = "0.29.0"
+solana-program = "1.17.20"
+hex = "0.4.3"
+ruint = "1.9.0"
+cfg-if = "1.0"
+hex-literal = "0.4.1"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+
+[profile.release.build-override]
+opt-level = 3
+incremental = false
+codegen-units = 1

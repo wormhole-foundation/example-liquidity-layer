@@ -19,6 +19,7 @@ contract MockTokenRouterImplementation is TokenRouterImplementation {
         address _cctpTokenMessenger,
         uint16 _matchingEngineChain,
         bytes32 _matchingEngineAddress,
+        bytes32 _matchingEngineMintRecipient,
         uint32 _matchingEngineDomain
     )
         TokenRouterImplementation(
@@ -27,6 +28,7 @@ contract MockTokenRouterImplementation is TokenRouterImplementation {
             _cctpTokenMessenger,
             _matchingEngineChain,
             _matchingEngineAddress,
+            _matchingEngineMintRecipient,
             _matchingEngineDomain
         )
     {}

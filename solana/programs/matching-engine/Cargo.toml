@@ -1,0 +1,37 @@
+[package]
+name = "matching-engine"
+description = "Example Matching Engine Program"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+default = ["no-idl"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+testnet = ["common/testnet"]
+localnet = ["common/localnet"]
+integration-test = ["localnet"]
+
+[dependencies]
+common.workspace = true
+wormhole-solana-utils.workspace = true
+
+anchor-lang = { workspace = true, features = ["derive", "init-if-needed"] }
+anchor-spl.workspace = true
+solana-program.workspace = true
+
+hex.workspace = true
+ruint.workspace = true
+cfg-if.workspace = true
+
+[dev-dependencies]
+hex-literal.workspace = true

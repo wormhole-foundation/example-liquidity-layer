@@ -16,9 +16,14 @@ struct FeeRecipient {
     address recipient;
 }
 
+struct RouterEndpoint {
+    bytes32 router;
+    bytes32 mintRecipient;
+}
+
 struct RouterEndpoints {
     // Mapping of chain ID to router address in Wormhole universal format.
-    mapping(uint16 chain => bytes32 endpoint) endpoints;
+    mapping(uint16 chain => RouterEndpoint endpoint) endpoints;
 }
 
 enum AuctionStatus {
@@ -35,13 +40,13 @@ struct LiveAuctionData {
     // The initial bidder of the auction.
     address initialBidder;
     // The block number at which the auction started.
-    uint128 startBlock;
+    uint64 startBlock;
     // The amount of tokens to be sent to the user.
-    uint128 amount;
+    uint64 amount;
     // The additional deposit made by the highest bidder.
-    uint128 securityDeposit;
+    uint64 securityDeposit;
     // The bid price of the highest bidder.
-    uint128 bidPrice;
+    uint64 bidPrice;
 }
 
 struct LiveAuctionInfo {
@@ -52,4 +57,9 @@ struct LiveAuctionInfo {
 struct FastFills {
     // Mapping of VAA hash to redemption status.
     mapping(bytes32 vaaHash => bool redeemed) redeemed;
+}
+
+struct CircleDomains {
+    // Mapping of chain ID to Circle domain.
+    mapping(uint16 chain => uint32 domain) domains;
 }

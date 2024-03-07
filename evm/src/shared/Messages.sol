@@ -7,11 +7,12 @@ import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
 library Messages {
     using BytesParsing for bytes;
 
-    // Payload IDs. Payload IDs 1-10 are reserved for CCTP deposit messages.
-    uint8 private constant FILL = 11;
+    // Payload IDs. Payloads IDs 1-10 are reserved for messages that are
+    // paired with a CCTP transfeer.
+    uint8 private constant FILL = 1;
+    uint8 private constant SLOW_ORDER_RESPONSE = 2;
+    uint8 private constant FAST_MARKET_ORDER = 11;
     uint8 private constant FAST_FILL = 12;
-    uint8 private constant FAST_MARKET_ORDER = 13;
-    uint8 private constant SLOW_ORDER_RESPONSE = 14;
 
     // VAA fields.
     uint256 private constant SIG_COUNT_OFFSET = 5;
@@ -29,26 +30,25 @@ library Messages {
     }
 
     struct FastFill {
+        uint64 fillAmount;
         Fill fill;
-        uint128 fillAmount;
     }
 
     struct FastMarketOrder {
-        uint128 amountIn;
-        uint128 minAmountOut;
+        uint64 amountIn;
+        uint64 minAmountOut;
         uint16 targetChain;
-        uint32 targetDomain;
         bytes32 redeemer;
         bytes32 sender;
         bytes32 refundAddress;
-        uint128 maxFee;
-        uint128 initAuctionFee;
+        uint64 maxFee;
+        uint64 initAuctionFee;
         uint32 deadline;
         bytes redeemerMessage;
     }
 
     struct SlowOrderResponse {
-        uint128 baseFee;
+        uint64 baseFee;
     }
 
     function encode(Fill memory fill) internal pure returns (bytes memory encoded) {
@@ -78,7 +78,6 @@ library Messages {
             order.amountIn,
             order.minAmountOut,
             order.targetChain,
-            order.targetDomain,
             order.redeemer,
             order.sender,
             order.refundAddress,
@@ -97,15 +96,14 @@ library Messages {
         uint256 offset = _checkPayloadId(encoded, 0, FAST_MARKET_ORDER);
 
         // Parse the encoded message.
-        (order.amountIn, offset) = encoded.asUint128Unchecked(offset);
-        (order.minAmountOut, offset) = encoded.asUint128Unchecked(offset);
+        (order.amountIn, offset) = encoded.asUint64Unchecked(offset);
+        (order.minAmountOut, offset) = encoded.asUint64Unchecked(offset);
         (order.targetChain, offset) = encoded.asUint16Unchecked(offset);
-        (order.targetDomain, offset) = encoded.asUint32Unchecked(offset);
         (order.redeemer, offset) = encoded.asBytes32Unchecked(offset);
         (order.sender, offset) = encoded.asBytes32Unchecked(offset);
         (order.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
-        (order.maxFee, offset) = encoded.asUint128Unchecked(offset);
-        (order.initAuctionFee, offset) = encoded.asUint128Unchecked(offset);
+        (order.maxFee, offset) = encoded.asUint64Unchecked(offset);
+        (order.initAuctionFee, offset) = encoded.asUint64Unchecked(offset);
         (order.deadline, offset) = encoded.asUint32Unchecked(offset);
         (order.redeemerMessage, offset) = _decodeBytes(encoded, offset);
 
@@ -115,11 +113,11 @@ library Messages {
     function encode(FastFill memory fastFill) internal pure returns (bytes memory encoded) {
         encoded = abi.encodePacked(
             FAST_FILL,
+            fastFill.fillAmount,
             fastFill.fill.sourceChain,
             fastFill.fill.orderSender,
             fastFill.fill.redeemer,
-            _encodeBytes(fastFill.fill.redeemerMessage),
-            fastFill.fillAmount
+            _encodeBytes(fastFill.fill.redeemerMessage)
         );
     }
 
@@ -131,11 +129,11 @@ library Messages {
         uint256 offset = _checkPayloadId(encoded, 0, FAST_FILL);
 
         // Parse the encoded message.
+        (fastFill.fillAmount, offset) = encoded.asUint64Unchecked(offset);
         (fastFill.fill.sourceChain, offset) = encoded.asUint16Unchecked(offset);
         (fastFill.fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
         (fastFill.fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
         (fastFill.fill.redeemerMessage, offset) = _decodeBytes(encoded, offset);
-        (fastFill.fillAmount, offset) = encoded.asUint128Unchecked(offset);
 
         _checkLength(encoded, offset);
     }
@@ -156,7 +154,7 @@ library Messages {
         uint256 offset = _checkPayloadId(encoded, 0, SLOW_ORDER_RESPONSE);
 
         // Parse the encoded message.
-        (response.baseFee, offset) = encoded.asUint128Unchecked(offset);
+        (response.baseFee, offset) = encoded.asUint64Unchecked(offset);
 
         _checkLength(encoded, offset);
     }

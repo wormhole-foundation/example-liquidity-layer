@@ -15,10 +15,10 @@ interface IMatchingEngineState {
      * @return penalty The penalty amount.
      * @return userReward The user reward amount.
      */
-    function calculateDynamicPenalty(uint128 amount, uint128 blocksElapsed)
+    function calculateDynamicPenalty(uint64 amount, uint64 blocksElapsed)
         external
         view
-        returns (uint128 penalty, uint128 userReward);
+        returns (uint64 penalty, uint64 userReward);
 
     /**
      * @notice Calculates the dynamic penalty for the specified auction.
@@ -29,7 +29,7 @@ interface IMatchingEngineState {
     function calculateDynamicPenalty(bytes32 auctionId)
         external
         view
-        returns (uint128 penalty, uint128 userReward);
+        returns (uint64 penalty, uint64 userReward);
 
     /**
      * @notice Returns the original `deployer` of the contracts.
@@ -42,6 +42,24 @@ interface IMatchingEngineState {
      * @param chain The Wormhole chain ID.
      */
     function getRouter(uint16 chain) external view returns (bytes32);
+
+    /**
+     * @notice Returns the mint recipient for a given chain ID.
+     * @param chain The Wormhole chain ID.
+     */
+    function getMintRecipient(uint16 chain) external view returns (bytes32);
+
+    /**
+     * @notice Returns the router endpoint for a given chain ID.
+     * @param chain The Wormhole chain ID.
+     */
+    function getRouterEndpoint(uint16 chain) external view returns (RouterEndpoint memory);
+
+    /**
+     * @notice Returns the Circle domain for a given chain ID.
+     * @param chain The Wormhole chain ID.
+     */
+    function getDomain(uint16 chain) external view returns (uint32);
 
     /**
      * @notice Returns the Wormhole contract interface.
@@ -82,12 +100,12 @@ interface IMatchingEngineState {
     /**
      * @notice Returns the transfer amount for a particular auction.
      */
-    function getAuctionAmount(bytes32 auctionId) external view returns (uint128);
+    function getAuctionAmount(bytes32 auctionId) external view returns (uint64);
 
     /**
      * @notice Returns the security deposit for a particular auction.
      */
-    function getSecurityDeposit(bytes32 auctionId) external view returns (uint128);
+    function getSecurityDeposit(bytes32 auctionId) external view returns (uint64);
 
     /**
      * @notice Returns the status of the specified `auctionId`.
@@ -125,7 +143,7 @@ interface IMatchingEngineState {
     /**
      * @notice Returns the number of blocks elapsed since the auction started.
      */
-    function getAuctionBlocksElapsed(bytes32 auctionId) external view returns (uint128);
+    function getAuctionBlocksElapsed(bytes32 auctionId) external view returns (uint64);
 
     /**
      * @notice Returns a boolean which indicates whether the specified `FastFill` has been redeemed.

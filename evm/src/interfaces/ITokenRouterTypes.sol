@@ -15,16 +15,21 @@ struct FastTransferParameters {
     // Determines if fast transfers are enabled.
     bool enabled;
     // The maximum amount that can be transferred using fast transfers.
-    uint128 maxAmount;
+    uint64 maxAmount;
     // The `baseFee` which is summed with the `feeInBps` to calculate the total fee.
-    uint128 baseFee;
+    uint64 baseFee;
     // The fee paid to the initial bidder of an auction.
-    uint128 initAuctionFee;
+    uint64 initAuctionFee;
+}
+
+struct Endpoint {
+    bytes32 router;
+    bytes32 mintRecipient;
 }
 
 struct RouterEndpoints {
     // Mapping of chain ID to router address in Wormhole universal format.
-    mapping(uint16 chain => bytes32 endpoint) endpoints;
+    mapping(uint16 chain => Endpoint endpoint) endpoints;
 }
 
 struct CircleDomains {

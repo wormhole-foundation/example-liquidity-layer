@@ -7,7 +7,7 @@ import {IWormhole} from "wormhole-solidity/IWormhole.sol";
 import {ITokenRouterState} from "../../interfaces/ITokenRouterState.sol";
 
 import "./Errors.sol";
-import {FastTransferParameters} from "../../interfaces/ITokenRouterTypes.sol";
+import {FastTransferParameters, Endpoint} from "../../interfaces/ITokenRouterTypes.sol";
 import {
     getRouterEndpointState,
     getFastTransferParametersState,
@@ -24,6 +24,7 @@ abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
     // Matching engine info.
     uint16 immutable _matchingEngineChain;
     bytes32 immutable _matchingEngineAddress;
+    bytes32 immutable _matchingEngineMintRecipient;
     uint32 immutable _matchingEngineDomain;
 
     // Consts.
@@ -37,16 +38,19 @@ abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
         address cctpTokenMessenger_,
         uint16 matchingEngineChain_,
         bytes32 matchingEngineAddress_,
+        bytes32 matchingEngineMintRecipient_,
         uint32 matchingEngineDomain_
     ) WormholeCctpTokenMessenger(wormhole_, cctpTokenMessenger_) {
         assert(token_ != address(0));
         assert(matchingEngineChain_ != 0);
         assert(matchingEngineAddress_ != bytes32(0));
+        assert(matchingEngineMintRecipient_ != bytes32(0));
 
         _deployer = msg.sender;
         _orderToken = IERC20(token_);
         _matchingEngineChain = matchingEngineChain_;
         _matchingEngineAddress = matchingEngineAddress_;
+        _matchingEngineMintRecipient = matchingEngineMintRecipient_;
         _matchingEngineDomain = matchingEngineDomain_;
     }
 
@@ -57,6 +61,16 @@ abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
 
     /// @inheritdoc ITokenRouterState
     function getRouter(uint16 chain) public view returns (bytes32) {
+        return getRouterEndpointState().endpoints[chain].router;
+    }
+
+    /// @inheritdoc ITokenRouterState
+    function getMintRecipient(uint16 chain) public view returns (bytes32) {
+        return getRouterEndpointState().endpoints[chain].mintRecipient;
+    }
+
+    /// @inheritdoc ITokenRouterState
+    function getRouterEndpoint(uint16 chain) public view returns (Endpoint memory) {
         return getRouterEndpointState().endpoints[chain];
     }
 
@@ -91,28 +105,28 @@ abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
     }
 
     /// @inheritdoc ITokenRouterState
-    function getInitialAuctionFee() external view returns (uint128) {
+    function getInitialAuctionFee() external view returns (uint64) {
         return getFastTransferParametersState().initAuctionFee;
     }
 
     /// @inheritdoc ITokenRouterState
-    function getBaseFee() external view returns (uint128) {
+    function getBaseFee() external view returns (uint64) {
         return getFastTransferParametersState().baseFee;
     }
 
     /// @inheritdoc ITokenRouterState
-    function getMinFee() public pure returns (uint128) {
+    function getMinFee() public pure returns (uint64) {
         FastTransferParameters memory params = getFastTransferParametersState();
         return params.baseFee + params.initAuctionFee + 1;
     }
 
     /// @inheritdoc ITokenRouterState
-    function getMinTransferAmount() external pure returns (uint128) {
+    function getMinTransferAmount() external pure returns (uint64) {
         return getMinFee() + 1;
     }
 
     /// @inheritdoc ITokenRouterState
-    function getMaxTransferAmount() external view returns (uint128) {
+    function getMaxTransferAmount() external view returns (uint64) {
         return getFastTransferParametersState().maxAmount;
     }
 }

@@ -16,7 +16,7 @@ interface IMatchingEngineFastOrders {
      * @dev This function calls `improveBid` internally so that subsequent bidders
      * will not waste gas when racing to start an auction.
      */
-    function placeInitialBid(bytes calldata fastTransferVaa, uint128 feeBid) external;
+    function placeInitialBid(bytes calldata fastTransferVaa, uint64 feeBid) external;
 
     /**
      * @notice Improve the bid on a fast transfer auction.
@@ -24,7 +24,7 @@ interface IMatchingEngineFastOrders {
      * @param feeBid The fee bid to place on the auction. Must be less than the
      * current bid.
      */
-    function improveBid(bytes32 auctionId, uint128 feeBid) external;
+    function improveBid(bytes32 auctionId, uint64 feeBid) external;
 
     /**
      * @notice Execute a fast transfer order. This function sends the funds to
