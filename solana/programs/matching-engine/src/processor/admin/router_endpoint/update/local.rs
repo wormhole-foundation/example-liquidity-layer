@@ -10,7 +10,7 @@ use common::{
 };
 
 #[derive(Accounts)]
-pub struct AddLocalRouterEndpoint<'info> {
+pub struct UpdateLocalRouterEndpoint<'info> {
     #[account(
         mut,
         constraint = {
@@ -26,14 +26,12 @@ pub struct AddLocalRouterEndpoint<'info> {
     custodian: Account<'info, Custodian>,
 
     #[account(
-        init_if_needed,
-        payer = owner_or_assistant,
-        space = 8 + RouterEndpoint::INIT_SPACE,
+        mut,
         seeds = [
             RouterEndpoint::SEED_PREFIX,
             &SOLANA_CHAIN.to_be_bytes()
         ],
-        bump,
+        bump = router_endpoint.bump,
     )]
     router_endpoint: Account<'info, RouterEndpoint>,
 
@@ -57,16 +55,14 @@ pub struct AddLocalRouterEndpoint<'info> {
         associated_token::authority = token_router_emitter,
     )]
     token_router_custody_token: Account<'info, token::TokenAccount>,
-
-    system_program: Program<'info, System>,
 }
 
-pub fn add_local_router_endpoint(ctx: Context<AddLocalRouterEndpoint>) -> Result<()> {
+pub fn update_local_router_endpoint(ctx: Context<UpdateLocalRouterEndpoint>) -> Result<()> {
     utils::admin::handle_add_local_router_endpoint(
         &mut ctx.accounts.router_endpoint,
         &ctx.accounts.token_router_program,
         &ctx.accounts.token_router_emitter,
         &ctx.accounts.token_router_custody_token,
-        Some(ctx.bumps.router_endpoint),
+        None,
     )
 }

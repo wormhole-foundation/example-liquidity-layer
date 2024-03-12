@@ -26,6 +26,7 @@ import {
     LOCALHOST,
     MOCK_GUARDIANS,
     OWNER_ASSISTANT_KEYPAIR,
+    OWNER_KEYPAIR,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
     bigintToU64BN,
@@ -41,6 +42,7 @@ describe("Matching Engine <> Token Router", function () {
     const connection = new Connection(LOCALHOST, "processed");
 
     const payer = PAYER_KEYPAIR;
+    const owner = OWNER_KEYPAIR;
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
     const offerAuthorityOne = Keypair.generate();
 
@@ -84,19 +86,28 @@ describe("Matching Engine <> Token Router", function () {
                 );
             });
 
-            it("Matching Engine .. Remove Local Router Endpoint", async function () {
-                const ix = await matchingEngine.removeRouterEndpointIx(
+            it("Matching Engine .. Disable Local Router Endpoint", async function () {
+                const ix = await matchingEngine.disableRouterEndpointIx(
                     {
-                        ownerOrAssistant: ownerAssistant.publicKey,
+                        owner: owner.publicKey,
                     },
                     wormholeSdk.CHAIN_ID_SOLANA,
                 );
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectIxOk(connection, [ix], [owner]);
 
-                const accInfo = await connection.getAccountInfo(
-                    matchingEngine.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+                const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
+                    wormholeSdk.CHAIN_ID_SOLANA,
                 );
-                expect(accInfo).to.eql(null);
+                const { bump } = routerEndpointData;
+                expect(routerEndpointData).to.eql(
+                    new matchingEngineSdk.RouterEndpoint(
+                        bump,
+                        wormholeSdk.CHAIN_ID_SOLANA,
+                        Array.from(tokenRouter.custodianAddress().toBuffer()),
+                        Array.from(tokenRouter.cctpMintRecipientAddress().toBuffer()),
+                        { none: {} },
+                    ),
+                );
             });
 
             after("Set Up Lookup Table", async function () {
@@ -231,14 +242,14 @@ describe("Matching Engine <> Token Router", function () {
                 await expectIxOk(connection, [ix], [ownerAssistant]);
             });
 
-            after("Remove Local Router Endpoint", async function () {
-                const ix = await matchingEngine.removeRouterEndpointIx(
+            after("Disable Local Router Endpoint", async function () {
+                const ix = await matchingEngine.disableRouterEndpointIx(
                     {
-                        ownerOrAssistant: ownerAssistant.publicKey,
+                        owner: owner.publicKey,
                     },
                     wormholeSdk.CHAIN_ID_SOLANA,
                 );
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectIxOk(connection, [ix], [owner]);
             });
         });
 
@@ -328,14 +339,14 @@ describe("Matching Engine <> Token Router", function () {
                 await expectIxOk(connection, [ix], [ownerAssistant]);
             });
 
-            after("Remove Local Router Endpoint", async function () {
-                const ix = await matchingEngine.removeRouterEndpointIx(
+            after("Disable Local Router Endpoint", async function () {
+                const ix = await matchingEngine.disableRouterEndpointIx(
                     {
-                        ownerOrAssistant: ownerAssistant.publicKey,
+                        owner: owner.publicKey,
                     },
                     wormholeSdk.CHAIN_ID_SOLANA,
                 );
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectIxOk(connection, [ix], [owner]);
             });
         });
 
@@ -380,7 +391,7 @@ describe("Matching Engine <> Token Router", function () {
                     vaa,
                 });
 
-                await expectIxErr(connection, [ix], [payer], "Error Code: AccountNotInitialized");
+                await expectIxErr(connection, [ix], [payer], "Error Code: EndpointDisabled");
 
                 // Save for later.
                 localVariables.set("vaa", vaa);

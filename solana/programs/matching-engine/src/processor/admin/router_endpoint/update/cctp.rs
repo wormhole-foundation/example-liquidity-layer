@@ -4,38 +4,31 @@ use crate::{
     utils::{self, admin::AddCctpRouterEndpointArgs},
 };
 use anchor_lang::prelude::*;
-use common::{
-    admin::utils::assistant::only_authorized,
-    wormhole_cctp_solana::{
-        cctp::token_messenger_minter_program::{self, RemoteTokenMessenger},
-        utils::ExternalAccount,
-    },
+use common::wormhole_cctp_solana::{
+    cctp::token_messenger_minter_program::{self, RemoteTokenMessenger},
+    utils::ExternalAccount,
 };
 
 #[derive(Accounts)]
 #[instruction(args: AddCctpRouterEndpointArgs)]
-pub struct AddCctpRouterEndpoint<'info> {
+pub struct UpdateCctpRouterEndpoint<'info> {
     #[account(mut)]
-    owner_or_assistant: Signer<'info>,
+    owner: Signer<'info>,
 
     #[account(
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
-        constraint = {
-            only_authorized(&custodian, &owner_or_assistant.key())
-        } @ MatchingEngineError::OwnerOrAssistantOnly,
+        has_one = owner @ MatchingEngineError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
 
     #[account(
-        init_if_needed,
-        payer = owner_or_assistant,
-        space = 8 + RouterEndpoint::INIT_SPACE,
+        mut,
         seeds = [
             RouterEndpoint::SEED_PREFIX,
             &args.chain.to_be_bytes()
         ],
-        bump,
+        bump = router_endpoint.bump,
     )]
     router_endpoint: Account<'info, RouterEndpoint>,
 
@@ -50,17 +43,11 @@ pub struct AddCctpRouterEndpoint<'info> {
         seeds::program = token_messenger_minter_program::id(),
     )]
     remote_token_messenger: Account<'info, ExternalAccount<RemoteTokenMessenger>>,
-
-    system_program: Program<'info, System>,
 }
 
-pub fn add_cctp_router_endpoint(
-    ctx: Context<AddCctpRouterEndpoint>,
+pub fn update_cctp_router_endpoint(
+    ctx: Context<UpdateCctpRouterEndpoint>,
     args: AddCctpRouterEndpointArgs,
 ) -> Result<()> {
-    utils::admin::handle_add_cctp_router_endpoint(
-        &mut ctx.accounts.router_endpoint,
-        args,
-        Some(ctx.bumps.router_endpoint),
-    )
+    utils::admin::handle_add_cctp_router_endpoint(&mut ctx.accounts.router_endpoint, args, None)
 }

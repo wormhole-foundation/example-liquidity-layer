@@ -9,7 +9,7 @@ pub enum MessageProtocol {
         /// CCTP domain, which is how CCTP registers identifies foreign networks.
         domain: u32,
     },
-    Canonical,
+    None,
 }
 
 #[account]

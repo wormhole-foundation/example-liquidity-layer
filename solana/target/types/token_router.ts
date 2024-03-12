@@ -1271,6 +1271,11 @@ export type TokenRouter = {
       "msg": "NotPendingOwner"
     },
     {
+      "code": 6048,
+      "name": "EndpointDisabled",
+      "msg": "EndpointDisabled"
+    },
+    {
       "code": 6064,
       "name": "ChainNotAllowed",
       "msg": "ChainNotAllowed"
@@ -2634,6 +2639,11 @@ export const IDL: TokenRouter = {
       "code": 6042,
       "name": "NotPendingOwner",
       "msg": "NotPendingOwner"
+    },
+    {
+      "code": 6048,
+      "name": "EndpointDisabled",
+      "msg": "EndpointDisabled"
     },
     {
       "code": 6064,

@@ -1,6 +1,8 @@
 use crate::{
     error::MatchingEngineError,
-    state::{Auction, Custodian, PayerSequence, PreparedOrderResponse, RouterEndpoint},
+    state::{
+        Auction, Custodian, MessageProtocol, PayerSequence, PreparedOrderResponse, RouterEndpoint,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -98,6 +100,7 @@ pub struct SettleAuctionNoneLocal<'info> {
             from_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = from_router_endpoint.bump,
+        constraint = from_router_endpoint.protocol != MessageProtocol::None @ MatchingEngineError::EndpointDisabled,
         constraint = {
             from_router_endpoint.chain != SOLANA_CHAIN
         } @ MatchingEngineError::InvalidChain
@@ -111,6 +114,7 @@ pub struct SettleAuctionNoneLocal<'info> {
             SOLANA_CHAIN.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
+        constraint = to_router_endpoint.protocol != MessageProtocol::None @ MatchingEngineError::EndpointDisabled,
     )]
     to_router_endpoint: Box<Account<'info, RouterEndpoint>>,
 

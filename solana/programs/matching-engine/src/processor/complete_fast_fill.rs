@@ -7,7 +7,7 @@ use common::{
 
 use crate::{
     error::MatchingEngineError,
-    state::{Custodian, RedeemedFastFill, RouterEndpoint},
+    state::{Custodian, MessageProtocol, RedeemedFastFill, RouterEndpoint},
 };
 
 /// Accounts required for [complete_fast_fill].
@@ -58,6 +58,7 @@ pub struct CompleteFastFill<'info> {
             SOLANA_CHAIN.to_be_bytes().as_ref()
         ],
         bump = router_endpoint.bump,
+        constraint = router_endpoint.protocol != MessageProtocol::None @ MatchingEngineError::EndpointDisabled,
     )]
     router_endpoint: Account<'info, RouterEndpoint>,
 

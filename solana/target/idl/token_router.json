@@ -1271,6 +1271,11 @@
       "msg": "NotPendingOwner"
     },
     {
+      "code": 6048,
+      "name": "EndpointDisabled",
+      "msg": "EndpointDisabled"
+    },
+    {
       "code": 6064,
       "name": "ChainNotAllowed",
       "msg": "ChainNotAllowed"

@@ -3,7 +3,7 @@ import { PublicKey } from "@solana/web3.js";
 export type MessageProtocol = {
     local?: { programId: PublicKey };
     cctp?: { domain: number };
-    canonical?: {};
+    none?: {};
 };
 
 export class RouterEndpoint {
@@ -18,7 +18,7 @@ export class RouterEndpoint {
         chain: number,
         address: Array<number>,
         mintRecipient: Array<number>,
-        protocol: MessageProtocol
+        protocol: MessageProtocol,
     ) {
         this.bump = bump;
         this.chain = chain;
@@ -32,7 +32,7 @@ export class RouterEndpoint {
         encodedChain.writeUInt16BE(chain);
         return PublicKey.findProgramAddressSync(
             [Buffer.from("endpoint"), encodedChain],
-            programId
+            programId,
         )[0];
     }
 }

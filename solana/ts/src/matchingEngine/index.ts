@@ -212,6 +212,7 @@ export class MatchingEngineProgram {
 
     async fetchProposal(input?: { address: PublicKey }): Promise<Proposal> {
         const addr = input === undefined ? await this.proposalAddress() : input.address;
+        // @ts-ignore This is BS. This is correct.
         return this.program.account.proposal.fetch(addr);
     }
 
@@ -515,23 +516,19 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async removeRouterEndpointIx(
+    async disableRouterEndpointIx(
         accounts: {
-            ownerOrAssistant: PublicKey;
+            owner: PublicKey;
             custodian?: PublicKey;
             routerEndpoint?: PublicKey;
         },
         chain: wormholeSdk.ChainId,
     ): Promise<TransactionInstruction> {
-        const {
-            ownerOrAssistant,
-            custodian: inputCustodian,
-            routerEndpoint: inputRouterEndpoint,
-        } = accounts;
+        const { owner, custodian: inputCustodian, routerEndpoint: inputRouterEndpoint } = accounts;
         return this.program.methods
-            .removeRouterEndpoint()
+            .disableRouterEndpoint()
             .accounts({
-                ownerOrAssistant,
+                owner,
                 custodian: inputCustodian ?? this.custodianAddress(),
                 routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
             })

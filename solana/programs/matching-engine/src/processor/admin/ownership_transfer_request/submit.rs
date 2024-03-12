@@ -1,6 +1,5 @@
 use crate::{error::MatchingEngineError, state::Custodian};
 use anchor_lang::prelude::*;
-use common::admin::utils::ownable::only_owner;
 
 #[derive(Accounts)]
 pub struct SubmitOwnershipTransferRequest<'info> {
@@ -11,7 +10,7 @@ pub struct SubmitOwnershipTransferRequest<'info> {
         mut,
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
-        constraint = only_owner(&custodian, &owner.key()) @ MatchingEngineError::OwnerOnly,
+        has_one = owner @ MatchingEngineError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
 

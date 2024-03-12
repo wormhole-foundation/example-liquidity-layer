@@ -11,6 +11,7 @@ pub(crate) use processor::*;
 pub mod state;
 
 pub mod utils;
+pub use utils::admin::AddCctpRouterEndpointArgs;
 
 use anchor_lang::prelude::*;
 
@@ -77,8 +78,19 @@ pub mod matching_engine {
         processor::add_local_router_endpoint(ctx)
     }
 
-    pub fn remove_router_endpoint(ctx: Context<RemoveRouterEndpoint>) -> Result<()> {
-        processor::remove_router_endpoint(ctx)
+    pub fn disable_router_endpoint(ctx: Context<DisableRouterEndpoint>) -> Result<()> {
+        processor::disable_router_endpoint(ctx)
+    }
+
+    pub fn update_cctp_router_endpoint(
+        ctx: Context<UpdateCctpRouterEndpoint>,
+        args: AddCctpRouterEndpointArgs,
+    ) -> Result<()> {
+        processor::update_cctp_router_endpoint(ctx, args)
+    }
+
+    pub fn update_local_router_endpoint(ctx: Context<UpdateLocalRouterEndpoint>) -> Result<()> {
+        processor::update_local_router_endpoint(ctx)
     }
 
     pub fn submit_ownership_transfer_request(

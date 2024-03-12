@@ -796,8 +796,9 @@ describe("Token Router", function () {
                     routerEndpoint: unregisteredEndpoint,
                 });
 
-                const { value: lookupTableAccount } =
-                    await connection.getAddressLookupTable(lookupTableAddress);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 await expectIxErr(
                     connection,
                     [ix],
@@ -857,8 +858,9 @@ describe("Token Router", function () {
                     preparedOrder,
                 });
 
-                const { value: lookupTableAccount } =
-                    await connection.getAddressLookupTable(lookupTableAddress);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
@@ -925,8 +927,9 @@ describe("Token Router", function () {
                     preparedOrder,
                 });
 
-                const { value: lookupTableAccount } =
-                    await connection.getAddressLookupTable(lookupTableAddress);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
@@ -951,8 +954,9 @@ describe("Token Router", function () {
 
                 const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
 
-                const { value: lookupTableAccount } =
-                    await connection.getAddressLookupTable(lookupTableAddress);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 await expectIxOk(
                     connection,
                     [approveIx, prepareIx, ix],
@@ -1145,8 +1149,9 @@ describe("Token Router", function () {
                     units: 300_000,
                 });
 
-                const { value: lookupTableAccount } =
-                    await connection.getAddressLookupTable(lookupTableAddress);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 await expectIxErr(
                     connection,
                     [computeIx, ix],
@@ -1217,8 +1222,9 @@ describe("Token Router", function () {
                     units: 300_000,
                 });
 
-                const { value: lookupTableAccount } =
-                    await connection.getAddressLookupTable(lookupTableAddress);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 await expectIxErr(
                     connection,
                     [computeIx, ix],
@@ -1290,8 +1296,9 @@ describe("Token Router", function () {
                     units: 300_000,
                 });
 
-                const { value: lookupTableAccount } =
-                    await connection.getAddressLookupTable(lookupTableAddress);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 await expectIxErr(
                     connection,
                     [computeIx, ix],
@@ -1355,22 +1362,23 @@ describe("Token Router", function () {
                     },
                 );
 
-                const { value: lookupTableAccount } =
-                    await connection.getAddressLookupTable(lookupTableAddress);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 await expectIxErr(connection, [ix], [payer], "Error Code: InvalidPayloadId", {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
             });
 
-            it("Remove Router Endpoint on Matching Engine", async function () {
-                const ix = await tokenRouter.matchingEngineProgram().removeRouterEndpointIx(
+            it("Disable Router Endpoint on Matching Engine", async function () {
+                const ix = await tokenRouter.matchingEngineProgram().disableRouterEndpointIx(
                     {
-                        ownerOrAssistant: ownerAssistant.publicKey,
+                        owner: owner.publicKey,
                     },
                     foreignChain,
                 );
 
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectIxOk(connection, [ix], [owner]);
             });
 
             it("Cannot Redeem Fill without Router Endpoint", async function () {
@@ -1428,11 +1436,22 @@ describe("Token Router", function () {
                     },
                 );
 
-                const { value: lookupTableAccount } =
-                    await connection.getAddressLookupTable(lookupTableAddress);
-                await expectIxErr(connection, [ix], [payer], "Error Code: AccountNotInitialized", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
                 });
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                await expectIxErr(
+                    connection,
+                    [computeIx, ix],
+                    [payer],
+                    "Error Code: EndpointDisabled",
+                    {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    },
+                );
 
                 // Save for later.
                 localVariables.set("args", { encodedCctpMessage, cctpAttestation });
@@ -1480,8 +1499,9 @@ describe("Token Router", function () {
                     cctpMintRecipient,
                 );
 
-                const { value: lookupTableAccount } =
-                    await connection.getAddressLookupTable(lookupTableAddress);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 await expectIxOk(connection, [computeIx, ix], [payer], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
@@ -1514,8 +1534,9 @@ describe("Token Router", function () {
                     args,
                 );
 
-                const { value: lookupTableAccount } =
-                    await connection.getAddressLookupTable(lookupTableAddress);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 await expectIxOk(connection, [ix], [payer], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
