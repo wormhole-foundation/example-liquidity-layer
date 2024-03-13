@@ -462,9 +462,7 @@ contract TokenRouterTest is Test {
         vm.prank(makeAddr("ownerAssistant"));
         vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
         router.updateRouterEndpoint(
-            ARB_CHAIN,
-            Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}),
-            ARB_DOMAIN
+            ARB_CHAIN, Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}), ARB_DOMAIN
         );
     }
 
@@ -479,9 +477,7 @@ contract TokenRouterTest is Test {
 
         vm.prank(makeAddr("owner"));
         router.updateRouterEndpoint(
-            ARB_CHAIN,
-            Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}),
-            domain
+            ARB_CHAIN, Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
         );
 
         assertEq(router.getRouter(ARB_CHAIN), routerEndpoint);

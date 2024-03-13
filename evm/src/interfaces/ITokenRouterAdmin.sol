@@ -21,8 +21,7 @@ interface ITokenRouterAdmin {
      * @param domain The Circle domain for the specified `chain`.
      * @dev This function is only callable by the contract owner.
      */
-    function updateRouterEndpoint(uint16 chain, Endpoint memory endpoint, uint32 domain)
-        external;
+    function updateRouterEndpoint(uint16 chain, Endpoint memory endpoint, uint32 domain) external;
 
     /**
      * @notice Disable a `router` endpoint for the specified Wormhole `chain`.

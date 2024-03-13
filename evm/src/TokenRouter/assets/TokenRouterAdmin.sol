@@ -30,8 +30,7 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
             revert ErrInvalidEndpoint(bytes32(0));
         }
 
-        mapping(uint16 chain => Endpoint) storage endpoints =
-            getRouterEndpointState().endpoints;
+        mapping(uint16 chain => Endpoint) storage endpoints = getRouterEndpointState().endpoints;
 
         // When a router is disabled, we set the router universal address to zero, but we will leave
         // the mint recipient alone. So if the mint recipient is non-zero, this indicates that an
