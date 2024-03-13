@@ -7,12 +7,12 @@ use anchor_lang::prelude::*;
 #[derive(Accounts)]
 pub struct UpdateAuctionParameters<'info> {
     #[account(mut)]
+    payer: Signer<'info>,
+
     owner: Signer<'info>,
 
     #[account(
         mut,
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
         has_one = owner @ MatchingEngineError::OwnerOnly,
     )]
     custodian: Account<'info, Custodian>,
@@ -32,7 +32,7 @@ pub struct UpdateAuctionParameters<'info> {
             );
 
             require!(
-                Clock::get()?.slot >= proposal.slot_enact_delay,
+                Clock::get().unwrap().slot >= proposal.slot_enact_delay,
                 MatchingEngineError::ProposalDelayNotExpired
             );
 
@@ -54,7 +54,7 @@ pub struct UpdateAuctionParameters<'info> {
 
     #[account(
         init,
-        payer = owner,
+        payer = payer,
         space = 8 + AuctionConfig::INIT_SPACE,
         seeds = [
             AuctionConfig::SEED_PREFIX,
@@ -81,7 +81,10 @@ pub fn update_auction_parameters(ctx: Context<UpdateAuctionParameters>) -> Resul
     ctx.accounts.custodian.auction_config_id += 1;
 
     // Set the slot enacted at so it cannot be replayed.
-    ctx.accounts.proposal.slot_enacted_at = Some(Clock::get().map(|clock| clock.slot)?);
+    ctx.accounts.proposal.slot_enacted_at = Some(Clock::get().unwrap().slot);
+
+    // Uptick the proposal ID so that someone can create a new proposal again.
+    ctx.accounts.custodian.next_proposal_id += 1;
 
     // Done.
     Ok(())

@@ -500,14 +500,35 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    async closeProposalIx(accounts: { owner: PublicKey }): Promise<TransactionInstruction> {
+        const { owner } = accounts;
+
+        const proposal = await this.proposalAddress();
+        const { by: proposedBy } = await this.fetchProposal({ address: proposal });
+
+        return this.program.methods
+            .closeProposal()
+            .accounts({
+                admin: {
+                    owner,
+                    custodian: this.custodianAddress(),
+                },
+                proposedBy,
+                proposal,
+            })
+            .instruction();
+    }
+
     async updateAuctionParametersIx(accounts: {
         owner: PublicKey;
+        payer?: PublicKey;
         custodian?: PublicKey;
         proposal?: PublicKey;
         auctionConfig?: PublicKey;
     }): Promise<TransactionInstruction> {
         const {
             owner,
+            payer: inputPayer,
             custodian: inputCustodian,
             proposal: inputProposal,
             auctionConfig: inputAuctionConfig,
@@ -526,6 +547,7 @@ export class MatchingEngineProgram {
         return this.program.methods
             .updateAuctionParameters()
             .accounts({
+                payer: inputPayer ?? owner,
                 owner,
                 custodian: inputCustodian ?? this.custodianAddress(),
                 proposal: inputProposal ?? (await this.proposalAddress()),
