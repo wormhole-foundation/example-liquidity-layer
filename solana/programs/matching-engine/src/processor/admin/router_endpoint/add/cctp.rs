@@ -1,35 +1,24 @@
 use crate::{
-    error::MatchingEngineError,
-    state::{Custodian, RouterEndpoint},
+    state::{custodian::*, router_endpoint::*},
     utils::{self, admin::AddCctpRouterEndpointArgs},
 };
 use anchor_lang::prelude::*;
-use common::{
-    admin::utils::assistant::only_authorized,
-    wormhole_cctp_solana::{
-        cctp::token_messenger_minter_program::{self, RemoteTokenMessenger},
-        utils::ExternalAccount,
-    },
+use common::wormhole_cctp_solana::{
+    cctp::token_messenger_minter_program::{self, RemoteTokenMessenger},
+    utils::ExternalAccount,
 };
 
 #[derive(Accounts)]
 #[instruction(args: AddCctpRouterEndpointArgs)]
 pub struct AddCctpRouterEndpoint<'info> {
     #[account(mut)]
-    owner_or_assistant: Signer<'info>,
+    payer: Signer<'info>,
+
+    admin: AdminCustodian<'info>,
 
     #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-        constraint = {
-            only_authorized(&custodian, &owner_or_assistant.key())
-        } @ MatchingEngineError::OwnerOrAssistantOnly,
-    )]
-    custodian: Account<'info, Custodian>,
-
-    #[account(
-        init_if_needed,
-        payer = owner_or_assistant,
+        init,
+        payer = payer,
         space = 8 + RouterEndpoint::INIT_SPACE,
         seeds = [
             RouterEndpoint::SEED_PREFIX,

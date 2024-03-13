@@ -20,6 +20,12 @@ pub enum MatchingEngineError {
     #[msg("UpgradeManagerRequired")]
     UpgradeManagerRequired = 0x10,
 
+    #[msg("SameEndpoint")]
+    SameEndpoint = 0x20,
+
+    #[msg("InvalidEndpoint")]
+    InvalidEndpoint = 0x22,
+
     #[msg("AssistantZeroPubkey")]
     AssistantZeroPubkey = 0x100,
 
@@ -58,9 +64,6 @@ pub enum MatchingEngineError {
 
     #[msg("ChainNotAllowed")]
     ChainNotAllowed,
-
-    #[msg("InvalidEndpoint")]
-    InvalidEndpoint,
 
     #[msg("InvalidMintRecipient")]
     InvalidMintRecipient,

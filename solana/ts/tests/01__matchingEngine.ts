@@ -617,7 +617,9 @@ describe("Matching Engine", function () {
             });
         });
 
-        describe("Add Router Endpoint (CCTP)", function () {
+        describe("Router Endpoint (CCTP)", function () {
+            const localVariables = new Map<string, any>();
+
             it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
                 const ix = await engine.addCctpRouterEndpointIx(
                     { ownerOrAssistant: payer.publicKey },
@@ -678,11 +680,71 @@ describe("Matching Engine", function () {
                         cctp: { domain: ethDomain },
                     }),
                 );
+
+                // Save for later.
+                localVariables.set("ix", ix);
+            });
+
+            it("Cannot Add Router Endpoint Again", async function () {
+                const ix = localVariables.get("ix") as TransactionInstruction;
+                expect(localVariables.delete("ix")).is.true;
+
+                const routerEndpoint = engine.routerEndpointAddress(ethChain);
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    `Allocate: account Address { address: ${routerEndpoint.toString()}, base: None } already in use`,
+                );
+            });
+
+            it("Cannot Disable Router Endpoint as Owner Assistant", async function () {
+                const ix = await engine.disableRouterEndpointIx(
+                    { owner: ownerAssistant.publicKey },
+                    ethChain,
+                );
+
+                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
+            });
+
+            it("Disable Router Endpoint as Owner", async function () {
+                const ix = await engine.disableRouterEndpointIx(
+                    { owner: owner.publicKey },
+                    ethChain,
+                );
+
+                await expectIxOk(connection, [ix], [owner]);
+
+                const routerEndpointData = await engine.fetchRouterEndpoint(ethChain);
+                const { bump } = routerEndpointData;
+                expect(routerEndpointData).to.eql(
+                    new RouterEndpoint(
+                        bump,
+                        ethChain,
+                        new Array(32).fill(0),
+                        new Array(32).fill(0),
+                        { none: {} },
+                    ),
+                );
+            });
+
+            it("Cannot Update Router Endpoint as Owner Assistant", async function () {
+                const ix = await engine.updateCctpRouterEndpointIx(
+                    { owner: ownerAssistant.publicKey },
+                    {
+                        chain: ethChain,
+                        cctpDomain: ethDomain,
+                        address: ethRouter,
+                        mintRecipient: null,
+                    },
+                );
+
+                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
             });
 
             it("Update Router Endpoint as Owner", async function () {
-                const ix = await engine.addCctpRouterEndpointIx(
-                    { ownerOrAssistant: owner.publicKey },
+                const ix = await engine.updateCctpRouterEndpointIx(
+                    { owner: owner.publicKey },
                     {
                         chain: ethChain,
                         cctpDomain: ethDomain,
@@ -698,60 +760,6 @@ describe("Matching Engine", function () {
                     new RouterEndpoint(255, ethChain, ethRouter, ethRouter, {
                         cctp: { domain: ethDomain },
                     }),
-                );
-            });
-        });
-
-        describe("Add Local Router Endpoint", function () {
-            it("Cannot Add Local Router Endpoint without Executable", async function () {
-                const ix = await engine.addLocalRouterEndpointIx({
-                    ownerOrAssistant: ownerAssistant.publicKey,
-                    tokenRouterProgram: SYSVAR_RENT_PUBKEY,
-                });
-
-                const [bogusEmitter] = PublicKey.findProgramAddressSync(
-                    [Buffer.from("emitter")],
-                    SYSVAR_RENT_PUBKEY,
-                );
-                await splToken.getOrCreateAssociatedTokenAccount(
-                    connection,
-                    payer,
-                    USDC_MINT_ADDRESS,
-                    bogusEmitter,
-                    true,
-                );
-
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [ownerAssistant],
-                    "Error Code: ConstraintExecutable",
-                );
-            });
-
-            it("Cannot Add Local Router Endpoint using System Program", async function () {
-                const ix = await engine.addLocalRouterEndpointIx({
-                    ownerOrAssistant: ownerAssistant.publicKey,
-                    tokenRouterProgram: SystemProgram.programId,
-                });
-
-                const [bogusEmitter] = PublicKey.findProgramAddressSync(
-                    [Buffer.from("emitter")],
-                    SystemProgram.programId,
-                );
-                await splToken.getOrCreateAssociatedTokenAccount(
-                    connection,
-                    payer,
-                    USDC_MINT_ADDRESS,
-                    bogusEmitter,
-                    true,
-                );
-
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [ownerAssistant],
-                    "Error Code: InvalidEndpoint",
                 );
             });
         });

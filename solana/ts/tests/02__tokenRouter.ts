@@ -1458,10 +1458,10 @@ describe("Token Router", function () {
                 localVariables.set("vaa", vaa);
             });
 
-            it("Add Router Endpoint", async function () {
-                const ix = await tokenRouter.matchingEngineProgram().addCctpRouterEndpointIx(
+            it("Update Router Endpoint", async function () {
+                const ix = await tokenRouter.matchingEngineProgram().updateCctpRouterEndpointIx(
                     {
-                        ownerOrAssistant: ownerAssistant.publicKey,
+                        owner: owner.publicKey,
                     },
                     {
                         chain: foreignChain,
@@ -1471,7 +1471,7 @@ describe("Token Router", function () {
                     },
                 );
 
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectIxOk(connection, [ix], [owner]);
             });
 
             it("Redeem Fill", async function () {

@@ -7,7 +7,7 @@ use common::{
 
 use crate::{
     error::MatchingEngineError,
-    state::{Custodian, MessageProtocol, RedeemedFastFill, RouterEndpoint},
+    state::{router_endpoint::*, Custodian, LiveRouterEndpoint, RedeemedFastFill},
 };
 
 /// Accounts required for [complete_fast_fill].
@@ -16,13 +16,6 @@ pub struct CompleteFastFill<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    /// This program's Wormhole (Core Bridge) emitter authority.
-    ///
-    /// CHECK: Seeds must be \["emitter"\].
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-    )]
     custodian: Account<'info, Custodian>,
 
     /// CHECK: Must be owned by the Wormhole Core Bridge program. This account will be read via
@@ -53,14 +46,16 @@ pub struct CompleteFastFill<'info> {
     token_router_custody_token: Account<'info, token::TokenAccount>,
 
     #[account(
-        seeds = [
-            RouterEndpoint::SEED_PREFIX,
-            SOLANA_CHAIN.to_be_bytes().as_ref()
-        ],
-        bump = router_endpoint.bump,
-        constraint = router_endpoint.protocol != MessageProtocol::None @ MatchingEngineError::EndpointDisabled,
+        constraint = {
+            require_eq!(
+                router_endpoint.chain,
+                SOLANA_CHAIN,
+                MatchingEngineError::InvalidEndpoint
+            );
+            true
+        }
     )]
-    router_endpoint: Account<'info, RouterEndpoint>,
+    router_endpoint: LiveRouterEndpoint<'info>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message

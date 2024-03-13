@@ -1,21 +1,9 @@
-use crate::{
-    error::MatchingEngineError,
-    state::{Custodian, Proposal},
-};
+use crate::state::{custodian::*, Proposal};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CloseProposal<'info> {
-    #[account(mut)]
-    owner: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-        has_one = owner @ MatchingEngineError::OwnerOnly,
-    )]
-    custodian: Account<'info, Custodian>,
+    admin: OwnerCustodian<'info>,
 
     /// CHECK: This account must equal proposal.by pubkey.
     #[account(

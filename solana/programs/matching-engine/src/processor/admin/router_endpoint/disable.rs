@@ -1,34 +1,18 @@
-use crate::{
-    error::MatchingEngineError,
-    state::{Custodian, MessageProtocol, RouterEndpoint},
-};
+use crate::state::{custodian::*, router_endpoint::*, MessageProtocol};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct DisableRouterEndpoint<'info> {
-    #[account(mut)]
-    owner: Signer<'info>,
+    admin: OwnerCustodian<'info>,
 
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-        has_one = owner @ MatchingEngineError::OwnerOnly,
-    )]
-    custodian: Account<'info, Custodian>,
-
-    #[account(
-        mut,
-        seeds = [
-            RouterEndpoint::SEED_PREFIX,
-            &router_endpoint.chain.to_be_bytes()
-        ],
-        bump = router_endpoint.bump,
-    )]
-    router_endpoint: Account<'info, RouterEndpoint>,
+    router_endpoint: ExistingMutRouterEndpoint<'info>,
 }
 
 pub fn disable_router_endpoint(ctx: Context<DisableRouterEndpoint>) -> Result<()> {
-    ctx.accounts.router_endpoint.protocol = MessageProtocol::None;
+    let endpoint = &mut ctx.accounts.router_endpoint.inner;
+    endpoint.protocol = MessageProtocol::None;
+    endpoint.address = Default::default();
+    endpoint.mint_recipient = Default::default();
 
     // Done.
     Ok(())

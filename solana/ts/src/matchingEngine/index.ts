@@ -346,8 +346,10 @@ export class MatchingEngineProgram {
         return this.program.methods
             .submitOwnershipTransferRequest()
             .accounts({
-                owner,
-                custodian: inputCustodian ?? this.custodianAddress(),
+                admin: {
+                    owner,
+                    custodian: inputCustodian ?? this.custodianAddress(),
+                },
                 newOwner,
             })
             .instruction();
@@ -375,8 +377,10 @@ export class MatchingEngineProgram {
         return this.program.methods
             .cancelOwnershipTransferRequest()
             .accounts({
-                owner,
-                custodian: inputCustodian ?? this.custodianAddress(),
+                admin: {
+                    owner,
+                    custodian: inputCustodian ?? this.custodianAddress(),
+                },
             })
             .instruction();
     }
@@ -400,6 +404,7 @@ export class MatchingEngineProgram {
     async addCctpRouterEndpointIx(
         accounts: {
             ownerOrAssistant: PublicKey;
+            payer?: PublicKey;
             custodian?: PublicKey;
             routerEndpoint?: PublicKey;
             remoteTokenMessenger?: PublicKey;
@@ -408,6 +413,7 @@ export class MatchingEngineProgram {
     ): Promise<TransactionInstruction> {
         const {
             ownerOrAssistant,
+            payer: inputPayer,
             custodian: inputCustodian,
             routerEndpoint: inputRouterEndpoint,
             remoteTokenMessenger: inputRemoteTokenMessenger,
@@ -419,9 +425,46 @@ export class MatchingEngineProgram {
         return this.program.methods
             .addCctpRouterEndpoint(args)
             .accounts({
-                ownerOrAssistant,
-                custodian: inputCustodian ?? this.custodianAddress(),
+                payer: inputPayer ?? ownerOrAssistant,
+                admin: {
+                    ownerOrAssistant,
+                    custodian: inputCustodian ?? this.custodianAddress(),
+                },
                 routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
+                remoteTokenMessenger: inputRemoteTokenMessenger ?? derivedRemoteTokenMessenger,
+            })
+            .instruction();
+    }
+
+    async updateCctpRouterEndpointIx(
+        accounts: {
+            owner: PublicKey;
+            custodian?: PublicKey;
+            routerEndpoint?: PublicKey;
+            remoteTokenMessenger?: PublicKey;
+        },
+        args: AddCctpRouterEndpointArgs,
+    ): Promise<TransactionInstruction> {
+        const {
+            owner,
+            custodian: inputCustodian,
+            routerEndpoint: inputRouterEndpoint,
+            remoteTokenMessenger: inputRemoteTokenMessenger,
+        } = accounts;
+        const { chain, cctpDomain } = args;
+        const derivedRemoteTokenMessenger =
+            this.tokenMessengerMinterProgram().remoteTokenMessengerAddress(cctpDomain);
+
+        return this.program.methods
+            .updateCctpRouterEndpoint(args)
+            .accounts({
+                admin: {
+                    owner,
+                    custodian: inputCustodian ?? this.custodianAddress(),
+                },
+                routerEndpoint: {
+                    inner: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
+                },
                 remoteTokenMessenger: inputRemoteTokenMessenger ?? derivedRemoteTokenMessenger,
             })
             .instruction();
@@ -430,18 +473,27 @@ export class MatchingEngineProgram {
     async proposeAuctionParametersIx(
         accounts: {
             ownerOrAssistant: PublicKey;
+            payer?: PublicKey;
             custodian?: PublicKey;
             proposal?: PublicKey;
         },
         parameters: AuctionParameters,
     ): Promise<TransactionInstruction> {
-        const { ownerOrAssistant, custodian: inputCustodian, proposal: inputProposal } = accounts;
+        const {
+            ownerOrAssistant,
+            payer: inputPayer,
+            custodian: inputCustodian,
+            proposal: inputProposal,
+        } = accounts;
 
         return this.program.methods
             .proposeAuctionParameters(parameters)
             .accounts({
-                ownerOrAssistant,
-                custodian: inputCustodian ?? this.custodianAddress(),
+                payer: inputPayer ?? ownerOrAssistant,
+                admin: {
+                    ownerOrAssistant,
+                    custodian: inputCustodian ?? this.custodianAddress(),
+                },
                 proposal: inputProposal ?? (await this.proposalAddress()),
                 epochSchedule: SYSVAR_EPOCH_SCHEDULE_PUBKEY,
             })
@@ -485,12 +537,14 @@ export class MatchingEngineProgram {
     async addLocalRouterEndpointIx(accounts: {
         ownerOrAssistant: PublicKey;
         tokenRouterProgram: PublicKey;
+        payer?: PublicKey;
         custodian?: PublicKey;
         routerEndpoint?: PublicKey;
     }): Promise<TransactionInstruction> {
         const {
             ownerOrAssistant,
             tokenRouterProgram,
+            payer: inputPayer,
             custodian: inputCustodian,
             routerEndpoint: inputRouterEndpoint,
         } = accounts;
@@ -501,17 +555,63 @@ export class MatchingEngineProgram {
         return this.program.methods
             .addLocalRouterEndpoint()
             .accounts({
-                ownerOrAssistant,
-                custodian: inputCustodian ?? this.custodianAddress(),
+                payer: inputPayer ?? ownerOrAssistant,
+                admin: {
+                    ownerOrAssistant,
+                    custodian: inputCustodian ?? this.custodianAddress(),
+                },
                 routerEndpoint:
                     inputRouterEndpoint ?? this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
-                tokenRouterProgram,
-                tokenRouterEmitter,
-                tokenRouterCustodyToken: splToken.getAssociatedTokenAddressSync(
-                    this.mint,
+                local: {
+                    tokenRouterProgram,
                     tokenRouterEmitter,
-                    true,
-                ),
+                    tokenRouterMintRecipient: splToken.getAssociatedTokenAddressSync(
+                        this.mint,
+                        tokenRouterEmitter,
+                        true,
+                    ),
+                },
+            })
+            .instruction();
+    }
+
+    async updateLocalRouterEndpointIx(accounts: {
+        owner: PublicKey;
+        tokenRouterProgram: PublicKey;
+        custodian?: PublicKey;
+        routerEndpoint?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const {
+            owner,
+            tokenRouterProgram,
+            custodian: inputCustodian,
+            routerEndpoint: inputRouterEndpoint,
+        } = accounts;
+        const [tokenRouterEmitter] = PublicKey.findProgramAddressSync(
+            [Buffer.from("emitter")],
+            tokenRouterProgram,
+        );
+        return this.program.methods
+            .updateLocalRouterEndpoint()
+            .accounts({
+                admin: {
+                    owner,
+                    custodian: inputCustodian ?? this.custodianAddress(),
+                },
+                routerEndpoint: {
+                    inner:
+                        inputRouterEndpoint ??
+                        this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+                },
+                local: {
+                    tokenRouterProgram,
+                    tokenRouterEmitter,
+                    tokenRouterMintRecipient: splToken.getAssociatedTokenAddressSync(
+                        this.mint,
+                        tokenRouterEmitter,
+                        true,
+                    ),
+                },
             })
             .instruction();
     }
@@ -528,9 +628,13 @@ export class MatchingEngineProgram {
         return this.program.methods
             .disableRouterEndpoint()
             .accounts({
-                owner,
-                custodian: inputCustodian ?? this.custodianAddress(),
-                routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
+                admin: {
+                    owner,
+                    custodian: inputCustodian ?? this.custodianAddress(),
+                },
+                routerEndpoint: {
+                    inner: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
+                },
             })
             .instruction();
     }

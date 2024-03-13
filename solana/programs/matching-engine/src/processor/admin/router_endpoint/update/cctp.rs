@@ -1,6 +1,5 @@
 use crate::{
-    error::MatchingEngineError,
-    state::{Custodian, RouterEndpoint},
+    state::{custodian::*, router_endpoint::*},
     utils::{self, admin::AddCctpRouterEndpointArgs},
 };
 use anchor_lang::prelude::*;
@@ -12,25 +11,9 @@ use common::wormhole_cctp_solana::{
 #[derive(Accounts)]
 #[instruction(args: AddCctpRouterEndpointArgs)]
 pub struct UpdateCctpRouterEndpoint<'info> {
-    #[account(mut)]
-    owner: Signer<'info>,
+    admin: OwnerCustodian<'info>,
 
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-        has_one = owner @ MatchingEngineError::OwnerOnly,
-    )]
-    custodian: Account<'info, Custodian>,
-
-    #[account(
-        mut,
-        seeds = [
-            RouterEndpoint::SEED_PREFIX,
-            &args.chain.to_be_bytes()
-        ],
-        bump = router_endpoint.bump,
-    )]
-    router_endpoint: Account<'info, RouterEndpoint>,
+    router_endpoint: ExistingMutRouterEndpoint<'info>,
 
     /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
     /// Messenger Minter program).
@@ -49,5 +32,9 @@ pub fn update_cctp_router_endpoint(
     ctx: Context<UpdateCctpRouterEndpoint>,
     args: AddCctpRouterEndpointArgs,
 ) -> Result<()> {
-    utils::admin::handle_add_cctp_router_endpoint(&mut ctx.accounts.router_endpoint, args, None)
+    utils::admin::handle_add_cctp_router_endpoint(
+        &mut ctx.accounts.router_endpoint.inner,
+        args,
+        None,
+    )
 }
