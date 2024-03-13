@@ -3,23 +3,22 @@
 pragma solidity ^0.8.19;
 
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
-import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
+import {BytesParsing} from "src/shared/WormholeBytesParsing.sol";
 
-import {Admin} from "../../shared/Admin.sol";
-import {Messages} from "../../shared/Messages.sol";
-import {Utils} from "../../shared/Utils.sol";
+import {Admin} from "src/shared/Admin.sol";
+import {Messages} from "src/shared/Messages.sol";
+import {Utils} from "src/shared/Utils.sol";
 
 import "./Errors.sol";
 import {State} from "./State.sol";
-import {FastTransferParameters, Endpoint} from "../../interfaces/ITokenRouterTypes.sol";
+import {FastTransferParameters, Endpoint} from "src/interfaces/ITokenRouterTypes.sol";
 import {
     getFastTransferParametersState,
     getCircleDomainsState,
     getRouterEndpointState
 } from "./Storage.sol";
 
-import "../../interfaces/IPlaceMarketOrder.sol";
+import "src/interfaces/IPlaceMarketOrder.sol";
 
 abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
     using BytesParsing for bytes;

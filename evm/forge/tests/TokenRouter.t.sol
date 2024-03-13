@@ -7,31 +7,31 @@ import "forge-std/StdUtils.sol";
 import "forge-std/console.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {CircleSimulator} from "cctp-solidity/CircleSimulator.sol";
-import {IUSDC} from "cctp-solidity/IUSDC.sol";
-import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
-import {ITokenMessenger} from "cctp-solidity/ITokenMessenger.sol";
-import {IWormhole} from "wormhole-solidity/IWormhole.sol";
-import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
+import {CircleSimulator} from "local-modules/circle/CircleSimulator.sol";
+import {IUSDC} from "local-modules/circle/IUSDC.sol";
+import {ICircleIntegration} from "local-modules/wormhole/ICircleIntegration.sol";
+import {ITokenMessenger} from "src/interfaces/external/ITokenMessenger.sol";
+import {IWormhole} from "src/interfaces/external/IWormhole.sol";
+import {SigningWormholeSimulator} from "local-modules/wormhole/WormholeSimulator.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
+import {BytesParsing} from "src/shared/WormholeBytesParsing.sol";
 
 import {
     IMockTokenRouter,
     MockTokenRouterImplementation
 } from "./helpers/mock/MockTokenRouterImplementation.sol";
 
-import "../../src/TokenRouter/assets/Errors.sol";
-import {TokenRouterImplementation} from "../../src/TokenRouter/TokenRouterImplementation.sol";
-import {TokenRouterSetup} from "../../src/TokenRouter/TokenRouterSetup.sol";
+import "src/TokenRouter/assets/Errors.sol";
+import {TokenRouterImplementation} from "src/TokenRouter/TokenRouterImplementation.sol";
+import {TokenRouterSetup} from "src/TokenRouter/TokenRouterSetup.sol";
 
-import {Messages} from "../../src/shared/Messages.sol";
-import {Utils} from "../../src/shared/Utils.sol";
+import {Messages} from "src/shared/Messages.sol";
+import {Utils} from "src/shared/Utils.sol";
 
-import "../../src/interfaces/ITokenRouter.sol";
-import {FastTransferParameters, Endpoint} from "../../src/interfaces/ITokenRouterTypes.sol";
+import "src/interfaces/ITokenRouter.sol";
+import {FastTransferParameters, Endpoint} from "src/interfaces/ITokenRouterTypes.sol";
 
-import {WormholeCctpMessages} from "../../src/shared/WormholeCctpMessages.sol";
+import {WormholeCctpMessages} from "src/shared/WormholeCctpMessages.sol";
 
 contract TokenRouterTest is Test {
     using BytesParsing for bytes;
@@ -134,7 +134,6 @@ contract TokenRouterTest is Test {
     /**
      * ADMIN TESTS
      */
-
     function testUpgradeContract() public {
         // Deploy new implementation.
         MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
@@ -351,7 +350,7 @@ contract TokenRouterTest is Test {
         router.updateOwnerAssistant(newAssistant);
     }
 
-    function testAddRouterEndpoint() public {
+    function testAddRouterEndpointAsOwner() public {
         uint16 chain = 1;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
         bytes32 mintRecipient = routerEndpoint;
@@ -362,6 +361,26 @@ contract TokenRouterTest is Test {
         assertEq(router.getDomain(chain), 0);
 
         vm.prank(makeAddr("owner"));
+        router.addRouterEndpoint(
+            chain, Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
+        );
+
+        assertEq(router.getRouter(chain), routerEndpoint);
+        assertEq(router.getMintRecipient(chain), mintRecipient);
+        assertEq(router.getDomain(chain), domain);
+    }
+
+    function testAddRouterEndpointAsOwnerAssistant() public {
+        uint16 chain = 1;
+        bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = routerEndpoint;
+        uint32 domain = 1;
+
+        assertEq(router.getRouter(chain), bytes32(0));
+        assertEq(router.getMintRecipient(chain), bytes32(0));
+        assertEq(router.getDomain(chain), 0);
+
+        vm.prank(makeAddr("ownerAssistant"));
         router.addRouterEndpoint(
             chain, Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
         );
@@ -434,6 +453,100 @@ contract TokenRouterTest is Test {
         router.addRouterEndpoint(
             chain, Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
         );
+    }
+
+    function testCannotUpdateRouterEndpointWithoutOwner() public {
+        bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
+
+        vm.prank(makeAddr("ownerAssistant"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        router.updateRouterEndpoint(
+            ARB_CHAIN,
+            Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}),
+            ARB_DOMAIN
+        );
+    }
+
+    function testUpdateRouterEndpointAsOwner() public {
+        bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
+        uint32 domain = 69;
+
+        assertEq(router.getRouter(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getDomain(ARB_CHAIN), ARB_DOMAIN);
+
+        vm.prank(makeAddr("owner"));
+        router.updateRouterEndpoint(
+            ARB_CHAIN,
+            Endpoint({router: routerEndpoint, mintRecipient: mintRecipient}),
+            domain
+        );
+
+        assertEq(router.getRouter(ARB_CHAIN), routerEndpoint);
+        assertEq(router.getMintRecipient(ARB_CHAIN), mintRecipient);
+        assertEq(router.getDomain(ARB_CHAIN), domain);
+    }
+
+    function testCannotDisableRouterEndpointWithoutOwner() public {
+        vm.prank(makeAddr("ownerAssistant"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        router.disableRouterEndpoint(ARB_CHAIN);
+    }
+
+    function testDisableRouterEndpointAsOwner() public {
+        assertEq(router.getRouter(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getDomain(ARB_CHAIN), ARB_DOMAIN);
+
+        vm.prank(makeAddr("owner"));
+        router.disableRouterEndpoint(ARB_CHAIN);
+
+        assertEq(router.getRouter(ARB_CHAIN), bytes32(0));
+        assertEq(router.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getDomain(ARB_CHAIN), 0);
+    }
+
+    function testCannotAddRouterEndpointAfterDisableRouterEndpoint() public {
+        assertEq(router.getRouter(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getDomain(ARB_CHAIN), ARB_DOMAIN);
+
+        vm.prank(makeAddr("owner"));
+        router.disableRouterEndpoint(ARB_CHAIN);
+
+        assertEq(router.getRouter(ARB_CHAIN), bytes32(0));
+        assertEq(router.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getDomain(ARB_CHAIN), 0);
+
+        vm.prank(makeAddr("ownerAssistant"));
+        vm.expectRevert(abi.encodeWithSignature("ErrEndpointAlreadyExists(uint16)", ARB_CHAIN));
+        router.addRouterEndpoint(
+            ARB_CHAIN, Endpoint({router: ARB_ROUTER, mintRecipient: ARB_ROUTER}), ARB_DOMAIN
+        );
+    }
+
+    function testUpdateRouterEndpointAfterDisableRouterEndpoint() public {
+        assertEq(router.getRouter(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getDomain(ARB_CHAIN), ARB_DOMAIN);
+
+        vm.prank(makeAddr("owner"));
+        router.disableRouterEndpoint(ARB_CHAIN);
+
+        assertEq(router.getRouter(ARB_CHAIN), bytes32(0));
+        assertEq(router.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getDomain(ARB_CHAIN), 0);
+
+        vm.prank(makeAddr("owner"));
+        router.updateRouterEndpoint(
+            ARB_CHAIN, Endpoint({router: ARB_ROUTER, mintRecipient: ARB_ROUTER}), ARB_DOMAIN
+        );
+
+        assertEq(router.getRouter(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(router.getDomain(ARB_CHAIN), ARB_DOMAIN);
     }
 
     function testUpdateFastTransferParameters() public {
@@ -550,7 +663,6 @@ contract TokenRouterTest is Test {
     /**
      * MESSAGES TESTS
      */
-
     function testEncodeAndDecodeFill(
         uint16 sourceChain,
         bytes32 orderSender,
@@ -619,7 +731,6 @@ contract TokenRouterTest is Test {
     /**
      * SLOW TRANSFER TESTS
      */
-
     function testCannotPlaceMarketOrderErrInsufficientAmount() public {
         vm.expectRevert(abi.encodeWithSignature("ErrInsufficientAmount(uint64,uint64)", 0, 0));
         router.placeMarketOrder(
@@ -755,7 +866,7 @@ contract TokenRouterTest is Test {
 
         {
             vm.prank(makeAddr("owner"));
-            router.addRouterEndpoint(
+            router.updateRouterEndpoint(
                 ARB_CHAIN,
                 Endpoint({router: ARB_ROUTER, mintRecipient: bytes32("c0ffee")}),
                 ARB_DOMAIN
@@ -1122,7 +1233,6 @@ contract TokenRouterTest is Test {
     /**
      * FILL REDEMPTION TESTS
      */
-
     function testCannotRedeemFillInvalidSourceRouter() public {
         bytes32 invalidRouter = makeAddr("notArbRouter").toUniversalAddress();
 
@@ -1205,7 +1315,6 @@ contract TokenRouterTest is Test {
     /**
      * TEST HELPERS
      */
-
     function _dealAndApproveUsdc(ITokenRouter _router, uint64 amount) internal {
         mintUSDC(amount, address(this));
         IERC20(USDC_ADDRESS).approve(address(_router), amount);

@@ -87,14 +87,18 @@ interface IWormhole {
 
     function verifyVM(VM memory vm) external view returns (bool valid, string memory reason);
 
-    function verifySignatures(bytes32 hash, Signature[] memory signatures, GuardianSet memory guardianSet)
-        external
-        pure
-        returns (bool valid, string memory reason);
+    function verifySignatures(
+        bytes32 hash,
+        Signature[] memory signatures,
+        GuardianSet memory guardianSet
+    ) external pure returns (bool valid, string memory reason);
 
     function parseVM(bytes memory encodedVM) external pure returns (VM memory vm);
 
-    function quorum(uint256 numGuardians) external pure returns (uint256 numSignaturesRequiredForQuorum);
+    function quorum(uint256 numGuardians)
+        external
+        pure
+        returns (uint256 numSignaturesRequiredForQuorum);
 
     function getGuardianSet(uint32 index) external view returns (GuardianSet memory);
 
@@ -120,16 +124,25 @@ interface IWormhole {
 
     function nextSequence(address emitter) external view returns (uint64);
 
-    function parseContractUpgrade(bytes memory encodedUpgrade) external pure returns (ContractUpgrade memory cu);
+    function parseContractUpgrade(bytes memory encodedUpgrade)
+        external
+        pure
+        returns (ContractUpgrade memory cu);
 
     function parseGuardianSetUpgrade(bytes memory encodedUpgrade)
         external
         pure
         returns (GuardianSetUpgrade memory gsu);
 
-    function parseSetMessageFee(bytes memory encodedSetMessageFee) external pure returns (SetMessageFee memory smf);
+    function parseSetMessageFee(bytes memory encodedSetMessageFee)
+        external
+        pure
+        returns (SetMessageFee memory smf);
 
-    function parseTransferFees(bytes memory encodedTransferFees) external pure returns (TransferFees memory tf);
+    function parseTransferFees(bytes memory encodedTransferFees)
+        external
+        pure
+        returns (TransferFees memory tf);
 
     function parseRecoverChainId(bytes memory encodedRecoverChainId)
         external

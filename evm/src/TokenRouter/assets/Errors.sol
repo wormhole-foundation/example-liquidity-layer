@@ -10,6 +10,8 @@ error ErrInvalidRedeemerAddress();
 
 error ErrInvalidEndpoint(bytes32 endpoint);
 
+error ErrEndpointAlreadyExists(uint16 chain);
+
 error ErrUnsupportedChain(uint16 chain);
 
 error ErrChainNotAllowed(uint16 chain);

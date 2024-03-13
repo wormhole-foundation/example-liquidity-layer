@@ -6,17 +6,15 @@ import "forge-std/Script.sol";
 import "forge-std/console2.sol";
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
-import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
-import {IMatchingEngine} from "../../src/interfaces/IMatchingEngine.sol";
+import {IMatchingEngine} from "src/interfaces/IMatchingEngine.sol";
 
-import {MatchingEngineSetup} from "../../src/MatchingEngine/MatchingEngineSetup.sol";
+import {MatchingEngineSetup} from "src/MatchingEngine/MatchingEngineSetup.sol";
 import {MatchingEngineImplementation} from
-    "../../src/MatchingEngine/MatchingEngineImplementation.sol";
+    "src/MatchingEngine/MatchingEngineImplementation.sol";
 
 import {CheckWormholeContracts} from "./helpers/CheckWormholeContracts.sol";
 
-import {Utils} from "../../src/shared/Utils.sol";
+import {Utils} from "src/shared/Utils.sol";
 
 contract UpgradeMatchingEngine is CheckWormholeContracts, Script {
     using Utils for bytes32;

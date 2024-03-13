@@ -18,9 +18,8 @@ libs = [
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "forge-std/=lib/forge-std/src/",
-    "wormhole-solidity/=modules/wormhole",
-    "cctp-solidity/=modules/circle",
-    "curve-solidity/=modules/curve"
+    "src/=src/",
+    "local-modules/=forge/modules/"
 ]
 
 gas_limit = "18446744073709551615"

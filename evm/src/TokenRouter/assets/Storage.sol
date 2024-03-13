@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.19;
 
-import "../../interfaces/ITokenRouterTypes.sol";
+import "src/interfaces/ITokenRouterTypes.sol";
 
 // keccak256("RouterEndpoints") - 1
 bytes32 constant ROUTER_ENDPOINT_STORAGE_SLOT =

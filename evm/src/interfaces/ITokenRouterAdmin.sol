@@ -15,6 +15,23 @@ interface ITokenRouterAdmin {
     function addRouterEndpoint(uint16 chain, Endpoint memory endpoint, uint32 domain) external;
 
     /**
+     * @notice Update a `router` endpoint for the specified Wormhole `chain`.
+     * @param chain The Wormhole chain ID.
+     * @param endpoint The `Endpoint` for the specified `chain`.
+     * @param domain The Circle domain for the specified `chain`.
+     * @dev This function is only callable by the contract owner.
+     */
+    function updateRouterEndpoint(uint16 chain, Endpoint memory endpoint, uint32 domain)
+        external;
+
+    /**
+     * @notice Disable a `router` endpoint for the specified Wormhole `chain`.
+     * @param chain The Wormhole chain ID.
+     * @dev This function is only callable by the contract owner.
+     */
+    function disableRouterEndpoint(uint16 chain) external;
+
+    /**
      * @notice Update the fast transfer parameters.
      * @param newParams The new fast transfer parameters.
      * - `enable` - Determines if fast transfers are enabled.

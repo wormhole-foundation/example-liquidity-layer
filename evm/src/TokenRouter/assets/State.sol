@@ -3,18 +3,18 @@
 pragma solidity ^0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IWormhole} from "wormhole-solidity/IWormhole.sol";
-import {ITokenRouterState} from "../../interfaces/ITokenRouterState.sol";
+import {IWormhole} from "src/interfaces/external/IWormhole.sol";
+import {ITokenRouterState} from "src/interfaces/ITokenRouterState.sol";
+import {FastTransferParameters, Endpoint} from "src/interfaces/ITokenRouterTypes.sol";
 
 import "./Errors.sol";
-import {FastTransferParameters, Endpoint} from "../../interfaces/ITokenRouterTypes.sol";
 import {
     getRouterEndpointState,
     getFastTransferParametersState,
     getCircleDomainsState
 } from "./Storage.sol";
 
-import {WormholeCctpTokenMessenger} from "../../shared/WormholeCctpTokenMessenger.sol";
+import {WormholeCctpTokenMessenger} from "src/shared/WormholeCctpTokenMessenger.sol";
 
 abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
     // Immutable state.

@@ -3,11 +3,11 @@
 pragma solidity ^0.8.19;
 
 import {ERC1967Upgrade} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
-import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
+import {BytesParsing} from "src/shared/WormholeBytesParsing.sol";
 
-import {Admin} from "../shared/Admin.sol";
-import {Messages} from "../shared/Messages.sol";
-import {getImplementationState, Implementation} from "../shared/Admin.sol";
+import {Admin} from "src/shared/Admin.sol";
+import {Messages} from "src/shared/Messages.sol";
+import {getImplementationState, Implementation} from "src/shared/Admin.sol";
 
 import {TokenRouterAdmin} from "./assets/TokenRouterAdmin.sol";
 import {PlaceMarketOrder} from "./assets/PlaceMarketOrder.sol";

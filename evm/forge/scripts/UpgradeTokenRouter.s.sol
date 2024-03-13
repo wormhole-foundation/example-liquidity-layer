@@ -5,15 +5,12 @@ pragma solidity ^0.8.19;
 import "forge-std/Script.sol";
 import "forge-std/console2.sol";
 
-import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
-import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
-
-import {TokenRouterImplementation} from "../../src/TokenRouter/TokenRouterImplementation.sol";
-import {ITokenRouter} from "../../src/interfaces/ITokenRouter.sol";
+import {TokenRouterImplementation} from "src/TokenRouter/TokenRouterImplementation.sol";
+import {ITokenRouter} from "src/interfaces/ITokenRouter.sol";
 
 import {CheckWormholeContracts} from "./helpers/CheckWormholeContracts.sol";
 
-import {Utils} from "../../src/shared/Utils.sol";
+import {Utils} from "src/shared/Utils.sol";
 
 contract UpgradeTokenRouter is CheckWormholeContracts, Script {
     using Utils for address;

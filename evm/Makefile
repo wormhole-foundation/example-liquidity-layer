@@ -14,13 +14,16 @@ integration-test: node_modules ts/tests/.env
 	bash ts/tests/run_integration_test.sh
 
 .PHONY: test
-test: node_modules ts/tests/.env
-	forge test --fork-url ${AVAX_RPC} -vv
+test: forge-test ts/tests/.env
 	bash ts/tests/run_integration_test.sh
+
+.PHONY: forge-test
+forge-test: dependencies
+	forge test --fork-url ${AVAX_RPC} -vv
 
 .PHONY: build
 build: dependencies
-	forge build
+	forge build --skip test
 	npm run build-types
 
 .PHONY: dependencies

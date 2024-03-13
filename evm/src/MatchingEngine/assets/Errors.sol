@@ -8,6 +8,8 @@ error ErrChainNotAllowed(uint16 chain);
 
 error ErrInvalidEndpoint(bytes32 endpoint);
 
+error ErrEndpointAlreadyExists(uint16 chain);
+
 error ErrInvalidTargetRouter(uint16 chain);
 
 error ErrInvalidSourceRouter(bytes32 sender, bytes32 expected);

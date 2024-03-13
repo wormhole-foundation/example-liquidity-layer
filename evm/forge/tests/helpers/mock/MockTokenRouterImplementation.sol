@@ -3,8 +3,8 @@
 pragma solidity ^0.8.19;
 
 import {ERC1967Upgrade} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
-import {TokenRouterImplementation} from "../../../../src/TokenRouter/TokenRouterImplementation.sol";
-import {ITokenRouter} from "../../../../src/interfaces/ITokenRouter.sol";
+import {TokenRouterImplementation} from "src/TokenRouter/TokenRouterImplementation.sol";
+import {ITokenRouter} from "src/interfaces/ITokenRouter.sol";
 
 interface IMockTokenRouter is ITokenRouter {
     function isUpgraded() external pure returns (bool);
