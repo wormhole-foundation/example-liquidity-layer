@@ -14,6 +14,7 @@ use common::{
         wormhole::VaaAccount,
     },
 };
+use matching_engine::state::MessageProtocol;
 
 /// Accounts required for [redeem_cctp_fill].
 #[derive(Accounts)]
@@ -87,6 +88,7 @@ pub struct RedeemCctpFill<'info> {
         ],
         bump = router_endpoint.bump,
         seeds::program = matching_engine::id(),
+        constraint = router_endpoint.protocol != MessageProtocol::None @ TokenRouterError::EndpointDisabled,
     )]
     router_endpoint: Box<Account<'info, matching_engine::state::RouterEndpoint>>,
 

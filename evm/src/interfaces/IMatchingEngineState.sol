@@ -3,8 +3,8 @@
 pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IWormhole} from "wormhole-solidity/IWormhole.sol";
-import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
+import {IWormhole} from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
+import {ICircleIntegration} from "local-modules/wormhole/ICircleIntegration.sol";
 import "./IMatchingEngineTypes.sol";
 
 interface IMatchingEngineState {

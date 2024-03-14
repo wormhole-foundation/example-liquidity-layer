@@ -1,0 +1,12 @@
+[submodule "evm/lib/forge-std"]
+    path = evm/lib/forge-std
+    url = https://github.com/foundry-rs/forge-std
+    branch = v1.8.0
+[submodule "evm/lib/openzeppelin-contracts"]
+    path = evm/lib/openzeppelin-contracts
+    url = https://github.com/openzeppelin/openzeppelin-contracts
+    branch = v4.9.6
+[submodule "evm/lib/wormhole-solidity-sdk"]
+    path = evm/lib/wormhole-solidity-sdk
+    url = https://github.com/wormhole-foundation/wormhole-solidity-sdk
+    branch = 2b7db51f99b49eda99b44f4a044e751cb0b2e8ea

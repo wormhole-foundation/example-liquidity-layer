@@ -8,6 +8,8 @@ import {
     PublicKey,
     ComputeBudgetProgram,
     SystemProgram,
+    SYSVAR_RENT_PUBKEY,
+    TransactionInstruction,
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
@@ -26,6 +28,7 @@ import {
     LOCALHOST,
     MOCK_GUARDIANS,
     OWNER_ASSISTANT_KEYPAIR,
+    OWNER_KEYPAIR,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
     bigintToU64BN,
@@ -41,6 +44,7 @@ describe("Matching Engine <> Token Router", function () {
     const connection = new Connection(LOCALHOST, "processed");
 
     const payer = PAYER_KEYPAIR;
+    const owner = OWNER_KEYPAIR;
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
     const offerAuthorityOne = Keypair.generate();
 
@@ -62,6 +66,60 @@ describe("Matching Engine <> Token Router", function () {
 
     describe("Admin", function () {
         describe("Local Router Endpoint", function () {
+            const localVariables = new Map<string, any>();
+
+            it("Matching Engine .. Cannot Add Local Router Endpoint without Executable", async function () {
+                const ix = await matchingEngine.addLocalRouterEndpointIx({
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                    tokenRouterProgram: SYSVAR_RENT_PUBKEY,
+                });
+
+                const [bogusEmitter] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("emitter")],
+                    SYSVAR_RENT_PUBKEY,
+                );
+                await splToken.getOrCreateAssociatedTokenAccount(
+                    connection,
+                    payer,
+                    USDC_MINT_ADDRESS,
+                    bogusEmitter,
+                    true,
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: ConstraintExecutable",
+                );
+            });
+
+            it("Matching Engine .. Cannot Add Local Router Endpoint using System Program", async function () {
+                const ix = await matchingEngine.addLocalRouterEndpointIx({
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                    tokenRouterProgram: SystemProgram.programId,
+                });
+
+                const [bogusEmitter] = PublicKey.findProgramAddressSync(
+                    [Buffer.from("emitter")],
+                    SystemProgram.programId,
+                );
+                await splToken.getOrCreateAssociatedTokenAccount(
+                    connection,
+                    payer,
+                    USDC_MINT_ADDRESS,
+                    bogusEmitter,
+                    true,
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: InvalidEndpoint",
+                );
+            });
+
             it("Matching Engine .. Add Local Router Endpoint using Token Router Program", async function () {
                 const ix = await matchingEngine.addLocalRouterEndpointIx({
                     ownerOrAssistant: ownerAssistant.publicKey,
@@ -82,21 +140,91 @@ describe("Matching Engine <> Token Router", function () {
                         { local: { programId: tokenRouter.ID } },
                     ),
                 );
+
+                // Save for later.
+                localVariables.set("ix", ix);
             });
 
-            it("Matching Engine .. Remove Local Router Endpoint", async function () {
-                const ix = await matchingEngine.removeRouterEndpointIx(
+            it("Matching Engine .. Cannot Add Local Router Endpoint Again", async function () {
+                const ix = localVariables.get("ix") as TransactionInstruction;
+                expect(localVariables.delete("ix")).is.true;
+
+                const routerEndpoint = matchingEngine.routerEndpointAddress(
+                    wormholeSdk.CHAIN_ID_SOLANA,
+                );
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    `Allocate: account Address { address: ${routerEndpoint.toString()}, base: None } already in use`,
+                );
+            });
+
+            it("Matching Engine .. Cannot Update Router Endpoint as Owner Assistant", async function () {
+                const ix = await matchingEngine.updateLocalRouterEndpointIx({
+                    owner: ownerAssistant.publicKey,
+                    tokenRouterProgram: tokenRouter.ID,
+                });
+
+                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
+            });
+
+            // TODO: This is a no-op. Consider using testnet token router program as the first one
+            // registered before registering the localnet one.
+            it("Matching Engine .. Update Router Endpoint as Owner", async function () {
+                const ix = await matchingEngine.updateLocalRouterEndpointIx({
+                    owner: owner.publicKey,
+                    tokenRouterProgram: tokenRouter.ID,
+                });
+
+                await expectIxOk(connection, [ix], [owner]);
+
+                const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
+                    wormholeSdk.CHAIN_ID_SOLANA,
+                );
+                const { bump } = routerEndpointData;
+                expect(routerEndpointData).to.eql(
+                    new matchingEngineSdk.RouterEndpoint(
+                        bump,
+                        wormholeSdk.CHAIN_ID_SOLANA,
+                        Array.from(tokenRouter.custodianAddress().toBuffer()),
+                        Array.from(tokenRouter.cctpMintRecipientAddress().toBuffer()),
+                        { local: { programId: tokenRouter.ID } },
+                    ),
+                );
+            });
+
+            it("Matching Engine .. Cannot Disable Router Endpoint as Owner Assistant", async function () {
+                const ix = await matchingEngine.disableRouterEndpointIx(
+                    { owner: ownerAssistant.publicKey },
+                    wormholeSdk.CHAIN_ID_SOLANA,
+                );
+
+                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
+            });
+
+            it("Matching Engine .. Disable Local Router Endpoint as Owner", async function () {
+                const ix = await matchingEngine.disableRouterEndpointIx(
                     {
-                        ownerOrAssistant: ownerAssistant.publicKey,
+                        owner: owner.publicKey,
                     },
                     wormholeSdk.CHAIN_ID_SOLANA,
                 );
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectIxOk(connection, [ix], [owner]);
 
-                const accInfo = await connection.getAccountInfo(
-                    matchingEngine.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+                const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
+                    wormholeSdk.CHAIN_ID_SOLANA,
                 );
-                expect(accInfo).to.eql(null);
+                const { bump } = routerEndpointData;
+                expect(routerEndpointData).to.eql(
+                    new matchingEngineSdk.RouterEndpoint(
+                        bump,
+                        wormholeSdk.CHAIN_ID_SOLANA,
+                        new Array(32).fill(0),
+                        new Array(32).fill(0),
+                        { none: {} },
+                    ),
+                );
             });
 
             after("Set Up Lookup Table", async function () {
@@ -223,22 +351,22 @@ describe("Matching Engine <> Token Router", function () {
                 });
             });
 
-            before("Add Local Router Endpoint", async function () {
-                const ix = await matchingEngine.addLocalRouterEndpointIx({
-                    ownerOrAssistant: ownerAssistant.publicKey,
+            before("Update Local Router Endpoint", async function () {
+                const ix = await matchingEngine.updateLocalRouterEndpointIx({
+                    owner: owner.publicKey,
                     tokenRouterProgram: tokenRouter.ID,
                 });
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectIxOk(connection, [ix], [owner]);
             });
 
-            after("Remove Local Router Endpoint", async function () {
-                const ix = await matchingEngine.removeRouterEndpointIx(
+            after("Disable Local Router Endpoint", async function () {
+                const ix = await matchingEngine.disableRouterEndpointIx(
                     {
-                        ownerOrAssistant: ownerAssistant.publicKey,
+                        owner: owner.publicKey,
                     },
                     wormholeSdk.CHAIN_ID_SOLANA,
                 );
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectIxOk(connection, [ix], [owner]);
             });
         });
 
@@ -320,22 +448,22 @@ describe("Matching Engine <> Token Router", function () {
                 });
             });
 
-            before("Add Local Router Endpoint", async function () {
-                const ix = await matchingEngine.addLocalRouterEndpointIx({
-                    ownerOrAssistant: ownerAssistant.publicKey,
+            before("Update Local Router Endpoint", async function () {
+                const ix = await matchingEngine.updateLocalRouterEndpointIx({
+                    owner: owner.publicKey,
                     tokenRouterProgram: tokenRouter.ID,
                 });
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectIxOk(connection, [ix], [owner]);
             });
 
-            after("Remove Local Router Endpoint", async function () {
-                const ix = await matchingEngine.removeRouterEndpointIx(
+            after("Disable Local Router Endpoint", async function () {
+                const ix = await matchingEngine.disableRouterEndpointIx(
                     {
-                        ownerOrAssistant: ownerAssistant.publicKey,
+                        owner: owner.publicKey,
                     },
                     wormholeSdk.CHAIN_ID_SOLANA,
                 );
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectIxOk(connection, [ix], [owner]);
             });
         });
 
@@ -380,7 +508,7 @@ describe("Matching Engine <> Token Router", function () {
                     vaa,
                 });
 
-                await expectIxErr(connection, [ix], [payer], "Error Code: AccountNotInitialized");
+                await expectIxErr(connection, [ix], [payer], "Error Code: EndpointDisabled");
 
                 // Save for later.
                 localVariables.set("vaa", vaa);
@@ -388,12 +516,12 @@ describe("Matching Engine <> Token Router", function () {
                 localVariables.set("redeemerMessage", redeemerMessage);
             });
 
-            it("Matching Engine .. Add Local Router Endpoint using Token Router Program", async function () {
-                const ix = await matchingEngine.addLocalRouterEndpointIx({
-                    ownerOrAssistant: ownerAssistant.publicKey,
+            it("Matching Engine .. Update Local Router Endpoint using Token Router Program", async function () {
+                const ix = await matchingEngine.updateLocalRouterEndpointIx({
+                    owner: owner.publicKey,
                     tokenRouterProgram: tokenRouter.ID,
                 });
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectIxOk(connection, [ix], [owner]);
 
                 const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
                     wormholeSdk.CHAIN_ID_SOLANA,

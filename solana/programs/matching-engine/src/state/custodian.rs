@@ -1,5 +1,8 @@
 use anchor_lang::prelude::*;
 
+use crate::error::MatchingEngineError;
+use common::admin;
+
 #[account]
 #[derive(Debug, InitSpace)]
 pub struct Custodian {
@@ -24,7 +27,7 @@ impl Custodian {
     pub const SIGNER_SEEDS: &'static [&'static [u8]] = &[Self::SEED_PREFIX, &[Self::BUMP]];
 }
 
-impl common::admin::Ownable for Custodian {
+impl admin::Ownable for Custodian {
     fn owner(&self) -> &Pubkey {
         &self.owner
     }
@@ -34,7 +37,7 @@ impl common::admin::Ownable for Custodian {
     }
 }
 
-impl common::admin::PendingOwner for Custodian {
+impl admin::PendingOwner for Custodian {
     fn pending_owner(&self) -> &Option<Pubkey> {
         &self.pending_owner
     }
@@ -44,7 +47,7 @@ impl common::admin::PendingOwner for Custodian {
     }
 }
 
-impl common::admin::OwnerAssistant for Custodian {
+impl admin::OwnerAssistant for Custodian {
     fn owner_assistant(&self) -> &Pubkey {
         &self.owner_assistant
     }
@@ -52,6 +55,50 @@ impl common::admin::OwnerAssistant for Custodian {
     fn owner_assistant_mut(&mut self) -> &mut Pubkey {
         &mut self.owner_assistant
     }
+}
+
+#[derive(Accounts)]
+pub struct OwnerCustodian<'info> {
+    pub owner: Signer<'info>,
+
+    #[account(has_one = owner @ MatchingEngineError::OwnerOnly)]
+    pub custodian: Account<'info, Custodian>,
+}
+
+#[derive(Accounts)]
+pub struct OwnerMutCustodian<'info> {
+    pub owner: Signer<'info>,
+
+    #[account(
+        mut,
+        has_one = owner @ MatchingEngineError::OwnerOnly,
+    )]
+    pub custodian: Account<'info, Custodian>,
+}
+
+#[derive(Accounts)]
+pub struct AdminCustodian<'info> {
+    #[account(
+        constraint = {
+            admin::utils::assistant::only_authorized(&custodian, &owner_or_assistant.key())
+        } @ MatchingEngineError::OwnerOrAssistantOnly,
+    )]
+    pub owner_or_assistant: Signer<'info>,
+
+    pub custodian: Account<'info, Custodian>,
+}
+
+#[derive(Accounts)]
+pub struct AdminMutCustodian<'info> {
+    #[account(
+        constraint = {
+            admin::utils::assistant::only_authorized(&custodian, &owner_or_assistant.key())
+        } @ MatchingEngineError::OwnerOrAssistantOnly,
+    )]
+    pub owner_or_assistant: Signer<'info>,
+
+    #[account(mut)]
+    pub custodian: Account<'info, Custodian>,
 }
 
 #[cfg(test)]

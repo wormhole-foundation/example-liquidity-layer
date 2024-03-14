@@ -46,6 +46,9 @@ pub enum TokenRouterError {
     #[msg("NotPendingOwner")]
     NotPendingOwner = 0x2a,
 
+    #[msg("EndpointDisabled")]
+    EndpointDisabled = 0x30,
+
     #[msg("ChainNotAllowed")]
     ChainNotAllowed = 0x40,
 

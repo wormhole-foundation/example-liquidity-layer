@@ -7,10 +7,10 @@ import "forge-std/StdUtils.sol";
 import "forge-std/console.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {CircleSimulator} from "cctp-solidity/CircleSimulator.sol";
-import {IUSDC} from "cctp-solidity/IUSDC.sol";
-import {IWormhole} from "wormhole-solidity/IWormhole.sol";
-import {SigningWormholeSimulator} from "wormhole-solidity/WormholeSimulator.sol";
+import {CircleSimulator} from "local-modules/circle/CircleSimulator.sol";
+import {IUSDC} from "local-modules/circle/IUSDC.sol";
+import {IWormhole} from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
+import {SigningWormholeSimulator} from "local-modules/wormhole/WormholeSimulator.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {
@@ -18,30 +18,29 @@ import {
     MockMatchingEngineImplementation
 } from "./helpers/mock/MockMatchingEngineImplementation.sol";
 
-import "../../src/MatchingEngine/assets/Errors.sol";
-import {MatchingEngineImplementation} from
-    "../../src/MatchingEngine/MatchingEngineImplementation.sol";
-import {MatchingEngineSetup} from "../../src/MatchingEngine/MatchingEngineSetup.sol";
+import "src/MatchingEngine/assets/Errors.sol";
+import {MatchingEngineImplementation} from "src/MatchingEngine/MatchingEngineImplementation.sol";
+import {MatchingEngineSetup} from "src/MatchingEngine/MatchingEngineSetup.sol";
 
-import "../../src/interfaces/ITokenRouterTypes.sol";
-import {Messages} from "../../src/shared/Messages.sol";
-import {Utils} from "../../src/shared/Utils.sol";
+import "src/interfaces/ITokenRouterTypes.sol";
+import {Messages} from "src/shared/Messages.sol";
+import {Utils} from "src/shared/Utils.sol";
 
-import {IMatchingEngine} from "../../src/interfaces/IMatchingEngine.sol";
+import {IMatchingEngine} from "src/interfaces/IMatchingEngine.sol";
 import {
     LiveAuctionData,
     AuctionStatus,
     CctpMessage,
     RouterEndpoint
-} from "../../src/interfaces/IMatchingEngineTypes.sol";
+} from "src/interfaces/IMatchingEngineTypes.sol";
 
-import {FastTransferParameters} from "../../src/interfaces/ITokenRouterTypes.sol";
-import {ITokenRouter} from "../../src/interfaces/ITokenRouter.sol";
-import {TokenRouterImplementation} from "../../src/TokenRouter/TokenRouterImplementation.sol";
-import {TokenRouterSetup} from "../../src/TokenRouter/TokenRouterSetup.sol";
-import {RedeemedFill} from "../../src/interfaces/IRedeemFill.sol";
+import {FastTransferParameters} from "src/interfaces/ITokenRouterTypes.sol";
+import {ITokenRouter} from "src/interfaces/ITokenRouter.sol";
+import {TokenRouterImplementation} from "src/TokenRouter/TokenRouterImplementation.sol";
+import {TokenRouterSetup} from "src/TokenRouter/TokenRouterSetup.sol";
+import {RedeemedFill} from "src/interfaces/IRedeemFill.sol";
 
-import {WormholeCctpMessages} from "../../src/shared/WormholeCctpMessages.sol";
+import {WormholeCctpMessages} from "src/shared/WormholeCctpMessages.sol";
 
 contract MatchingEngineTest is Test {
     using Messages for *;
@@ -157,7 +156,6 @@ contract MatchingEngineTest is Test {
     /**
      * ADMIN TESTS
      */
-
     function testUpgradeContract() public {
         // Deploy new implementation.
         MockMatchingEngineImplementation newImplementation = new MockMatchingEngineImplementation(
@@ -280,7 +278,7 @@ contract MatchingEngineTest is Test {
         engine.upgradeContract(address(makeAddr("newImplementation")));
     }
 
-    function testAddRouterEndpoint() public {
+    function testAddRouterEndpointAsOwner() public {
         uint16 chain = 1;
         bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
         bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
@@ -291,6 +289,26 @@ contract MatchingEngineTest is Test {
         assertEq(engine.getDomain(chain), 0);
 
         vm.prank(makeAddr("owner"));
+        engine.addRouterEndpoint(
+            chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
+        );
+
+        assertEq(engine.getRouter(chain), routerEndpoint);
+        assertEq(engine.getMintRecipient(chain), mintRecipient);
+        assertEq(engine.getDomain(chain), domain);
+    }
+
+    function testAddRouterEndpointAsOwnerAssistant() public {
+        uint16 chain = 1;
+        bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
+        uint32 domain = 1;
+
+        assertEq(engine.getRouter(chain), bytes32(0));
+        assertEq(engine.getMintRecipient(chain), bytes32(0));
+        assertEq(engine.getDomain(chain), 0);
+
+        vm.prank(makeAddr("ownerAssistant"));
         engine.addRouterEndpoint(
             chain, RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient}), domain
         );
@@ -352,6 +370,100 @@ contract MatchingEngineTest is Test {
         );
     }
 
+    function testCannotUpdateRouterEndpointWithoutOwner() public {
+        bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
+
+        vm.prank(makeAddr("ownerAssistant"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        engine.updateRouterEndpoint(
+            ETH_CHAIN,
+            RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient}),
+            ETH_DOMAIN
+        );
+    }
+
+    function testUpdateRouterEndpointAsOwner() public {
+        bytes32 routerEndpoint = makeAddr("newRouter").toUniversalAddress();
+        bytes32 mintRecipient = makeAddr("newRouter").toUniversalAddress();
+        uint32 domain = 69;
+
+        assertEq(engine.getRouter(ETH_CHAIN), ETH_ROUTER);
+        assertEq(engine.getMintRecipient(ETH_CHAIN), ETH_ROUTER);
+        assertEq(engine.getDomain(ETH_CHAIN), ETH_DOMAIN);
+
+        vm.prank(makeAddr("owner"));
+        engine.updateRouterEndpoint(
+            ETH_CHAIN,
+            RouterEndpoint({router: routerEndpoint, mintRecipient: mintRecipient}),
+            domain
+        );
+
+        assertEq(engine.getRouter(ETH_CHAIN), routerEndpoint);
+        assertEq(engine.getMintRecipient(ETH_CHAIN), mintRecipient);
+        assertEq(engine.getDomain(ETH_CHAIN), domain);
+    }
+
+    function testCannotDisableRouterEndpointWithoutOwner() public {
+        vm.prank(makeAddr("ownerAssistant"));
+        vm.expectRevert(abi.encodeWithSignature("NotTheOwner()"));
+        engine.disableRouterEndpoint(ETH_CHAIN);
+    }
+
+    function testDisableRouterEndpointAsOwner() public {
+        assertEq(engine.getRouter(ARB_CHAIN), ARB_ROUTER);
+        assertEq(engine.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(engine.getDomain(ARB_CHAIN), ARB_DOMAIN);
+
+        vm.prank(makeAddr("owner"));
+        engine.disableRouterEndpoint(ARB_CHAIN);
+
+        assertEq(engine.getRouter(ARB_CHAIN), bytes32(0));
+        assertEq(engine.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(engine.getDomain(ARB_CHAIN), 0);
+    }
+
+    function testCannotAddRouterEndpointAfterDisableRouterEndpoint() public {
+        assertEq(engine.getRouter(ARB_CHAIN), ARB_ROUTER);
+        assertEq(engine.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(engine.getDomain(ARB_CHAIN), ARB_DOMAIN);
+
+        vm.prank(makeAddr("owner"));
+        engine.disableRouterEndpoint(ARB_CHAIN);
+
+        assertEq(engine.getRouter(ARB_CHAIN), bytes32(0));
+        assertEq(engine.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(engine.getDomain(ARB_CHAIN), 0);
+
+        vm.prank(makeAddr("ownerAssistant"));
+        vm.expectRevert(abi.encodeWithSignature("ErrEndpointAlreadyExists(uint16)", ARB_CHAIN));
+        engine.addRouterEndpoint(
+            ARB_CHAIN, RouterEndpoint({router: ARB_ROUTER, mintRecipient: ARB_ROUTER}), ARB_DOMAIN
+        );
+    }
+
+    function testUpdateRouterEndpointAfterDisableRouterEndpoint() public {
+        assertEq(engine.getRouter(ARB_CHAIN), ARB_ROUTER);
+        assertEq(engine.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(engine.getDomain(ARB_CHAIN), ARB_DOMAIN);
+
+        vm.prank(makeAddr("owner"));
+        engine.disableRouterEndpoint(ARB_CHAIN);
+
+        assertEq(engine.getRouter(ARB_CHAIN), bytes32(0));
+        assertEq(engine.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(engine.getDomain(ARB_CHAIN), 0);
+
+        vm.prank(makeAddr("owner"));
+        engine.updateRouterEndpoint(
+            ARB_CHAIN, RouterEndpoint({router: ARB_ROUTER, mintRecipient: ARB_ROUTER}), ARB_DOMAIN
+        );
+
+        assertEq(engine.getRouter(ARB_CHAIN), ARB_ROUTER);
+        assertEq(engine.getMintRecipient(ARB_CHAIN), ARB_ROUTER);
+        assertEq(engine.getDomain(ARB_CHAIN), ARB_DOMAIN);
+    }
+
     function testUpdateFeeRecipient() public {
         assertEq(engine.feeRecipient(), FEE_RECIPIENT);
 
@@ -399,7 +511,6 @@ contract MatchingEngineTest is Test {
     /**
      * AUCTION TESTS
      */
-
     function testCalculateDynamicPenalty() public {
         // Still in grace period.
         {
@@ -519,7 +630,6 @@ contract MatchingEngineTest is Test {
     /**
      * PLACE INITIAL BID TESTS
      */
-
     function testPlaceInitialBid(uint64 amountIn, uint64 feeBid) public {
         amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
@@ -737,7 +847,6 @@ contract MatchingEngineTest is Test {
     /**
      * IMPROVE BID TESTS
      */
-
     function testImproveBid(uint64 amountIn, uint64 newBid) public {
         amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
@@ -846,7 +955,6 @@ contract MatchingEngineTest is Test {
     /**
      * EXECUTE FAST ORDER TESTS
      */
-
     function testExecuteFastOrder(uint64 amountIn, uint64 newBid) public {
         amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
@@ -986,7 +1094,6 @@ contract MatchingEngineTest is Test {
     /**
      * SLOW ORDER TESTS
      */
-
     function testExecuteSlowOrderAndRedeem(uint64 amountIn, uint64 newBid) public {
         amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
@@ -1193,7 +1300,7 @@ contract MatchingEngineTest is Test {
 
         // Change the address for the arb router.
         vm.prank(makeAddr("owner"));
-        engine.addRouterEndpoint(
+        engine.updateRouterEndpoint(
             ARB_CHAIN,
             RouterEndpoint({router: bytes32("deadbeef"), mintRecipient: bytes32("beefdead")}),
             ARB_DOMAIN
@@ -1344,7 +1451,6 @@ contract MatchingEngineTest is Test {
     /**
      * FAST FILL TESTS
      */
-
     function testRedeemFastFill(uint64 amountIn, uint64 newBid) public {
         amountIn = uint64(bound(amountIn, _getMinTransferAmount(), _getMaxTransferAmount()));
 
@@ -1551,7 +1657,6 @@ contract MatchingEngineTest is Test {
     /**
      * TEST HELPERS
      */
-
     function _deployAndRegisterAvaxRouter() internal returns (ITokenRouter) {
         // Deploy Implementation.
         TokenRouterImplementation implementation = new TokenRouterImplementation(
@@ -1705,7 +1810,7 @@ contract MatchingEngineTest is Test {
         address currentBidder,
         address initialBidder,
         bytes32 vmHash
-    ) internal {
+    ) internal view {
         LiveAuctionData memory auction = engine.liveAuctionInfo(vmHash);
         assertEq(uint8(auction.status), uint8(AuctionStatus.Active));
         assertEq(auction.startBlock, uint88(block.number));
@@ -1721,7 +1826,7 @@ contract MatchingEngineTest is Test {
         uint64 transferAmount,
         IWormhole.VM memory cctpMessage,
         address caller
-    ) internal {
+    ) internal view {
         // Verify that the correct amount was sent in the CCTP order.
         (
             bytes32 token,

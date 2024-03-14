@@ -10,7 +10,6 @@ import "./ITokenRouterAdmin.sol";
 import "./IAdmin.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 
 interface ITokenRouter is
     IPlaceMarketOrder,

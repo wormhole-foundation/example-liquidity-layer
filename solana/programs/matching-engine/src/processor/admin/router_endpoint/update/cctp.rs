@@ -10,23 +10,10 @@ use common::wormhole_cctp_solana::{
 
 #[derive(Accounts)]
 #[instruction(args: AddCctpRouterEndpointArgs)]
-pub struct AddCctpRouterEndpoint<'info> {
-    #[account(mut)]
-    payer: Signer<'info>,
+pub struct UpdateCctpRouterEndpoint<'info> {
+    admin: OwnerCustodian<'info>,
 
-    admin: AdminCustodian<'info>,
-
-    #[account(
-        init,
-        payer = payer,
-        space = 8 + RouterEndpoint::INIT_SPACE,
-        seeds = [
-            RouterEndpoint::SEED_PREFIX,
-            &args.chain.to_be_bytes()
-        ],
-        bump,
-    )]
-    router_endpoint: Account<'info, RouterEndpoint>,
+    router_endpoint: ExistingMutRouterEndpoint<'info>,
 
     /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
     /// Messenger Minter program).
@@ -39,17 +26,15 @@ pub struct AddCctpRouterEndpoint<'info> {
         seeds::program = token_messenger_minter_program::id(),
     )]
     remote_token_messenger: Account<'info, ExternalAccount<RemoteTokenMessenger>>,
-
-    system_program: Program<'info, System>,
 }
 
-pub fn add_cctp_router_endpoint(
-    ctx: Context<AddCctpRouterEndpoint>,
+pub fn update_cctp_router_endpoint(
+    ctx: Context<UpdateCctpRouterEndpoint>,
     args: AddCctpRouterEndpointArgs,
 ) -> Result<()> {
     utils::admin::handle_add_cctp_router_endpoint(
-        &mut ctx.accounts.router_endpoint,
+        &mut ctx.accounts.router_endpoint.inner,
         args,
-        Some(ctx.bumps.router_endpoint),
+        None,
     )
 }

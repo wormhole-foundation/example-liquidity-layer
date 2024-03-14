@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.19;
 
-import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
+import {BytesParsing} from "wormhole-solidity-sdk/libraries/BytesParsing.sol";
 
 library Messages {
     using BytesParsing for bytes;

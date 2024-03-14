@@ -6,15 +6,13 @@ import "forge-std/Script.sol";
 import "forge-std/console2.sol";
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
-import {ITokenBridge} from "wormhole-solidity/ITokenBridge.sol";
 
-import {TokenRouterSetup} from "../../src/TokenRouter/TokenRouterSetup.sol";
-import {TokenRouterImplementation} from "../../src/TokenRouter/TokenRouterImplementation.sol";
+import {TokenRouterSetup} from "src/TokenRouter/TokenRouterSetup.sol";
+import {TokenRouterImplementation} from "src/TokenRouter/TokenRouterImplementation.sol";
 
 import {CheckWormholeContracts} from "./helpers/CheckWormholeContracts.sol";
 
-import {Utils} from "../../src/shared/Utils.sol";
+import {Utils} from "src/shared/Utils.sol";
 
 contract DeployTokenRouterContracts is CheckWormholeContracts, Script {
     using Utils for address;

@@ -1,7 +1,8 @@
 use crate::{
     error::MatchingEngineError,
     state::{
-        Auction, AuctionConfig, Custodian, PayerSequence, PreparedOrderResponse, RouterEndpoint,
+        Auction, AuctionConfig, Custodian, MessageProtocol, PayerSequence, PreparedOrderResponse,
+        RouterEndpoint,
     },
     utils,
 };
@@ -85,6 +86,7 @@ pub struct SettleAuctionActiveLocal<'info> {
             SOLANA_CHAIN.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
+        constraint = to_router_endpoint.protocol != MessageProtocol::None @ MatchingEngineError::EndpointDisabled,
     )]
     to_router_endpoint: Box<Account<'info, RouterEndpoint>>,
 

@@ -13,11 +13,7 @@ export type MatchingEngine = {
         {
           "name": "custodian",
           "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
-          ]
+          "isSigner": false
         },
         {
           "name": "vaa",
@@ -44,8 +40,13 @@ export type MatchingEngine = {
         },
         {
           "name": "routerEndpoint",
-          "isMut": false,
-          "isSigner": false
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "cctpMintRecipient",
@@ -1049,14 +1050,24 @@ export type MatchingEngine = {
       "name": "addCctpRouterEndpoint",
       "accounts": [
         {
-          "name": "ownerOrAssistant",
+          "name": "payer",
           "isMut": true,
           "isSigner": true
         },
         {
-          "name": "custodian",
-          "isMut": false,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "routerEndpoint",
@@ -1090,14 +1101,24 @@ export type MatchingEngine = {
       "name": "addLocalRouterEndpoint",
       "accounts": [
         {
-          "name": "ownerOrAssistant",
+          "name": "payer",
           "isMut": true,
           "isSigner": true
         },
         {
-          "name": "custodian",
-          "isMut": false,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "routerEndpoint",
@@ -1105,22 +1126,27 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "tokenRouterProgram",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "emitter (router endpoint) address."
+          "name": "local",
+          "accounts": [
+            {
+              "name": "tokenRouterProgram",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "emitter (router endpoint) address."
+              ]
+            },
+            {
+              "name": "tokenRouterEmitter",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenRouterMintRecipient",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "tokenRouterEmitter",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenRouterCustodyToken",
-          "isMut": false,
-          "isSigner": false
         },
         {
           "name": "systemProgram",
@@ -1131,22 +1157,132 @@ export type MatchingEngine = {
       "args": []
     },
     {
-      "name": "removeRouterEndpoint",
+      "name": "disableRouterEndpoint",
       "accounts": [
         {
-          "name": "ownerOrAssistant",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": false,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "routerEndpoint",
-          "isMut": true,
-          "isSigner": false
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateCctpRouterEndpoint",
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "routerEndpoint",
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "remoteTokenMessenger",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Messenger Minter program)."
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": "AddCctpRouterEndpointArgs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "updateLocalRouterEndpoint",
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "routerEndpoint",
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "local",
+          "accounts": [
+            {
+              "name": "tokenRouterProgram",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "emitter (router endpoint) address."
+              ]
+            },
+            {
+              "name": "tokenRouterEmitter",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenRouterMintRecipient",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         }
       ],
       "args": []
@@ -1155,16 +1291,18 @@ export type MatchingEngine = {
       "name": "submitOwnershipTransferRequest",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Custodian, which can only be modified by the configured owner."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -1203,16 +1341,18 @@ export type MatchingEngine = {
       "name": "cancelOwnershipTransferRequest",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Custodian, which can only be modified by the configured owner."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         }
       ],
@@ -1222,14 +1362,24 @@ export type MatchingEngine = {
       "name": "proposeAuctionParameters",
       "accounts": [
         {
-          "name": "ownerOrAssistant",
+          "name": "payer",
           "isMut": true,
           "isSigner": true
         },
         {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "proposal",
@@ -1774,14 +1924,19 @@ export type MatchingEngine = {
       "name": "closeProposal",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "proposedBy",
@@ -2070,42 +2225,6 @@ export type MatchingEngine = {
   ],
   "types": [
     {
-      "name": "AddCctpRouterEndpointArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "chain",
-            "type": "u16"
-          },
-          {
-            "name": "cctpDomain",
-            "type": "u32"
-          },
-          {
-            "name": "address",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "mintRecipient",
-            "type": {
-              "option": {
-                "array": [
-                  "u8",
-                  32
-                ]
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
       "name": "CctpMessageArgs",
       "type": {
         "kind": "struct",
@@ -2234,6 +2353,42 @@ export type MatchingEngine = {
       }
     },
     {
+      "name": "AddCctpRouterEndpointArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "chain",
+            "type": "u16"
+          },
+          {
+            "name": "cctpDomain",
+            "type": "u32"
+          },
+          {
+            "name": "address",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "mintRecipient",
+            "type": {
+              "option": {
+                "array": [
+                  "u8",
+                  32
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "AuctionStatus",
       "type": {
         "kind": "enum",
@@ -2303,6 +2458,9 @@ export type MatchingEngine = {
         "kind": "enum",
         "variants": [
           {
+            "name": "None"
+          },
+          {
             "name": "Local",
             "fields": [
               {
@@ -2322,71 +2480,9 @@ export type MatchingEngine = {
                 "type": "u32"
               }
             ]
-          },
-          {
-            "name": "Canonical"
           }
         ]
       }
-    }
-  ],
-  "events": [
-    {
-      "name": "AuctionUpdate",
-      "fields": [
-        {
-          "name": "auction",
-          "type": "publicKey",
-          "index": false
-        },
-        {
-          "name": "vaa",
-          "type": {
-            "option": "publicKey"
-          },
-          "index": false
-        },
-        {
-          "name": "endSlot",
-          "type": "u64",
-          "index": false
-        },
-        {
-          "name": "offerToken",
-          "type": "publicKey",
-          "index": false
-        },
-        {
-          "name": "amountIn",
-          "type": "u64",
-          "index": false
-        },
-        {
-          "name": "totalDeposit",
-          "type": "u64",
-          "index": false
-        },
-        {
-          "name": "maxOfferPriceAllowed",
-          "type": "u64",
-          "index": false
-        }
-      ]
-    },
-    {
-      "name": "OrderExecuted",
-      "fields": [
-        {
-          "name": "auction",
-          "type": "publicKey",
-          "index": false
-        },
-        {
-          "name": "vaa",
-          "type": "publicKey",
-          "index": false
-        }
-      ]
     }
   ],
   "errors": [
@@ -2414,6 +2510,16 @@ export type MatchingEngine = {
       "code": 6016,
       "name": "UpgradeManagerRequired",
       "msg": "UpgradeManagerRequired"
+    },
+    {
+      "code": 6032,
+      "name": "SameEndpoint",
+      "msg": "SameEndpoint"
+    },
+    {
+      "code": 6034,
+      "name": "InvalidEndpoint",
+      "msg": "InvalidEndpoint"
     },
     {
       "code": 6256,
@@ -2482,168 +2588,168 @@ export type MatchingEngine = {
     },
     {
       "code": 6529,
-      "name": "InvalidEndpoint",
-      "msg": "InvalidEndpoint"
-    },
-    {
-      "code": 6530,
       "name": "InvalidMintRecipient",
       "msg": "InvalidMintRecipient"
     },
     {
-      "code": 6531,
+      "code": 6530,
       "name": "ErrInvalidSourceRouter",
       "msg": "ErrInvalidSourceRouter"
     },
     {
-      "code": 6532,
+      "code": 6531,
       "name": "ErrInvalidTargetRouter",
       "msg": "ErrInvalidTargetRouter"
     },
     {
-      "code": 6533,
+      "code": 6532,
       "name": "TokenRouterProgramIdRequired",
       "msg": "TokenRouterProgramIdRequired"
     },
     {
-      "code": 6534,
+      "code": 6533,
       "name": "InvalidAuctionDuration",
       "msg": "InvalidAuctionDuration"
     },
     {
-      "code": 6535,
+      "code": 6534,
       "name": "InvalidAuctionGracePeriod",
       "msg": "InvalidAuctionGracePeriod"
     },
     {
-      "code": 6536,
+      "code": 6535,
       "name": "UserPenaltyTooLarge",
       "msg": "UserPenaltyTooLarge"
     },
     {
-      "code": 6537,
+      "code": 6536,
       "name": "InitialPenaltyTooLarge",
       "msg": "InitialPenaltyTooLarge"
     },
     {
-      "code": 6538,
+      "code": 6537,
       "name": "MinOfferDeltaTooLarge",
       "msg": "MinOfferDeltaTooLarge"
     },
     {
-      "code": 6539,
+      "code": 6538,
       "name": "InvalidVaa",
       "msg": "InvalidVaa"
     },
     {
-      "code": 6540,
+      "code": 6539,
       "name": "NotFastMarketOrder",
       "msg": "NotFastMarketOrder"
     },
     {
-      "code": 6541,
+      "code": 6540,
       "name": "FastMarketOrderExpired",
       "msg": "FastMarketOrderExpired"
     },
     {
-      "code": 6542,
+      "code": 6541,
       "name": "OfferPriceTooHigh",
       "msg": "OfferPriceTooHigh"
     },
     {
-      "code": 6543,
+      "code": 6542,
       "name": "AuctionAlreadyStarted",
       "msg": "AuctionAlreadyStarted"
     },
     {
-      "code": 6544,
+      "code": 6543,
       "name": "InvalidEmitterForFastFill",
       "msg": "InvalidEmitterForFastFill"
     },
     {
-      "code": 6545,
+      "code": 6544,
       "name": "InvalidDeposit",
       "msg": "InvalidDeposit"
     },
     {
-      "code": 6546,
+      "code": 6545,
       "name": "InvalidDepositMessage",
       "msg": "InvalidDepositMessage"
     },
     {
-      "code": 6547,
+      "code": 6546,
       "name": "InvalidPayloadId",
       "msg": "InvalidPayloadId"
     },
     {
-      "code": 6548,
+      "code": 6547,
       "name": "InvalidDepositPayloadId",
       "msg": "InvalidDepositPayloadId"
     },
     {
-      "code": 6549,
+      "code": 6548,
       "name": "AuctionNotActive",
       "msg": "AuctionNotActive"
     },
     {
-      "code": 6550,
+      "code": 6549,
       "name": "AuctionPeriodExpired",
       "msg": "AuctionPeriodExpired"
     },
     {
-      "code": 6551,
+      "code": 6550,
       "name": "AuctionPeriodNotExpired",
       "msg": "AuctionPeriodNotExpired"
     },
     {
-      "code": 6552,
+      "code": 6551,
       "name": "OfferPriceNotImproved",
       "msg": "OfferPriceNotImproved"
     },
     {
-      "code": 6553,
+      "code": 6552,
       "name": "BestOfferTokenNotPassedIn",
       "msg": "BestOfferTokenNotPassedIn"
     },
     {
-      "code": 6554,
+      "code": 6553,
       "name": "PenaltyCalculationFailed",
       "msg": "PenaltyCalculationFailed"
     },
     {
-      "code": 6555,
+      "code": 6554,
       "name": "VaaMismatch",
       "msg": "VaaMismatch"
     },
     {
-      "code": 6556,
+      "code": 6555,
       "name": "MismatchedVaaHash",
       "msg": "MismatchedVaaHash"
     },
     {
-      "code": 6557,
+      "code": 6556,
       "name": "BestOfferTokenMismatch",
       "msg": "BestOfferTokenMismatch"
     },
     {
-      "code": 6558,
+      "code": 6557,
       "name": "InitialOfferTokenMismatch",
       "msg": "InitialOfferTokenMismatch"
     },
     {
-      "code": 6559,
+      "code": 6558,
       "name": "FeeRecipientTokenMismatch",
       "msg": "FeeRecipientTokenMismatch"
     },
     {
-      "code": 6560,
+      "code": 6559,
       "name": "AuctionNotCompleted",
       "msg": "AuctionNotCompleted"
     },
     {
-      "code": 6561,
+      "code": 6560,
       "name": "AuctionConfigMismatch",
       "msg": "AuctionConfigMismatch"
+    },
+    {
+      "code": 6561,
+      "name": "EndpointDisabled",
+      "msg": "EndpointDisabled"
     },
     {
       "code": 6562,
@@ -2688,11 +2794,7 @@ export const IDL: MatchingEngine = {
         {
           "name": "custodian",
           "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
-          ]
+          "isSigner": false
         },
         {
           "name": "vaa",
@@ -2719,8 +2821,13 @@ export const IDL: MatchingEngine = {
         },
         {
           "name": "routerEndpoint",
-          "isMut": false,
-          "isSigner": false
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "cctpMintRecipient",
@@ -3724,14 +3831,24 @@ export const IDL: MatchingEngine = {
       "name": "addCctpRouterEndpoint",
       "accounts": [
         {
-          "name": "ownerOrAssistant",
+          "name": "payer",
           "isMut": true,
           "isSigner": true
         },
         {
-          "name": "custodian",
-          "isMut": false,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "routerEndpoint",
@@ -3765,14 +3882,24 @@ export const IDL: MatchingEngine = {
       "name": "addLocalRouterEndpoint",
       "accounts": [
         {
-          "name": "ownerOrAssistant",
+          "name": "payer",
           "isMut": true,
           "isSigner": true
         },
         {
-          "name": "custodian",
-          "isMut": false,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "routerEndpoint",
@@ -3780,22 +3907,27 @@ export const IDL: MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "tokenRouterProgram",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "emitter (router endpoint) address."
+          "name": "local",
+          "accounts": [
+            {
+              "name": "tokenRouterProgram",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "emitter (router endpoint) address."
+              ]
+            },
+            {
+              "name": "tokenRouterEmitter",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenRouterMintRecipient",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "tokenRouterEmitter",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenRouterCustodyToken",
-          "isMut": false,
-          "isSigner": false
         },
         {
           "name": "systemProgram",
@@ -3806,22 +3938,132 @@ export const IDL: MatchingEngine = {
       "args": []
     },
     {
-      "name": "removeRouterEndpoint",
+      "name": "disableRouterEndpoint",
       "accounts": [
         {
-          "name": "ownerOrAssistant",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": false,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "routerEndpoint",
-          "isMut": true,
-          "isSigner": false
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateCctpRouterEndpoint",
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "routerEndpoint",
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "remoteTokenMessenger",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Messenger Minter program)."
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": "AddCctpRouterEndpointArgs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "updateLocalRouterEndpoint",
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "routerEndpoint",
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "local",
+          "accounts": [
+            {
+              "name": "tokenRouterProgram",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "emitter (router endpoint) address."
+              ]
+            },
+            {
+              "name": "tokenRouterEmitter",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenRouterMintRecipient",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         }
       ],
       "args": []
@@ -3830,16 +4072,18 @@ export const IDL: MatchingEngine = {
       "name": "submitOwnershipTransferRequest",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Custodian, which can only be modified by the configured owner."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -3878,16 +4122,18 @@ export const IDL: MatchingEngine = {
       "name": "cancelOwnershipTransferRequest",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Custodian, which can only be modified by the configured owner."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         }
       ],
@@ -3897,14 +4143,24 @@ export const IDL: MatchingEngine = {
       "name": "proposeAuctionParameters",
       "accounts": [
         {
-          "name": "ownerOrAssistant",
+          "name": "payer",
           "isMut": true,
           "isSigner": true
         },
         {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "proposal",
@@ -4449,14 +4705,19 @@ export const IDL: MatchingEngine = {
       "name": "closeProposal",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "proposedBy",
@@ -4745,42 +5006,6 @@ export const IDL: MatchingEngine = {
   ],
   "types": [
     {
-      "name": "AddCctpRouterEndpointArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "chain",
-            "type": "u16"
-          },
-          {
-            "name": "cctpDomain",
-            "type": "u32"
-          },
-          {
-            "name": "address",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "mintRecipient",
-            "type": {
-              "option": {
-                "array": [
-                  "u8",
-                  32
-                ]
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
       "name": "CctpMessageArgs",
       "type": {
         "kind": "struct",
@@ -4909,6 +5134,42 @@ export const IDL: MatchingEngine = {
       }
     },
     {
+      "name": "AddCctpRouterEndpointArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "chain",
+            "type": "u16"
+          },
+          {
+            "name": "cctpDomain",
+            "type": "u32"
+          },
+          {
+            "name": "address",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "mintRecipient",
+            "type": {
+              "option": {
+                "array": [
+                  "u8",
+                  32
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "AuctionStatus",
       "type": {
         "kind": "enum",
@@ -4978,6 +5239,9 @@ export const IDL: MatchingEngine = {
         "kind": "enum",
         "variants": [
           {
+            "name": "None"
+          },
+          {
             "name": "Local",
             "fields": [
               {
@@ -4997,71 +5261,9 @@ export const IDL: MatchingEngine = {
                 "type": "u32"
               }
             ]
-          },
-          {
-            "name": "Canonical"
           }
         ]
       }
-    }
-  ],
-  "events": [
-    {
-      "name": "AuctionUpdate",
-      "fields": [
-        {
-          "name": "auction",
-          "type": "publicKey",
-          "index": false
-        },
-        {
-          "name": "vaa",
-          "type": {
-            "option": "publicKey"
-          },
-          "index": false
-        },
-        {
-          "name": "endSlot",
-          "type": "u64",
-          "index": false
-        },
-        {
-          "name": "offerToken",
-          "type": "publicKey",
-          "index": false
-        },
-        {
-          "name": "amountIn",
-          "type": "u64",
-          "index": false
-        },
-        {
-          "name": "totalDeposit",
-          "type": "u64",
-          "index": false
-        },
-        {
-          "name": "maxOfferPriceAllowed",
-          "type": "u64",
-          "index": false
-        }
-      ]
-    },
-    {
-      "name": "OrderExecuted",
-      "fields": [
-        {
-          "name": "auction",
-          "type": "publicKey",
-          "index": false
-        },
-        {
-          "name": "vaa",
-          "type": "publicKey",
-          "index": false
-        }
-      ]
     }
   ],
   "errors": [
@@ -5089,6 +5291,16 @@ export const IDL: MatchingEngine = {
       "code": 6016,
       "name": "UpgradeManagerRequired",
       "msg": "UpgradeManagerRequired"
+    },
+    {
+      "code": 6032,
+      "name": "SameEndpoint",
+      "msg": "SameEndpoint"
+    },
+    {
+      "code": 6034,
+      "name": "InvalidEndpoint",
+      "msg": "InvalidEndpoint"
     },
     {
       "code": 6256,
@@ -5157,168 +5369,168 @@ export const IDL: MatchingEngine = {
     },
     {
       "code": 6529,
-      "name": "InvalidEndpoint",
-      "msg": "InvalidEndpoint"
-    },
-    {
-      "code": 6530,
       "name": "InvalidMintRecipient",
       "msg": "InvalidMintRecipient"
     },
     {
-      "code": 6531,
+      "code": 6530,
       "name": "ErrInvalidSourceRouter",
       "msg": "ErrInvalidSourceRouter"
     },
     {
-      "code": 6532,
+      "code": 6531,
       "name": "ErrInvalidTargetRouter",
       "msg": "ErrInvalidTargetRouter"
     },
     {
-      "code": 6533,
+      "code": 6532,
       "name": "TokenRouterProgramIdRequired",
       "msg": "TokenRouterProgramIdRequired"
     },
     {
-      "code": 6534,
+      "code": 6533,
       "name": "InvalidAuctionDuration",
       "msg": "InvalidAuctionDuration"
     },
     {
-      "code": 6535,
+      "code": 6534,
       "name": "InvalidAuctionGracePeriod",
       "msg": "InvalidAuctionGracePeriod"
     },
     {
-      "code": 6536,
+      "code": 6535,
       "name": "UserPenaltyTooLarge",
       "msg": "UserPenaltyTooLarge"
     },
     {
-      "code": 6537,
+      "code": 6536,
       "name": "InitialPenaltyTooLarge",
       "msg": "InitialPenaltyTooLarge"
     },
     {
-      "code": 6538,
+      "code": 6537,
       "name": "MinOfferDeltaTooLarge",
       "msg": "MinOfferDeltaTooLarge"
     },
     {
-      "code": 6539,
+      "code": 6538,
       "name": "InvalidVaa",
       "msg": "InvalidVaa"
     },
     {
-      "code": 6540,
+      "code": 6539,
       "name": "NotFastMarketOrder",
       "msg": "NotFastMarketOrder"
     },
     {
-      "code": 6541,
+      "code": 6540,
       "name": "FastMarketOrderExpired",
       "msg": "FastMarketOrderExpired"
     },
     {
-      "code": 6542,
+      "code": 6541,
       "name": "OfferPriceTooHigh",
       "msg": "OfferPriceTooHigh"
     },
     {
-      "code": 6543,
+      "code": 6542,
       "name": "AuctionAlreadyStarted",
       "msg": "AuctionAlreadyStarted"
     },
     {
-      "code": 6544,
+      "code": 6543,
       "name": "InvalidEmitterForFastFill",
       "msg": "InvalidEmitterForFastFill"
     },
     {
-      "code": 6545,
+      "code": 6544,
       "name": "InvalidDeposit",
       "msg": "InvalidDeposit"
     },
     {
-      "code": 6546,
+      "code": 6545,
       "name": "InvalidDepositMessage",
       "msg": "InvalidDepositMessage"
     },
     {
-      "code": 6547,
+      "code": 6546,
       "name": "InvalidPayloadId",
       "msg": "InvalidPayloadId"
     },
     {
-      "code": 6548,
+      "code": 6547,
       "name": "InvalidDepositPayloadId",
       "msg": "InvalidDepositPayloadId"
     },
     {
-      "code": 6549,
+      "code": 6548,
       "name": "AuctionNotActive",
       "msg": "AuctionNotActive"
     },
     {
-      "code": 6550,
+      "code": 6549,
       "name": "AuctionPeriodExpired",
       "msg": "AuctionPeriodExpired"
     },
     {
-      "code": 6551,
+      "code": 6550,
       "name": "AuctionPeriodNotExpired",
       "msg": "AuctionPeriodNotExpired"
     },
     {
-      "code": 6552,
+      "code": 6551,
       "name": "OfferPriceNotImproved",
       "msg": "OfferPriceNotImproved"
     },
     {
-      "code": 6553,
+      "code": 6552,
       "name": "BestOfferTokenNotPassedIn",
       "msg": "BestOfferTokenNotPassedIn"
     },
     {
-      "code": 6554,
+      "code": 6553,
       "name": "PenaltyCalculationFailed",
       "msg": "PenaltyCalculationFailed"
     },
     {
-      "code": 6555,
+      "code": 6554,
       "name": "VaaMismatch",
       "msg": "VaaMismatch"
     },
     {
-      "code": 6556,
+      "code": 6555,
       "name": "MismatchedVaaHash",
       "msg": "MismatchedVaaHash"
     },
     {
-      "code": 6557,
+      "code": 6556,
       "name": "BestOfferTokenMismatch",
       "msg": "BestOfferTokenMismatch"
     },
     {
-      "code": 6558,
+      "code": 6557,
       "name": "InitialOfferTokenMismatch",
       "msg": "InitialOfferTokenMismatch"
     },
     {
-      "code": 6559,
+      "code": 6558,
       "name": "FeeRecipientTokenMismatch",
       "msg": "FeeRecipientTokenMismatch"
     },
     {
-      "code": 6560,
+      "code": 6559,
       "name": "AuctionNotCompleted",
       "msg": "AuctionNotCompleted"
     },
     {
-      "code": 6561,
+      "code": 6560,
       "name": "AuctionConfigMismatch",
       "msg": "AuctionConfigMismatch"
+    },
+    {
+      "code": 6561,
+      "name": "EndpointDisabled",
+      "msg": "EndpointDisabled"
     },
     {
       "code": 6562,

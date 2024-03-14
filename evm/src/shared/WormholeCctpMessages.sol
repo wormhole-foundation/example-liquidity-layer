@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache 2
 pragma solidity ^0.8.19;
 
-import {IWormhole} from "wormhole-solidity/IWormhole.sol";
+import {IWormhole} from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
 
-import {BytesParsing} from "wormhole-solidity/WormholeBytesParsing.sol";
+import {BytesParsing} from "wormhole-solidity-sdk/libraries/BytesParsing.sol";
 import {Utils} from "./Utils.sol";
 
 library WormholeCctpMessages {

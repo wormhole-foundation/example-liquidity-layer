@@ -2,9 +2,8 @@
 
 pragma solidity ^0.8.0;
 
-import "../shared/Messages.sol";
+import "src/shared/Messages.sol";
 import {CctpMessage} from "./IMatchingEngineTypes.sol";
-import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 
 interface IMatchingEngineFastOrders {
     /**

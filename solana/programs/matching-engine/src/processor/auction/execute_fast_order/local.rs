@@ -1,6 +1,6 @@
 use crate::{
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, Custodian, PayerSequence, RouterEndpoint},
+    state::{Auction, AuctionConfig, Custodian, MessageProtocol, PayerSequence, RouterEndpoint},
     utils,
 };
 use anchor_lang::prelude::*;
@@ -65,6 +65,7 @@ pub struct ExecuteFastOrderLocal<'info> {
             SOLANA_CHAIN.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
+        constraint = to_router_endpoint.protocol != MessageProtocol::None @ MatchingEngineError::EndpointDisabled,
     )]
     to_router_endpoint: Account<'info, RouterEndpoint>,
 

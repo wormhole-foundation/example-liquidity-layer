@@ -2,7 +2,6 @@
 
 pragma solidity ^0.8.0;
 
-import {ICircleIntegration} from "wormhole-solidity/ICircleIntegration.sol";
 import {OrderResponse} from "./ITokenRouterTypes.sol";
 
 struct RedeemedFill {

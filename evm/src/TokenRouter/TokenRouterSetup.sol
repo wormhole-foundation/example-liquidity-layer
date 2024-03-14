@@ -6,11 +6,11 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {ERC1967Upgrade} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
-import {getOwnerState, getOwnerAssistantState} from "../shared/Admin.sol";
+import {getOwnerState, getOwnerAssistantState} from "src/shared/Admin.sol";
 
-import {ITokenRouter} from "../interfaces/ITokenRouter.sol";
+import {ITokenRouter} from "src/interfaces/ITokenRouter.sol";
 
-import {TokenRouterImplementation} from "../TokenRouter/TokenRouterImplementation.sol";
+import {TokenRouterImplementation} from "src/TokenRouter/TokenRouterImplementation.sol";
 
 contract TokenRouterSetup is ERC1967Upgrade, Context {
     error AlreadyDeployed();
@@ -27,11 +27,7 @@ contract TokenRouterSetup is ERC1967Upgrade, Context {
         _changeAdmin(_msgSender());
 
         ERC1967Proxy proxy = new ERC1967Proxy(
-            address(this),
-            abi.encodeCall(
-                this.setup,
-                (_getAdmin(), implementation, ownerAssistant)
-            )
+            address(this), abi.encodeCall(this.setup, (_getAdmin(), implementation, ownerAssistant))
         );
 
         return address(proxy);

@@ -8,6 +8,7 @@ use common::{
     messages::raw::{LiquidityLayerMessage, MessageToVec},
     wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount},
 };
+use matching_engine::cpi::accounts::LiveRouterEndpoint;
 
 /// Accounts required for [redeem_fast_fill].
 #[derive(Accounts)]
@@ -107,10 +108,12 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
                 .to_account_info(),
             token_router_emitter: ctx.accounts.custodian.to_account_info(),
             token_router_custody_token: ctx.accounts.prepared_custody_token.to_account_info(),
-            router_endpoint: ctx
-                .accounts
-                .matching_engine_router_endpoint
-                .to_account_info(),
+            router_endpoint: LiveRouterEndpoint {
+                inner: ctx
+                    .accounts
+                    .matching_engine_router_endpoint
+                    .to_account_info(),
+            },
             cctp_mint_recipient: ctx
                 .accounts
                 .matching_engine_cctp_mint_recipient

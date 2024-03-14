@@ -7,7 +7,10 @@ use common::{
 
 use crate::{
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian, RouterEndpoint},
+    state::{
+        Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian, MessageProtocol,
+        RouterEndpoint,
+    },
 };
 
 #[derive(Accounts)]
@@ -63,6 +66,7 @@ pub struct PlaceInitialOffer<'info> {
             from_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = from_router_endpoint.bump,
+        constraint = from_router_endpoint.protocol != MessageProtocol::None @ MatchingEngineError::EndpointDisabled,
     )]
     from_router_endpoint: Account<'info, RouterEndpoint>,
 
@@ -72,6 +76,7 @@ pub struct PlaceInitialOffer<'info> {
             to_router_endpoint.chain.to_be_bytes().as_ref(),
         ],
         bump = to_router_endpoint.bump,
+        constraint = to_router_endpoint.protocol != MessageProtocol::None @ MatchingEngineError::EndpointDisabled,
     )]
     to_router_endpoint: Account<'info, RouterEndpoint>,
 

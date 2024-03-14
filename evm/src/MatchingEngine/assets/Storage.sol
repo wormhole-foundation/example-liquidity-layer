@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.19;
 
-import "../../interfaces/IMatchingEngineTypes.sol";
+import "src/interfaces/IMatchingEngineTypes.sol";
 
 // keccak256("FeeRecipient") - 1
 bytes32 constant FEE_RECIPIENT_STORAGE_SLOT =

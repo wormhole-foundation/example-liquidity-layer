@@ -1,3 +1,5 @@
+pub mod admin;
+
 pub mod auction;
 
 use crate::{

@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.17;
 
-import "./IWormhole.sol";
+import "wormhole-solidity-sdk/interfaces/IWormhole.sol";
 import "./BytesLib.sol";
 
 contract MockWormhole is IWormhole {

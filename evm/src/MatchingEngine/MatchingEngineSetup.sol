@@ -6,14 +6,12 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 import {ERC1967Upgrade} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
 import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
-import {getOwnerState, getOwnerAssistantState} from "../shared/Admin.sol";
+import {getOwnerState, getOwnerAssistantState} from "src/shared/Admin.sol";
 import {getFeeRecipientState} from "./assets/Storage.sol";
 
-import {IMatchingEngine} from "../interfaces/IMatchingEngine.sol";
+import {IMatchingEngine} from "src/interfaces/IMatchingEngine.sol";
 
-import {MatchingEngineImplementation} from "../MatchingEngine/MatchingEngineImplementation.sol";
-
-import "forge-std/console.sol";
+import {MatchingEngineImplementation} from "src/MatchingEngine/MatchingEngineImplementation.sol";
 
 contract MatchingEngineSetup is ERC1967Upgrade, Context {
     error AlreadyDeployed();
@@ -31,10 +29,7 @@ contract MatchingEngineSetup is ERC1967Upgrade, Context {
 
         ERC1967Proxy proxy = new ERC1967Proxy(
             address(this),
-            abi.encodeCall(
-                this.setup,
-                (_getAdmin(), implementation, ownerAssistant, feeRecipient)
-            )
+            abi.encodeCall(this.setup, (_getAdmin(), implementation, ownerAssistant, feeRecipient))
         );
 
         return address(proxy);
