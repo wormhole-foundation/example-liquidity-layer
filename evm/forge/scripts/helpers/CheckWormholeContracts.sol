@@ -6,7 +6,7 @@ import "forge-std/Script.sol";
 import "forge-std/console2.sol";
 
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import { IWormhole } from "src/interfaces/external/IWormhole.sol";
+import { IWormhole } from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
 
 contract CheckWormholeContracts {
     function requireValidChain(uint16 chain, address wormhole) internal view {

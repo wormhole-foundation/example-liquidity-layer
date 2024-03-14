@@ -5,10 +5,10 @@ pragma solidity ^0.8.19;
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {IWormhole} from "src/interfaces/external/IWormhole.sol";
+import {IWormhole} from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
 import {CctpMessage, RouterEndpoint} from "src/interfaces/IMatchingEngineTypes.sol";
 import {IMatchingEngineFastOrders} from "src/interfaces/IMatchingEngineFastOrders.sol";
-import {BytesParsing} from "src/shared/WormholeBytesParsing.sol";
+import {BytesParsing} from "wormhole-solidity-sdk/libraries/BytesParsing.sol";
 import {Messages} from "src/shared/Messages.sol";
 import {Utils} from "src/shared/Utils.sol";
 

@@ -9,7 +9,7 @@ import "forge-std/console.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {CircleSimulator} from "local-modules/circle/CircleSimulator.sol";
 import {IUSDC} from "local-modules/circle/IUSDC.sol";
-import {IWormhole} from "src/interfaces/external/IWormhole.sol";
+import {IWormhole} from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
 import {SigningWormholeSimulator} from "local-modules/wormhole/WormholeSimulator.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
@@ -1810,7 +1810,7 @@ contract MatchingEngineTest is Test {
         address currentBidder,
         address initialBidder,
         bytes32 vmHash
-    ) internal {
+    ) internal view {
         LiveAuctionData memory auction = engine.liveAuctionInfo(vmHash);
         assertEq(uint8(auction.status), uint8(AuctionStatus.Active));
         assertEq(auction.startBlock, uint88(block.number));
@@ -1826,7 +1826,7 @@ contract MatchingEngineTest is Test {
         uint64 transferAmount,
         IWormhole.VM memory cctpMessage,
         address caller
-    ) internal {
+    ) internal view {
         // Verify that the correct amount was sent in the CCTP order.
         (
             bytes32 token,

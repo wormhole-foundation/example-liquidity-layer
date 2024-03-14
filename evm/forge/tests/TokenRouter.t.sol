@@ -11,10 +11,10 @@ import {CircleSimulator} from "local-modules/circle/CircleSimulator.sol";
 import {IUSDC} from "local-modules/circle/IUSDC.sol";
 import {ICircleIntegration} from "local-modules/wormhole/ICircleIntegration.sol";
 import {ITokenMessenger} from "src/interfaces/external/ITokenMessenger.sol";
-import {IWormhole} from "src/interfaces/external/IWormhole.sol";
+import {IWormhole} from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
 import {SigningWormholeSimulator} from "local-modules/wormhole/WormholeSimulator.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {BytesParsing} from "src/shared/WormholeBytesParsing.sol";
+import {BytesParsing} from "wormhole-solidity-sdk/libraries/BytesParsing.sol";
 
 import {
     IMockTokenRouter,
@@ -664,7 +664,7 @@ contract TokenRouterTest is Test {
         bytes32 orderSender,
         bytes32 redeemer,
         bytes memory redeemerMessage
-    ) public {
+    ) public pure {
         Messages.Fill memory fill = Messages.Fill({
             sourceChain: sourceChain,
             orderSender: orderSender,
@@ -694,7 +694,7 @@ contract TokenRouterTest is Test {
         uint64 initAuctionFee,
         uint32 deadline,
         bytes memory redeemerMessage
-    ) public {
+    ) public pure {
         Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
             amountIn: amountIn,
             minAmountOut: minAmountOut,
@@ -1324,7 +1324,7 @@ contract TokenRouterTest is Test {
         usdc.mint(receiver, amount);
     }
 
-    function _cctpBurnLimit() internal returns (uint256 limit) {
+    function _cctpBurnLimit() internal view returns (uint256 limit) {
         limit = ITokenMessenger(CIRCLE_BRIDGE).localMinter().burnLimitsPerMessage(USDC_ADDRESS);
 
         // Having this check prevents us forking a network where Circle has not set a burn limit.

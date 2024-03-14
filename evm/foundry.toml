@@ -1,12 +1,17 @@
 [fmt]
-line_length=100
+line_length = 100
 
 [profile.default]
 solc_version = "0.8.19"
 optimizer = true
 optimizer_runs = 200
 via_ir = true
-extra_output = ["metadata", "storageLayout", "evm.deployedBytecode.immutableReferences"]
+extra_output = [
+    "metadata",
+    "storageLayout",
+    "evm.deployedBytecode.immutableReferences",
+    "evm.bytecode.opcodes"
+]
 
 test = "forge/tests"
 
@@ -24,4 +29,4 @@ remappings = [
 
 gas_limit = "18446744073709551615"
 
-# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

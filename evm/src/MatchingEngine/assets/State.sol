@@ -2,7 +2,7 @@
 pragma solidity ^0.8.19;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {IWormhole} from "src/interfaces/external/IWormhole.sol";
+import {IWormhole} from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
 import {IMatchingEngineState} from "src/interfaces/IMatchingEngineState.sol";
 import {RouterEndpoint} from "src/interfaces/IMatchingEngineTypes.sol";
 

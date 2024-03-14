@@ -2,7 +2,7 @@
 
 pragma solidity ^0.8.19;
 
-import {IWormhole} from "src/interfaces/external/IWormhole.sol";
+import {IWormhole} from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
 import {ICircleBridge} from "src/interfaces/external/ICircleBridge.sol";
 import {IMessageTransmitter} from "src/interfaces/external/IMessageTransmitter.sol";
 import {ITokenMinter} from "src/interfaces/external/ITokenMinter.sol";

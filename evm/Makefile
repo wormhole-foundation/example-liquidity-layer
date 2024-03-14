@@ -27,18 +27,18 @@ build: dependencies
 	npm run build-types
 
 .PHONY: dependencies
-dependencies: node_modules lib/forge-std lib/openzeppelin-contracts
+dependencies: node_modules
 
 .PHONY: clean
 clean:
 	forge clean
-	rm -rf node_modules anvil.log lib forge-scripts ts/src/types
+	rm -rf node_modules anvil.log ts/src/types
 
 node_modules:
 	npm ci
 
-lib/forge-std:
-	forge install foundry-rs/forge-std@v1.6.1 --no-git --no-commit
+# lib/forge-std:
+# 	forge install foundry-rs/forge-std@v1.6.1 --no-git --no-commit
 
-lib/openzeppelin-contracts:
-	forge install openzeppelin/openzeppelin-contracts@v4.8.1 --no-git --no-commit
+# lib/openzeppelin-contracts:
+# 	forge install openzeppelin/openzeppelin-contracts@v4.8.1 --no-git --no-commit
