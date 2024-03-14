@@ -56,7 +56,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
     let auction_info = ctx.accounts.auction.info.as_mut().unwrap();
 
     {
-        let current_slot = Clock::get().map(|clock| clock.slot)?;
+        let current_slot = Clock::get().unwrap().slot;
         require!(
             current_slot <= auction_info.auction_end_slot(&ctx.accounts.auction_config),
             MatchingEngineError::AuctionPeriodExpired

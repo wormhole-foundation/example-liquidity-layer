@@ -72,7 +72,7 @@ fn settle_active_and_prepare_fill(
         } = utils::auction::compute_deposit_penalty(
             auction_config,
             auction.info.as_ref().unwrap(),
-            Clock::get().map(|clock| clock.slot)?,
+            Clock::get().unwrap().slot,
         );
 
         // TODO: do math to adjust base fee and reward by amount_out / amount_in.

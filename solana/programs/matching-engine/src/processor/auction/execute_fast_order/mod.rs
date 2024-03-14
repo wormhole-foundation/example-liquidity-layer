@@ -59,7 +59,7 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
     let (user_amount, new_status) = {
         let auction_info = auction.info.as_ref().unwrap();
 
-        let current_slot = Clock::get().map(|clock| clock.slot)?;
+        let current_slot = Clock::get().unwrap().slot;
         require!(
             current_slot > auction_info.auction_end_slot(auction_config),
             MatchingEngineError::AuctionPeriodNotExpired
