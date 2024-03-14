@@ -1580,7 +1580,7 @@ contract TokenRouterTest is Test {
         assertEq(_router.orderToken().balanceOf(address(this)), balanceBefore + redeemed.amount);
     }
 
-    function _cctpMintLimit() internal returns (uint256 limit) {
+    function _cctpMintLimit() internal view returns (uint256 limit) {
         // This is a hack, assuming the burn limit == mint limit.
         return _cctpBurnLimit();
     }
