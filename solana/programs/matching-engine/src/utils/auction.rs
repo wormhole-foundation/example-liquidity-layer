@@ -12,6 +12,7 @@ pub struct DepositPenalty {
 }
 
 #[inline]
+#[allow(clippy::cast_possible_truncation)]
 pub fn compute_deposit_penalty(
     params: &AuctionParameters,
     info: &AuctionInfo,
@@ -81,6 +82,7 @@ fn split_user_penalty_reward(params: &AuctionParameters, amount: u64) -> Deposit
 }
 
 #[inline]
+#[allow(clippy::cast_possible_truncation)]
 fn mul_bps_unsafe(amount: u64, bps: u32) -> u64 {
     ((amount as u128 * bps as u128) / FEE_PRECISION_MAX as u128) as u64
 }
