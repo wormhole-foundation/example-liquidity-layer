@@ -1,5 +1,6 @@
 use crate::{
-    state::{custodian::*, router_endpoint::*},
+    processor::shared_contexts::*,
+    state::RouterEndpoint,
     utils::{self, admin::AddCctpRouterEndpointArgs},
 };
 use anchor_lang::prelude::*;

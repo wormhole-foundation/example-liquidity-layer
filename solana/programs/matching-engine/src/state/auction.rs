@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use crate::state::AuctionParameters;
 use anchor_lang::prelude::*;
 
@@ -107,71 +105,4 @@ pub struct Auction {
 impl Auction {
     pub const SEED_PREFIX: &'static [u8] = b"auction";
     pub const INIT_SPACE_NO_AUCTION: usize = Self::INIT_SPACE - AuctionInfo::INIT_SPACE;
-}
-
-#[derive(Accounts)]
-pub struct NewAuctionOffer<'info> {
-    pub authority: Signer<'info>,
-
-    #[account(
-        mut,
-        associated_token::mint = common::constants::USDC_MINT,
-        associated_token::authority = authority
-    )]
-    pub token: Account<'info, anchor_spl::token::TokenAccount>,
-}
-
-#[derive(Accounts)]
-pub struct ActiveAuction<'info> {
-    #[account(
-        mut,
-        seeds = [
-            Auction::SEED_PREFIX,
-            auction.vaa_hash.as_ref(),
-        ],
-        bump = auction.bump,
-        constraint = {
-            matches!(auction.status, AuctionStatus::Active)
-        } @ crate::error::MatchingEngineError::AuctionNotActive,
-    )]
-    pub auction: Account<'info, Auction>,
-
-    /// This custody token account will only exist for as long as the auction is live, meaning that
-    /// the auction status is either active or completed.
-    #[account(
-        mut,
-        seeds = [
-            crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
-            auction.key().as_ref(),
-        ],
-        bump = auction.custody_token_bump,
-    )]
-    pub custody_token: Account<'info, anchor_spl::token::TokenAccount>,
-
-    #[account(
-        constraint = {
-            require_eq!(
-                auction.info.as_ref().unwrap().config_id,
-                config.id,
-                crate::error::MatchingEngineError::AuctionConfigMismatch
-            );
-            true
-        },
-    )]
-    pub config: Account<'info, crate::state::AuctionConfig>,
-
-    /// CHECK: Mutable. Must have the same key in auction data.
-    #[account(
-        mut,
-        address = auction.info.as_ref().unwrap().best_offer_token,
-    )]
-    pub best_offer_token: AccountInfo<'info>,
-}
-
-impl<'info> Deref for ActiveAuction<'info> {
-    type Target = Account<'info, Auction>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.auction
-    }
 }

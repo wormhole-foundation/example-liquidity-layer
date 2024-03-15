@@ -1,4 +1,7 @@
-use crate::state::{custodian::*, AuctionParameters, Proposal, ProposalAction};
+use crate::{
+    processor::shared_contexts::*,
+    state::{AuctionParameters, Proposal, ProposalAction},
+};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]

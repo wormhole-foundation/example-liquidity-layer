@@ -1,4 +1,4 @@
-use crate::state::{custodian::*, Proposal};
+use crate::{processor::shared_contexts::*, state::Proposal};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]

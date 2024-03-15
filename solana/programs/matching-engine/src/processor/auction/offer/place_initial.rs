@@ -1,8 +1,7 @@
 use crate::{
     error::MatchingEngineError,
-    state::{
-        auction::*, custodian::*, router_endpoint::*, AuctionConfig, AuctionInfo, AuctionStatus,
-    },
+    processor::shared_contexts::*,
+    state::{custodian::*, Auction, AuctionConfig, AuctionInfo, AuctionStatus},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
