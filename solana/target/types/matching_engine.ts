@@ -327,6 +327,11 @@ export type MatchingEngine = {
           ]
         },
         {
+          "name": "auctionCustodyToken",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "cctpMintRecipient",
           "isMut": true,
           "isSigner": false,
@@ -525,6 +530,21 @@ export type MatchingEngine = {
           "isSigner": false,
           "docs": [
             "There should be no account data here because an auction was never created."
+          ]
+        },
+        {
+          "name": "auctionCustodyToken",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Circle-supported mint.",
+            "",
+            "Token Messenger Minter program's local token account."
           ]
         },
         {
@@ -1064,8 +1084,13 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -1115,8 +1140,13 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -1169,8 +1199,13 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -1200,8 +1235,13 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -1246,8 +1286,13 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -1300,8 +1345,13 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": true,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -1350,8 +1400,13 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": true,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         }
@@ -1376,8 +1431,13 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": true,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -1479,14 +1539,24 @@ export type MatchingEngine = {
       "name": "updateFeeRecipient",
       "accounts": [
         {
-          "name": "ownerOrAssistant",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
         },
         {
           "name": "newFeeRecipientToken",
@@ -1515,11 +1585,12 @@ export type MatchingEngine = {
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -1542,23 +1613,53 @@ export type MatchingEngine = {
           ]
         },
         {
-          "name": "fromRouterEndpoint",
-          "isMut": false,
-          "isSigner": false
+          "name": "routerEndpointPair",
+          "accounts": [
+            {
+              "name": "from",
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "to",
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
         },
         {
-          "name": "toRouterEndpoint",
-          "isMut": false,
-          "isSigner": false
+          "name": "newOffer",
+          "accounts": [
+            {
+              "name": "authority",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "token",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
-          "name": "offerToken",
+          "name": "auctionCustodyToken",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "cctpMintRecipient",
-          "isMut": true,
+          "name": "mint",
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -1584,38 +1685,57 @@ export type MatchingEngine = {
       "accounts": [
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority. This is also the burn-source",
-            "authority for CCTP transfers.",
-            ""
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "auctionConfig",
-          "isMut": false,
-          "isSigner": false
+          "name": "activeAuction",
+          "accounts": [
+            {
+              "name": "auction",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "custodyToken",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "This custody token account will only exist for as long as the auction is live, meaning that",
+                "the auction status is either active or completed."
+              ]
+            },
+            {
+              "name": "config",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "bestOfferToken",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
-          "name": "offerAuthority",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "offerToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "bestOfferToken",
-          "isMut": true,
-          "isSigner": false
+          "name": "newOffer",
+          "accounts": [
+            {
+              "name": "authority",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "token",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "tokenProgram",
@@ -1943,8 +2063,13 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -2001,6 +2126,10 @@ export type MatchingEngine = {
                 32
               ]
             }
+          },
+          {
+            "name": "custodyTokenBump",
+            "type": "u8"
           },
           {
             "name": "status",
@@ -3118,6 +3247,11 @@ export const IDL: MatchingEngine = {
           ]
         },
         {
+          "name": "auctionCustodyToken",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "cctpMintRecipient",
           "isMut": true,
           "isSigner": false,
@@ -3316,6 +3450,21 @@ export const IDL: MatchingEngine = {
           "isSigner": false,
           "docs": [
             "There should be no account data here because an auction was never created."
+          ]
+        },
+        {
+          "name": "auctionCustodyToken",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Circle-supported mint.",
+            "",
+            "Token Messenger Minter program's local token account."
           ]
         },
         {
@@ -3855,8 +4004,13 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -3906,8 +4060,13 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -3960,8 +4119,13 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -3991,8 +4155,13 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -4037,8 +4206,13 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -4091,8 +4265,13 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": true,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -4141,8 +4320,13 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": true,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         }
@@ -4167,8 +4351,13 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": true,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -4270,14 +4459,24 @@ export const IDL: MatchingEngine = {
       "name": "updateFeeRecipient",
       "accounts": [
         {
-          "name": "ownerOrAssistant",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
         },
         {
           "name": "newFeeRecipientToken",
@@ -4306,11 +4505,12 @@ export const IDL: MatchingEngine = {
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -4333,23 +4533,53 @@ export const IDL: MatchingEngine = {
           ]
         },
         {
-          "name": "fromRouterEndpoint",
-          "isMut": false,
-          "isSigner": false
+          "name": "routerEndpointPair",
+          "accounts": [
+            {
+              "name": "from",
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "to",
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
         },
         {
-          "name": "toRouterEndpoint",
-          "isMut": false,
-          "isSigner": false
+          "name": "newOffer",
+          "accounts": [
+            {
+              "name": "authority",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "token",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
-          "name": "offerToken",
+          "name": "auctionCustodyToken",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "cctpMintRecipient",
-          "isMut": true,
+          "name": "mint",
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -4375,38 +4605,57 @@ export const IDL: MatchingEngine = {
       "accounts": [
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority. This is also the burn-source",
-            "authority for CCTP transfers.",
-            ""
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "auctionConfig",
-          "isMut": false,
-          "isSigner": false
+          "name": "activeAuction",
+          "accounts": [
+            {
+              "name": "auction",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "custodyToken",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "This custody token account will only exist for as long as the auction is live, meaning that",
+                "the auction status is either active or completed."
+              ]
+            },
+            {
+              "name": "config",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "bestOfferToken",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
-          "name": "offerAuthority",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "offerToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "bestOfferToken",
-          "isMut": true,
-          "isSigner": false
+          "name": "newOffer",
+          "accounts": [
+            {
+              "name": "authority",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "token",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "tokenProgram",
@@ -4734,8 +4983,13 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -4792,6 +5046,10 @@ export const IDL: MatchingEngine = {
                 32
               ]
             }
+          },
+          {
+            "name": "custodyTokenBump",
+            "type": "u8"
           },
           {
             "name": "status",

@@ -1,3 +1,9 @@
+use crate::{
+    error::MatchingEngineError,
+    state::{
+        auction::*, custodian::*, router_endpoint::*, AuctionConfig, AuctionInfo, AuctionStatus,
+    },
+};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
@@ -5,30 +11,12 @@ use common::{
     wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount},
 };
 
-use crate::{
-    error::MatchingEngineError,
-    state::{
-        Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian, MessageProtocol,
-        RouterEndpoint,
-    },
-};
-
 #[derive(Accounts)]
 pub struct PlaceInitialOffer<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    // TODO: add initial_offer authority. Do not require to be owner?
-    // initial_offer_authority: Signer<'info>,
-    //
-    /// This program's Wormhole (Core Bridge) emitter authority.
-    ///
-    /// CHECK: Seeds must be \["emitter"\].
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-    )]
-    custodian: Account<'info, Custodian>,
+    custodian: CheckedCustodian<'info>,
 
     #[account(
         constraint = {
@@ -60,38 +48,26 @@ pub struct PlaceInitialOffer<'info> {
     )]
     auction: Box<Account<'info, Auction>>,
 
+    router_endpoint_pair: LiveRouterEndpointPair<'info>,
+
+    new_offer: NewAuctionOffer<'info>,
+
     #[account(
+        init_if_needed,
+        payer = payer,
+        token::mint = mint,
+        token::authority = custodian,
         seeds = [
-            RouterEndpoint::SEED_PREFIX,
-            from_router_endpoint.chain.to_be_bytes().as_ref(),
+            crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
+            auction.key().as_ref(),
         ],
-        bump = from_router_endpoint.bump,
-        constraint = from_router_endpoint.protocol != MessageProtocol::None @ MatchingEngineError::EndpointDisabled,
+        bump,
     )]
-    from_router_endpoint: Account<'info, RouterEndpoint>,
+    auction_custody_token: Account<'info, token::TokenAccount>,
 
-    #[account(
-        seeds = [
-            RouterEndpoint::SEED_PREFIX,
-            to_router_endpoint.chain.to_be_bytes().as_ref(),
-        ],
-        bump = to_router_endpoint.bump,
-        constraint = to_router_endpoint.protocol != MessageProtocol::None @ MatchingEngineError::EndpointDisabled,
-    )]
-    to_router_endpoint: Account<'info, RouterEndpoint>,
-
-    #[account(
-        mut,
-        associated_token::mint = cctp_mint_recipient.mint,
-        associated_token::authority = payer
-    )]
-    offer_token: Account<'info, token::TokenAccount>,
-
-    #[account(
-        mut,
-        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
-    )]
-    cctp_mint_recipient: Account<'info, token::TokenAccount>,
+    /// CHECK: This mint must be USDC.
+    #[account(address = common::constants::USDC_MINT)]
+    mint: AccountInfo<'info>,
 
     system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,
@@ -133,8 +109,8 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     // Verify that the to and from router endpoints are valid.
     crate::utils::require_valid_router_path(
         &fast_vaa,
-        &ctx.accounts.from_router_endpoint,
-        &ctx.accounts.to_router_endpoint,
+        &ctx.accounts.router_endpoint_pair.from,
+        &ctx.accounts.router_endpoint_pair.to,
         fast_order.target_chain(),
     )?;
 
@@ -146,8 +122,8 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             anchor_spl::token::Transfer {
-                from: ctx.accounts.offer_token.to_account_info(),
-                to: ctx.accounts.cctp_mint_recipient.to_account_info(),
+                from: ctx.accounts.new_offer.token.to_account_info(),
+                to: ctx.accounts.auction_custody_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
             &[Custodian::SIGNER_SEEDS],
@@ -156,10 +132,11 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     )?;
 
     // Set up the Auction account for this auction.
-    let initial_offer_token = ctx.accounts.offer_token.key();
+    let initial_offer_token = ctx.accounts.new_offer.token.key();
     ctx.accounts.auction.set_inner(Auction {
         bump: ctx.bumps.auction,
         vaa_hash: fast_vaa.digest().0,
+        custody_token_bump: ctx.bumps.auction_custody_token,
         status: AuctionStatus::Active,
         info: Some(AuctionInfo {
             config_id: ctx.accounts.auction_config.id,

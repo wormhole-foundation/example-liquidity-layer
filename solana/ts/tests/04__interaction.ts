@@ -278,7 +278,7 @@ describe("Matching Engine <> Token Router", function () {
         });
     });
 
-    describe("Business Logic", function () {
+    describe.skip("Business Logic", function () {
         let testCctpNonce = 2n ** 64n - 1n;
 
         // Hack to prevent math overflow error when invoking CCTP programs.

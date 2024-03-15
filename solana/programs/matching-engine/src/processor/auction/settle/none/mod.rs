@@ -39,6 +39,7 @@ struct SettledNone {
 fn settle_none_and_prepare_fill(
     accounts: SettleNoneAndPrepareFill<'_, '_>,
     auction_bump_seed: u8,
+    auction_custody_token_bump_seed: u8,
 ) -> Result<SettledNone> {
     let SettleNoneAndPrepareFill {
         custodian,
@@ -90,6 +91,7 @@ fn settle_none_and_prepare_fill(
     auction.set_inner(Auction {
         bump: auction_bump_seed,
         vaa_hash: fast_vaa.digest().0,
+        custody_token_bump: auction_custody_token_bump_seed,
         status: AuctionStatus::Settled {
             base_fee,
             penalty: None,

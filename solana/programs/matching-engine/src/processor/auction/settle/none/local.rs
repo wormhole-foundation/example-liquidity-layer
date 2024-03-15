@@ -72,6 +72,26 @@ pub struct SettleAuctionNoneLocal<'info> {
     )]
     auction: Box<Account<'info, Auction>>,
 
+    #[account(
+        init_if_needed,
+        payer = payer,
+        token::mint = mint,
+        token::authority = custodian,
+        seeds = [
+            crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
+            auction.key().as_ref(),
+        ],
+        bump,
+    )]
+    auction_custody_token: Account<'info, token::TokenAccount>,
+
+    /// Circle-supported mint.
+    ///
+    /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
+    /// Token Messenger Minter program's local token account.
+    #[account(address = common::constants::USDC_MINT)]
+    mint: AccountInfo<'info>,
+
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
     /// from its custody account to this account.
@@ -175,6 +195,7 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
             token_program: &ctx.accounts.token_program,
         },
         ctx.bumps.auction,
+        ctx.bumps.auction_custody_token,
     )?;
 
     // Publish message via Core Bridge.

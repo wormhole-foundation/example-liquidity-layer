@@ -80,6 +80,19 @@ pub struct SettleAuctionNoneCctp<'info> {
     )]
     auction: Box<Account<'info, Auction>>,
 
+    #[account(
+        init_if_needed,
+        payer = payer,
+        token::mint = mint,
+        token::authority = custodian,
+        seeds = [
+            crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
+            auction.key().as_ref(),
+        ],
+        bump,
+    )]
+    auction_custody_token: Account<'info, token::TokenAccount>,
+
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
     /// from its custody account to this account.
@@ -243,6 +256,7 @@ fn handle_settle_auction_none_cctp(
             token_program: &ctx.accounts.token_program,
         },
         ctx.bumps.auction,
+        ctx.bumps.auction_custody_token,
     )?;
 
     // This returns the CCTP nonce, but we do not need it.

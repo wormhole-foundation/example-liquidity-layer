@@ -255,6 +255,20 @@ export class MatchingEngineProgram {
         return this.program.account.preparedOrderResponse.fetch(addr);
     }
 
+    auctionCustodyTokenAddress(auction: PublicKey): PublicKey {
+        return PublicKey.findProgramAddressSync(
+            [Buffer.from("auction-custody"), auction.toBuffer()],
+            this.ID,
+        )[0];
+    }
+
+    async fetchAuctionCustodyTokenBalance(auction: PublicKey): Promise<bigint> {
+        return splToken
+            .getAccount(this.program.provider.connection, this.auctionCustodyTokenAddress(auction))
+            .then((token) => token.amount)
+            .catch((_) => 0n);
+    }
+
     async approveCustodianIx(
         owner: PublicKey,
         amount: bigint | number,
@@ -348,7 +362,9 @@ export class MatchingEngineProgram {
             .accounts({
                 admin: {
                     owner,
-                    custodian: inputCustodian ?? this.custodianAddress(),
+                    custodian: {
+                        inner: inputCustodian ?? this.custodianAddress(),
+                    },
                 },
                 newOwner,
             })
@@ -379,7 +395,9 @@ export class MatchingEngineProgram {
             .accounts({
                 admin: {
                     owner,
-                    custodian: inputCustodian ?? this.custodianAddress(),
+                    custodian: {
+                        inner: inputCustodian ?? this.custodianAddress(),
+                    },
                 },
             })
             .instruction();
@@ -428,7 +446,9 @@ export class MatchingEngineProgram {
                 payer: inputPayer ?? ownerOrAssistant,
                 admin: {
                     ownerOrAssistant,
-                    custodian: inputCustodian ?? this.custodianAddress(),
+                    custodian: {
+                        inner: inputCustodian ?? this.custodianAddress(),
+                    },
                 },
                 routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
                 remoteTokenMessenger: inputRemoteTokenMessenger ?? derivedRemoteTokenMessenger,
@@ -460,7 +480,9 @@ export class MatchingEngineProgram {
             .accounts({
                 admin: {
                     owner,
-                    custodian: inputCustodian ?? this.custodianAddress(),
+                    custodian: {
+                        inner: inputCustodian ?? this.custodianAddress(),
+                    },
                 },
                 routerEndpoint: {
                     inner: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
@@ -492,7 +514,9 @@ export class MatchingEngineProgram {
                 payer: inputPayer ?? ownerOrAssistant,
                 admin: {
                     ownerOrAssistant,
-                    custodian: inputCustodian ?? this.custodianAddress(),
+                    custodian: {
+                        inner: inputCustodian ?? this.custodianAddress(),
+                    },
                 },
                 proposal: inputProposal ?? (await this.proposalAddress()),
                 epochSchedule: SYSVAR_EPOCH_SCHEDULE_PUBKEY,
@@ -582,7 +606,9 @@ export class MatchingEngineProgram {
                 payer: inputPayer ?? ownerOrAssistant,
                 admin: {
                     ownerOrAssistant,
-                    custodian: inputCustodian ?? this.custodianAddress(),
+                    custodian: {
+                        inner: inputCustodian ?? this.custodianAddress(),
+                    },
                 },
                 routerEndpoint:
                     inputRouterEndpoint ?? this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
@@ -620,7 +646,9 @@ export class MatchingEngineProgram {
             .accounts({
                 admin: {
                     owner,
-                    custodian: inputCustodian ?? this.custodianAddress(),
+                    custodian: {
+                        inner: inputCustodian ?? this.custodianAddress(),
+                    },
                 },
                 routerEndpoint: {
                     inner:
@@ -654,7 +682,9 @@ export class MatchingEngineProgram {
             .accounts({
                 admin: {
                     owner,
-                    custodian: inputCustodian ?? this.custodianAddress(),
+                    custodian: {
+                        inner: inputCustodian ?? this.custodianAddress(),
+                    },
                 },
                 routerEndpoint: {
                     inner: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
@@ -673,8 +703,12 @@ export class MatchingEngineProgram {
         return this.program.methods
             .updateFeeRecipient()
             .accounts({
-                ownerOrAssistant,
-                custodian: inputCustodian ?? this.custodianAddress(),
+                admin: {
+                    ownerOrAssistant,
+                    custodian: {
+                        inner: inputCustodian ?? this.custodianAddress(),
+                    },
+                },
                 newFeeRecipient,
                 newFeeRecipientToken: splToken.getAssociatedTokenAddressSync(
                     this.mint,
@@ -728,8 +762,6 @@ export class MatchingEngineProgram {
             totalDeposit: inputTotalDeposit,
         } = accounts;
 
-        const cctpMintRecipient = this.cctpMintRecipientAddress();
-
         const offerToken = await (async () => {
             if (inputOfferToken !== undefined) {
                 return inputOfferToken;
@@ -774,6 +806,8 @@ export class MatchingEngineProgram {
             }
         })();
 
+        const auctionCustodyToken = this.auctionCustodyTokenAddress(auction);
+
         const auctionConfig = await (async () => {
             if (inputAuctionConfig === undefined) {
                 const { auctionConfigId } = await this.fetchCustodian();
@@ -788,14 +822,24 @@ export class MatchingEngineProgram {
             .placeInitialOffer(new BN(feeOffer.toString()))
             .accounts({
                 payer,
-                custodian: this.custodianAddress(),
+                custodian: { inner: this.custodianAddress() },
                 auctionConfig,
                 auction,
-                fromRouterEndpoint,
-                toRouterEndpoint,
-                offerToken,
-                cctpMintRecipient,
+                routerEndpointPair: {
+                    from: {
+                        inner: fromRouterEndpoint,
+                    },
+                    to: {
+                        inner: toRouterEndpoint,
+                    },
+                },
+                newOffer: {
+                    authority: payer,
+                    token: offerToken,
+                },
+                auctionCustodyToken,
                 fastVaa,
+                mint: this.mint,
             })
             .instruction();
 
@@ -843,12 +887,19 @@ export class MatchingEngineProgram {
         const improveOfferIx = await this.program.methods
             .improveOffer(new BN(feeOffer.toString()))
             .accounts({
-                offerAuthority,
-                custodian: this.custodianAddress(),
-                auctionConfig,
-                auction,
-                offerToken: splToken.getAssociatedTokenAddressSync(this.mint, offerAuthority),
-                bestOfferToken,
+                custodian: {
+                    inner: this.custodianAddress(),
+                },
+                activeAuction: {
+                    custodyToken: this.auctionCustodyTokenAddress(auction),
+                    auction,
+                    config: auctionConfig,
+                    bestOfferToken,
+                },
+                newOffer: {
+                    authority: offerAuthority,
+                    token: splToken.getAssociatedTokenAddressSync(this.mint, offerAuthority),
+                },
             })
             .instruction();
 

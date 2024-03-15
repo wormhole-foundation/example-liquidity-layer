@@ -1,7 +1,7 @@
 mod auction_config;
 pub use auction_config::*;
 
-mod auction;
+pub(crate) mod auction;
 pub use auction::*;
 
 pub(crate) mod custodian;

@@ -28,12 +28,20 @@ export type AuctionInfo = {
 export class Auction {
     bump: number;
     vaaHash: number[];
+    custodyTokenBump: number;
     status: Object;
     info: AuctionInfo | null;
 
-    constructor(bump: number, vaaHash: number[], status: AuctionStatus, info: AuctionInfo | null) {
+    constructor(
+        bump: number,
+        vaaHash: number[],
+        custodyTokenBump: number,
+        status: AuctionStatus,
+        info: AuctionInfo | null,
+    ) {
         this.bump = bump;
         this.vaaHash = vaaHash;
+        this.custodyTokenBump = custodyTokenBump;
         this.status = status;
         this.info = info;
     }

@@ -68,7 +68,7 @@ pub struct LiveRouterEndpoint<'info> {
 }
 
 impl<'info> Deref for LiveRouterEndpoint<'info> {
-    type Target = RouterEndpoint;
+    type Target = Account<'info, RouterEndpoint>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner

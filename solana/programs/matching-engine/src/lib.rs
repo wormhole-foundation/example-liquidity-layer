@@ -25,6 +25,8 @@ cfg_if::cfg_if! {
     }
 }
 
+const AUCTION_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"auction-custody";
+
 #[program]
 pub mod matching_engine {
     use super::*;

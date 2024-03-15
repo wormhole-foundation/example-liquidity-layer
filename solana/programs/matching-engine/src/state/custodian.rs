@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 use anchor_lang::prelude::*;
 
 use crate::error::MatchingEngineError;
@@ -58,47 +60,100 @@ impl admin::OwnerAssistant for Custodian {
 }
 
 #[derive(Accounts)]
-pub struct OwnerCustodian<'info> {
-    pub owner: Signer<'info>,
+pub struct CheckedCustodian<'info> {
+    #[account(
+        seeds = [Custodian::SEED_PREFIX],
+        bump = Custodian::BUMP,
+    )]
+    pub inner: Account<'info, Custodian>,
+}
 
-    #[account(has_one = owner @ MatchingEngineError::OwnerOnly)]
-    pub custodian: Account<'info, Custodian>,
+impl<'info> Deref for CheckedCustodian<'info> {
+    type Target = Account<'info, Custodian>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 #[derive(Accounts)]
-pub struct OwnerMutCustodian<'info> {
-    pub owner: Signer<'info>,
-
+pub(crate) struct CheckedMutCustodian<'info> {
     #[account(
         mut,
-        has_one = owner @ MatchingEngineError::OwnerOnly,
+        seeds = [Custodian::SEED_PREFIX],
+        bump = Custodian::BUMP,
     )]
-    pub custodian: Account<'info, Custodian>,
+    pub inner: Account<'info, Custodian>,
+}
+
+impl<'info> Deref for CheckedMutCustodian<'info> {
+    type Target = Account<'info, Custodian>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<'info> DerefMut for CheckedMutCustodian<'info> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
 }
 
 #[derive(Accounts)]
-pub struct AdminCustodian<'info> {
+pub(crate) struct OwnerCustodian<'info> {
     #[account(
-        constraint = {
-            admin::utils::assistant::only_authorized(&custodian, &owner_or_assistant.key())
-        } @ MatchingEngineError::OwnerOrAssistantOnly,
+        constraint = admin::utils::ownable::only_owner(
+            &custodian,
+            &owner,
+            error!(MatchingEngineError::OwnerOnly)
+        )?
     )]
-    pub owner_or_assistant: Signer<'info>,
+    pub owner: Signer<'info>,
 
-    pub custodian: Account<'info, Custodian>,
+    pub custodian: CheckedCustodian<'info>,
 }
 
 #[derive(Accounts)]
-pub struct AdminMutCustodian<'info> {
+pub(crate) struct OwnerMutCustodian<'info> {
     #[account(
-        constraint = {
-            admin::utils::assistant::only_authorized(&custodian, &owner_or_assistant.key())
-        } @ MatchingEngineError::OwnerOrAssistantOnly,
+        constraint = admin::utils::ownable::only_owner(
+            &custodian,
+            &owner,
+            error!(MatchingEngineError::OwnerOnly)
+        )?
+    )]
+    pub owner: Signer<'info>,
+
+    pub custodian: CheckedMutCustodian<'info>,
+}
+
+#[derive(Accounts)]
+pub(crate) struct AdminCustodian<'info> {
+    #[account(
+        constraint = admin::utils::assistant::only_authorized(
+            &custodian,
+            &owner_or_assistant,
+            error!(MatchingEngineError::OwnerOrAssistantOnly)
+        )?
     )]
     pub owner_or_assistant: Signer<'info>,
 
-    #[account(mut)]
-    pub custodian: Account<'info, Custodian>,
+    pub custodian: CheckedCustodian<'info>,
+}
+
+#[derive(Accounts)]
+pub(crate) struct AdminMutCustodian<'info> {
+    #[account(
+        constraint = admin::utils::assistant::only_authorized(
+            &custodian,
+            &owner_or_assistant,
+            error!(MatchingEngineError::OwnerOrAssistantOnly)
+        )?
+    )]
+    pub owner_or_assistant: Signer<'info>,
+
+    pub custodian: CheckedMutCustodian<'info>,
 }
 
 #[cfg(test)]
