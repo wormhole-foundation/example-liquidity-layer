@@ -177,18 +177,6 @@ pub struct LiveRouterEndpointPair<'info> {
 }
 
 #[derive(Accounts)]
-pub struct NewAuctionOffer<'info> {
-    pub authority: Signer<'info>,
-
-    #[account(
-        mut,
-        associated_token::mint = common::constants::USDC_MINT,
-        associated_token::authority = authority
-    )]
-    pub token: Account<'info, anchor_spl::token::TokenAccount>,
-}
-
-#[derive(Accounts)]
 pub struct ActiveAuction<'info> {
     #[account(
         mut,
@@ -201,8 +189,6 @@ pub struct ActiveAuction<'info> {
     )]
     pub auction: Account<'info, Auction>,
 
-    /// This custody token account will only exist for as long as the auction is live, meaning that
-    /// the auction status is either active or completed.
     #[account(
         mut,
         seeds = [
@@ -238,6 +224,12 @@ impl<'info> Deref for ActiveAuction<'info> {
 
     fn deref(&self) -> &Self::Target {
         &self.auction
+    }
+}
+
+impl<'info> DerefMut for ActiveAuction<'info> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.auction
     }
 }
 

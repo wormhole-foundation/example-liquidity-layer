@@ -7,7 +7,7 @@ pub use local::*;
 use crate::{
     error::MatchingEngineError,
     processor::shared_contexts::*,
-    state::{AuctionStatus, Custodian, PayerSequence},
+    state::{Auction, AuctionStatus, PayerSequence},
     utils::{self, auction::DepositPenalty},
 };
 use anchor_lang::prelude::*;
@@ -18,7 +18,6 @@ use common::{
 };
 
 struct PrepareFastExecution<'ctx, 'info> {
-    custodian: &'ctx CheckedCustodian<'info>,
     fast_vaa: &'ctx AccountInfo<'info>,
     active_auction: &'ctx mut ActiveAuction<'info>,
     executor_token: &'ctx AccountInfo<'info>,
@@ -35,7 +34,6 @@ struct PreparedFastExecution {
 
 fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFastExecution> {
     let PrepareFastExecution {
-        custodian,
         fast_vaa,
         active_auction,
         executor_token,
@@ -75,6 +73,12 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
         let mut deposit_and_fee =
             auction_info.offer_price + auction_info.security_deposit - user_reward;
 
+        let auction_signer_seeds = &[
+            Auction::SEED_PREFIX,
+            auction.vaa_hash.as_ref(),
+            &[auction.bump],
+        ];
+
         if penalty > 0 && best_offer_token.key() != executor_token.key() {
             // Pay the liquidator the penalty.
             token::transfer(
@@ -83,9 +87,9 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
                     anchor_spl::token::Transfer {
                         from: custody_token.to_account_info(),
                         to: executor_token.to_account_info(),
-                        authority: custodian.to_account_info(),
+                        authority: auction.to_account_info(),
                     },
-                    &[Custodian::SIGNER_SEEDS],
+                    &[auction_signer_seeds],
                 ),
                 penalty,
             )?;
@@ -102,9 +106,9 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
                     anchor_spl::token::Transfer {
                         from: custody_token.to_account_info(),
                         to: initial_offer_token.to_account_info(),
-                        authority: custodian.to_account_info(),
+                        authority: auction.to_account_info(),
                     },
-                    &[Custodian::SIGNER_SEEDS],
+                    &[auction_signer_seeds],
                 ),
                 init_auction_fee,
             )?;
@@ -120,9 +124,9 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
                 anchor_spl::token::Transfer {
                     from: custody_token.to_account_info(),
                     to: best_offer_token.to_account_info(),
-                    authority: custodian.to_account_info(),
+                    authority: auction.to_account_info(),
                 },
-                &[Custodian::SIGNER_SEEDS],
+                &[auction_signer_seeds],
             ),
             deposit_and_fee,
         )?;

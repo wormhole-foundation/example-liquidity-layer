@@ -281,6 +281,23 @@ export class MatchingEngineProgram {
         );
     }
 
+    async approveAuctionIx(
+        accounts: {
+            auction: PublicKey;
+            owner: PublicKey;
+        },
+        amount: bigint | number,
+    ): Promise<TransactionInstruction> {
+        const { auction, owner } = accounts;
+
+        return splToken.createApproveInstruction(
+            splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner),
+            auction,
+            owner,
+            amount,
+        );
+    }
+
     async commonAccounts(): Promise<MatchingEngineCommonAccounts> {
         const custodian = this.custodianAddress();
         const { coreBridgeConfig, coreEmitterSequence, coreFeeCollector, coreBridgeProgram } =
@@ -817,7 +834,7 @@ export class MatchingEngineProgram {
             }
         })();
 
-        const approveIx = await this.approveCustodianIx(payer, totalDeposit);
+        const approveIx = await this.approveAuctionIx({ auction, owner: payer }, totalDeposit);
         const placeInitialOfferIx = await this.program.methods
             .placeInitialOffer(new BN(feeOffer.toString()))
             .accounts({
@@ -833,10 +850,7 @@ export class MatchingEngineProgram {
                         inner: toRouterEndpoint,
                     },
                 },
-                newOffer: {
-                    authority: payer,
-                    token: offerToken,
-                },
+                offerToken,
                 auctionCustodyToken,
                 fastVaa,
                 mint: this.mint,
@@ -880,26 +894,21 @@ export class MatchingEngineProgram {
             }
         })();
 
-        const approveIx = await this.approveCustodianIx(
-            offerAuthority,
+        const approveIx = await this.approveAuctionIx(
+            { auction, owner: offerAuthority },
             info.amountIn.add(info.securityDeposit).toNumber(),
         );
+
         const improveOfferIx = await this.program.methods
             .improveOffer(new BN(feeOffer.toString()))
             .accounts({
-                custodian: {
-                    inner: this.custodianAddress(),
-                },
                 activeAuction: {
                     custodyToken: this.auctionCustodyTokenAddress(auction),
                     auction,
                     config: auctionConfig,
                     bestOfferToken,
                 },
-                newOffer: {
-                    authority: offerAuthority,
-                    token: splToken.getAssociatedTokenAddressSync(this.mint, offerAuthority),
-                },
+                offerToken: splToken.getAssociatedTokenAddressSync(this.mint, offerAuthority),
             })
             .instruction();
 

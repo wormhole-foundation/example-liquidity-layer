@@ -1,7 +1,7 @@
 use crate::{
     error::MatchingEngineError,
     processor::shared_contexts::*,
-    state::{custodian::*, Auction, AuctionConfig, AuctionInfo, AuctionStatus},
+    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -15,6 +15,8 @@ pub struct PlaceInitialOffer<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
+    /// NOTE: Currently not used for anything. But this account can be used in
+    /// case we need to pause starting auctions.
     custodian: CheckedCustodian<'info>,
 
     #[account(
@@ -49,13 +51,15 @@ pub struct PlaceInitialOffer<'info> {
 
     router_endpoint_pair: LiveRouterEndpointPair<'info>,
 
-    new_offer: NewAuctionOffer<'info>,
+    /// CHECK: Must be a token account, whose mint is `USDC_MINT` and have delegated authority to
+    /// the auction PDA.
+    offer_token: AccountInfo<'info>,
 
     #[account(
         init_if_needed,
         payer = payer,
         token::mint = mint,
-        token::authority = custodian,
+        token::authority = auction,
         seeds = [
             crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
             auction.key().as_ref(),
@@ -72,9 +76,9 @@ pub struct PlaceInitialOffer<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> Result<()> {
+pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) -> Result<()> {
     // Create zero copy reference to `FastMarketOrder` payload.
-    let fast_vaa = VaaAccount::load(&ctx.accounts.fast_vaa)?;
+    let fast_vaa = VaaAccount::load_unchecked(&ctx.accounts.fast_vaa);
     let msg = LiquidityLayerPayload::try_from(fast_vaa.payload())
         .map_err(|_| MatchingEngineError::InvalidVaa)?
         .message();
@@ -103,7 +107,10 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     };
 
     let max_fee = fast_order.max_fee();
-    require!(fee_offer <= max_fee, MatchingEngineError::OfferPriceTooHigh);
+    require!(
+        offer_price <= max_fee,
+        MatchingEngineError::OfferPriceTooHigh
+    );
 
     // Verify that the to and from router endpoints are valid.
     crate::utils::require_valid_router_path(
@@ -116,25 +123,12 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
     // Parse the transfer amount from the VAA.
     let amount_in = fast_order.amount_in();
 
-    // Transfer tokens from the offer authority's token account to the custodian.
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token::Transfer {
-                from: ctx.accounts.new_offer.token.to_account_info(),
-                to: ctx.accounts.auction_custody_token.to_account_info(),
-                authority: ctx.accounts.custodian.to_account_info(),
-            },
-            &[Custodian::SIGNER_SEEDS],
-        ),
-        amount_in + max_fee,
-    )?;
-
     // Set up the Auction account for this auction.
-    let initial_offer_token = ctx.accounts.new_offer.token.key();
+    let initial_offer_token = ctx.accounts.offer_token.key();
+    let vaa_hash = fast_vaa.digest().0;
     ctx.accounts.auction.set_inner(Auction {
         bump: ctx.bumps.auction,
-        vaa_hash: fast_vaa.digest().0,
+        vaa_hash,
         custody_token_bump: ctx.bumps.auction_custody_token,
         status: AuctionStatus::Active,
         info: Some(AuctionInfo {
@@ -146,10 +140,27 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> R
             start_slot,
             amount_in,
             security_deposit: max_fee,
-            offer_price: fee_offer,
+            offer_price,
             amount_out: amount_in,
         }),
     });
 
-    Ok(())
+    // Finally transfer tokens from the offer authority's token account to the
+    // auction's custody account.
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            anchor_spl::token::Transfer {
+                from: ctx.accounts.offer_token.to_account_info(),
+                to: ctx.accounts.auction_custody_token.to_account_info(),
+                authority: ctx.accounts.auction.to_account_info(),
+            },
+            &[&[
+                Auction::SEED_PREFIX,
+                vaa_hash.as_ref(),
+                &[ctx.bumps.auction],
+            ]],
+        ),
+        amount_in + max_fee,
+    )
 }

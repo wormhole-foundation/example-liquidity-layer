@@ -84,7 +84,6 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         fill,
         sequence_seed,
     } = super::prepare_fast_execution(super::PrepareFastExecution {
-        custodian: &ctx.accounts.custodian,
         fast_vaa: &ctx.accounts.execute_order.fast_vaa,
         active_auction: &mut ctx.accounts.execute_order.active_auction,
         executor_token: &ctx.accounts.execute_order.executor_token,

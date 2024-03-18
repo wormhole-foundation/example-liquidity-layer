@@ -1638,18 +1638,11 @@ export type MatchingEngine = {
           ]
         },
         {
-          "name": "newOffer",
-          "accounts": [
-            {
-              "name": "authority",
-              "isMut": false,
-              "isSigner": true
-            },
-            {
-              "name": "token",
-              "isMut": true,
-              "isSigner": false
-            }
+          "name": "offerToken",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "the auction PDA."
           ]
         },
         {
@@ -1684,16 +1677,6 @@ export type MatchingEngine = {
       "name": "improveOffer",
       "accounts": [
         {
-          "name": "custodian",
-          "accounts": [
-            {
-              "name": "inner",
-              "isMut": false,
-              "isSigner": false
-            }
-          ]
-        },
-        {
           "name": "activeAuction",
           "accounts": [
             {
@@ -1704,11 +1687,7 @@ export type MatchingEngine = {
             {
               "name": "custodyToken",
               "isMut": true,
-              "isSigner": false,
-              "docs": [
-                "This custody token account will only exist for as long as the auction is live, meaning that",
-                "the auction status is either active or completed."
-              ]
+              "isSigner": false
             },
             {
               "name": "config",
@@ -1723,18 +1702,11 @@ export type MatchingEngine = {
           ]
         },
         {
-          "name": "newOffer",
-          "accounts": [
-            {
-              "name": "authority",
-              "isMut": false,
-              "isSigner": true
-            },
-            {
-              "name": "token",
-              "isMut": true,
-              "isSigner": false
-            }
+          "name": "offerToken",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "the auction PDA."
           ]
         },
         {
@@ -1792,11 +1764,7 @@ export type MatchingEngine = {
                 {
                   "name": "custodyToken",
                   "isMut": true,
-                  "isSigner": false,
-                  "docs": [
-                    "This custody token account will only exist for as long as the auction is live, meaning that",
-                    "the auction status is either active or completed."
-                  ]
+                  "isSigner": false
                 },
                 {
                   "name": "config",
@@ -1992,11 +1960,7 @@ export type MatchingEngine = {
                 {
                   "name": "custodyToken",
                   "isMut": true,
-                  "isSigner": false,
-                  "docs": [
-                    "This custody token account will only exist for as long as the auction is live, meaning that",
-                    "the auction status is either active or completed."
-                  ]
+                  "isSigner": false
                 },
                 {
                   "name": "config",
@@ -4588,18 +4552,11 @@ export const IDL: MatchingEngine = {
           ]
         },
         {
-          "name": "newOffer",
-          "accounts": [
-            {
-              "name": "authority",
-              "isMut": false,
-              "isSigner": true
-            },
-            {
-              "name": "token",
-              "isMut": true,
-              "isSigner": false
-            }
+          "name": "offerToken",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "the auction PDA."
           ]
         },
         {
@@ -4634,16 +4591,6 @@ export const IDL: MatchingEngine = {
       "name": "improveOffer",
       "accounts": [
         {
-          "name": "custodian",
-          "accounts": [
-            {
-              "name": "inner",
-              "isMut": false,
-              "isSigner": false
-            }
-          ]
-        },
-        {
           "name": "activeAuction",
           "accounts": [
             {
@@ -4654,11 +4601,7 @@ export const IDL: MatchingEngine = {
             {
               "name": "custodyToken",
               "isMut": true,
-              "isSigner": false,
-              "docs": [
-                "This custody token account will only exist for as long as the auction is live, meaning that",
-                "the auction status is either active or completed."
-              ]
+              "isSigner": false
             },
             {
               "name": "config",
@@ -4673,18 +4616,11 @@ export const IDL: MatchingEngine = {
           ]
         },
         {
-          "name": "newOffer",
-          "accounts": [
-            {
-              "name": "authority",
-              "isMut": false,
-              "isSigner": true
-            },
-            {
-              "name": "token",
-              "isMut": true,
-              "isSigner": false
-            }
+          "name": "offerToken",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "the auction PDA."
           ]
         },
         {
@@ -4742,11 +4678,7 @@ export const IDL: MatchingEngine = {
                 {
                   "name": "custodyToken",
                   "isMut": true,
-                  "isSigner": false,
-                  "docs": [
-                    "This custody token account will only exist for as long as the auction is live, meaning that",
-                    "the auction status is either active or completed."
-                  ]
+                  "isSigner": false
                 },
                 {
                   "name": "config",
@@ -4942,11 +4874,7 @@ export const IDL: MatchingEngine = {
                 {
                   "name": "custodyToken",
                   "isMut": true,
-                  "isSigner": false,
-                  "docs": [
-                    "This custody token account will only exist for as long as the auction is live, meaning that",
-                    "the auction status is either active or completed."
-                  ]
+                  "isSigner": false
                 },
                 {
                   "name": "config",

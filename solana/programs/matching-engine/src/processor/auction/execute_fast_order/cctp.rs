@@ -1,7 +1,7 @@
 use crate::{
     error::MatchingEngineError,
     processor::shared_contexts::*,
-    state::{Custodian, MessageProtocol, PayerSequence},
+    state::{Auction, Custodian, MessageProtocol, PayerSequence},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -138,7 +138,6 @@ pub fn handle_execute_fast_order_cctp(
         fill,
         sequence_seed,
     } = super::prepare_fast_execution(super::PrepareFastExecution {
-        custodian: &ctx.accounts.custodian,
         fast_vaa: &ctx.accounts.execute_order.fast_vaa,
         active_auction: &mut ctx.accounts.execute_order.active_auction,
         executor_token: &ctx.accounts.execute_order.executor_token,
@@ -154,7 +153,7 @@ pub fn handle_execute_fast_order_cctp(
                 .token_messenger_minter_program
                 .to_account_info(),
             wormhole_cctp_solana::cpi::DepositForBurnWithCaller {
-                burn_token_owner: ctx.accounts.custodian.to_account_info(),
+                burn_token_owner: ctx.accounts.execute_order.active_auction.to_account_info(),
                 payer: ctx.accounts.payer.to_account_info(),
                 token_messenger_minter_sender_authority: ctx
                     .accounts
@@ -192,7 +191,11 @@ pub fn handle_execute_fast_order_cctp(
                     .to_account_info(),
             },
             &[
-                Custodian::SIGNER_SEEDS,
+                &[
+                    Auction::SEED_PREFIX,
+                    ctx.accounts.execute_order.active_auction.vaa_hash.as_ref(),
+                    &[ctx.accounts.execute_order.active_auction.bump],
+                ],
                 &[
                     common::constants::CCTP_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),
