@@ -18,57 +18,60 @@ use common::{
 };
 
 struct PrepareFastExecution<'ctx, 'info> {
-    fast_vaa: &'ctx AccountInfo<'info>,
-    active_auction: &'ctx mut ActiveAuction<'info>,
-    executor_token: &'ctx AccountInfo<'info>,
-    initial_offer_token: &'ctx AccountInfo<'info>,
+    execute_order: &'ctx mut ExecuteOrder<'info>,
     payer_sequence: &'ctx mut Account<'info, PayerSequence>,
     token_program: &'ctx Program<'info, token::Token>,
 }
 
-struct PreparedFastExecution {
+struct PreparedOrderExecution {
     pub user_amount: u64,
     pub fill: Fill,
     pub sequence_seed: [u8; 8],
 }
 
-fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFastExecution> {
+fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrderExecution> {
     let PrepareFastExecution {
-        fast_vaa,
-        active_auction,
-        executor_token,
-        initial_offer_token,
+        execute_order,
         payer_sequence,
         token_program,
     } = accounts;
 
-    let ActiveAuction {
-        auction,
-        custody_token,
-        config: auction_config,
-        best_offer_token,
-    } = active_auction;
+    let ExecuteOrder {
+        fast_vaa,
+        active_auction,
+        to_router_endpoint: _,
+        executor_token,
+        initial_offer_token,
+    } = execute_order;
 
-    // Create zero copy reference to `FastMarketOrder` payload.
     let fast_vaa = VaaAccount::load_unchecked(fast_vaa);
     let order = LiquidityLayerPayload::try_from(fast_vaa.payload())
         .map_err(|_| MatchingEngineError::InvalidVaa)?
         .message()
         .to_fast_market_order_unchecked();
 
+    let ActiveAuction {
+        auction,
+        custody_token,
+        config,
+        best_offer_token,
+    } = active_auction;
+
+    // Create zero copy reference to `FastMarketOrder` payload.
+
     let (user_amount, new_status) = {
         let auction_info = auction.info.as_ref().unwrap();
 
         let current_slot = Clock::get().unwrap().slot;
         require!(
-            current_slot > auction_info.auction_end_slot(auction_config),
+            current_slot > auction_info.auction_end_slot(config),
             MatchingEngineError::AuctionPeriodNotExpired
         );
 
         let DepositPenalty {
             penalty,
             user_reward,
-        } = utils::auction::compute_deposit_penalty(auction_config, auction_info, current_slot);
+        } = utils::auction::compute_deposit_penalty(config, auction_info, current_slot);
 
         let mut deposit_and_fee =
             auction_info.offer_price + auction_info.security_deposit - user_reward;
@@ -141,7 +144,7 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
     // Set the auction status to completed.
     auction.status = new_status;
 
-    Ok(PreparedFastExecution {
+    Ok(PreparedOrderExecution {
         user_amount,
         fill: Fill {
             source_chain: fast_vaa.emitter_chain(),

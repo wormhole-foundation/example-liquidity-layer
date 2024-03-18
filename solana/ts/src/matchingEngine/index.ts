@@ -1491,9 +1491,8 @@ export class MatchingEngineProgram {
             .accounts({
                 payer,
                 payerSequence,
-                custodian: {
-                    inner: custodian,
-                },
+                coreMessage,
+                cctpMessage,
                 executeOrder: {
                     fastVaa,
                     activeAuction: {
@@ -1509,22 +1508,27 @@ export class MatchingEngineProgram {
                         inputExecutorToken ?? splToken.getAssociatedTokenAddressSync(mint, payer),
                     initialOfferToken,
                 },
-                mint,
-                coreBridgeConfig,
-                coreMessage,
-                cctpMessage,
-                coreEmitterSequence,
-                coreFeeCollector,
-                tokenMessengerMinterSenderAuthority,
-                messageTransmitterConfig,
-                tokenMessenger,
-                remoteTokenMessenger,
-                tokenMinter,
-                localToken,
-                tokenMessengerMinterEventAuthority,
-                coreBridgeProgram,
-                tokenMessengerMinterProgram,
-                messageTransmitterProgram,
+                custodian: {
+                    inner: custodian,
+                },
+                wormhole: {
+                    config: coreBridgeConfig,
+                    emitterSequence: coreEmitterSequence,
+                    feeCollector: coreFeeCollector,
+                    coreBridgeProgram,
+                },
+                cctp: {
+                    mint,
+                    tokenMessengerMinterSenderAuthority,
+                    messageTransmitterConfig,
+                    tokenMessenger,
+                    remoteTokenMessenger,
+                    tokenMinter,
+                    localToken,
+                    tokenMessengerMinterEventAuthority,
+                    tokenMessengerMinterProgram,
+                    messageTransmitterProgram,
+                },
             })
             .instruction();
     }
@@ -1599,6 +1603,7 @@ export class MatchingEngineProgram {
                 custodian: {
                     inner: custodian,
                 },
+                coreMessage,
                 executeOrder: {
                     fastVaa,
                     activeAuction: {
@@ -1617,11 +1622,12 @@ export class MatchingEngineProgram {
                         splToken.getAssociatedTokenAddressSync(this.mint, payer),
                     initialOfferToken,
                 },
-                coreBridgeConfig,
-                coreMessage,
-                coreEmitterSequence,
-                coreFeeCollector,
-                coreBridgeProgram,
+                wormhole: {
+                    config: coreBridgeConfig,
+                    emitterSequence: coreEmitterSequence,
+                    feeCollector: coreFeeCollector,
+                    coreBridgeProgram,
+                },
             })
             .instruction();
     }

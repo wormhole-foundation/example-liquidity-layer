@@ -1736,6 +1736,16 @@
           "isSigner": false
         },
         {
+          "name": "coreMessage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "cctpMessage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "custodian",
           "accounts": [
             {
@@ -1801,99 +1811,99 @@
           ]
         },
         {
-          "name": "mint",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Circle-supported mint.",
-            "",
-            "Token Messenger Minter program's local token account."
+          "name": "wormhole",
+          "accounts": [
+            {
+              "name": "config",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "emitterSequence",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "feeCollector",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "coreBridgeProgram",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "coreBridgeConfig",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreMessage",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "cctpMessage",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreEmitterSequence",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreFeeCollector",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterSenderAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterConfig",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessenger",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "remoteTokenMessenger",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Messenger Minter program)."
+          "name": "cctp",
+          "accounts": [
+            {
+              "name": "mint",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Circle-supported mint.",
+                "",
+                "Token Messenger Minter program's local token account."
+              ]
+            },
+            {
+              "name": "tokenMessengerMinterSenderAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterConfig",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessenger",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "remoteTokenMessenger",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "tokenMinter",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "CHECK Seeds must be \\[\"token_minter\"\\] (CCTP Token Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "localToken",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Local token account, which this program uses to validate the `mint` used to burn.",
+                ""
+              ]
+            },
+            {
+              "name": "tokenMessengerMinterEventAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessengerMinterProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterProgram",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "tokenMinter",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "CHECK Seeds must be \\[\"token_minter\"\\] (CCTP Token Messenger Minter program)."
-          ]
-        },
-        {
-          "name": "localToken",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Local token account, which this program uses to validate the `mint` used to burn.",
-            ""
-          ]
-        },
-        {
-          "name": "tokenMessengerMinterEventAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "coreBridgeProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterProgram",
-          "isMut": false,
-          "isSigner": false
         },
         {
           "name": "systemProgram",
@@ -1932,6 +1942,11 @@
           "isSigner": false
         },
         {
+          "name": "coreMessage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "custodian",
           "accounts": [
             {
@@ -1997,29 +2012,29 @@
           ]
         },
         {
-          "name": "coreBridgeConfig",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreMessage",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreEmitterSequence",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreFeeCollector",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreBridgeProgram",
-          "isMut": false,
-          "isSigner": false
+          "name": "wormhole",
+          "accounts": [
+            {
+              "name": "config",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "emitterSequence",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "feeCollector",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "coreBridgeProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "systemProgram",

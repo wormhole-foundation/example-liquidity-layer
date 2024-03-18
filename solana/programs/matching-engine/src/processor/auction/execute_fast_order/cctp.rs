@@ -5,14 +5,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{
-    wormhole_cctp_solana::{
-        self,
-        cctp::{message_transmitter_program, token_messenger_minter_program},
-        wormhole::core_bridge_program,
-    },
-    wormhole_io::TypePrefixedPayload,
-};
+use common::{wormhole_cctp_solana, wormhole_io::TypePrefixedPayload};
 
 /// Accounts required for [execute_fast_order_cctp].
 #[derive(Accounts)]
@@ -31,21 +24,6 @@ pub struct ExecuteFastOrderCctp<'info> {
         bump,
     )]
     payer_sequence: Account<'info, PayerSequence>,
-
-    custodian: CheckedCustodian<'info>,
-
-    execute_order: ExecuteOrder<'info>,
-
-    /// Circle-supported mint.
-    ///
-    /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
-    /// Token Messenger Minter program's local token account.
-    #[account(mut)]
-    mint: AccountInfo<'info>,
-
-    /// CHECK: Seeds must be \["Bridge"\] (Wormhole Core Bridge program).
-    #[account(mut)]
-    core_bridge_config: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["core-msg", payer, payer_sequence.value\].
     #[account(
@@ -71,44 +49,14 @@ pub struct ExecuteFastOrderCctp<'info> {
     )]
     cctp_message: AccountInfo<'info>,
 
-    /// CHECK: Seeds must be \["Sequence"\, custodian] (Wormhole Core Bridge program).
-    #[account(mut)]
-    core_emitter_sequence: UncheckedAccount<'info>,
+    custodian: CheckedCustodian<'info>,
 
-    /// CHECK: Seeds must be \["fee_collector"\] (Wormhole Core Bridge program).
-    #[account(mut)]
-    core_fee_collector: UncheckedAccount<'info>,
+    execute_order: ExecuteOrder<'info>,
 
-    /// CHECK: Seeds must be \["sender_authority"\] (CCTP Token Messenger Minter program).
-    token_messenger_minter_sender_authority: UncheckedAccount<'info>,
+    wormhole: WormholePublishMessage<'info>,
 
-    /// CHECK: Mutable. Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
-    #[account(mut)]
-    message_transmitter_config: UncheckedAccount<'info>,
+    cctp: CctpDepositForBurn<'info>,
 
-    /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
-    token_messenger: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
-    /// Messenger Minter program).
-    remote_token_messenger: UncheckedAccount<'info>,
-
-    /// CHECK Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
-    token_minter: UncheckedAccount<'info>,
-
-    /// Local token account, which this program uses to validate the `mint` used to burn.
-    ///
-    /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
-    #[account(mut)]
-    local_token: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
-    token_messenger_minter_event_authority: UncheckedAccount<'info>,
-
-    core_bridge_program: Program<'info, core_bridge_program::CoreBridge>,
-    token_messenger_minter_program:
-        Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
-    message_transmitter_program: Program<'info, message_transmitter_program::MessageTransmitter>,
     system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,
 
@@ -133,15 +81,12 @@ pub fn handle_execute_fast_order_cctp(
     ctx: Context<ExecuteFastOrderCctp>,
     destination_cctp_domain: u32,
 ) -> Result<()> {
-    let super::PreparedFastExecution {
+    let super::PreparedOrderExecution {
         user_amount: amount,
         fill,
         sequence_seed,
-    } = super::prepare_fast_execution(super::PrepareFastExecution {
-        fast_vaa: &ctx.accounts.execute_order.fast_vaa,
-        active_auction: &mut ctx.accounts.execute_order.active_auction,
-        executor_token: &ctx.accounts.execute_order.executor_token,
-        initial_offer_token: &ctx.accounts.execute_order.initial_offer_token,
+    } = super::prepare_order_execution(super::PrepareFastExecution {
+        execute_order: &mut ctx.accounts.execute_order,
         payer_sequence: &mut ctx.accounts.payer_sequence,
         token_program: &ctx.accounts.token_program,
     })?;
@@ -150,6 +95,7 @@ pub fn handle_execute_fast_order_cctp(
     wormhole_cctp_solana::cpi::burn_and_publish(
         CpiContext::new_with_signer(
             ctx.accounts
+                .cctp
                 .token_messenger_minter_program
                 .to_account_info(),
             wormhole_cctp_solana::cpi::DepositForBurnWithCaller {
@@ -157,6 +103,7 @@ pub fn handle_execute_fast_order_cctp(
                 payer: ctx.accounts.payer.to_account_info(),
                 token_messenger_minter_sender_authority: ctx
                     .accounts
+                    .cctp
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
                 burn_token: ctx
@@ -167,26 +114,30 @@ pub fn handle_execute_fast_order_cctp(
                     .to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
+                    .cctp
                     .message_transmitter_config
                     .to_account_info(),
-                token_messenger: ctx.accounts.token_messenger.to_account_info(),
-                remote_token_messenger: ctx.accounts.remote_token_messenger.to_account_info(),
-                token_minter: ctx.accounts.token_minter.to_account_info(),
-                local_token: ctx.accounts.local_token.to_account_info(),
-                mint: ctx.accounts.mint.to_account_info(),
+                token_messenger: ctx.accounts.cctp.token_messenger.to_account_info(),
+                remote_token_messenger: ctx.accounts.cctp.remote_token_messenger.to_account_info(),
+                token_minter: ctx.accounts.cctp.token_minter.to_account_info(),
+                local_token: ctx.accounts.cctp.local_token.to_account_info(),
+                mint: ctx.accounts.cctp.mint.to_account_info(),
                 cctp_message: ctx.accounts.cctp_message.to_account_info(),
                 message_transmitter_program: ctx
                     .accounts
+                    .cctp
                     .message_transmitter_program
                     .to_account_info(),
                 token_messenger_minter_program: ctx
                     .accounts
+                    .cctp
                     .token_messenger_minter_program
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
                 system_program: ctx.accounts.system_program.to_account_info(),
                 event_authority: ctx
                     .accounts
+                    .cctp
                     .token_messenger_minter_event_authority
                     .to_account_info(),
             },
@@ -205,14 +156,14 @@ pub fn handle_execute_fast_order_cctp(
             ],
         ),
         CpiContext::new_with_signer(
-            ctx.accounts.core_bridge_program.to_account_info(),
+            ctx.accounts.wormhole.core_bridge_program.to_account_info(),
             wormhole_cctp_solana::cpi::PostMessage {
                 payer: ctx.accounts.payer.to_account_info(),
                 message: ctx.accounts.core_message.to_account_info(),
                 emitter: ctx.accounts.custodian.to_account_info(),
-                config: ctx.accounts.core_bridge_config.to_account_info(),
-                emitter_sequence: ctx.accounts.core_emitter_sequence.to_account_info(),
-                fee_collector: ctx.accounts.core_fee_collector.to_account_info(),
+                config: ctx.accounts.wormhole.config.to_account_info(),
+                emitter_sequence: ctx.accounts.wormhole.emitter_sequence.to_account_info(),
+                fee_collector: ctx.accounts.wormhole.fee_collector.to_account_info(),
                 system_program: ctx.accounts.system_program.to_account_info(),
                 clock: ctx.accounts.clock.to_account_info(),
                 rent: ctx.accounts.rent.to_account_info(),

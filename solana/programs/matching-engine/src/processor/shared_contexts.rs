@@ -8,7 +8,10 @@ use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
     admin::utils::{assistant::only_authorized, ownable::only_owner},
-    wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount},
+    wormhole_cctp_solana::{
+        cctp::{message_transmitter_program, token_messenger_minter_program},
+        wormhole::{core_bridge_program, VaaAccount},
+    },
 };
 
 #[derive(Accounts)]
@@ -258,4 +261,62 @@ pub struct ExecuteOrder<'info> {
         address = active_auction.info.as_ref().unwrap().initial_offer_token,
     )]
     pub initial_offer_token: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct WormholePublishMessage<'info> {
+    /// CHECK: Seeds must be \["Bridge"\] (Wormhole Core Bridge program).
+    #[account(mut)]
+    pub config: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["Sequence"\, custodian] (Wormhole Core Bridge program).
+    #[account(mut)]
+    pub emitter_sequence: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["fee_collector"\] (Wormhole Core Bridge program).
+    #[account(mut)]
+    pub fee_collector: AccountInfo<'info>,
+
+    pub core_bridge_program: Program<'info, core_bridge_program::CoreBridge>,
+}
+
+#[derive(Accounts)]
+pub struct CctpDepositForBurn<'info> {
+    /// Circle-supported mint.
+    ///
+    /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
+    /// Token Messenger Minter program's local token account.
+    #[account(mut)]
+    pub mint: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["sender_authority"\] (CCTP Token Messenger Minter program).
+    pub token_messenger_minter_sender_authority: AccountInfo<'info>,
+
+    /// CHECK: Mutable. Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
+    #[account(mut)]
+    pub message_transmitter_config: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
+    pub token_messenger: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
+    /// Messenger Minter program).
+    pub remote_token_messenger: AccountInfo<'info>,
+
+    /// CHECK Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
+    pub token_minter: AccountInfo<'info>,
+
+    /// Local token account, which this program uses to validate the `mint` used to burn.
+    ///
+    /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
+    #[account(mut)]
+    pub local_token: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
+    pub token_messenger_minter_event_authority: AccountInfo<'info>,
+
+    pub token_messenger_minter_program:
+        Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
+    pub message_transmitter_program:
+        Program<'info, message_transmitter_program::MessageTransmitter>,
 }
