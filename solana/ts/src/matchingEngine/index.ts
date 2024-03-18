@@ -1481,18 +1481,26 @@ export class MatchingEngineProgram {
             .executeFastOrderCctp()
             .accounts({
                 payer,
-                custodian,
-                auctionConfig,
-                fastVaa,
-                auction,
-                toRouterEndpoint,
-                executorToken:
-                    inputExecutorToken ?? splToken.getAssociatedTokenAddressSync(mint, payer),
-                bestOfferToken,
-                initialOfferToken,
-                cctpMintRecipient: this.cctpMintRecipientAddress(),
-                mint,
                 payerSequence,
+                custodian: {
+                    inner: custodian,
+                },
+                executeOrder: {
+                    fastVaa,
+                    activeAuction: {
+                        auction,
+                        custodyToken: this.auctionCustodyTokenAddress(auction),
+                        config: auctionConfig,
+                        bestOfferToken,
+                    },
+                    toRouterEndpoint: {
+                        inner: toRouterEndpoint,
+                    },
+                    executorToken:
+                        inputExecutorToken ?? splToken.getAssociatedTokenAddressSync(mint, payer),
+                    initialOfferToken,
+                },
+                mint,
                 coreBridgeConfig,
                 coreMessage,
                 cctpMessage,
@@ -1578,19 +1586,28 @@ export class MatchingEngineProgram {
             .executeFastOrderLocal()
             .accounts({
                 payer,
-                custodian,
-                auctionConfig,
-                fastVaa,
-                auction,
-                toRouterEndpoint:
-                    inputToRouterEndpoint ??
-                    this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
-                executorToken:
-                    inputExecutorToken ?? splToken.getAssociatedTokenAddressSync(this.mint, payer),
-                bestOfferToken,
-                initialOfferToken,
-                cctpMintRecipient: this.cctpMintRecipientAddress(),
                 payerSequence,
+                custodian: {
+                    inner: custodian,
+                },
+                executeOrder: {
+                    fastVaa,
+                    activeAuction: {
+                        auction,
+                        custodyToken: this.auctionCustodyTokenAddress(auction),
+                        config: auctionConfig,
+                        bestOfferToken,
+                    },
+                    toRouterEndpoint: {
+                        inner:
+                            inputToRouterEndpoint ??
+                            this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+                    },
+                    executorToken:
+                        inputExecutorToken ??
+                        splToken.getAssociatedTokenAddressSync(this.mint, payer),
+                    initialOfferToken,
+                },
                 coreBridgeConfig,
                 coreMessage,
                 coreEmitterSequence,

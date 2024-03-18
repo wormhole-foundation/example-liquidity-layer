@@ -1,7 +1,7 @@
 use crate::{
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, Custodian, MessageProtocol, PayerSequence, RouterEndpoint},
-    utils,
+    processor::shared_contexts::*,
+    state::{Custodian, MessageProtocol, PayerSequence},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -9,7 +9,7 @@ use common::{
     wormhole_cctp_solana::{
         self,
         cctp::{message_transmitter_program, token_messenger_minter_program},
-        wormhole::{core_bridge_program, VaaAccount},
+        wormhole::core_bridge_program,
     },
     wormhole_io::TypePrefixedPayload,
 };
@@ -32,69 +32,9 @@ pub struct ExecuteFastOrderCctp<'info> {
     )]
     payer_sequence: Account<'info, PayerSequence>,
 
-    /// This program's Wormhole (Core Bridge) emitter authority. This is also the burn-source
-    /// authority for CCTP transfers.
-    ///
-    /// CHECK: Seeds must be \["emitter"\].
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-    )]
-    custodian: AccountInfo<'info>,
+    custodian: CheckedCustodian<'info>,
 
-    auction_config: Box<Account<'info, AuctionConfig>>,
-
-    /// CHECK: Must be owned by the Wormhole Core Bridge program.
-    #[account(owner = core_bridge_program::id())]
-    fast_vaa: AccountInfo<'info>,
-
-    #[account(
-        mut,
-        seeds = [
-            Auction::SEED_PREFIX,
-            VaaAccount::load(&fast_vaa)?.digest().as_ref()
-        ],
-        bump = auction.bump,
-        constraint = utils::is_valid_active_auction(
-            &auction_config,
-            &auction,
-            Some(best_offer_token.key()),
-            Some(initial_offer_token.key()),
-        )?
-    )]
-    auction: Box<Account<'info, Auction>>,
-
-    #[account(
-        seeds = [
-            RouterEndpoint::SEED_PREFIX,
-            to_router_endpoint.chain.to_be_bytes().as_ref(),
-        ],
-        bump = to_router_endpoint.bump,
-    )]
-    to_router_endpoint: Account<'info, RouterEndpoint>,
-
-    #[account(
-        mut,
-        token::mint = mint,
-    )]
-    executor_token: Box<Account<'info, token::TokenAccount>>,
-
-    /// CHECK: Mutable. Must equal [best_offer](Auction::best_offer).
-    #[account(mut)]
-    best_offer_token: AccountInfo<'info>,
-
-    /// CHECK: Mutable. Must equal [initial_offer](Auction::initial_offer).
-    #[account(mut)]
-    initial_offer_token: AccountInfo<'info>,
-
-    /// Also the burn_source token account.
-    ///
-    /// CHECK: Mutable. Seeds must be \["custody"\].
-    #[account(
-        mut,
-        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
-    )]
-    cctp_mint_recipient: AccountInfo<'info>,
+    execute_order: ExecuteOrder<'info>,
 
     /// Circle-supported mint.
     ///
@@ -183,7 +123,7 @@ pub struct ExecuteFastOrderCctp<'info> {
 
 /// TODO: add docstring
 pub fn execute_fast_order_cctp(ctx: Context<ExecuteFastOrderCctp>) -> Result<()> {
-    match ctx.accounts.to_router_endpoint.protocol {
+    match ctx.accounts.execute_order.to_router_endpoint.protocol {
         MessageProtocol::Cctp { domain } => handle_execute_fast_order_cctp(ctx, domain),
         _ => err!(MatchingEngineError::InvalidCctpEndpoint),
     }
@@ -199,13 +139,10 @@ pub fn handle_execute_fast_order_cctp(
         sequence_seed,
     } = super::prepare_fast_execution(super::PrepareFastExecution {
         custodian: &ctx.accounts.custodian,
-        auction_config: &ctx.accounts.auction_config,
-        fast_vaa: &ctx.accounts.fast_vaa,
-        auction: &mut ctx.accounts.auction,
-        cctp_mint_recipient: &ctx.accounts.cctp_mint_recipient,
-        executor_token: &ctx.accounts.executor_token,
-        best_offer_token: &ctx.accounts.best_offer_token,
-        initial_offer_token: &ctx.accounts.initial_offer_token,
+        fast_vaa: &ctx.accounts.execute_order.fast_vaa,
+        active_auction: &mut ctx.accounts.execute_order.active_auction,
+        executor_token: &ctx.accounts.execute_order.executor_token,
+        initial_offer_token: &ctx.accounts.execute_order.initial_offer_token,
         payer_sequence: &mut ctx.accounts.payer_sequence,
         token_program: &ctx.accounts.token_program,
     })?;
@@ -223,7 +160,12 @@ pub fn handle_execute_fast_order_cctp(
                     .accounts
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
-                burn_token: ctx.accounts.cctp_mint_recipient.to_account_info(),
+                burn_token: ctx
+                    .accounts
+                    .execute_order
+                    .active_auction
+                    .custody_token
+                    .to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
                     .message_transmitter_config
@@ -284,10 +226,10 @@ pub fn handle_execute_fast_order_cctp(
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
             burn_source: None,
-            destination_caller: ctx.accounts.to_router_endpoint.address,
+            destination_caller: ctx.accounts.execute_order.to_router_endpoint.address,
             destination_cctp_domain,
             amount,
-            mint_recipient: ctx.accounts.to_router_endpoint.mint_recipient,
+            mint_recipient: ctx.accounts.execute_order.to_router_endpoint.mint_recipient,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
             payload: fill.to_vec_payload(),
         },

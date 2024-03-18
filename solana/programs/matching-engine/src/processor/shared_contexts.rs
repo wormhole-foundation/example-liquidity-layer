@@ -5,7 +5,11 @@ use crate::{
     state::{Auction, AuctionStatus, Custodian, MessageProtocol, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
-use common::admin::utils::{assistant::only_authorized, ownable::only_owner};
+use anchor_spl::token;
+use common::{
+    admin::utils::{assistant::only_authorized, ownable::only_owner},
+    wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount},
+};
 
 #[derive(Accounts)]
 pub struct CheckedCustodian<'info> {
@@ -125,7 +129,7 @@ pub struct LocalTokenRouter<'info> {
         associated_token::mint = common::constants::USDC_MINT,
         associated_token::authority = token_router_emitter,
     )]
-    pub token_router_mint_recipient: Account<'info, anchor_spl::token::TokenAccount>,
+    pub token_router_mint_recipient: Account<'info, token::TokenAccount>,
 }
 
 #[derive(Accounts)]
@@ -235,4 +239,31 @@ impl<'info> Deref for ActiveAuction<'info> {
     fn deref(&self) -> &Self::Target {
         &self.auction
     }
+}
+
+#[derive(Accounts)]
+pub struct ExecuteOrder<'info> {
+    /// CHECK: Must be owned by the Wormhole Core Bridge program.
+    #[account(
+        owner = core_bridge_program::id(),
+        constraint = {
+            VaaAccount::load(&fast_vaa)?.digest().0 == active_auction.vaa_hash
+         } @ MatchingEngineError::InvalidVaa,
+    )]
+    pub fast_vaa: AccountInfo<'info>,
+
+    pub active_auction: ActiveAuction<'info>,
+
+    pub to_router_endpoint: LiveRouterEndpoint<'info>,
+
+    /// CHECK: Must be a token account, whose mint is [common::constants::USDC_MINT].
+    #[account(mut)]
+    pub executor_token: AccountInfo<'info>,
+
+    /// CHECK: Mutable. Must equal [initial_offer](Auction::initial_offer).
+    #[account(
+        mut,
+        address = active_auction.info.as_ref().unwrap().initial_offer_token,
+    )]
+    pub initial_offer_token: AccountInfo<'info>,
 }

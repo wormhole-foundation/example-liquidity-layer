@@ -1851,7 +1851,7 @@ describe("Matching Engine", function () {
             }
         });
 
-        describe.skip("Execute Fast Order", function () {
+        describe("Execute Fast Order", function () {
             const localVariables = new Map<string, any>();
 
             it("Execute Fast Order Within Grace Period", async function () {
@@ -1889,7 +1889,7 @@ describe("Matching Engine", function () {
                     connection,
                     initialOfferToken,
                 );
-                const { amount: custodyTokenBefore } = await engine.fetchCctpMintRecipient();
+                const custodyTokenBefore = await engine.fetchAuctionCustodyTokenBalance(auction);
 
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
                 await waitUntilSlot(
@@ -1902,7 +1902,15 @@ describe("Matching Engine", function () {
                     fastVaa,
                 });
 
-                const txDetails = await expectIxOkDetails(connection, [ix], [offerAuthorityOne]);
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+
+                const txDetails = await expectIxOkDetails(
+                    connection,
+                    [computeIx, ix],
+                    [offerAuthorityOne],
+                );
 
                 await checkAfterEffects(
                     txDetails!,
@@ -1977,7 +1985,7 @@ describe("Matching Engine", function () {
                     connection,
                     initialOfferToken,
                 );
-                const { amount: custodyTokenBefore } = await engine.fetchCctpMintRecipient();
+                const custodyTokenBefore = await engine.fetchAuctionCustodyTokenBalance(auction);
 
                 const { duration, gracePeriod, penaltyPeriod } =
                     await engine.fetchAuctionParameters();
@@ -1993,7 +2001,15 @@ describe("Matching Engine", function () {
                     fastVaa,
                 });
 
-                const txDetails = await expectIxOkDetails(connection, [ix], [offerAuthorityOne]);
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+
+                const txDetails = await expectIxOkDetails(
+                    connection,
+                    [computeIx, ix],
+                    [offerAuthorityOne],
+                );
 
                 await checkAfterEffects(
                     txDetails!,
@@ -2046,7 +2062,7 @@ describe("Matching Engine", function () {
                     connection,
                     initialOfferToken,
                 );
-                const { amount: custodyTokenBefore } = await engine.fetchCctpMintRecipient();
+                const custodyTokenBefore = await engine.fetchAuctionCustodyTokenBalance(auction);
 
                 const liquidatorToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
@@ -2133,7 +2149,7 @@ describe("Matching Engine", function () {
                     connection,
                     initialOfferToken,
                 );
-                const { amount: custodyTokenBefore } = await engine.fetchCctpMintRecipient();
+                const custodyTokenBefore = await engine.fetchAuctionCustodyTokenBalance(auction);
 
                 const liquidatorToken = splToken.getAssociatedTokenAddressSync(
                     USDC_MINT_ADDRESS,
@@ -2247,12 +2263,7 @@ describe("Matching Engine", function () {
                     auction,
                 });
 
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [offerAuthorityOne],
-                    "account: auction. Error Code: ConstraintSeeds",
-                );
+                await expectIxErr(connection, [ix], [offerAuthorityOne], "Error Code: InvalidVaa");
             });
 
             it("Cannot Execute Fast Order (Invalid Best Offer Token Account)", async function () {
@@ -2279,7 +2290,7 @@ describe("Matching Engine", function () {
                     connection,
                     [ix],
                     [offerAuthorityOne],
-                    "Error Code: BestOfferTokenMismatch",
+                    "best_offer_token. Error Code: ConstraintAddress",
                 );
             });
 
@@ -2307,7 +2318,7 @@ describe("Matching Engine", function () {
                     connection,
                     [ix],
                     [offerAuthorityOne],
-                    "Error Code: InitialOfferTokenMismatch",
+                    "initial_offer_token. Error Code: ConstraintAddress",
                 );
             });
 
@@ -2388,7 +2399,7 @@ describe("Matching Engine", function () {
                         }),
                     ],
                     [offerAuthorityOne],
-                    "Error Code: ConstraintSeeds",
+                    "Error Code: InvalidEndpoint",
                 );
             });
 
@@ -2414,13 +2425,14 @@ describe("Matching Engine", function () {
                     executorToken: executorTokenBefore,
                 } = balancesBefore;
 
-                const { bump, vaaHash, info } = auctionDataBefore;
+                const { bump, vaaHash, custodyTokenBump, info } = auctionDataBefore;
 
                 const auctionDataAfter = await engine.fetchAuction({ address: auction });
                 expect(auctionDataAfter).to.eql(
                     new Auction(
                         bump,
                         vaaHash,
+                        custodyTokenBump,
                         { completed: { slot: bigintToU64BN(BigInt(txDetails.slot)) } },
                         info,
                     ),
@@ -2501,7 +2513,7 @@ describe("Matching Engine", function () {
                     }
                 }
 
-                const { amount: custodyTokenAfter } = await engine.fetchCctpMintRecipient();
+                const custodyTokenAfter = await engine.fetchAuctionCustodyTokenBalance(auction);
                 expect(custodyTokenAfter).equals(
                     custodyTokenBefore - BigInt(amountIn.add(securityDeposit).toString()),
                 );
@@ -3118,11 +3130,12 @@ describe("Matching Engine", function () {
 
                     const fastVaaHash = fastVaaAccount.digest();
                     const auctionData = await engine.fetchAuction(fastVaaHash);
-                    const { bump } = auctionData;
+                    const { bump, custodyTokenBump } = auctionData;
                     expect(auctionData).to.eql(
                         new Auction(
                             bump,
                             Array.from(fastVaaHash),
+                            custodyTokenBump,
                             {
                                 settled: {
                                     baseFee: bigintToU64BN(baseFee),
@@ -3304,9 +3317,14 @@ describe("Matching Engine", function () {
     }> {
         offerPrice = offerPrice ?? fastMarketOrder.maxFee;
 
-        const offerTokenBalanceBefore = await getUsdcAtaBalance(
-            connection,
+        const offerToken = splToken.getAssociatedTokenAddressSync(
+            USDC_MINT_ADDRESS,
             offerAuthority.publicKey,
+        );
+
+        const { amount: offerTokenBalanceBefore } = await splToken.getAccount(
+            connection,
+            offerToken,
         );
 
         const fastVaa = await postLiquidityLayerVaa(
@@ -3339,10 +3357,11 @@ describe("Matching Engine", function () {
         const auctionDataBefore = await engine.fetchAuction({ address: auction });
 
         // Validate balance changes.
-        const offerTokenBalanceAfter = await getUsdcAtaBalance(
+        const { amount: offerTokenBalanceAfter } = await splToken.getAccount(
             connection,
-            offerAuthorityOne.publicKey,
+            offerToken,
         );
+
         const auctionCustodyBalanceAfter = await engine.fetchAuctionCustodyTokenBalance(auction);
         const balanceChange = fastMarketOrder.amountIn + fastMarketOrder.maxFee;
 
@@ -3355,11 +3374,6 @@ describe("Matching Engine", function () {
         const { bump, custodyTokenBump } = auctionData;
 
         const { auctionConfigId } = await engine.fetchCustodian();
-
-        const offerToken = splToken.getAssociatedTokenAddressSync(
-            USDC_MINT_ADDRESS,
-            offerAuthorityOne.publicKey,
-        );
 
         expect(fastMarketOrder).is.not.undefined;
         const { amountIn, maxFee } = fastMarketOrder!;

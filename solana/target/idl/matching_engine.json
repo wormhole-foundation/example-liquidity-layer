@@ -1765,56 +1765,71 @@
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority. This is also the burn-source",
-            "authority for CCTP transfers.",
-            ""
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "auctionConfig",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "fastVaa",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "toRouterEndpoint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "executorToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "bestOfferToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "initialOfferToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Also the burn_source token account.",
-            ""
+          "name": "executeOrder",
+          "accounts": [
+            {
+              "name": "fastVaa",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "activeAuction",
+              "accounts": [
+                {
+                  "name": "auction",
+                  "isMut": true,
+                  "isSigner": false
+                },
+                {
+                  "name": "custodyToken",
+                  "isMut": true,
+                  "isSigner": false,
+                  "docs": [
+                    "This custody token account will only exist for as long as the auction is live, meaning that",
+                    "the auction status is either active or completed."
+                  ]
+                },
+                {
+                  "name": "config",
+                  "isMut": false,
+                  "isSigner": false
+                },
+                {
+                  "name": "bestOfferToken",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "toRouterEndpoint",
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "executorToken",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "initialOfferToken",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -1950,56 +1965,71 @@
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority. This is also the burn-source",
-            "authority for CCTP transfers.",
-            ""
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "auctionConfig",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "fastVaa",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "toRouterEndpoint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "executorToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "bestOfferToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "initialOfferToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Also the burn_source token account.",
-            ""
+          "name": "executeOrder",
+          "accounts": [
+            {
+              "name": "fastVaa",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "activeAuction",
+              "accounts": [
+                {
+                  "name": "auction",
+                  "isMut": true,
+                  "isSigner": false
+                },
+                {
+                  "name": "custodyToken",
+                  "isMut": true,
+                  "isSigner": false,
+                  "docs": [
+                    "This custody token account will only exist for as long as the auction is live, meaning that",
+                    "the auction status is either active or completed."
+                  ]
+                },
+                {
+                  "name": "config",
+                  "isMut": false,
+                  "isSigner": false
+                },
+                {
+                  "name": "bestOfferToken",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "toRouterEndpoint",
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "executorToken",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "initialOfferToken",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         },
         {

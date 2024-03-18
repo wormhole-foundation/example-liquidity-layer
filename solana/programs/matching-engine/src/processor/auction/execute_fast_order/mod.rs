@@ -6,7 +6,8 @@ pub use local::*;
 
 use crate::{
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, AuctionStatus, Custodian, PayerSequence},
+    processor::shared_contexts::*,
+    state::{AuctionStatus, Custodian, PayerSequence},
     utils::{self, auction::DepositPenalty},
 };
 use anchor_lang::prelude::*;
@@ -17,13 +18,10 @@ use common::{
 };
 
 struct PrepareFastExecution<'ctx, 'info> {
-    custodian: &'ctx AccountInfo<'info>,
-    auction_config: &'ctx Account<'info, AuctionConfig>,
+    custodian: &'ctx CheckedCustodian<'info>,
     fast_vaa: &'ctx AccountInfo<'info>,
-    auction: &'ctx mut Box<Account<'info, Auction>>,
-    cctp_mint_recipient: &'ctx AccountInfo<'info>,
-    executor_token: &'ctx Account<'info, token::TokenAccount>,
-    best_offer_token: &'ctx AccountInfo<'info>,
+    active_auction: &'ctx mut ActiveAuction<'info>,
+    executor_token: &'ctx AccountInfo<'info>,
     initial_offer_token: &'ctx AccountInfo<'info>,
     payer_sequence: &'ctx mut Account<'info, PayerSequence>,
     token_program: &'ctx Program<'info, token::Token>,
@@ -38,16 +36,20 @@ struct PreparedFastExecution {
 fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFastExecution> {
     let PrepareFastExecution {
         custodian,
-        auction_config,
         fast_vaa,
-        auction,
-        cctp_mint_recipient,
+        active_auction,
         executor_token,
-        best_offer_token,
         initial_offer_token,
         payer_sequence,
         token_program,
     } = accounts;
+
+    let ActiveAuction {
+        auction,
+        custody_token,
+        config: auction_config,
+        best_offer_token,
+    } = active_auction;
 
     // Create zero copy reference to `FastMarketOrder` payload.
     let fast_vaa = VaaAccount::load_unchecked(fast_vaa);
@@ -79,7 +81,7 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
                 CpiContext::new_with_signer(
                     token_program.to_account_info(),
                     anchor_spl::token::Transfer {
-                        from: cctp_mint_recipient.to_account_info(),
+                        from: custody_token.to_account_info(),
                         to: executor_token.to_account_info(),
                         authority: custodian.to_account_info(),
                     },
@@ -98,7 +100,7 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
                 CpiContext::new_with_signer(
                     token_program.to_account_info(),
                     anchor_spl::token::Transfer {
-                        from: cctp_mint_recipient.to_account_info(),
+                        from: custody_token.to_account_info(),
                         to: initial_offer_token.to_account_info(),
                         authority: custodian.to_account_info(),
                     },
@@ -116,7 +118,7 @@ fn prepare_fast_execution(accounts: PrepareFastExecution) -> Result<PreparedFast
             CpiContext::new_with_signer(
                 token_program.to_account_info(),
                 anchor_spl::token::Transfer {
-                    from: cctp_mint_recipient.to_account_info(),
+                    from: custody_token.to_account_info(),
                     to: best_offer_token.to_account_info(),
                     authority: custodian.to_account_info(),
                 },
