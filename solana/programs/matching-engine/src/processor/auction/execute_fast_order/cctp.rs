@@ -189,5 +189,28 @@ pub fn handle_execute_fast_order_cctp(
         },
     )?;
 
-    Ok(())
+    // Finally close the account since it is no longer needed.
+    token::close_account(CpiContext::new_with_signer(
+        ctx.accounts.token_program.to_account_info(),
+        token::CloseAccount {
+            account: ctx
+                .accounts
+                .execute_order
+                .active_auction
+                .custody_token
+                .to_account_info(),
+            destination: ctx.accounts.payer.to_account_info(),
+            authority: ctx
+                .accounts
+                .execute_order
+                .active_auction
+                .auction
+                .to_account_info(),
+        },
+        &[&[
+            Auction::SEED_PREFIX,
+            ctx.accounts.execute_order.active_auction.vaa_hash.as_ref(),
+            &[ctx.accounts.execute_order.active_auction.bump],
+        ]],
+    ))
 }

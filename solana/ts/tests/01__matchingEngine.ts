@@ -1930,7 +1930,7 @@ describe("Matching Engine", function () {
                 localVariables.set("auction", auction);
             });
 
-            it("Cannot Improve Offer", async function () {
+            it("Cannot Improve Offer After Execute Order", async function () {
                 const auction = localVariables.get("auction") as PublicKey;
                 expect(localVariables.delete("auction")).is.true;
 
@@ -1946,7 +1946,7 @@ describe("Matching Engine", function () {
                     connection,
                     [approveIx, ix],
                     [offerAuthorityOne],
-                    "Error Code: AuctionNotActive",
+                    "custody_token. Error Code: AccountNotInitialized",
                 );
             });
 
@@ -2356,7 +2356,7 @@ describe("Matching Engine", function () {
                     connection,
                     [ix],
                     [offerAuthorityOne],
-                    "Error Code: AuctionNotActive",
+                    "custody_token. Error Code: AccountNotInitialized",
                 );
             });
 

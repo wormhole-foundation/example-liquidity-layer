@@ -79,6 +79,9 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
     })?;
 
     // Publish message via Core Bridge.
+    //
+    // NOTE: We cannot close the custody account yet because the user needs to be able to retrieve
+    // the funds when they complete the fast fill.
     core_bridge_program::cpi::post_message(
         CpiContext::new_with_signer(
             ctx.accounts.wormhole.core_bridge_program.to_account_info(),

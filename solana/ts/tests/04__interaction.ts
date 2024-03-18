@@ -278,7 +278,7 @@ describe("Matching Engine <> Token Router", function () {
         });
     });
 
-    describe.skip("Business Logic", function () {
+    describe("Business Logic", function () {
         let testCctpNonce = 2n ** 64n - 1n;
 
         // Hack to prevent math overflow error when invoking CCTP programs.
@@ -286,7 +286,7 @@ describe("Matching Engine <> Token Router", function () {
 
         let wormholeSequence = 4000n;
 
-        describe("Settle Auction", function () {
+        describe.skip("Settle Auction", function () {
             describe("Settle No Auction (Local)", function () {
                 it("Settle", async function () {
                     const { prepareIx, auction, fastVaa, finalizedVaa } =
@@ -400,6 +400,7 @@ describe("Matching Engine <> Token Router", function () {
                     "Error Code: AuctionPeriodNotExpired",
                 );
             });
+
             it("Execute after Auction Period has Expired", async function () {
                 const {
                     prepareIx,
@@ -464,7 +465,7 @@ describe("Matching Engine <> Token Router", function () {
             });
         });
 
-        describe("Redeem Fast Fill", function () {
+        describe.skip("Redeem Fast Fill", function () {
             const payerToken = splToken.getAssociatedTokenAddressSync(
                 USDC_MINT_ADDRESS,
                 payer.publicKey,
