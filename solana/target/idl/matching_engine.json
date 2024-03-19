@@ -1013,9 +1013,14 @@
           "isSigner": false
         },
         {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false
+          "name": "usdc",
+          "accounts": [
+            {
+              "name": "mint",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "programData",
@@ -1651,9 +1656,14 @@
           "isSigner": false
         },
         {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false
+          "name": "usdc",
+          "accounts": [
+            {
+              "name": "mint",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "systemProgram",
@@ -2924,8 +2934,5 @@
       "name": "InvalidProposalAction",
       "msg": "InvalidProposalAction"
     }
-  ],
-  "metadata": {
-    "address": "MatchingEngine11111111111111111111111111111"
-  }
+  ]
 }

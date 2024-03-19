@@ -58,7 +58,7 @@ pub struct PlaceInitialOffer<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        token::mint = mint,
+        token::mint = usdc,
         token::authority = auction,
         seeds = [
             crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
@@ -68,9 +68,7 @@ pub struct PlaceInitialOffer<'info> {
     )]
     auction_custody_token: Account<'info, token::TokenAccount>,
 
-    /// CHECK: This mint must be USDC.
-    #[account(address = common::constants::USDC_MINT)]
-    mint: AccountInfo<'info>,
+    usdc: Usdc<'info>,
 
     system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,

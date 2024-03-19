@@ -115,17 +115,7 @@ describe("Matching Engine", function () {
                     },
                     auctionParams,
                 );
-                const unknownAta = splToken.getAssociatedTokenAddressSync(
-                    mint,
-                    engine.custodianAddress(),
-                    true,
-                );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
-                    `Instruction references an unknown account ${unknownAta.toString()}`,
-                );
+                await expectIxErr(connection, [ix], [payer], "mint. Error Code: ConstraintAddress");
             });
 
             it("Cannot Initialize with Default Owner Assistant", async function () {

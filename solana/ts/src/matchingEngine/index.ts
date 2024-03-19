@@ -359,7 +359,9 @@ export class MatchingEngineProgram {
                 feeRecipient,
                 feeRecipientToken: splToken.getAssociatedTokenAddressSync(this.mint, feeRecipient),
                 cctpMintRecipient: this.cctpMintRecipientAddress(),
-                mint: inputMint ?? this.mint,
+                usdc: {
+                    mint: inputMint ?? this.mint,
+                },
                 programData: programDataAddress(this.ID),
                 upgradeManagerAuthority: upgradeManager.upgradeAuthorityAddress(),
                 upgradeManagerProgram: upgradeManager.ID,
@@ -853,7 +855,9 @@ export class MatchingEngineProgram {
                 offerToken,
                 auctionCustodyToken,
                 fastVaa,
-                mint: this.mint,
+                usdc: {
+                    mint: this.mint,
+                },
             })
             .instruction();
 

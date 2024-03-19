@@ -15,6 +15,21 @@ use common::{
 };
 
 #[derive(Accounts)]
+pub struct Usdc<'info> {
+    /// CHECK: This address must equal [USDC_MINT](common::constants::USDC_MINT).
+    #[account(address = common::constants::USDC_MINT)]
+    pub mint: AccountInfo<'info>,
+}
+
+impl<'info> Deref for Usdc<'info> {
+    type Target = AccountInfo<'info>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.mint
+    }
+}
+
+#[derive(Accounts)]
 pub struct CheckedCustodian<'info> {
     #[account(
         seeds = [Custodian::SEED_PREFIX],
