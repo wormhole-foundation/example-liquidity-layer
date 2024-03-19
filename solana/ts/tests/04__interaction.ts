@@ -289,7 +289,7 @@ describe("Matching Engine <> Token Router", function () {
         describe("Settle Auction", function () {
             describe("Settle No Auction (Local)", function () {
                 it("Settle", async function () {
-                    const { prepareIx, preparedOrderResponse, auction, fastVaa, finalizedVaa } =
+                    const { prepareIx, auction, fastVaa, finalizedVaa } =
                         await prepareOrderResponse({
                             initAuction: false,
                             executeOrder: false,
@@ -297,7 +297,6 @@ describe("Matching Engine <> Token Router", function () {
                         });
                     const settleIx = await matchingEngine.settleAuctionNoneLocalIx({
                         payer: payer.publicKey,
-                        preparedOrderResponse,
                         fastVaa,
                         auction,
                     });
@@ -316,12 +315,11 @@ describe("Matching Engine <> Token Router", function () {
 
             describe("Settle Active Auction (Local)", function () {
                 it("Settle", async function () {
-                    const { prepareIx, preparedOrderResponse, auction, fastVaa } =
-                        await prepareOrderResponse({
-                            initAuction: true,
-                            executeOrder: false,
-                            prepareOrderResponse: false,
-                        });
+                    const { prepareIx, auction, fastVaa } = await prepareOrderResponse({
+                        initAuction: true,
+                        executeOrder: false,
+                        prepareOrderResponse: false,
+                    });
 
                     const { address: executorToken } =
                         await splToken.getOrCreateAssociatedTokenAccount(
@@ -333,7 +331,6 @@ describe("Matching Engine <> Token Router", function () {
 
                     const settleIx = await matchingEngine.settleAuctionActiveLocalIx({
                         payer: payer.publicKey,
-                        preparedOrderResponse,
                         fastVaa,
                         auction,
                         executorToken,
