@@ -548,8 +548,10 @@ export class MatchingEngineProgram {
             .updateAuctionParameters()
             .accounts({
                 payer: inputPayer ?? owner,
-                owner,
-                custodian: inputCustodian ?? this.custodianAddress(),
+                admin: {
+                    owner,
+                    custodian: inputCustodian ?? this.custodianAddress(),
+                },
                 proposal: inputProposal ?? (await this.proposalAddress()),
                 auctionConfig,
             })

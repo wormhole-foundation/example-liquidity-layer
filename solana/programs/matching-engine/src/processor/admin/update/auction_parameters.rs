@@ -1,6 +1,7 @@
 use crate::{
     error::MatchingEngineError,
-    state::{AuctionConfig, Custodian, Proposal, ProposalAction},
+    state::custodian::*,
+    state::{AuctionConfig, Proposal, ProposalAction},
 };
 use anchor_lang::prelude::*;
 
@@ -9,13 +10,7 @@ pub struct UpdateAuctionParameters<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    owner: Signer<'info>,
-
-    #[account(
-        mut,
-        has_one = owner @ MatchingEngineError::OwnerOnly,
-    )]
-    custodian: Account<'info, Custodian>,
+    admin: OwnerMutCustodian<'info>,
 
     #[account(
         mut,
@@ -24,8 +19,11 @@ pub struct UpdateAuctionParameters<'info> {
             proposal.id.to_be_bytes().as_ref(),
         ],
         bump = proposal.bump,
-        has_one = owner,
         constraint = {
+            require!(
+                proposal.owner == admin.owner.key(),
+                MatchingEngineError::OwnerOnly
+            );
             require!(
                 proposal.slot_enacted_at.is_none(),
                 MatchingEngineError::ProposalAlreadyEnacted
@@ -40,7 +38,7 @@ pub struct UpdateAuctionParameters<'info> {
                 ProposalAction::UpdateAuctionParameters { id, .. } => {
                     require_eq!(
                         *id,
-                        custodian.auction_config_id + 1,
+                        admin.custodian.auction_config_id + 1,
                         MatchingEngineError::AuctionConfigMismatch
                     );
                 },
@@ -58,7 +56,7 @@ pub struct UpdateAuctionParameters<'info> {
         space = 8 + AuctionConfig::INIT_SPACE,
         seeds = [
             AuctionConfig::SEED_PREFIX,
-            (custodian.auction_config_id + 1).to_be_bytes().as_ref()
+            (admin.custodian.auction_config_id + 1).to_be_bytes().as_ref()
         ],
         bump,
     )]
@@ -78,13 +76,13 @@ pub fn update_auction_parameters(ctx: Context<UpdateAuctionParameters>) -> Resul
     }
 
     // Update the auction config ID.
-    ctx.accounts.custodian.auction_config_id += 1;
+    ctx.accounts.admin.custodian.auction_config_id += 1;
 
     // Set the slot enacted at so it cannot be replayed.
     ctx.accounts.proposal.slot_enacted_at = Some(Clock::get().unwrap().slot);
 
     // Uptick the proposal ID so that someone can create a new proposal again.
-    ctx.accounts.custodian.next_proposal_id += 1;
+    ctx.accounts.admin.custodian.next_proposal_id += 1;
 
     // Done.
     Ok(())

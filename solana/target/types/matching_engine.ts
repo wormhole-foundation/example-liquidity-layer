@@ -1415,14 +1415,19 @@ export type MatchingEngine = {
           "isSigner": true
         },
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "proposal",
@@ -4201,14 +4206,19 @@ export const IDL: MatchingEngine = {
           "isSigner": true
         },
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "proposal",
