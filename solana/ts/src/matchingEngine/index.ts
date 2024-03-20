@@ -254,12 +254,9 @@ export class MatchingEngineProgram {
         return this.program.account.preparedOrderResponse.fetch(addr);
     }
 
-    preparedCustodyTokenAddress(fastVaaHash: VaaHash): PublicKey {
+    preparedCustodyTokenAddress(preparedOrderResponse: PublicKey): PublicKey {
         return PublicKey.findProgramAddressSync(
-            [
-                Buffer.from("prepared-custody"),
-                this.preparedOrderResponseAddress(fastVaaHash).toBuffer(),
-            ],
+            [Buffer.from("prepared-custody"), preparedOrderResponse.toBuffer()],
             this.ID,
         )[0];
     }
@@ -982,6 +979,7 @@ export class MatchingEngineProgram {
             encodedCctpMessage,
         );
 
+        const preparedOrderResponse = this.preparedOrderResponseAddress(fastVaaAcct.digest());
         return this.program.methods
             .prepareOrderResponseCctp(args)
             .accounts({
@@ -995,8 +993,8 @@ export class MatchingEngineProgram {
                 finalizedVaa: {
                     inner: finalizedVaa,
                 },
-                preparedOrderResponse: this.preparedOrderResponseAddress(fastVaaAcct.digest()),
-                preparedCustodyToken: this.preparedCustodyTokenAddress(fastVaaAcct.digest()),
+                preparedOrderResponse,
+                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
                 usdc: {
                     mint: this.mint,
                 },
@@ -1023,54 +1021,63 @@ export class MatchingEngineProgram {
     async settleAuctionCompleteIx(accounts: {
         preparedOrderResponse: PublicKey;
         auction?: PublicKey;
-        preparedBy?: PublicKey;
         bestOfferToken?: PublicKey;
+        bestOfferAuthority?: PublicKey;
     }) {
         const {
             preparedOrderResponse,
             auction: inputAuction,
-            preparedBy: inputPreparedBy,
             bestOfferToken: inputBestOfferToken,
+            bestOfferAuthority: inputBestOfferAuthority,
         } = accounts;
 
-        const { preparedBy, auction } = await (async () => {
-            if (inputPreparedBy !== undefined && inputAuction !== undefined) {
+        const { auction } = await (async () => {
+            if (inputAuction !== undefined) {
                 return {
-                    preparedBy: inputPreparedBy,
                     auction: inputAuction,
                 };
             } else {
-                const { preparedBy, fastVaaHash } = await this.fetchPreparedOrderResponse({
+                const { fastVaaHash } = await this.fetchPreparedOrderResponse({
                     address: preparedOrderResponse,
                 });
                 return {
-                    preparedBy: inputPreparedBy ?? preparedBy,
                     auction: inputAuction ?? this.auctionAddress(fastVaaHash),
                 };
             }
         })();
 
-        const bestOfferToken = await (async () => {
-            if (inputBestOfferToken !== undefined) {
-                return inputBestOfferToken;
-            } else {
+        const { bestOfferToken, bestOfferAuthority } = await (async () => {
+            if (inputBestOfferToken === undefined || inputBestOfferAuthority === undefined) {
                 const { info } = await this.fetchAuction({ address: auction });
                 if (info === null) {
                     throw new Error("no auction info found");
                 }
-                return info.bestOfferToken;
+                const bestOfferToken = info.bestOfferToken;
+
+                const { owner } = await splToken.getAccount(
+                    this.program.provider.connection,
+                    bestOfferToken,
+                );
+                return {
+                    bestOfferToken: inputBestOfferToken ?? bestOfferToken,
+                    bestOfferAuthority: inputBestOfferAuthority ?? owner,
+                };
+            } else {
+                return {
+                    bestOfferToken: inputBestOfferToken,
+                    bestOfferAuthority: inputBestOfferAuthority,
+                };
             }
         })();
 
         return this.program.methods
             .settleAuctionComplete()
             .accounts({
-                custodian: this.custodianAddress(),
-                preparedBy,
+                bestOfferAuthority,
                 preparedOrderResponse,
+                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
                 auction,
                 bestOfferToken,
-                cctpMintRecipient: this.cctpMintRecipientAddress(),
             })
             .instruction();
     }

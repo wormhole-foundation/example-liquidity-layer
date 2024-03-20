@@ -252,21 +252,22 @@ export type MatchingEngine = {
       "name": "settleAuctionComplete",
       "accounts": [
         {
-          "name": "custodian",
-          "isMut": false,
+          "name": "bestOfferAuthority",
+          "isMut": true,
           "isSigner": false,
           "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
+            "we will always reward the owner of the best offer token account with the lamports from the",
+            "prepared order response and its custody token account when we close these accounts. This",
+            "means we disregard the `prepared_by` field in the prepared order response."
           ]
         },
         {
-          "name": "preparedBy",
+          "name": "preparedOrderResponse",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "preparedOrderResponse",
+          "name": "preparedCustodyToken",
           "isMut": true,
           "isSigner": false
         },
@@ -284,20 +285,6 @@ export type MatchingEngine = {
             "signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent",
             "to any account he chooses (this one).",
             ""
-          ]
-        },
-        {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            "",
-            "Mutable. Seeds must be \\[\"custody\"\\].",
-            "",
-            "NOTE: This account must be encoded as the mint recipient in the CCTP message."
           ]
         },
         {
@@ -3236,21 +3223,22 @@ export const IDL: MatchingEngine = {
       "name": "settleAuctionComplete",
       "accounts": [
         {
-          "name": "custodian",
-          "isMut": false,
+          "name": "bestOfferAuthority",
+          "isMut": true,
           "isSigner": false,
           "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
+            "we will always reward the owner of the best offer token account with the lamports from the",
+            "prepared order response and its custody token account when we close these accounts. This",
+            "means we disregard the `prepared_by` field in the prepared order response."
           ]
         },
         {
-          "name": "preparedBy",
+          "name": "preparedOrderResponse",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "preparedOrderResponse",
+          "name": "preparedCustodyToken",
           "isMut": true,
           "isSigner": false
         },
@@ -3268,20 +3256,6 @@ export const IDL: MatchingEngine = {
             "signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent",
             "to any account he chooses (this one).",
             ""
-          ]
-        },
-        {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            "",
-            "Mutable. Seeds must be \\[\"custody\"\\].",
-            "",
-            "NOTE: This account must be encoded as the mint recipient in the CCTP message."
           ]
         },
         {

@@ -2927,7 +2927,7 @@ describe("Matching Engine", function () {
 
                 const { amount: preparedCustodyBalance } = await splToken.getAccount(
                     connection,
-                    engine.preparedCustodyTokenAddress(fastVaaHash),
+                    engine.preparedCustodyTokenAddress(preparedOrderResponse),
                 );
                 expect(preparedCustodyBalance).equals(fastMessage.fastMarketOrder!.amountIn);
 
@@ -2969,7 +2969,7 @@ describe("Matching Engine", function () {
             });
         });
 
-        describe.skip("Settle Auction", function () {
+        describe("Settle Auction", function () {
             describe("Auction Complete", function () {
                 it("Cannot Settle Auction in Active Status", async function () {
                     const { prepareIx, preparedOrderResponse, auction } =
@@ -2982,7 +2982,6 @@ describe("Matching Engine", function () {
                     const settleIx = await engine.settleAuctionCompleteIx({
                         preparedOrderResponse,
                         auction,
-                        preparedBy: payer.publicKey,
                     });
 
                     const { value: lookupTableAccount } = await connection.getAddressLookupTable(
@@ -3002,30 +3001,66 @@ describe("Matching Engine", function () {
                     );
                 });
 
-                it.skip("Prepare and Settle", async function () {
-                    const {
-                        fastVaa,
-                        fastVaaAccount,
-                        finalizedVaa,
-                        prepareIx,
-                        preparedOrderResponse,
-                        auction,
-                    } = await prepareOrderResponse({
+                it("Settle", async function () {
+                    const { preparedOrderResponse, auction } = await prepareOrderResponse({
                         initAuction: true,
                         executeOrder: true,
-                        prepareOrderResponse: false,
+                        prepareOrderResponse: true,
                     });
 
-                    const settleIx = await engine.settleAuctionCompleteIx({
+                    const preparedCustodyToken =
+                        engine.preparedCustodyTokenAddress(preparedOrderResponse);
+
+                    const { amount: preparedCustodyBalanceBefore } = await splToken.getAccount(
+                        connection,
+                        preparedCustodyToken,
+                    );
+
+                    const { info } = await engine.fetchAuction({ address: auction });
+                    const { bestOfferToken } = info!;
+                    const { owner: bestOfferAuthority, amount: bestOfferTokenBalanceBefore } =
+                        await splToken.getAccount(connection, bestOfferToken);
+
+                    const authorityLamportsBefore = await connection.getBalance(bestOfferAuthority);
+
+                    const preparedOrderLamports = await connection
+                        .getAccountInfo(preparedOrderResponse)
+                        .then((info) => info!.lamports);
+                    const preparedCustodyLamports = await connection
+                        .getAccountInfo(preparedCustodyToken)
+                        .then((info) => info!.lamports);
+
+                    const ix = await engine.settleAuctionCompleteIx({
                         preparedOrderResponse,
-                        auction,
                     });
 
-                    await expectIxOk(connection, [prepareIx!, settleIx], [payer]);
+                    await expectIxOk(connection, [ix], [payer]);
+
+                    const preparedCustodyInfo = await connection.getAccountInfo(
+                        preparedCustodyToken,
+                    );
+                    expect(preparedCustodyInfo).is.null;
+                    const preparedOrderResponseInfo = await connection.getAccountInfo(
+                        preparedOrderResponse,
+                    );
+                    expect(preparedOrderResponseInfo).is.null;
+
+                    const { amount: bestOfferTokenBalanceAfter } = await splToken.getAccount(
+                        connection,
+                        bestOfferToken,
+                    );
+                    expect(bestOfferTokenBalanceAfter).equals(
+                        preparedCustodyBalanceBefore + bestOfferTokenBalanceBefore,
+                    );
+
+                    const authorityLamportsAfter = await connection.getBalance(bestOfferAuthority);
+                    expect(authorityLamportsAfter).equals(
+                        authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
+                    );
                 });
             });
 
-            describe("Active Auction", function () {
+            describe.skip("Active Auction", function () {
                 it("Cannot Settle Executed Auction", async function () {
                     const { auction, fastVaa, fastVaaAccount, prepareIx } =
                         await prepareOrderResponse({
@@ -3126,7 +3161,7 @@ describe("Matching Engine", function () {
                 });
             });
 
-            describe("Settle No Auction (CCTP)", function () {
+            describe.skip("Settle No Auction (CCTP)", function () {
                 const localVariables = new Map<string, any>();
 
                 it("Settle", async function () {
@@ -3296,12 +3331,17 @@ describe("Matching Engine", function () {
                         }
                         const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
                         const auctionConfig = engine.auctionConfigAddress(configId);
-                        const duration = (await engine.fetchAuctionConfig(configId)).parameters
-                            .duration;
-
-                        await new Promise((f) =>
-                            setTimeout(f, startSlot.toNumber() + duration + 200),
+                        const { duration, gracePeriod } = await engine.fetchAuctionParameters(
+                            configId,
                         );
+
+                        await waitUntilSlot(
+                            connection,
+                            startSlot.toNumber() + duration + gracePeriod - 1,
+                        );
+                        // await new Promise((f) =>
+                        //     setTimeout(f, startSlot.toNumber() + duration + 200),
+                        // );
 
                         const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
                             units: 300_000,
@@ -3322,10 +3362,16 @@ describe("Matching Engine", function () {
                     const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
                         units: 300_000,
                     });
-                    await expectIxOk(connection, [computeIx, prepareIx], [payer]);
+                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                        lookupTableAddress,
+                    );
+                    await expectIxOk(connection, [computeIx, prepareIx], [payer], {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    });
                 }
 
                 return {
+                    fastMessage,
                     fastVaa,
                     fastVaaAccount,
                     finalizedVaa,

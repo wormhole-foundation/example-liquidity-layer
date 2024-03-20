@@ -974,13 +974,18 @@ describe("Matching Engine <> Token Router", function () {
                     }
                     const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
                     const auctionConfig = matchingEngine.auctionConfigAddress(configId);
-                    const duration = (await matchingEngine.fetchAuctionConfig(configId)).parameters
-                        .duration;
+                    const { duration, gracePeriod } = await matchingEngine.fetchAuctionParameters(
+                        configId,
+                    );
 
-                    await new Promise((f) => setTimeout(f, startSlot.toNumber() + duration + 200));
+                    await waitUntilSlot(
+                        connection,
+                        startSlot.toNumber() + duration + gracePeriod - 1,
+                    );
+                    //await new Promise((f) => setTimeout(f, startSlot.toNumber() + duration + 200));
 
                     const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                        units: 400_000,
+                        units: 300_000,
                     });
                     const ix = await matchingEngine.executeFastOrderCctpIx({
                         payer: payer.publicKey,
@@ -996,12 +1001,18 @@ describe("Matching Engine <> Token Router", function () {
 
             if (prepareOrderResponse) {
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 400_000,
+                    units: 300_000,
                 });
-                await expectIxOk(connection, [computeIx, prepareIx], [payer]);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                await expectIxOk(connection, [computeIx, prepareIx], [payer], {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
             }
 
             return {
+                fastMessage,
                 fastMarketOrder,
                 fastVaa,
                 fastVaaAccount,
