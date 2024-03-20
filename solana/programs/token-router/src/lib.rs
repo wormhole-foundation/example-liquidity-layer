@@ -28,6 +28,10 @@ const PREPARED_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"prepared-custody";
 pub mod token_router {
     use super::*;
 
+    /// Prepare market order for the transfer of funds.
+    ///
+    /// This instruction will validate arguments before transferring the desired
+    /// amount to the custody token account.
     pub fn prepare_market_order(
         ctx: Context<PrepareMarketOrder>,
         args: PrepareMarketOrderArgs,
@@ -35,22 +39,31 @@ pub mod token_router {
         processor::prepare_market_order(ctx, args)
     }
 
+    /// Close prepared order.
+    ///
+    /// This instruction transfers the funds in the prepared custody token account to
+    /// the refund token account. It then closes the prepared custody token account.
     pub fn close_prepared_order(ctx: Context<ClosePreparedOrder>) -> Result<()> {
         processor::close_prepared_order(ctx)
     }
 
+    /// Place market order through CCTP.
     pub fn place_market_order_cctp(ctx: Context<PlaceMarketOrderCctp>) -> Result<()> {
         processor::place_market_order_cctp(ctx)
     }
 
+    /// Redeem fill by reconciling CCTP messages to mint tokens for the [`mint_recipient`] token account.
     pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) -> Result<()> {
         processor::redeem_cctp_fill(ctx, args)
     }
 
+    /// Redeem fast fill by transferring funds from the payer to the prepared fill token account.
     pub fn redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
         processor::redeem_fast_fill(ctx)
     }
 
+    /// Consume prepared fill by transferring funds from the prepared custody token
+    /// account to the destination token account.
     pub fn consume_prepared_fill(ctx: Context<ConsumePreparedFill>) -> Result<()> {
         processor::consume_prepared_fill(ctx)
     }
@@ -211,6 +224,7 @@ pub mod token_router {
     //     processor::complete_wrapped_transfer_with_relay(ctx, _vaa_hash)
     // }
 
+    /// Authorize upgrade of token router program.
     pub fn authorize_upgrade(ctx: Context<AuthorizeUpgrade>) -> Result<()> {
         processor::authorize_upgrade(ctx)
     }

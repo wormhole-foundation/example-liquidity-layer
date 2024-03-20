@@ -54,7 +54,10 @@ pub struct ClosePreparedOrder<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-/// TODO: add docstring
+/// Close prepared order.
+///
+/// This instruction transfers the funds in the prepared custody token account to
+/// the refund token account. It then closes the prepared custody token account.
 pub fn close_prepared_order(ctx: Context<ClosePreparedOrder>) -> Result<()> {
     token::transfer(
         CpiContext::new_with_signer(

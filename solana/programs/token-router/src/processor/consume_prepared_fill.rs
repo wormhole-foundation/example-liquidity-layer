@@ -59,7 +59,8 @@ pub struct ConsumePreparedFill<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-/// TODO: add docstring
+/// Consume prepared fill by transferring funds from the prepared custody token
+/// account to the destination token account.
 pub fn consume_prepared_fill(ctx: Context<ConsumePreparedFill>) -> Result<()> {
     token::transfer(
         CpiContext::new_with_signer(
