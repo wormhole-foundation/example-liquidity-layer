@@ -269,6 +269,30 @@ export class MatchingEngineProgram {
             .catch((_) => 0n);
     }
 
+    localAuthorityAddress(chain: number): PublicKey {
+        const encodedChain = Buffer.alloc(2);
+        encodedChain.writeUInt16BE(chain);
+
+        return PublicKey.findProgramAddressSync(
+            [Buffer.from("local-authority"), encodedChain],
+            this.ID,
+        )[0];
+    }
+
+    localCustodyTokenAddress(chain: number): PublicKey {
+        return PublicKey.findProgramAddressSync(
+            [this.localAuthorityAddress(chain).toBuffer()],
+            this.ID,
+        )[0];
+    }
+
+    async fetchLocalCustodyTokenBalance(chain: number): Promise<bigint> {
+        return splToken
+            .getAccount(this.program.provider.connection, this.localCustodyTokenAddress(chain))
+            .then((token) => token.amount)
+            .catch((_) => 0n);
+    }
+
     async approveCustodianIx(
         owner: PublicKey,
         amount: bigint | number,
@@ -1561,6 +1585,13 @@ export class MatchingEngineProgram {
         const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
         const auction = inputAuction ?? this.auctionAddress(vaaAccount.digest());
 
+        // TODO: Add caching so we do not have to do an rpc call here.
+        const { info } = await this.fetchAuction({ address: auction });
+        if (info === null) {
+            throw new Error("no auction info found");
+        }
+        const sourceChain = info.sourceChain;
+
         const { auctionConfig, initialOfferToken, bestOfferToken } = await (async () => {
             if (
                 inputAuctionConfig === undefined ||
@@ -1631,6 +1662,11 @@ export class MatchingEngineProgram {
                     emitterSequence: coreEmitterSequence,
                     feeCollector: coreFeeCollector,
                     coreBridgeProgram,
+                },
+                localAuthority: this.localAuthorityAddress(sourceChain),
+                localCustodyToken: this.localCustodyTokenAddress(sourceChain),
+                usdc: {
+                    mint: this.mint,
                 },
             })
             .instruction();

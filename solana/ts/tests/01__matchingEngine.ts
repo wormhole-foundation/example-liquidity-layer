@@ -2504,9 +2504,7 @@ describe("Matching Engine", function () {
                 }
 
                 const custodyTokenAfter = await engine.fetchAuctionCustodyTokenBalance(auction);
-                expect(custodyTokenAfter).equals(
-                    custodyTokenBefore - BigInt(amountIn.add(securityDeposit).toString()),
-                );
+                expect(custodyTokenAfter).equals(0n);
 
                 // Validate the core message.
                 const message = await engine.getCoreMessage(executor);

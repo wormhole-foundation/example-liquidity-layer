@@ -205,7 +205,7 @@ pub struct ActiveAuction<'info> {
         bump = auction.bump,
         constraint = matches!(auction.status, AuctionStatus::Active) @ MatchingEngineError::AuctionNotActive,
     )]
-    pub auction: Account<'info, Auction>,
+    pub auction: Box<Account<'info, Auction>>,
 
     #[account(
         mut,

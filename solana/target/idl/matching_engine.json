@@ -2047,6 +2047,33 @@
           ]
         },
         {
+          "name": "localAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "This local authority PDA is used as the owner of the local custody token account. When the",
+            "auction is complete, funds move from the auction custody token account to the local custody",
+            "account and is managed by this authority when the Token Router calls the complete fast fill",
+            "instruction.",
+            ""
+          ]
+        },
+        {
+          "name": "localCustodyToken",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "usdc",
+          "accounts": [
+            {
+              "name": "mint",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
           "name": "systemProgram",
           "isMut": false,
           "isSigner": false
@@ -2934,5 +2961,8 @@
       "name": "InvalidProposalAction",
       "msg": "InvalidProposalAction"
     }
-  ]
+  ],
+  "metadata": {
+    "address": "MatchingEngine11111111111111111111111111111"
+  }
 }

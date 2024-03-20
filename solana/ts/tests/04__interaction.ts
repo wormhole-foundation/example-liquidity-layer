@@ -34,6 +34,7 @@ import {
     bigintToU64BN,
     expectIxErr,
     expectIxOk,
+    expectIxOkDetails,
     postLiquidityLayerVaa,
     waitUntilSlot,
 } from "./helpers";
@@ -402,11 +403,7 @@ describe("Matching Engine <> Token Router", function () {
             });
 
             it("Execute after Auction Period has Expired", async function () {
-                const {
-                    prepareIx,
-                    auction: auctionAddress,
-                    fastVaa,
-                } = await prepareOrderResponse({
+                const { fastMarketOrder, auction, fastVaa } = await prepareOrderResponse({
                     initAuction: true,
                     executeOrder: false,
                     prepareOrderResponse: false,
@@ -419,31 +416,43 @@ describe("Matching Engine <> Token Router", function () {
                     liquidator.publicKey,
                 );
 
-                const auction = await matchingEngine.fetchAuction({ address: auctionAddress });
+                const { info } = await matchingEngine.fetchAuction({ address: auction });
                 const { duration, gracePeriod } = await matchingEngine.fetchAuctionParameters();
 
                 await waitUntilSlot(
                     connection,
-                    auction.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
+                    info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
                 );
 
-                const settleIx = await matchingEngine.executeFastOrderLocalIx({
+                const auctionCustodyTokenBalanceBefore =
+                    await matchingEngine.fetchAuctionCustodyTokenBalance(auction);
+                const localCustodyTokenBalanceBefore =
+                    await matchingEngine.fetchLocalCustodyTokenBalance(foreignChain);
+                expect(localCustodyTokenBalanceBefore).equals(0n);
+
+                const ix = await matchingEngine.executeFastOrderLocalIx({
                     payer: payer.publicKey,
                     fastVaa,
-                    auction: auctionAddress,
+                    auction,
                     executorToken,
                 });
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
+                const txDetails = await expectIxOkDetails(connection, [ix], [payer]);
 
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 400_000,
-                });
-                await expectIxOk(connection, [prepareIx!, settleIx, computeIx], [payer], {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
+                const auctionCustodyTokenBalanceAfter =
+                    await matchingEngine.fetchAuctionCustodyTokenBalance(auction);
+                expect(auctionCustodyTokenBalanceAfter).equals(0n);
+                const localCustodyTokenBalanceAfter =
+                    await matchingEngine.fetchLocalCustodyTokenBalance(foreignChain);
+
+                const { penalty, userReward } = await matchingEngine.computeDepositPenalty(
+                    info!,
+                    BigInt(txDetails!.slot),
+                    info!.configId,
+                );
+                const { amountIn, maxFee: offerPrice, initAuctionFee } = fastMarketOrder;
+                const userAmount = amountIn - offerPrice - initAuctionFee + userReward;
+                expect(localCustodyTokenBalanceAfter).equals(userAmount);
             });
 
             before("Update Local Router Endpoint", async function () {
@@ -829,19 +838,20 @@ describe("Matching Engine <> Token Router", function () {
 
             const maxFee = 42069n;
             const currTime = await connection.getBlockTime(await connection.getSlot());
+            const fastMarketOrder = {
+                amountIn,
+                minAmountOut: 0n,
+                targetChain: wormholeSdk.CHAINS.solana,
+                redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                sender: new Array(32).fill(0),
+                refundAddress: new Array(32).fill(0),
+                maxFee,
+                initAuctionFee: 2000n,
+                deadline: currTime! + 2,
+                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+            };
             const fastMessage = new LiquidityLayerMessage({
-                fastMarketOrder: {
-                    amountIn,
-                    minAmountOut: 0n,
-                    targetChain: wormholeSdk.CHAINS.solana,
-                    redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                    sender: new Array(32).fill(0),
-                    refundAddress: new Array(32).fill(0),
-                    maxFee,
-                    initAuctionFee: 2000n,
-                    deadline: currTime! + 2,
-                    redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                },
+                fastMarketOrder,
             });
 
             const finalizedMessage = new LiquidityLayerMessage({
@@ -950,6 +960,7 @@ describe("Matching Engine <> Token Router", function () {
             }
 
             return {
+                fastMarketOrder,
                 fastVaa,
                 fastVaaAccount,
                 finalizedVaa,

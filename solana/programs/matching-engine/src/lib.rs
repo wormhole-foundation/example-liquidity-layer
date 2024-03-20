@@ -26,6 +26,7 @@ cfg_if::cfg_if! {
 }
 
 const AUCTION_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"auction-custody";
+const LOCAL_AUTHORITY_SEED_PREFIX: &[u8] = b"local-authority";
 
 #[program]
 pub mod matching_engine {
