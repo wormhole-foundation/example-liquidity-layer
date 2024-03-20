@@ -72,7 +72,8 @@ pub struct CompleteFastFill<'info> {
     system_program: Program<'info, System>,
 }
 
-/// TODO: docstring
+/// Completes a fast fill and transfers the desired amount from the mint recipient
+/// to the token router's custody token account.
 pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
     let vaa = VaaAccount::load_unchecked(&ctx.accounts.vaa);
 
