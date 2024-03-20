@@ -4,6 +4,7 @@ use anchor_spl::token;
 use crate::{
     error::TokenRouterError,
     state::{Custodian, OrderType, PreparedOrder, PreparedOrderInfo},
+    MIN_TRANSFER_AMOUNT_IN,
 };
 
 /// Accounts required for [prepare_market_order].
@@ -106,7 +107,10 @@ pub fn prepare_market_order(
         redeemer_message,
     } = args;
 
-    require!(args.amount_in > 0, TokenRouterError::InsufficientAmount);
+    require!(
+        args.amount_in > MIN_TRANSFER_AMOUNT_IN,
+        TokenRouterError::InsufficientAmount
+    );
 
     // Cannot send to zero address.
     require!(args.redeemer != [0; 32], TokenRouterError::InvalidRedeemer);

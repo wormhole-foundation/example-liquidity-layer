@@ -23,6 +23,7 @@ cfg_if::cfg_if! {
 }
 
 const PREPARED_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"prepared-custody";
+const MIN_TRANSFER_AMOUNT_IN: u64 = 100;
 
 #[program]
 pub mod token_router {

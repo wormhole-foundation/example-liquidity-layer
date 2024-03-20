@@ -432,7 +432,7 @@ describe("Token Router", function () {
                 const orderSender = Keypair.generate();
                 const preparedOrder = Keypair.generate();
 
-                const amountIn = 69n;
+                const amountIn = 690n;
                 const minAmountOut = 0n;
                 const targetChain = foreignChain;
                 const redeemer = Array.from(Buffer.alloc(32, 0, "hex"));
@@ -473,8 +473,8 @@ describe("Token Router", function () {
                 const orderSender = Keypair.generate();
                 const preparedOrder = Keypair.generate();
 
-                const amountIn = 1n;
-                const minAmountOut = 2n;
+                const amountIn = 200n;
+                const minAmountOut = 300n;
                 const targetChain = foreignChain;
                 const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
                 const redeemerMessage = Buffer.from("All your base are belong to us");
@@ -514,7 +514,7 @@ describe("Token Router", function () {
                 const orderSender = Keypair.generate();
                 const preparedOrder = Keypair.generate();
 
-                const amountIn = 69n;
+                const amountIn = 690n;
                 const minAmountOut = 0n;
                 const targetChain = foreignChain;
                 const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
@@ -548,7 +548,7 @@ describe("Token Router", function () {
                 const orderSender = Keypair.generate();
                 const preparedOrder = Keypair.generate();
 
-                const amountIn = 69n;
+                const amountIn = 690n;
                 const minAmountOut = 0n;
                 const targetChain = foreignChain;
                 const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
@@ -621,7 +621,7 @@ describe("Token Router", function () {
                 const orderSender = Keypair.generate();
                 const preparedOrder = Keypair.generate();
 
-                const amountIn = 69n;
+                const amountIn = 690n;
                 const ix = await tokenRouter.prepareMarketOrderIx(
                     {
                         payer: payer.publicKey,
@@ -770,7 +770,7 @@ describe("Token Router", function () {
             });
 
             it("Prepare Market Order", async function () {
-                const amountIn = 69n;
+                const amountIn = 690n;
                 const { preparedOrder, approveIx, prepareIx } = await prepareOrder(amountIn);
 
                 await expectIxOk(
