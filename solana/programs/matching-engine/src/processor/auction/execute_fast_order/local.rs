@@ -55,27 +55,15 @@ pub struct ExecuteFastOrderLocal<'info> {
 
     wormhole: WormholePublishMessage<'info>,
 
-    /// This local authority PDA is used as the owner of the local custody token account. When the
-    /// auction is complete, funds move from the auction custody token account to the local custody
-    /// account and is managed by this authority when the Token Router calls the complete fast fill
-    /// instruction.
-    ///
-    /// CHECK: Seeds must be \["local-authority"\, chain].
-    #[account(
-        seeds = [
-            crate::LOCAL_AUTHORITY_SEED_PREFIX,
-            VaaAccount::load(&execute_order.fast_vaa)?.emitter_chain().to_be_bytes().as_ref()
-        ],
-        bump,
-    )]
-    local_authority: AccountInfo<'info>,
-
     #[account(
         init_if_needed,
         payer = payer,
         token::mint = usdc,
-        token::authority = custodian,
-        seeds = [local_authority.key().as_ref()],
+        token::authority = execute_order.to_router_endpoint,
+        seeds = [
+            crate::LOCAL_CUSTODY_TOKEN_SEED_PREFIX,
+            VaaAccount::load(&execute_order.fast_vaa)?.emitter_chain().to_be_bytes().as_ref(),
+        ],
         bump,
     )]
     local_custody_token: Box<Account<'info, token::TokenAccount>>,

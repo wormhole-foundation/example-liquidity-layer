@@ -75,9 +75,10 @@ pub struct RedeemFastFill<'info> {
     /// CHECK: Seeds must be \["endpoint", SOLANA_CHAIN.to_be_bytes()\] (Matching Engine program).
     matching_engine_router_endpoint: UncheckedAccount<'info>,
 
-    /// CHECK: Mutable. Seeds must be \["custody"] (Matching Engine program).
+    /// CHECK: Mutable. Seeds must be \["local-custody", source_chain.to_be_bytes()\]
+    /// (Matching Engine program).
     #[account(mut)]
-    matching_engine_cctp_mint_recipient: UncheckedAccount<'info>,
+    matching_engine_local_custody_token: UncheckedAccount<'info>,
 
     matching_engine_program: Program<'info, matching_engine::program::MatchingEngine>,
     token_program: Program<'info, token::Token>,
@@ -100,8 +101,10 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
         ctx.accounts.matching_engine_program.to_account_info(),
         matching_engine::cpi::accounts::CompleteFastFill {
             payer: ctx.accounts.payer.to_account_info(),
-            custodian: ctx.accounts.matching_engine_custodian.to_account_info(),
-            vaa: ctx.accounts.vaa.to_account_info(),
+            custodian: matching_engine::cpi::accounts::CheckedCustodian {
+                inner: ctx.accounts.matching_engine_custodian.to_account_info(),
+            },
+            fast_fill_vaa: ctx.accounts.vaa.to_account_info(),
             redeemed_fast_fill: ctx
                 .accounts
                 .matching_engine_redeemed_fast_fill
@@ -114,9 +117,9 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
                     .matching_engine_router_endpoint
                     .to_account_info(),
             },
-            cctp_mint_recipient: ctx
+            local_custody_token: ctx
                 .accounts
-                .matching_engine_cctp_mint_recipient
+                .matching_engine_local_custody_token
                 .to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
             system_program: ctx.accounts.system_program.to_account_info(),

@@ -107,7 +107,7 @@ export type RedeemFastFillAccounts = {
     custodian: PublicKey;
     redeemedFastFill: PublicKey;
     routerEndpoint: PublicKey;
-    cctpMintRecipient: PublicKey;
+    localCustodyToken: PublicKey;
     matchingEngineProgram: PublicKey;
 };
 
@@ -269,26 +269,22 @@ export class MatchingEngineProgram {
             .catch((_) => 0n);
     }
 
-    localAuthorityAddress(chain: number): PublicKey {
-        const encodedChain = Buffer.alloc(2);
-        encodedChain.writeUInt16BE(chain);
+    localCustodyTokenAddress(sourceChain: number): PublicKey {
+        const encodedSourceChain = Buffer.alloc(2);
+        encodedSourceChain.writeUInt16BE(sourceChain);
 
         return PublicKey.findProgramAddressSync(
-            [Buffer.from("local-authority"), encodedChain],
+            [Buffer.from("local-custody"), encodedSourceChain],
             this.ID,
         )[0];
     }
 
-    localCustodyTokenAddress(chain: number): PublicKey {
-        return PublicKey.findProgramAddressSync(
-            [this.localAuthorityAddress(chain).toBuffer()],
-            this.ID,
-        )[0];
-    }
-
-    async fetchLocalCustodyTokenBalance(chain: number): Promise<bigint> {
+    async fetchLocalCustodyTokenBalance(sourceChain: number): Promise<bigint> {
         return splToken
-            .getAccount(this.program.provider.connection, this.localCustodyTokenAddress(chain))
+            .getAccount(
+                this.program.provider.connection,
+                this.localCustodyTokenAddress(sourceChain),
+            )
             .then((token) => token.amount)
             .catch((_) => 0n);
     }
@@ -1663,7 +1659,6 @@ export class MatchingEngineProgram {
                     feeCollector: coreFeeCollector,
                     coreBridgeProgram,
                 },
-                localAuthority: this.localAuthorityAddress(sourceChain),
                 localCustodyToken: this.localCustodyTokenAddress(sourceChain),
                 usdc: {
                     mint: this.mint,
@@ -1674,8 +1669,21 @@ export class MatchingEngineProgram {
 
     async redeemFastFillAccounts(
         vaa: PublicKey,
+        sourceChain?: number,
     ): Promise<{ vaaAccount: VaaAccount; accounts: RedeemFastFillAccounts }> {
         const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, vaa);
+
+        const localCustodyToken = this.localCustodyTokenAddress(
+            sourceChain ??
+                (() => {
+                    const { fastFill } = LiquidityLayerMessage.decode(vaaAccount.payload());
+                    if (fastFill === undefined) {
+                        throw new Error("Message not FastFill");
+                    }
+
+                    return fastFill.fill.sourceChain;
+                })(),
+        );
 
         return {
             vaaAccount,
@@ -1683,7 +1691,7 @@ export class MatchingEngineProgram {
                 custodian: this.custodianAddress(),
                 redeemedFastFill: this.redeemedFastFillAddress(vaaAccount.digest()),
                 routerEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
-                cctpMintRecipient: this.cctpMintRecipientAddress(),
+                localCustodyToken,
                 matchingEngineProgram: this.ID,
             },
         };

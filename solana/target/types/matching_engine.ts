@@ -12,11 +12,16 @@ export type MatchingEngine = {
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
-          "name": "vaa",
+          "name": "fastFillVaa",
           "isMut": false,
           "isSigner": false,
           "docs": [
@@ -49,16 +54,9 @@ export type MatchingEngine = {
           ]
         },
         {
-          "name": "cctpMintRecipient",
+          "name": "localCustodyToken",
           "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            "",
-            "Mutable. Seeds must be \\[\"custody\"\\]."
-          ]
+          "isSigner": false
         },
         {
           "name": "tokenProgram",
@@ -2044,18 +2042,6 @@ export type MatchingEngine = {
               "isMut": false,
               "isSigner": false
             }
-          ]
-        },
-        {
-          "name": "localAuthority",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This local authority PDA is used as the owner of the local custody token account. When the",
-            "auction is complete, funds move from the auction custody token account to the local custody",
-            "account and is managed by this authority when the Token Router calls the complete fast fill",
-            "instruction.",
-            ""
           ]
         },
         {
@@ -2978,11 +2964,16 @@ export const IDL: MatchingEngine = {
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
-          "name": "vaa",
+          "name": "fastFillVaa",
           "isMut": false,
           "isSigner": false,
           "docs": [
@@ -3015,16 +3006,9 @@ export const IDL: MatchingEngine = {
           ]
         },
         {
-          "name": "cctpMintRecipient",
+          "name": "localCustodyToken",
           "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            "",
-            "Mutable. Seeds must be \\[\"custody\"\\]."
-          ]
+          "isSigner": false
         },
         {
           "name": "tokenProgram",
@@ -5010,18 +4994,6 @@ export const IDL: MatchingEngine = {
               "isMut": false,
               "isSigner": false
             }
-          ]
-        },
-        {
-          "name": "localAuthority",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This local authority PDA is used as the owner of the local custody token account. When the",
-            "auction is complete, funds move from the auction custody token account to the local custody",
-            "account and is managed by this authority when the Token Router calls the complete fast fill",
-            "instruction.",
-            ""
           ]
         },
         {

@@ -1,7 +1,7 @@
 use crate::{
     error::MatchingEngineError,
     processor::shared_contexts::*,
-    state::{Custodian, RedeemedFastFill},
+    state::{RedeemedFastFill, RouterEndpoint},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -16,12 +16,12 @@ pub struct CompleteFastFill<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    custodian: Account<'info, Custodian>,
+    custodian: CheckedCustodian<'info>,
 
     /// CHECK: Must be owned by the Wormhole Core Bridge program. This account will be read via
     /// zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader.
     #[account(owner = core_bridge_program::id())]
-    vaa: AccountInfo<'info>,
+    fast_fill_vaa: AccountInfo<'info>,
 
     #[account(
         init,
@@ -29,7 +29,7 @@ pub struct CompleteFastFill<'info> {
         space = 8 + RedeemedFastFill::INIT_SPACE,
         seeds = [
             RedeemedFastFill::SEED_PREFIX,
-            VaaAccount::load(&vaa)?.digest().as_ref()
+            VaaAccount::load(&fast_fill_vaa)?.digest().as_ref()
         ],
         bump
     )]
@@ -40,7 +40,7 @@ pub struct CompleteFastFill<'info> {
 
     #[account(
         mut,
-        token::mint = cctp_mint_recipient.mint,
+        token::mint = local_custody_token.mint,
         token::authority = token_router_emitter,
     )]
     token_router_custody_token: Account<'info, token::TokenAccount>,
@@ -57,16 +57,28 @@ pub struct CompleteFastFill<'info> {
     )]
     router_endpoint: LiveRouterEndpoint<'info>,
 
-    /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
-    /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
-    /// from its custody account to this account.
-    ///
-    /// Mutable. Seeds must be \["custody"\].
     #[account(
         mut,
-        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
+        seeds = [
+            crate::LOCAL_CUSTODY_TOKEN_SEED_PREFIX,
+            {
+                let vaa = VaaAccount::load_unchecked(&fast_fill_vaa);
+
+                // Check whether this message is a deposit message we recognize.
+                let msg = LiquidityLayerMessage::try_from(vaa.payload())
+                    .map_err(|_| error!(MatchingEngineError::InvalidVaa))?;
+
+                // Is this a fast fill?
+                let fast_fill = msg
+                    .fast_fill()
+                    .ok_or(MatchingEngineError::InvalidPayloadId)?;
+
+                fast_fill.fill().source_chain().to_be_bytes().as_ref()
+            },
+        ],
+        bump,
     )]
-    cctp_mint_recipient: Account<'info, token::TokenAccount>,
+    local_custody_token: Box<Account<'info, token::TokenAccount>>,
 
     token_program: Program<'info, token::Token>,
     system_program: Program<'info, System>,
@@ -74,7 +86,7 @@ pub struct CompleteFastFill<'info> {
 
 /// TODO: docstring
 pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
-    let vaa = VaaAccount::load_unchecked(&ctx.accounts.vaa);
+    let vaa = VaaAccount::load_unchecked(&ctx.accounts.fast_fill_vaa);
 
     // Emitter must be the matching engine (this program).
     {
@@ -98,25 +110,24 @@ pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
         });
     }
 
-    // Check whether this message is a deposit message we recognize.
-    let msg = LiquidityLayerMessage::try_from(vaa.payload())
-        .map_err(|_| error!(MatchingEngineError::InvalidVaa))?;
-
-    // Is this a fast fill?
-    let fast_fill = msg
-        .fast_fill()
-        .ok_or(MatchingEngineError::InvalidPayloadId)?;
+    let fast_fill = LiquidityLayerMessage::try_from(vaa.payload())
+        .unwrap()
+        .to_fast_fill_unchecked();
 
     // Finally transfer to local token router's token account.
     token::transfer(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
-                from: ctx.accounts.cctp_mint_recipient.to_account_info(),
+                from: ctx.accounts.local_custody_token.to_account_info(),
                 to: ctx.accounts.token_router_custody_token.to_account_info(),
-                authority: ctx.accounts.custodian.to_account_info(),
+                authority: ctx.accounts.router_endpoint.to_account_info(),
             },
-            &[Custodian::SIGNER_SEEDS],
+            &[&[
+                RouterEndpoint::SEED_PREFIX,
+                ctx.accounts.router_endpoint.chain.to_be_bytes().as_ref(),
+                &[ctx.accounts.router_endpoint.bump],
+            ]],
         ),
         fast_fill.amount(),
     )

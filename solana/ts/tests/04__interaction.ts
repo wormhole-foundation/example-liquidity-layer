@@ -474,7 +474,7 @@ describe("Matching Engine <> Token Router", function () {
             });
         });
 
-        describe.skip("Redeem Fast Fill", function () {
+        describe("Redeem Fast Fill", function () {
             const payerToken = splToken.getAssociatedTokenAddressSync(
                 USDC_MINT_ADDRESS,
                 payer.publicKey,
@@ -764,10 +764,32 @@ describe("Matching Engine <> Token Router", function () {
                     "solana",
                 );
 
-                const ix = await tokenRouter.redeemFastFillIx({
-                    payer: payer.publicKey,
-                    vaa,
-                });
+                const {
+                    custodian,
+                    preparedFill,
+                    matchingEngineCustodian,
+                    matchingEngineRedeemedFastFill,
+                    matchingEngineRouterEndpoint,
+                    matchingEngineLocalCustodyToken,
+                    matchingEngineProgram,
+                } = await tokenRouter.redeemFastFillAccounts(vaa, foreignChain);
+
+                const ix = await tokenRouter.program.methods
+                    .redeemFastFill()
+                    .accounts({
+                        payer: payer.publicKey,
+                        custodian,
+                        vaa,
+                        preparedFill,
+                        preparedCustodyToken: tokenRouter.preparedCustodyTokenAddress(preparedFill),
+                        mint: tokenRouter.mint,
+                        matchingEngineCustodian,
+                        matchingEngineRedeemedFastFill,
+                        matchingEngineRouterEndpoint,
+                        matchingEngineLocalCustodyToken,
+                        matchingEngineProgram,
+                    })
+                    .instruction();
 
                 await expectIxErr(connection, [ix], [payer], "Error Code: InvalidVaa");
             });
@@ -805,10 +827,33 @@ describe("Matching Engine <> Token Router", function () {
                     message,
                     "solana",
                 );
-                const ix = await tokenRouter.redeemFastFillIx({
-                    payer: payer.publicKey,
-                    vaa,
-                });
+
+                const {
+                    custodian,
+                    preparedFill,
+                    matchingEngineCustodian,
+                    matchingEngineRedeemedFastFill,
+                    matchingEngineRouterEndpoint,
+                    matchingEngineLocalCustodyToken,
+                    matchingEngineProgram,
+                } = await tokenRouter.redeemFastFillAccounts(vaa, foreignChain);
+
+                const ix = await tokenRouter.program.methods
+                    .redeemFastFill()
+                    .accounts({
+                        payer: payer.publicKey,
+                        custodian,
+                        vaa,
+                        preparedFill,
+                        preparedCustodyToken: tokenRouter.preparedCustodyTokenAddress(preparedFill),
+                        mint: tokenRouter.mint,
+                        matchingEngineCustodian,
+                        matchingEngineRedeemedFastFill,
+                        matchingEngineRouterEndpoint,
+                        matchingEngineLocalCustodyToken,
+                        matchingEngineProgram,
+                    })
+                    .instruction();
 
                 await expectIxErr(connection, [ix], [payer], "Error Code: InvalidPayloadId");
             });

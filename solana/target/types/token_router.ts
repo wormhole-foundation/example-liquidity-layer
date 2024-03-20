@@ -547,9 +547,12 @@ export type TokenRouter = {
           "isSigner": false
         },
         {
-          "name": "matchingEngineCctpMintRecipient",
+          "name": "matchingEngineLocalCustodyToken",
           "isMut": true,
-          "isSigner": false
+          "isSigner": false,
+          "docs": [
+            "(Matching Engine program)."
+          ]
         },
         {
           "name": "matchingEngineProgram",
@@ -1917,9 +1920,12 @@ export const IDL: TokenRouter = {
           "isSigner": false
         },
         {
-          "name": "matchingEngineCctpMintRecipient",
+          "name": "matchingEngineLocalCustodyToken",
           "isMut": true,
-          "isSigner": false
+          "isSigner": false,
+          "docs": [
+            "(Matching Engine program)."
+          ]
         },
         {
           "name": "matchingEngineProgram",
