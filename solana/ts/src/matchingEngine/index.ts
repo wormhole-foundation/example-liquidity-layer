@@ -874,7 +874,9 @@ export class MatchingEngineProgram {
                 },
                 offerToken,
                 auctionCustodyToken,
-                fastVaa,
+                fastVaa: {
+                    inner: fastVaa,
+                },
                 usdc: {
                     mint: this.mint,
                 },
@@ -975,27 +977,35 @@ export class MatchingEngineProgram {
             .prepareOrderResponseCctp(args)
             .accounts({
                 payer,
-                custodian: this.custodianAddress(),
-                fastVaa,
-                finalizedVaa,
+                custodian: {
+                    inner: this.custodianAddress(),
+                },
+                fastVaa: {
+                    inner: fastVaa,
+                },
+                finalizedVaa: {
+                    inner: finalizedVaa,
+                },
                 preparedOrderResponse: this.preparedOrderResponseAddress(
                     payer,
                     fastVaaAcct.digest(),
                 ),
-                cctpMintRecipient: this.cctpMintRecipientAddress(),
-                messageTransmitterAuthority,
-                messageTransmitterConfig,
-                usedNonces,
-                messageTransmitterEventAuthority,
-                tokenMessenger,
-                remoteTokenMessenger,
-                tokenMinter,
-                localToken,
-                tokenPair,
-                tokenMessengerMinterCustodyToken,
-                tokenMessengerMinterEventAuthority,
-                tokenMessengerMinterProgram,
-                messageTransmitterProgram,
+                cctp: {
+                    mintRecipient: this.cctpMintRecipientAddress(),
+                    messageTransmitterAuthority,
+                    messageTransmitterConfig,
+                    usedNonces,
+                    messageTransmitterEventAuthority,
+                    tokenMessenger,
+                    remoteTokenMessenger,
+                    tokenMinter,
+                    localToken,
+                    tokenPair,
+                    tokenMessengerMinterCustodyToken,
+                    tokenMessengerMinterEventAuthority,
+                    tokenMessengerMinterProgram,
+                    messageTransmitterProgram,
+                },
             })
             .instruction();
     }
@@ -1518,7 +1528,9 @@ export class MatchingEngineProgram {
                 coreMessage,
                 cctpMessage,
                 executeOrder: {
-                    fastVaa,
+                    fastVaa: {
+                        inner: fastVaa,
+                    },
                     activeAuction: {
                         auction,
                         custodyToken: this.auctionCustodyTokenAddress(auction),
@@ -1636,7 +1648,9 @@ export class MatchingEngineProgram {
                 },
                 coreMessage,
                 executeOrder: {
-                    fastVaa,
+                    fastVaa: {
+                        inner: fastVaa,
+                    },
                     activeAuction: {
                         auction,
                         custodyToken: this.auctionCustodyTokenAddress(auction),

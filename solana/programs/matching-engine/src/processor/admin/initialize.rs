@@ -65,11 +65,11 @@ pub struct Initialize<'info> {
     fee_recipient_token: Account<'info, token::TokenAccount>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = owner,
         associated_token::mint = usdc,
         associated_token::authority = custodian,
-        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id(),
     )]
     cctp_mint_recipient: Account<'info, token::TokenAccount>,
 

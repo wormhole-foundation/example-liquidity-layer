@@ -104,7 +104,9 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
             custodian: matching_engine::cpi::accounts::CheckedCustodian {
                 inner: ctx.accounts.matching_engine_custodian.to_account_info(),
             },
-            fast_fill_vaa: ctx.accounts.vaa.to_account_info(),
+            fast_fill_vaa: matching_engine::cpi::accounts::LiquidityLayerVaa {
+                inner: ctx.accounts.vaa.to_account_info(),
+            },
             redeemed_fast_fill: ctx
                 .accounts
                 .matching_engine_redeemed_fast_fill

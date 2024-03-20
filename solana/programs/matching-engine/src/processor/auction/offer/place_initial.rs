@@ -5,10 +5,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{
-    messages::raw::LiquidityLayerPayload,
-    wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount},
-};
+use common::{messages::raw::LiquidityLayerMessage, wormhole_cctp_solana::wormhole::VaaAccount};
 
 #[derive(Accounts)]
 pub struct PlaceInitialOffer<'info> {
@@ -31,9 +28,7 @@ pub struct PlaceInitialOffer<'info> {
     )]
     auction_config: Account<'info, AuctionConfig>,
 
-    /// CHECK: Must be owned by the Wormhole Core Bridge program.
-    #[account(owner = core_bridge_program::id())]
-    fast_vaa: AccountInfo<'info>,
+    fast_vaa: LiquidityLayerVaa<'info>,
 
     /// This account should only be created once, and should never be changed to
     /// init_if_needed. Otherwise someone can game an existing auction.
@@ -56,7 +51,7 @@ pub struct PlaceInitialOffer<'info> {
     offer_token: AccountInfo<'info>,
 
     #[account(
-        init_if_needed,
+        init,
         payer = payer,
         token::mint = usdc,
         token::authority = auction,
@@ -77,9 +72,7 @@ pub struct PlaceInitialOffer<'info> {
 pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) -> Result<()> {
     // Create zero copy reference to `FastMarketOrder` payload.
     let fast_vaa = VaaAccount::load_unchecked(&ctx.accounts.fast_vaa);
-    let msg = LiquidityLayerPayload::try_from(fast_vaa.payload())
-        .map_err(|_| MatchingEngineError::InvalidVaa)?
-        .message();
+    let msg = LiquidityLayerMessage::try_from(fast_vaa.payload()).unwrap();
     let fast_order = msg
         .fast_market_order()
         .ok_or(MatchingEngineError::NotFastMarketOrder)?;

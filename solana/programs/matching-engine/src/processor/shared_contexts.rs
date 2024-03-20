@@ -8,6 +8,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
     admin::utils::{assistant::only_authorized, ownable::only_owner},
+    messages::raw::LiquidityLayerPayload,
     wormhole_cctp_solana::{
         cctp::{message_transmitter_program, token_messenger_minter_program},
         wormhole::{core_bridge_program, VaaAccount},
@@ -26,6 +27,32 @@ impl<'info> Deref for Usdc<'info> {
 
     fn deref(&self) -> &Self::Target {
         &self.mint
+    }
+}
+
+#[derive(Accounts)]
+pub struct LiquidityLayerVaa<'info> {
+    /// CHECK: This VAA account must be a posted VAA from the Wormhole Core Bridge program.
+    #[account(
+        constraint = {
+            // NOTE: This load performs an owner check.
+            let vaa = VaaAccount::load(&inner)?;
+
+            // Is it a legitimate LL message?
+            LiquidityLayerPayload::try_from(vaa.payload()).map_err(|_| MatchingEngineError::InvalidVaa)?;
+
+            // Done.
+            true
+        }
+    )]
+    inner: AccountInfo<'info>,
+}
+
+impl<'info> Deref for LiquidityLayerVaa<'info> {
+    type Target = AccountInfo<'info>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 
@@ -255,12 +282,11 @@ impl<'info> DerefMut for ActiveAuction<'info> {
 pub struct ExecuteOrder<'info> {
     /// CHECK: Must be owned by the Wormhole Core Bridge program.
     #[account(
-        owner = core_bridge_program::id(),
         constraint = {
-            VaaAccount::load(&fast_vaa)?.digest().0 == active_auction.vaa_hash
+            VaaAccount::load_unchecked(&fast_vaa).digest().0 == active_auction.vaa_hash
          } @ MatchingEngineError::InvalidVaa,
     )]
-    pub fast_vaa: AccountInfo<'info>,
+    pub fast_vaa: LiquidityLayerVaa<'info>,
 
     pub active_auction: ActiveAuction<'info>,
 
@@ -326,6 +352,69 @@ pub struct CctpDepositForBurn<'info> {
     /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
     #[account(mut)]
     pub local_token: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
+    pub token_messenger_minter_event_authority: AccountInfo<'info>,
+
+    pub token_messenger_minter_program:
+        Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
+    pub message_transmitter_program:
+        Program<'info, message_transmitter_program::MessageTransmitter>,
+}
+
+#[derive(Accounts)]
+pub struct CctpReceiveMessage<'info> {
+    /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
+    /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
+    /// from its custody account to this account.
+    ///
+    /// CHECK: Mutable. Seeds must be \["custody"\].
+    ///
+    /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
+    #[account(
+        mut,
+        address = crate::cctp_mint_recipient::id()
+    )]
+    pub mint_recipient: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
+    pub message_transmitter_authority: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
+    pub message_transmitter_config: AccountInfo<'info>,
+
+    /// CHECK: Mutable. Seeds must be \["used_nonces", remote_domain.to_string(),
+    /// first_nonce.to_string()\] (CCTP Message Transmitter program).
+    #[account(mut)]
+    pub used_nonces: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Message Transmitter program)).
+    pub message_transmitter_event_authority: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
+    pub token_messenger: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
+    /// Messenger Minter program).
+    pub remote_token_messenger: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
+    pub token_minter: AccountInfo<'info>,
+
+    /// Token Messenger Minter's Local Token account. This program uses the mint of this account to
+    /// validate the `mint_recipient` token account's mint.
+    ///
+    /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
+    #[account(mut)]
+    pub local_token: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["token_pair", remote_domain.to_string(), remote_token_address\] (CCTP
+    /// Token Messenger Minter program).
+    pub token_pair: AccountInfo<'info>,
+
+    /// CHECK: Mutable. Seeds must be \["custody", mint\] (CCTP Token Messenger Minter program).
+    #[account(mut)]
+    pub token_messenger_minter_custody_token: AccountInfo<'info>,
 
     /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
     pub token_messenger_minter_event_authority: AccountInfo<'info>,

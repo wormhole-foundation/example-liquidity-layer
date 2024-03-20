@@ -71,7 +71,7 @@ pub struct SettleAuctionComplete<'info> {
     /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id(),
     )]
     cctp_mint_recipient: Account<'info, token::TokenAccount>,
 

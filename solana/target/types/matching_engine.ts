@@ -22,10 +22,12 @@ export type MatchingEngine = {
         },
         {
           "name": "fastFillVaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader."
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -81,27 +83,32 @@ export type MatchingEngine = {
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
           "name": "fastVaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader."
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
           "name": "finalizedVaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "[verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint)."
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -110,96 +117,101 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            "",
-            "",
-            "NOTE: This account must be encoded as the mint recipient in the CCTP message."
+          "name": "cctp",
+          "accounts": [
+            {
+              "name": "mintRecipient",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
+                "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
+                "from its custody account to this account.",
+                "",
+                "",
+                "NOTE: This account must be encoded as the mint recipient in the CCTP message."
+              ]
+            },
+            {
+              "name": "messageTransmitterAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterConfig",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "usedNonces",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "first_nonce.to_string()\\] (CCTP Message Transmitter program)."
+              ]
+            },
+            {
+              "name": "messageTransmitterEventAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessenger",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "remoteTokenMessenger",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "tokenMinter",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "localToken",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Token Messenger Minter's Local Token account. This program uses the mint of this account to",
+                "validate the `mint_recipient` token account's mint.",
+                ""
+              ]
+            },
+            {
+              "name": "tokenPair",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Token Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "tokenMessengerMinterCustodyToken",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessengerMinterEventAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessengerMinterProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterProgram",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "messageTransmitterAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterConfig",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "usedNonces",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "first_nonce.to_string()\\] (CCTP Message Transmitter program)."
-          ]
-        },
-        {
-          "name": "messageTransmitterEventAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessenger",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "remoteTokenMessenger",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Messenger Minter program)."
-          ]
-        },
-        {
-          "name": "tokenMinter",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "localToken",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Token Messenger Minter's Local Token account. This program uses the mint of this account to",
-            "validate the `mint_recipient` token account's mint.",
-            ""
-          ]
-        },
-        {
-          "name": "tokenPair",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Token Messenger Minter program)."
-          ]
-        },
-        {
-          "name": "tokenMessengerMinterCustodyToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterEventAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterProgram",
-          "isMut": false,
-          "isSigner": false
         },
         {
           "name": "tokenProgram",
@@ -1603,8 +1615,13 @@ export type MatchingEngine = {
         },
         {
           "name": "fastVaa",
-          "isMut": false,
-          "isSigner": false
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "auction",
@@ -1768,8 +1785,13 @@ export type MatchingEngine = {
           "accounts": [
             {
               "name": "fastVaa",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             },
             {
               "name": "activeAuction",
@@ -1969,8 +1991,13 @@ export type MatchingEngine = {
           "accounts": [
             {
               "name": "fastVaa",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             },
             {
               "name": "activeAuction",
@@ -2668,11 +2695,6 @@ export type MatchingEngine = {
       "msg": "OwnerOrAssistantOnly"
     },
     {
-      "code": 6006,
-      "name": "InvalidCustodyToken",
-      "msg": "InvalidCustodyToken"
-    },
-    {
       "code": 6008,
       "name": "CpiDisallowed",
       "msg": "CpiDisallowed"
@@ -2706,11 +2728,6 @@ export type MatchingEngine = {
       "code": 6258,
       "name": "ImmutableProgram",
       "msg": "ImmutableProgram"
-    },
-    {
-      "code": 6259,
-      "name": "NotUsdc",
-      "msg": "NotUsdc"
     },
     {
       "code": 6514,
@@ -2974,10 +2991,12 @@ export const IDL: MatchingEngine = {
         },
         {
           "name": "fastFillVaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader."
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -3033,27 +3052,32 @@ export const IDL: MatchingEngine = {
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
           "name": "fastVaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader."
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
           "name": "finalizedVaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "[verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint)."
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -3062,96 +3086,101 @@ export const IDL: MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            "",
-            "",
-            "NOTE: This account must be encoded as the mint recipient in the CCTP message."
+          "name": "cctp",
+          "accounts": [
+            {
+              "name": "mintRecipient",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
+                "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
+                "from its custody account to this account.",
+                "",
+                "",
+                "NOTE: This account must be encoded as the mint recipient in the CCTP message."
+              ]
+            },
+            {
+              "name": "messageTransmitterAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterConfig",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "usedNonces",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "first_nonce.to_string()\\] (CCTP Message Transmitter program)."
+              ]
+            },
+            {
+              "name": "messageTransmitterEventAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessenger",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "remoteTokenMessenger",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "tokenMinter",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "localToken",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Token Messenger Minter's Local Token account. This program uses the mint of this account to",
+                "validate the `mint_recipient` token account's mint.",
+                ""
+              ]
+            },
+            {
+              "name": "tokenPair",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Token Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "tokenMessengerMinterCustodyToken",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessengerMinterEventAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessengerMinterProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterProgram",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "messageTransmitterAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterConfig",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "usedNonces",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "first_nonce.to_string()\\] (CCTP Message Transmitter program)."
-          ]
-        },
-        {
-          "name": "messageTransmitterEventAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessenger",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "remoteTokenMessenger",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Messenger Minter program)."
-          ]
-        },
-        {
-          "name": "tokenMinter",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "localToken",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Token Messenger Minter's Local Token account. This program uses the mint of this account to",
-            "validate the `mint_recipient` token account's mint.",
-            ""
-          ]
-        },
-        {
-          "name": "tokenPair",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Token Messenger Minter program)."
-          ]
-        },
-        {
-          "name": "tokenMessengerMinterCustodyToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterEventAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterProgram",
-          "isMut": false,
-          "isSigner": false
         },
         {
           "name": "tokenProgram",
@@ -4555,8 +4584,13 @@ export const IDL: MatchingEngine = {
         },
         {
           "name": "fastVaa",
-          "isMut": false,
-          "isSigner": false
+          "accounts": [
+            {
+              "name": "inner",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "auction",
@@ -4720,8 +4754,13 @@ export const IDL: MatchingEngine = {
           "accounts": [
             {
               "name": "fastVaa",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             },
             {
               "name": "activeAuction",
@@ -4921,8 +4960,13 @@ export const IDL: MatchingEngine = {
           "accounts": [
             {
               "name": "fastVaa",
-              "isMut": false,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "inner",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
             },
             {
               "name": "activeAuction",
@@ -5620,11 +5664,6 @@ export const IDL: MatchingEngine = {
       "msg": "OwnerOrAssistantOnly"
     },
     {
-      "code": 6006,
-      "name": "InvalidCustodyToken",
-      "msg": "InvalidCustodyToken"
-    },
-    {
       "code": 6008,
       "name": "CpiDisallowed",
       "msg": "CpiDisallowed"
@@ -5658,11 +5697,6 @@ export const IDL: MatchingEngine = {
       "code": 6258,
       "name": "ImmutableProgram",
       "msg": "ImmutableProgram"
-    },
-    {
-      "code": 6259,
-      "name": "NotUsdc",
-      "msg": "NotUsdc"
     },
     {
       "code": 6514,

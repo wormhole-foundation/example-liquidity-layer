@@ -56,7 +56,7 @@ pub struct ExecuteFastOrderLocal<'info> {
     wormhole: WormholePublishMessage<'info>,
 
     #[account(
-        init_if_needed,
+        init,
         payer = payer,
         token::mint = usdc,
         token::authority = execute_order.to_router_endpoint,
