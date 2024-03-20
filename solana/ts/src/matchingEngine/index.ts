@@ -958,7 +958,7 @@ export class MatchingEngineProgram {
     }) {
         const {
             payer,
-            preparedOrderResponse,
+            preparedOrderResponse: inputPreparedOrderResponse,
             auction,
             fastVaa,
             executorToken,
@@ -969,6 +969,10 @@ export class MatchingEngineProgram {
 
         const mint = this.mint;
         const auctionAddress = auction ?? this.auctionAddress(fastVaaAccount.digest());
+
+        const preparedOrderResponse =
+            inputPreparedOrderResponse ??
+            this.preparedOrderResponseAddress(payer, fastVaaAccount.digest());
 
         const { auctionConfig, bestOfferToken } = await (async () => {
             if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
@@ -1062,7 +1066,7 @@ export class MatchingEngineProgram {
             payer,
             auction: inputAuction,
             executorToken,
-            preparedOrderResponse,
+            preparedOrderResponse: inputPreparedOrderResponse,
             fastVaa,
             fastVaaAccount,
             auctionConfig: inputAuctionConfig,
@@ -1072,6 +1076,10 @@ export class MatchingEngineProgram {
         const auctionAddress = inputAuction ?? this.auctionAddress(fastVaaAccount.digest());
 
         const mint = this.mint;
+
+        const preparedOrderResponse =
+            inputPreparedOrderResponse ??
+            this.preparedOrderResponseAddress(payer, fastVaaAccount.digest());
 
         const { auctionConfig, bestOfferToken } = await (async () => {
             if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
@@ -1177,10 +1185,20 @@ export class MatchingEngineProgram {
         auction?: PublicKey;
         fastVaa: PublicKey;
     }) {
-        const { payer, preparedOrderResponse, auction, fastVaa } = accounts;
+        const {
+            payer,
+            preparedOrderResponse: inputPreparedOrderResponse,
+            auction,
+            fastVaa,
+        } = accounts;
         const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
 
         const mint = this.mint;
+
+        const preparedOrderResponse =
+            inputPreparedOrderResponse ??
+            this.preparedOrderResponseAddress(payer, fastVaaAccount.digest());
+
         const { targetChain, toRouterEndpoint } = await (async () => {
             const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());
             if (message.fastMarketOrder == undefined) {

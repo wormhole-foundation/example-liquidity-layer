@@ -3100,7 +3100,7 @@ describe("Matching Engine", function () {
 
             describe("Active Auction", function () {
                 it("Cannot Settle Executed Auction", async function () {
-                    const { auction, fastVaa, fastVaaAccount, prepareIx, preparedOrderResponse } =
+                    const { auction, fastVaa, fastVaaAccount, prepareIx } =
                         await prepareOrderResponse({
                             executeOrder: true,
                             initAuction: true,
@@ -3128,7 +3128,6 @@ describe("Matching Engine", function () {
                             payer: payer.publicKey,
                             fastVaa,
                             fastVaaAccount,
-                            preparedOrderResponse,
                             executorToken: liquidatorToken,
                             auction,
                             encodedCctpMessage,
@@ -3154,7 +3153,7 @@ describe("Matching Engine", function () {
                 });
 
                 it("Settle", async function () {
-                    const { auction, fastVaa, fastVaaAccount, prepareIx, preparedOrderResponse } =
+                    const { auction, fastVaa, fastVaaAccount, prepareIx } =
                         await prepareOrderResponse({
                             executeOrder: false,
                             initAuction: true,
@@ -3181,7 +3180,6 @@ describe("Matching Engine", function () {
                             payer: payer.publicKey,
                             fastVaa,
                             fastVaaAccount,
-                            preparedOrderResponse,
                             executorToken: liquidatorToken,
                             auction,
                             encodedCctpMessage,
