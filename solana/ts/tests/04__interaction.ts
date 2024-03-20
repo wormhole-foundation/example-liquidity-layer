@@ -954,10 +954,7 @@ describe("Matching Engine <> Token Router", function () {
 
             const fastVaaHash = fastVaaAccount.digest();
             const preparedBy = payer.publicKey;
-            const preparedOrderResponse = matchingEngine.preparedOrderResponseAddress(
-                preparedBy,
-                fastVaaHash,
-            );
+            const preparedOrderResponse = matchingEngine.preparedOrderResponseAddress(fastVaaHash);
             const auction = matchingEngine.auctionAddress(fastVaaHash);
 
             if (initAuction) {

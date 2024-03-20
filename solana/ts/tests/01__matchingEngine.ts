@@ -2630,7 +2630,12 @@ describe("Matching Engine", function () {
                     units: 300_000,
                 });
 
-                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch");
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch", {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
             });
 
             it("Cannot Prepare Order Response with Emitter Address Mismatch", async function () {
@@ -2713,7 +2718,12 @@ describe("Matching Engine", function () {
                     units: 300_000,
                 });
 
-                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch");
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch", {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
             });
 
             it("Cannot Prepare Order Response with Emitter Sequence Mismatch", async function () {
@@ -2796,7 +2806,12 @@ describe("Matching Engine", function () {
                     units: 300_000,
                 });
 
-                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch");
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch", {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
             });
 
             // TODO: Test timestamp mismatch
@@ -2882,23 +2897,52 @@ describe("Matching Engine", function () {
                     units: 300_000,
                 });
 
-                await expectIxOk(connection, [computeIx, ix], [payer]);
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                await expectIxOk(connection, [computeIx, ix], [payer], {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
 
                 // TODO: validate prepared slow order
                 const fastVaaHash = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
                     vaa.digest(),
                 );
-                const preparedOrderResponse = engine.preparedOrderResponseAddress(
-                    payer.publicKey,
-                    fastVaaHash,
+                const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaHash);
+
+                const preparedOrderResponseData = await engine.fetchPreparedOrderResponse({
+                    address: preparedOrderResponse,
+                });
+                const { bump } = preparedOrderResponseData;
+
+                expect(preparedOrderResponseData).to.eql({
+                    bump,
+                    preparedBy: payer.publicKey,
+                    fastVaaHash: Array.from(fastVaaHash),
+                    sourceChain: ethChain,
+                    baseFee: bigintToU64BN(
+                        finalizedMessage.deposit!.message.slowOrderResponse!.baseFee,
+                    ),
+                });
+
+                const { amount: preparedCustodyBalance } = await splToken.getAccount(
+                    connection,
+                    engine.preparedCustodyTokenAddress(fastVaaHash),
                 );
+                expect(preparedCustodyBalance).equals(fastMessage.fastMarketOrder!.amountIn);
+
+                const { amount: cctpMintRecipientBalance } = await splToken.getAccount(
+                    connection,
+                    engine.cctpMintRecipientAddress(),
+                );
+                expect(cctpMintRecipientBalance).equals(0n);
 
                 // Save for later.
                 localVariables.set("ix", ix);
                 localVariables.set("preparedOrderResponse", preparedOrderResponse);
             });
 
-            it("Cannot Prepare Order Response for Same VAAs", async function () {
+            it("Prepare Order Response for Same VAAs is No-op", async function () {
                 const ix = localVariables.get("ix") as TransactionInstruction;
                 expect(localVariables.delete("ix")).is.true;
 
@@ -2907,12 +2951,21 @@ describe("Matching Engine", function () {
                 ) as PublicKey;
                 expect(localVariables.delete("preparedOrderResponse")).is.true;
 
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
-                    `Allocate: account Address { address: ${preparedOrderResponse.toString()}, base: None } already in use`,
+                const preparedOrderResponseDataBefore = await engine.fetchPreparedOrderResponse({
+                    address: preparedOrderResponse,
+                });
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
                 );
+                await expectIxOk(connection, [ix], [payer], {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
+
+                const preparedOrderResponseDataAfter = await engine.fetchPreparedOrderResponse({
+                    address: preparedOrderResponse,
+                });
+                expect(preparedOrderResponseDataAfter).to.eql(preparedOrderResponseDataBefore);
             });
         });
 
@@ -3223,10 +3276,7 @@ describe("Matching Engine", function () {
 
                 const fastVaaHash = fastVaaAccount.digest();
                 const preparedBy = payer.publicKey;
-                const preparedOrderResponse = engine.preparedOrderResponseAddress(
-                    preparedBy,
-                    fastVaaHash,
-                );
+                const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaHash);
                 const auction = engine.auctionAddress(fastVaaHash);
 
                 if (initAuction) {

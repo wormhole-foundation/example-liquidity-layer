@@ -117,6 +117,21 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
+          "name": "preparedCustodyToken",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "usdc",
+          "accounts": [
+            {
+              "name": "mint",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
           "name": "cctp",
           "accounts": [
             {
@@ -3084,6 +3099,21 @@ export const IDL: MatchingEngine = {
           "name": "preparedOrderResponse",
           "isMut": true,
           "isSigner": false
+        },
+        {
+          "name": "preparedCustodyToken",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "usdc",
+          "accounts": [
+            {
+              "name": "mint",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "cctp",

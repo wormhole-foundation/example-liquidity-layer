@@ -61,17 +61,31 @@ pub struct PrepareOrderResponseCctp<'info> {
     finalized_vaa: LiquidityLayerVaa<'info>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = payer,
         space = 8 + PreparedOrderResponse::INIT_SPACE,
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
-            payer.key().as_ref(),
             VaaAccount::load(&fast_vaa)?.digest().as_ref()
         ],
         bump,
     )]
     prepared_order_response: Account<'info, PreparedOrderResponse>,
+
+    #[account(
+        init_if_needed,
+        payer = payer,
+        token::mint = usdc,
+        token::authority = prepared_order_response,
+        seeds = [
+            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
+            prepared_order_response.key().as_ref(),
+        ],
+        bump,
+    )]
+    prepared_custody_token: Account<'info, token::TokenAccount>,
+
+    usdc: Usdc<'info>,
 
     cctp: CctpReceiveMessage<'info>,
 
@@ -86,6 +100,16 @@ pub struct CctpMessageArgs {
 }
 
 pub fn prepare_order_response_cctp(
+    ctx: Context<PrepareOrderResponseCctp>,
+    args: CctpMessageArgs,
+) -> Result<()> {
+    match ctx.accounts.prepared_order_response.source_chain {
+        0 => handle_prepare_order_response_cctp(ctx, args),
+        _ => super::prepare_order_response_noop(),
+    }
+}
+
+fn handle_prepare_order_response_cctp(
     ctx: Context<PrepareOrderResponseCctp>,
     args: CctpMessageArgs,
 ) -> Result<()> {
@@ -166,9 +190,11 @@ pub fn prepare_order_response_cctp(
         .to_slow_order_response_unchecked()
         .base_fee();
 
-    let fast_vaa_hash = VaaAccount::load_unchecked(&ctx.accounts.fast_vaa)
-        .digest()
-        .0;
+    let fast_vaa = VaaAccount::load_unchecked(&ctx.accounts.fast_vaa);
+    let amount = LiquidityLayerMessage::try_from(fast_vaa.payload())
+        .unwrap()
+        .to_fast_market_order_unchecked()
+        .amount_in();
 
     // Write to the prepared slow order account, which will be closed by one of the following
     // instructions:
@@ -179,12 +205,23 @@ pub fn prepare_order_response_cctp(
         .prepared_order_response
         .set_inner(PreparedOrderResponse {
             bump: ctx.bumps.prepared_order_response,
-            fast_vaa_hash,
+            fast_vaa_hash: fast_vaa.digest().0,
             prepared_by: ctx.accounts.payer.key(),
             source_chain: finalized_vaa.emitter_chain(),
             base_fee,
         });
 
-    // Done.
-    Ok(())
+    // Finally transfer minted via CCTP to prepared custody token.
+    token::transfer(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            token::Transfer {
+                from: ctx.accounts.cctp.mint_recipient.to_account_info(),
+                to: ctx.accounts.prepared_custody_token.to_account_info(),
+                authority: ctx.accounts.custodian.to_account_info(),
+            },
+            &[Custodian::SIGNER_SEEDS],
+        ),
+        amount,
+    )
 }

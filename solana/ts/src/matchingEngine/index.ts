@@ -243,16 +243,25 @@ export class MatchingEngineProgram {
         return this.program.account.redeemedFastFill.fetch(addr);
     }
 
-    preparedOrderResponseAddress(preparedBy: PublicKey, fastVaaHash: VaaHash): PublicKey {
-        return PreparedOrderResponse.address(this.ID, preparedBy, fastVaaHash);
+    preparedOrderResponseAddress(fastVaaHash: VaaHash): PublicKey {
+        return PreparedOrderResponse.address(this.ID, fastVaaHash);
     }
 
-    fetchPreparedOrderResponse(
-        input: [PublicKey, VaaHash] | { address: PublicKey },
+    async fetchPreparedOrderResponse(
+        input: VaaHash | { address: PublicKey },
     ): Promise<PreparedOrderResponse> {
-        const addr =
-            "address" in input ? input.address : this.preparedOrderResponseAddress(...input);
+        const addr = "address" in input ? input.address : this.preparedOrderResponseAddress(input);
         return this.program.account.preparedOrderResponse.fetch(addr);
+    }
+
+    preparedCustodyTokenAddress(fastVaaHash: VaaHash): PublicKey {
+        return PublicKey.findProgramAddressSync(
+            [
+                Buffer.from("prepared-custody"),
+                this.preparedOrderResponseAddress(fastVaaHash).toBuffer(),
+            ],
+            this.ID,
+        )[0];
     }
 
     auctionCustodyTokenAddress(auction: PublicKey): PublicKey {
@@ -986,10 +995,11 @@ export class MatchingEngineProgram {
                 finalizedVaa: {
                     inner: finalizedVaa,
                 },
-                preparedOrderResponse: this.preparedOrderResponseAddress(
-                    payer,
-                    fastVaaAcct.digest(),
-                ),
+                preparedOrderResponse: this.preparedOrderResponseAddress(fastVaaAcct.digest()),
+                preparedCustodyToken: this.preparedCustodyTokenAddress(fastVaaAcct.digest()),
+                usdc: {
+                    mint: this.mint,
+                },
                 cctp: {
                     mintRecipient: this.cctpMintRecipientAddress(),
                     messageTransmitterAuthority,
@@ -1090,7 +1100,7 @@ export class MatchingEngineProgram {
 
         const preparedOrderResponse =
             inputPreparedOrderResponse ??
-            this.preparedOrderResponseAddress(payer, fastVaaAccount.digest());
+            this.preparedOrderResponseAddress(fastVaaAccount.digest());
 
         const { auctionConfig, bestOfferToken } = await (async () => {
             if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
@@ -1197,7 +1207,7 @@ export class MatchingEngineProgram {
 
         const preparedOrderResponse =
             inputPreparedOrderResponse ??
-            this.preparedOrderResponseAddress(payer, fastVaaAccount.digest());
+            this.preparedOrderResponseAddress(fastVaaAccount.digest());
 
         const { auctionConfig, bestOfferToken } = await (async () => {
             if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
@@ -1311,11 +1321,9 @@ export class MatchingEngineProgram {
         } = accounts;
         const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
 
-        const mint = this.mint;
-
         const preparedOrderResponse =
             inputPreparedOrderResponse ??
-            this.preparedOrderResponseAddress(payer, fastVaaAccount.digest());
+            this.preparedOrderResponseAddress(fastVaaAccount.digest());
 
         const { targetChain, toRouterEndpoint } = await (async () => {
             const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());

@@ -14,7 +14,7 @@ export class PreparedOrderResponse {
         preparedBy: PublicKey,
         fastVaaHash: Array<number>,
         sourceChain: number,
-        baseFee: BN
+        baseFee: BN,
     ) {
         this.bump = bump;
         this.preparedBy = preparedBy;
@@ -23,10 +23,10 @@ export class PreparedOrderResponse {
         this.baseFee = baseFee;
     }
 
-    static address(programId: PublicKey, preparedBy: PublicKey, fastVaaHash: VaaHash) {
+    static address(programId: PublicKey, fastVaaHash: VaaHash) {
         return PublicKey.findProgramAddressSync(
-            [Buffer.from("order-response"), preparedBy.toBuffer(), Buffer.from(fastVaaHash)],
-            programId
+            [Buffer.from("order-response"), Buffer.from(fastVaaHash)],
+            programId,
         )[0];
     }
 }
