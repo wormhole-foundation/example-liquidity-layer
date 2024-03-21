@@ -1,0 +1,29 @@
+{
+    "matchingEngine": {
+        "chain": 6,
+        "address": "0x"
+    },
+    "routers": {
+        "6": {
+            "address": "0x",
+            "mintRecipient": "0x",
+            "domain": "1"
+        },
+        "10002": {
+            "address": "0x",
+            "mintRecipient": "0x",
+            "domain": "0"
+        },
+        "10003": {
+            "address": "0x",
+            "mintRecipient": "0x",
+            "domain": "3"
+        }
+    },
+    "fastTransferParameters": {
+        "enabled": true,
+        "maxAmount": 5000000000,
+        "baseFee": 50000,
+        "initAuctionFee": 250000
+    }
+}

@@ -1,6 +1,7 @@
 import { getConfig, ZERO_BYTES32 } from "./helpers";
 import { ChainId, coalesceChainId, tryHexToNativeString } from "@certusone/wormhole-sdk";
 import { IMatchingEngine__factory, IMatchingEngine } from "../src/types/";
+import { RouterEndpointStruct } from "../src/types/IMatchingEngine";
 import { ethers } from "ethers";
 
 export function getArgs() {
@@ -25,10 +26,11 @@ export function getArgs() {
 async function addRouterInfo(
     chainId: string,
     engine: IMatchingEngine,
-    routerEndpoint: string
+    routerEndpoint: RouterEndpointStruct,
+    domain: string
 ): Promise<void> {
     console.log(`Adding router endpoint for chain ${chainId}`);
-    const tx = await engine.addRouterEndpoint(chainId, routerEndpoint);
+    const tx = await engine.addRouterEndpoint(chainId, routerEndpoint, domain);
     const receipt = await tx.wait();
     if (receipt.status === 1) {
         console.log(`Txn succeeded chainId=${chainId}, txHash=${tx.hash}`);
@@ -84,8 +86,14 @@ async function main() {
         if (routers[chainId].address == ZERO_BYTES32) {
             throw Error(`Invalid endpoint for chain ${chainId}`);
         }
+        const targetRouter = routers[chainId];
 
-        await addRouterInfo(chainId, engine, routers[chainId].address);
+        await addRouterInfo(
+            chainId,
+            engine,
+            { router: targetRouter.address, mintRecipient: targetRouter.mintRecipient },
+            targetRouter.domain
+        );
     }
 }
 
