@@ -20,9 +20,8 @@ pub struct UpdateAuctionParameters<'info> {
         ],
         bump = proposal.bump,
         constraint = {
-            require!(
-                proposal.owner == admin.owner.key(),
-                MatchingEngineError::OwnerOnly
+            require_keys_eq!(
+                proposal.owner, admin.owner.key()
             );
             require!(
                 proposal.slot_enacted_at.is_none(),

@@ -1066,27 +1066,10 @@ describe("Matching Engine", function () {
                 await expectIxErr(connection, [ix], [owner], "Error Code: ProposalDelayNotExpired");
             });
 
-            // TODO: Is this necessary?
-            it.skip("Cannot Update Auction Config (Auction Config Mismatch)", async function () {
-                const { auctionConfigId } = await engine.fetchCustodian();
-                const auctionConfigAddress = engine.auctionConfigAddress(auctionConfigId);
-                const proposalId = localVariables.get("duplicateProposalId") as BN;
-
-                const proposal = await engine.proposalAddress(proposalId);
-
-                const ix = await engine.updateAuctionParametersIx({
-                    owner: owner.publicKey,
-                    proposal,
-                    auctionConfig: auctionConfigAddress,
-                });
-
-                await expectIxErr(connection, [ix], [owner], "Error Code: AuctionConfigMismatch");
-            });
-
             it("Update Auction Config as Owner", async function () {
                 const { auctionConfigId } = await engine.fetchCustodian();
 
-                // Substract one to get the proposal ID for the auction parameters proposal.
+                // Subtract one to get the proposal ID for the auction parameters proposal.
                 const proposalId = localVariables.get("duplicateProposalId") as BN;
                 const proposal = await engine.proposalAddress(proposalId);
                 const proposalDataBefore = await engine.fetchProposal({ address: proposal });
@@ -1128,22 +1111,6 @@ describe("Matching Engine", function () {
 
                 await expectIxErr(connection, [ix], [owner], "Error Code: ProposalAlreadyEnacted");
             });
-
-            // TODO: Is this necessary if we enact in the test above?
-            // after("Enact Last Proposal to Reset Auction Parameters", async function () {
-            //     const { nextProposalId } = await engine.fetchCustodian();
-            //     const proposalId = localVariables.get("duplicateProposalId") as BN;
-
-            //     // Substract one to get the proposal ID for the auction parameters proposal.
-            //     const proposal = await engine.proposalAddress(proposalId);
-
-            //     const ix = await engine.updateAuctionParametersIx({
-            //         owner: owner.publicKey,
-            //         proposal,
-            //     });
-
-            //     await expectIxOk(connection, [ix], [owner]);
-            // });
         });
     });
 
