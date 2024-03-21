@@ -86,7 +86,7 @@ export function circleDomainToChain(domain: CircleDomain): ChainName {
             return "optimism";
         }
         case 3: {
-            return "arbitrum";
+            return "base";
         }
         case 6: {
             return "base";

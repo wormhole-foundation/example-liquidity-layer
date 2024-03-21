@@ -21,7 +21,7 @@ import {
 } from "./helpers";
 
 describe("Environment", () => {
-    const chainNames: ValidNetwork[] = ["avalanche", "ethereum", "arbitrum"];
+    const chainNames: ValidNetwork[] = ["avalanche", "ethereum", "base"];
 
     for (const chainName of chainNames) {
         if (!(chainName in LOCALHOSTS)) {
