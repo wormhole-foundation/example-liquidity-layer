@@ -894,7 +894,7 @@ contract TokenRouterTest is Test {
     function testCannotPlaceFastMarketOrderErrInvalidRefundAddress() public {
         bytes memory encodedSignature = abi.encodeWithSignature(
             "placeFastMarketOrder(uint64,uint64,uint16,bytes32,bytes,address,uint64,uint32)",
-            router.getMinTransferAmount(), // amountIn.
+            router.getMinFastTransferAmount(), // amountIn.
             0, // minAmountOut
             ARB_CHAIN, // targetChain
             TEST_REDEEMER,
@@ -911,11 +911,11 @@ contract TokenRouterTest is Test {
     }
 
     function testCannotPlaceFastMarketOrderErrInsufficientAmount() public {
-        uint64 amountIn = router.getMinFee();
-        uint64 maxFee = router.getMinFee();
+        uint64 amountIn = router.getMinFastTransferAmount() - 1;
+        uint64 minTransferAmount = router.getMinFastTransferAmount();
 
         vm.expectRevert(
-            abi.encodeWithSignature("ErrInsufficientAmount(uint64,uint64)", amountIn, maxFee)
+            abi.encodeWithSignature("ErrInsufficientAmount(uint64,uint64)", amountIn, minTransferAmount)
         );
         router.placeFastMarketOrder(
             amountIn,
@@ -924,7 +924,39 @@ contract TokenRouterTest is Test {
             TEST_REDEEMER,
             bytes("All your base are belong to us."), // redeemerMessage
             address(this), // refundAddress.
-            maxFee,
+            minTransferAmount,
+            0 // deadline
+        );
+    }
+
+    function testCannotPlaceFastMarketOrderErrInsufficientAmountFeeLargerThanMax() public {
+        uint64 minTransferAmount = router.getMinFastTransferAmount();
+
+        // Set the fast transfer parameters for Arbitrum.
+        vm.prank(makeAddr("owner"));
+        router.updateFastTransferParameters(
+            FastTransferParameters({
+                enabled: true,
+                maxAmount: FAST_TRANSFER_MAX_AMOUNT,
+                baseFee: FAST_TRANSFER_BASE_FEE,
+                initAuctionFee: minTransferAmount + 1
+            })
+        );
+
+        uint64 minFee = router.getMinFee() + 1;
+        assertTrue(minTransferAmount < minFee);
+
+        vm.expectRevert(
+            abi.encodeWithSignature("ErrInsufficientAmount(uint64,uint64)", minTransferAmount, minFee)
+        );
+        router.placeFastMarketOrder(
+            minTransferAmount,
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            TEST_REDEEMER,
+            bytes("All your base are belong to us."), // redeemerMessage
+            address(this), // refundAddress.
+            minFee,
             0 // deadline
         );
     }
@@ -949,7 +981,7 @@ contract TokenRouterTest is Test {
     function testCannotPlaceFastMarketOrderErrInvalidRedeemerAddress() public {
         bytes memory encodedSignature = abi.encodeWithSignature(
             "placeFastMarketOrder(uint64,uint64,uint16,bytes32,bytes,address,uint64,uint32)",
-            router.getMinTransferAmount(), // amountIn.
+            router.getMinFastTransferAmount(), // amountIn.
             0, // minAmountOut
             ARB_CHAIN, // targetChain
             bytes32(0), // Invalid address.
@@ -970,7 +1002,7 @@ contract TokenRouterTest is Test {
 
         bytes memory encodedSignature = abi.encodeWithSignature(
             "placeFastMarketOrder(uint64,uint64,uint16,bytes32,bytes,address,uint64,uint32)",
-            router.getMinTransferAmount(),
+            router.getMinFastTransferAmount(),
             0, // minAmountOut
             unsupportedChain, // targetChain
             TEST_REDEEMER,
@@ -992,7 +1024,7 @@ contract TokenRouterTest is Test {
 
         bytes memory encodedSignature = abi.encodeWithSignature(
             "placeFastMarketOrder(uint64,uint64,uint16,bytes32,bytes,address,uint64,uint32)",
-            router.getMinTransferAmount(),
+            router.getMinFastTransferAmount(),
             0, // minAmountOut
             ARB_CHAIN, // targetChain
             TEST_REDEEMER,
@@ -1011,7 +1043,7 @@ contract TokenRouterTest is Test {
     function testCannotPlaceFastMarketOrderErrAmountTooLarge() public {
         bytes memory encodedSignature = abi.encodeWithSignature(
             "placeFastMarketOrder(uint64,uint64,uint16,bytes32,bytes,address,uint64,uint32)",
-            router.getMaxTransferAmount() + 1,
+            router.getMaxFastTransferAmount() + 1,
             0, // minAmountOut
             ARB_CHAIN, // targetChain
             TEST_REDEEMER,
@@ -1035,7 +1067,7 @@ contract TokenRouterTest is Test {
 
         bytes memory encodedSignature = abi.encodeWithSignature(
             "placeFastMarketOrder(uint64,uint64,uint16,bytes32,bytes,address,uint64,uint32)",
-            router.getMinTransferAmount(),
+            router.getMinFastTransferAmount(),
             0, // minAmountOut
             ARB_CHAIN, // targetChain
             TEST_REDEEMER,
@@ -1049,7 +1081,7 @@ contract TokenRouterTest is Test {
 
     function testPlaceFastMarketOrder(uint64 amountIn, uint64 maxFee, uint32 deadline) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount())
+            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 
@@ -1104,7 +1136,7 @@ contract TokenRouterTest is Test {
         uint32 deadline
     ) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount())
+            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 
@@ -1167,7 +1199,7 @@ contract TokenRouterTest is Test {
         uint32 deadline
     ) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinTransferAmount() + 1, router.getMaxTransferAmount())
+            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 

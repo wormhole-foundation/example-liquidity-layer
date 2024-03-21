@@ -159,15 +159,20 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         if (!fastParams.enabled) {
             revert ErrFastTransferDisabled();
         }
+
         if (amountIn > fastParams.maxAmount) {
             revert ErrAmountTooLarge(amountIn, fastParams.maxAmount);
         }
-        if (amountIn <= maxFee) {
-            revert ErrInsufficientAmount(amountIn, maxFee);
-        }
+
         uint64 minimumRequiredFee = fastParams.baseFee + fastParams.initAuctionFee + 1;
         if (maxFee < minimumRequiredFee) {
             revert ErrInvalidMaxFee(maxFee, minimumRequiredFee);
+        }
+
+        if (amountIn <= maxFee || amountIn < MIN_FAST_TRANSFER_AMOUNT) {
+            revert ErrInsufficientAmount(
+                amountIn, maxFee > MIN_FAST_TRANSFER_AMOUNT ? maxFee : MIN_FAST_TRANSFER_AMOUNT
+            );
         }
 
         _verifyTarget(targetChain, redeemer);

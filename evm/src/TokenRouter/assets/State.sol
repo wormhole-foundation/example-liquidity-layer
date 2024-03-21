@@ -31,6 +31,7 @@ abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
     uint32 constant NONCE = 0;
     uint8 constant FAST_FINALITY = 200;
     uint24 constant MAX_BPS_FEE = 1000000; // 10,000.00 bps (100%)
+    uint64 constant MIN_FAST_TRANSFER_AMOUNT = 100000000; // $100
 
     constructor(
         address token_,
@@ -121,12 +122,16 @@ abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
     }
 
     /// @inheritdoc ITokenRouterState
-    function getMinTransferAmount() external pure returns (uint64) {
-        return getMinFee() + 1;
+    function getMinFastTransferAmount() external pure returns (uint64) {
+        if (getMinFee() >= MIN_FAST_TRANSFER_AMOUNT) {
+            return getMinFee() + 1;
+        } else {
+            return MIN_FAST_TRANSFER_AMOUNT;
+        }
     }
 
     /// @inheritdoc ITokenRouterState
-    function getMaxTransferAmount() external view returns (uint64) {
+    function getMaxFastTransferAmount() external view returns (uint64) {
         return getFastTransferParametersState().maxAmount;
     }
 }

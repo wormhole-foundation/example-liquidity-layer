@@ -66,9 +66,9 @@ interface ITokenRouterState {
     function getFastTransferParameters() external view returns (FastTransferParameters memory);
 
     /**
-     * @notice Returns the minimum transfer amount for fast transfers.
+     * @notice Returns the minimum fast transfer amount for fast transfers.
      */
-    function getMinTransferAmount() external view returns (uint64);
+    function getMinFastTransferAmount() external view returns (uint64);
 
     /**
      * @notice Returns the minimum fee for fast transfers. This includes the `baseFee`
@@ -77,9 +77,9 @@ interface ITokenRouterState {
     function getMinFee() external pure returns (uint64);
 
     /**
-     * @notice Returns the maximum transfer amount for fast transfers.
+     * @notice Returns the maximum fast transfer amount for fast transfers.
      */
-    function getMaxTransferAmount() external view returns (uint64);
+    function getMaxFastTransferAmount() external view returns (uint64);
 
     /**
      * @notice Returns the initial auction fee for fast transfers. This is the fee
