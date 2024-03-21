@@ -1410,14 +1410,24 @@ export type MatchingEngine = {
       "name": "updateAuctionParameters",
       "accounts": [
         {
-          "name": "owner",
+          "name": "payer",
           "isMut": true,
           "isSigner": true
         },
         {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "proposal",
@@ -4191,14 +4201,24 @@ export const IDL: MatchingEngine = {
       "name": "updateAuctionParameters",
       "accounts": [
         {
-          "name": "owner",
+          "name": "payer",
           "isMut": true,
           "isSigner": true
         },
         {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "proposal",

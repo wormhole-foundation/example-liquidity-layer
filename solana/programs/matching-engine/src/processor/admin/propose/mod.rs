@@ -5,7 +5,7 @@ use crate::state::{Custodian, Proposal, ProposalAction};
 use anchor_lang::prelude::*;
 
 struct Propose<'ctx, 'info> {
-    custodian: &'ctx mut Account<'info, Custodian>,
+    custodian: &'ctx Account<'info, Custodian>,
     proposal: &'ctx mut Account<'info, Proposal>,
     by: &'ctx AccountInfo<'info>,
     epoch_schedule: &'ctx Sysvar<'info, EpochSchedule>,
@@ -19,7 +19,7 @@ fn propose(accounts: Propose, action: ProposalAction, proposal_bump_seed: u8) ->
         epoch_schedule,
     } = accounts;
 
-    let slot_proposed_at = Clock::get().map(|clock| clock.slot)?;
+    let slot_proposed_at = Clock::get().unwrap().slot;
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "integration-test")] {
@@ -42,9 +42,6 @@ fn propose(accounts: Propose, action: ProposalAction, proposal_bump_seed: u8) ->
         slot_enact_delay,
         slot_enacted_at: None,
     });
-
-    // Uptick the next proposal ID.
-    custodian.next_proposal_id += 1;
 
     // Done.
     Ok(())

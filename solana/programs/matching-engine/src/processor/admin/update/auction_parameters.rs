@@ -1,21 +1,16 @@
 use crate::{
     error::MatchingEngineError,
-    state::{AuctionConfig, Custodian, Proposal, ProposalAction},
+    state::custodian::*,
+    state::{AuctionConfig, Proposal, ProposalAction},
 };
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct UpdateAuctionParameters<'info> {
     #[account(mut)]
-    owner: Signer<'info>,
+    payer: Signer<'info>,
 
-    #[account(
-        mut,
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-        has_one = owner @ MatchingEngineError::OwnerOnly,
-    )]
-    custodian: Account<'info, Custodian>,
+    admin: OwnerMutCustodian<'info>,
 
     #[account(
         mut,
@@ -24,15 +19,17 @@ pub struct UpdateAuctionParameters<'info> {
             proposal.id.to_be_bytes().as_ref(),
         ],
         bump = proposal.bump,
-        has_one = owner,
         constraint = {
+            require_keys_eq!(
+                proposal.owner, admin.owner.key()
+            );
             require!(
                 proposal.slot_enacted_at.is_none(),
                 MatchingEngineError::ProposalAlreadyEnacted
             );
 
             require!(
-                Clock::get()?.slot >= proposal.slot_enact_delay,
+                Clock::get().unwrap().slot >= proposal.slot_enact_delay,
                 MatchingEngineError::ProposalDelayNotExpired
             );
 
@@ -40,7 +37,7 @@ pub struct UpdateAuctionParameters<'info> {
                 ProposalAction::UpdateAuctionParameters { id, .. } => {
                     require_eq!(
                         *id,
-                        custodian.auction_config_id + 1,
+                        admin.custodian.auction_config_id + 1,
                         MatchingEngineError::AuctionConfigMismatch
                     );
                 },
@@ -54,11 +51,11 @@ pub struct UpdateAuctionParameters<'info> {
 
     #[account(
         init,
-        payer = owner,
+        payer = payer,
         space = 8 + AuctionConfig::INIT_SPACE,
         seeds = [
             AuctionConfig::SEED_PREFIX,
-            (custodian.auction_config_id + 1).to_be_bytes().as_ref()
+            (admin.custodian.auction_config_id + 1).to_be_bytes().as_ref()
         ],
         bump,
     )]
@@ -78,10 +75,13 @@ pub fn update_auction_parameters(ctx: Context<UpdateAuctionParameters>) -> Resul
     }
 
     // Update the auction config ID.
-    ctx.accounts.custodian.auction_config_id += 1;
+    ctx.accounts.admin.custodian.auction_config_id += 1;
 
     // Set the slot enacted at so it cannot be replayed.
-    ctx.accounts.proposal.slot_enacted_at = Some(Clock::get().map(|clock| clock.slot)?);
+    ctx.accounts.proposal.slot_enacted_at = Some(Clock::get().unwrap().slot);
+
+    // Uptick the proposal ID so that someone can create a new proposal again.
+    ctx.accounts.admin.custodian.next_proposal_id += 1;
 
     // Done.
     Ok(())
