@@ -140,8 +140,8 @@ pub enum MatchingEngineError {
     #[msg("MismatchedVaaHash")]
     MismatchedVaaHash,
 
-    #[msg("BestOfferTokenMismatch")]
-    BestOfferTokenMismatch,
+    #[msg("ExecutorTokenMismatch")]
+    ExecutorTokenMismatch,
 
     #[msg("InitialOfferTokenMismatch")]
     InitialOfferTokenMismatch,

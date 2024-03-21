@@ -94,7 +94,7 @@ fn settle_none_and_prepare_fill(
         custody_token_bump: auction_custody_token_bump_seed,
         status: AuctionStatus::Settled {
             base_fee,
-            penalty: None,
+            total_penalty: None,
         },
         info: None,
     });

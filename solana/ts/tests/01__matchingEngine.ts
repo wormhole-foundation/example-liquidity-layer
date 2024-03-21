@@ -99,6 +99,13 @@ describe("Matching Engine", function () {
         minOfferDeltaBps: 20000, // 2%
     };
 
+    let testCctpNonce = 2n ** 64n - 1n;
+
+    // Hack to prevent math overflow error when invoking CCTP programs.
+    testCctpNonce -= 10n * 6400n;
+
+    let wormholeSequence = 1000n;
+
     describe("Admin", function () {
         describe("Initialize", function () {
             const localVariables = new Map<string, any>();
@@ -1105,13 +1112,6 @@ describe("Matching Engine", function () {
     });
 
     describe("Business Logic", function () {
-        let testCctpNonce = 2n ** 64n - 1n;
-
-        // Hack to prevent math overflow error when invoking CCTP programs.
-        testCctpNonce -= 10n * 6400n;
-
-        let wormholeSequence = 1000n;
-
         const baseFastOrder: FastMarketOrder = {
             amountIn: 50000000000n,
             minAmountOut: 0n,
@@ -2418,15 +2418,6 @@ describe("Matching Engine", function () {
                 const { bump, vaaHash, custodyTokenBump, info } = auctionDataBefore;
 
                 const auctionDataAfter = await engine.fetchAuction({ address: auction });
-                expect(auctionDataAfter).to.eql(
-                    new Auction(
-                        bump,
-                        vaaHash,
-                        custodyTokenBump,
-                        { completed: { slot: bigintToU64BN(BigInt(txDetails.slot)) } },
-                        info,
-                    ),
-                );
 
                 const { bestOfferToken, initialOfferToken, securityDeposit, amountIn, offerPrice } =
                     info!;
@@ -2459,6 +2450,21 @@ describe("Matching Engine", function () {
                     expect(penalty > 0n).is.true;
                     expect(userReward > 0n).is.true;
 
+                    expect(auctionDataAfter).to.eql(
+                        new Auction(
+                            bump,
+                            vaaHash,
+                            custodyTokenBump,
+                            {
+                                completed: {
+                                    slot: bigintToU64BN(BigInt(txDetails.slot)),
+                                    executePenalty: bigintToU64BN(penalty),
+                                },
+                            },
+                            info,
+                        ),
+                    );
+
                     let depositAndFee =
                         BigInt(offerPrice.add(securityDeposit).toString()) - userReward;
                     const executorToken = splToken.getAssociatedTokenAddressSync(
@@ -2488,6 +2494,21 @@ describe("Matching Engine", function () {
                 } else {
                     expect(penalty).equals(0n);
                     expect(userReward).equals(0n);
+
+                    expect(auctionDataAfter).to.eql(
+                        new Auction(
+                            bump,
+                            vaaHash,
+                            custodyTokenBump,
+                            {
+                                completed: {
+                                    slot: bigintToU64BN(BigInt(txDetails.slot)),
+                                    executePenalty: null,
+                                },
+                            },
+                            info,
+                        ),
+                    );
 
                     const depositAndFee = BigInt(offerPrice.add(securityDeposit).toString());
 
@@ -2971,38 +2992,49 @@ describe("Matching Engine", function () {
 
         describe("Settle Auction", function () {
             describe("Auction Complete", function () {
-                it("Cannot Settle Auction in Active Status", async function () {
-                    const { prepareIx, preparedOrderResponse, auction } =
-                        await prepareOrderResponse({
-                            initAuction: true,
-                            executeOrder: false,
-                            prepareOrderResponse: false,
-                        });
+                it("Cannot Settle Active Auction", async function () {
+                    const { preparedOrderResponse, auction } = await prepareOrderResponse({
+                        initAuction: true,
+                        executeOrder: false,
+                        prepareOrderResponse: true,
+                    });
 
-                    const settleIx = await engine.settleAuctionCompleteIx({
+                    const ix = await engine.settleAuctionCompleteIx({
+                        executor: payer.publicKey,
                         preparedOrderResponse,
                         auction,
                     });
 
-                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                        lookupTableAddress,
-                    );
-                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                        units: 500_000,
+                    await expectIxErr(connection, [ix], [payer], "Error Code: AuctionNotCompleted");
+                });
+
+                it("Cannot Settle Completed Auction with No Penalty (Executor != Best Offer)", async function () {
+                    const { preparedOrderResponse, auction } = await prepareOrderResponse({
+                        initAuction: true,
+                        executeOrder: true,
+                        prepareOrderResponse: true,
                     });
+                    const { status: statusBefore } = await engine.fetchAuction({
+                        address: auction,
+                    });
+                    expect(statusBefore.completed!.executePenalty).is.null;
+
+                    const ix = await engine.settleAuctionCompleteIx({
+                        executor: payer.publicKey,
+                        preparedOrderResponse,
+                        auction,
+                    });
+
                     await expectIxErr(
                         connection,
-                        [computeIx, prepareIx!, settleIx],
+                        [ix],
                         [payer],
-                        "Error Code: AuctionNotCompleted",
-                        {
-                            addressLookupTableAccounts: [lookupTableAccount!],
-                        },
+                        "Error Code: ExecutorTokenMismatch",
                     );
                 });
 
-                it("Settle", async function () {
-                    const { preparedOrderResponse, auction } = await prepareOrderResponse({
+                it("Settle Completed without Penalty", async function () {
+                    const { baseFee, preparedOrderResponse, auction } = await prepareOrderResponse({
                         initAuction: true,
                         executeOrder: true,
                         prepareOrderResponse: true,
@@ -3016,7 +3048,11 @@ describe("Matching Engine", function () {
                         preparedCustodyToken,
                     );
 
-                    const { info } = await engine.fetchAuction({ address: auction });
+                    const { info, status: statusBefore } = await engine.fetchAuction({
+                        address: auction,
+                    });
+                    expect(statusBefore.completed!.executePenalty).is.null;
+
                     const { bestOfferToken } = info!;
                     const { owner: bestOfferAuthority, amount: bestOfferTokenBalanceBefore } =
                         await splToken.getAccount(connection, bestOfferToken);
@@ -3031,6 +3067,7 @@ describe("Matching Engine", function () {
                         .then((info) => info!.lamports);
 
                     const ix = await engine.settleAuctionCompleteIx({
+                        executor: bestOfferAuthority,
                         preparedOrderResponse,
                     });
 
@@ -3057,6 +3094,93 @@ describe("Matching Engine", function () {
                     expect(authorityLamportsAfter).equals(
                         authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
                     );
+
+                    const { status: statusAfter } = await engine.fetchAuction({
+                        address: auction,
+                    });
+                    expect(statusAfter).to.eql({
+                        settled: {
+                            baseFee: bigintToU64BN(baseFee),
+                            totalPenalty: null,
+                        },
+                    });
+                });
+
+                it("Settle Completed with Penalty", async function () {
+                    const { baseFee, preparedOrderResponse, auction } = await prepareOrderResponse({
+                        initAuction: true,
+                        executeOrder: true,
+                        prepareOrderResponse: true,
+                        executeLate: true,
+                    });
+
+                    const preparedCustodyToken =
+                        engine.preparedCustodyTokenAddress(preparedOrderResponse);
+
+                    const { amount: preparedCustodyBalanceBefore } = await splToken.getAccount(
+                        connection,
+                        preparedCustodyToken,
+                    );
+
+                    const { info, status: statusBefore } = await engine.fetchAuction({
+                        address: auction,
+                    });
+                    const executePenalty = statusBefore.completed!.executePenalty;
+                    expect(executePenalty).is.not.null;
+
+                    const { bestOfferToken } = info!;
+                    const { owner: bestOfferAuthority, amount: bestOfferTokenBalanceBefore } =
+                        await splToken.getAccount(connection, bestOfferToken);
+
+                    const authorityLamportsBefore = await connection.getBalance(bestOfferAuthority);
+
+                    const preparedOrderLamports = await connection
+                        .getAccountInfo(preparedOrderResponse)
+                        .then((info) => info!.lamports);
+                    const preparedCustodyLamports = await connection
+                        .getAccountInfo(preparedCustodyToken)
+                        .then((info) => info!.lamports);
+
+                    const ix = await engine.settleAuctionCompleteIx({
+                        executor: bestOfferAuthority,
+                        preparedOrderResponse,
+                    });
+
+                    await expectIxOk(connection, [ix], [payer]);
+
+                    const preparedCustodyInfo = await connection.getAccountInfo(
+                        preparedCustodyToken,
+                    );
+                    expect(preparedCustodyInfo).is.null;
+                    const preparedOrderResponseInfo = await connection.getAccountInfo(
+                        preparedOrderResponse,
+                    );
+                    expect(preparedOrderResponseInfo).is.null;
+
+                    const { amount: bestOfferTokenBalanceAfter } = await splToken.getAccount(
+                        connection,
+                        bestOfferToken,
+                    );
+                    expect(bestOfferTokenBalanceAfter).equals(
+                        preparedCustodyBalanceBefore + bestOfferTokenBalanceBefore,
+                    );
+
+                    const authorityLamportsAfter = await connection.getBalance(bestOfferAuthority);
+                    expect(authorityLamportsAfter).equals(
+                        authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
+                    );
+
+                    const { status: statusAfter } = await engine.fetchAuction({
+                        address: auction,
+                    });
+                    expect(statusAfter).to.eql({
+                        settled: {
+                            baseFee: bigintToU64BN(baseFee),
+                            totalPenalty: bigintToU64BN(
+                                BigInt(executePenalty!.toString()) + baseFee,
+                            ),
+                        },
+                    });
                 });
             });
 
@@ -3223,165 +3347,6 @@ describe("Matching Engine", function () {
                     );
                 });
             });
-
-            async function prepareOrderResponse(args: {
-                initAuction: boolean;
-                executeOrder: boolean;
-                prepareOrderResponse: boolean;
-            }) {
-                const { initAuction, executeOrder, prepareOrderResponse } = args;
-
-                const redeemer = Keypair.generate();
-                const sourceCctpDomain = 0;
-                const cctpNonce = testCctpNonce++;
-                const amountIn = 690000n; // 69 cents
-
-                // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
-                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                    await craftCctpTokenBurnMessage(engine, sourceCctpDomain, cctpNonce, amountIn);
-
-                const maxFee = 42069n;
-                const currTime = await connection.getBlockTime(await connection.getSlot());
-                const fastMessage = new LiquidityLayerMessage({
-                    fastMarketOrder: {
-                        amountIn,
-                        minAmountOut: 0n,
-                        targetChain: arbChain,
-                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                        sender: new Array(32).fill(0),
-                        refundAddress: new Array(32).fill(0),
-                        maxFee,
-                        initAuctionFee: 2000n,
-                        deadline: currTime! + 2,
-                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                    },
-                });
-
-                const finalizedMessage = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: burnMessage.burnTokenAddress,
-                            amount: amountIn,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource,
-                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
-                        },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 420n,
-                            },
-                        },
-                    ),
-                });
-
-                const finalizedVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence++,
-                    finalizedMessage,
-                );
-                const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
-
-                const fastVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence++,
-                    fastMessage,
-                );
-                const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
-
-                const prepareIx = await engine.prepareOrderResponseCctpIx(
-                    {
-                        payer: payer.publicKey,
-                        fastVaa,
-                        finalizedVaa,
-                    },
-                    {
-                        encodedCctpMessage,
-                        cctpAttestation,
-                    },
-                );
-
-                const fastVaaHash = fastVaaAccount.digest();
-                const preparedBy = payer.publicKey;
-                const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaHash);
-                const auction = engine.auctionAddress(fastVaaHash);
-
-                if (initAuction) {
-                    const [approveIx, ix] = await engine.placeInitialOfferIx(
-                        {
-                            payer: offerAuthorityOne.publicKey,
-                            fastVaa,
-                        },
-                        maxFee,
-                    );
-                    await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
-
-                    if (executeOrder) {
-                        const { info } = await engine.fetchAuction({ address: auction });
-                        if (info === null) {
-                            throw new Error("No auction info found");
-                        }
-                        const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
-                        const auctionConfig = engine.auctionConfigAddress(configId);
-                        const { duration, gracePeriod } = await engine.fetchAuctionParameters(
-                            configId,
-                        );
-
-                        await waitUntilSlot(
-                            connection,
-                            startSlot.toNumber() + duration + gracePeriod - 1,
-                        );
-                        // await new Promise((f) =>
-                        //     setTimeout(f, startSlot.toNumber() + duration + 200),
-                        // );
-
-                        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                            units: 300_000,
-                        });
-                        const ix = await engine.executeFastOrderCctpIx({
-                            payer: payer.publicKey,
-                            fastVaa,
-                            auction,
-                            auctionConfig,
-                            bestOfferToken,
-                            initialOfferToken,
-                        });
-                        await expectIxOk(connection, [computeIx, ix], [payer]);
-                    }
-                }
-
-                if (prepareOrderResponse) {
-                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                        units: 300_000,
-                    });
-                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                        lookupTableAddress,
-                    );
-                    await expectIxOk(connection, [computeIx, prepareIx], [payer], {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    });
-                }
-
-                return {
-                    fastMessage,
-                    fastVaa,
-                    fastVaaAccount,
-                    finalizedVaa,
-                    finalizedVaaAccount,
-                    prepareIx: prepareOrderResponse ? null : prepareIx,
-                    preparedOrderResponse,
-                    auction,
-                    preparedBy,
-                };
-            }
         });
     });
 
@@ -3517,6 +3482,179 @@ describe("Matching Engine", function () {
 
         return {
             auctionDataBefore,
+        };
+    }
+
+    async function prepareOrderResponse(args: {
+        initAuction: boolean;
+        executeOrder: boolean;
+        prepareOrderResponse: boolean;
+        executeLate?: boolean;
+    }) {
+        const baseFee = 420n;
+
+        const {
+            initAuction,
+            executeOrder,
+            prepareOrderResponse,
+            executeLate: inputExecuteLate,
+        } = args;
+
+        const executeLate = inputExecuteLate ?? false;
+
+        const redeemer = Keypair.generate();
+        const sourceCctpDomain = 0;
+        const cctpNonce = testCctpNonce++;
+        const amountIn = 690000n; // 69 cents
+
+        // Concoct a Circle message.
+        const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
+        const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+            await craftCctpTokenBurnMessage(engine, sourceCctpDomain, cctpNonce, amountIn);
+
+        const maxFee = 42069n;
+        const currTime = await connection.getBlockTime(await connection.getSlot());
+        const fastMessage = new LiquidityLayerMessage({
+            fastMarketOrder: {
+                amountIn,
+                minAmountOut: 0n,
+                targetChain: arbChain,
+                redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                sender: new Array(32).fill(0),
+                refundAddress: new Array(32).fill(0),
+                maxFee,
+                initAuctionFee: 2000n,
+                deadline: currTime! + 2,
+                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+            },
+        });
+
+        const finalizedMessage = new LiquidityLayerMessage({
+            deposit: new LiquidityLayerDeposit(
+                {
+                    tokenAddress: burnMessage.burnTokenAddress,
+                    amount: amountIn,
+                    sourceCctpDomain,
+                    destinationCctpDomain,
+                    cctpNonce,
+                    burnSource,
+                    mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
+                },
+                {
+                    slowOrderResponse: {
+                        baseFee,
+                    },
+                },
+            ),
+        });
+
+        const finalizedVaa = await postLiquidityLayerVaa(
+            connection,
+            payer,
+            MOCK_GUARDIANS,
+            ethRouter,
+            wormholeSequence++,
+            finalizedMessage,
+        );
+        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
+
+        const fastVaa = await postLiquidityLayerVaa(
+            connection,
+            payer,
+            MOCK_GUARDIANS,
+            ethRouter,
+            wormholeSequence++,
+            fastMessage,
+        );
+        const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+
+        const prepareIx = await engine.prepareOrderResponseCctpIx(
+            {
+                payer: payer.publicKey,
+                fastVaa,
+                finalizedVaa,
+            },
+            {
+                encodedCctpMessage,
+                cctpAttestation,
+            },
+        );
+
+        const fastVaaHash = fastVaaAccount.digest();
+        const preparedBy = payer.publicKey;
+        const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaHash);
+        const auction = engine.auctionAddress(fastVaaHash);
+
+        if (initAuction) {
+            const [approveIx, ix] = await engine.placeInitialOfferIx(
+                {
+                    payer: offerAuthorityOne.publicKey,
+                    fastVaa,
+                },
+                maxFee,
+            );
+            await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
+
+            if (executeOrder) {
+                const { info } = await engine.fetchAuction({ address: auction });
+                if (info === null) {
+                    throw new Error("No auction info found");
+                }
+                const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
+                const auctionConfig = engine.auctionConfigAddress(configId);
+                const { duration, gracePeriod, penaltyPeriod } =
+                    await engine.fetchAuctionParameters(configId);
+
+                const endSlot = (() => {
+                    if (executeLate) {
+                        return startSlot
+                            .addn(duration + gracePeriod + penaltyPeriod - 1)
+                            .toNumber();
+                    } else {
+                        return startSlot.addn(duration + gracePeriod - 1).toNumber();
+                    }
+                })();
+
+                await waitUntilSlot(connection, endSlot);
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: payer.publicKey,
+                    fastVaa,
+                    auction,
+                    auctionConfig,
+                    bestOfferToken,
+                    initialOfferToken,
+                });
+                await expectIxOk(connection, [computeIx, ix], [payer]);
+            }
+        }
+
+        if (prepareOrderResponse) {
+            const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                units: 300_000,
+            });
+            const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                lookupTableAddress,
+            );
+            await expectIxOk(connection, [computeIx, prepareIx], [payer], {
+                addressLookupTableAccounts: [lookupTableAccount!],
+            });
+        }
+
+        return {
+            baseFee,
+            fastMessage,
+            fastVaa,
+            fastVaaAccount,
+            finalizedVaa,
+            finalizedVaaAccount,
+            prepareIx: prepareOrderResponse ? null : prepareIx,
+            preparedOrderResponse,
+            auction,
+            preparedBy,
         };
     }
 });

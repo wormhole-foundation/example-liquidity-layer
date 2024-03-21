@@ -135,9 +135,11 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
         )?;
 
         (
-            // TODO: fix this
             auction_info.amount_in - auction_info.offer_price - init_auction_fee + user_reward,
-            AuctionStatus::Completed { slot: current_slot },
+            AuctionStatus::Completed {
+                slot: current_slot,
+                execute_penalty: if penalty > 0 { Some(penalty) } else { None },
+            },
         )
     };
 

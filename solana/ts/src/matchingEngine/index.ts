@@ -1019,16 +1019,16 @@ export class MatchingEngineProgram {
     }
 
     async settleAuctionCompleteIx(accounts: {
+        executor: PublicKey;
         preparedOrderResponse: PublicKey;
         auction?: PublicKey;
         bestOfferToken?: PublicKey;
-        bestOfferAuthority?: PublicKey;
     }) {
         const {
+            executor,
             preparedOrderResponse,
             auction: inputAuction,
             bestOfferToken: inputBestOfferToken,
-            bestOfferAuthority: inputBestOfferAuthority,
         } = accounts;
 
         const { auction } = await (async () => {
@@ -1046,26 +1046,19 @@ export class MatchingEngineProgram {
             }
         })();
 
-        const { bestOfferToken, bestOfferAuthority } = await (async () => {
-            if (inputBestOfferToken === undefined || inputBestOfferAuthority === undefined) {
+        const { bestOfferToken } = await (async () => {
+            if (inputBestOfferToken === undefined) {
                 const { info } = await this.fetchAuction({ address: auction });
                 if (info === null) {
                     throw new Error("no auction info found");
                 }
-                const bestOfferToken = info.bestOfferToken;
 
-                const { owner } = await splToken.getAccount(
-                    this.program.provider.connection,
-                    bestOfferToken,
-                );
                 return {
-                    bestOfferToken: inputBestOfferToken ?? bestOfferToken,
-                    bestOfferAuthority: inputBestOfferAuthority ?? owner,
+                    bestOfferToken: inputBestOfferToken ?? info.bestOfferToken,
                 };
             } else {
                 return {
                     bestOfferToken: inputBestOfferToken,
-                    bestOfferAuthority: inputBestOfferAuthority,
                 };
             }
         })();
@@ -1073,7 +1066,8 @@ export class MatchingEngineProgram {
         return this.program.methods
             .settleAuctionComplete()
             .accounts({
-                bestOfferAuthority,
+                executor,
+                executorToken: splToken.getAssociatedTokenAddressSync(this.mint, executor),
                 preparedOrderResponse,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
                 auction,
@@ -1082,237 +1076,237 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async settleAuctionActiveLocalIx(accounts: {
-        payer: PublicKey;
-        fastVaa: PublicKey;
-        executorToken: PublicKey;
-        preparedOrderResponse?: PublicKey;
-        auction?: PublicKey;
-        bestOfferToken?: PublicKey;
-        auctionConfig?: PublicKey;
-    }) {
-        const {
-            payer,
-            preparedOrderResponse: inputPreparedOrderResponse,
-            auction,
-            fastVaa,
-            executorToken,
-            bestOfferToken: inputBestOfferToken,
-            auctionConfig: inputAuctionConfig,
-        } = accounts;
-        const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+    // async settleAuctionActiveLocalIx(accounts: {
+    //     payer: PublicKey;
+    //     fastVaa: PublicKey;
+    //     executorToken: PublicKey;
+    //     preparedOrderResponse?: PublicKey;
+    //     auction?: PublicKey;
+    //     bestOfferToken?: PublicKey;
+    //     auctionConfig?: PublicKey;
+    // }) {
+    //     const {
+    //         payer,
+    //         preparedOrderResponse: inputPreparedOrderResponse,
+    //         auction,
+    //         fastVaa,
+    //         executorToken,
+    //         bestOfferToken: inputBestOfferToken,
+    //         auctionConfig: inputAuctionConfig,
+    //     } = accounts;
+    //     const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
 
-        const mint = this.mint;
-        const auctionAddress = auction ?? this.auctionAddress(fastVaaAccount.digest());
+    //     const mint = this.mint;
+    //     const auctionAddress = auction ?? this.auctionAddress(fastVaaAccount.digest());
 
-        const preparedOrderResponse =
-            inputPreparedOrderResponse ??
-            this.preparedOrderResponseAddress(fastVaaAccount.digest());
+    //     const preparedOrderResponse =
+    //         inputPreparedOrderResponse ??
+    //         this.preparedOrderResponseAddress(fastVaaAccount.digest());
 
-        const { auctionConfig, bestOfferToken } = await (async () => {
-            if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
-                const { info } = await this.fetchAuction({ address: auctionAddress });
-                if (info === null) {
-                    throw new Error("no auction info found");
-                }
-                const { configId, bestOfferToken } = info;
-                return {
-                    auctionConfig: inputAuctionConfig ?? this.auctionConfigAddress(configId),
-                    bestOfferToken: inputBestOfferToken ?? bestOfferToken,
-                };
-            } else {
-                return {
-                    auctionConfig: inputAuctionConfig,
-                    bestOfferToken: inputBestOfferToken,
-                };
-            }
-        })();
-        const { targetChain, toRouterEndpoint } = await (async () => {
-            const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());
-            if (message.fastMarketOrder == undefined) {
-                throw new Error("Message not FastMarketOrder");
-            }
+    //     const { auctionConfig, bestOfferToken } = await (async () => {
+    //         if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
+    //             const { info } = await this.fetchAuction({ address: auctionAddress });
+    //             if (info === null) {
+    //                 throw new Error("no auction info found");
+    //             }
+    //             const { configId, bestOfferToken } = info;
+    //             return {
+    //                 auctionConfig: inputAuctionConfig ?? this.auctionConfigAddress(configId),
+    //                 bestOfferToken: inputBestOfferToken ?? bestOfferToken,
+    //             };
+    //         } else {
+    //             return {
+    //                 auctionConfig: inputAuctionConfig,
+    //                 bestOfferToken: inputBestOfferToken,
+    //             };
+    //         }
+    //     })();
+    //     const { targetChain, toRouterEndpoint } = await (async () => {
+    //         const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+    //         if (message.fastMarketOrder == undefined) {
+    //             throw new Error("Message not FastMarketOrder");
+    //         }
 
-            const targetChain = message.fastMarketOrder.targetChain;
-            const toRouterEndpoint = this.routerEndpointAddress(
-                message.fastMarketOrder.targetChain,
-            );
+    //         const targetChain = message.fastMarketOrder.targetChain;
+    //         const toRouterEndpoint = this.routerEndpointAddress(
+    //             message.fastMarketOrder.targetChain,
+    //         );
 
-            return { targetChain, toRouterEndpoint };
-        })();
+    //         return { targetChain, toRouterEndpoint };
+    //     })();
 
-        const payerSequence = this.payerSequenceAddress(payer);
-        const payerSequenceValue = await this.fetchPayerSequenceValue({
-            address: payerSequence,
-        });
-        const {
-            custodian,
-            coreMessage,
-            coreBridgeConfig,
-            coreEmitterSequence,
-            coreFeeCollector,
-            coreBridgeProgram,
-        } = await this.publishMessageAccounts(payer, payerSequenceValue);
+    //     const payerSequence = this.payerSequenceAddress(payer);
+    //     const payerSequenceValue = await this.fetchPayerSequenceValue({
+    //         address: payerSequence,
+    //     });
+    //     const {
+    //         custodian,
+    //         coreMessage,
+    //         coreBridgeConfig,
+    //         coreEmitterSequence,
+    //         coreFeeCollector,
+    //         coreBridgeProgram,
+    //     } = await this.publishMessageAccounts(payer, payerSequenceValue);
 
-        const cctpMintRecipient = this.cctpMintRecipientAddress();
+    //     const cctpMintRecipient = this.cctpMintRecipientAddress();
 
-        return this.program.methods
-            .settleAuctionActiveLocal()
-            .accounts({
-                payer,
-                payerSequence,
-                custodian,
-                auctionConfig,
-                fastVaa,
-                preparedOrderResponse,
-                auction,
-                cctpMintRecipient,
-                toRouterEndpoint,
-                coreBridgeConfig,
-                coreMessage,
-                coreEmitterSequence,
-                coreBridgeProgram,
-                tokenProgram: splToken.TOKEN_PROGRAM_ID,
-                systemProgram: SystemProgram.programId,
-                clock: SYSVAR_CLOCK_PUBKEY,
-                coreFeeCollector,
-                rent: SYSVAR_RENT_PUBKEY,
-                bestOfferToken,
-                executorToken,
-            })
-            .instruction();
-    }
+    //     return this.program.methods
+    //         .settleAuctionActiveLocal()
+    //         .accounts({
+    //             payer,
+    //             payerSequence,
+    //             custodian,
+    //             auctionConfig,
+    //             fastVaa,
+    //             preparedOrderResponse,
+    //             auction,
+    //             cctpMintRecipient,
+    //             toRouterEndpoint,
+    //             coreBridgeConfig,
+    //             coreMessage,
+    //             coreEmitterSequence,
+    //             coreBridgeProgram,
+    //             tokenProgram: splToken.TOKEN_PROGRAM_ID,
+    //             systemProgram: SystemProgram.programId,
+    //             clock: SYSVAR_CLOCK_PUBKEY,
+    //             coreFeeCollector,
+    //             rent: SYSVAR_RENT_PUBKEY,
+    //             bestOfferToken,
+    //             executorToken,
+    //         })
+    //         .instruction();
+    // }
 
-    async settleAuctionActiveCctpIx(
-        accounts: {
-            payer: PublicKey;
-            executorToken: PublicKey;
-            preparedOrderResponse?: PublicKey;
-            auction?: PublicKey;
-            fastVaa: PublicKey;
-            fastVaaAccount: VaaAccount;
-            auctionConfig?: PublicKey;
-            bestOfferToken?: PublicKey;
-            encodedCctpMessage: Buffer;
-        },
-        args: { targetChain: wormholeSdk.ChainId; remoteDomain?: number },
-    ) {
-        const {
-            payer,
-            auction: inputAuction,
-            executorToken,
-            preparedOrderResponse: inputPreparedOrderResponse,
-            fastVaa,
-            fastVaaAccount,
-            auctionConfig: inputAuctionConfig,
-            bestOfferToken: inputBestOfferToken,
-            encodedCctpMessage,
-        } = accounts;
-        const auctionAddress = inputAuction ?? this.auctionAddress(fastVaaAccount.digest());
+    // async settleAuctionActiveCctpIx(
+    //     accounts: {
+    //         payer: PublicKey;
+    //         executorToken: PublicKey;
+    //         preparedOrderResponse?: PublicKey;
+    //         auction?: PublicKey;
+    //         fastVaa: PublicKey;
+    //         fastVaaAccount: VaaAccount;
+    //         auctionConfig?: PublicKey;
+    //         bestOfferToken?: PublicKey;
+    //         encodedCctpMessage: Buffer;
+    //     },
+    //     args: { targetChain: wormholeSdk.ChainId; remoteDomain?: number },
+    // ) {
+    //     const {
+    //         payer,
+    //         auction: inputAuction,
+    //         executorToken,
+    //         preparedOrderResponse: inputPreparedOrderResponse,
+    //         fastVaa,
+    //         fastVaaAccount,
+    //         auctionConfig: inputAuctionConfig,
+    //         bestOfferToken: inputBestOfferToken,
+    //         encodedCctpMessage,
+    //     } = accounts;
+    //     const auctionAddress = inputAuction ?? this.auctionAddress(fastVaaAccount.digest());
 
-        const mint = this.mint;
+    //     const mint = this.mint;
 
-        const preparedOrderResponse =
-            inputPreparedOrderResponse ??
-            this.preparedOrderResponseAddress(fastVaaAccount.digest());
+    //     const preparedOrderResponse =
+    //         inputPreparedOrderResponse ??
+    //         this.preparedOrderResponseAddress(fastVaaAccount.digest());
 
-        const { auctionConfig, bestOfferToken } = await (async () => {
-            if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
-                const { info } = await this.fetchAuction({ address: auctionAddress });
-                if (info === null) {
-                    throw new Error("no auction info found");
-                }
-                const { configId, bestOfferToken } = info;
-                return {
-                    auctionConfig: inputAuctionConfig ?? this.auctionConfigAddress(configId),
-                    bestOfferToken: inputBestOfferToken ?? bestOfferToken,
-                };
-            } else {
-                return {
-                    auctionConfig: inputAuctionConfig,
-                    bestOfferToken: inputBestOfferToken,
-                };
-            }
-        })();
+    //     const { auctionConfig, bestOfferToken } = await (async () => {
+    //         if (inputAuctionConfig === undefined || inputBestOfferToken === undefined) {
+    //             const { info } = await this.fetchAuction({ address: auctionAddress });
+    //             if (info === null) {
+    //                 throw new Error("no auction info found");
+    //             }
+    //             const { configId, bestOfferToken } = info;
+    //             return {
+    //                 auctionConfig: inputAuctionConfig ?? this.auctionConfigAddress(configId),
+    //                 bestOfferToken: inputBestOfferToken ?? bestOfferToken,
+    //             };
+    //         } else {
+    //             return {
+    //                 auctionConfig: inputAuctionConfig,
+    //                 bestOfferToken: inputBestOfferToken,
+    //             };
+    //         }
+    //     })();
 
-        const targetChain = await (async () => {
-            const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());
-            if (message.fastMarketOrder == undefined) {
-                throw new Error("Message not FastMarketOrder");
-            }
+    //     const targetChain = await (async () => {
+    //         const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+    //         if (message.fastMarketOrder == undefined) {
+    //             throw new Error("Message not FastMarketOrder");
+    //         }
 
-            const targetChain = message.fastMarketOrder.targetChain;
+    //         const targetChain = message.fastMarketOrder.targetChain;
 
-            return targetChain;
-        })();
+    //         return targetChain;
+    //     })();
 
-        const {
-            protocol: { cctp },
-        } = await this.fetchRouterEndpoint(targetChain);
-        if (cctp === undefined) {
-            throw new Error("CCTP domain is not undefined");
-        }
-        const destinationCctpDomain = cctp.domain;
+    //     const {
+    //         protocol: { cctp },
+    //     } = await this.fetchRouterEndpoint(targetChain);
+    //     if (cctp === undefined) {
+    //         throw new Error("CCTP domain is not undefined");
+    //     }
+    //     const destinationCctpDomain = cctp.domain;
 
-        const routerEndpoint = this.routerEndpointAddress(targetChain);
-        const {
-            custodian,
-            payerSequence,
-            tokenMessengerMinterSenderAuthority,
-            coreBridgeConfig,
-            coreMessage,
-            cctpMessage,
-            coreEmitterSequence,
-            coreFeeCollector,
-            coreBridgeProgram,
-            messageTransmitterConfig,
-            tokenMessengerMinterProgram,
-            tokenMinter,
-            localToken,
-            tokenMessenger,
-            tokenMessengerMinterEventAuthority,
-            messageTransmitterProgram,
-        } = await this.burnAndPublishAccounts(
-            { payer, mint },
-            { targetChain, destinationCctpDomain },
-        );
+    //     const routerEndpoint = this.routerEndpointAddress(targetChain);
+    //     const {
+    //         custodian,
+    //         payerSequence,
+    //         tokenMessengerMinterSenderAuthority,
+    //         coreBridgeConfig,
+    //         coreMessage,
+    //         cctpMessage,
+    //         coreEmitterSequence,
+    //         coreFeeCollector,
+    //         coreBridgeProgram,
+    //         messageTransmitterConfig,
+    //         tokenMessengerMinterProgram,
+    //         tokenMinter,
+    //         localToken,
+    //         tokenMessenger,
+    //         tokenMessengerMinterEventAuthority,
+    //         messageTransmitterProgram,
+    //     } = await this.burnAndPublishAccounts(
+    //         { payer, mint },
+    //         { targetChain, destinationCctpDomain },
+    //     );
 
-        return this.program.methods
-            .settleAuctionActiveCctp()
-            .accounts({
-                payer,
-                payerSequence,
-                custodian,
-                fastVaa,
-                preparedOrderResponse,
-                auction: auctionAddress,
-                executorToken,
-                cctpMintRecipient: this.cctpMintRecipientAddress(),
-                auctionConfig,
-                bestOfferToken,
-                toRouterEndpoint: routerEndpoint,
-                mint,
-                messageTransmitterConfig,
-                coreBridgeConfig,
-                coreEmitterSequence,
-                coreFeeCollector,
-                coreMessage,
-                cctpMessage,
-                localToken,
-                tokenMinter,
-                tokenMessenger,
-                tokenMessengerMinterProgram,
-                tokenMessengerMinterSenderAuthority,
-                remoteTokenMessenger:
-                    this.tokenMessengerMinterProgram().remoteTokenMessengerAddress(
-                        destinationCctpDomain,
-                    ),
-                tokenMessengerMinterEventAuthority,
-                messageTransmitterProgram,
-                coreBridgeProgram,
-            })
-            .instruction();
-    }
+    //     return this.program.methods
+    //         .settleAuctionActiveCctp()
+    //         .accounts({
+    //             payer,
+    //             payerSequence,
+    //             custodian,
+    //             fastVaa,
+    //             preparedOrderResponse,
+    //             auction: auctionAddress,
+    //             executorToken,
+    //             cctpMintRecipient: this.cctpMintRecipientAddress(),
+    //             auctionConfig,
+    //             bestOfferToken,
+    //             toRouterEndpoint: routerEndpoint,
+    //             mint,
+    //             messageTransmitterConfig,
+    //             coreBridgeConfig,
+    //             coreEmitterSequence,
+    //             coreFeeCollector,
+    //             coreMessage,
+    //             cctpMessage,
+    //             localToken,
+    //             tokenMinter,
+    //             tokenMessenger,
+    //             tokenMessengerMinterProgram,
+    //             tokenMessengerMinterSenderAuthority,
+    //             remoteTokenMessenger:
+    //                 this.tokenMessengerMinterProgram().remoteTokenMessengerAddress(
+    //                     destinationCctpDomain,
+    //                 ),
+    //             tokenMessengerMinterEventAuthority,
+    //             messageTransmitterProgram,
+    //             coreBridgeProgram,
+    //         })
+    //         .instruction();
+    // }
 
     async settleAuctionNoneLocalIx(accounts: {
         payer: PublicKey;
