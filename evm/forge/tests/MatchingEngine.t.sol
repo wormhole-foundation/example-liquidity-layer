@@ -818,7 +818,7 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint64(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee - 1));
 
         _dealAndApproveUsdc(engine, order.amountIn + order.maxFee, PLAYER_TWO);
 
@@ -857,7 +857,7 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint64(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee - 1));
 
         _improveBid(order, fastMessage, newBid, PLAYER_ONE, PLAYER_TWO);
     }
@@ -872,7 +872,7 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint64(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee - 1));
 
         IWormhole.VM memory _vm = wormhole.parseVM(fastMessage);
 
@@ -965,7 +965,7 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint64(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee - 1));
         _improveBid(order, fastMessage, newBid, PLAYER_ONE, PLAYER_TWO);
 
         IWormhole.VM memory _vm = wormhole.parseVM(fastMessage);
@@ -1103,7 +1103,7 @@ contract MatchingEngineTest is Test {
         // Start the auction and make some bids.
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
         _improveBid(
-            order, fastMessage, uint64(bound(newBid, 0, order.maxFee)), PLAYER_ONE, PLAYER_TWO
+            order, fastMessage, uint64(bound(newBid, 0, order.maxFee - 1)), PLAYER_ONE, PLAYER_TWO
         );
 
         IWormhole.VM memory vaa = wormhole.parseVM(fastMessage);
@@ -1185,7 +1185,7 @@ contract MatchingEngineTest is Test {
         // Start the auction and make some bids.
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
         _improveBid(
-            order, fastMessage, uint64(bound(newBid, 0, order.maxFee)), PLAYER_ONE, PLAYER_TWO
+            order, fastMessage, uint64(bound(newBid, 0, order.maxFee - 1)), PLAYER_ONE, PLAYER_TWO
         );
 
         IWormhole.VM memory vaa = wormhole.parseVM(fastMessage);
@@ -1258,9 +1258,7 @@ contract MatchingEngineTest is Test {
 
         IWormhole.VM memory cctpMessage = _executeSlowOrder(fastMessage, params, RELAYER);
 
-        _verifyOutboundCctpTransfer(
-            order, amountIn - FAST_TRANSFER_BASE_FEE + expectedReward, cctpMessage, RELAYER
-        );
+        _verifyOutboundCctpTransfer(order, amountIn + expectedReward, cctpMessage, RELAYER);
 
         assertEq(
             IERC20(USDC_ADDRESS).balanceOf(RELAYER) - relayerBefore,
@@ -1269,6 +1267,7 @@ contract MatchingEngineTest is Test {
         assertEq(
             IERC20(USDC_ADDRESS).balanceOf(PLAYER_ONE) - playerBefore,
             order.amountIn + securityDeposit - (expectedPenalty + expectedReward)
+                - FAST_TRANSFER_BASE_FEE
         );
     }
 
@@ -1463,7 +1462,7 @@ contract MatchingEngineTest is Test {
         // Start the auction and make some bids.
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
         _improveBid(
-            order, fastMessage, uint64(bound(newBid, 0, order.maxFee)), PLAYER_ONE, PLAYER_TWO
+            order, fastMessage, uint64(bound(newBid, 0, order.maxFee - 1)), PLAYER_ONE, PLAYER_TWO
         );
 
         bytes32 auctionId = wormhole.parseVM(fastMessage).hash;

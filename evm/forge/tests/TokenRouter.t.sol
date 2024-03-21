@@ -915,7 +915,9 @@ contract TokenRouterTest is Test {
         uint64 minTransferAmount = router.getMinFastTransferAmount();
 
         vm.expectRevert(
-            abi.encodeWithSignature("ErrInsufficientAmount(uint64,uint64)", amountIn, minTransferAmount)
+            abi.encodeWithSignature(
+                "ErrInsufficientAmount(uint64,uint64)", amountIn, minTransferAmount
+            )
         );
         router.placeFastMarketOrder(
             amountIn,
@@ -947,7 +949,9 @@ contract TokenRouterTest is Test {
         assertTrue(minTransferAmount < minFee);
 
         vm.expectRevert(
-            abi.encodeWithSignature("ErrInsufficientAmount(uint64,uint64)", minTransferAmount, minFee)
+            abi.encodeWithSignature(
+                "ErrInsufficientAmount(uint64,uint64)", minTransferAmount, minFee
+            )
         );
         router.placeFastMarketOrder(
             minTransferAmount,
@@ -1081,7 +1085,9 @@ contract TokenRouterTest is Test {
 
     function testPlaceFastMarketOrder(uint64 amountIn, uint64 maxFee, uint32 deadline) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
+            bound(
+                amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount()
+            )
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 
@@ -1136,7 +1142,9 @@ contract TokenRouterTest is Test {
         uint32 deadline
     ) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
+            bound(
+                amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount()
+            )
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 
@@ -1199,7 +1207,9 @@ contract TokenRouterTest is Test {
         uint32 deadline
     ) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
+            bound(
+                amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount()
+            )
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 

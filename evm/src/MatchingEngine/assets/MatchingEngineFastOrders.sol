@@ -217,19 +217,21 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             (uint64 penalty, uint64 userReward) = calculateDynamicPenalty(
                 auction.securityDeposit, uint64(block.number) - auction.startBlock
             );
+            uint64 amountForHighestBidder = auction.amount + auction.securityDeposit - (penalty + userReward);
+            uint64 amountForUser = auction.amount + userReward;
+
+            // Deduct the `baseFee` from the highest bidder if the penalty is nonzero.
+            if (penalty > 0) {
+                amountForHighestBidder -= baseFee;
+            } else {
+                amountForUser -= baseFee;
+            }
 
             // Transfer the penalty amount to the caller. The caller also earns the base
             // fee for relaying the slow VAA.
             SafeERC20.safeTransfer(_token, msg.sender, penalty + baseFee);
-            SafeERC20.safeTransfer(
-                _token,
-                auction.highestBidder,
-                auction.amount + auction.securityDeposit - (penalty + userReward)
-            );
-
-            sequence = _handleCctpTransfer(
-                auction.amount - baseFee + userReward, cctpVaa.emitterChainId, order
-            );
+            SafeERC20.safeTransfer(_token, auction.highestBidder, amountForHighestBidder);
+            sequence = _handleCctpTransfer(amountForUser, cctpVaa.emitterChainId, order);
 
             // Everyone's whole, set the auction as completed.
             auction.status = AuctionStatus.Completed;
