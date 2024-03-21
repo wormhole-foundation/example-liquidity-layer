@@ -37,9 +37,9 @@ import {
 
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
-    ["arbitrum", "ethereum"],
-    ["ethereum", "arbitrum"],
-    ["arbitrum", "avalanche"],
+    ["base", "ethereum"],
+    ["ethereum", "base"],
+    ["base", "avalanche"],
     ["ethereum", "avalanche"],
 ];
 

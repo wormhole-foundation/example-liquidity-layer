@@ -13,7 +13,7 @@ import { expect } from "chai";
 
 import { parseLiquidityLayerEnvFile } from "../src";
 
-const CHAIN_PATHWAYS: ValidNetwork[] = ["ethereum", "avalanche", "arbitrum"];
+const CHAIN_PATHWAYS: ValidNetwork[] = ["ethereum", "avalanche", "base"];
 
 describe("Configuration", () => {
     const envPath = `${__dirname}/../../env/localnet`;

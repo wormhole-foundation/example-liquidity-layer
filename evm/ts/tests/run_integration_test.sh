@@ -25,11 +25,11 @@ anvil --port 8548 \
     --no-mining \
     --fork-url $ETHEREUM_RPC > $LOGS/ethereum.log &
 
-# Arbitrum (CCTP).
+# Base (CCTP).
 anvil --port 8549 \
     -m "myth like bonus scare over problem client lizard pioneer submit female collect" \
     --no-mining \
-    --fork-url $ARBITRUM_RPC > $LOGS/arbitrum.log &
+    --fork-url $BASE_RPC > $LOGS/base.log &
 
 # Chill.
 sleep 2
