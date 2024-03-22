@@ -104,16 +104,25 @@ fn handle_settle_auction_complete(
     let mut repayment = ctx.accounts.auction.info.as_ref().unwrap().amount_in;
 
     match execute_penalty {
-        None => require_keys_eq!(
-            executor_token.key(),
-            best_offer_token.key(),
-            MatchingEngineError::ExecutorTokenMismatch
-        ),
+        None => {
+            // If there is no penalty, we require that the executor token and best offer token be
+            // equal. The winning offer should not be penalized for calling this instruction when he
+            // has executed the order within the grace period.
+            //
+            // By requiring that these pubkeys are equal, we enforce that the owner of the best
+            // offer token gets rewarded the lamports from the prepared order response and its
+            // custody account.
+            require_keys_eq!(
+                executor_token.key(),
+                best_offer_token.key(),
+                MatchingEngineError::ExecutorTokenMismatch
+            )
+        }
         _ => {
             if executor_token.key() != best_offer_token.key() {
-                // Because the auction participant was penalized for executing the order late, he will be
-                // deducted the base fee. This base fee will be sent to the executor token account if it is
-                // not the same as the best offer token account.
+                // Because the auction participant was penalized for executing the order late, he
+                // will be deducted the base fee. This base fee will be sent to the executor token
+                // account if it is not the same as the best offer token account.
                 token::transfer(
                     CpiContext::new_with_signer(
                         token_program.to_account_info(),
