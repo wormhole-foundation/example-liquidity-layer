@@ -52,7 +52,7 @@ bash sh/deploy_token_router.sh -k PRIVATE_KEY -n NETWORK_TYPE -c CHAIN_NAME
 
 ## Initial Contract Setup
 
-Once the contracts (`TokenRouter` and `MatchingEngine`) have been deployed, the deployment configuration file needs to be updated with the deployed contract addresses, initial `FastTransferParameters` and `AuctionConfig`. The configuration file can be found in the `cfg` directory. Run the following commands for each `TokenRouter` contract (in the following order):
+Once the contracts (`TokenRouter` and `MatchingEngine`) have been deployed, the deployment configuration file needs to be updated with the deployed contract addresses, initial `FastTransferParameters` and `AuctionConfig`. The configuration file can be found in the `cfg` directory. Copy the sample testnet file and replace the network type with your network of choice. Run the following commands for each `TokenRouter` contract (in the following order):
 
 ```
 bash sh/setup_token_router.sh -k PRIVATE_KEY -n NETWORK_TYPE -c CHAIN_NAME
