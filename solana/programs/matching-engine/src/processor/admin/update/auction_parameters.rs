@@ -1,6 +1,6 @@
 use crate::{
     error::MatchingEngineError,
-    state::custodian::*,
+    processor::shared_contexts::*,
     state::{AuctionConfig, Proposal, ProposalAction},
 };
 use anchor_lang::prelude::*;
@@ -16,7 +16,7 @@ pub struct UpdateAuctionParameters<'info> {
         mut,
         seeds = [
             Proposal::SEED_PREFIX,
-            proposal.id.to_be_bytes().as_ref(),
+            &proposal.id.to_be_bytes(),
         ],
         bump = proposal.bump,
         constraint = {

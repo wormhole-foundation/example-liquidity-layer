@@ -798,12 +798,44 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
+          "name": "localRouterEndpoint",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Local router endpoint PDA.",
+            "",
+            "NOTE: This account may not exist yet. But we need to pass it since it will be the owner of",
+            "the local custody token account.",
+            ""
+          ]
+        },
+        {
+          "name": "localCustodyToken",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "usdc",
+          "accounts": [
+            {
+              "name": "mint",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
           "name": "remoteTokenMessenger",
           "isMut": false,
           "isSigner": false,
           "docs": [
             "Messenger Minter program)."
           ]
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
         },
         {
           "name": "systemProgram",
@@ -1758,16 +1790,6 @@ export type MatchingEngine = {
           "name": "localCustodyToken",
           "isMut": true,
           "isSigner": false
-        },
-        {
-          "name": "usdc",
-          "accounts": [
-            {
-              "name": "mint",
-              "isMut": false,
-              "isSigner": false
-            }
-          ]
         },
         {
           "name": "systemProgram",
@@ -3456,12 +3478,44 @@ export const IDL: MatchingEngine = {
           "isSigner": false
         },
         {
+          "name": "localRouterEndpoint",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Local router endpoint PDA.",
+            "",
+            "NOTE: This account may not exist yet. But we need to pass it since it will be the owner of",
+            "the local custody token account.",
+            ""
+          ]
+        },
+        {
+          "name": "localCustodyToken",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "usdc",
+          "accounts": [
+            {
+              "name": "mint",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
           "name": "remoteTokenMessenger",
           "isMut": false,
           "isSigner": false,
           "docs": [
             "Messenger Minter program)."
           ]
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
         },
         {
           "name": "systemProgram",
@@ -4416,16 +4470,6 @@ export const IDL: MatchingEngine = {
           "name": "localCustodyToken",
           "isMut": true,
           "isSigner": false
-        },
-        {
-          "name": "usdc",
-          "accounts": [
-            {
-              "name": "mint",
-              "isMut": false,
-              "isSigner": false
-            }
-          ]
         },
         {
           "name": "systemProgram",

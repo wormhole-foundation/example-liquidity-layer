@@ -33,7 +33,7 @@ pub struct ExecuteFastOrderLocal<'info> {
         seeds = [
             common::constants::CORE_MESSAGE_SEED_PREFIX,
             payer.key().as_ref(),
-            payer_sequence.value.to_be_bytes().as_ref(),
+            &payer_sequence.value.to_be_bytes(),
         ],
         bump,
     )]
@@ -56,19 +56,14 @@ pub struct ExecuteFastOrderLocal<'info> {
     wormhole: WormholePublishMessage<'info>,
 
     #[account(
-        init,
-        payer = payer,
-        token::mint = usdc,
-        token::authority = execute_order.to_router_endpoint,
+        mut,
         seeds = [
             crate::LOCAL_CUSTODY_TOKEN_SEED_PREFIX,
-            VaaAccount::load(&execute_order.fast_vaa)?.emitter_chain().to_be_bytes().as_ref(),
+            &VaaAccount::load(&execute_order.fast_vaa)?.emitter_chain().to_be_bytes(),
         ],
         bump,
     )]
     local_custody_token: Box<Account<'info, token::TokenAccount>>,
-
-    usdc: Usdc<'info>,
 
     system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,

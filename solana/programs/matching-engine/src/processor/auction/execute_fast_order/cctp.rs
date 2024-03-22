@@ -31,7 +31,7 @@ pub struct ExecuteFastOrderCctp<'info> {
         seeds = [
             common::constants::CORE_MESSAGE_SEED_PREFIX,
             payer.key().as_ref(),
-            payer_sequence.value.to_be_bytes().as_ref(),
+            &payer_sequence.value.to_be_bytes(),
         ],
         bump,
     )]
@@ -43,7 +43,7 @@ pub struct ExecuteFastOrderCctp<'info> {
         seeds = [
             common::constants::CCTP_MESSAGE_SEED_PREFIX,
             payer.key().as_ref(),
-            payer_sequence.value.to_be_bytes().as_ref(),
+            &payer_sequence.value.to_be_bytes(),
         ],
         bump,
     )]

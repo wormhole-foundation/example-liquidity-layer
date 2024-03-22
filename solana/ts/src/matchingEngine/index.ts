@@ -496,7 +496,12 @@ export class MatchingEngineProgram {
                     },
                 },
                 routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
+                localRouterEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+                localCustodyToken: this.localCustodyTokenAddress(chain),
                 remoteTokenMessenger: inputRemoteTokenMessenger ?? derivedRemoteTokenMessenger,
+                usdc: {
+                    mint: this.mint,
+                },
             })
             .instruction();
     }
@@ -1683,9 +1688,6 @@ export class MatchingEngineProgram {
                     coreBridgeProgram,
                 },
                 localCustodyToken: this.localCustodyTokenAddress(sourceChain),
-                usdc: {
-                    mint: this.mint,
-                },
             })
             .instruction();
     }

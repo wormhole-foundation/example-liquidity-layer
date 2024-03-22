@@ -33,7 +33,7 @@ pub struct Initialize<'info> {
         space = 8 + AuctionConfig::INIT_SPACE,
         seeds = [
             AuctionConfig::SEED_PREFIX,
-            u32::default().to_be_bytes().as_ref()
+            &u32::default().to_be_bytes()
         ],
         bump,
     )]

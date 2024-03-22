@@ -85,7 +85,7 @@ pub struct CompleteFastFill<'info> {
                     .fast_fill()
                     .ok_or(MatchingEngineError::InvalidPayloadId)?;
 
-                fast_fill.fill().source_chain().to_be_bytes().as_ref()
+                &fast_fill.fill().source_chain().to_be_bytes()
             },
         ],
         bump,
@@ -122,7 +122,7 @@ pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
             },
             &[&[
                 RouterEndpoint::SEED_PREFIX,
-                ctx.accounts.router_endpoint.chain.to_be_bytes().as_ref(),
+                &ctx.accounts.router_endpoint.chain.to_be_bytes(),
                 &[ctx.accounts.router_endpoint.bump],
             ]],
         ),

@@ -17,7 +17,7 @@ pub struct ProposeAuctionParameters<'info> {
         space = 8 + Proposal::INIT_SPACE,
         seeds = [
             Proposal::SEED_PREFIX,
-            admin.custodian.next_proposal_id.to_be_bytes().as_ref()
+            &admin.custodian.next_proposal_id.to_be_bytes()
         ],
         bump,
     )]

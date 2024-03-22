@@ -17,7 +17,7 @@ pub struct CloseProposal<'info> {
         close = proposed_by,
         seeds = [
             Proposal::SEED_PREFIX,
-            proposal.id.to_be_bytes().as_ref(),
+            &proposal.id.to_be_bytes(),
         ],
         bump = proposal.bump,
         constraint = proposal.slot_enacted_at.is_none() @ ErrorCode::InstructionMissing, // TODO: add err ProposalAlreadyEnacted
