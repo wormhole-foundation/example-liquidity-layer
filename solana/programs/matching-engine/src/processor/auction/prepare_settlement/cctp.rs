@@ -1,7 +1,7 @@
 use crate::{
     error::MatchingEngineError,
     processor::shared_contexts::*,
-    state::{Custodian, PreparedOrderResponse},
+    state::{Auction, AuctionStatus, Custodian, PreparedOrderResponse},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -70,7 +70,7 @@ pub struct PrepareOrderResponseCctp<'info> {
         ],
         bump,
     )]
-    prepared_order_response: Account<'info, PreparedOrderResponse>,
+    prepared_order_response: Box<Account<'info, PreparedOrderResponse>>,
 
     #[account(
         init_if_needed,
@@ -83,7 +83,21 @@ pub struct PrepareOrderResponseCctp<'info> {
         ],
         bump,
     )]
-    prepared_custody_token: Account<'info, token::TokenAccount>,
+    prepared_custody_token: Box<Account<'info, token::TokenAccount>>,
+
+    #[account(
+        mut,
+        constraint = {
+            require_eq!(
+                &auction.status,
+                &AuctionStatus::Active,
+                MatchingEngineError::AuctionNotActive
+            );
+
+            true
+        }
+    )]
+    auction: Option<Box<Account<'info, Auction>>>,
 
     usdc: Usdc<'info>,
 
@@ -210,6 +224,17 @@ fn handle_prepare_order_response_cctp(
             source_chain: finalized_vaa.emitter_chain(),
             base_fee,
         });
+
+    // This method overrides the offer price with the base fee if there is an active auction. We do
+    // this to ensure that the user does not overpay for a transfer that has already finalized
+    // during an auction.
+    if let Some(auction) = &mut ctx.accounts.auction {
+        msg!("AuctionStatus::Active");
+
+        let info = auction.info.as_mut().unwrap();
+        info.offer_price = base_fee;
+        info.end_early = true;
+    }
 
     // Finally transfer minted via CCTP to prepared custody token.
     token::transfer(

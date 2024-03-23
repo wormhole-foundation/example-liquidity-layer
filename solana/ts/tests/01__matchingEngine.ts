@@ -1462,6 +1462,7 @@ describe("Matching Engine", function () {
                             securityDeposit: bigintToU64BN(maxFee),
                             offerPrice: bigintToU64BN(offerPrice),
                             amountOut: expectedAmountIn,
+                            endEarly: false,
                         },
                     ),
                 );
@@ -1700,31 +1701,6 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Improve Offer (Offer Price Not Improved)", async function () {
-                const { auction, auctionDataBefore } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
-                    wormholeSequence++,
-                    baseFastOrder,
-                    ethRouter,
-                );
-
-                const newOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
-                const [approveIx, ix] = await engine.improveOfferIx(
-                    {
-                        auction,
-                        offerAuthority: offerAuthorityTwo.publicKey,
-                    },
-                    newOffer,
-                );
-
-                await expectIxErr(
-                    connection,
-                    [approveIx, ix],
-                    [offerAuthorityTwo],
-                    "Error Code: OfferPriceNotImproved",
-                );
-            });
-
             it("Cannot Improve Offer (Carping Not Allowed)", async function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     offerAuthorityOne,
@@ -1801,6 +1777,7 @@ describe("Matching Engine", function () {
                         securityDeposit,
                         offerPrice: bigintToU64BN(offerPrice),
                         amountOut,
+                        endEarly: false,
                     }),
                 );
 
@@ -2639,7 +2616,6 @@ describe("Matching Engine", function () {
                         payer: payer.publicKey,
                         fastVaa,
                         finalizedVaa,
-                        mint: USDC_MINT_ADDRESS,
                     },
                     {
                         encodedCctpMessage,
@@ -2727,7 +2703,6 @@ describe("Matching Engine", function () {
                         payer: payer.publicKey,
                         fastVaa,
                         finalizedVaa,
-                        mint: USDC_MINT_ADDRESS,
                     },
                     {
                         encodedCctpMessage,
@@ -2815,7 +2790,6 @@ describe("Matching Engine", function () {
                         payer: payer.publicKey,
                         fastVaa,
                         finalizedVaa,
-                        mint: USDC_MINT_ADDRESS,
                     },
                     {
                         encodedCctpMessage,
@@ -2906,7 +2880,6 @@ describe("Matching Engine", function () {
                         payer: payer.publicKey,
                         fastVaa,
                         finalizedVaa,
-                        mint: USDC_MINT_ADDRESS,
                     },
                     {
                         encodedCctpMessage,
@@ -2987,6 +2960,128 @@ describe("Matching Engine", function () {
                     address: preparedOrderResponse,
                 });
                 expect(preparedOrderResponseDataAfter).to.eql(preparedOrderResponseDataBefore);
+            });
+
+            it("Prepare Order Response for Active Auction", async function () {
+                const redeemer = Keypair.generate();
+
+                const sourceCctpDomain = 0;
+                const cctpNonce = testCctpNonce++;
+                const amountIn = 690000n; // 69 cents
+
+                // Concoct a Circle message.
+                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(engine, sourceCctpDomain, cctpNonce, amountIn);
+
+                const fastMarketOrder = {
+                    amountIn,
+                    minAmountOut: 0n,
+                    targetChain: arbChain,
+                    redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                    sender: new Array(32).fill(0),
+                    refundAddress: new Array(32).fill(0),
+                    maxFee: 42069n,
+                    initAuctionFee: 2000n,
+                    deadline: 0,
+                    redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                };
+
+                const finalizedMessage = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit(
+                        {
+                            tokenAddress: burnMessage.burnTokenAddress,
+                            amount: amountIn,
+                            sourceCctpDomain,
+                            destinationCctpDomain,
+                            cctpNonce,
+                            burnSource,
+                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
+                        },
+                        {
+                            slowOrderResponse: {
+                                baseFee: 420n,
+                            },
+                        },
+                    ),
+                });
+
+                const finalizedVaa = await postLiquidityLayerVaa(
+                    connection,
+                    payer,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    finalizedMessage,
+                );
+
+                const { fastVaa, auction } = await placeInitialOfferForTest(
+                    offerAuthorityOne,
+                    wormholeSequence++,
+                    fastMarketOrder,
+                    ethRouter,
+                    fastMarketOrder.maxFee,
+                );
+
+                const ix = await engine.prepareOrderResponseCctpIx(
+                    {
+                        payer: payer.publicKey,
+                        fastVaa,
+                        finalizedVaa,
+                    },
+                    {
+                        encodedCctpMessage,
+                        cctpAttestation,
+                    },
+                    true, // hasAuction
+                );
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                await expectIxOk(connection, [computeIx, ix], [payer], {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
+
+                // TODO: validate prepared slow order
+                const fastVaaHash = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
+                    vaa.digest(),
+                );
+                const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaHash);
+
+                const preparedOrderResponseData = await engine.fetchPreparedOrderResponse({
+                    address: preparedOrderResponse,
+                });
+                const { bump } = preparedOrderResponseData;
+
+                expect(preparedOrderResponseData).to.eql({
+                    bump,
+                    preparedBy: payer.publicKey,
+                    fastVaaHash: Array.from(fastVaaHash),
+                    sourceChain: ethChain,
+                    baseFee: bigintToU64BN(
+                        finalizedMessage.deposit!.message.slowOrderResponse!.baseFee,
+                    ),
+                });
+
+                const { amount: preparedCustodyBalance } = await splToken.getAccount(
+                    connection,
+                    engine.preparedCustodyTokenAddress(preparedOrderResponse),
+                );
+                expect(preparedCustodyBalance).equals(fastMarketOrder.amountIn);
+
+                const { amount: cctpMintRecipientBalance } = await splToken.getAccount(
+                    connection,
+                    engine.cctpMintRecipientAddress(),
+                );
+                expect(cctpMintRecipientBalance).equals(0n);
+
+                const { info } = await engine.fetchAuction({ address: auction });
+                expect(info!.endEarly).is.true;
             });
         });
 
@@ -3344,6 +3439,7 @@ describe("Matching Engine", function () {
                     securityDeposit: bigintToU64BN(maxFee),
                     offerPrice: bigintToU64BN(offerPrice),
                     amountOut: expectedAmountIn,
+                    endEarly: false,
                 },
             ),
         );

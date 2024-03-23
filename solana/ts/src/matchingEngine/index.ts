@@ -957,11 +957,11 @@ export class MatchingEngineProgram {
             payer: PublicKey;
             fastVaa: PublicKey;
             finalizedVaa: PublicKey;
-            mint?: PublicKey;
         },
         args: CctpMessageArgs,
+        hasAuction: boolean = false,
     ): Promise<TransactionInstruction> {
-        const { payer, fastVaa, finalizedVaa, mint: inputMint } = accounts;
+        const { payer, fastVaa, finalizedVaa } = accounts;
 
         const fastVaaAcct = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
         const { encodedCctpMessage } = args;
@@ -980,7 +980,7 @@ export class MatchingEngineProgram {
             messageTransmitterProgram,
             tokenMessengerMinterEventAuthority,
         } = this.messageTransmitterProgram().receiveTokenMessengerMinterMessageAccounts(
-            inputMint ?? this.mint,
+            this.mint,
             encodedCctpMessage,
         );
 
@@ -1003,6 +1003,7 @@ export class MatchingEngineProgram {
                 usdc: {
                     mint: this.mint,
                 },
+                auction: hasAuction ? this.auctionAddress(fastVaaAcct.digest()) : null,
                 cctp: {
                     mintRecipient: this.cctpMintRecipientAddress(),
                     messageTransmitterAuthority,

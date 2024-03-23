@@ -75,6 +75,8 @@ pub struct AuctionInfo {
     /// The amount of tokens to be sent to the user. For CCTP fast transfers, this amount will equal
     /// the [amount_in](Self::amount_in).
     pub amount_out: u64,
+
+    pub end_early: bool,
 }
 
 impl AuctionInfo {

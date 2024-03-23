@@ -64,7 +64,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
 
         let current_slot = Clock::get().unwrap().slot;
         require!(
-            current_slot > auction_info.auction_end_slot(config),
+            auction_info.end_early || current_slot > auction_info.auction_end_slot(config),
             MatchingEngineError::AuctionPeriodNotExpired
         );
 

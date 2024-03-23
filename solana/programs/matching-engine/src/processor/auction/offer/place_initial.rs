@@ -133,6 +133,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
             security_deposit: max_fee,
             offer_price,
             amount_out: amount_in,
+            end_early: false,
         }),
     });
 
