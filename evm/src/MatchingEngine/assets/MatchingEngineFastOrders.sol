@@ -24,6 +24,8 @@ import {
     getCircleDomainsState
 } from "./Storage.sol";
 
+import "forge-std/console.sol";
+
 abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     using BytesParsing for bytes;
     using Utils for address;
@@ -129,24 +131,29 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             SafeERC20.safeTransfer(
                 _token,
                 auction.highestBidder,
-                auction.bidPrice + auction.securityDeposit - (penalty + userReward)
+                auction.bidPrice + auction.securityDeposit + order.baseFee - (penalty + userReward)
             );
 
             // Transfer funds to the recipient on the target chain.
             sequence = _handleCctpTransfer(
-                auction.amount - auction.bidPrice - order.initAuctionFee + userReward,
+                auction.amount - auction.bidPrice - order.initAuctionFee - order.baseFee
+                    + userReward,
                 vaa.emitterChainId,
                 order
             );
         } else {
             // Return the security deposit and the fee to the highest bidder.
             SafeERC20.safeTransfer(
-                _token, auction.highestBidder, auction.bidPrice + auction.securityDeposit
+                _token,
+                auction.highestBidder,
+                auction.bidPrice + order.baseFee + auction.securityDeposit
             );
 
             // Transfer funds to the recipient on the target chain.
             sequence = _handleCctpTransfer(
-                auction.amount - auction.bidPrice - order.initAuctionFee, vaa.emitterChainId, order
+                auction.amount - auction.bidPrice - order.baseFee - order.initAuctionFee,
+                vaa.emitterChainId,
+                order
             );
         }
 
@@ -165,40 +172,37 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
     {
         IWormhole.VM memory vaa = _verifyWormholeMessage(fastTransferVaa);
 
-        // Redeem the slow CCTP transfer.
-        (IWormhole.VM memory cctpVaa,,,,, bytes memory payload) = verifyVaaAndMint(
-            params.circleBridgeMessage, params.circleAttestation, params.encodedWormholeMessage
-        );
+        // Call CCTP contract to mint tokens and parse the CCTP message of the unique identifier.
+        (uint32 sourceDomain, uint32 destinationDomain, uint64 cctpNonce) =
+            parseCctpMessageAndMint(params.circleBridgeMessage, params.circleAttestation);
 
         Messages.FastMarketOrder memory order = vaa.payload.decodeFastMarketOrder();
 
         // Confirm that the fast transfer VAA is associated with the slow transfer VAA.
         if (
-            vaa.emitterChainId != cctpVaa.emitterChainId
-                || vaa.emitterAddress != cctpVaa.emitterAddress || vaa.sequence != cctpVaa.sequence + 1
-                || vaa.timestamp != cctpVaa.timestamp
+            cctpNonce != order.cctpNonce
+                || sourceDomain != getCircleDomainsState().domains[vaa.emitterChainId]
+                || destinationDomain != _localCctpDomain
         ) {
-            revert ErrVaaMismatch();
+            revert ErrMismatchedCctpMessage();
         }
-
-        // Parse the `maxFee` from the slow VAA.
-        uint64 baseFee = payload.decodeSlowOrderResponse().baseFee;
 
         LiveAuctionData storage auction = getLiveAuctionInfo().auctions[vaa.hash];
 
         if (auction.status == AuctionStatus.None) {
             // SECURITY: We need to verify the router path, since an auction was never created
             // and this check is done in `placeInitialBid`.
-            _verifyRouterPath(cctpVaa.emitterChainId, cctpVaa.emitterAddress, order.targetChain);
+            _verifyRouterPath(vaa.emitterChainId, vaa.emitterAddress, order.targetChain);
 
-            sequence = _handleCctpTransfer(order.amountIn - baseFee, cctpVaa.emitterChainId, order);
+            sequence =
+                _handleCctpTransfer(order.amountIn - order.baseFee, vaa.emitterChainId, order);
 
             /**
              * Pay the `feeRecipient` the `baseFee`. This ensures that the protocol relayer
              * is paid for relaying slow VAAs that do not have an associated auction.
              * This prevents the protocol relayer from any MEV attacks.
              */
-            SafeERC20.safeTransfer(_token, feeRecipient(), baseFee);
+            SafeERC20.safeTransfer(_token, feeRecipient(), order.baseFee);
 
             /*
              * SECURITY: this is a necessary security check. This will prevent a relayer from
@@ -220,7 +224,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
 
             // Transfer the penalty amount to the caller. The caller also earns the base
             // fee for relaying the slow VAA.
-            SafeERC20.safeTransfer(_token, msg.sender, penalty + baseFee);
+            SafeERC20.safeTransfer(_token, msg.sender, penalty + order.baseFee);
             SafeERC20.safeTransfer(
                 _token,
                 auction.highestBidder,
@@ -228,7 +232,7 @@ abstract contract MatchingEngineFastOrders is IMatchingEngineFastOrders, State {
             );
 
             sequence = _handleCctpTransfer(
-                auction.amount - baseFee + userReward, cctpVaa.emitterChainId, order
+                auction.amount - order.baseFee + userReward, vaa.emitterChainId, order
             );
 
             // Everyone's whole, set the auction as completed.

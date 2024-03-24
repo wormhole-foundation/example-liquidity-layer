@@ -48,6 +48,8 @@ interface IMessageTransmitter {
 
     function availableNonces(uint32 domain) external view returns (uint64);
 
+    function nextAvailableNonce() external view returns (uint64);
+
     function getNumEnabledAttesters() external view returns (uint256);
 
     function isEnabledAttester(address _attester) external view returns (bool);

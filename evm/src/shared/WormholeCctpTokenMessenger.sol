@@ -141,6 +141,14 @@ abstract contract WormholeCctpTokenMessenger {
         );
     }
 
+    function parseCctpMessageAndMint(
+        bytes calldata encodedCctpMessage,
+        bytes calldata cctpAttestation
+    ) internal returns (uint32 sourceDomain, uint32 destinationDomain, uint64 nonce) {
+        (sourceDomain, destinationDomain, nonce) = parseCctpMessageId(encodedCctpMessage);
+        _messageTransmitter.receiveMessage(encodedCctpMessage, cctpAttestation);
+    }
+
     /**
      * @dev Method to verify and reconcile CCTP and Wormhole messages in order to mint tokens for
      * the encoded mint recipient. This method will revert with custom errors.
@@ -290,6 +298,32 @@ abstract contract WormholeCctpTokenMessenger {
         require(expectedEmitter != 0 && vaa.emitterAddress == expectedEmitter, "unknown emitter");
     }
 
+    /**
+     * @dev Parse the source domain, destination domain and nonce from a CCTP message. These are the
+     * unique identifiers for a CCTP message. This function does no validation on the message,
+     * and assumes the message is well-formed.
+     */
+    function parseCctpMessageId(bytes calldata encodedCctpMessage)
+        internal
+        pure
+        returns (uint32 sourceDomain, uint32 destinationDomain, uint64 nonce)
+    {
+        assembly ("memory-safe") {
+            // NOTE: First four bytes is the CCTP message version.
+            let ptr := calldataload(encodedCctpMessage.offset)
+
+            // NOTE: There is no need to mask here because the types defined outside of this
+            // block will already perform big-endian masking.
+
+            // Source domain is bytes 4..8, so shift 24 bytes to the right.
+            sourceDomain := shr(192, ptr)
+            // Destination domain is bytes 8..12, so shift 20 bytes to the right.
+            destinationDomain := shr(160, ptr)
+            // Nonce is bytes 12..20, so shift 12 bytes to the right.
+            nonce := shr(96, ptr)
+        }
+    }
+
     // private
 
     function _parseAndVerifyVaa(bytes calldata encodedVaa, bool revertCustomErrors)
@@ -321,24 +355,8 @@ abstract contract WormholeCctpTokenMessenger {
     ) private returns (bytes32 mintToken) {
         // Confirm that the caller passed the correct message pair.
         {
-            uint32 sourceDomain;
-            uint32 destinationDomain;
-            uint64 nonce;
-
-            assembly ("memory-safe") {
-                // NOTE: First four bytes is the CCTP message version.
-                let ptr := calldataload(encodedCctpMessage.offset)
-
-                // NOTE: There is no need to mask here because the types defined outside of this
-                // block will already perform big-endian masking.
-
-                // Source domain is bytes 4..8, so shift 24 bytes to the right.
-                sourceDomain := shr(192, ptr)
-                // Destination domain is bytes 8..12, so shift 20 bytes to the right.
-                destinationDomain := shr(160, ptr)
-                // Nonce is bytes 12..20, so shift 12 bytes to the right.
-                nonce := shr(96, ptr)
-            }
+            (uint32 sourceDomain, uint32 destinationDomain, uint64 nonce) =
+                parseCctpMessageId(encodedCctpMessage);
 
             if (
                 vaaSourceCctpDomain != sourceDomain || vaaDestinationCctpDomain != destinationDomain

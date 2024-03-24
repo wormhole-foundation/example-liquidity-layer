@@ -43,12 +43,10 @@ library Messages {
         bytes32 refundAddress;
         uint64 maxFee;
         uint64 initAuctionFee;
+        uint64 cctpNonce;
+        uint64 baseFee;
         uint32 deadline;
         bytes redeemerMessage;
-    }
-
-    struct SlowOrderResponse {
-        uint64 baseFee;
     }
 
     function encode(Fill memory fill) internal pure returns (bytes memory encoded) {
@@ -83,6 +81,8 @@ library Messages {
             order.refundAddress,
             order.maxFee,
             order.initAuctionFee,
+            order.cctpNonce,
+            order.baseFee,
             order.deadline,
             _encodeBytes(order.redeemerMessage)
         );
@@ -104,6 +104,8 @@ library Messages {
         (order.refundAddress, offset) = encoded.asBytes32Unchecked(offset);
         (order.maxFee, offset) = encoded.asUint64Unchecked(offset);
         (order.initAuctionFee, offset) = encoded.asUint64Unchecked(offset);
+        (order.cctpNonce, offset) = encoded.asUint64Unchecked(offset);
+        (order.baseFee, offset) = encoded.asUint64Unchecked(offset);
         (order.deadline, offset) = encoded.asUint32Unchecked(offset);
         (order.redeemerMessage, offset) = _decodeBytes(encoded, offset);
 
@@ -134,27 +136,6 @@ library Messages {
         (fastFill.fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
         (fastFill.fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
         (fastFill.fill.redeemerMessage, offset) = _decodeBytes(encoded, offset);
-
-        _checkLength(encoded, offset);
-    }
-
-    function encode(SlowOrderResponse memory response)
-        internal
-        pure
-        returns (bytes memory encoded)
-    {
-        encoded = abi.encodePacked(SLOW_ORDER_RESPONSE, response.baseFee);
-    }
-
-    function decodeSlowOrderResponse(bytes memory encoded)
-        internal
-        pure
-        returns (SlowOrderResponse memory response)
-    {
-        uint256 offset = _checkPayloadId(encoded, 0, SLOW_ORDER_RESPONSE);
-
-        // Parse the encoded message.
-        (response.baseFee, offset) = encoded.asUint64Unchecked(offset);
 
         _checkLength(encoded, offset);
     }

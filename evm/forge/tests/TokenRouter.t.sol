@@ -15,7 +15,7 @@ import {IWormhole} from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
 import {SigningWormholeSimulator} from "local-modules/wormhole/WormholeSimulator.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {BytesParsing} from "wormhole-solidity-sdk/libraries/BytesParsing.sol";
-
+import {IMessageTransmitter} from "src/interfaces/external/IMessageTransmitter.sol";
 import {
     IMockTokenRouter,
     MockTokenRouterImplementation
@@ -692,6 +692,8 @@ contract TokenRouterTest is Test {
         bytes32 refundAddress,
         uint64 maxFee,
         uint64 initAuctionFee,
+        uint64 cctpNonce,
+        uint64 baseFee,
         uint32 deadline,
         bytes memory redeemerMessage
     ) public pure {
@@ -703,6 +705,8 @@ contract TokenRouterTest is Test {
             sender: sender,
             refundAddress: refundAddress,
             maxFee: maxFee,
+            cctpNonce: cctpNonce,
+            baseFee: baseFee,
             initAuctionFee: initAuctionFee,
             deadline: deadline,
             redeemerMessage: redeemerMessage
@@ -720,6 +724,8 @@ contract TokenRouterTest is Test {
         assertEq(decoded.sender, order.sender);
         assertEq(decoded.refundAddress, order.refundAddress);
         assertEq(decoded.maxFee, order.maxFee);
+        assertEq(decoded.cctpNonce, order.cctpNonce);
+        assertEq(decoded.baseFee, order.baseFee);
         assertEq(decoded.initAuctionFee, order.initAuctionFee);
         assertEq(decoded.redeemerMessage, order.redeemerMessage);
     }
@@ -915,7 +921,9 @@ contract TokenRouterTest is Test {
         uint64 minTransferAmount = router.getMinFastTransferAmount();
 
         vm.expectRevert(
-            abi.encodeWithSignature("ErrInsufficientAmount(uint64,uint64)", amountIn, minTransferAmount)
+            abi.encodeWithSignature(
+                "ErrInsufficientAmount(uint64,uint64)", amountIn, minTransferAmount
+            )
         );
         router.placeFastMarketOrder(
             amountIn,
@@ -947,7 +955,9 @@ contract TokenRouterTest is Test {
         assertTrue(minTransferAmount < minFee);
 
         vm.expectRevert(
-            abi.encodeWithSignature("ErrInsufficientAmount(uint64,uint64)", minTransferAmount, minFee)
+            abi.encodeWithSignature(
+                "ErrInsufficientAmount(uint64,uint64)", minTransferAmount, minFee
+            )
         );
         router.placeFastMarketOrder(
             minTransferAmount,
@@ -1081,7 +1091,9 @@ contract TokenRouterTest is Test {
 
     function testPlaceFastMarketOrder(uint64 amountIn, uint64 maxFee, uint32 deadline) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
+            bound(
+                amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount()
+            )
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 
@@ -1096,8 +1108,10 @@ contract TokenRouterTest is Test {
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(this).toUniversalAddress(),
-            maxFee: maxFee - router.getInitialAuctionFee(),
+            maxFee: maxFee - router.getInitialAuctionFee() - router.getBaseFee(),
             initAuctionFee: router.getInitialAuctionFee(),
+            cctpNonce: circleSimulator.nextNonce(),
+            baseFee: router.getBaseFee(),
             deadline: deadline,
             redeemerMessage: bytes("All your base are belong to us")
         });
@@ -1127,7 +1141,7 @@ contract TokenRouterTest is Test {
         assertEq(targetCctpDomain, matchingEngineDomain);
         assertEq(burnSource, address(this).toUniversalAddress());
         assertEq(mintRecipient, matchingEngineMintRecipient);
-        assertEq(payload, Messages.SlowOrderResponse({baseFee: router.getBaseFee()}).encode());
+        assertEq(payload, new bytes(0));
     }
 
     function testPlaceFastMarketOrderWithCctpInterface(
@@ -1136,7 +1150,9 @@ contract TokenRouterTest is Test {
         uint32 deadline
     ) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
+            bound(
+                amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount()
+            )
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 
@@ -1151,8 +1167,10 @@ contract TokenRouterTest is Test {
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(0).toUniversalAddress(),
-            maxFee: maxFee - router.getInitialAuctionFee(),
+            maxFee: maxFee - router.getInitialAuctionFee() - router.getBaseFee(),
             initAuctionFee: router.getInitialAuctionFee(),
+            baseFee: router.getBaseFee(),
+            cctpNonce: circleSimulator.nextNonce(),
             deadline: deadline,
             redeemerMessage: bytes("All your base are belong to us")
         });
@@ -1190,7 +1208,7 @@ contract TokenRouterTest is Test {
         assertEq(targetCctpDomain, matchingEngineDomain);
         assertEq(burnSource, address(this).toUniversalAddress());
         assertEq(mintRecipient, matchingEngineMintRecipient);
-        assertEq(payload, Messages.SlowOrderResponse({baseFee: router.getBaseFee()}).encode());
+        assertEq(payload, new bytes(0));
     }
 
     function testPlaceFastMarketOrderTargetIsMatchingEngine(
@@ -1199,7 +1217,9 @@ contract TokenRouterTest is Test {
         uint32 deadline
     ) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
+            bound(
+                amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount()
+            )
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 
@@ -1224,8 +1244,10 @@ contract TokenRouterTest is Test {
             redeemer: TEST_REDEEMER,
             sender: address(this).toUniversalAddress(),
             refundAddress: address(this).toUniversalAddress(),
-            maxFee: maxFee - router.getInitialAuctionFee(),
+            maxFee: maxFee - router.getInitialAuctionFee() - router.getBaseFee(),
             initAuctionFee: router.getInitialAuctionFee(),
+            baseFee: router.getBaseFee(),
+            cctpNonce: circleSimulator.nextNonce(),
             deadline: deadline,
             redeemerMessage: bytes("All your base are belong to us")
         });
@@ -1255,7 +1277,7 @@ contract TokenRouterTest is Test {
         assertEq(targetCctpDomain, matchingEngineDomain);
         assertEq(burnSource, address(this).toUniversalAddress());
         assertEq(mintRecipient, matchingEngineMintRecipient);
-        assertEq(payload, Messages.SlowOrderResponse({baseFee: router.getBaseFee()}).encode());
+        assertEq(payload, new bytes(0));
     }
 
     /**

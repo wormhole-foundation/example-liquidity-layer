@@ -182,6 +182,8 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         // User needs to send enough value to pay for two Wormhole messages.
         uint256 messageFee = msg.value / 2;
 
+        // Emit a `Deposit` payload so that off-chain processes can track
+        // when a finalized VAA is published to the target chain.
         (sequence, protocolSequence) = burnAndPublish(
             _matchingEngineAddress,
             _matchingEngineDomain,
@@ -189,7 +191,7 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             amountIn,
             _matchingEngineMintRecipient,
             NONCE,
-            Messages.SlowOrderResponse({baseFee: fastParams.baseFee}).encode(),
+            new bytes(0),
             messageFee
         );
 
@@ -203,8 +205,10 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
                 redeemer: redeemer,
                 sender: msg.sender.toUniversalAddress(),
                 refundAddress: refundAddress.toUniversalAddress(),
-                maxFee: maxFee - fastParams.initAuctionFee,
+                maxFee: maxFee - fastParams.initAuctionFee - fastParams.baseFee,
                 initAuctionFee: fastParams.initAuctionFee,
+                cctpNonce: uint64(protocolSequence),
+                baseFee: fastParams.baseFee,
                 deadline: deadline,
                 redeemerMessage: redeemerMessage
             }).encode(),

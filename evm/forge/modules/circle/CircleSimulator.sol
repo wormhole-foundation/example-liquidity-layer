@@ -172,7 +172,7 @@ contract CircleSimulator {
     }
 
     /// @notice Queries the Circle Bridge for the next available nonce
-    function nextNonce(uint32 domain) public view returns (uint64) {
-        return IMessageTransmitter(circleTransmitter).availableNonces(domain);
+    function nextNonce() public view returns (uint64) {
+        return IMessageTransmitter(circleTransmitter).nextAvailableNonce();
     }
 }

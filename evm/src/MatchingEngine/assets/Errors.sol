@@ -24,7 +24,7 @@ error ErrAuctionNotActive(bytes32 auctionId);
 
 error ErrAuctionPeriodNotComplete();
 
-error ErrVaaMismatch();
+error ErrMismatchedCctpMessage();
 
 error ErrInvalidAuctionStatus();
 

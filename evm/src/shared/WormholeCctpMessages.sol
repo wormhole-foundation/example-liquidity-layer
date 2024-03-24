@@ -118,9 +118,7 @@ library WormholeCctpMessages {
         bytes memory payload
     ) internal pure returns (bytes memory encoded) {
         uint256 payloadLen = payload.length;
-        if (payloadLen == 0) {
-            revert MissingPayload();
-        } else if (payloadLen > type(uint16).max) {
+        if (payloadLen > type(uint16).max) {
             revert PayloadTooLarge(payloadLen);
         }
 
