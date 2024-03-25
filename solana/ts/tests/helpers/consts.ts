@@ -1,5 +1,5 @@
 import { PublicKey, Keypair } from "@solana/web3.js";
-import { CONTRACTS } from "@certusone/wormhole-sdk";
+import { CONTRACTS, type ChainName } from "@certusone/wormhole-sdk";
 import { MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
 
 export const WORMHOLE_CONTRACTS = CONTRACTS.TESTNET;
@@ -38,3 +38,23 @@ export const MOCK_GUARDIANS = new MockGuardians(0, [GUARDIAN_KEY]);
 export const USDC_MINT_ADDRESS = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 
 export const ETHEREUM_USDC_ADDRESS = "0x07865c6e87b9f70255377e024ace6630c1eaa37f";
+
+export const CHAIN_TO_DOMAIN: Partial<{ [k in ChainName]: number }> = {
+    ethereum: 0,
+    avalanche: 1,
+    optimism: 2,
+    arbitrum: 3,
+    // noble: 4,
+    solana: 5,
+    base: 6,
+    polygon: 7,
+};
+
+export const REGISTERED_TOKEN_ROUTERS: Partial<{ [k in ChainName]: Array<number> }> = {
+    ethereum: Array.from(Buffer.alloc(32, "f0", "hex")),
+    avalanche: Array.from(Buffer.alloc(32, "a1", "hex")),
+    optimism: Array.from(Buffer.alloc(32, "f2", "hex")),
+    arbitrum: Array.from(Buffer.alloc(32, "f3", "hex")),
+    base: Array.from(Buffer.alloc(32, "f6", "hex")),
+    polygon: Array.from(Buffer.alloc(32, "f7", "hex")),
+};
