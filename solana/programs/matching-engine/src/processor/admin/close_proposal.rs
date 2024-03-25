@@ -1,9 +1,9 @@
-use crate::{processor::shared_contexts::*, state::Proposal};
+use crate::{composite::*, state::Proposal};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CloseProposal<'info> {
-    admin: OwnerCustodian<'info>,
+    admin: OwnerOnly<'info>,
 
     /// CHECK: This account must equal proposal.by pubkey.
     #[account(

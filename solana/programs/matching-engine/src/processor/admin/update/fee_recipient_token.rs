@@ -1,10 +1,10 @@
-use crate::{error::MatchingEngineError, processor::shared_contexts::*};
+use crate::{composite::*, error::MatchingEngineError};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
 #[derive(Accounts)]
 pub struct UpdateFeeRecipient<'info> {
-    admin: AdminMutCustodian<'info>,
+    admin: AdminMut<'info>,
 
     #[account(
         associated_token::mint = common::constants::USDC_MINT,

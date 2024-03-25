@@ -1,4 +1,4 @@
-use crate::{error::MatchingEngineError, processor::shared_contexts::*, state::Auction, utils};
+use crate::{composite::*, error::MatchingEngineError, state::Auction, utils};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 

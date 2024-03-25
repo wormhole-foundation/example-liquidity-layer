@@ -14,7 +14,7 @@
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -24,7 +24,7 @@
           "name": "fastFillVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -49,7 +49,7 @@
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": false,
               "isSigner": false
             }
@@ -85,7 +85,7 @@
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -95,7 +95,7 @@
           "name": "fastVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -105,7 +105,7 @@
           "name": "finalizedVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -790,7 +790,7 @@
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -878,7 +878,7 @@
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -937,7 +937,7 @@
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -949,7 +949,7 @@
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": true,
               "isSigner": false
             }
@@ -973,7 +973,7 @@
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -985,7 +985,7 @@
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": true,
               "isSigner": false
             }
@@ -1024,7 +1024,7 @@
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1036,7 +1036,7 @@
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": true,
               "isSigner": false
             }
@@ -1083,7 +1083,7 @@
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -1138,7 +1138,7 @@
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -1169,7 +1169,7 @@
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -1220,8 +1220,13 @@
             },
             {
               "name": "custodian",
-              "isMut": true,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -1247,17 +1252,24 @@
       "name": "updateOwnerAssistant",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true,
-          "docs": [
-            "Owner of the program set in the [`OwnerConfig`] account."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            }
           ]
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
         },
         {
           "name": "newOwnerAssistant",
@@ -1286,7 +1298,7 @@
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -1323,7 +1335,7 @@
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -1338,7 +1350,7 @@
           "name": "fastVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -1360,7 +1372,7 @@
               "name": "from",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1370,7 +1382,7 @@
               "name": "to",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1495,7 +1507,7 @@
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -1508,7 +1520,7 @@
               "name": "fastVaa",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "vaa",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1543,7 +1555,7 @@
               "name": "toRouterEndpoint",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1701,7 +1713,7 @@
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -1714,7 +1726,7 @@
               "name": "fastVaa",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "vaa",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1749,7 +1761,7 @@
               "name": "toRouterEndpoint",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1835,7 +1847,7 @@
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }

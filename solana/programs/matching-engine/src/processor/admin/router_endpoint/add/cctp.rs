@@ -1,5 +1,5 @@
 use crate::{
-    processor::shared_contexts::*,
+    composite::*,
     state::RouterEndpoint,
     utils::{self, admin::AddCctpRouterEndpointArgs},
 };
@@ -17,7 +17,7 @@ pub struct AddCctpRouterEndpoint<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    admin: AdminCustodian<'info>,
+    admin: Admin<'info>,
 
     #[account(
         init,

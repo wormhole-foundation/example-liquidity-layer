@@ -5,8 +5,8 @@ mod local;
 pub use local::*;
 
 use crate::{
+    composite::*,
     error::MatchingEngineError,
-    processor::shared_contexts::*,
     state::{Auction, AuctionStatus, PayerSequence},
     utils::{self, auction::DepositPenalty},
 };

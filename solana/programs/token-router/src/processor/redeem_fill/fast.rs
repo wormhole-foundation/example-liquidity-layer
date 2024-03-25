@@ -102,10 +102,10 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
         matching_engine::cpi::accounts::CompleteFastFill {
             payer: ctx.accounts.payer.to_account_info(),
             custodian: matching_engine::cpi::accounts::CheckedCustodian {
-                inner: ctx.accounts.matching_engine_custodian.to_account_info(),
+                custodian: ctx.accounts.matching_engine_custodian.to_account_info(),
             },
             fast_fill_vaa: matching_engine::cpi::accounts::LiquidityLayerVaa {
-                inner: ctx.accounts.vaa.to_account_info(),
+                vaa: ctx.accounts.vaa.to_account_info(),
             },
             redeemed_fast_fill: ctx
                 .accounts
@@ -114,7 +114,7 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
             token_router_emitter: ctx.accounts.custodian.to_account_info(),
             token_router_custody_token: ctx.accounts.prepared_custody_token.to_account_info(),
             router_endpoint: LiveRouterEndpoint {
-                inner: ctx
+                endpoint: ctx
                     .accounts
                     .matching_engine_router_endpoint
                     .to_account_info(),

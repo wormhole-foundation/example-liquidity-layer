@@ -14,7 +14,7 @@ export type MatchingEngine = {
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -24,7 +24,7 @@ export type MatchingEngine = {
           "name": "fastFillVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -49,7 +49,7 @@ export type MatchingEngine = {
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": false,
               "isSigner": false
             }
@@ -85,7 +85,7 @@ export type MatchingEngine = {
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -95,7 +95,7 @@ export type MatchingEngine = {
           "name": "fastVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -105,7 +105,7 @@ export type MatchingEngine = {
           "name": "finalizedVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -790,7 +790,7 @@ export type MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -878,7 +878,7 @@ export type MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -937,7 +937,7 @@ export type MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -949,7 +949,7 @@ export type MatchingEngine = {
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": true,
               "isSigner": false
             }
@@ -973,7 +973,7 @@ export type MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -985,7 +985,7 @@ export type MatchingEngine = {
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": true,
               "isSigner": false
             }
@@ -1024,7 +1024,7 @@ export type MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1036,7 +1036,7 @@ export type MatchingEngine = {
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": true,
               "isSigner": false
             }
@@ -1083,7 +1083,7 @@ export type MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -1138,7 +1138,7 @@ export type MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -1169,7 +1169,7 @@ export type MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -1220,8 +1220,13 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": true,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -1247,17 +1252,24 @@ export type MatchingEngine = {
       "name": "updateOwnerAssistant",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true,
-          "docs": [
-            "Owner of the program set in the [`OwnerConfig`] account."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            }
           ]
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
         },
         {
           "name": "newOwnerAssistant",
@@ -1286,7 +1298,7 @@ export type MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -1323,7 +1335,7 @@ export type MatchingEngine = {
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -1338,7 +1350,7 @@ export type MatchingEngine = {
           "name": "fastVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -1360,7 +1372,7 @@ export type MatchingEngine = {
               "name": "from",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1370,7 +1382,7 @@ export type MatchingEngine = {
               "name": "to",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1495,7 +1507,7 @@ export type MatchingEngine = {
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -1508,7 +1520,7 @@ export type MatchingEngine = {
               "name": "fastVaa",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "vaa",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1543,7 +1555,7 @@ export type MatchingEngine = {
               "name": "toRouterEndpoint",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1701,7 +1713,7 @@ export type MatchingEngine = {
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -1714,7 +1726,7 @@ export type MatchingEngine = {
               "name": "fastVaa",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "vaa",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1749,7 +1761,7 @@ export type MatchingEngine = {
               "name": "toRouterEndpoint",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -1835,7 +1847,7 @@ export type MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -2704,7 +2716,7 @@ export const IDL: MatchingEngine = {
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -2714,7 +2726,7 @@ export const IDL: MatchingEngine = {
           "name": "fastFillVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -2739,7 +2751,7 @@ export const IDL: MatchingEngine = {
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": false,
               "isSigner": false
             }
@@ -2775,7 +2787,7 @@ export const IDL: MatchingEngine = {
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -2785,7 +2797,7 @@ export const IDL: MatchingEngine = {
           "name": "fastVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -2795,7 +2807,7 @@ export const IDL: MatchingEngine = {
           "name": "finalizedVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -3480,7 +3492,7 @@ export const IDL: MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -3568,7 +3580,7 @@ export const IDL: MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -3627,7 +3639,7 @@ export const IDL: MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -3639,7 +3651,7 @@ export const IDL: MatchingEngine = {
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": true,
               "isSigner": false
             }
@@ -3663,7 +3675,7 @@ export const IDL: MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -3675,7 +3687,7 @@ export const IDL: MatchingEngine = {
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": true,
               "isSigner": false
             }
@@ -3714,7 +3726,7 @@ export const IDL: MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -3726,7 +3738,7 @@ export const IDL: MatchingEngine = {
           "name": "routerEndpoint",
           "accounts": [
             {
-              "name": "inner",
+              "name": "endpoint",
               "isMut": true,
               "isSigner": false
             }
@@ -3773,7 +3785,7 @@ export const IDL: MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -3828,7 +3840,7 @@ export const IDL: MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -3859,7 +3871,7 @@ export const IDL: MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -3910,8 +3922,13 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "isMut": true,
-              "isSigner": false
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
             }
           ]
         },
@@ -3937,17 +3954,24 @@ export const IDL: MatchingEngine = {
       "name": "updateOwnerAssistant",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true,
-          "docs": [
-            "Owner of the program set in the [`OwnerConfig`] account."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            }
           ]
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
         },
         {
           "name": "newOwnerAssistant",
@@ -3976,7 +4000,7 @@ export const IDL: MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": true,
                   "isSigner": false
                 }
@@ -4013,7 +4037,7 @@ export const IDL: MatchingEngine = {
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -4028,7 +4052,7 @@ export const IDL: MatchingEngine = {
           "name": "fastVaa",
           "accounts": [
             {
-              "name": "inner",
+              "name": "vaa",
               "isMut": false,
               "isSigner": false
             }
@@ -4050,7 +4074,7 @@ export const IDL: MatchingEngine = {
               "name": "from",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -4060,7 +4084,7 @@ export const IDL: MatchingEngine = {
               "name": "to",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -4185,7 +4209,7 @@ export const IDL: MatchingEngine = {
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -4198,7 +4222,7 @@ export const IDL: MatchingEngine = {
               "name": "fastVaa",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "vaa",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -4233,7 +4257,7 @@ export const IDL: MatchingEngine = {
               "name": "toRouterEndpoint",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -4391,7 +4415,7 @@ export const IDL: MatchingEngine = {
           "name": "custodian",
           "accounts": [
             {
-              "name": "inner",
+              "name": "custodian",
               "isMut": false,
               "isSigner": false
             }
@@ -4404,7 +4428,7 @@ export const IDL: MatchingEngine = {
               "name": "fastVaa",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "vaa",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -4439,7 +4463,7 @@ export const IDL: MatchingEngine = {
               "name": "toRouterEndpoint",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "endpoint",
                   "isMut": false,
                   "isSigner": false
                 }
@@ -4525,7 +4549,7 @@ export const IDL: MatchingEngine = {
               "name": "custodian",
               "accounts": [
                 {
-                  "name": "inner",
+                  "name": "custodian",
                   "isMut": false,
                   "isSigner": false
                 }

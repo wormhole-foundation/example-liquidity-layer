@@ -1,15 +1,15 @@
-use crate::{error::MatchingEngineError, processor::shared_contexts::*, utils};
+use crate::{composite::*, error::MatchingEngineError, utils};
 use anchor_lang::prelude::*;
 use common::wormhole_cctp_solana::wormhole::SOLANA_CHAIN;
 
 #[derive(Accounts)]
 pub struct UpdateLocalRouterEndpoint<'info> {
-    admin: OwnerCustodian<'info>,
+    admin: OwnerOnly<'info>,
 
     #[account(
         constraint = {
             require_eq!(
-                router_endpoint.inner.chain,
+                router_endpoint.chain,
                 SOLANA_CHAIN,
                 MatchingEngineError::InvalidChain
             );
@@ -23,7 +23,7 @@ pub struct UpdateLocalRouterEndpoint<'info> {
 
 pub fn update_local_router_endpoint(ctx: Context<UpdateLocalRouterEndpoint>) -> Result<()> {
     utils::admin::handle_add_local_router_endpoint(
-        &mut ctx.accounts.router_endpoint.inner,
+        &mut ctx.accounts.router_endpoint,
         &ctx.accounts.local.token_router_program,
         &ctx.accounts.local.token_router_emitter,
         &ctx.accounts.local.token_router_mint_recipient,

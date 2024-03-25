@@ -3,6 +3,8 @@
 
 pub mod cctp_mint_recipient;
 
+mod composite;
+
 pub mod error;
 
 mod processor;
@@ -55,14 +57,6 @@ pub mod matching_engine {
     pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result<()> {
         processor::settle_auction_none_local(ctx)
     }
-
-    // pub fn settle_auction_active_cctp(ctx: Context<SettleAuctionActiveCctp>) -> Result<()> {
-    //     processor::settle_auction_active_cctp(ctx)
-    // }
-
-    // pub fn settle_auction_active_local(ctx: Context<SettleAuctionActiveLocal>) -> Result<()> {
-    //     processor::settle_auction_active_local(ctx)
-    // }
 
     /// This instruction is be used to generate your program's config.
     /// And for convenience, we will store Wormhole-related PDAs in the

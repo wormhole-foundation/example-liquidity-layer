@@ -1,5 +1,5 @@
 use crate::{
-    processor::shared_contexts::*,
+    composite::*,
     utils::{self, admin::AddCctpRouterEndpointArgs},
 };
 use anchor_lang::prelude::*;
@@ -11,7 +11,7 @@ use common::wormhole_cctp_solana::{
 #[derive(Accounts)]
 #[instruction(args: AddCctpRouterEndpointArgs)]
 pub struct UpdateCctpRouterEndpoint<'info> {
-    admin: OwnerCustodian<'info>,
+    admin: OwnerOnly<'info>,
 
     router_endpoint: ExistingMutRouterEndpoint<'info>,
 
@@ -32,9 +32,5 @@ pub fn update_cctp_router_endpoint(
     ctx: Context<UpdateCctpRouterEndpoint>,
     args: AddCctpRouterEndpointArgs,
 ) -> Result<()> {
-    utils::admin::handle_add_cctp_router_endpoint(
-        &mut ctx.accounts.router_endpoint.inner,
-        args,
-        None,
-    )
+    utils::admin::handle_add_cctp_router_endpoint(&mut ctx.accounts.router_endpoint, args, None)
 }

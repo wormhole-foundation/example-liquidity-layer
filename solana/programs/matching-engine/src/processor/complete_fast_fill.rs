@@ -1,6 +1,6 @@
 use crate::{
+    composite::*,
     error::MatchingEngineError,
-    processor::shared_contexts::*,
     state::{RedeemedFastFill, RouterEndpoint},
 };
 use anchor_lang::prelude::*;

@@ -1,5 +1,5 @@
 use crate::{
-    processor::shared_contexts::*,
+    composite::*,
     state::{AuctionParameters, Proposal, ProposalAction},
 };
 use anchor_lang::prelude::*;
@@ -9,7 +9,7 @@ pub struct ProposeAuctionParameters<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    admin: AdminMutCustodian<'info>,
+    admin: AdminMut<'info>,
 
     #[account(
         init,

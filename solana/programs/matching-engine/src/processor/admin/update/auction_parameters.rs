@@ -1,6 +1,6 @@
 use crate::{
+    composite::*,
     error::MatchingEngineError,
-    processor::shared_contexts::*,
     state::{AuctionConfig, Proposal, ProposalAction},
 };
 use anchor_lang::prelude::*;
@@ -10,7 +10,7 @@ pub struct UpdateAuctionParameters<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    admin: OwnerMutCustodian<'info>,
+    admin: OwnerOnlyMut<'info>,
 
     #[account(
         mut,

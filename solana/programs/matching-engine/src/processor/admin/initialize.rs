@@ -1,6 +1,6 @@
 use crate::{
+    composite::*,
     error::MatchingEngineError,
-    processor::shared_contexts::*,
     state::{AuctionConfig, Custodian},
 };
 use anchor_lang::prelude::*;
