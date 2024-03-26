@@ -2,13 +2,16 @@ use std::ops::{Deref, DerefMut};
 
 use crate::{
     error::MatchingEngineError,
-    state::{Auction, AuctionStatus, Custodian, MessageProtocol, RouterEndpoint},
+    state::{
+        Auction, AuctionStatus, Custodian, MessageProtocol, PreparedOrderResponse, RouterEndpoint,
+    },
+    utils::{self, VaaDigest},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
     admin::utils::{assistant::only_authorized, ownable::only_owner},
-    messages::raw::LiquidityLayerPayload,
+    messages::raw::{LiquidityLayerMessage, LiquidityLayerPayload},
     wormhole_cctp_solana::{
         cctp::{message_transmitter_program, token_messenger_minter_program},
         wormhole::{core_bridge_program, VaaAccount},
@@ -30,6 +33,30 @@ impl<'info> Deref for Usdc<'info> {
     }
 }
 
+/// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
+/// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
+/// from its custody account to this account.
+///
+/// CHECK: Mutable. Seeds must be \["custody"\].
+///
+/// NOTE: This account must be encoded as the mint recipient in the CCTP message.
+#[derive(Accounts)]
+pub struct CctpMintRecipientMut<'info> {
+    #[account(
+        mut,
+        address = crate::cctp_mint_recipient::id()
+    )]
+    pub mint_recipient: Box<Account<'info, token::TokenAccount>>,
+}
+
+impl<'info> Deref for CctpMintRecipientMut<'info> {
+    type Target = Account<'info, token::TokenAccount>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.mint_recipient
+    }
+}
+
 #[derive(Accounts)]
 pub struct LiquidityLayerVaa<'info> {
     /// CHECK: This VAA account must be a posted VAA from the Wormhole Core Bridge program.
@@ -46,6 +73,12 @@ pub struct LiquidityLayerVaa<'info> {
         }
     )]
     pub vaa: AccountInfo<'info>,
+}
+
+impl<'info> LiquidityLayerVaa<'info> {
+    pub fn load_unchecked(&self) -> VaaAccount<'_> {
+        VaaAccount::load_unchecked(self)
+    }
 }
 
 impl<'info> Deref for LiquidityLayerVaa<'info> {
@@ -216,7 +249,7 @@ pub struct LiveRouterEndpoint<'info> {
             endpoint.protocol != MessageProtocol::None
         } @ MatchingEngineError::EndpointDisabled,
     )]
-    pub endpoint: Account<'info, RouterEndpoint>,
+    pub endpoint: Box<Account<'info, RouterEndpoint>>,
 }
 
 impl<'info> Deref for LiveRouterEndpoint<'info> {
@@ -228,7 +261,35 @@ impl<'info> Deref for LiveRouterEndpoint<'info> {
 }
 
 #[derive(Accounts)]
-pub struct LiveRouterEndpointPair<'info> {
+pub struct FastOrderPath<'info> {
+    #[account(
+        constraint = {
+            let vaa = fast_vaa.load_unchecked();
+            require_eq!(
+                from.chain,
+                vaa.emitter_chain(),
+                MatchingEngineError::ErrInvalidSourceRouter
+            );
+            require!(
+                from.address == vaa.emitter_address(),
+                MatchingEngineError::ErrInvalidSourceRouter
+            );
+
+            let message = LiquidityLayerMessage::try_from(vaa.payload()).unwrap();
+            let order = message
+                .fast_market_order()
+                .ok_or(MatchingEngineError::NotFastMarketOrder)?;
+            require_eq!(
+                to.chain,
+                order.target_chain(),
+                MatchingEngineError::ErrInvalidTargetRouter
+            );
+
+            true
+        }
+    )]
+    pub fast_vaa: LiquidityLayerVaa<'info>,
+
     pub from: LiveRouterEndpoint<'info>,
 
     #[account(constraint = from.chain != to.chain @ MatchingEngineError::SameEndpoint)]
@@ -254,7 +315,7 @@ pub struct ActiveAuction<'info> {
             crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
             auction.key().as_ref(),
         ],
-        bump = auction.custody_token_bump,
+        bump = auction.info.as_ref().unwrap().custody_token_bump,
     )]
     pub custody_token: Account<'info, anchor_spl::token::TokenAccount>,
 
@@ -278,6 +339,12 @@ pub struct ActiveAuction<'info> {
     pub best_offer_token: AccountInfo<'info>,
 }
 
+impl<'info> VaaDigest for ActiveAuction<'info> {
+    fn digest(&self) -> [u8; 32] {
+        self.auction.vaa_hash
+    }
+}
+
 impl<'info> Deref for ActiveAuction<'info> {
     type Target = Account<'info, Auction>;
 
@@ -296,9 +363,7 @@ impl<'info> DerefMut for ActiveAuction<'info> {
 pub struct ExecuteOrder<'info> {
     /// CHECK: Must be owned by the Wormhole Core Bridge program.
     #[account(
-        constraint = {
-            VaaAccount::load_unchecked(&fast_vaa).digest().0 == active_auction.vaa_hash
-         } @ MatchingEngineError::InvalidVaa,
+        constraint = utils::require_vaa_hash_equals(&active_auction, &fast_vaa.load_unchecked())?
     )]
     pub fast_vaa: LiquidityLayerVaa<'info>,
 
@@ -337,6 +402,8 @@ pub struct WormholePublishMessage<'info> {
 
 #[derive(Accounts)]
 pub struct CctpDepositForBurn<'info> {
+    pub burn_source: CctpMintRecipientMut<'info>,
+
     /// Circle-supported mint.
     ///
     /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
@@ -378,18 +445,7 @@ pub struct CctpDepositForBurn<'info> {
 
 #[derive(Accounts)]
 pub struct CctpReceiveMessage<'info> {
-    /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
-    /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
-    /// from its custody account to this account.
-    ///
-    /// CHECK: Mutable. Seeds must be \["custody"\].
-    ///
-    /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
-    #[account(
-        mut,
-        address = crate::cctp_mint_recipient::id()
-    )]
-    pub mint_recipient: AccountInfo<'info>,
+    pub mint_recipient: CctpMintRecipientMut<'info>,
 
     /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
     pub message_transmitter_authority: AccountInfo<'info>,
@@ -437,4 +493,42 @@ pub struct CctpReceiveMessage<'info> {
         Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
     pub message_transmitter_program:
         Program<'info, message_transmitter_program::MessageTransmitter>,
+}
+
+#[derive(Accounts)]
+pub struct ClosePreparedOrderResponse<'info> {
+    /// CHECK: Must equal the prepared_by field in the prepared order response.
+    #[account(
+        mut,
+        address = order_response.prepared_by,
+    )]
+    pub by: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        close = by,
+        seeds = [
+            PreparedOrderResponse::SEED_PREFIX,
+            order_response.fast_vaa_hash.as_ref()
+        ],
+        bump = order_response.bump,
+    )]
+    pub order_response: Box<Account<'info, PreparedOrderResponse>>,
+
+    /// CHECK: Seeds must be \["prepared-custody"\, prepared_order_response.key()].
+    #[account(
+        mut,
+        seeds = [
+            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
+            order_response.key().as_ref(),
+        ],
+        bump,
+    )]
+    pub custody_token: AccountInfo<'info>,
+}
+
+impl<'info> VaaDigest for ClosePreparedOrderResponse<'info> {
+    fn digest(&self) -> [u8; 32] {
+        self.order_response.fast_vaa_hash
+    }
 }

@@ -183,6 +183,7 @@ export class MatchingEngineProgram {
 
     async fetchAuction(input: VaaHash | { address: PublicKey }): Promise<Auction> {
         const addr = "address" in input ? input.address : this.auctionAddress(input);
+        // @ts-ignore This is BS. This is correct.
         return this.program.account.auction.fetch(addr);
     }
 
@@ -461,6 +462,42 @@ export class MatchingEngineProgram {
             auction,
             config,
             bestOfferToken,
+        };
+    }
+
+    closePreparedOrderResponseComposite(accounts: { by: PublicKey; orderResponse: PublicKey }): {
+        by: PublicKey;
+        orderResponse: PublicKey;
+        custodyToken: PublicKey;
+    } {
+        const { by, orderResponse } = accounts;
+        return {
+            by,
+            orderResponse,
+            custodyToken: this.preparedCustodyTokenAddress(orderResponse),
+        };
+    }
+
+    fastOrderPathComposite(accounts: { fastVaa: PublicKey; from: PublicKey; to: PublicKey }): {
+        fastVaa: {
+            vaa: PublicKey;
+        };
+        from: {
+            endpoint: PublicKey;
+        };
+        to: { endpoint: PublicKey };
+    } {
+        const { fastVaa, from, to } = accounts;
+        return {
+            fastVaa: { vaa: fastVaa },
+            from: { endpoint: from },
+            to: { endpoint: to },
+        };
+    }
+
+    cctpMintRecipientComposite(): { mintRecipient: PublicKey } {
+        return {
+            mintRecipient: this.cctpMintRecipientAddress(),
         };
     }
 
@@ -905,13 +942,13 @@ export class MatchingEngineProgram {
                 custodian: this.checkedCustodianComposite(),
                 auctionConfig,
                 auction,
-                routerEndpointPair: {
-                    from: this.routerEndpointComposite(fromRouterEndpoint),
-                    to: this.routerEndpointComposite(toRouterEndpoint),
-                },
+                fastOrderPath: this.fastOrderPathComposite({
+                    fastVaa,
+                    from: fromRouterEndpoint,
+                    to: toRouterEndpoint,
+                }),
                 offerToken,
                 auctionCustodyToken,
-                fastVaa: this.liquidityLayerVaaComposite(fastVaa),
                 usdc: this.usdcComposite(),
             })
             .instruction();
@@ -1005,7 +1042,7 @@ export class MatchingEngineProgram {
                 usdc: this.usdcComposite(),
                 auction: hasAuction ? this.auctionAddress(fastVaaAcct.digest()) : null,
                 cctp: {
-                    mintRecipient: this.cctpMintRecipientAddress(),
+                    mintRecipient: this.cctpMintRecipientComposite(),
                     messageTransmitterAuthority,
                     messageTransmitterConfig,
                     usedNonces,
@@ -1128,29 +1165,34 @@ export class MatchingEngineProgram {
         } = await this.publishMessageAccounts(payer, payerSequenceValue);
 
         const { feeRecipientToken } = await this.fetchCustodian();
-        const cctpMintRecipient = this.cctpMintRecipientAddress();
 
         return this.program.methods
             .settleAuctionNoneLocal()
             .accounts({
                 payer,
                 payerSequence,
-                custodian,
-                fastVaa,
-                preparedOrderResponse,
-                auction,
-                cctpMintRecipient,
-                feeRecipientToken,
-                fromRouterEndpoint: this.routerEndpointAddress(fastVaaAccount.emitterInfo().chain),
-                toRouterEndpoint,
-                coreBridgeConfig,
                 coreMessage,
-                coreEmitterSequence,
-                coreBridgeProgram,
+                custodian: this.checkedCustodianComposite(custodian),
+                feeRecipientToken,
+                prepared: this.closePreparedOrderResponseComposite({
+                    by: payer,
+                    orderResponse: preparedOrderResponse,
+                }),
+                fastOrderPath: this.fastOrderPathComposite({
+                    fastVaa,
+                    from: this.routerEndpointAddress(fastVaaAccount.emitterInfo().chain),
+                    to: toRouterEndpoint,
+                }),
+                auction,
+                wormhole: {
+                    config: coreBridgeConfig,
+                    emitterSequence: coreEmitterSequence,
+                    feeCollector: coreFeeCollector,
+                    coreBridgeProgram,
+                },
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
                 clock: SYSVAR_CLOCK_PUBKEY,
-                coreFeeCollector,
                 rent: SYSVAR_RENT_PUBKEY,
             })
             .instruction();
@@ -1200,30 +1242,39 @@ export class MatchingEngineProgram {
             .accounts({
                 payer,
                 payerSequence,
-                custodian,
-                fastVaa,
-                preparedOrderResponse,
-                auction: this.auctionAddress(fastVaaAccount.digest()),
-                cctpMintRecipient: this.cctpMintRecipientAddress(),
-                feeRecipientToken,
-                mint: this.mint,
-                fromRouterEndpoint: this.routerEndpointAddress(fastVaaAccount.emitterInfo().chain),
-                toRouterEndpoint,
-                coreBridgeConfig,
                 coreMessage,
                 cctpMessage,
-                coreEmitterSequence,
-                coreFeeCollector,
-                tokenMessengerMinterSenderAuthority,
-                messageTransmitterConfig,
-                tokenMessenger,
-                remoteTokenMessenger,
-                tokenMinter,
-                localToken,
-                tokenMessengerMinterEventAuthority,
-                coreBridgeProgram,
-                tokenMessengerMinterProgram,
-                messageTransmitterProgram,
+                custodian: this.checkedCustodianComposite(custodian),
+                feeRecipientToken,
+                prepared: this.closePreparedOrderResponseComposite({
+                    by: payer,
+                    orderResponse: preparedOrderResponse,
+                }),
+                fastOrderPath: this.fastOrderPathComposite({
+                    fastVaa,
+                    from: this.routerEndpointAddress(fastVaaAccount.emitterInfo().chain),
+                    to: toRouterEndpoint,
+                }),
+                auction: this.auctionAddress(fastVaaAccount.digest()),
+                wormhole: {
+                    config: coreBridgeConfig,
+                    emitterSequence: coreEmitterSequence,
+                    feeCollector: coreFeeCollector,
+                    coreBridgeProgram,
+                },
+                cctp: {
+                    burnSource: this.cctpMintRecipientComposite(),
+                    mint: this.mint,
+                    tokenMessengerMinterSenderAuthority,
+                    messageTransmitterConfig,
+                    tokenMessenger,
+                    remoteTokenMessenger,
+                    tokenMinter,
+                    localToken,
+                    tokenMessengerMinterEventAuthority,
+                    tokenMessengerMinterProgram,
+                    messageTransmitterProgram,
+                },
             })
             .instruction();
     }
@@ -1326,6 +1377,7 @@ export class MatchingEngineProgram {
                     coreBridgeProgram,
                 },
                 cctp: {
+                    burnSource: this.cctpMintRecipientComposite(),
                     mint,
                     tokenMessengerMinterSenderAuthority,
                     messageTransmitterConfig,

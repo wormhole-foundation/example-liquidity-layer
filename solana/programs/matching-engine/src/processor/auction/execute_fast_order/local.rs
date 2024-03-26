@@ -1,14 +1,10 @@
 use crate::{
     composite::*,
-    error::MatchingEngineError,
-    state::{Auction, Custodian, PayerSequence},
+    state::{Auction, PayerSequence},
+    utils,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{
-    wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount, SOLANA_CHAIN},
-    wormhole_io::TypePrefixedPayload,
-};
 
 #[derive(Accounts)]
 pub struct ExecuteFastOrderLocal<'info> {
@@ -41,16 +37,7 @@ pub struct ExecuteFastOrderLocal<'info> {
 
     custodian: CheckedCustodian<'info>,
 
-    #[account(
-        constraint = {
-            require_eq!(
-                execute_order.to_router_endpoint.chain,
-                SOLANA_CHAIN,
-                MatchingEngineError::InvalidEndpoint
-            );
-            true
-        }
-    )]
+    #[account(constraint = utils::require_local_endpoint(&execute_order.to_router_endpoint)?)]
     execute_order: ExecuteOrder<'info>,
 
     wormhole: WormholePublishMessage<'info>,
@@ -59,7 +46,7 @@ pub struct ExecuteFastOrderLocal<'info> {
         mut,
         seeds = [
             crate::LOCAL_CUSTODY_TOKEN_SEED_PREFIX,
-            &VaaAccount::load(&execute_order.fast_vaa)?.emitter_chain().to_be_bytes(),
+            &execute_order.fast_vaa.load_unchecked().emitter_chain().to_be_bytes(),
         ],
         bump,
     )]
@@ -85,6 +72,7 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
     } = super::prepare_order_execution(super::PrepareFastExecution {
         execute_order: &mut ctx.accounts.execute_order,
         payer_sequence: &mut ctx.accounts.payer_sequence,
+        dst_token: &ctx.accounts.local_custody_token,
         token_program: &ctx.accounts.token_program,
     })?;
 
@@ -92,60 +80,19 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
     //
     // NOTE: We cannot close the custody account yet because the user needs to be able to retrieve
     // the funds when they complete the fast fill.
-    core_bridge_program::cpi::post_message(
-        CpiContext::new_with_signer(
-            ctx.accounts.wormhole.core_bridge_program.to_account_info(),
-            core_bridge_program::cpi::PostMessage {
-                payer: ctx.accounts.payer.to_account_info(),
-                message: ctx.accounts.core_message.to_account_info(),
-                emitter: ctx.accounts.custodian.to_account_info(),
-                config: ctx.accounts.wormhole.config.to_account_info(),
-                emitter_sequence: ctx.accounts.wormhole.emitter_sequence.to_account_info(),
-                fee_collector: ctx.accounts.wormhole.fee_collector.to_account_info(),
-                system_program: ctx.accounts.system_program.to_account_info(),
-                clock: ctx.accounts.clock.to_account_info(),
-                rent: ctx.accounts.rent.to_account_info(),
-            },
-            &[
-                Custodian::SIGNER_SEEDS,
-                &[
-                    common::constants::CORE_MESSAGE_SEED_PREFIX,
-                    ctx.accounts.payer.key().as_ref(),
-                    sequence_seed.as_ref(),
-                    &[ctx.bumps.core_message],
-                ],
-            ],
-        ),
-        core_bridge_program::cpi::PostMessageArgs {
-            nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
-            payload: common::messages::FastFill { amount, fill }.to_vec_payload(),
-            commitment: core_bridge_program::Commitment::Finalized,
+    utils::wormhole::post_matching_engine_message(
+        utils::wormhole::PostMatchingEngineMessage {
+            wormhole: &ctx.accounts.wormhole,
+            core_message: &ctx.accounts.core_message,
+            custodian: &ctx.accounts.custodian,
+            payer: &ctx.accounts.payer,
+            system_program: &ctx.accounts.system_program,
+            clock: &ctx.accounts.clock,
+            rent: &ctx.accounts.rent,
         },
-    )?;
-
-    let auction_signer_seeds = &[
-        Auction::SEED_PREFIX,
-        ctx.accounts.execute_order.active_auction.vaa_hash.as_ref(),
-        &[ctx.accounts.execute_order.active_auction.bump],
-    ];
-
-    // Transfer funds to local custody token account.
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            token::Transfer {
-                from: ctx
-                    .accounts
-                    .execute_order
-                    .active_auction
-                    .custody_token
-                    .to_account_info(),
-                to: ctx.accounts.local_custody_token.to_account_info(),
-                authority: ctx.accounts.execute_order.active_auction.to_account_info(),
-            },
-            &[auction_signer_seeds],
-        ),
-        amount,
+        common::messages::FastFill { amount, fill },
+        &sequence_seed,
+        ctx.bumps.core_message,
     )?;
 
     // Finally close the account since it is no longer needed.
@@ -166,6 +113,10 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
                 .auction
                 .to_account_info(),
         },
-        &[auction_signer_seeds],
+        &[&[
+            Auction::SEED_PREFIX,
+            ctx.accounts.execute_order.active_auction.vaa_hash.as_ref(),
+            &[ctx.accounts.execute_order.active_auction.bump],
+        ]],
     ))
 }

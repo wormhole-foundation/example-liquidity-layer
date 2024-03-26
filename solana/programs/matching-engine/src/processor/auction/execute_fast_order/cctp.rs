@@ -88,6 +88,7 @@ pub fn handle_execute_fast_order_cctp(
     } = super::prepare_order_execution(super::PrepareFastExecution {
         execute_order: &mut ctx.accounts.execute_order,
         payer_sequence: &mut ctx.accounts.payer_sequence,
+        dst_token: &ctx.accounts.cctp.burn_source,
         token_program: &ctx.accounts.token_program,
     })?;
 
@@ -99,19 +100,14 @@ pub fn handle_execute_fast_order_cctp(
                 .token_messenger_minter_program
                 .to_account_info(),
             wormhole_cctp_solana::cpi::DepositForBurnWithCaller {
-                burn_token_owner: ctx.accounts.execute_order.active_auction.to_account_info(),
+                burn_token_owner: ctx.accounts.custodian.to_account_info(),
                 payer: ctx.accounts.payer.to_account_info(),
                 token_messenger_minter_sender_authority: ctx
                     .accounts
                     .cctp
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
-                burn_token: ctx
-                    .accounts
-                    .execute_order
-                    .active_auction
-                    .custody_token
-                    .to_account_info(),
+                burn_token: ctx.accounts.cctp.burn_source.to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
                     .cctp
@@ -142,11 +138,7 @@ pub fn handle_execute_fast_order_cctp(
                     .to_account_info(),
             },
             &[
-                &[
-                    Auction::SEED_PREFIX,
-                    ctx.accounts.execute_order.active_auction.vaa_hash.as_ref(),
-                    &[ctx.accounts.execute_order.active_auction.bump],
-                ],
+                Custodian::SIGNER_SEEDS,
                 &[
                     common::constants::CCTP_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),

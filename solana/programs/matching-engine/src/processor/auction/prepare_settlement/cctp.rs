@@ -22,8 +22,8 @@ pub struct PrepareOrderResponseCctp<'info> {
     #[account(
         constraint = {
             // Fast and finalized VAAs must reconcile with each other.
-            let fast_vaa = VaaAccount::load_unchecked(&fast_vaa);
-            let finalized_vaa = VaaAccount::load_unchecked(&finalized_vaa);
+            let fast_vaa = fast_vaa.load_unchecked();
+            let finalized_vaa = finalized_vaa.load_unchecked();
 
             require_eq!(
                 fast_vaa.emitter_chain(),
@@ -204,7 +204,7 @@ fn handle_prepare_order_response_cctp(
         .to_slow_order_response_unchecked()
         .base_fee();
 
-    let fast_vaa = VaaAccount::load_unchecked(&ctx.accounts.fast_vaa);
+    let fast_vaa = ctx.accounts.fast_vaa.load_unchecked();
     let amount = LiquidityLayerMessage::try_from(fast_vaa.payload())
         .unwrap()
         .to_fast_market_order_unchecked()

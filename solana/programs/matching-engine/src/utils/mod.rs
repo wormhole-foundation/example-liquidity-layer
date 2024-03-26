@@ -2,31 +2,43 @@ pub mod admin;
 
 pub mod auction;
 
+pub(crate) mod wormhole;
+
 use crate::{error::MatchingEngineError, state::RouterEndpoint};
 use anchor_lang::prelude::*;
-use common::wormhole_cctp_solana::wormhole::VaaAccount;
+use common::wormhole_cctp_solana::wormhole::{VaaAccount, SOLANA_CHAIN};
 
-pub fn require_valid_router_path(
-    vaa: &VaaAccount<'_>,
-    source_endpoint: &RouterEndpoint,
-    target_endpoint: &RouterEndpoint,
-    expected_target_chain: u16,
-) -> Result<()> {
-    let emitter = vaa.emitter_info();
+pub trait VaaDigest {
+    fn digest(&self) -> [u8; 32];
+}
+
+#[derive(PartialEq, Eq)]
+struct WrappedHash([u8; 32]);
+
+impl std::fmt::Display for WrappedHash {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "0x{}", hex::encode(self.0))
+    }
+}
+
+pub fn require_vaa_hash_equals<A>(ctx: &A, vaa: &VaaAccount) -> Result<bool>
+where
+    A: VaaDigest,
+{
     require_eq!(
-        source_endpoint.chain,
-        emitter.chain,
-        MatchingEngineError::ErrInvalidSourceRouter
+        WrappedHash(vaa.digest().0),
+        WrappedHash(ctx.digest()),
+        MatchingEngineError::InvalidVaa
     );
-    require!(
-        source_endpoint.address == emitter.address,
-        MatchingEngineError::ErrInvalidSourceRouter
-    );
+    Ok(true)
+}
+
+pub fn require_local_endpoint(endpoint: &RouterEndpoint) -> Result<bool> {
     require_eq!(
-        target_endpoint.chain,
-        expected_target_chain,
-        MatchingEngineError::ErrInvalidTargetRouter
+        endpoint.chain,
+        SOLANA_CHAIN,
+        MatchingEngineError::InvalidEndpoint
     );
 
-    Ok(())
+    Ok(true)
 }

@@ -5,7 +5,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{messages::raw::LiquidityLayerMessage, wormhole_cctp_solana::wormhole::VaaAccount};
+use common::messages::raw::LiquidityLayerMessage;
 
 #[derive(Accounts)]
 pub struct PlaceInitialOffer<'info> {
@@ -28,7 +28,7 @@ pub struct PlaceInitialOffer<'info> {
     )]
     auction_config: Account<'info, AuctionConfig>,
 
-    fast_vaa: LiquidityLayerVaa<'info>,
+    fast_order_path: FastOrderPath<'info>,
 
     /// This account should only be created once, and should never be changed to
     /// init_if_needed. Otherwise someone can game an existing auction.
@@ -38,13 +38,11 @@ pub struct PlaceInitialOffer<'info> {
         space = 8 + Auction::INIT_SPACE,
         seeds = [
             Auction::SEED_PREFIX,
-            VaaAccount::load(&fast_vaa)?.digest().as_ref(),
+            fast_order_path.fast_vaa.load_unchecked().digest().as_ref(),
         ],
         bump
     )]
     auction: Box<Account<'info, Auction>>,
-
-    router_endpoint_pair: LiveRouterEndpointPair<'info>,
 
     /// CHECK: Must be a token account, whose mint is `USDC_MINT` and have delegated authority to
     /// the auction PDA.
@@ -71,11 +69,10 @@ pub struct PlaceInitialOffer<'info> {
 
 pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) -> Result<()> {
     // Create zero copy reference to `FastMarketOrder` payload.
-    let fast_vaa = VaaAccount::load_unchecked(&ctx.accounts.fast_vaa);
-    let msg = LiquidityLayerMessage::try_from(fast_vaa.payload()).unwrap();
-    let fast_order = msg
-        .fast_market_order()
-        .ok_or(MatchingEngineError::NotFastMarketOrder)?;
+    let fast_vaa = ctx.accounts.fast_order_path.fast_vaa.load_unchecked();
+    let order = LiquidityLayerMessage::try_from(fast_vaa.payload())
+        .unwrap()
+        .to_fast_market_order_unchecked();
 
     let source_chain = fast_vaa.emitter_chain();
 
@@ -88,7 +85,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
         } = Clock::get().unwrap();
 
         // Check to see if the deadline has expired.
-        let deadline = i64::from(fast_order.deadline());
+        let deadline = i64::from(order.deadline());
         require!(
             deadline == 0 || unix_timestamp < deadline,
             MatchingEngineError::FastMarketOrderExpired,
@@ -97,22 +94,14 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
         slot
     };
 
-    let max_fee = fast_order.max_fee();
+    let max_fee = order.max_fee();
     require!(
         offer_price <= max_fee,
         MatchingEngineError::OfferPriceTooHigh
     );
 
-    // Verify that the to and from router endpoints are valid.
-    crate::utils::require_valid_router_path(
-        &fast_vaa,
-        &ctx.accounts.router_endpoint_pair.from,
-        &ctx.accounts.router_endpoint_pair.to,
-        fast_order.target_chain(),
-    )?;
-
     // Parse the transfer amount from the VAA.
-    let amount_in = fast_order.amount_in();
+    let amount_in = order.amount_in();
 
     // Set up the Auction account for this auction.
     let initial_offer_token = ctx.accounts.offer_token.key();
@@ -120,10 +109,10 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
     ctx.accounts.auction.set_inner(Auction {
         bump: ctx.bumps.auction,
         vaa_hash,
-        custody_token_bump: ctx.bumps.auction_custody_token,
         status: AuctionStatus::Active,
         info: Some(AuctionInfo {
             config_id: ctx.accounts.auction_config.id,
+            custody_token_bump: ctx.bumps.auction_custody_token,
             vaa_sequence: fast_vaa.sequence(),
             source_chain,
             best_offer_token: initial_offer_token,

@@ -5,10 +5,10 @@ pub mod cctp_mint_recipient;
 
 mod composite;
 
-pub mod error;
+mod error;
 
 mod processor;
-pub(crate) use processor::*;
+use processor::*;
 
 pub mod state;
 

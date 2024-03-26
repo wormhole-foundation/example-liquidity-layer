@@ -47,6 +47,8 @@ impl std::fmt::Display for AuctionStatus {
 pub struct AuctionInfo {
     pub config_id: u32,
 
+    pub custody_token_bump: u8,
+
     /// Sequence of the fast market order VAA.
     pub vaa_sequence: u64,
 
@@ -112,8 +114,6 @@ pub struct Auction {
 
     /// VAA hash of the auction.
     pub vaa_hash: [u8; 32],
-
-    pub custody_token_bump: u8,
 
     /// Auction status.
     pub status: AuctionStatus,

@@ -21,7 +21,7 @@ pub struct CompleteFastFill<'info> {
     #[account(
         constraint = {
             // Make sure that this VAA was emitted from the matching engine.
-            let vaa = VaaAccount::load_unchecked(&fast_fill_vaa);
+            let vaa = fast_fill_vaa.load_unchecked();
             require_eq!(
                 vaa.emitter_chain(),
                 SOLANA_CHAIN,
@@ -77,7 +77,7 @@ pub struct CompleteFastFill<'info> {
         seeds = [
             crate::LOCAL_CUSTODY_TOKEN_SEED_PREFIX,
             {
-                let vaa = VaaAccount::load_unchecked(&fast_fill_vaa);
+                let vaa = fast_fill_vaa.load_unchecked();
                 let msg = LiquidityLayerMessage::try_from(vaa.payload()).unwrap();
 
                 // Is this a fast fill?
@@ -98,7 +98,7 @@ pub struct CompleteFastFill<'info> {
 
 /// TODO: docstring
 pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
-    let vaa = VaaAccount::load_unchecked(&ctx.accounts.fast_fill_vaa);
+    let vaa = ctx.accounts.fast_fill_vaa.load_unchecked();
 
     // Fill redeemed fast fill data.
     ctx.accounts.redeemed_fast_fill.set_inner(RedeemedFastFill {

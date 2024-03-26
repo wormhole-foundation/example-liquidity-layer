@@ -328,6 +328,7 @@ mod test {
         (
             AuctionInfo {
                 security_deposit,
+                custody_token_bump: Default::default(),
                 vaa_sequence: Default::default(),
                 start_slot: START,
                 config_id: Default::default(),

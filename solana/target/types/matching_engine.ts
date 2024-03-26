@@ -142,15 +142,12 @@ export type MatchingEngine = {
           "accounts": [
             {
               "name": "mintRecipient",
-              "isMut": true,
-              "isSigner": false,
-              "docs": [
-                "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-                "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-                "from its custody account to this account.",
-                "",
-                "",
-                "NOTE: This account must be encoded as the mint recipient in the CCTP message."
+              "accounts": [
+                {
+                  "name": "mintRecipient",
+                  "isMut": true,
+                  "isSigner": false
+                }
               ]
             },
             {
@@ -320,51 +317,23 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
+          "name": "coreMessage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "cctpMessage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
-          ]
-        },
-        {
-          "name": "fastVaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader."
-          ]
-        },
-        {
-          "name": "preparedOrderResponse",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "There should be no account data here because an auction was never created."
-          ]
-        },
-        {
-          "name": "auctionCustodyToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            "",
-            "",
-            "NOTE: This account must be encoded as the mint recipient in the CCTP message."
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -379,115 +348,172 @@ export type MatchingEngine = {
           ]
         },
         {
-          "name": "fromRouterEndpoint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Seeds must be \\[\"endpoint\", chain.to_be_bytes()\\]."
+          "name": "prepared",
+          "accounts": [
+            {
+              "name": "by",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "orderResponse",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "custodyToken",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "toRouterEndpoint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Seeds must be \\[\"endpoint\", chain.to_be_bytes()\\]."
+          "name": "fastOrderPath",
+          "accounts": [
+            {
+              "name": "fastVaa",
+              "accounts": [
+                {
+                  "name": "vaa",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "from",
+              "accounts": [
+                {
+                  "name": "endpoint",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "to",
+              "accounts": [
+                {
+                  "name": "endpoint",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
           ]
         },
         {
-          "name": "mint",
+          "name": "auction",
           "isMut": true,
           "isSigner": false,
           "docs": [
-            "Circle-supported mint.",
-            "",
-            "Token Messenger Minter program's local token account."
+            "There should be no account data here because an auction was never created."
           ]
         },
         {
-          "name": "coreBridgeConfig",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreMessage",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "cctpMessage",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreEmitterSequence",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreFeeCollector",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterSenderAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterConfig",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessenger",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "remoteTokenMessenger",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Messenger Minter program)."
+          "name": "wormhole",
+          "accounts": [
+            {
+              "name": "config",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "emitterSequence",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "feeCollector",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "coreBridgeProgram",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "tokenMinter",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "CHECK Seeds must be \\[\"token_minter\"\\] (CCTP Token Messenger Minter program)."
+          "name": "cctp",
+          "accounts": [
+            {
+              "name": "burnSource",
+              "accounts": [
+                {
+                  "name": "mintRecipient",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "mint",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Circle-supported mint.",
+                "",
+                "Token Messenger Minter program's local token account."
+              ]
+            },
+            {
+              "name": "tokenMessengerMinterSenderAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterConfig",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessenger",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "remoteTokenMessenger",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "tokenMinter",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "CHECK Seeds must be \\[\"token_minter\"\\] (CCTP Token Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "localToken",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Local token account, which this program uses to validate the `mint` used to burn.",
+                ""
+              ]
+            },
+            {
+              "name": "tokenMessengerMinterEventAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessengerMinterProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterProgram",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "localToken",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Local token account, which this program uses to validate the `mint` used to burn.",
-            ""
-          ]
-        },
-        {
-          "name": "tokenMessengerMinterEventAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "coreBridgeProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterProgram",
-          "isMut": false,
-          "isSigner": false
         },
         {
           "name": "tokenProgram",
@@ -526,61 +552,18 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
+          "name": "coreMessage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
-          ]
-        },
-        {
-          "name": "fastVaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader."
-          ]
-        },
-        {
-          "name": "preparedOrderResponse",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "There should be no account data here because an auction was never created."
-          ]
-        },
-        {
-          "name": "auctionCustodyToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Circle-supported mint.",
-            "",
-            "Token Messenger Minter program's local token account."
-          ]
-        },
-        {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            "",
-            "",
-            "NOTE: This account must be encoded as the mint recipient in the CCTP message."
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -595,44 +578,96 @@ export type MatchingEngine = {
           ]
         },
         {
-          "name": "fromRouterEndpoint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Seeds must be \\[\"endpoint\", chain.to_be_bytes()\\]."
+          "name": "prepared",
+          "accounts": [
+            {
+              "name": "by",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "orderResponse",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "custodyToken",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "toRouterEndpoint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Seeds must be \\[\"endpoint\", chain.to_be_bytes()\\]."
+          "name": "fastOrderPath",
+          "accounts": [
+            {
+              "name": "fastVaa",
+              "accounts": [
+                {
+                  "name": "vaa",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "from",
+              "accounts": [
+                {
+                  "name": "endpoint",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "to",
+              "accounts": [
+                {
+                  "name": "endpoint",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
           ]
         },
         {
-          "name": "coreBridgeConfig",
+          "name": "auction",
           "isMut": true,
-          "isSigner": false
+          "isSigner": false,
+          "docs": [
+            "There should be no account data here because an auction was never created."
+          ]
         },
         {
-          "name": "coreMessage",
-          "isMut": true,
-          "isSigner": false
+          "name": "wormhole",
+          "accounts": [
+            {
+              "name": "config",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "emitterSequence",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "feeCollector",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "coreBridgeProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
-          "name": "coreEmitterSequence",
+          "name": "localCustodyToken",
           "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreFeeCollector",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreBridgeProgram",
-          "isMut": false,
           "isSigner": false
         },
         {
@@ -1347,27 +1382,18 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "fastVaa",
+          "name": "fastOrderPath",
           "accounts": [
             {
-              "name": "vaa",
-              "isMut": false,
-              "isSigner": false
-            }
-          ]
-        },
-        {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "This account should only be created once, and should never be changed to",
-            "init_if_needed. Otherwise someone can game an existing auction."
-          ]
-        },
-        {
-          "name": "routerEndpointPair",
-          "accounts": [
+              "name": "fastVaa",
+              "accounts": [
+                {
+                  "name": "vaa",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
             {
               "name": "from",
               "accounts": [
@@ -1388,6 +1414,15 @@ export type MatchingEngine = {
                 }
               ]
             }
+          ]
+        },
+        {
+          "name": "auction",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "This account should only be created once, and should never be changed to",
+            "init_if_needed. Otherwise someone can game an existing auction."
           ]
         },
         {
@@ -1601,6 +1636,16 @@ export type MatchingEngine = {
         {
           "name": "cctp",
           "accounts": [
+            {
+              "name": "burnSource",
+              "accounts": [
+                {
+                  "name": "mintRecipient",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            },
             {
               "name": "mint",
               "isMut": true,
@@ -1910,10 +1955,6 @@ export type MatchingEngine = {
             }
           },
           {
-            "name": "custodyTokenBump",
-            "type": "u8"
-          },
-          {
             "name": "status",
             "docs": [
               "Auction status."
@@ -2204,6 +2245,10 @@ export type MatchingEngine = {
           {
             "name": "configId",
             "type": "u32"
+          },
+          {
+            "name": "custodyTokenBump",
+            "type": "u8"
           },
           {
             "name": "vaaSequence",
@@ -2844,15 +2889,12 @@ export const IDL: MatchingEngine = {
           "accounts": [
             {
               "name": "mintRecipient",
-              "isMut": true,
-              "isSigner": false,
-              "docs": [
-                "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-                "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-                "from its custody account to this account.",
-                "",
-                "",
-                "NOTE: This account must be encoded as the mint recipient in the CCTP message."
+              "accounts": [
+                {
+                  "name": "mintRecipient",
+                  "isMut": true,
+                  "isSigner": false
+                }
               ]
             },
             {
@@ -3022,51 +3064,23 @@ export const IDL: MatchingEngine = {
           "isSigner": false
         },
         {
+          "name": "coreMessage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "cctpMessage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
-          ]
-        },
-        {
-          "name": "fastVaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader."
-          ]
-        },
-        {
-          "name": "preparedOrderResponse",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "There should be no account data here because an auction was never created."
-          ]
-        },
-        {
-          "name": "auctionCustodyToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            "",
-            "",
-            "NOTE: This account must be encoded as the mint recipient in the CCTP message."
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -3081,115 +3095,172 @@ export const IDL: MatchingEngine = {
           ]
         },
         {
-          "name": "fromRouterEndpoint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Seeds must be \\[\"endpoint\", chain.to_be_bytes()\\]."
+          "name": "prepared",
+          "accounts": [
+            {
+              "name": "by",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "orderResponse",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "custodyToken",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "toRouterEndpoint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Seeds must be \\[\"endpoint\", chain.to_be_bytes()\\]."
+          "name": "fastOrderPath",
+          "accounts": [
+            {
+              "name": "fastVaa",
+              "accounts": [
+                {
+                  "name": "vaa",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "from",
+              "accounts": [
+                {
+                  "name": "endpoint",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "to",
+              "accounts": [
+                {
+                  "name": "endpoint",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
           ]
         },
         {
-          "name": "mint",
+          "name": "auction",
           "isMut": true,
           "isSigner": false,
           "docs": [
-            "Circle-supported mint.",
-            "",
-            "Token Messenger Minter program's local token account."
+            "There should be no account data here because an auction was never created."
           ]
         },
         {
-          "name": "coreBridgeConfig",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreMessage",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "cctpMessage",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreEmitterSequence",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreFeeCollector",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterSenderAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterConfig",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessenger",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "remoteTokenMessenger",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Messenger Minter program)."
+          "name": "wormhole",
+          "accounts": [
+            {
+              "name": "config",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "emitterSequence",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "feeCollector",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "coreBridgeProgram",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "tokenMinter",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "CHECK Seeds must be \\[\"token_minter\"\\] (CCTP Token Messenger Minter program)."
+          "name": "cctp",
+          "accounts": [
+            {
+              "name": "burnSource",
+              "accounts": [
+                {
+                  "name": "mintRecipient",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "mint",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Circle-supported mint.",
+                "",
+                "Token Messenger Minter program's local token account."
+              ]
+            },
+            {
+              "name": "tokenMessengerMinterSenderAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterConfig",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessenger",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "remoteTokenMessenger",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "tokenMinter",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "CHECK Seeds must be \\[\"token_minter\"\\] (CCTP Token Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "localToken",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Local token account, which this program uses to validate the `mint` used to burn.",
+                ""
+              ]
+            },
+            {
+              "name": "tokenMessengerMinterEventAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessengerMinterProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterProgram",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "localToken",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Local token account, which this program uses to validate the `mint` used to burn.",
-            ""
-          ]
-        },
-        {
-          "name": "tokenMessengerMinterEventAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "coreBridgeProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterProgram",
-          "isMut": false,
-          "isSigner": false
         },
         {
           "name": "tokenProgram",
@@ -3228,61 +3299,18 @@ export const IDL: MatchingEngine = {
           "isSigner": false
         },
         {
+          "name": "coreMessage",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            ""
-          ]
-        },
-        {
-          "name": "fastVaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader."
-          ]
-        },
-        {
-          "name": "preparedOrderResponse",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "There should be no account data here because an auction was never created."
-          ]
-        },
-        {
-          "name": "auctionCustodyToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Circle-supported mint.",
-            "",
-            "Token Messenger Minter program's local token account."
-          ]
-        },
-        {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            "",
-            "",
-            "NOTE: This account must be encoded as the mint recipient in the CCTP message."
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -3297,44 +3325,96 @@ export const IDL: MatchingEngine = {
           ]
         },
         {
-          "name": "fromRouterEndpoint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Seeds must be \\[\"endpoint\", chain.to_be_bytes()\\]."
+          "name": "prepared",
+          "accounts": [
+            {
+              "name": "by",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "orderResponse",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "custodyToken",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "toRouterEndpoint",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Seeds must be \\[\"endpoint\", chain.to_be_bytes()\\]."
+          "name": "fastOrderPath",
+          "accounts": [
+            {
+              "name": "fastVaa",
+              "accounts": [
+                {
+                  "name": "vaa",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "from",
+              "accounts": [
+                {
+                  "name": "endpoint",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "to",
+              "accounts": [
+                {
+                  "name": "endpoint",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
           ]
         },
         {
-          "name": "coreBridgeConfig",
+          "name": "auction",
           "isMut": true,
-          "isSigner": false
+          "isSigner": false,
+          "docs": [
+            "There should be no account data here because an auction was never created."
+          ]
         },
         {
-          "name": "coreMessage",
-          "isMut": true,
-          "isSigner": false
+          "name": "wormhole",
+          "accounts": [
+            {
+              "name": "config",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "emitterSequence",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "feeCollector",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "coreBridgeProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
-          "name": "coreEmitterSequence",
+          "name": "localCustodyToken",
           "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreFeeCollector",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "coreBridgeProgram",
-          "isMut": false,
           "isSigner": false
         },
         {
@@ -4049,27 +4129,18 @@ export const IDL: MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "fastVaa",
+          "name": "fastOrderPath",
           "accounts": [
             {
-              "name": "vaa",
-              "isMut": false,
-              "isSigner": false
-            }
-          ]
-        },
-        {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "This account should only be created once, and should never be changed to",
-            "init_if_needed. Otherwise someone can game an existing auction."
-          ]
-        },
-        {
-          "name": "routerEndpointPair",
-          "accounts": [
+              "name": "fastVaa",
+              "accounts": [
+                {
+                  "name": "vaa",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
             {
               "name": "from",
               "accounts": [
@@ -4090,6 +4161,15 @@ export const IDL: MatchingEngine = {
                 }
               ]
             }
+          ]
+        },
+        {
+          "name": "auction",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "This account should only be created once, and should never be changed to",
+            "init_if_needed. Otherwise someone can game an existing auction."
           ]
         },
         {
@@ -4303,6 +4383,16 @@ export const IDL: MatchingEngine = {
         {
           "name": "cctp",
           "accounts": [
+            {
+              "name": "burnSource",
+              "accounts": [
+                {
+                  "name": "mintRecipient",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            },
             {
               "name": "mint",
               "isMut": true,
@@ -4612,10 +4702,6 @@ export const IDL: MatchingEngine = {
             }
           },
           {
-            "name": "custodyTokenBump",
-            "type": "u8"
-          },
-          {
             "name": "status",
             "docs": [
               "Auction status."
@@ -4906,6 +4992,10 @@ export const IDL: MatchingEngine = {
           {
             "name": "configId",
             "type": "u32"
+          },
+          {
+            "name": "custodyTokenBump",
+            "type": "u8"
           },
           {
             "name": "vaaSequence",

@@ -1413,55 +1413,6 @@ describe("Matching Engine", function () {
                 );
             });
 
-            async function checkAfterEffects(args: {
-                txDetails: VersionedTransactionResponse;
-                fastVaa: PublicKey;
-                offerPrice: bigint;
-            }) {
-                const { txDetails, fastVaa, offerPrice } = args;
-
-                // Confirm the auction data.
-                const vaaAccount = await VaaAccount.fetch(connection, fastVaa);
-                const { fastMarketOrder } = LiquidityLayerMessage.decode(vaaAccount.payload());
-
-                const vaaHash = vaaAccount.digest();
-                const auctionData = await engine.fetchAuction(vaaHash);
-                const { bump, custodyTokenBump } = auctionData;
-
-                const { auctionConfigId } = await engine.fetchCustodian();
-
-                const offerToken = splToken.getAssociatedTokenAddressSync(
-                    USDC_MINT_ADDRESS,
-                    offerAuthorityOne.publicKey,
-                );
-
-                expect(fastMarketOrder).is.not.undefined;
-                const { amountIn, maxFee } = fastMarketOrder!;
-
-                const expectedAmountIn = bigintToU64BN(amountIn);
-                expect(auctionData).to.eql(
-                    new Auction(
-                        bump,
-                        Array.from(vaaHash),
-                        custodyTokenBump,
-                        { active: {} },
-                        {
-                            configId: auctionConfigId,
-                            vaaSequence: bigintToU64BN(vaaAccount.emitterInfo().sequence),
-                            sourceChain: ethChain,
-                            bestOfferToken: offerToken,
-                            initialOfferToken: offerToken,
-                            startSlot: numberToU64BN(txDetails.slot),
-                            amountIn: expectedAmountIn,
-                            securityDeposit: bigintToU64BN(maxFee),
-                            offerPrice: bigintToU64BN(offerPrice),
-                            amountOut: expectedAmountIn,
-                            endEarly: false,
-                        },
-                    ),
-                );
-            }
-
             before("Register To Router Endpoints", async function () {
                 const ix = await engine.addCctpRouterEndpointIx(
                     {
@@ -1737,9 +1688,10 @@ describe("Matching Engine", function () {
                     newOfferAuthority,
                 );
 
-                const { bump, vaaHash, custodyTokenBump, status, info } = auctionDataBefore;
+                const { bump, vaaHash, status, info } = auctionDataBefore;
                 const {
                     configId,
+                    custodyTokenBump,
                     vaaSequence,
                     bestOfferToken: prevBestOfferToken,
                     initialOfferToken,
@@ -1754,8 +1706,9 @@ describe("Matching Engine", function () {
 
                 const auctionDataAfter = await engine.fetchAuction({ address: auction });
                 expect(auctionDataAfter).to.eql(
-                    new Auction(bump, vaaHash, custodyTokenBump, status, {
+                    new Auction(bump, vaaHash, status, {
                         configId,
+                        custodyTokenBump,
                         vaaSequence,
                         sourceChain,
                         bestOfferToken,
@@ -2031,10 +1984,14 @@ describe("Matching Engine", function () {
                     units: 300_000,
                 });
 
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 const txDetails = await expectIxOkDetails(
                     connection,
                     [computeIx, ix],
                     [liquidator],
+                    { addressLookupTableAccounts: [lookupTableAccount!] },
                 );
 
                 await checkAfterEffects(
@@ -2113,10 +2070,14 @@ describe("Matching Engine", function () {
                     units: 300_000,
                 });
 
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
                 const txDetails = await expectIxOkDetails(
                     connection,
                     [computeIx, ix],
                     [liquidator],
+                    { addressLookupTableAccounts: [lookupTableAccount!] },
                 );
 
                 await checkAfterEffects(
@@ -2352,7 +2313,7 @@ describe("Matching Engine", function () {
                     executorToken: executorTokenBefore,
                 } = balancesBefore;
 
-                const { bump, vaaHash, custodyTokenBump, info } = auctionDataBefore;
+                const { bump, vaaHash, info } = auctionDataBefore;
 
                 const auctionDataAfter = await engine.fetchAuction({ address: auction });
 
@@ -2391,7 +2352,6 @@ describe("Matching Engine", function () {
                         new Auction(
                             bump,
                             vaaHash,
-                            custodyTokenBump,
                             {
                                 completed: {
                                     slot: bigintToU64BN(BigInt(txDetails.slot)),
@@ -2436,7 +2396,6 @@ describe("Matching Engine", function () {
                         new Auction(
                             bump,
                             vaaHash,
-                            custodyTokenBump,
                             {
                                 completed: {
                                     slot: bigintToU64BN(BigInt(txDetails.slot)),
@@ -3238,7 +3197,7 @@ describe("Matching Engine", function () {
                 });
             });
 
-            describe.skip("Settle No Auction (CCTP)", function () {
+            describe("Settle No Auction (CCTP)", function () {
                 const localVariables = new Map<string, any>();
 
                 it("Settle", async function () {
@@ -3263,7 +3222,12 @@ describe("Matching Engine", function () {
                         connection,
                         feeRecipientToken,
                     );
-                    const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
+                    const preparedCustodyToken =
+                        engine.preparedCustodyTokenAddress(preparedOrderResponse);
+                    const { amount: custodyBalanceBefore } = await splToken.getAccount(
+                        connection,
+                        preparedCustodyToken,
+                    );
 
                     await expectIxOk(connection, [computeIx, settleIx], [payer]);
 
@@ -3277,22 +3241,31 @@ describe("Matching Engine", function () {
                     );
                     expect(feeBalanceAfter).equals(feeBalanceBefore + baseFee);
 
-                    const { amount } = deposit.header;
-                    const { amount: custodyBalanceAfter } = await engine.fetchCctpMintRecipient();
-                    expect(custodyBalanceAfter).equals(custodyBalanceBefore - amount);
+                    const { amount: custodyBalanceAfter } = await splToken.getAccount(
+                        connection,
+                        preparedCustodyToken,
+                    );
+                    expect(custodyBalanceAfter).equals(
+                        custodyBalanceBefore - deposit.header.amount,
+                    );
+
+                    const { amount: cctpMintRecipientBalance } =
+                        await engine.fetchCctpMintRecipient();
+                    expect(cctpMintRecipientBalance).equals(0n);
 
                     const fastVaaHash = fastVaaAccount.digest();
                     const auctionData = await engine.fetchAuction(fastVaaHash);
-                    const { bump, custodyTokenBump } = auctionData;
+                    const { bump, info } = auctionData;
+                    expect(info).is.null;
+
                     expect(auctionData).to.eql(
                         new Auction(
                             bump,
                             Array.from(fastVaaHash),
-                            custodyTokenBump,
                             {
                                 settled: {
                                     baseFee: bigintToU64BN(baseFee),
-                                    penalty: null,
+                                    totalPenalty: null,
                                 },
                             },
                             null,
@@ -3367,7 +3340,8 @@ describe("Matching Engine", function () {
         // Confirm the auction data.
         const vaaHash = fastVaaAccount.digest();
         const auctionData = await engine.fetchAuction(vaaHash);
-        const { bump, custodyTokenBump } = auctionData;
+        const { bump, info } = auctionData;
+        const { custodyTokenBump } = info!;
 
         const { auctionConfigId } = await engine.fetchCustodian();
 
@@ -3379,10 +3353,10 @@ describe("Matching Engine", function () {
             new Auction(
                 bump,
                 Array.from(vaaHash),
-                custodyTokenBump,
                 { active: {} },
                 {
                     configId: auctionConfigId,
+                    custodyTokenBump,
                     vaaSequence: bigintToU64BN(fastVaaAccount.emitterInfo().sequence),
                     sourceChain: ethChain,
                     bestOfferToken: offerToken,

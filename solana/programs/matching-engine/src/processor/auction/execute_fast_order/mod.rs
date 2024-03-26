@@ -12,14 +12,12 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{
-    messages::{raw::LiquidityLayerPayload, Fill},
-    wormhole_cctp_solana::wormhole::VaaAccount,
-};
+use common::messages::{raw::LiquidityLayerPayload, Fill};
 
 struct PrepareFastExecution<'ctx, 'info> {
     execute_order: &'ctx mut ExecuteOrder<'info>,
     payer_sequence: &'ctx mut Account<'info, PayerSequence>,
+    dst_token: &'ctx Account<'info, token::TokenAccount>,
     token_program: &'ctx Program<'info, token::Token>,
 }
 
@@ -33,6 +31,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
     let PrepareFastExecution {
         execute_order,
         payer_sequence,
+        dst_token,
         token_program,
     } = accounts;
 
@@ -44,7 +43,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
         initial_offer_token,
     } = execute_order;
 
-    let fast_vaa = VaaAccount::load_unchecked(fast_vaa);
+    let fast_vaa = fast_vaa.load_unchecked();
     let order = LiquidityLayerPayload::try_from(fast_vaa.payload())
         .map_err(|_| MatchingEngineError::InvalidVaa)?
         .message()
@@ -134,8 +133,24 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             deposit_and_fee,
         )?;
 
+        // Transfer funds to local custody token account.
+        let user_amount =
+            auction_info.amount_in - auction_info.offer_price - init_auction_fee + user_reward;
+        token::transfer(
+            CpiContext::new_with_signer(
+                token_program.to_account_info(),
+                token::Transfer {
+                    from: custody_token.to_account_info(),
+                    to: dst_token.to_account_info(),
+                    authority: auction.to_account_info(),
+                },
+                &[auction_signer_seeds],
+            ),
+            user_amount,
+        )?;
+
         (
-            auction_info.amount_in - auction_info.offer_price - init_auction_fee + user_reward,
+            user_amount,
             AuctionStatus::Completed {
                 slot: current_slot,
                 execute_penalty: if penalty > 0 { Some(penalty) } else { None },
