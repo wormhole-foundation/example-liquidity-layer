@@ -60,13 +60,7 @@ pub struct ExecuteFastOrderCctp<'info> {
     system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,
 
-    /// CHECK: Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.
-    #[account(address = solana_program::sysvar::clock::id())]
-    clock: AccountInfo<'info>,
-
-    /// CHECK: Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.
-    #[account(address = solana_program::sysvar::rent::id())]
-    rent: AccountInfo<'info>,
+    sysvars: RequiredSysvars<'info>,
 }
 
 /// TODO: add docstring
@@ -157,8 +151,8 @@ pub fn handle_execute_fast_order_cctp(
                 emitter_sequence: ctx.accounts.wormhole.emitter_sequence.to_account_info(),
                 fee_collector: ctx.accounts.wormhole.fee_collector.to_account_info(),
                 system_program: ctx.accounts.system_program.to_account_info(),
-                clock: ctx.accounts.clock.to_account_info(),
-                rent: ctx.accounts.rent.to_account_info(),
+                clock: ctx.accounts.sysvars.clock.to_account_info(),
+                rent: ctx.accounts.sysvars.rent.to_account_info(),
             },
             &[
                 Custodian::SIGNER_SEEDS,

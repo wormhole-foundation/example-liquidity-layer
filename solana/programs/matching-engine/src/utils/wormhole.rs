@@ -10,8 +10,7 @@ pub struct PostMatchingEngineMessage<'ctx, 'info> {
     pub custodian: &'ctx CheckedCustodian<'info>,
     pub payer: &'ctx Signer<'info>,
     pub system_program: &'ctx Program<'info, System>,
-    pub rent: &'ctx AccountInfo<'info>,
-    pub clock: &'ctx AccountInfo<'info>,
+    pub sysvars: &'ctx RequiredSysvars<'info>,
 }
 
 pub fn post_matching_engine_message<M>(
@@ -29,8 +28,7 @@ where
         custodian,
         payer,
         system_program,
-        rent,
-        clock,
+        sysvars,
     } = ctx;
 
     let WormholePublishMessage {
@@ -51,8 +49,8 @@ where
                 emitter_sequence: emitter_sequence.to_account_info(),
                 fee_collector: fee_collector.to_account_info(),
                 system_program: system_program.to_account_info(),
-                clock: clock.to_account_info(),
-                rent: rent.to_account_info(),
+                clock: sysvars.clock.to_account_info(),
+                rent: sysvars.rent.to_account_info(),
             },
             &[
                 Custodian::SIGNER_SEEDS,

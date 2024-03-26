@@ -1190,10 +1190,6 @@ export class MatchingEngineProgram {
                     feeCollector: coreFeeCollector,
                     coreBridgeProgram,
                 },
-                tokenProgram: splToken.TOKEN_PROGRAM_ID,
-                systemProgram: SystemProgram.programId,
-                clock: SYSVAR_CLOCK_PUBKEY,
-                rent: SYSVAR_RENT_PUBKEY,
             })
             .instruction();
     }

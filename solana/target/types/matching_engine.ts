@@ -526,14 +526,27 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
+          "name": "sysvars",
+          "accounts": [
+            {
+              "name": "clock",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                ""
+              ]
+            },
+            {
+              "name": "rent",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                ""
+              ]
+            }
+          ]
         }
       ],
       "args": []
@@ -681,14 +694,27 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
+          "name": "sysvars",
+          "accounts": [
+            {
+              "name": "clock",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                ""
+              ]
+            },
+            {
+              "name": "rent",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                ""
+              ]
+            }
+          ]
         }
       ],
       "args": []
@@ -1724,14 +1750,27 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
+          "name": "sysvars",
+          "accounts": [
+            {
+              "name": "clock",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                ""
+              ]
+            },
+            {
+              "name": "rent",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                ""
+              ]
+            }
+          ]
         }
       ],
       "args": []
@@ -1865,14 +1904,27 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
+          "name": "sysvars",
+          "accounts": [
+            {
+              "name": "clock",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                ""
+              ]
+            },
+            {
+              "name": "rent",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                ""
+              ]
+            }
+          ]
         }
       ],
       "args": []
@@ -3273,14 +3325,27 @@ export const IDL: MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
+          "name": "sysvars",
+          "accounts": [
+            {
+              "name": "clock",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                ""
+              ]
+            },
+            {
+              "name": "rent",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                ""
+              ]
+            }
+          ]
         }
       ],
       "args": []
@@ -3428,14 +3493,27 @@ export const IDL: MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
+          "name": "sysvars",
+          "accounts": [
+            {
+              "name": "clock",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                ""
+              ]
+            },
+            {
+              "name": "rent",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                ""
+              ]
+            }
+          ]
         }
       ],
       "args": []
@@ -4471,14 +4549,27 @@ export const IDL: MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
+          "name": "sysvars",
+          "accounts": [
+            {
+              "name": "clock",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                ""
+              ]
+            },
+            {
+              "name": "rent",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                ""
+              ]
+            }
+          ]
         }
       ],
       "args": []
@@ -4612,14 +4703,27 @@ export const IDL: MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
+          "name": "sysvars",
+          "accounts": [
+            {
+              "name": "clock",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                ""
+              ]
+            },
+            {
+              "name": "rent",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                ""
+              ]
+            }
+          ]
         }
       ],
       "args": []

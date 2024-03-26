@@ -55,13 +55,7 @@ pub struct ExecuteFastOrderLocal<'info> {
     system_program: Program<'info, System>,
     token_program: Program<'info, token::Token>,
 
-    /// CHECK: Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.
-    #[account(address = solana_program::sysvar::clock::id())]
-    clock: AccountInfo<'info>,
-
-    /// CHECK: Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.
-    #[account(address = solana_program::sysvar::rent::id())]
-    rent: AccountInfo<'info>,
+    sysvars: RequiredSysvars<'info>,
 }
 
 pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<()> {
@@ -87,8 +81,7 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
             custodian: &ctx.accounts.custodian,
             payer: &ctx.accounts.payer,
             system_program: &ctx.accounts.system_program,
-            clock: &ctx.accounts.clock,
-            rent: &ctx.accounts.rent,
+            sysvars: &ctx.accounts.sysvars,
         },
         common::messages::FastFill { amount, fill },
         &sequence_seed,

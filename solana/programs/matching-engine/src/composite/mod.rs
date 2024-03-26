@@ -532,3 +532,19 @@ impl<'info> VaaDigest for ClosePreparedOrderResponse<'info> {
         self.order_response.fast_vaa_hash
     }
 }
+
+/// NOTE: Keep this at the end in case Wormhole removes the need for these accounts.
+#[derive(Accounts)]
+pub struct RequiredSysvars<'info> {
+    /// Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.
+    ///
+    /// CHECK: Must equal clock ID.
+    #[account(address = solana_program::sysvar::clock::id())]
+    pub clock: AccountInfo<'info>,
+
+    /// Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.
+    ///
+    /// CHECK: Must equal rent ID.
+    #[account(address = solana_program::sysvar::rent::id())]
+    pub rent: AccountInfo<'info>,
+}
