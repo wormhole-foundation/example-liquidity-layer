@@ -79,7 +79,7 @@ pub fn execute_token_router_upgrade(ctx: Context<ExecuteTokenRouterUpgrade>) -> 
         bump: ctx.bumps.upgrade_receipt,
         owner: *ctx.accounts.owner.key,
         buffer: *ctx.accounts.token_router_buffer.key,
-        slot: Clock::get().map(|clock| clock.slot)?,
+        slot: Clock::get().unwrap().slot,
     });
 
     // First set the buffer's authority to the upgrade authority.

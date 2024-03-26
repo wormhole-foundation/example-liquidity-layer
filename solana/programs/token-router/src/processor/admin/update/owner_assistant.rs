@@ -28,7 +28,7 @@ pub struct UpdateOwnerAssistant<'info> {
 pub fn update_owner_assistant(ctx: Context<UpdateOwnerAssistant>) -> Result<()> {
     common::admin::utils::assistant::transfer_owner_assistant(
         &mut ctx.accounts.custodian,
-        &ctx.accounts.new_owner_assistant.key(),
+        &ctx.accounts.new_owner_assistant,
     );
 
     // Done.

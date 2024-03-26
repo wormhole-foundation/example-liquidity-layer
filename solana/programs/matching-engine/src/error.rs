@@ -11,9 +11,6 @@ pub enum MatchingEngineError {
     #[msg("OwnerOrAssistantOnly")]
     OwnerOrAssistantOnly = 0x4,
 
-    #[msg("InvalidCustodyToken")]
-    InvalidCustodyToken = 0x6,
-
     #[msg("CpiDisallowed")]
     CpiDisallowed = 0x8,
 
@@ -34,9 +31,6 @@ pub enum MatchingEngineError {
 
     #[msg("ImmutableProgram")]
     ImmutableProgram = 0x102,
-
-    #[msg("NotUsdc")]
-    NotUsdc = 0x103,
 
     #[msg("InvalidNewOwner")]
     InvalidNewOwner = 0x202,
@@ -146,8 +140,8 @@ pub enum MatchingEngineError {
     #[msg("MismatchedVaaHash")]
     MismatchedVaaHash,
 
-    #[msg("BestOfferTokenMismatch")]
-    BestOfferTokenMismatch,
+    #[msg("ExecutorTokenMismatch")]
+    ExecutorTokenMismatch,
 
     #[msg("InitialOfferTokenMismatch")]
     InitialOfferTokenMismatch,

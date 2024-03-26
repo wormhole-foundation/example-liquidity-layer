@@ -226,9 +226,8 @@ export async function waitUntilSlot(connection: Connection, targetSlot: number) 
 }
 
 export async function getUsdcAtaBalance(connection: Connection, owner: PublicKey) {
-    const { amount } = await splToken.getAccount(
-        connection,
-        splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner),
-    );
-    return amount;
+    return splToken
+        .getAccount(connection, splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner))
+        .then((token) => token.amount)
+        .catch(() => 0n);
 }

@@ -15,19 +15,19 @@ export async function postLiquidityLayerVaa(
     foreignEmitterAddress: Array<number>,
     sequence: bigint,
     message: LiquidityLayerMessage | Buffer,
-    chainName?: ChainName
+    sourceChain?: ChainName,
 ) {
     const foreignEmitter = new MockEmitter(
         Buffer.from(foreignEmitterAddress).toString("hex"),
-        coalesceChainId(chainName ?? "ethereum"),
-        Number(sequence - 1n)
+        coalesceChainId(sourceChain ?? "ethereum"),
+        Number(sequence - 1n),
     );
 
     const published = foreignEmitter.publishMessage(
         0, // nonce,
         Buffer.isBuffer(message) ? message : message.encode(),
         0, // consistencyLevel
-        12345678 // timestamp
+        12345678, // timestamp
     );
     const vaaBuf = guardians.addSignatures(published, [0]);
 

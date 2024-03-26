@@ -1,9 +1,9 @@
-use crate::state::custodian::*;
+use crate::composite::*;
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CancelOwnershipTransferRequest<'info> {
-    admin: OwnerMutCustodian<'info>,
+    admin: OwnerOnlyMut<'info>,
 }
 
 pub fn cancel_ownership_transfer_request(

@@ -3,10 +3,12 @@
 
 pub mod cctp_mint_recipient;
 
-pub mod error;
+mod composite;
+
+mod error;
 
 mod processor;
-pub(crate) use processor::*;
+use processor::*;
 
 pub mod state;
 
@@ -24,6 +26,10 @@ cfg_if::cfg_if! {
         const CUSTODIAN_BUMP: u8 = 254;
     }
 }
+
+const AUCTION_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"auction-custody";
+const LOCAL_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"local-custody";
+const PREPARED_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"prepared-custody";
 
 #[program]
 pub mod matching_engine {
@@ -50,14 +56,6 @@ pub mod matching_engine {
 
     pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result<()> {
         processor::settle_auction_none_local(ctx)
-    }
-
-    pub fn settle_auction_active_cctp(ctx: Context<SettleAuctionActiveCctp>) -> Result<()> {
-        processor::settle_auction_active_cctp(ctx)
-    }
-
-    pub fn settle_auction_active_local(ctx: Context<SettleAuctionActiveLocal>) -> Result<()> {
-        processor::settle_auction_active_local(ctx)
     }
 
     /// This instruction is be used to generate your program's config.

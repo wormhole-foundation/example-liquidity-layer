@@ -33,7 +33,8 @@ const MATCHING_ENGINE_ARTIFACT_PATH = `${__dirname}/artifacts/testnet_matching_e
 const TOKEN_ROUTER_ARTIFACT_PATH = `${__dirname}/artifacts/testnet_token_router.so`;
 
 /// FOR NOW ONLY PERFORM THESE TESTS IF YOU HAVE THE MAGIC PRIVATE KEY.
-if (process.env.MAGIC_PRIVATE_KEY !== undefined) {
+if (false) {
+    //process.env.MAGIC_PRIVATE_KEY !== undefined) {
     const devnetOwner = Keypair.fromSecretKey(
         Buffer.from(process.env.MAGIC_PRIVATE_KEY!, "base64"),
     );

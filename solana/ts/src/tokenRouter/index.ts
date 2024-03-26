@@ -95,7 +95,7 @@ export type RedeemFastFillAccounts = {
     matchingEngineCustodian: PublicKey;
     matchingEngineRedeemedFastFill: PublicKey;
     matchingEngineRouterEndpoint: PublicKey;
-    matchingEngineCctpMintRecipient: PublicKey;
+    matchingEngineLocalCustodyToken: PublicKey;
     matchingEngineProgram: PublicKey;
 };
 
@@ -555,17 +555,20 @@ export class TokenRouterProgram {
             .instruction();
     }
 
-    async redeemFastFillAccounts(vaa: PublicKey): Promise<RedeemFastFillAccounts> {
+    async redeemFastFillAccounts(
+        vaa: PublicKey,
+        sourceChain?: number,
+    ): Promise<RedeemFastFillAccounts> {
         const {
             vaaAccount,
             accounts: {
                 custodian: matchingEngineCustodian,
                 redeemedFastFill: matchingEngineRedeemedFastFill,
                 routerEndpoint: matchingEngineRouterEndpoint,
-                cctpMintRecipient: matchingEngineCctpMintRecipient,
+                localCustodyToken: matchingEngineLocalCustodyToken,
                 matchingEngineProgram,
             },
-        } = await this.matchingEngineProgram().redeemFastFillAccounts(vaa);
+        } = await this.matchingEngineProgram().redeemFastFillAccounts(vaa, sourceChain);
 
         return {
             custodian: this.custodianAddress(),
@@ -574,7 +577,7 @@ export class TokenRouterProgram {
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
             matchingEngineRouterEndpoint,
-            matchingEngineCctpMintRecipient,
+            matchingEngineLocalCustodyToken,
             matchingEngineProgram,
         };
     }
@@ -590,7 +593,7 @@ export class TokenRouterProgram {
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
             matchingEngineRouterEndpoint,
-            matchingEngineCctpMintRecipient,
+            matchingEngineLocalCustodyToken,
             matchingEngineProgram,
         } = await this.redeemFastFillAccounts(vaa);
 
@@ -606,7 +609,7 @@ export class TokenRouterProgram {
                 matchingEngineCustodian,
                 matchingEngineRedeemedFastFill,
                 matchingEngineRouterEndpoint,
-                matchingEngineCctpMintRecipient,
+                matchingEngineLocalCustodyToken,
                 matchingEngineProgram,
             })
             .instruction();

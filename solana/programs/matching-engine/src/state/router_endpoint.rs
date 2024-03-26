@@ -1,6 +1,3 @@
-use std::ops::Deref;
-
-use crate::error::MatchingEngineError;
 use anchor_lang::prelude::*;
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
@@ -37,48 +34,4 @@ pub struct RouterEndpoint {
 
 impl RouterEndpoint {
     pub const SEED_PREFIX: &'static [u8] = b"endpoint";
-}
-
-#[derive(Accounts)]
-pub(crate) struct ExistingMutRouterEndpoint<'info> {
-    #[account(
-        mut,
-        seeds = [
-            RouterEndpoint::SEED_PREFIX,
-            &inner.chain.to_be_bytes()
-        ],
-        bump = inner.bump,
-    )]
-    pub inner: Account<'info, RouterEndpoint>,
-}
-
-#[derive(Accounts)]
-pub struct LiveRouterEndpoint<'info> {
-    #[account(
-        seeds = [
-            RouterEndpoint::SEED_PREFIX,
-            &inner.chain.to_be_bytes()
-        ],
-        bump = inner.bump,
-        constraint = {
-            inner.protocol != MessageProtocol::None
-        } @ MatchingEngineError::EndpointDisabled,
-    )]
-    pub inner: Account<'info, RouterEndpoint>,
-}
-
-impl<'info> Deref for LiveRouterEndpoint<'info> {
-    type Target = RouterEndpoint;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-#[derive(Accounts)]
-pub struct LiveRouterEndpointPair<'info> {
-    pub from: LiveRouterEndpoint<'info>,
-
-    #[account(constraint = from.chain != to.chain @ MatchingEngineError::SameEndpoint)]
-    pub to: LiveRouterEndpoint<'info>,
 }

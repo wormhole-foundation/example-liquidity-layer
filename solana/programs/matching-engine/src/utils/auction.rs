@@ -12,6 +12,7 @@ pub struct DepositPenalty {
 }
 
 #[inline]
+#[allow(clippy::cast_possible_truncation)]
 pub fn compute_deposit_penalty(
     params: &AuctionParameters,
     info: &AuctionInfo,
@@ -41,8 +42,9 @@ pub fn compute_deposit_penalty(
 }
 
 #[inline]
-pub fn compute_min_offer_delta(params: &AuctionParameters, info: &AuctionInfo) -> u64 {
-    mul_bps_unsafe(info.offer_price, params.min_offer_delta_bps)
+pub fn compute_min_allowed_offer(params: &AuctionParameters, info: &AuctionInfo) -> u64 {
+    info.offer_price
+        .saturating_sub(mul_bps_unsafe(info.offer_price, params.min_offer_delta_bps))
 }
 
 pub fn require_valid_parameters(params: &AuctionParameters) -> Result<()> {
@@ -81,6 +83,7 @@ fn split_user_penalty_reward(params: &AuctionParameters, amount: u64) -> Deposit
 }
 
 #[inline]
+#[allow(clippy::cast_possible_truncation)]
 fn mul_bps_unsafe(amount: u64, bps: u32) -> u64 {
     ((amount as u128 * bps as u128) / FEE_PRECISION_MAX as u128) as u64
 }
@@ -289,9 +292,8 @@ mod test {
         let offer_price = 10000000;
         let (info, _) = set_up(0, None, offer_price);
 
-        let min_offer_delta = compute_min_offer_delta(&params, &info);
-
-        assert_eq!(min_offer_delta, offer_price);
+        let allowed_offer = compute_min_allowed_offer(&params, &info);
+        assert_eq!(allowed_offer, 0);
     }
 
     #[test]
@@ -302,9 +304,8 @@ mod test {
         let offer_price = 10000000;
         let (info, _) = set_up(0, None, offer_price);
 
-        let min_offer_delta = compute_min_offer_delta(&params, &info);
-
-        assert_eq!(min_offer_delta, 0);
+        let allowed_offer = compute_min_allowed_offer(&params, &info);
+        assert_eq!(allowed_offer, offer_price);
     }
 
     #[test]
@@ -314,9 +315,8 @@ mod test {
         let offer_price = 10000000;
         let (info, _) = set_up(0, None, offer_price);
 
-        let min_offer_delta = compute_min_offer_delta(&params, &info);
-
-        assert_eq!(min_offer_delta, 500000);
+        let allowed_offer = compute_min_allowed_offer(&params, &info);
+        assert_eq!(allowed_offer, offer_price - 500000);
     }
 
     fn set_up(
@@ -328,6 +328,7 @@ mod test {
         (
             AuctionInfo {
                 security_deposit,
+                custody_token_bump: Default::default(),
                 vaa_sequence: Default::default(),
                 start_slot: START,
                 config_id: Default::default(),
@@ -337,6 +338,7 @@ mod test {
                 amount_in: Default::default(),
                 offer_price,
                 amount_out: Default::default(),
+                end_early: Default::default(),
             },
             START + slots_elapsed.unwrap_or_default(),
         )

@@ -1,12 +1,19 @@
 use crate::state::AuctionParameters;
 use anchor_lang::prelude::*;
 
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq, Eq)]
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq, Eq, Default)]
 pub enum AuctionStatus {
+    #[default]
     NotStarted,
     Active,
-    Completed { slot: u64 },
-    Settled { base_fee: u64, penalty: Option<u64> },
+    Completed {
+        slot: u64,
+        execute_penalty: Option<u64>,
+    },
+    Settled {
+        base_fee: u64,
+        total_penalty: Option<u64>,
+    },
 }
 
 impl std::fmt::Display for AuctionStatus {
@@ -14,12 +21,22 @@ impl std::fmt::Display for AuctionStatus {
         match self {
             AuctionStatus::NotStarted => write!(f, "NotStarted"),
             AuctionStatus::Active => write!(f, "Active"),
-            AuctionStatus::Completed { slot } => write!(f, "Completed {{ slot: {} }}", slot),
-            AuctionStatus::Settled { base_fee, penalty } => {
+            AuctionStatus::Completed {
+                slot,
+                execute_penalty,
+            } => write!(
+                f,
+                "Completed {{ slot: {}, execute_penalty: {:?} }}",
+                slot, execute_penalty
+            ),
+            AuctionStatus::Settled {
+                base_fee,
+                total_penalty,
+            } => {
                 write!(
                     f,
-                    "Settled {{ base_fee: {}, penalty: {:?} }}",
-                    base_fee, penalty
+                    "Settled {{ base_fee: {}, total_penalty: {:?} }}",
+                    base_fee, total_penalty
                 )
             }
         }
@@ -29,6 +46,8 @@ impl std::fmt::Display for AuctionStatus {
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub struct AuctionInfo {
     pub config_id: u32,
+
+    pub custody_token_bump: u8,
 
     /// Sequence of the fast market order VAA.
     pub vaa_sequence: u64,
@@ -58,6 +77,8 @@ pub struct AuctionInfo {
     /// The amount of tokens to be sent to the user. For CCTP fast transfers, this amount will equal
     /// the [amount_in](Self::amount_in).
     pub amount_out: u64,
+
+    pub end_early: bool,
 }
 
 impl AuctionInfo {

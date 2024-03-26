@@ -1,4 +1,7 @@
-use crate::state::{custodian::*, AuctionParameters, Proposal, ProposalAction};
+use crate::{
+    composite::*,
+    state::{AuctionParameters, Proposal, ProposalAction},
+};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
@@ -6,7 +9,7 @@ pub struct ProposeAuctionParameters<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    admin: AdminMutCustodian<'info>,
+    admin: AdminMut<'info>,
 
     #[account(
         init,
@@ -14,7 +17,7 @@ pub struct ProposeAuctionParameters<'info> {
         space = 8 + Proposal::INIT_SPACE,
         seeds = [
             Proposal::SEED_PREFIX,
-            admin.custodian.next_proposal_id.to_be_bytes().as_ref()
+            &admin.custodian.next_proposal_id.to_be_bytes()
         ],
         bump,
     )]

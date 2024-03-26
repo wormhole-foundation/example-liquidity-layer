@@ -1,100 +1,168 @@
 use crate::{
     error::MatchingEngineError,
-    state::{Auction, AuctionStatus, Custodian, PreparedOrderResponse},
+    state::{Auction, AuctionStatus, PreparedOrderResponse},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
 #[derive(Accounts)]
 pub struct SettleAuctionComplete<'info> {
-    /// This program's Wormhole (Core Bridge) emitter authority.
-    ///
-    /// CHECK: Seeds must be \["emitter"\].
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-    )]
-    custodian: Account<'info, Custodian>,
-
-    /// CHECK: Must be the account that created the prepared slow order.
+    /// CHECK: To prevent squatters from preparing order responses on behalf of the auction winner,
+    /// we will always reward the owner of the executor token account with the lamports from the
+    /// prepared order response and its custody token account when we close these accounts. This
+    /// means we disregard the `prepared_by` field in the prepared order response.
     #[account(mut)]
-    prepared_by: AccountInfo<'info>,
+    executor: AccountInfo<'info>,
 
     #[account(
         mut,
-        close = prepared_by,
-        seeds = [
-            PreparedOrderResponse::SEED_PREFIX,
-            prepared_by.key().as_ref(),
-            prepared_order_response.fast_vaa_hash.as_ref()
-        ],
-        bump = prepared_order_response.bump,
+        associated_token::mint = best_offer_token.mint,
+        associated_token::authority = executor,
     )]
-    prepared_order_response: Account<'info, PreparedOrderResponse>,
-
-    #[account(
-        seeds = [
-            Auction::SEED_PREFIX,
-            prepared_order_response.fast_vaa_hash.as_ref(),
-        ],
-        bump = auction.bump,
-        constraint = {
-            require!(
-                matches!(auction.status, AuctionStatus::Completed { .. }),
-                MatchingEngineError::AuctionNotCompleted,
-            );
-
-            require_keys_eq!(
-                best_offer_token.key(),
-                auction.info.as_ref().unwrap().best_offer_token,
-                MatchingEngineError::BestOfferTokenMismatch,
-            );
-            true
-        }
-    )]
-    auction: Account<'info, Auction>,
+    executor_token: Account<'info, token::TokenAccount>,
 
     /// Destination token account, which the redeemer may not own. But because the redeemer is a
     /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
     /// to any account he chooses (this one).
     ///
     /// CHECK: This token account must already exist.
-    #[account(mut)]
-    best_offer_token: AccountInfo<'info>,
-
-    /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
-    /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
-    /// from its custody account to this account.
-    ///
-    /// Mutable. Seeds must be \["custody"\].
-    ///
-    /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
     #[account(
         mut,
-        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = auction.info.as_ref().unwrap().best_offer_token,
     )]
-    cctp_mint_recipient: Account<'info, token::TokenAccount>,
+    best_offer_token: Account<'info, token::TokenAccount>,
+
+    #[account(
+        mut,
+        close = executor,
+        seeds = [
+            PreparedOrderResponse::SEED_PREFIX,
+            prepared_order_response.fast_vaa_hash.as_ref()
+        ],
+        bump = prepared_order_response.bump,
+    )]
+    prepared_order_response: Account<'info, PreparedOrderResponse>,
+
+    /// CHECK: Seeds must be \["prepared-custody"\, prepared_order_response.key()].
+    #[account(
+        mut,
+        seeds = [
+            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
+            prepared_order_response.key().as_ref(),
+        ],
+        bump,
+    )]
+    prepared_custody_token: AccountInfo<'info>,
+
+    #[account(
+        mut,
+        seeds = [
+            Auction::SEED_PREFIX,
+            prepared_order_response.fast_vaa_hash.as_ref(),
+        ],
+        bump = auction.bump,
+    )]
+    auction: Account<'info, Auction>,
 
     token_program: Program<'info, token::Token>,
 }
 
 pub fn settle_auction_complete(ctx: Context<SettleAuctionComplete>) -> Result<()> {
+    match ctx.accounts.auction.status {
+        AuctionStatus::Completed {
+            slot: _,
+            execute_penalty,
+        } => handle_settle_auction_complete(ctx, execute_penalty),
+        _ => err!(MatchingEngineError::AuctionNotCompleted),
+    }
+}
+
+fn handle_settle_auction_complete(
+    ctx: Context<SettleAuctionComplete>,
+    execute_penalty: Option<u64>,
+) -> Result<()> {
+    let prepared_order_response = &ctx.accounts.prepared_order_response;
+    let base_fee = prepared_order_response.base_fee;
+
     ctx.accounts.auction.status = AuctionStatus::Settled {
-        base_fee: ctx.accounts.prepared_order_response.base_fee,
-        penalty: None,
+        base_fee,
+        total_penalty: execute_penalty.map(|v| v + base_fee),
     };
 
-    // Finally transfer the funds back to the highest bidder.
+    let executor_token = &ctx.accounts.executor_token;
+    let best_offer_token = &ctx.accounts.best_offer_token;
+    let prepared_custody_token = &ctx.accounts.prepared_custody_token;
+    let token_program = &ctx.accounts.token_program;
+
+    let prepared_order_response_signer_seeds = &[
+        PreparedOrderResponse::SEED_PREFIX,
+        prepared_order_response.fast_vaa_hash.as_ref(),
+        &[prepared_order_response.bump],
+    ];
+
+    // We may deduct from this account if the winning participant was penalized.
+    let mut repayment = ctx.accounts.auction.info.as_ref().unwrap().amount_in;
+
+    match execute_penalty {
+        None => {
+            // If there is no penalty, we require that the executor token and best offer token be
+            // equal. The winning offer should not be penalized for calling this instruction when he
+            // has executed the order within the grace period.
+            //
+            // By requiring that these pubkeys are equal, we enforce that the owner of the best
+            // offer token gets rewarded the lamports from the prepared order response and its
+            // custody account.
+            require_keys_eq!(
+                executor_token.key(),
+                best_offer_token.key(),
+                MatchingEngineError::ExecutorTokenMismatch
+            )
+        }
+        _ => {
+            if executor_token.key() != best_offer_token.key() {
+                // Because the auction participant was penalized for executing the order late, he
+                // will be deducted the base fee. This base fee will be sent to the executor token
+                // account if it is not the same as the best offer token account.
+                token::transfer(
+                    CpiContext::new_with_signer(
+                        token_program.to_account_info(),
+                        token::Transfer {
+                            from: prepared_custody_token.to_account_info(),
+                            to: executor_token.to_account_info(),
+                            authority: prepared_order_response.to_account_info(),
+                        },
+                        &[prepared_order_response_signer_seeds],
+                    ),
+                    base_fee,
+                )?;
+
+                repayment -= base_fee;
+            }
+        }
+    };
+
+    // Transfer the funds back to the highest bidder.
     token::transfer(
         CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
+            token_program.to_account_info(),
             token::Transfer {
-                from: ctx.accounts.cctp_mint_recipient.to_account_info(),
-                to: ctx.accounts.best_offer_token.to_account_info(),
-                authority: ctx.accounts.custodian.to_account_info(),
+                from: prepared_custody_token.to_account_info(),
+                to: best_offer_token.to_account_info(),
+                authority: prepared_order_response.to_account_info(),
             },
-            &[Custodian::SIGNER_SEEDS],
+            &[prepared_order_response_signer_seeds],
         ),
-        ctx.accounts.auction.info.as_ref().unwrap().amount_in,
-    )
+        repayment,
+    )?;
+
+    // Finally close the prepared custody token account.
+    token::close_account(CpiContext::new_with_signer(
+        token_program.to_account_info(),
+        token::CloseAccount {
+            account: prepared_custody_token.to_account_info(),
+            destination: ctx.accounts.executor.to_account_info(),
+            authority: prepared_order_response.to_account_info(),
+        },
+        &[prepared_order_response_signer_seeds],
+    ))
 }

@@ -10,9 +10,11 @@ pub struct SetPause<'info> {
         mut,
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
-        constraint = {
-            only_authorized(&custodian, &owner_or_assistant.key())
-        } @ TokenRouterError::OwnerOrAssistantOnly,
+        constraint = only_authorized(
+            &custodian,
+            &owner_or_assistant,
+            error!(TokenRouterError::OwnerOrAssistantOnly)
+        )?
     )]
     /// Sender Config account. This program requires that the `owner` specified
     /// in the context equals the pubkey specified in this account. Mutable.

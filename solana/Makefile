@@ -1,27 +1,27 @@
-SOLANA_CLI="v1.16.16"
-ANCHOR_CLI="v0.28.0"
-
 out_mainnet=artifacts-mainnet
 out_testnet=artifacts-testnet
 out_localnet=artifacts-localnet
 
-.PHONY: all clean check build test lint ci cargo-test
-
+.PHONY: all
 all: check
 
+.PHONY: check
 check:
-	cargo check --all-features
+	cargo check --workspace --all-targets --all-features
 
+.PHONY: clean
 clean:
 	anchor clean
 	rm -rf node_modules artifacts-mainnet artifacts-testnet artifacts-localnet ts/tests/artifacts
 
-node_modules:
+node_modules: package-lock.json
 	npm ci
 
-cargo-test $(NETWORK):
-	cargo test --features "$(NETWORK)" --no-default-features
+.PHONY: cargo-test
+cargo-test:
+	cargo test --workspace --all-targets --features $(NETWORK)
 
+.PHONY: build
 build: $(out_$(NETWORK))
 $(out_$(NETWORK)): cargo-test
 ifdef out_$(NETWORK)
@@ -30,6 +30,7 @@ ifdef out_$(NETWORK)
 	cp target/deploy/*.so $(out_$(NETWORK))/
 endif
 
+.PHONY: test
 test: node_modules
 	NETWORK=localnet $(MAKE) cargo-test
 	NETWORK=testnet $(MAKE) cargo-test
@@ -41,13 +42,12 @@ test: node_modules
 	anchor build --arch sbf -- --features integration-test
 	anchor test --skip-build
 
+.PHONY: clippy
+clippy:
+	cargo clippy --workspace --no-deps --all-targets --features $(NETWORK) -- -Dwarnings
+
+.PHONY: lint
 lint:
 	cargo fmt --check
-	cargo clippy --no-deps --all-targets --features testnet -- -D warnings
-	cargo clippy --no-deps --all-targets --features localnet -- -D warnings
-
-ci:
-	DOCKER_BUILDKIT=1 docker build -f Dockerfile.ci \
-		--build-arg SOLANA_CLI=$(SOLANA_CLI) \
-		--build-arg ANCHOR_CLI=$(ANCHOR_CLI) \
-		.
+	NETWORK=localnet $(MAKE) clippy
+	NETWORK=testnet $(MAKE) clippy

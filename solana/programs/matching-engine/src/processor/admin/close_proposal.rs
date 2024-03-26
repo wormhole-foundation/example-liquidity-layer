@@ -1,9 +1,9 @@
-use crate::state::{custodian::*, Proposal};
+use crate::{composite::*, state::Proposal};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CloseProposal<'info> {
-    admin: OwnerCustodian<'info>,
+    admin: OwnerOnly<'info>,
 
     /// CHECK: This account must equal proposal.by pubkey.
     #[account(
@@ -17,7 +17,7 @@ pub struct CloseProposal<'info> {
         close = proposed_by,
         seeds = [
             Proposal::SEED_PREFIX,
-            proposal.id.to_be_bytes().as_ref(),
+            &proposal.id.to_be_bytes(),
         ],
         bump = proposal.bump,
         constraint = proposal.slot_enacted_at.is_none() @ ErrorCode::InstructionMissing, // TODO: add err ProposalAlreadyEnacted

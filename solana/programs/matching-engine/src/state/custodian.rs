@@ -1,6 +1,4 @@
 use anchor_lang::prelude::*;
-
-use crate::error::MatchingEngineError;
 use common::admin;
 
 #[account]
@@ -55,50 +53,6 @@ impl admin::OwnerAssistant for Custodian {
     fn owner_assistant_mut(&mut self) -> &mut Pubkey {
         &mut self.owner_assistant
     }
-}
-
-#[derive(Accounts)]
-pub struct OwnerCustodian<'info> {
-    pub owner: Signer<'info>,
-
-    #[account(has_one = owner @ MatchingEngineError::OwnerOnly)]
-    pub custodian: Account<'info, Custodian>,
-}
-
-#[derive(Accounts)]
-pub struct OwnerMutCustodian<'info> {
-    pub owner: Signer<'info>,
-
-    #[account(
-        mut,
-        has_one = owner @ MatchingEngineError::OwnerOnly,
-    )]
-    pub custodian: Account<'info, Custodian>,
-}
-
-#[derive(Accounts)]
-pub struct AdminCustodian<'info> {
-    #[account(
-        constraint = {
-            admin::utils::assistant::only_authorized(&custodian, &owner_or_assistant.key())
-        } @ MatchingEngineError::OwnerOrAssistantOnly,
-    )]
-    pub owner_or_assistant: Signer<'info>,
-
-    pub custodian: Account<'info, Custodian>,
-}
-
-#[derive(Accounts)]
-pub struct AdminMutCustodian<'info> {
-    #[account(
-        constraint = {
-            admin::utils::assistant::only_authorized(&custodian, &owner_or_assistant.key())
-        } @ MatchingEngineError::OwnerOrAssistantOnly,
-    )]
-    pub owner_or_assistant: Signer<'info>,
-
-    #[account(mut)]
-    pub custodian: Account<'info, Custodian>,
 }
 
 #[cfg(test)]

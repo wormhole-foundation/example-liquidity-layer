@@ -1,6 +1,6 @@
 use crate::{
+    composite::*,
     error::MatchingEngineError,
-    state::custodian::*,
     state::{AuctionConfig, Proposal, ProposalAction},
 };
 use anchor_lang::prelude::*;
@@ -10,13 +10,13 @@ pub struct UpdateAuctionParameters<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    admin: OwnerMutCustodian<'info>,
+    admin: OwnerOnlyMut<'info>,
 
     #[account(
         mut,
         seeds = [
             Proposal::SEED_PREFIX,
-            proposal.id.to_be_bytes().as_ref(),
+            &proposal.id.to_be_bytes(),
         ],
         bump = proposal.bump,
         constraint = {

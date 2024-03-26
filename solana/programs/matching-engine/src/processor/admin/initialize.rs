@@ -1,4 +1,5 @@
 use crate::{
+    composite::*,
     error::MatchingEngineError,
     state::{AuctionConfig, Custodian},
 };
@@ -32,7 +33,7 @@ pub struct Initialize<'info> {
         space = 8 + AuctionConfig::INIT_SPACE,
         seeds = [
             AuctionConfig::SEED_PREFIX,
-            u32::default().to_be_bytes().as_ref()
+            &u32::default().to_be_bytes()
         ],
         bump,
     )]
@@ -58,22 +59,21 @@ pub struct Initialize<'info> {
     fee_recipient: AccountInfo<'info>,
 
     #[account(
-        associated_token::mint = mint,
+        associated_token::mint = usdc,
         associated_token::authority = fee_recipient,
     )]
     fee_recipient_token: Account<'info, token::TokenAccount>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = owner,
-        associated_token::mint = mint,
+        associated_token::mint = usdc,
         associated_token::authority = custodian,
-        address = crate::cctp_mint_recipient::id() @ MatchingEngineError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id(),
     )]
     cctp_mint_recipient: Account<'info, token::TokenAccount>,
 
-    #[account(address = common::constants::USDC_MINT @ MatchingEngineError::NotUsdc)]
-    mint: Account<'info, token::Mint>,
+    usdc: Usdc<'info>,
 
     /// We use the program data to make sure this owner is the upgrade authority (the true owner,
     /// who deployed this program).

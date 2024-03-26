@@ -1,8 +1,4 @@
-use crate::{
-    processor::admin::router_endpoint::local_token_router::*,
-    state::{custodian::*, RouterEndpoint},
-    utils,
-};
+use crate::{composite::*, state::RouterEndpoint, utils};
 use anchor_lang::prelude::*;
 use common::wormhole_cctp_solana::wormhole::SOLANA_CHAIN;
 
@@ -11,7 +7,7 @@ pub struct AddLocalRouterEndpoint<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    admin: AdminCustodian<'info>,
+    admin: Admin<'info>,
 
     #[account(
         init,

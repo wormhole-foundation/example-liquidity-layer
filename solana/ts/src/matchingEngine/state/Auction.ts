@@ -1,19 +1,19 @@
-import { PublicKey } from "@solana/web3.js";
 import { BN } from "@coral-xyz/anchor";
-import { AuctionParameters } from "./AuctionConfig";
+import { PublicKey } from "@solana/web3.js";
 
 export type AuctionStatus = {
     notStarted?: {};
     active?: {};
-    completed?: { slot: BN };
+    completed?: { slot: BN; executePenalty: BN | null };
     settled?: {
         baseFee: BN;
-        penalty: BN | null;
+        totalPenalty: BN | null;
     };
 };
 
 export type AuctionInfo = {
     configId: number;
+    custodyTokenBump: number;
     vaaSequence: BN;
     sourceChain: number;
     bestOfferToken: PublicKey;
@@ -23,12 +23,13 @@ export type AuctionInfo = {
     securityDeposit: BN;
     offerPrice: BN;
     amountOut: BN | null;
+    endEarly: boolean;
 };
 
 export class Auction {
     bump: number;
     vaaHash: number[];
-    status: Object;
+    status: AuctionStatus;
     info: AuctionInfo | null;
 
     constructor(bump: number, vaaHash: number[], status: AuctionStatus, info: AuctionInfo | null) {

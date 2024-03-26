@@ -1,9 +1,9 @@
-use crate::{error::MatchingEngineError, state::custodian::*};
+use crate::{composite::*, error::MatchingEngineError};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct SubmitOwnershipTransferRequest<'info> {
-    admin: OwnerMutCustodian<'info>,
+    admin: OwnerOnlyMut<'info>,
 
     /// New Owner.
     ///
