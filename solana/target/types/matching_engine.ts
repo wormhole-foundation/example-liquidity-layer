@@ -1387,6 +1387,15 @@ export type MatchingEngine = {
           "isSigner": true
         },
         {
+          "name": "transferAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The auction participant needs to set approval to this PDA.",
+            ""
+          ]
+        },
+        {
           "name": "custodian",
           "accounts": [
             {
@@ -1489,6 +1498,15 @@ export type MatchingEngine = {
     {
       "name": "improveOffer",
       "accounts": [
+        {
+          "name": "transferAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The auction participant needs to set approval to this PDA.",
+            ""
+          ]
+        },
         {
           "name": "activeAuction",
           "accounts": [
@@ -4176,6 +4194,15 @@ export const IDL: MatchingEngine = {
           "isSigner": true
         },
         {
+          "name": "transferAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The auction participant needs to set approval to this PDA.",
+            ""
+          ]
+        },
+        {
           "name": "custodian",
           "accounts": [
             {
@@ -4278,6 +4305,15 @@ export const IDL: MatchingEngine = {
     {
       "name": "improveOffer",
       "accounts": [
+        {
+          "name": "transferAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The auction participant needs to set approval to this PDA.",
+            ""
+          ]
+        },
         {
           "name": "activeAuction",
           "accounts": [

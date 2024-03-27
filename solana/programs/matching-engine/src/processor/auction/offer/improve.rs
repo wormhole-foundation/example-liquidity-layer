@@ -1,10 +1,25 @@
-use crate::{composite::*, error::MatchingEngineError, state::Auction, utils};
+use crate::{
+    composite::*, error::MatchingEngineError, state::Auction, utils, TRANSFER_AUTHORITY_SEED_PREFIX,
+};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
 #[derive(Accounts)]
 #[instruction(offer_price: u64)]
 pub struct ImproveOffer<'info> {
+    /// The auction participant needs to set approval to this PDA.
+    ///
+    /// CHECK: Seeds must be \["transfer-authority", auction.key(), offer_price.to_be_bytes()\].
+    #[account(
+        seeds = [
+            TRANSFER_AUTHORITY_SEED_PREFIX,
+            active_auction.key().as_ref(),
+            &offer_price.to_be_bytes()
+        ],
+        bump
+    )]
+    transfer_authority: AccountInfo<'info>,
+
     #[account(
         constraint = {
             // This is safe because we know that this is an active auction.
@@ -51,12 +66,6 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
         // nothing terrible happened with the auction's custody account.
         let total_deposit = ctx.accounts.active_auction.custody_token.amount;
 
-        let auction_signer_seeds = &[
-            Auction::SEED_PREFIX,
-            auction.vaa_hash.as_ref(),
-            &[auction.bump],
-        ];
-
         token::transfer(
             CpiContext::new_with_signer(
                 token_program.to_account_info(),
@@ -65,7 +74,11 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
                     to: best_offer_token.to_account_info(),
                     authority: auction.to_account_info(),
                 },
-                &[auction_signer_seeds],
+                &[&[
+                    Auction::SEED_PREFIX,
+                    auction.vaa_hash.as_ref(),
+                    &[auction.bump],
+                ]],
             ),
             total_deposit,
         )?;
@@ -76,9 +89,14 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
                 anchor_spl::token::Transfer {
                     from: offer_token.to_account_info(),
                     to: custody_token.to_account_info(),
-                    authority: auction.to_account_info(),
+                    authority: ctx.accounts.transfer_authority.to_account_info(),
                 },
-                &[auction_signer_seeds],
+                &[&[
+                    TRANSFER_AUTHORITY_SEED_PREFIX,
+                    auction.key().as_ref(),
+                    &offer_price.to_be_bytes(),
+                    &[ctx.bumps.transfer_authority],
+                ]],
             ),
             total_deposit,
         )?;

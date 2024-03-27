@@ -2,15 +2,30 @@ use crate::{
     composite::*,
     error::MatchingEngineError,
     state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus},
+    TRANSFER_AUTHORITY_SEED_PREFIX,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::messages::raw::LiquidityLayerMessage;
 
 #[derive(Accounts)]
+#[instruction(offer_price: u64)]
 pub struct PlaceInitialOffer<'info> {
     #[account(mut)]
     payer: Signer<'info>,
+
+    /// The auction participant needs to set approval to this PDA.
+    ///
+    /// CHECK: Seeds must be \["transfer-authority", auction.key(), offer_price.to_be_bytes()\].
+    #[account(
+        seeds = [
+            TRANSFER_AUTHORITY_SEED_PREFIX,
+            auction.key().as_ref(),
+            &offer_price.to_be_bytes()
+        ],
+        bump
+    )]
+    transfer_authority: AccountInfo<'info>,
 
     /// NOTE: Currently not used for anything. But this account can be used in
     /// case we need to pause starting auctions.
@@ -133,12 +148,13 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
             anchor_spl::token::Transfer {
                 from: ctx.accounts.offer_token.to_account_info(),
                 to: ctx.accounts.auction_custody_token.to_account_info(),
-                authority: ctx.accounts.auction.to_account_info(),
+                authority: ctx.accounts.transfer_authority.to_account_info(),
             },
             &[&[
-                Auction::SEED_PREFIX,
-                vaa_hash.as_ref(),
-                &[ctx.bumps.auction],
+                TRANSFER_AUTHORITY_SEED_PREFIX,
+                ctx.accounts.auction.key().as_ref(),
+                &offer_price.to_be_bytes(),
+                &[ctx.bumps.transfer_authority],
             ]],
         ),
         amount_in + max_fee,
