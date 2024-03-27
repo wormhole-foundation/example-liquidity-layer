@@ -58,19 +58,20 @@ where
         ..
     } = accounts.execute_upgrade_composite();
 
+    let ProgramOwnerOnly {
+        owner,
+        upgrade_authority,
+    } = admin;
+
     receipt.set_inner(UpgradeReceipt {
         bump: bumps.receipt,
         program_data_bump: bumps.program_data,
+        owner: owner.key(),
         status: UpgradeStatus::Uncommitted {
             buffer: buffer.key(),
             slot: Clock::get().unwrap().slot,
         },
     });
-
-    let ProgramOwnerOnly {
-        owner,
-        upgrade_authority,
-    } = admin;
 
     // First set the buffer's authority to the upgrade authority.
     bpf_loader_upgradeable::set_buffer_authority_checked(CpiContext::new_with_signer(

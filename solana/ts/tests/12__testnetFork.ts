@@ -3,7 +3,7 @@ import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import * as matchingEngineSdk from "../src/matchingEngine";
 import * as tokenRouterSdk from "../src/tokenRouter";
-import { testnet, UpgradeManagerProgram } from "../src/upgradeManager";
+import { testnet, UpgradeManagerProgram, UpgradeReceipt } from "../src/upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../src/utils";
 import {
     bigintToU64BN,
@@ -41,16 +41,39 @@ describe("Upgrade Manager", function () {
     const upgradeManager = new UpgradeManagerProgram(connection, testnet());
 
     describe("Upgrade Matching Engine", function () {
+        it("Cannot Execute without Owner", async function () {
+            const guy = Keypair.generate();
+
+            await executeMatchingEngineUpgradeForTest(
+                {
+                    owner: guy.publicKey,
+                    payer: payer.publicKey,
+                },
+                { signers: [payer, guy], errorMsg: "Error Code: OwnerOnly" },
+            );
+        });
+
         it("Execute", async function () {
-            await executeMatchingEngineUpgrade({
+            await executeMatchingEngineUpgradeForTest({
                 owner: payer.publicKey,
             });
         });
 
         it("Execute Another Upgrade Before Commit", async function () {
-            await executeMatchingEngineUpgrade({
+            await executeMatchingEngineUpgradeForTest({
                 owner: payer.publicKey,
             });
+        });
+
+        it("Cannot Commit without Owner", async function () {
+            const guy = Keypair.generate();
+
+            await commitMatchingEngineUpgradeForTest(
+                {
+                    owner: guy.publicKey,
+                },
+                { upgrade: false, signers: [payer, guy], errorMsg: "Error Code: OwnerMismatch" },
+            );
         });
 
         it("Commit After Execute (Recipient != Owner)", async function () {
@@ -89,7 +112,7 @@ describe("Upgrade Manager", function () {
             });
         });
 
-        async function executeMatchingEngineUpgrade(
+        async function executeMatchingEngineUpgradeForTest(
             accounts: {
                 owner: PublicKey;
                 payer?: PublicKey;
@@ -97,12 +120,12 @@ describe("Upgrade Manager", function () {
             args: {
                 artifactPath?: string;
                 errorMsg?: string | null;
-                signer?: Signer;
+                signers?: Signer[];
             } = {},
         ) {
-            let { artifactPath, signer, errorMsg } = args;
+            let { artifactPath, signers, errorMsg } = args;
             artifactPath ??= MATCHING_ENGINE_ARTIFACT_PATH;
-            signer ??= payer;
+            signers ??= [payer];
             errorMsg ??= null;
 
             const matchingEngineBuffer = loadProgramBpf(artifactPath);
@@ -113,25 +136,23 @@ describe("Upgrade Manager", function () {
             });
 
             if (errorMsg !== null) {
-                return expectIxErr(connection, [ix], [signer], errorMsg);
+                return expectIxErr(connection, [ix], signers, errorMsg);
             }
 
-            const txDetails = await expectIxOkDetails(connection, [ix], [signer], {
+            const txDetails = await expectIxOkDetails(connection, [ix], signers, {
                 confirmOptions: { commitment: "finalized" },
             });
 
             const upgradeReceiptData = await upgradeManager.fetchUpgradeReceipt(matchingEngine.ID);
             const { bump, programDataBump } = upgradeReceiptData;
-            expect(upgradeReceiptData).to.eql({
-                bump,
-                programDataBump,
-                status: {
+            expect(upgradeReceiptData).to.eql(
+                new UpgradeReceipt(bump, programDataBump, accounts.owner, {
                     uncommitted: {
                         buffer: matchingEngineBuffer,
                         slot: bigintToU64BN(BigInt(txDetails!.slot)),
                     },
-                },
-            });
+                }),
+            );
 
             const { owner } = await matchingEngine.fetchCustodian();
             expect(owner.equals(upgradeManager.upgradeAuthorityAddress())).is.true;
@@ -148,17 +169,17 @@ describe("Upgrade Manager", function () {
                 upgrade?: boolean;
                 artifactPath?: string;
                 errorMsg?: string | null;
-                signer?: Signer;
+                signers?: Signer[];
             } = {},
         ) {
-            let { upgrade, artifactPath, signer, errorMsg } = args;
+            let { upgrade, artifactPath, signers, errorMsg } = args;
             upgrade ??= true;
             artifactPath ??= MATCHING_ENGINE_ARTIFACT_PATH;
-            signer ??= payer;
+            signers ??= [payer];
             errorMsg ??= null;
 
             if (upgrade) {
-                await executeMatchingEngineUpgrade(
+                await executeMatchingEngineUpgradeForTest(
                     {
                         owner: accounts.owner,
                     },
@@ -185,10 +206,10 @@ describe("Upgrade Manager", function () {
 
             const ix = await upgradeManager.commitMatchingEngineUpgradeIx(accounts);
             if (errorMsg !== null) {
-                return expectIxErr(connection, [ix], [signer], errorMsg);
+                return expectIxErr(connection, [ix], signers, errorMsg);
             }
 
-            await expectIxOk(connection, [ix], [signer]);
+            await expectIxOk(connection, [ix], signers);
 
             const upgradeReceiptInfo = await connection.getAccountInfo(
                 upgradeManager.upgradeReceiptAddress(tokenRouter.ID),
@@ -209,6 +230,18 @@ describe("Upgrade Manager", function () {
     });
 
     describe("Upgrade Token Router", function () {
+        it("Cannot Execute without Owner", async function () {
+            const guy = Keypair.generate();
+
+            await executeTokenRouterUpgradeForTest(
+                {
+                    owner: guy.publicKey,
+                    payer: payer.publicKey,
+                },
+                { signers: [payer, guy], errorMsg: "Error Code: OwnerOnly" },
+            );
+        });
+
         it("Execute", async function () {
             await executeTokenRouterUpgradeForTest({
                 owner: payer.publicKey,
@@ -219,6 +252,17 @@ describe("Upgrade Manager", function () {
             await executeTokenRouterUpgradeForTest({
                 owner: payer.publicKey,
             });
+        });
+
+        it("Cannot Commit without Owner", async function () {
+            const guy = Keypair.generate();
+
+            await commitTokenRouterUpgradeForTest(
+                {
+                    owner: guy.publicKey,
+                },
+                { upgrade: false, signers: [payer, guy], errorMsg: "Error Code: OwnerMismatch" },
+            );
         });
 
         it("Commit After Execute (Recipient != Owner)", async function () {
@@ -265,12 +309,12 @@ describe("Upgrade Manager", function () {
             args: {
                 artifactPath?: string;
                 errorMsg?: string | null;
-                signer?: Signer;
+                signers?: Signer[];
             } = {},
         ) {
-            let { artifactPath, signer, errorMsg } = args;
+            let { artifactPath, signers, errorMsg } = args;
             artifactPath ??= TOKEN_ROUTER_ARTIFACT_PATH;
-            signer ??= payer;
+            signers ??= [payer];
             errorMsg ??= null;
 
             const tokenRouterBuffer = loadProgramBpf(artifactPath);
@@ -281,25 +325,23 @@ describe("Upgrade Manager", function () {
             });
 
             if (errorMsg !== null) {
-                return expectIxErr(connection, [ix], [signer], errorMsg);
+                return expectIxErr(connection, [ix], signers, errorMsg);
             }
 
-            const txDetails = await expectIxOkDetails(connection, [ix], [signer], {
+            const txDetails = await expectIxOkDetails(connection, [ix], signers, {
                 confirmOptions: { commitment: "finalized" },
             });
 
             const upgradeReceiptData = await upgradeManager.fetchUpgradeReceipt(tokenRouter.ID);
             const { bump, programDataBump } = upgradeReceiptData;
-            expect(upgradeReceiptData).to.eql({
-                bump,
-                programDataBump,
-                status: {
+            expect(upgradeReceiptData).to.eql(
+                new UpgradeReceipt(bump, programDataBump, accounts.owner, {
                     uncommitted: {
                         buffer: tokenRouterBuffer,
                         slot: bigintToU64BN(BigInt(txDetails!.slot)),
                     },
-                },
-            });
+                }),
+            );
 
             const { owner } = await tokenRouter.fetchCustodian();
             expect(owner.equals(upgradeManager.upgradeAuthorityAddress())).is.true;
@@ -316,13 +358,13 @@ describe("Upgrade Manager", function () {
                 upgrade?: boolean;
                 artifactPath?: string;
                 errorMsg?: string | null;
-                signer?: Signer;
+                signers?: Signer[];
             } = {},
         ) {
-            let { upgrade, artifactPath, signer, errorMsg } = args;
+            let { upgrade, artifactPath, signers, errorMsg } = args;
             upgrade ??= true;
             artifactPath ??= TOKEN_ROUTER_ARTIFACT_PATH;
-            signer ??= payer;
+            signers ??= [payer];
             errorMsg ??= null;
 
             if (upgrade) {
@@ -353,10 +395,10 @@ describe("Upgrade Manager", function () {
 
             const ix = await upgradeManager.commitTokenRouterUpgradeIx(accounts);
             if (errorMsg !== null) {
-                return expectIxErr(connection, [ix], [signer], errorMsg);
+                return expectIxErr(connection, [ix], signers, errorMsg);
             }
 
-            await expectIxOk(connection, [ix], [signer]);
+            await expectIxOk(connection, [ix], signers);
 
             const upgradeReceiptInfo = await connection.getAccountInfo(
                 upgradeManager.upgradeReceiptAddress(tokenRouter.ID),

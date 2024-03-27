@@ -79,6 +79,17 @@ pub struct ExecuteUpgrade<'info> {
 
 #[derive(Accounts)]
 pub struct CommitUpgrade<'info> {
+    #[account(
+        constraint = {
+            require_keys_eq!(
+                admin.owner.key(),
+                receipt.owner,
+                UpgradeManagerError::OwnerMismatch,
+            );
+
+            true
+        }
+    )]
     pub admin: ProgramOwnerOnly<'info>,
 
     /// CHECK: This account will receive lamports from upgrade receipt.

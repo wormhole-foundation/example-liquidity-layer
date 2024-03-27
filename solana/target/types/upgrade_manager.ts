@@ -336,6 +336,10 @@ export type UpgradeManager = {
             "type": "u8"
           },
           {
+            "name": "owner",
+            "type": "publicKey"
+          },
+          {
             "name": "status",
             "type": {
               "defined": "UpgradeStatus"
@@ -374,11 +378,6 @@ export type UpgradeManager = {
   "errors": [
     {
       "code": 6016,
-      "name": "AlreadyUpgraded",
-      "msg": "AlreadyUpgraded"
-    },
-    {
-      "code": 6017,
       "name": "NotUpgraded",
       "msg": "NotUpgraded"
     },
@@ -389,13 +388,8 @@ export type UpgradeManager = {
     },
     {
       "code": 6020,
-      "name": "InvalidBuffer",
-      "msg": "InvalidBuffer"
-    },
-    {
-      "code": 6032,
-      "name": "CanMigrate",
-      "msg": "CanMigrate"
+      "name": "OwnerMismatch",
+      "msg": "OwnerMismatch"
     }
   ]
 };
@@ -738,6 +732,10 @@ export const IDL: UpgradeManager = {
             "type": "u8"
           },
           {
+            "name": "owner",
+            "type": "publicKey"
+          },
+          {
             "name": "status",
             "type": {
               "defined": "UpgradeStatus"
@@ -776,11 +774,6 @@ export const IDL: UpgradeManager = {
   "errors": [
     {
       "code": 6016,
-      "name": "AlreadyUpgraded",
-      "msg": "AlreadyUpgraded"
-    },
-    {
-      "code": 6017,
       "name": "NotUpgraded",
       "msg": "NotUpgraded"
     },
@@ -791,13 +784,8 @@ export const IDL: UpgradeManager = {
     },
     {
       "code": 6020,
-      "name": "InvalidBuffer",
-      "msg": "InvalidBuffer"
-    },
-    {
-      "code": 6032,
-      "name": "CanMigrate",
-      "msg": "CanMigrate"
+      "name": "OwnerMismatch",
+      "msg": "OwnerMismatch"
     }
   ]
 };

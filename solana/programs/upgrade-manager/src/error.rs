@@ -7,4 +7,7 @@ pub enum UpgradeManagerError {
 
     #[msg("ProgramDataMismatch")]
     ProgramDataMismatch = 0x12,
+
+    #[msg("OwnerMismatch")]
+    OwnerMismatch = 0x14,
 }

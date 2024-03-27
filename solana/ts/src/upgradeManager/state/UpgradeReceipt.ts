@@ -12,11 +12,13 @@ export type UpgradeStatus = {
 export class UpgradeReceipt {
     bump: number;
     programDataBump: number;
+    owner: PublicKey;
     status: UpgradeStatus;
 
-    constructor(bump: number, programDataBump: number, status: UpgradeStatus) {
+    constructor(bump: number, programDataBump: number, owner: PublicKey, status: UpgradeStatus) {
         this.bump = bump;
         this.programDataBump = programDataBump;
+        this.owner = owner;
         this.status = status;
     }
 

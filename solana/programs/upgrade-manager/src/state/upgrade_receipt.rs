@@ -23,6 +23,7 @@ pub struct UpgradeReceipt {
     pub bump: u8,
     pub program_data_bump: u8,
 
+    pub owner: Pubkey,
     pub status: UpgradeStatus,
 }
 
