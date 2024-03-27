@@ -137,13 +137,13 @@ pub struct CommitUpgrade<'info> {
 
 #[derive(Accounts)]
 pub struct RequiredSysvars<'info> {
-    /// Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.
+    /// BPF Loader Upgradeable needs the clock sysvar for its upgrade instruction.
     ///
     /// CHECK: Must equal clock ID.
     #[account(address = solana_program::sysvar::clock::id())]
     pub clock: AccountInfo<'info>,
 
-    /// Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.
+    /// BPF Loader Upgradeable needs the rent sysvar for its upgrade instruction.
     ///
     /// CHECK: Must equal rent ID.
     #[account(address = solana_program::sysvar::rent::id())]
