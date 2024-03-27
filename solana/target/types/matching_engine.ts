@@ -122,12 +122,6 @@ export type MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false,
-          "isOptional": true
-        },
-        {
           "name": "usdc",
           "accounts": [
             {
@@ -2366,10 +2360,6 @@ export type MatchingEngine = {
               "the [amount_in](Self::amount_in)."
             ],
             "type": "u64"
-          },
-          {
-            "name": "endEarly",
-            "type": "bool"
           }
         ]
       }
@@ -2921,12 +2911,6 @@ export const IDL: MatchingEngine = {
           "isSigner": false
         },
         {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false,
-          "isOptional": true
-        },
-        {
           "name": "usdc",
           "accounts": [
             {
@@ -5165,10 +5149,6 @@ export const IDL: MatchingEngine = {
               "the [amount_in](Self::amount_in)."
             ],
             "type": "u64"
-          },
-          {
-            "name": "endEarly",
-            "type": "bool"
           }
         ]
       }

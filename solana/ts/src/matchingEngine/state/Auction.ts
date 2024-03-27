@@ -23,7 +23,6 @@ export type AuctionInfo = {
     securityDeposit: BN;
     offerPrice: BN;
     amountOut: BN | null;
-    endEarly: boolean;
 };
 
 export class Auction {

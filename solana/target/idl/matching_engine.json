@@ -122,12 +122,6 @@
           "isSigner": false
         },
         {
-          "name": "auction",
-          "isMut": true,
-          "isSigner": false,
-          "isOptional": true
-        },
-        {
           "name": "usdc",
           "accounts": [
             {
@@ -2366,10 +2360,6 @@
               "the [amount_in](Self::amount_in)."
             ],
             "type": "u64"
-          },
-          {
-            "name": "endEarly",
-            "type": "bool"
           }
         ]
       }
