@@ -1718,7 +1718,6 @@ describe("Matching Engine", function () {
                         securityDeposit,
                         offerPrice: bigintToU64BN(offerPrice),
                         amountOut,
-                        endEarly: false,
                     }),
                 );
 
@@ -2997,9 +2996,6 @@ describe("Matching Engine", function () {
                     engine.cctpMintRecipientAddress(),
                 );
                 expect(cctpMintRecipientBalance).equals(0n);
-
-                const { info } = await engine.fetchAuction({ address: auction });
-                expect(info!.endEarly).is.true;
             });
         });
 
@@ -3052,6 +3048,110 @@ describe("Matching Engine", function () {
                         executeOrder: true,
                         prepareOrderResponse: true,
                     });
+
+                    const preparedCustodyToken =
+                        engine.preparedCustodyTokenAddress(preparedOrderResponse);
+
+                    const { amount: preparedCustodyBalanceBefore } = await splToken.getAccount(
+                        connection,
+                        preparedCustodyToken,
+                    );
+
+                    const { info, status: statusBefore } = await engine.fetchAuction({
+                        address: auction,
+                    });
+                    expect(statusBefore.completed!.executePenalty).is.null;
+
+                    const { bestOfferToken } = info!;
+                    const { owner: bestOfferAuthority, amount: bestOfferTokenBalanceBefore } =
+                        await splToken.getAccount(connection, bestOfferToken);
+
+                    const authorityLamportsBefore = await connection.getBalance(bestOfferAuthority);
+
+                    const preparedOrderLamports = await connection
+                        .getAccountInfo(preparedOrderResponse)
+                        .then((info) => info!.lamports);
+                    const preparedCustodyLamports = await connection
+                        .getAccountInfo(preparedCustodyToken)
+                        .then((info) => info!.lamports);
+
+                    const ix = await engine.settleAuctionCompleteIx({
+                        executor: bestOfferAuthority,
+                        preparedOrderResponse,
+                    });
+
+                    await expectIxOk(connection, [ix], [payer]);
+
+                    const preparedCustodyInfo = await connection.getAccountInfo(
+                        preparedCustodyToken,
+                    );
+                    expect(preparedCustodyInfo).is.null;
+                    const preparedOrderResponseInfo = await connection.getAccountInfo(
+                        preparedOrderResponse,
+                    );
+                    expect(preparedOrderResponseInfo).is.null;
+
+                    const { amount: bestOfferTokenBalanceAfter } = await splToken.getAccount(
+                        connection,
+                        bestOfferToken,
+                    );
+                    expect(bestOfferTokenBalanceAfter).equals(
+                        preparedCustodyBalanceBefore + bestOfferTokenBalanceBefore,
+                    );
+
+                    const authorityLamportsAfter = await connection.getBalance(bestOfferAuthority);
+                    expect(authorityLamportsAfter).equals(
+                        authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
+                    );
+
+                    const { status: statusAfter } = await engine.fetchAuction({
+                        address: auction,
+                    });
+                    expect(statusAfter).to.eql({
+                        settled: {
+                            baseFee: bigintToU64BN(baseFee),
+                            totalPenalty: null,
+                        },
+                    });
+                });
+
+                it("Settle Completed With Order Response Prepared During Active Auction", async function () {
+                    // Prepare the order response, but don't execute the order yet.
+                    const { baseFee, preparedOrderResponse, auction, fastVaa } =
+                        await prepareOrderResponse({
+                            initAuction: true,
+                            executeOrder: false,
+                            prepareOrderResponse: true,
+                        });
+
+                    // Now execute the fast order.
+                    {
+                        const { info } = await engine.fetchAuction({ address: auction });
+                        if (info === null) {
+                            throw new Error("No auction info found");
+                        }
+                        const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
+                        const auctionConfig = engine.auctionConfigAddress(configId);
+                        const { duration, gracePeriod } = await engine.fetchAuctionParameters(
+                            configId,
+                        );
+                        const endSlot = startSlot.addn(duration + gracePeriod - 1).toNumber();
+
+                        await waitUntilSlot(connection, endSlot);
+
+                        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                            units: 300_000,
+                        });
+                        const ix = await engine.executeFastOrderCctpIx({
+                            payer: payer.publicKey,
+                            fastVaa,
+                            auction,
+                            auctionConfig,
+                            bestOfferToken,
+                            initialOfferToken,
+                        });
+                        await expectIxOk(connection, [computeIx, ix], [payer]);
+                    }
 
                     const preparedCustodyToken =
                         engine.preparedCustodyTokenAddress(preparedOrderResponse);
@@ -3366,7 +3466,6 @@ describe("Matching Engine", function () {
                     securityDeposit: bigintToU64BN(maxFee),
                     offerPrice: bigintToU64BN(offerPrice),
                     amountOut: expectedAmountIn,
-                    endEarly: false,
                 },
             ),
         );

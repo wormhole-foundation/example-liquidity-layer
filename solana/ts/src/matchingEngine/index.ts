@@ -1040,7 +1040,6 @@ export class MatchingEngineProgram {
                 preparedOrderResponse,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
                 usdc: this.usdcComposite(),
-                auction: hasAuction ? this.auctionAddress(fastVaaAcct.digest()) : null,
                 cctp: {
                     mintRecipient: this.cctpMintRecipientComposite(),
                     messageTransmitterAuthority,
