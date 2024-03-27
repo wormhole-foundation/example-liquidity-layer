@@ -397,5 +397,8 @@
       "name": "CanMigrate",
       "msg": "CanMigrate"
     }
-  ]
+  ],
+  "metadata": {
+    "address": "UpgradeManager11111111111111111111111111111"
+  }
 }

@@ -2785,5 +2785,8 @@
       "name": "InvalidProposalAction",
       "msg": "InvalidProposalAction"
     }
-  ]
+  ],
+  "metadata": {
+    "address": "MatchingEngine11111111111111111111111111111"
+  }
 }
