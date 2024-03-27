@@ -1,11 +1,14 @@
 mod auction_parameters;
 pub use auction_parameters::*;
 
-use crate::state::{Custodian, Proposal, ProposalAction};
+use crate::{
+    composite::*,
+    state::{Proposal, ProposalAction},
+};
 use anchor_lang::prelude::*;
 
 struct Propose<'ctx, 'info> {
-    custodian: &'ctx Account<'info, Custodian>,
+    custodian: &'ctx CheckedCustodian<'info>,
     proposal: &'ctx mut Account<'info, Proposal>,
     by: &'ctx AccountInfo<'info>,
     epoch_schedule: &'ctx Sysvar<'info, EpochSchedule>,

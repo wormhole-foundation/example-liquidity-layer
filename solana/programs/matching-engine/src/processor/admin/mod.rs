@@ -4,6 +4,9 @@ pub use close_proposal::*;
 mod initialize;
 pub use initialize::*;
 
+mod migrate;
+pub use migrate::*;
+
 mod ownership_transfer_request;
 pub use ownership_transfer_request::*;
 

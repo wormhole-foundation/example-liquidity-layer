@@ -9,7 +9,7 @@ pub struct ProposeAuctionParameters<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    admin: AdminMut<'info>,
+    admin: Admin<'info>,
 
     #[account(
         init,
@@ -37,7 +37,7 @@ pub fn propose_auction_parameters(
     let id = ctx.accounts.admin.custodian.auction_config_id + 1;
     super::propose(
         super::Propose {
-            custodian: &mut ctx.accounts.admin.custodian,
+            custodian: &ctx.accounts.admin.custodian,
             proposal: &mut ctx.accounts.proposal,
             by: &ctx.accounts.admin.owner_or_assistant,
             epoch_schedule: &ctx.accounts.epoch_schedule,

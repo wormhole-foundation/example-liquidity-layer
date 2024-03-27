@@ -107,30 +107,6 @@ impl<'info> Deref for CheckedCustodian<'info> {
 }
 
 #[derive(Accounts)]
-pub struct CheckedMutCustodian<'info> {
-    #[account(
-        mut,
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-    )]
-    pub custodian: Account<'info, Custodian>,
-}
-
-impl<'info> Deref for CheckedMutCustodian<'info> {
-    type Target = Account<'info, Custodian>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.custodian
-    }
-}
-
-impl<'info> DerefMut for CheckedMutCustodian<'info> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.custodian
-    }
-}
-
-#[derive(Accounts)]
 pub struct OwnerOnly<'info> {
     #[account(
         constraint = only_owner(
@@ -155,7 +131,12 @@ pub struct OwnerOnlyMut<'info> {
     )]
     pub owner: Signer<'info>,
 
-    pub custodian: CheckedMutCustodian<'info>,
+    #[account(
+        mut,
+        seeds = [Custodian::SEED_PREFIX],
+        bump = Custodian::BUMP,
+    )]
+    pub custodian: Account<'info, Custodian>,
 }
 
 #[derive(Accounts)]
@@ -183,7 +164,12 @@ pub struct AdminMut<'info> {
     )]
     pub owner_or_assistant: Signer<'info>,
 
-    pub custodian: CheckedMutCustodian<'info>,
+    #[account(
+        mut,
+        seeds = [Custodian::SEED_PREFIX],
+        bump = Custodian::BUMP,
+    )]
+    pub custodian: Account<'info, Custodian>,
 }
 
 #[derive(Accounts)]

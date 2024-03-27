@@ -601,7 +601,7 @@ export class TokenRouterProgram {
             .redeemFastFill()
             .accounts({
                 payer,
-                custodian,
+                custodian: { custodian },
                 vaa,
                 preparedFill,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
@@ -665,8 +665,10 @@ export class TokenRouterProgram {
         return this.program.methods
             .submitOwnershipTransferRequest()
             .accounts({
-                owner,
-                custodian: inputCustodian ?? this.custodianAddress(),
+                admin: {
+                    owner,
+                    custodian: inputCustodian ?? this.custodianAddress(),
+                },
                 newOwner,
             })
             .instruction();
@@ -694,8 +696,10 @@ export class TokenRouterProgram {
         return this.program.methods
             .cancelOwnershipTransferRequest()
             .accounts({
-                owner,
-                custodian: inputCustodian ?? this.custodianAddress(),
+                admin: {
+                    owner,
+                    custodian: inputCustodian ?? this.custodianAddress(),
+                },
             })
             .instruction();
     }

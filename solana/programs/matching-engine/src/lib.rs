@@ -147,4 +147,8 @@ pub mod matching_engine {
     pub fn close_proposal(ctx: Context<CloseProposal>) -> Result<()> {
         processor::close_proposal(ctx)
     }
+
+    pub fn migrate(ctx: Context<Migrate>) -> Result<()> {
+        processor::migrate(ctx)
+    }
 }

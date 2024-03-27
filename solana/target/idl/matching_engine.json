@@ -1136,13 +1136,8 @@
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -1191,13 +1186,8 @@
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         }
@@ -1225,7 +1215,7 @@
               "accounts": [
                 {
                   "name": "custodian",
-                  "isMut": true,
+                  "isMut": false,
                   "isSigner": false
                 }
               ]
@@ -1275,13 +1265,8 @@
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -1316,13 +1301,8 @@
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -1351,13 +1331,8 @@
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -1955,6 +1930,32 @@
           "name": "proposal",
           "isMut": true,
           "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "migrate",
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
         }
       ],
       "args": []
@@ -2784,8 +2785,5 @@
       "name": "InvalidProposalAction",
       "msg": "InvalidProposalAction"
     }
-  ],
-  "metadata": {
-    "address": "MatchingEngine11111111111111111111111111111"
-  }
+  ]
 }
