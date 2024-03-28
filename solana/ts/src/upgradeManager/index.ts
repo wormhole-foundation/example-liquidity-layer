@@ -1,12 +1,7 @@
 export * from "./state";
 
 import { Program } from "@coral-xyz/anchor";
-import {
-    Connection,
-    PublicKey,
-    SYSVAR_INSTRUCTIONS_PUBKEY,
-    TransactionInstruction,
-} from "@solana/web3.js";
+import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { IDL, UpgradeManager } from "../../../target/types/upgrade_manager";
 import * as matchingEngineSdk from "../matchingEngine";
 import * as tokenRouterSdk from "../tokenRouter";

@@ -3,22 +3,18 @@ import { BN } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
+    ComputeBudgetProgram,
     Connection,
     Keypair,
     PublicKey,
-    ComputeBudgetProgram,
-    SystemProgram,
     SYSVAR_RENT_PUBKEY,
+    SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
-import {
-    LiquidityLayerDeposit,
-    LiquidityLayerMessage,
-    FastMarketOrder,
-    CctpTokenBurnMessage,
-} from "../src";
+import { CctpTokenBurnMessage } from "../src/cctp";
+import { LiquidityLayerDeposit, LiquidityLayerMessage } from "../src/common";
 import * as matchingEngineSdk from "../src/matchingEngine";
 import * as tokenRouterSdk from "../src/tokenRouter";
 import { VaaAccount } from "../src/wormhole";
@@ -31,7 +27,6 @@ import {
     OWNER_KEYPAIR,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
-    bigintToU64BN,
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,

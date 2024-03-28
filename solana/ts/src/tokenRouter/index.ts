@@ -6,7 +6,6 @@ import {
     Connection,
     PublicKey,
     SYSVAR_CLOCK_PUBKEY,
-    SYSVAR_INSTRUCTIONS_PUBKEY,
     SYSVAR_RENT_PUBKEY,
     SystemProgram,
     TransactionInstruction,
@@ -17,11 +16,17 @@ import {
     MessageTransmitterProgram,
     TokenMessengerMinterProgram,
 } from "../cctp";
+import {
+    PayerSequence,
+    cctpMessageAddress,
+    coreMessageAddress,
+    reclaimCctpMessageIx,
+} from "../common";
 import * as matchingEngineSdk from "../matchingEngine";
+import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
-import { Custodian, PayerSequence, PreparedFill, PreparedOrder } from "./state";
-import { UpgradeManagerProgram } from "../upgradeManager";
+import { Custodian, PreparedFill, PreparedOrder } from "./state";
 
 export const PROGRAM_IDS = [
     "TokenRouter11111111111111111111111111111111",
@@ -149,32 +154,37 @@ export class TokenRouterProgram {
         )[0];
     }
 
-    coreMessageAddress(payer: PublicKey, payerSequenceValue: BN): PublicKey {
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("core-msg"), payer.toBuffer(), payerSequenceValue.toBuffer("be", 8)],
-            this.ID,
-        )[0];
+    coreMessageAddress(payer: PublicKey, payerSequenceValue: BN | bigint): PublicKey {
+        return coreMessageAddress(this.ID, payer, payerSequenceValue);
     }
 
-    cctpMessageAddress(payer: PublicKey, payerSequenceValue: BN): PublicKey {
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("cctp-msg"), payer.toBuffer(), payerSequenceValue.toBuffer("be", 8)],
-            this.ID,
-        )[0];
+    cctpMessageAddress(payer: PublicKey, payerSequenceValue: BN | bigint): PublicKey {
+        return cctpMessageAddress(this.ID, payer, payerSequenceValue);
+    }
+
+    async reclaimCctpMessageIx(
+        accounts: {
+            payer: PublicKey;
+            cctpMessage: PublicKey;
+        },
+        cctpAttestation: Buffer,
+    ): Promise<TransactionInstruction> {
+        return reclaimCctpMessageIx(this.messageTransmitterProgram(), accounts, cctpAttestation);
     }
 
     payerSequenceAddress(payer: PublicKey): PublicKey {
         return PayerSequence.address(this.ID, payer);
     }
 
-    async fetchPayerSequence(addr: PublicKey): Promise<PayerSequence> {
+    async fetchPayerSequence(input: PublicKey | { address: PublicKey }): Promise<PayerSequence> {
+        const addr = "address" in input ? input.address : this.payerSequenceAddress(input);
         return this.program.account.payerSequence.fetch(addr);
     }
 
-    async fetchPayerSequenceValue(addr: PublicKey): Promise<BN> {
-        return this.fetchPayerSequence(addr)
-            .then((acct) => acct.value)
-            .catch((_) => new BN(0));
+    async fetchPayerSequenceValue(input: PublicKey | { address: PublicKey }): Promise<bigint> {
+        return this.fetchPayerSequence(input)
+            .then((acct) => BigInt(acct.value.toString()))
+            .catch((_) => 0n);
     }
 
     async fetchPreparedOrder(addr: PublicKey): Promise<PreparedOrder> {
@@ -372,14 +382,14 @@ export class TokenRouterProgram {
         })();
 
         const payerSequence = this.payerSequenceAddress(payer);
-        const { coreMessage, cctpMessage } = await this.fetchPayerSequenceValue(payerSequence).then(
-            (value) => {
-                return {
-                    coreMessage: this.coreMessageAddress(payer, value),
-                    cctpMessage: this.cctpMessageAddress(payer, value),
-                };
-            },
-        );
+        const { coreMessage, cctpMessage } = await this.fetchPayerSequenceValue({
+            address: payerSequence,
+        }).then((value) => {
+            return {
+                coreMessage: this.coreMessageAddress(payer, value),
+                cctpMessage: this.cctpMessageAddress(payer, value),
+            };
+        });
 
         const matchingEngine = this.matchingEngineProgram();
         const routerEndpoint = matchingEngine.routerEndpointAddress(targetChain);

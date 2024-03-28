@@ -1,4 +1,5 @@
 import { PublicKey } from "@solana/web3.js";
+import { emitterAddress } from "../../common";
 
 export class Custodian {
     paused: boolean;
@@ -12,7 +13,7 @@ export class Custodian {
         owner: PublicKey,
         pendingOwner: PublicKey | null,
         ownerAssistant: PublicKey,
-        pausedSetBy: PublicKey
+        pausedSetBy: PublicKey,
     ) {
         this.paused = paused;
         this.owner = owner;
@@ -22,6 +23,6 @@ export class Custodian {
     }
 
     static address(programId: PublicKey) {
-        return PublicKey.findProgramAddressSync([Buffer.from("emitter")], programId)[0];
+        return emitterAddress(programId);
     }
 }

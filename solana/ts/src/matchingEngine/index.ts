@@ -7,15 +7,21 @@ import {
     Connection,
     PublicKey,
     SYSVAR_CLOCK_PUBKEY,
-    SYSVAR_RENT_PUBKEY,
     SYSVAR_EPOCH_SCHEDULE_PUBKEY,
+    SYSVAR_RENT_PUBKEY,
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
 import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
-import { LiquidityLayerMessage } from "../messages";
+import {
+    LiquidityLayerMessage,
+    PayerSequence,
+    cctpMessageAddress,
+    coreMessageAddress,
+    reclaimCctpMessageIx,
+} from "../common";
 import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
@@ -25,7 +31,6 @@ import {
     AuctionInfo,
     AuctionParameters,
     Custodian,
-    PayerSequence,
     PreparedOrderResponse,
     Proposal,
     RedeemedFastFill,
@@ -218,21 +223,21 @@ export class MatchingEngineProgram {
     }
 
     coreMessageAddress(payer: PublicKey, payerSequenceValue: BN | bigint): PublicKey {
-        const encodedPayerSequenceValue = Buffer.alloc(8);
-        encodedPayerSequenceValue.writeBigUInt64BE(BigInt(payerSequenceValue.toString()));
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("core-msg"), payer.toBuffer(), encodedPayerSequenceValue],
-            this.ID,
-        )[0];
+        return coreMessageAddress(this.ID, payer, payerSequenceValue);
     }
 
     cctpMessageAddress(payer: PublicKey, payerSequenceValue: BN | bigint): PublicKey {
-        const encodedPayerSequenceValue = Buffer.alloc(8);
-        encodedPayerSequenceValue.writeBigUInt64BE(BigInt(payerSequenceValue.toString()));
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("cctp-msg"), payer.toBuffer(), encodedPayerSequenceValue],
-            this.ID,
-        )[0];
+        return cctpMessageAddress(this.ID, payer, payerSequenceValue);
+    }
+
+    async reclaimCctpMessageIx(
+        accounts: {
+            payer: PublicKey;
+            cctpMessage: PublicKey;
+        },
+        cctpAttestation: Buffer,
+    ): Promise<TransactionInstruction> {
+        return reclaimCctpMessageIx(this.messageTransmitterProgram(), accounts, cctpAttestation);
     }
 
     redeemedFastFillAddress(vaaHash: VaaHash): PublicKey {
@@ -971,15 +976,15 @@ export class MatchingEngineProgram {
 
     async improveOfferIx(
         accounts: {
+            participant: PublicKey;
             auction: PublicKey;
-            offerAuthority: PublicKey;
             auctionConfig?: PublicKey;
             bestOfferToken?: PublicKey;
         },
         offerPrice: bigint,
     ): Promise<[approveIx: TransactionInstruction, improveOfferIx: TransactionInstruction]> {
         const {
-            offerAuthority,
+            participant,
             auction,
             auctionConfig: inputAuctionConfig,
             bestOfferToken: inputBestOfferToken,
@@ -992,8 +997,11 @@ export class MatchingEngineProgram {
         }
 
         const { transferAuthority, ix: approveIx } = await this.approveTransferAuthorityIx(
-            { auction, owner: offerAuthority },
-            { totalDeposit: info.amountIn.add(info.securityDeposit).toNumber(), offerPrice },
+            { auction, owner: participant },
+            {
+                totalDeposit: BigInt(info.amountIn.add(info.securityDeposit).toString()),
+                offerPrice,
+            },
         );
 
         const improveOfferIx = await this.program.methods
@@ -1004,7 +1012,7 @@ export class MatchingEngineProgram {
                     { auction, config: inputAuctionConfig, bestOfferToken: inputBestOfferToken },
                     { info },
                 ),
-                offerToken: splToken.getAssociatedTokenAddressSync(this.mint, offerAuthority),
+                offerToken: splToken.getAssociatedTokenAddressSync(this.mint, participant),
             })
             .instruction();
 

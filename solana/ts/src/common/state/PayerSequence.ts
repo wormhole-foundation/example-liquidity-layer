@@ -11,7 +11,7 @@ export class PayerSequence {
     static address(programId: PublicKey, payer: PublicKey) {
         return PublicKey.findProgramAddressSync(
             [Buffer.from("seq"), payer.toBuffer()],
-            programId
+            programId,
         )[0];
     }
 }

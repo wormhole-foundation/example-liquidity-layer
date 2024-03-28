@@ -11,7 +11,8 @@ import {
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
-import { CctpTokenBurnMessage, LiquidityLayerDeposit, LiquidityLayerMessage } from "../src";
+import { CctpTokenBurnMessage } from "../src/cctp";
+import { LiquidityLayerDeposit, LiquidityLayerMessage } from "../src/common";
 import { Custodian, PreparedOrder, TokenRouterProgram, localnet } from "../src/tokenRouter";
 import {
     CircleAttester,
@@ -866,6 +867,35 @@ describe("Token Router", function () {
                 });
 
                 checkAfterEffects({ preparedOrder, amountIn, burnSource: payerToken });
+            });
+
+            it("Reclaim by Closing CCTP Message", async function () {
+                const currentSequence = await tokenRouter.fetchPayerSequenceValue(payer.publicKey);
+                const cctpMessage = tokenRouter.cctpMessageAddress(
+                    payer.publicKey,
+                    currentSequence - 1n,
+                );
+
+                const messageTransmitter = tokenRouter.messageTransmitterProgram();
+                const { message } = await messageTransmitter.fetchMessageSent(cctpMessage);
+
+                // Simulate attestation.
+                const cctpAttestation = new CircleAttester().createAttestation(message);
+
+                const ix = await tokenRouter.reclaimCctpMessageIx(
+                    {
+                        payer: payer.publicKey,
+                        cctpMessage,
+                    },
+                    cctpAttestation,
+                );
+
+                const balanceBefore = await connection.getBalance(payer.publicKey);
+
+                await expectIxOk(connection, [ix], [payer]);
+
+                const balanceAfter = await connection.getBalance(payer.publicKey);
+                expect(balanceAfter - balanceBefore).equals(2918208);
             });
 
             it("Pause", async function () {
