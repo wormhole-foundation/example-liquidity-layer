@@ -1,4 +1,5 @@
 use crate::{
+    composite::*,
     error::TokenRouterError,
     state::{Custodian, FillType, PreparedFill, PreparedFillInfo},
 };
@@ -8,7 +9,6 @@ use common::{
     messages::raw::{LiquidityLayerMessage, MessageToVec},
     wormhole_cctp_solana::wormhole::{core_bridge_program, VaaAccount},
 };
-use matching_engine::cpi::accounts::LiveRouterEndpoint;
 
 /// Accounts required for [redeem_fast_fill].
 #[derive(Accounts)]
@@ -16,14 +16,7 @@ pub struct RedeemFastFill<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    /// Custodian, but does not need to be deserialized.
-    ///
-    /// CHECK: Seeds must be \["emitter"\].
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-    )]
-    custodian: AccountInfo<'info>,
+    custodian: CheckedCustodian<'info>,
 
     /// CHECK: Must be owned by the Wormhole Core Bridge program. This account will be read via
     /// zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader.
@@ -113,7 +106,7 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
                 .to_account_info(),
             token_router_emitter: ctx.accounts.custodian.to_account_info(),
             token_router_custody_token: ctx.accounts.prepared_custody_token.to_account_info(),
-            router_endpoint: LiveRouterEndpoint {
+            router_endpoint: matching_engine::cpi::accounts::LiveRouterEndpoint {
                 endpoint: ctx
                     .accounts
                     .matching_engine_router_endpoint

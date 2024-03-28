@@ -495,11 +495,12 @@ export type TokenRouter = {
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -730,16 +731,18 @@ export type TokenRouter = {
       ],
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Custodian, which can only be modified by the configured owner."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -790,16 +793,18 @@ export type TokenRouter = {
       ],
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Custodian, which can only be modified by the configured owner."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         }
       ],
@@ -876,22 +881,27 @@ export type TokenRouter = {
       ]
     },
     {
-      "name": "authorizeUpgrade",
+      "name": "migrate",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "upgradeManagerAuthority",
-          "isMut": false,
-          "isSigner": true
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
         }
       ],
       "args": []
@@ -1868,11 +1878,12 @@ export const IDL: TokenRouter = {
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -2103,16 +2114,18 @@ export const IDL: TokenRouter = {
       ],
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Custodian, which can only be modified by the configured owner."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -2163,16 +2176,18 @@ export const IDL: TokenRouter = {
       ],
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Custodian, which can only be modified by the configured owner."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         }
       ],
@@ -2249,22 +2264,27 @@ export const IDL: TokenRouter = {
       ]
     },
     {
-      "name": "authorizeUpgrade",
+      "name": "migrate",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "upgradeManagerAuthority",
-          "isMut": false,
-          "isSigner": true
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
         }
       ],
       "args": []

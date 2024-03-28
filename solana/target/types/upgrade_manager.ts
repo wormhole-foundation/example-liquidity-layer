@@ -3,68 +3,160 @@ export type UpgradeManager = {
   "name": "upgrade_manager",
   "instructions": [
     {
-      "name": "upgradeMatchingEngine",
+      "name": "executeMatchingEngineUpgrade",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": true,
-          "isSigner": true,
-          "docs": [
-            "Owner of this program. Must match the upgrade authority in this program data."
-          ]
-        },
-        {
-          "name": "programData",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Program data for this program. Its upgrade authority must match the owner."
-          ]
-        },
-        {
-          "name": "upgradeAuthority",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Engine). This address must equal the liquidity layer program data's upgrade authority."
-          ]
-        },
-        {
-          "name": "matchingEngineBuffer",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Deployed implementation of liquidity layer.",
-            ""
-          ]
-        },
-        {
-          "name": "matchingEngineProgramData",
+          "name": "matchingEngineCustodian",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "matchingEngineProgram",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "because we cannot set this account to be mutable in that case."
+          "name": "executeUpgrade",
+          "accounts": [
+            {
+              "name": "payer",
+              "isMut": true,
+              "isSigner": true
+            },
+            {
+              "name": "admin",
+              "accounts": [
+                {
+                  "name": "owner",
+                  "isMut": false,
+                  "isSigner": true,
+                  "docs": [
+                    "Owner of this program. Must match the upgrade authority in this program data."
+                  ]
+                },
+                {
+                  "name": "upgradeAuthority",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "Engine). This address must equal the liquidity layer program data's upgrade authority."
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "receipt",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "buffer",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Deployed implementation of liquidity layer.",
+                ""
+              ]
+            },
+            {
+              "name": "programData",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "program",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "because we cannot set this account to be mutable in that case."
+              ]
+            },
+            {
+              "name": "bpfLoaderUpgradeableProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "systemProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "sysvars",
+              "accounts": [
+                {
+                  "name": "clock",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "BPF Loader Upgradeable needs the clock sysvar for its upgrade instruction.",
+                    ""
+                  ]
+                },
+                {
+                  "name": "rent",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "BPF Loader Upgradeable needs the rent sysvar for its upgrade instruction.",
+                    ""
+                  ]
+                }
+              ]
+            }
           ]
-        },
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "commitMatchingEngineUpgrade",
+      "accounts": [
         {
-          "name": "bpfLoaderUpgradeableProgram",
-          "isMut": false,
+          "name": "matchingEngineCustodian",
+          "isMut": true,
           "isSigner": false
         },
         {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
+          "name": "commitUpgrade",
+          "accounts": [
+            {
+              "name": "admin",
+              "accounts": [
+                {
+                  "name": "owner",
+                  "isMut": false,
+                  "isSigner": true,
+                  "docs": [
+                    "Owner of this program. Must match the upgrade authority in this program data."
+                  ]
+                },
+                {
+                  "name": "upgradeAuthority",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "Engine). This address must equal the liquidity layer program data's upgrade authority."
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "recipient",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "receipt",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "program",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "programData",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         }
       ],
       "args": []
@@ -73,72 +165,157 @@ export type UpgradeManager = {
       "name": "executeTokenRouterUpgrade",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": true,
-          "isSigner": true,
-          "docs": [
-            "Owner of this program. Must match the upgrade authority in this program data."
-          ]
-        },
-        {
-          "name": "upgradeAuthority",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Engine). This address must equal the liquidity layer program data's upgrade authority."
-          ]
-        },
-        {
-          "name": "upgradeReceipt",
+          "name": "tokenRouterCustodian",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "tokenRouterBuffer",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Deployed implementation of liquidity layer.",
-            ""
+          "name": "executeUpgrade",
+          "accounts": [
+            {
+              "name": "payer",
+              "isMut": true,
+              "isSigner": true
+            },
+            {
+              "name": "admin",
+              "accounts": [
+                {
+                  "name": "owner",
+                  "isMut": false,
+                  "isSigner": true,
+                  "docs": [
+                    "Owner of this program. Must match the upgrade authority in this program data."
+                  ]
+                },
+                {
+                  "name": "upgradeAuthority",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "Engine). This address must equal the liquidity layer program data's upgrade authority."
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "receipt",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "buffer",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Deployed implementation of liquidity layer.",
+                ""
+              ]
+            },
+            {
+              "name": "programData",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "program",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "because we cannot set this account to be mutable in that case."
+              ]
+            },
+            {
+              "name": "bpfLoaderUpgradeableProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "systemProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "sysvars",
+              "accounts": [
+                {
+                  "name": "clock",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "BPF Loader Upgradeable needs the clock sysvar for its upgrade instruction.",
+                    ""
+                  ]
+                },
+                {
+                  "name": "rent",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "BPF Loader Upgradeable needs the rent sysvar for its upgrade instruction.",
+                    ""
+                  ]
+                }
+              ]
+            }
           ]
-        },
-        {
-          "name": "tokenRouterProgramData",
-          "isMut": true,
-          "isSigner": false
-        },
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "commitTokenRouterUpgrade",
+      "accounts": [
         {
           "name": "tokenRouterCustodian",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "tokenRouterProgram",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "because we cannot set this account to be mutable in that case."
+          "name": "commitUpgrade",
+          "accounts": [
+            {
+              "name": "admin",
+              "accounts": [
+                {
+                  "name": "owner",
+                  "isMut": false,
+                  "isSigner": true,
+                  "docs": [
+                    "Owner of this program. Must match the upgrade authority in this program data."
+                  ]
+                },
+                {
+                  "name": "upgradeAuthority",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "Engine). This address must equal the liquidity layer program data's upgrade authority."
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "recipient",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "receipt",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "program",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "programData",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "bpfLoaderUpgradeableProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
         }
       ],
       "args": []
@@ -155,19 +332,64 @@ export type UpgradeManager = {
             "type": "u8"
           },
           {
+            "name": "programDataBump",
+            "type": "u8"
+          },
+          {
             "name": "owner",
             "type": "publicKey"
           },
           {
-            "name": "buffer",
-            "type": "publicKey"
-          },
-          {
-            "name": "slot",
-            "type": "u64"
+            "name": "status",
+            "type": {
+              "defined": "UpgradeStatus"
+            }
           }
         ]
       }
+    }
+  ],
+  "types": [
+    {
+      "name": "UpgradeStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "None"
+          },
+          {
+            "name": "Uncommitted",
+            "fields": [
+              {
+                "name": "buffer",
+                "type": "publicKey"
+              },
+              {
+                "name": "slot",
+                "type": "u64"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6016,
+      "name": "NotUpgraded",
+      "msg": "NotUpgraded"
+    },
+    {
+      "code": 6018,
+      "name": "ProgramDataMismatch",
+      "msg": "ProgramDataMismatch"
+    },
+    {
+      "code": 6020,
+      "name": "OwnerMismatch",
+      "msg": "OwnerMismatch"
     }
   ]
 };
@@ -177,68 +399,160 @@ export const IDL: UpgradeManager = {
   "name": "upgrade_manager",
   "instructions": [
     {
-      "name": "upgradeMatchingEngine",
+      "name": "executeMatchingEngineUpgrade",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": true,
-          "isSigner": true,
-          "docs": [
-            "Owner of this program. Must match the upgrade authority in this program data."
-          ]
-        },
-        {
-          "name": "programData",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Program data for this program. Its upgrade authority must match the owner."
-          ]
-        },
-        {
-          "name": "upgradeAuthority",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Engine). This address must equal the liquidity layer program data's upgrade authority."
-          ]
-        },
-        {
-          "name": "matchingEngineBuffer",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Deployed implementation of liquidity layer.",
-            ""
-          ]
-        },
-        {
-          "name": "matchingEngineProgramData",
+          "name": "matchingEngineCustodian",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "matchingEngineProgram",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "because we cannot set this account to be mutable in that case."
+          "name": "executeUpgrade",
+          "accounts": [
+            {
+              "name": "payer",
+              "isMut": true,
+              "isSigner": true
+            },
+            {
+              "name": "admin",
+              "accounts": [
+                {
+                  "name": "owner",
+                  "isMut": false,
+                  "isSigner": true,
+                  "docs": [
+                    "Owner of this program. Must match the upgrade authority in this program data."
+                  ]
+                },
+                {
+                  "name": "upgradeAuthority",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "Engine). This address must equal the liquidity layer program data's upgrade authority."
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "receipt",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "buffer",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Deployed implementation of liquidity layer.",
+                ""
+              ]
+            },
+            {
+              "name": "programData",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "program",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "because we cannot set this account to be mutable in that case."
+              ]
+            },
+            {
+              "name": "bpfLoaderUpgradeableProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "systemProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "sysvars",
+              "accounts": [
+                {
+                  "name": "clock",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "BPF Loader Upgradeable needs the clock sysvar for its upgrade instruction.",
+                    ""
+                  ]
+                },
+                {
+                  "name": "rent",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "BPF Loader Upgradeable needs the rent sysvar for its upgrade instruction.",
+                    ""
+                  ]
+                }
+              ]
+            }
           ]
-        },
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "commitMatchingEngineUpgrade",
+      "accounts": [
         {
-          "name": "bpfLoaderUpgradeableProgram",
-          "isMut": false,
+          "name": "matchingEngineCustodian",
+          "isMut": true,
           "isSigner": false
         },
         {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
+          "name": "commitUpgrade",
+          "accounts": [
+            {
+              "name": "admin",
+              "accounts": [
+                {
+                  "name": "owner",
+                  "isMut": false,
+                  "isSigner": true,
+                  "docs": [
+                    "Owner of this program. Must match the upgrade authority in this program data."
+                  ]
+                },
+                {
+                  "name": "upgradeAuthority",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "Engine). This address must equal the liquidity layer program data's upgrade authority."
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "recipient",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "receipt",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "program",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "programData",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         }
       ],
       "args": []
@@ -247,72 +561,157 @@ export const IDL: UpgradeManager = {
       "name": "executeTokenRouterUpgrade",
       "accounts": [
         {
-          "name": "owner",
-          "isMut": true,
-          "isSigner": true,
-          "docs": [
-            "Owner of this program. Must match the upgrade authority in this program data."
-          ]
-        },
-        {
-          "name": "upgradeAuthority",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Engine). This address must equal the liquidity layer program data's upgrade authority."
-          ]
-        },
-        {
-          "name": "upgradeReceipt",
+          "name": "tokenRouterCustodian",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "tokenRouterBuffer",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Deployed implementation of liquidity layer.",
-            ""
+          "name": "executeUpgrade",
+          "accounts": [
+            {
+              "name": "payer",
+              "isMut": true,
+              "isSigner": true
+            },
+            {
+              "name": "admin",
+              "accounts": [
+                {
+                  "name": "owner",
+                  "isMut": false,
+                  "isSigner": true,
+                  "docs": [
+                    "Owner of this program. Must match the upgrade authority in this program data."
+                  ]
+                },
+                {
+                  "name": "upgradeAuthority",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "Engine). This address must equal the liquidity layer program data's upgrade authority."
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "receipt",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "buffer",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Deployed implementation of liquidity layer.",
+                ""
+              ]
+            },
+            {
+              "name": "programData",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "program",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "because we cannot set this account to be mutable in that case."
+              ]
+            },
+            {
+              "name": "bpfLoaderUpgradeableProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "systemProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "sysvars",
+              "accounts": [
+                {
+                  "name": "clock",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "BPF Loader Upgradeable needs the clock sysvar for its upgrade instruction.",
+                    ""
+                  ]
+                },
+                {
+                  "name": "rent",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "BPF Loader Upgradeable needs the rent sysvar for its upgrade instruction.",
+                    ""
+                  ]
+                }
+              ]
+            }
           ]
-        },
-        {
-          "name": "tokenRouterProgramData",
-          "isMut": true,
-          "isSigner": false
-        },
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "commitTokenRouterUpgrade",
+      "accounts": [
         {
           "name": "tokenRouterCustodian",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "tokenRouterProgram",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "because we cannot set this account to be mutable in that case."
+          "name": "commitUpgrade",
+          "accounts": [
+            {
+              "name": "admin",
+              "accounts": [
+                {
+                  "name": "owner",
+                  "isMut": false,
+                  "isSigner": true,
+                  "docs": [
+                    "Owner of this program. Must match the upgrade authority in this program data."
+                  ]
+                },
+                {
+                  "name": "upgradeAuthority",
+                  "isMut": false,
+                  "isSigner": false,
+                  "docs": [
+                    "Engine). This address must equal the liquidity layer program data's upgrade authority."
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "recipient",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "receipt",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "program",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "programData",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "bpfLoaderUpgradeableProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "rent",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "clock",
-          "isMut": false,
-          "isSigner": false
         }
       ],
       "args": []
@@ -329,19 +728,64 @@ export const IDL: UpgradeManager = {
             "type": "u8"
           },
           {
+            "name": "programDataBump",
+            "type": "u8"
+          },
+          {
             "name": "owner",
             "type": "publicKey"
           },
           {
-            "name": "buffer",
-            "type": "publicKey"
-          },
-          {
-            "name": "slot",
-            "type": "u64"
+            "name": "status",
+            "type": {
+              "defined": "UpgradeStatus"
+            }
           }
         ]
       }
+    }
+  ],
+  "types": [
+    {
+      "name": "UpgradeStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "None"
+          },
+          {
+            "name": "Uncommitted",
+            "fields": [
+              {
+                "name": "buffer",
+                "type": "publicKey"
+              },
+              {
+                "name": "slot",
+                "type": "u64"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 6016,
+      "name": "NotUpgraded",
+      "msg": "NotUpgraded"
+    },
+    {
+      "code": 6018,
+      "name": "ProgramDataMismatch",
+      "msg": "ProgramDataMismatch"
+    },
+    {
+      "code": 6020,
+      "name": "OwnerMismatch",
+      "msg": "OwnerMismatch"
     }
   ]
 };

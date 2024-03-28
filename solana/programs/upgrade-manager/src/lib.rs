@@ -1,10 +1,16 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::result_large_err)]
 
+mod composite;
+
+mod error;
+
 mod processor;
-pub(crate) use processor::*;
+use processor::*;
 
 pub mod state;
+
+mod utils;
 
 use anchor_lang::prelude::*;
 
@@ -22,6 +28,33 @@ const UPGRADE_AUTHORITY_SEED_PREFIX: &[u8] = b"upgrade";
 const UPGRADE_AUTHORITY_SIGNER_SEEDS: &[&[u8]] =
     &[UPGRADE_AUTHORITY_SEED_PREFIX, &[UPGRADE_AUTHORITY_BUMP]];
 
+#[program]
+pub mod upgrade_manager {
+    use super::*;
+
+    // Matching Engine
+
+    pub fn execute_matching_engine_upgrade(
+        ctx: Context<ExecuteMatchingEngineUpgrade>,
+    ) -> Result<()> {
+        utils::execute_upgrade(ctx.accounts, &ctx.bumps.execute_upgrade)
+    }
+
+    pub fn commit_matching_engine_upgrade(ctx: Context<CommitMatchingEngineUpgrade>) -> Result<()> {
+        processor::commit_matching_engine_upgrade(ctx)
+    }
+
+    // Token Router
+
+    pub fn execute_token_router_upgrade(ctx: Context<ExecuteTokenRouterUpgrade>) -> Result<()> {
+        utils::execute_upgrade(ctx.accounts, &ctx.bumps.execute_upgrade)
+    }
+
+    pub fn commit_token_router_upgrade(ctx: Context<CommitTokenRouterUpgrade>) -> Result<()> {
+        processor::commit_token_router_upgrade(ctx)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -32,22 +65,5 @@ mod test {
             Pubkey::find_program_address(&[UPGRADE_AUTHORITY_SEED_PREFIX], &crate::id());
         assert_eq!(actual_bump_seed, UPGRADE_AUTHORITY_BUMP);
         assert_eq!(actual_addr, common::constants::UPGRADE_MANAGER_AUTHORITY);
-    }
-}
-
-#[program]
-pub mod upgrade_manager {
-    use super::*;
-
-    // Matching Engine
-
-    pub fn upgrade_matching_engine(ctx: Context<UpgradeMatchingEngine>) -> Result<()> {
-        processor::upgrade_matching_engine(ctx)
-    }
-
-    // Token Router
-
-    pub fn execute_token_router_upgrade(ctx: Context<ExecuteTokenRouterUpgrade>) -> Result<()> {
-        processor::execute_token_router_upgrade(ctx)
     }
 }

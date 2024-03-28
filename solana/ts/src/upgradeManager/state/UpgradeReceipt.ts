@@ -1,17 +1,25 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
+export type UpgradeStatus = {
+    none?: {};
+    uncommitted?: {
+        buffer: PublicKey;
+        slot: BN;
+    };
+};
+
 export class UpgradeReceipt {
     bump: number;
+    programDataBump: number;
     owner: PublicKey;
-    buffer: PublicKey;
-    slot: BN;
+    status: UpgradeStatus;
 
-    constructor(bump: number, owner: PublicKey, buffer: PublicKey, slot: BN) {
+    constructor(bump: number, programDataBump: number, owner: PublicKey, status: UpgradeStatus) {
         this.bump = bump;
+        this.programDataBump = programDataBump;
         this.owner = owner;
-        this.buffer = buffer;
-        this.slot = slot;
+        this.status = status;
     }
 
     static address(programId: PublicKey, otherProgram: PublicKey) {

@@ -1136,13 +1136,8 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -1191,13 +1186,8 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         }
@@ -1225,7 +1215,7 @@ export type MatchingEngine = {
               "accounts": [
                 {
                   "name": "custodian",
-                  "isMut": true,
+                  "isMut": false,
                   "isSigner": false
                 }
               ]
@@ -1275,13 +1265,8 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -1316,13 +1301,8 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -1351,13 +1331,8 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -1973,6 +1948,32 @@ export type MatchingEngine = {
           "name": "proposal",
           "isMut": true,
           "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "migrate",
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
         }
       ],
       "args": []
@@ -3943,13 +3944,8 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -3998,13 +3994,8 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         }
@@ -4032,7 +4023,7 @@ export const IDL: MatchingEngine = {
               "accounts": [
                 {
                   "name": "custodian",
-                  "isMut": true,
+                  "isMut": false,
                   "isSigner": false
                 }
               ]
@@ -4082,13 +4073,8 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -4123,13 +4109,8 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -4158,13 +4139,8 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         },
@@ -4780,6 +4756,32 @@ export const IDL: MatchingEngine = {
           "name": "proposal",
           "isMut": true,
           "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "migrate",
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
         }
       ],
       "args": []

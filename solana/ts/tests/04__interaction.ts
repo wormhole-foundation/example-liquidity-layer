@@ -773,7 +773,7 @@ describe("Matching Engine <> Token Router", function () {
                     .redeemFastFill()
                     .accounts({
                         payer: payer.publicKey,
-                        custodian,
+                        custodian: { custodian },
                         vaa,
                         preparedFill,
                         preparedCustodyToken: tokenRouter.preparedCustodyTokenAddress(preparedFill),
@@ -837,7 +837,7 @@ describe("Matching Engine <> Token Router", function () {
                     .redeemFastFill()
                     .accounts({
                         payer: payer.publicKey,
-                        custodian,
+                        custodian: { custodian },
                         vaa,
                         preparedFill,
                         preparedCustodyToken: tokenRouter.preparedCustodyTokenAddress(preparedFill),

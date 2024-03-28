@@ -3,10 +3,12 @@
 
 pub mod cctp_mint_recipient;
 
-pub mod error;
+mod composite;
+
+mod error;
 
 mod processor;
-pub(crate) use processor::*;
+use processor::*;
 
 pub mod state;
 
@@ -211,7 +213,7 @@ pub mod token_router {
     //     processor::complete_wrapped_transfer_with_relay(ctx, _vaa_hash)
     // }
 
-    pub fn authorize_upgrade(ctx: Context<AuthorizeUpgrade>) -> Result<()> {
-        processor::authorize_upgrade(ctx)
+    pub fn migrate(ctx: Context<Migrate>) -> Result<()> {
+        processor::migrate(ctx)
     }
 }
