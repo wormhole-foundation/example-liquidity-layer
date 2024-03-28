@@ -861,11 +861,43 @@ describe("Token Router", function () {
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress,
                 );
-                await expectIxOk(connection, [ix], [payer, orderSender], {
+                const sig = await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
+                console.log("sig", sig);
 
                 checkAfterEffects({ preparedOrder, amountIn, burnSource: payerToken });
+            });
+
+            it("Reclaim by Closing CCTP Message", async function () {
+                const currentSequence = await tokenRouter.fetchPayerSequenceValue(
+                    tokenRouter.payerSequenceAddress(payer.publicKey),
+                );
+                const messageSent = tokenRouter.cctpMessageAddress(
+                    payer.publicKey,
+                    currentSequence.subn(1),
+                );
+
+                const messageTransmitter = tokenRouter.messageTransmitterProgram();
+                const { message } = await messageTransmitter.fetchMessageSent(messageSent);
+
+                // Simulate attestation.
+                const attestation = new CircleAttester().createAttestation(message);
+
+                const ix = await tokenRouter.messageTransmitterProgram().reclaimEventAccountIx(
+                    {
+                        payee: payer.publicKey,
+                        messageSentEventData: messageSent,
+                    },
+                    attestation,
+                );
+
+                const balanceBefore = await connection.getBalance(payer.publicKey);
+
+                await expectIxOk(connection, [ix], [payer]);
+
+                const balanceAfter = await connection.getBalance(payer.publicKey);
+                expect(balanceAfter - balanceBefore).equals(2918208);
             });
 
             it("Pause", async function () {

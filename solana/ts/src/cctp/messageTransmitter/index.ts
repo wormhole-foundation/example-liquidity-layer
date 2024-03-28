@@ -1,5 +1,5 @@
 import { Program } from "@coral-xyz/anchor";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { CctpTokenBurnMessage } from "../messages";
 import { TokenMessengerMinterProgram } from "../tokenMessengerMinter";
 import { IDL, MessageTransmitter } from "../types/message_transmitter";
@@ -66,7 +66,7 @@ export class MessageTransmitterProgram {
         return PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], this.ID)[0];
     }
 
-    fetchMessageSent(addr: PublicKey): Promise<MessageSent> {
+    async fetchMessageSent(addr: PublicKey): Promise<MessageSent> {
         return this.program.account.messageSent.fetch(addr);
     }
 
@@ -116,6 +116,21 @@ export class MessageTransmitterProgram {
             custodyToken: tokenMessengerMinterProgram.custodyTokenAddress(mint),
             tokenMessengerMinterEventAuthority: tokenMessengerMinterProgram.eventAuthorityAddress(),
         };
+    }
+
+    async reclaimEventAccountIx(
+        accounts: { payee: PublicKey; messageSentEventData: PublicKey },
+        attestation: Buffer,
+    ): Promise<TransactionInstruction> {
+        const { payee, messageSentEventData } = accounts;
+        return this.program.methods
+            .reclaimEventAccount({ attestation })
+            .accounts({
+                payee,
+                messageTransmitter: this.messageTransmitterConfigAddress(),
+                messageSentEventData,
+            })
+            .instruction();
     }
 }
 
