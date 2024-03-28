@@ -703,10 +703,13 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async closeProposalIx(accounts: { owner: PublicKey }): Promise<TransactionInstruction> {
-        const { owner } = accounts;
+    async closeProposalIx(accounts: {
+        owner: PublicKey;
+        proposal?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const { owner, proposal: inputProposal } = accounts;
 
-        const proposal = await this.proposalAddress();
+        const proposal = inputProposal ?? (await this.proposalAddress());
         const { by: proposedBy } = await this.fetchProposal({ address: proposal });
 
         return this.program.methods

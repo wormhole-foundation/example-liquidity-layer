@@ -1,4 +1,4 @@
-use crate::{composite::*, state::Proposal};
+use crate::{composite::*, error::MatchingEngineError, state::Proposal};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
@@ -20,7 +20,7 @@ pub struct CloseProposal<'info> {
             &proposal.id.to_be_bytes(),
         ],
         bump = proposal.bump,
-        constraint = proposal.slot_enacted_at.is_none() @ ErrorCode::InstructionMissing, // TODO: add err ProposalAlreadyEnacted
+        constraint = proposal.slot_enacted_at.is_none() @ MatchingEngineError::ProposalAlreadyEnacted
     )]
     proposal: Account<'info, Proposal>,
 }
