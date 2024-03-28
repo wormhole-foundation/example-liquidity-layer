@@ -550,6 +550,22 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    async setPauseIx(
+        accounts: {
+            ownerOrAssistant: PublicKey;
+            custodian?: PublicKey;
+        },
+        paused: boolean,
+    ): Promise<TransactionInstruction> {
+        const { ownerOrAssistant, custodian: inputCustodian } = accounts;
+        return this.program.methods
+            .setPause(paused)
+            .accounts({
+                admin: this.adminComposite(ownerOrAssistant, inputCustodian),
+            })
+            .instruction();
+    }
+
     async submitOwnershipTransferIx(accounts: {
         owner: PublicKey;
         newOwner: PublicKey;

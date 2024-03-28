@@ -138,6 +138,8 @@ pub fn initialize(ctx: Context<Initialize>, auction_params: AuctionParameters) -
     ctx.accounts.custodian.set_inner(Custodian {
         owner,
         pending_owner: None,
+        paused: false,
+        paused_set_by: Pubkey::default(),
         owner_assistant: ctx.accounts.owner_assistant.key(),
         fee_recipient_token: ctx.accounts.fee_recipient_token.key(),
         auction_config_id,
