@@ -838,13 +838,8 @@
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         }

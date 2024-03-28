@@ -386,6 +386,13 @@ export class MatchingEngineProgram {
         return { ownerOrAssistant, custodian: this.checkedCustodianComposite(custodian) };
     }
 
+    adminMutComposite(
+        ownerOrAssistant: PublicKey,
+        custodian?: PublicKey,
+    ): { ownerOrAssistant: PublicKey; custodian: PublicKey } {
+        return { ownerOrAssistant, custodian: custodian ?? this.custodianAddress() };
+    }
+
     ownerOnlyComposite(
         owner: PublicKey,
         custodian?: PublicKey,
@@ -561,7 +568,7 @@ export class MatchingEngineProgram {
         return this.program.methods
             .setPause(paused)
             .accounts({
-                admin: this.adminComposite(ownerOrAssistant, inputCustodian),
+                admin: this.adminMutComposite(ownerOrAssistant, inputCustodian),
             })
             .instruction();
     }

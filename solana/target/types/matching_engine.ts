@@ -838,13 +838,8 @@ export type MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         }
@@ -3693,13 +3688,8 @@ export const IDL: MatchingEngine = {
             },
             {
               "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
+              "isMut": true,
+              "isSigner": false
             }
           ]
         }
