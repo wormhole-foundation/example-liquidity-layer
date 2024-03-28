@@ -20,7 +20,7 @@ pub struct ExecuteTokenRouterUpgrade<'info> {
 }
 
 impl<'info> AuthorizeUpgrade<'info> for ExecuteTokenRouterUpgrade<'info> {
-    fn execute_upgrade_composite(&mut self) -> &mut ExecuteUpgrade<'info> {
+    fn execute_upgrade_composite_mut(&mut self) -> &mut ExecuteUpgrade<'info> {
         &mut self.execute_upgrade
     }
 

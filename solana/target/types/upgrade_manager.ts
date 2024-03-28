@@ -84,7 +84,7 @@ export type UpgradeManager = {
                   "isMut": false,
                   "isSigner": false,
                   "docs": [
-                    "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                    "BPF Loader Upgradeable needs the clock sysvar for its upgrade instruction.",
                     ""
                   ]
                 },
@@ -93,7 +93,7 @@ export type UpgradeManager = {
                   "isMut": false,
                   "isSigner": false,
                   "docs": [
-                    "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                    "BPF Loader Upgradeable needs the rent sysvar for its upgrade instruction.",
                     ""
                   ]
                 }
@@ -243,7 +243,7 @@ export type UpgradeManager = {
                   "isMut": false,
                   "isSigner": false,
                   "docs": [
-                    "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                    "BPF Loader Upgradeable needs the clock sysvar for its upgrade instruction.",
                     ""
                   ]
                 },
@@ -252,7 +252,7 @@ export type UpgradeManager = {
                   "isMut": false,
                   "isSigner": false,
                   "docs": [
-                    "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                    "BPF Loader Upgradeable needs the rent sysvar for its upgrade instruction.",
                     ""
                   ]
                 }
@@ -480,7 +480,7 @@ export const IDL: UpgradeManager = {
                   "isMut": false,
                   "isSigner": false,
                   "docs": [
-                    "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                    "BPF Loader Upgradeable needs the clock sysvar for its upgrade instruction.",
                     ""
                   ]
                 },
@@ -489,7 +489,7 @@ export const IDL: UpgradeManager = {
                   "isMut": false,
                   "isSigner": false,
                   "docs": [
-                    "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                    "BPF Loader Upgradeable needs the rent sysvar for its upgrade instruction.",
                     ""
                   ]
                 }
@@ -639,7 +639,7 @@ export const IDL: UpgradeManager = {
                   "isMut": false,
                   "isSigner": false,
                   "docs": [
-                    "Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.",
+                    "BPF Loader Upgradeable needs the clock sysvar for its upgrade instruction.",
                     ""
                   ]
                 },
@@ -648,7 +648,7 @@ export const IDL: UpgradeManager = {
                   "isMut": false,
                   "isSigner": false,
                   "docs": [
-                    "Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.",
+                    "BPF Loader Upgradeable needs the rent sysvar for its upgrade instruction.",
                     ""
                   ]
                 }

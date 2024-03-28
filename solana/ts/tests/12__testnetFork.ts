@@ -59,6 +59,18 @@ describe("Upgrade Manager", function () {
             });
         });
 
+        it("Cannot Execute Another Upgrade without Owner", async function () {
+            const guy = Keypair.generate();
+
+            await executeMatchingEngineUpgradeForTest(
+                {
+                    owner: guy.publicKey,
+                    payer: payer.publicKey,
+                },
+                { signers: [payer, guy], errorMsg: "Error Code: OwnerMismatch" },
+            );
+        });
+
         it("Execute Another Upgrade Before Commit", async function () {
             await executeMatchingEngineUpgradeForTest({
                 owner: payer.publicKey,
@@ -246,6 +258,18 @@ describe("Upgrade Manager", function () {
             await executeTokenRouterUpgradeForTest({
                 owner: payer.publicKey,
             });
+        });
+
+        it("Cannot Execute Another Upgrade without Owner", async function () {
+            const guy = Keypair.generate();
+
+            await executeTokenRouterUpgradeForTest(
+                {
+                    owner: guy.publicKey,
+                    payer: payer.publicKey,
+                },
+                { signers: [payer, guy], errorMsg: "Error Code: OwnerMismatch" },
+            );
         });
 
         it("Execute Another Upgrade Before Commit", async function () {
