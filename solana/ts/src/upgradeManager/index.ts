@@ -109,8 +109,10 @@ export class UpgradeManagerProgram {
     async commitMatchingEngineUpgradeIx(accounts: {
         owner: PublicKey;
         recipient?: PublicKey;
+        // FIX: After successful upgrade, remove passing payer like this.
+        payer: PublicKey;
     }): Promise<TransactionInstruction> {
-        const { owner, recipient } = accounts;
+        const { owner, recipient, payer } = accounts;
         const matchingEngine = this.matchingEngineProgram();
 
         return this.program.methods
@@ -122,6 +124,8 @@ export class UpgradeManagerProgram {
                     program: matchingEngine.ID,
                     recipient,
                 }),
+                // FIX: After successful upgrade, remove passing payer like this.
+                payer,
             })
             .instruction();
     }
