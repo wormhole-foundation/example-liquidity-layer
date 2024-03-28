@@ -1387,6 +1387,15 @@
           "isSigner": true
         },
         {
+          "name": "transferAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The auction participant needs to set approval to this PDA.",
+            ""
+          ]
+        },
+        {
           "name": "custodian",
           "accounts": [
             {
@@ -1489,6 +1498,15 @@
     {
       "name": "improveOffer",
       "accounts": [
+        {
+          "name": "transferAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The auction participant needs to set approval to this PDA.",
+            ""
+          ]
+        },
         {
           "name": "activeAuction",
           "accounts": [

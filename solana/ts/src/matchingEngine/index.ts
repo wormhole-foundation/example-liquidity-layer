@@ -296,33 +296,39 @@ export class MatchingEngineProgram {
             .catch((_) => 0n);
     }
 
-    async approveCustodianIx(
-        owner: PublicKey,
-        amount: bigint | number,
-    ): Promise<TransactionInstruction> {
-        return splToken.createApproveInstruction(
-            splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner),
-            this.custodianAddress(),
-            owner,
-            amount,
-        );
+    transferAuthorityAddress(auction: PublicKey, offerPrice: bigint | number): PublicKey {
+        const encodedOfferPrice = Buffer.alloc(8);
+        encodedOfferPrice.writeBigUInt64BE(BigInt(offerPrice));
+        return PublicKey.findProgramAddressSync(
+            [Buffer.from("transfer-authority"), auction.toBuffer(), encodedOfferPrice],
+            this.ID,
+        )[0];
     }
 
-    async approveAuctionIx(
+    async approveTransferAuthorityIx(
         accounts: {
             auction: PublicKey;
             owner: PublicKey;
         },
-        amount: bigint | number,
-    ): Promise<TransactionInstruction> {
+        amounts: {
+            offerPrice: bigint | number;
+            totalDeposit: bigint | number;
+        },
+    ): Promise<{ transferAuthority: PublicKey; ix: TransactionInstruction }> {
         const { auction, owner } = accounts;
+        const { offerPrice, totalDeposit } = amounts;
 
-        return splToken.createApproveInstruction(
-            splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner),
-            auction,
-            owner,
-            amount,
-        );
+        const transferAuthority = this.transferAuthorityAddress(auction, offerPrice);
+
+        return {
+            transferAuthority,
+            ix: splToken.createApproveInstruction(
+                splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner),
+                transferAuthority,
+                owner,
+                totalDeposit,
+            ),
+        };
     }
 
     async commonAccounts(): Promise<MatchingEngineCommonAccounts> {
@@ -866,7 +872,7 @@ export class MatchingEngineProgram {
             toRouterEndpoint?: PublicKey;
             totalDeposit?: bigint;
         },
-        feeOffer: bigint,
+        offerPrice: bigint,
     ): Promise<[approveIx: TransactionInstruction, placeInitialOfferIx: TransactionInstruction]> {
         const {
             payer,
@@ -934,11 +940,18 @@ export class MatchingEngineProgram {
             }
         })();
 
-        const approveIx = await this.approveAuctionIx({ auction, owner: payer }, totalDeposit);
+        const { transferAuthority, ix: approveIx } = await this.approveTransferAuthorityIx(
+            { auction, owner: payer },
+            {
+                totalDeposit,
+                offerPrice,
+            },
+        );
         const placeInitialOfferIx = await this.program.methods
-            .placeInitialOffer(new BN(feeOffer.toString()))
+            .placeInitialOffer(new BN(offerPrice.toString()))
             .accounts({
                 payer,
+                transferAuthority,
                 custodian: this.checkedCustodianComposite(),
                 auctionConfig,
                 auction,
@@ -978,14 +991,15 @@ export class MatchingEngineProgram {
             throw new Error("no auction info found");
         }
 
-        const approveIx = await this.approveAuctionIx(
+        const { transferAuthority, ix: approveIx } = await this.approveTransferAuthorityIx(
             { auction, owner: offerAuthority },
-            info.amountIn.add(info.securityDeposit).toNumber(),
+            { totalDeposit: info.amountIn.add(info.securityDeposit).toNumber(), offerPrice },
         );
 
         const improveOfferIx = await this.program.methods
             .improveOffer(new BN(offerPrice.toString()))
             .accounts({
+                transferAuthority,
                 activeAuction: await this.activeAuctionComposite(
                     { auction, config: inputAuctionConfig, bestOfferToken: inputBestOfferToken },
                     { info },
