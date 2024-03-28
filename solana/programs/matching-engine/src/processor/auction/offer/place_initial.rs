@@ -27,8 +27,10 @@ pub struct PlaceInitialOffer<'info> {
     )]
     transfer_authority: AccountInfo<'info>,
 
-    /// NOTE: Currently not used for anything. But this account can be used in
-    /// case we need to pause starting auctions.
+    /// NOTE: This account is only used to pause inbound auctions.
+    #[account(
+        constraint = !custodian.paused @ MatchingEngineError::Paused,
+    )]
     custodian: CheckedCustodian<'info>,
 
     #[account(

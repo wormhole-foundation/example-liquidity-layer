@@ -826,6 +826,37 @@ export type MatchingEngine = {
       ]
     },
     {
+      "name": "setPause",
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "pause",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "addCctpRouterEndpoint",
       "accounts": [
         {
@@ -2058,6 +2089,17 @@ export type MatchingEngine = {
             }
           },
           {
+            "name": "paused",
+            "docs": [
+              "Boolean indicating whether inbound auctions are paused."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "pausedSetBy",
+            "type": "publicKey"
+          },
+          {
             "name": "ownerAssistant",
             "docs": [
               "Program's assistant."
@@ -2604,202 +2646,207 @@ export type MatchingEngine = {
       "msg": "NotPendingOwner"
     },
     {
-      "code": 6527,
+      "code": 6128,
+      "name": "Paused",
+      "msg": "Paused"
+    },
+    {
+      "code": 6129,
       "name": "InvalidTokenAccount",
       "msg": "InvalidTokenAccount"
     },
     {
-      "code": 6528,
+      "code": 6130,
       "name": "ChainNotAllowed",
       "msg": "ChainNotAllowed"
     },
     {
-      "code": 6529,
+      "code": 6131,
       "name": "InvalidMintRecipient",
       "msg": "InvalidMintRecipient"
     },
     {
-      "code": 6530,
+      "code": 6132,
       "name": "ErrInvalidSourceRouter",
       "msg": "ErrInvalidSourceRouter"
     },
     {
-      "code": 6531,
+      "code": 6133,
       "name": "ErrInvalidTargetRouter",
       "msg": "ErrInvalidTargetRouter"
     },
     {
-      "code": 6532,
+      "code": 6134,
       "name": "TokenRouterProgramIdRequired",
       "msg": "TokenRouterProgramIdRequired"
     },
     {
-      "code": 6533,
+      "code": 6135,
       "name": "InvalidAuctionDuration",
       "msg": "InvalidAuctionDuration"
     },
     {
-      "code": 6534,
+      "code": 6136,
       "name": "InvalidAuctionGracePeriod",
       "msg": "InvalidAuctionGracePeriod"
     },
     {
-      "code": 6535,
+      "code": 6137,
       "name": "UserPenaltyTooLarge",
       "msg": "UserPenaltyTooLarge"
     },
     {
-      "code": 6536,
+      "code": 6138,
       "name": "InitialPenaltyTooLarge",
       "msg": "InitialPenaltyTooLarge"
     },
     {
-      "code": 6537,
+      "code": 6139,
       "name": "MinOfferDeltaTooLarge",
       "msg": "MinOfferDeltaTooLarge"
     },
     {
-      "code": 6538,
+      "code": 6140,
       "name": "InvalidVaa",
       "msg": "InvalidVaa"
     },
     {
-      "code": 6539,
+      "code": 6141,
       "name": "NotFastMarketOrder",
       "msg": "NotFastMarketOrder"
     },
     {
-      "code": 6540,
+      "code": 6142,
       "name": "FastMarketOrderExpired",
       "msg": "FastMarketOrderExpired"
     },
     {
-      "code": 6541,
+      "code": 6143,
       "name": "OfferPriceTooHigh",
       "msg": "OfferPriceTooHigh"
     },
     {
-      "code": 6542,
+      "code": 6144,
       "name": "AuctionAlreadyStarted",
       "msg": "AuctionAlreadyStarted"
     },
     {
-      "code": 6543,
+      "code": 6145,
       "name": "InvalidEmitterForFastFill",
       "msg": "InvalidEmitterForFastFill"
     },
     {
-      "code": 6544,
+      "code": 6146,
       "name": "InvalidDeposit",
       "msg": "InvalidDeposit"
     },
     {
-      "code": 6545,
+      "code": 6147,
       "name": "InvalidDepositMessage",
       "msg": "InvalidDepositMessage"
     },
     {
-      "code": 6546,
+      "code": 6148,
       "name": "InvalidPayloadId",
       "msg": "InvalidPayloadId"
     },
     {
-      "code": 6547,
+      "code": 6149,
       "name": "InvalidDepositPayloadId",
       "msg": "InvalidDepositPayloadId"
     },
     {
-      "code": 6548,
+      "code": 6150,
       "name": "AuctionNotActive",
       "msg": "AuctionNotActive"
     },
     {
-      "code": 6549,
+      "code": 6151,
       "name": "AuctionPeriodExpired",
       "msg": "AuctionPeriodExpired"
     },
     {
-      "code": 6550,
+      "code": 6152,
       "name": "AuctionPeriodNotExpired",
       "msg": "AuctionPeriodNotExpired"
     },
     {
-      "code": 6551,
+      "code": 6153,
       "name": "OfferPriceNotImproved",
       "msg": "OfferPriceNotImproved"
     },
     {
-      "code": 6552,
+      "code": 6154,
       "name": "BestOfferTokenNotPassedIn",
       "msg": "BestOfferTokenNotPassedIn"
     },
     {
-      "code": 6553,
+      "code": 6155,
       "name": "PenaltyCalculationFailed",
       "msg": "PenaltyCalculationFailed"
     },
     {
-      "code": 6554,
+      "code": 6156,
       "name": "VaaMismatch",
       "msg": "VaaMismatch"
     },
     {
-      "code": 6555,
+      "code": 6157,
       "name": "MismatchedVaaHash",
       "msg": "MismatchedVaaHash"
     },
     {
-      "code": 6556,
+      "code": 6158,
       "name": "ExecutorTokenMismatch",
       "msg": "ExecutorTokenMismatch"
     },
     {
-      "code": 6557,
+      "code": 6159,
       "name": "InitialOfferTokenMismatch",
       "msg": "InitialOfferTokenMismatch"
     },
     {
-      "code": 6558,
+      "code": 6160,
       "name": "FeeRecipientTokenMismatch",
       "msg": "FeeRecipientTokenMismatch"
     },
     {
-      "code": 6559,
+      "code": 6161,
       "name": "AuctionNotCompleted",
       "msg": "AuctionNotCompleted"
     },
     {
-      "code": 6560,
+      "code": 6162,
       "name": "AuctionConfigMismatch",
       "msg": "AuctionConfigMismatch"
     },
     {
-      "code": 6561,
+      "code": 6163,
       "name": "EndpointDisabled",
       "msg": "EndpointDisabled"
     },
     {
-      "code": 6562,
+      "code": 6164,
       "name": "InvalidCctpEndpoint",
       "msg": "InvalidCctpEndpoint"
     },
     {
-      "code": 6563,
+      "code": 6165,
       "name": "CarpingNotAllowed",
       "msg": "CarpingNotAllowed"
     },
     {
-      "code": 6564,
+      "code": 6166,
       "name": "ProposalAlreadyEnacted",
       "msg": "ProposalAlreadyEnacted"
     },
     {
-      "code": 6565,
+      "code": 6167,
       "name": "ProposalDelayNotExpired",
       "msg": "ProposalDelayNotExpired"
     },
     {
-      "code": 6566,
+      "code": 6168,
       "name": "InvalidProposalAction",
       "msg": "InvalidProposalAction"
     }
@@ -3634,6 +3681,37 @@ export const IDL: MatchingEngine = {
       ]
     },
     {
+      "name": "setPause",
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "pause",
+          "type": "bool"
+        }
+      ]
+    },
+    {
       "name": "addCctpRouterEndpoint",
       "accounts": [
         {
@@ -4866,6 +4944,17 @@ export const IDL: MatchingEngine = {
             }
           },
           {
+            "name": "paused",
+            "docs": [
+              "Boolean indicating whether inbound auctions are paused."
+            ],
+            "type": "bool"
+          },
+          {
+            "name": "pausedSetBy",
+            "type": "publicKey"
+          },
+          {
             "name": "ownerAssistant",
             "docs": [
               "Program's assistant."
@@ -5412,202 +5501,207 @@ export const IDL: MatchingEngine = {
       "msg": "NotPendingOwner"
     },
     {
-      "code": 6527,
+      "code": 6128,
+      "name": "Paused",
+      "msg": "Paused"
+    },
+    {
+      "code": 6129,
       "name": "InvalidTokenAccount",
       "msg": "InvalidTokenAccount"
     },
     {
-      "code": 6528,
+      "code": 6130,
       "name": "ChainNotAllowed",
       "msg": "ChainNotAllowed"
     },
     {
-      "code": 6529,
+      "code": 6131,
       "name": "InvalidMintRecipient",
       "msg": "InvalidMintRecipient"
     },
     {
-      "code": 6530,
+      "code": 6132,
       "name": "ErrInvalidSourceRouter",
       "msg": "ErrInvalidSourceRouter"
     },
     {
-      "code": 6531,
+      "code": 6133,
       "name": "ErrInvalidTargetRouter",
       "msg": "ErrInvalidTargetRouter"
     },
     {
-      "code": 6532,
+      "code": 6134,
       "name": "TokenRouterProgramIdRequired",
       "msg": "TokenRouterProgramIdRequired"
     },
     {
-      "code": 6533,
+      "code": 6135,
       "name": "InvalidAuctionDuration",
       "msg": "InvalidAuctionDuration"
     },
     {
-      "code": 6534,
+      "code": 6136,
       "name": "InvalidAuctionGracePeriod",
       "msg": "InvalidAuctionGracePeriod"
     },
     {
-      "code": 6535,
+      "code": 6137,
       "name": "UserPenaltyTooLarge",
       "msg": "UserPenaltyTooLarge"
     },
     {
-      "code": 6536,
+      "code": 6138,
       "name": "InitialPenaltyTooLarge",
       "msg": "InitialPenaltyTooLarge"
     },
     {
-      "code": 6537,
+      "code": 6139,
       "name": "MinOfferDeltaTooLarge",
       "msg": "MinOfferDeltaTooLarge"
     },
     {
-      "code": 6538,
+      "code": 6140,
       "name": "InvalidVaa",
       "msg": "InvalidVaa"
     },
     {
-      "code": 6539,
+      "code": 6141,
       "name": "NotFastMarketOrder",
       "msg": "NotFastMarketOrder"
     },
     {
-      "code": 6540,
+      "code": 6142,
       "name": "FastMarketOrderExpired",
       "msg": "FastMarketOrderExpired"
     },
     {
-      "code": 6541,
+      "code": 6143,
       "name": "OfferPriceTooHigh",
       "msg": "OfferPriceTooHigh"
     },
     {
-      "code": 6542,
+      "code": 6144,
       "name": "AuctionAlreadyStarted",
       "msg": "AuctionAlreadyStarted"
     },
     {
-      "code": 6543,
+      "code": 6145,
       "name": "InvalidEmitterForFastFill",
       "msg": "InvalidEmitterForFastFill"
     },
     {
-      "code": 6544,
+      "code": 6146,
       "name": "InvalidDeposit",
       "msg": "InvalidDeposit"
     },
     {
-      "code": 6545,
+      "code": 6147,
       "name": "InvalidDepositMessage",
       "msg": "InvalidDepositMessage"
     },
     {
-      "code": 6546,
+      "code": 6148,
       "name": "InvalidPayloadId",
       "msg": "InvalidPayloadId"
     },
     {
-      "code": 6547,
+      "code": 6149,
       "name": "InvalidDepositPayloadId",
       "msg": "InvalidDepositPayloadId"
     },
     {
-      "code": 6548,
+      "code": 6150,
       "name": "AuctionNotActive",
       "msg": "AuctionNotActive"
     },
     {
-      "code": 6549,
+      "code": 6151,
       "name": "AuctionPeriodExpired",
       "msg": "AuctionPeriodExpired"
     },
     {
-      "code": 6550,
+      "code": 6152,
       "name": "AuctionPeriodNotExpired",
       "msg": "AuctionPeriodNotExpired"
     },
     {
-      "code": 6551,
+      "code": 6153,
       "name": "OfferPriceNotImproved",
       "msg": "OfferPriceNotImproved"
     },
     {
-      "code": 6552,
+      "code": 6154,
       "name": "BestOfferTokenNotPassedIn",
       "msg": "BestOfferTokenNotPassedIn"
     },
     {
-      "code": 6553,
+      "code": 6155,
       "name": "PenaltyCalculationFailed",
       "msg": "PenaltyCalculationFailed"
     },
     {
-      "code": 6554,
+      "code": 6156,
       "name": "VaaMismatch",
       "msg": "VaaMismatch"
     },
     {
-      "code": 6555,
+      "code": 6157,
       "name": "MismatchedVaaHash",
       "msg": "MismatchedVaaHash"
     },
     {
-      "code": 6556,
+      "code": 6158,
       "name": "ExecutorTokenMismatch",
       "msg": "ExecutorTokenMismatch"
     },
     {
-      "code": 6557,
+      "code": 6159,
       "name": "InitialOfferTokenMismatch",
       "msg": "InitialOfferTokenMismatch"
     },
     {
-      "code": 6558,
+      "code": 6160,
       "name": "FeeRecipientTokenMismatch",
       "msg": "FeeRecipientTokenMismatch"
     },
     {
-      "code": 6559,
+      "code": 6161,
       "name": "AuctionNotCompleted",
       "msg": "AuctionNotCompleted"
     },
     {
-      "code": 6560,
+      "code": 6162,
       "name": "AuctionConfigMismatch",
       "msg": "AuctionConfigMismatch"
     },
     {
-      "code": 6561,
+      "code": 6163,
       "name": "EndpointDisabled",
       "msg": "EndpointDisabled"
     },
     {
-      "code": 6562,
+      "code": 6164,
       "name": "InvalidCctpEndpoint",
       "msg": "InvalidCctpEndpoint"
     },
     {
-      "code": 6563,
+      "code": 6165,
       "name": "CarpingNotAllowed",
       "msg": "CarpingNotAllowed"
     },
     {
-      "code": 6564,
+      "code": 6166,
       "name": "ProposalAlreadyEnacted",
       "msg": "ProposalAlreadyEnacted"
     },
     {
-      "code": 6565,
+      "code": 6167,
       "name": "ProposalDelayNotExpired",
       "msg": "ProposalDelayNotExpired"
     },
     {
-      "code": 6566,
+      "code": 6168,
       "name": "InvalidProposalAction",
       "msg": "InvalidProposalAction"
     }
