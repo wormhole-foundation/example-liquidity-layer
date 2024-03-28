@@ -11,7 +11,8 @@ import {
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
-import { CctpTokenBurnMessage, LiquidityLayerDeposit, LiquidityLayerMessage } from "../src";
+import { CctpTokenBurnMessage } from "../src/cctp";
+import { LiquidityLayerDeposit, LiquidityLayerMessage } from "../src/common";
 import { Custodian, PreparedOrder, TokenRouterProgram, localnet } from "../src/tokenRouter";
 import {
     CircleAttester,
@@ -861,35 +862,32 @@ describe("Token Router", function () {
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress,
                 );
-                const sig = await expectIxOk(connection, [ix], [payer, orderSender], {
+                await expectIxOk(connection, [ix], [payer, orderSender], {
                     addressLookupTableAccounts: [lookupTableAccount!],
                 });
-                console.log("sig", sig);
 
                 checkAfterEffects({ preparedOrder, amountIn, burnSource: payerToken });
             });
 
             it("Reclaim by Closing CCTP Message", async function () {
-                const currentSequence = await tokenRouter.fetchPayerSequenceValue(
-                    tokenRouter.payerSequenceAddress(payer.publicKey),
-                );
-                const messageSent = tokenRouter.cctpMessageAddress(
+                const currentSequence = await tokenRouter.fetchPayerSequenceValue(payer.publicKey);
+                const cctpMessage = tokenRouter.cctpMessageAddress(
                     payer.publicKey,
-                    currentSequence.subn(1),
+                    currentSequence - 1n,
                 );
 
                 const messageTransmitter = tokenRouter.messageTransmitterProgram();
-                const { message } = await messageTransmitter.fetchMessageSent(messageSent);
+                const { message } = await messageTransmitter.fetchMessageSent(cctpMessage);
 
                 // Simulate attestation.
-                const attestation = new CircleAttester().createAttestation(message);
+                const cctpAttestation = new CircleAttester().createAttestation(message);
 
-                const ix = await tokenRouter.messageTransmitterProgram().reclaimEventAccountIx(
+                const ix = await tokenRouter.reclaimCctpMessageIx(
                     {
-                        payee: payer.publicKey,
-                        messageSentEventData: messageSent,
+                        payer: payer.publicKey,
+                        cctpMessage,
                     },
-                    attestation,
+                    cctpAttestation,
                 );
 
                 const balanceBefore = await connection.getBalance(payer.publicKey);

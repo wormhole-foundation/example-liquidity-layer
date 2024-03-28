@@ -1,5 +1,6 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import { emitterAddress } from "../../common";
 
 export class Custodian {
     owner: PublicKey;
@@ -15,7 +16,7 @@ export class Custodian {
         ownerAssistant: PublicKey,
         feeRecipientToken: PublicKey,
         auctionConfigId: number,
-        nextProposalId: BN
+        nextProposalId: BN,
     ) {
         this.owner = owner;
         this.pendingOwner = pendingOwner;
@@ -26,6 +27,6 @@ export class Custodian {
     }
 
     static address(programId: PublicKey) {
-        return PublicKey.findProgramAddressSync([Buffer.from("emitter")], programId)[0];
+        return emitterAddress(programId);
     }
 }

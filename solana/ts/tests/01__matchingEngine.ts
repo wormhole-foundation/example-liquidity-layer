@@ -14,14 +14,14 @@ import {
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
+import { CctpTokenBurnMessage } from "../src/cctp";
 import {
-    CctpTokenBurnMessage,
     FastMarketOrder,
     Fill,
     LiquidityLayerDeposit,
     LiquidityLayerMessage,
     SlowOrderResponse,
-} from "../src";
+} from "../src/common";
 import {
     Auction,
     AuctionConfig,
@@ -72,8 +72,8 @@ describe("Matching Engine", function () {
         feeRecipient,
     );
     const newFeeRecipient = Keypair.generate().publicKey;
-    const offerAuthorityOne = Keypair.generate();
-    const offerAuthorityTwo = Keypair.generate();
+    const playerOne = Keypair.generate();
+    const playerTwo = Keypair.generate();
     const liquidator = Keypair.generate();
 
     // Foreign endpoints.
@@ -346,12 +346,12 @@ describe("Matching Engine", function () {
                         }),
                         SystemProgram.transfer({
                             fromPubkey: payer.publicKey,
-                            toPubkey: offerAuthorityOne.publicKey,
+                            toPubkey: playerOne.publicKey,
                             lamports: 1000000000,
                         }),
                         SystemProgram.transfer({
                             fromPubkey: payer.publicKey,
-                            toPubkey: offerAuthorityTwo.publicKey,
+                            toPubkey: playerTwo.publicKey,
                             lamports: 1000000000,
                         }),
                         SystemProgram.transfer({
@@ -1131,7 +1131,7 @@ describe("Matching Engine", function () {
             for (const offerPrice of [0n, baseFastOrder.maxFee / 2n, baseFastOrder.maxFee]) {
                 it(`Place Initial Offer (Price == ${offerPrice})`, async function () {
                     const { fastVaa, txDetails, auction } = await placeInitialOfferForTest(
-                        offerAuthorityOne,
+                        playerOne,
                         baseFastOrder,
                         ethRouter,
                         offerPrice,
@@ -1143,12 +1143,7 @@ describe("Matching Engine", function () {
                 const fastOrder = { ...baseFastOrder } as FastMarketOrder;
                 fastOrder.maxFee = fastOrder.amountIn - 1n;
 
-                await placeInitialOfferForTest(
-                    offerAuthorityOne,
-                    fastOrder,
-                    ethRouter,
-                    fastOrder.maxFee,
-                );
+                await placeInitialOfferForTest(playerOne, fastOrder, ethRouter, fastOrder.maxFee);
             });
 
             it("Place Initial Offer (With Deadline)", async function () {
@@ -1162,13 +1157,13 @@ describe("Matching Engine", function () {
                 }
                 fastOrder.deadline = currTime + 10;
 
-                await placeInitialOfferForTest(offerAuthorityOne, fastOrder, ethRouter, offerPrice);
+                await placeInitialOfferForTest(playerOne, fastOrder, ethRouter, offerPrice);
             });
 
             it("Cannot Place Initial Offer (Invalid VAA)", async function () {
                 const fastVaa = await postLiquidityLayerVaa(
                     connection,
-                    offerAuthorityOne,
+                    playerOne,
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
@@ -1181,7 +1176,7 @@ describe("Matching Engine", function () {
 
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
-                        payer: offerAuthorityOne.publicKey,
+                        payer: playerOne.publicKey,
                         fastVaa,
                         auction,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
@@ -1190,7 +1185,7 @@ describe("Matching Engine", function () {
                     },
                     baseFastOrder.maxFee,
                 );
-                await expectIxErr(connection, [approveIx, ix], [offerAuthorityOne], "InvalidVaa");
+                await expectIxErr(connection, [approveIx, ix], [playerOne], "InvalidVaa");
             });
 
             it("Cannot Place Initial Offer (Invalid Payload)", async function () {
@@ -1208,7 +1203,7 @@ describe("Matching Engine", function () {
 
                 const fastVaa = await postLiquidityLayerVaa(
                     connection,
-                    offerAuthorityOne,
+                    playerOne,
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
@@ -1221,7 +1216,7 @@ describe("Matching Engine", function () {
 
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
-                        payer: offerAuthorityOne.publicKey,
+                        payer: playerOne.publicKey,
                         fastVaa,
                         auction,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
@@ -1230,12 +1225,7 @@ describe("Matching Engine", function () {
                     },
                     baseFastOrder.maxFee,
                 );
-                await expectIxErr(
-                    connection,
-                    [approveIx, ix],
-                    [offerAuthorityOne],
-                    "NotFastMarketOrder",
-                );
+                await expectIxErr(connection, [approveIx, ix], [playerOne], "NotFastMarketOrder");
             });
 
             it("Cannot Place Initial Offer (Deadline Exceeded)", async function () {
@@ -1249,7 +1239,7 @@ describe("Matching Engine", function () {
 
                 const fastVaa = await postLiquidityLayerVaa(
                     connection,
-                    offerAuthorityOne,
+                    playerOne,
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
@@ -1258,7 +1248,7 @@ describe("Matching Engine", function () {
 
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
-                        payer: offerAuthorityOne.publicKey,
+                        payer: playerOne.publicKey,
                         fastVaa,
                     },
                     fastMarketOrder.maxFee,
@@ -1267,7 +1257,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "FastMarketOrderExpired",
                 );
             });
@@ -1277,7 +1267,7 @@ describe("Matching Engine", function () {
 
                 const fastVaa = await postLiquidityLayerVaa(
                     connection,
-                    offerAuthorityOne,
+                    playerOne,
                     MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
@@ -1286,17 +1276,12 @@ describe("Matching Engine", function () {
 
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
-                        payer: offerAuthorityOne.publicKey,
+                        payer: playerOne.publicKey,
                         fastVaa,
                     },
                     offerPrice,
                 );
-                await expectIxErr(
-                    connection,
-                    [approveIx, ix],
-                    [offerAuthorityOne],
-                    "OfferPriceTooHigh",
-                );
+                await expectIxErr(connection, [approveIx, ix], [playerOne], "OfferPriceTooHigh");
             });
 
             it("Cannot Place Initial Offer (Invalid Emitter Chain)", async function () {
@@ -1313,7 +1298,7 @@ describe("Matching Engine", function () {
                 const { maxFee: offerPrice } = baseFastOrder;
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
-                        payer: offerAuthorityOne.publicKey,
+                        payer: playerOne.publicKey,
                         fastVaa,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
                     },
@@ -1322,7 +1307,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "ErrInvalidSourceRouter",
                 );
             });
@@ -1340,7 +1325,7 @@ describe("Matching Engine", function () {
                 const { maxFee: offerPrice } = baseFastOrder;
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
-                        payer: offerAuthorityOne.publicKey,
+                        payer: playerOne.publicKey,
                         fastVaa,
                     },
                     offerPrice,
@@ -1348,7 +1333,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "ErrInvalidSourceRouter",
                 );
             });
@@ -1370,7 +1355,7 @@ describe("Matching Engine", function () {
                 const { maxFee: offerPrice } = fastMarketOrder;
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
-                        payer: offerAuthorityOne.publicKey,
+                        payer: playerOne.publicKey,
                         fastVaa,
                         toRouterEndpoint: engine.routerEndpointAddress(arbChain),
                     },
@@ -1379,7 +1364,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "ErrInvalidTargetRouter",
                 );
             });
@@ -1397,20 +1382,15 @@ describe("Matching Engine", function () {
                 const { maxFee: offerPrice } = baseFastOrder;
                 const [approveIx, ix] = await engine.placeInitialOfferIx(
                     {
-                        payer: offerAuthorityOne.publicKey,
+                        payer: playerOne.publicKey,
                         fastVaa,
                     },
                     offerPrice,
                 );
-                await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
+                await expectIxOk(connection, [approveIx, ix], [playerOne]);
 
                 // TODO: find specific address already in use
-                await expectIxErr(
-                    connection,
-                    [approveIx, ix],
-                    [offerAuthorityOne],
-                    "already in use",
-                );
+                await expectIxErr(connection, [approveIx, ix], [playerOne], "already in use");
             });
 
             before("Register To Router Endpoints", async function () {
@@ -1429,7 +1409,7 @@ describe("Matching Engine", function () {
             });
 
             before("Create ATAs For Offer Authorities", async function () {
-                for (const wallet of [offerAuthorityOne, offerAuthorityTwo, liquidator]) {
+                for (const wallet of [playerOne, playerTwo, liquidator]) {
                     const destination = splToken.getAssociatedTokenAddressSync(
                         USDC_MINT_ADDRESS,
                         wallet.publicKey,
@@ -1460,34 +1440,34 @@ describe("Matching Engine", function () {
             for (const newOffer of [0n, baseFastOrder.maxFee / 2n]) {
                 it(`Improve Offer (Price == ${newOffer})`, async function () {
                     const { auction, auctionDataBefore } = await placeInitialOfferForTest(
-                        offerAuthorityOne,
+                        playerOne,
                         baseFastOrder,
                         ethRouter,
                     );
 
                     const initialOfferBalanceBefore = await getUsdcAtaBalance(
                         connection,
-                        offerAuthorityOne.publicKey,
+                        playerOne.publicKey,
                     );
                     const newOfferBalanceBefore = await getUsdcAtaBalance(
                         connection,
-                        offerAuthorityTwo.publicKey,
+                        playerTwo.publicKey,
                     );
                     const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
                     const [approveIx, ix] = await engine.improveOfferIx(
                         {
                             auction,
-                            offerAuthority: offerAuthorityTwo.publicKey,
+                            participant: playerTwo.publicKey,
                         },
                         newOffer,
                     );
 
-                    await expectIxOk(connection, [approveIx, ix], [offerAuthorityTwo]);
+                    await expectIxOk(connection, [approveIx, ix], [playerTwo]);
 
                     await checkAfterEffects(
                         auction,
-                        offerAuthorityTwo.publicKey,
+                        playerTwo.publicKey,
                         newOffer,
                         auctionDataBefore,
                         {
@@ -1501,7 +1481,7 @@ describe("Matching Engine", function () {
 
             it("Improve Offer By Min Offer Delta", async function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
+                    playerOne,
                     baseFastOrder,
                     ethRouter,
                 );
@@ -1512,79 +1492,67 @@ describe("Matching Engine", function () {
 
                 const initialOfferBalanceBefore = await getUsdcAtaBalance(
                     connection,
-                    offerAuthorityOne.publicKey,
+                    playerOne.publicKey,
                 );
                 const newOfferBalanceBefore = await getUsdcAtaBalance(
                     connection,
-                    offerAuthorityTwo.publicKey,
+                    playerTwo.publicKey,
                 );
                 const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
                 const [approveIx, ix] = await engine.improveOfferIx(
                     {
                         auction,
-                        offerAuthority: offerAuthorityTwo.publicKey,
+                        participant: playerTwo.publicKey,
                     },
                     newOffer,
                 );
 
-                await expectIxOk(connection, [approveIx, ix], [offerAuthorityTwo]);
+                await expectIxOk(connection, [approveIx, ix], [playerTwo]);
 
-                await checkAfterEffects(
-                    auction,
-                    offerAuthorityTwo.publicKey,
-                    newOffer,
-                    auctionDataBefore,
-                    {
-                        custodyToken: custodyBalanceBefore,
-                        bestOfferToken: newOfferBalanceBefore,
-                        prevBestOfferToken: initialOfferBalanceBefore,
-                    },
-                );
+                await checkAfterEffects(auction, playerTwo.publicKey, newOffer, auctionDataBefore, {
+                    custodyToken: custodyBalanceBefore,
+                    bestOfferToken: newOfferBalanceBefore,
+                    prevBestOfferToken: initialOfferBalanceBefore,
+                });
             });
 
             it("Improve Offer With Same Best Offer Token Account", async function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
+                    playerOne,
                     baseFastOrder,
                     ethRouter,
                 );
 
                 const initialOfferBalanceBefore = await getUsdcAtaBalance(
                     connection,
-                    offerAuthorityOne.publicKey,
+                    playerOne.publicKey,
                 );
                 const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
-                // New Offer from offerAuthorityOne.
+                // New Offer from playerOne.
                 const currentOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
                 const newOffer = currentOffer - (await engine.computeMinOfferDelta(currentOffer));
 
                 const [approveIx, ix] = await engine.improveOfferIx(
                     {
                         auction,
-                        offerAuthority: offerAuthorityOne.publicKey,
+                        participant: playerOne.publicKey,
                     },
                     newOffer,
                 );
 
-                await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
+                await expectIxOk(connection, [approveIx, ix], [playerOne]);
 
-                await checkAfterEffects(
-                    auction,
-                    offerAuthorityOne.publicKey,
-                    newOffer,
-                    auctionDataBefore,
-                    {
-                        custodyToken: custodyBalanceBefore,
-                        bestOfferToken: initialOfferBalanceBefore,
-                    },
-                );
+                await checkAfterEffects(auction, playerOne.publicKey, newOffer, auctionDataBefore, {
+                    custodyToken: custodyBalanceBefore,
+                    bestOfferToken: initialOfferBalanceBefore,
+                });
             });
 
             it("Cannot Improve Offer (Auction Expired)", async function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
+                    playerOne,
                     baseFastOrder,
                     ethRouter,
                 );
@@ -1596,13 +1564,13 @@ describe("Matching Engine", function () {
                     startSlot.addn(duration + gracePeriod - 1).toNumber(),
                 );
 
-                // New Offer from offerAuthorityOne.
+                // New Offer from playerOne.
                 const newOffer = BigInt(offerPrice.subn(100).toString());
 
                 const [approveIx, ix] = await engine.improveOfferIx(
                     {
                         auction,
-                        offerAuthority: offerAuthorityOne.publicKey,
+                        participant: playerOne.publicKey,
                     },
                     newOffer,
                 );
@@ -1610,25 +1578,25 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "Error Code: AuctionPeriodExpired",
                 );
             });
 
             it("Cannot Improve Offer (Invalid Best Offer Token Account)", async function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
+                    playerOne,
                     baseFastOrder,
                     ethRouter,
                 );
 
-                // New Offer from offerAuthorityOne.
+                // New Offer from playerOne.
                 const newOffer = BigInt(auctionDataBefore.info!.offerPrice.subn(100).toString());
 
                 const [approveIx, ix] = await engine.improveOfferIx(
                     {
                         auction,
-                        offerAuthority: offerAuthorityOne.publicKey,
+                        participant: playerOne.publicKey,
                         bestOfferToken: engine.cctpMintRecipientAddress(),
                     },
                     newOffer,
@@ -1636,14 +1604,14 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "best_offer_token. Error Code: ConstraintAddress",
                 );
             });
 
             it("Cannot Improve Offer (Carping Not Allowed)", async function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
+                    playerOne,
                     baseFastOrder,
                     ethRouter,
                 );
@@ -1653,7 +1621,7 @@ describe("Matching Engine", function () {
                 const [approveIx, ix] = await engine.improveOfferIx(
                     {
                         auction,
-                        offerAuthority: offerAuthorityTwo.publicKey,
+                        participant: playerTwo.publicKey,
                     },
                     newOffer,
                 );
@@ -1661,7 +1629,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
-                    [offerAuthorityTwo],
+                    [playerTwo],
                     "Error Code: CarpingNotAllowed",
                 );
             });
@@ -1768,7 +1736,7 @@ describe("Matching Engine", function () {
                     fastVaa,
                     auction,
                     auctionDataBefore: initialData,
-                } = await placeInitialOfferForTest(offerAuthorityTwo, baseFastOrder, ethRouter);
+                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, ethRouter);
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -1777,7 +1745,7 @@ describe("Matching Engine", function () {
                 );
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
-                    offerAuthorityOne,
+                    playerOne,
                     improveBy,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
@@ -1800,7 +1768,7 @@ describe("Matching Engine", function () {
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
-                    payer: offerAuthorityOne.publicKey,
+                    payer: playerOne.publicKey,
                     fastVaa,
                 });
 
@@ -1808,11 +1776,7 @@ describe("Matching Engine", function () {
                     units: 300_000,
                 });
 
-                const txDetails = await expectIxOkDetails(
-                    connection,
-                    [computeIx, ix],
-                    [offerAuthorityOne],
-                );
+                const txDetails = await expectIxOkDetails(connection, [computeIx, ix], [playerOne]);
 
                 await checkAfterEffects(
                     txDetails!,
@@ -1823,7 +1787,7 @@ describe("Matching Engine", function () {
                         bestOfferToken: bestOfferTokenBefore,
                         initialOfferToken: initialOfferTokenBefore,
                     },
-                    offerAuthorityOne.publicKey,
+                    playerOne.publicKey,
                     false, // hasPenalty
                     "ethereum",
                     "arbitrum",
@@ -1832,13 +1796,42 @@ describe("Matching Engine", function () {
                 localVariables.set("auction", auction);
             });
 
+            it("Reclaim by Closing CCTP Message", async function () {
+                const currentSequence = await engine.fetchPayerSequenceValue(playerOne.publicKey);
+                const cctpMessage = engine.cctpMessageAddress(
+                    playerOne.publicKey,
+                    currentSequence - 1n,
+                );
+
+                const messageTransmitter = engine.messageTransmitterProgram();
+                const { message } = await messageTransmitter.fetchMessageSent(cctpMessage);
+
+                // Simulate attestation.
+                const cctpAttestation = new CircleAttester().createAttestation(message);
+
+                const ix = await engine.reclaimCctpMessageIx(
+                    {
+                        payer: playerOne.publicKey,
+                        cctpMessage,
+                    },
+                    cctpAttestation,
+                );
+
+                const balanceBefore = await connection.getBalance(playerOne.publicKey);
+
+                await expectIxOk(connection, [ix], [playerOne]);
+
+                const balanceAfter = await connection.getBalance(playerOne.publicKey);
+                expect(balanceAfter - balanceBefore).equals(2918200);
+            });
+
             it("Cannot Improve Offer After Execute Order", async function () {
                 const auction = localVariables.get("auction") as PublicKey;
                 expect(localVariables.delete("auction")).is.true;
 
                 const [approveIx, ix] = await engine.improveOfferIx(
                     {
-                        offerAuthority: offerAuthorityOne.publicKey,
+                        participant: playerOne.publicKey,
                         auction,
                     },
                     baseFastOrder.maxFee,
@@ -1847,7 +1840,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [approveIx, ix],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "custody_token. Error Code: AccountNotInitialized",
                 );
             });
@@ -1859,7 +1852,7 @@ describe("Matching Engine", function () {
                     fastVaa,
                     auction,
                     auctionDataBefore: initialData,
-                } = await placeInitialOfferForTest(offerAuthorityTwo, baseFastOrder, ethRouter);
+                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, ethRouter);
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -1868,7 +1861,7 @@ describe("Matching Engine", function () {
                 );
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
-                    offerAuthorityOne,
+                    playerOne,
                     improveBy,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
@@ -1894,7 +1887,7 @@ describe("Matching Engine", function () {
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
-                    payer: offerAuthorityOne.publicKey,
+                    payer: playerOne.publicKey,
                     fastVaa,
                 });
 
@@ -1902,11 +1895,7 @@ describe("Matching Engine", function () {
                     units: 300_000,
                 });
 
-                const txDetails = await expectIxOkDetails(
-                    connection,
-                    [computeIx, ix],
-                    [offerAuthorityOne],
-                );
+                const txDetails = await expectIxOkDetails(connection, [computeIx, ix], [playerOne]);
 
                 await checkAfterEffects(
                     txDetails!,
@@ -1917,7 +1906,7 @@ describe("Matching Engine", function () {
                         bestOfferToken: bestOfferTokenBefore,
                         initialOfferToken: initialOfferTokenBefore,
                     },
-                    offerAuthorityOne.publicKey,
+                    playerOne.publicKey,
                     true, // hasPenalty
                     "ethereum",
                     "arbitrum",
@@ -1931,7 +1920,7 @@ describe("Matching Engine", function () {
                     fastVaa,
                     auction,
                     auctionDataBefore: initialData,
-                } = await placeInitialOfferForTest(offerAuthorityTwo, baseFastOrder, ethRouter);
+                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, ethRouter);
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -1940,7 +1929,7 @@ describe("Matching Engine", function () {
                 );
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
-                    offerAuthorityOne,
+                    playerOne,
                     improveBy,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
@@ -2017,7 +2006,7 @@ describe("Matching Engine", function () {
                     fastVaa,
                     auction,
                     auctionDataBefore: initialData,
-                } = await placeInitialOfferForTest(offerAuthorityTwo, baseFastOrder, ethRouter);
+                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, ethRouter);
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -2026,7 +2015,7 @@ describe("Matching Engine", function () {
                 );
                 const { auctionDataBefore } = await improveOfferForTest(
                     auction,
-                    offerAuthorityOne,
+                    playerOne,
                     improveBy,
                 );
                 const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
@@ -2102,7 +2091,7 @@ describe("Matching Engine", function () {
                 fastOrder.targetChain = ethChain;
 
                 const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
+                    playerOne,
                     fastOrder,
                     ethRouter,
                 );
@@ -2114,21 +2103,16 @@ describe("Matching Engine", function () {
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
-                    payer: offerAuthorityOne.publicKey,
+                    payer: playerOne.publicKey,
                     fastVaa,
                 });
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [offerAuthorityOne],
-                    "Error Code: InvalidChain",
-                );
+                await expectIxErr(connection, [ix], [playerOne], "Error Code: InvalidChain");
             });
 
             it("Cannot Execute Fast Order with VAA Hash Mismatch", async function () {
                 const { fastVaaAccount, auction, auctionDataBefore } =
                     await placeInitialOfferForTest(
-                        offerAuthorityOne,
+                        playerOne,
                         baseFastOrder,
                         ethRouter,
                         baseFastOrder.maxFee,
@@ -2136,7 +2120,7 @@ describe("Matching Engine", function () {
 
                 const { fastVaa: anotherFastVaa, fastVaaAccount: anotherFastVaaAccount } =
                     await placeInitialOfferForTest(
-                        offerAuthorityOne,
+                        playerOne,
                         baseFastOrder,
                         ethRouter,
                         baseFastOrder.maxFee,
@@ -2150,17 +2134,17 @@ describe("Matching Engine", function () {
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
-                    payer: offerAuthorityOne.publicKey,
+                    payer: playerOne.publicKey,
                     fastVaa: anotherFastVaa,
                     auction,
                 });
 
-                await expectIxErr(connection, [ix], [offerAuthorityOne], "Error Code: InvalidVaa");
+                await expectIxErr(connection, [ix], [playerOne], "Error Code: InvalidVaa");
             });
 
             it("Cannot Execute Fast Order (Invalid Best Offer Token Account)", async function () {
                 const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
+                    playerOne,
                     baseFastOrder,
                     ethRouter,
                 );
@@ -2171,7 +2155,7 @@ describe("Matching Engine", function () {
                 expect(bogusToken).to.not.eql(bestOfferToken);
 
                 const ix = await engine.executeFastOrderCctpIx({
-                    payer: offerAuthorityOne.publicKey,
+                    payer: playerOne.publicKey,
                     fastVaa,
                     bestOfferToken: bogusToken,
                 });
@@ -2180,14 +2164,14 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [ix],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "best_offer_token. Error Code: ConstraintAddress",
                 );
             });
 
             it("Cannot Execute Fast Order (Invalid Initial Offer Token Account)", async function () {
                 const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
+                    playerOne,
                     baseFastOrder,
                     ethRouter,
                 );
@@ -2198,7 +2182,7 @@ describe("Matching Engine", function () {
                 expect(bogusToken).to.not.eql(initialOfferToken);
 
                 const ix = await engine.executeFastOrderCctpIx({
-                    payer: offerAuthorityOne.publicKey,
+                    payer: playerOne.publicKey,
                     fastVaa,
                     initialOfferToken: bogusToken,
                 });
@@ -2207,7 +2191,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [ix],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "initial_offer_token. Error Code: ConstraintAddress",
                 );
             });
@@ -2216,7 +2200,7 @@ describe("Matching Engine", function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
                 const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
-                    offerAuthorityTwo,
+                    playerTwo,
                     baseFastOrder,
                     ethRouter,
                 );
@@ -2228,11 +2212,11 @@ describe("Matching Engine", function () {
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
-                    payer: offerAuthorityOne.publicKey,
+                    payer: playerOne.publicKey,
                     fastVaa,
                 });
 
-                await expectIxOk(connection, [ix], [offerAuthorityOne]);
+                await expectIxOk(connection, [ix], [playerOne]);
 
                 localVariables.set("ix", ix);
             });
@@ -2244,34 +2228,34 @@ describe("Matching Engine", function () {
                 await expectIxErr(
                     connection,
                     [ix],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "custody_token. Error Code: AccountNotInitialized",
                 );
             });
 
             it("Cannot Execute Fast Order (Auction Period Not Expired)", async function () {
                 const { fastVaa } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
+                    playerOne,
                     baseFastOrder,
                     ethRouter,
                 );
 
                 const ix = await engine.executeFastOrderCctpIx({
-                    payer: offerAuthorityOne.publicKey,
+                    payer: playerOne.publicKey,
                     fastVaa,
                 });
 
                 await expectIxErr(
                     connection,
                     [ix],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "Error Code: AuctionPeriodNotExpired",
                 );
             });
 
             it("Cannot Execute Fast Order Solana (Invalid Chain)", async function () {
                 const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
+                    playerOne,
                     baseFastOrder,
                     ethRouter,
                 );
@@ -2280,12 +2264,12 @@ describe("Matching Engine", function () {
                     connection,
                     [
                         await engine.executeFastOrderLocalIx({
-                            payer: offerAuthorityOne.publicKey,
+                            payer: playerOne.publicKey,
                             fastVaa,
                             toRouterEndpoint: engine.routerEndpointAddress(arbChain),
                         }),
                     ],
-                    [offerAuthorityOne],
+                    [playerOne],
                     "Error Code: InvalidEndpoint",
                 );
             });
@@ -2934,7 +2918,7 @@ describe("Matching Engine", function () {
                 );
 
                 const { fastVaa, auction } = await placeInitialOfferForTest(
-                    offerAuthorityOne,
+                    playerOne,
                     fastMarketOrder,
                     ethRouter,
                     fastMarketOrder.maxFee,
@@ -3377,7 +3361,7 @@ describe("Matching Engine", function () {
     });
 
     async function placeInitialOfferForTest(
-        offerAuthority: Keypair,
+        participant: Keypair,
         fastMarketOrder: FastMarketOrder,
         emitter: number[],
         offerPrice?: bigint,
@@ -3399,7 +3383,7 @@ describe("Matching Engine", function () {
 
         const offerToken = splToken.getAssociatedTokenAddressSync(
             USDC_MINT_ADDRESS,
-            offerAuthority.publicKey,
+            participant.publicKey,
         );
 
         const { amount: offerTokenBalanceBefore } = await splToken.getAccount(
@@ -3413,13 +3397,13 @@ describe("Matching Engine", function () {
         // Place the initial offer.
         const [approveIx, ix] = await engine.placeInitialOfferIx(
             {
-                payer: offerAuthority.publicKey,
+                payer: participant.publicKey,
                 fastVaa,
             },
             offerPrice,
         );
 
-        const txDetails = await expectIxOkDetails(connection, [approveIx, ix], [offerAuthority]);
+        const txDetails = await expectIxOkDetails(connection, [approveIx, ix], [participant]);
         if (txDetails === null) {
             throw new Error("Transaction details is null");
         }
@@ -3481,7 +3465,7 @@ describe("Matching Engine", function () {
 
     async function improveOfferForTest(
         auction: PublicKey,
-        offerAuthority: Keypair,
+        participant: Keypair,
         improveBy: number,
     ) {
         const auctionData = await engine.fetchAuction({ address: auction });
@@ -3490,13 +3474,13 @@ describe("Matching Engine", function () {
         const [approveIx, improveIx] = await engine.improveOfferIx(
             {
                 auction,
-                offerAuthority: offerAuthority.publicKey,
+                participant: participant.publicKey,
             },
             newOffer,
         );
 
         // Improve the bid with offer one.
-        await expectIxOk(connection, [approveIx, improveIx], [offerAuthority]);
+        await expectIxOk(connection, [approveIx, improveIx], [participant]);
 
         const auctionDataBefore = await engine.fetchAuction({ address: auction });
         expect(BigInt(auctionDataBefore.info!.offerPrice.toString())).equals(newOffer);
@@ -3609,12 +3593,12 @@ describe("Matching Engine", function () {
         if (initAuction) {
             const [approveIx, ix] = await engine.placeInitialOfferIx(
                 {
-                    payer: offerAuthorityOne.publicKey,
+                    payer: playerOne.publicKey,
                     fastVaa,
                 },
                 maxFee,
             );
-            await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
+            await expectIxOk(connection, [approveIx, ix], [playerOne]);
 
             if (executeOrder) {
                 const { info } = await engine.fetchAuction({ address: auction });
