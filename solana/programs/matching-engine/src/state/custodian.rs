@@ -8,6 +8,10 @@ pub struct Custodian {
     pub owner: Pubkey,
     pub pending_owner: Option<Pubkey>,
 
+    /// Boolean indicating whether inbound auctions are paused.
+    pub paused: bool,
+    pub paused_set_by: Pubkey,
+
     /// Program's assistant.
     pub owner_assistant: Pubkey,
 

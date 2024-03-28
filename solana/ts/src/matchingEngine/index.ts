@@ -386,6 +386,13 @@ export class MatchingEngineProgram {
         return { ownerOrAssistant, custodian: this.checkedCustodianComposite(custodian) };
     }
 
+    adminMutComposite(
+        ownerOrAssistant: PublicKey,
+        custodian?: PublicKey,
+    ): { ownerOrAssistant: PublicKey; custodian: PublicKey } {
+        return { ownerOrAssistant, custodian: custodian ?? this.custodianAddress() };
+    }
+
     ownerOnlyComposite(
         owner: PublicKey,
         custodian?: PublicKey,
@@ -546,6 +553,22 @@ export class MatchingEngineProgram {
                 upgradeManagerAuthority: upgradeManager.upgradeAuthorityAddress(),
                 upgradeManagerProgram: upgradeManager.ID,
                 bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+            })
+            .instruction();
+    }
+
+    async setPauseIx(
+        accounts: {
+            ownerOrAssistant: PublicKey;
+            custodian?: PublicKey;
+        },
+        paused: boolean,
+    ): Promise<TransactionInstruction> {
+        const { ownerOrAssistant, custodian: inputCustodian } = accounts;
+        return this.program.methods
+            .setPause(paused)
+            .accounts({
+                admin: this.adminMutComposite(ownerOrAssistant, inputCustodian),
             })
             .instruction();
     }

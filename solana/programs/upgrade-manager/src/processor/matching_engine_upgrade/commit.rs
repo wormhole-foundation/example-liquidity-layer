@@ -3,8 +3,9 @@ use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CommitMatchingEngineUpgrade<'info> {
+    /// CHECK: This custodian is not serialized the same way as the new implementation's.
     #[account(mut)]
-    matching_engine_custodian: Account<'info, matching_engine::state::Custodian>,
+    matching_engine_custodian: AccountInfo<'info>,
 
     #[account(
         constraint = {
@@ -17,6 +18,11 @@ pub struct CommitMatchingEngineUpgrade<'info> {
         }
     )]
     commit_upgrade: CommitUpgrade<'info>,
+
+    #[account(mut)]
+    payer: Signer<'info>,
+
+    system_program: Program<'info, System>,
 }
 
 pub fn commit_matching_engine_upgrade(ctx: Context<CommitMatchingEngineUpgrade>) -> Result<()> {
@@ -24,15 +30,25 @@ pub fn commit_matching_engine_upgrade(ctx: Context<CommitMatchingEngineUpgrade>)
     let CommitUpgrade { admin, program, .. } = &ctx.accounts.commit_upgrade;
 
     // NOTE: We do not want to pass in any remaining accounts to this instruction.
+    // matching_engine::cpi::migrate(CpiContext::new_with_signer(
+    //     program.to_account_info(),
+    //     matching_engine::cpi::accounts::Migrate {
+    //         admin: matching_engine::cpi::accounts::OwnerOnly {
+    //             owner: admin.upgrade_authority.to_account_info(),
+    //             custodian: matching_engine::cpi::accounts::CheckedCustodian {
+    //                 custodian: custodian.to_account_info(),
+    //             },
+    //         },
+    //     },
+    //     &[UPGRADE_AUTHORITY_SIGNER_SEEDS],
+    // ))?;
     matching_engine::cpi::migrate(CpiContext::new_with_signer(
         program.to_account_info(),
         matching_engine::cpi::accounts::Migrate {
-            admin: matching_engine::cpi::accounts::OwnerOnly {
-                owner: admin.upgrade_authority.to_account_info(),
-                custodian: matching_engine::cpi::accounts::CheckedCustodian {
-                    custodian: custodian.to_account_info(),
-                },
-            },
+            owner: admin.upgrade_authority.to_account_info(),
+            custodian: custodian.to_account_info(),
+            payer: ctx.accounts.payer.to_account_info(),
+            system_program: ctx.accounts.system_program.to_account_info(),
         },
         &[UPGRADE_AUTHORITY_SIGNER_SEEDS],
     ))?;

@@ -249,6 +249,8 @@ describe("Matching Engine", function () {
                     new Custodian(
                         payer.publicKey,
                         null,
+                        false,
+                        PublicKey.default,
                         ownerAssistant.publicKey,
                         feeRecipientToken,
                         expectedAuctionConfigId,
@@ -613,6 +615,51 @@ describe("Matching Engine", function () {
                     ],
                     [payer, owner],
                 );
+            });
+        });
+
+        describe("Set Pause", async function () {
+            it("Cannot Set Pause for Transfers as Non-Owner", async function () {
+                const ix = await engine.setPauseIx(
+                    {
+                        ownerOrAssistant: payer.publicKey,
+                    },
+                    true, // paused
+                );
+
+                await expectIxErr(connection, [ix], [payer], "Error Code: OwnerOrAssistantOnly");
+            });
+
+            it("Set Paused == true as Owner Assistant", async function () {
+                const paused = true;
+                const ix = await engine.setPauseIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    paused,
+                );
+
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+
+                const { paused: actualPaused, pausedSetBy } = await engine.fetchCustodian();
+                expect(actualPaused).equals(paused);
+                expect(pausedSetBy).eql(ownerAssistant.publicKey);
+            });
+
+            it("Set Paused == false as Owner", async function () {
+                const paused = false;
+                const ix = await engine.setPauseIx(
+                    {
+                        ownerOrAssistant: owner.publicKey,
+                    },
+                    paused,
+                );
+
+                await expectIxOk(connection, [ix], [owner]);
+
+                const { paused: actualPaused, pausedSetBy } = await engine.fetchCustodian();
+                expect(actualPaused).equals(paused);
+                expect(pausedSetBy).eql(owner.publicKey);
             });
         });
 
@@ -1229,6 +1276,56 @@ describe("Matching Engine", function () {
                     baseFastOrder.maxFee,
                 );
                 await expectIxErr(connection, [approveIx, ix], [playerOne], "InvalidVaa");
+            });
+
+            it("Cannot Place Initial Offer (Paused)", async function () {
+                const fastMarketOrder = { ...baseFastOrder } as FastMarketOrder;
+                const fastVaa = await postLiquidityLayerVaa(
+                    connection,
+                    playerOne,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    new LiquidityLayerMessage({ fastMarketOrder }),
+                );
+
+                // Pause the matching engine.
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.setPauseIx(
+                            {
+                                ownerOrAssistant: owner.publicKey,
+                            },
+                            true,
+                        ),
+                    ],
+                    [owner],
+                );
+
+                const [approveIx, ix] = await engine.placeInitialOfferIx(
+                    {
+                        payer: playerOne.publicKey,
+                        fastVaa,
+                    },
+                    fastMarketOrder.maxFee,
+                );
+
+                await expectIxErr(connection, [approveIx, ix], [playerOne], "Paused");
+
+                // Unpause the matching engine.
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.setPauseIx(
+                            {
+                                ownerOrAssistant: owner.publicKey,
+                            },
+                            false,
+                        ),
+                    ],
+                    [owner],
+                );
             });
 
             it("Cannot Place Initial Offer (Invalid Payload)", async function () {
