@@ -44,23 +44,84 @@ export class UpgradeManagerProgram {
         return this.program.account.upgradeReceipt.fetch(addr);
     }
 
-    async upgradeMatchingEngineIx(accounts: {
+    ownerOnlyComposite(owner: PublicKey): {
+        owner: PublicKey;
+        upgradeAuthority: PublicKey;
+    } {
+        return { owner, upgradeAuthority: this.upgradeAuthorityAddress() };
+    }
+
+    executeUpgradeComposite(accounts: {
+        owner: PublicKey;
+        program: PublicKey;
+        buffer: PublicKey;
+        payer?: PublicKey;
+    }) {
+        const { owner, program, buffer, payer: inputPayer } = accounts;
+        return {
+            payer: inputPayer ?? owner,
+            admin: this.ownerOnlyComposite(owner),
+            receipt: this.upgradeReceiptAddress(program),
+            buffer,
+            programData: programDataAddress(program),
+            program,
+            bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+        };
+    }
+
+    commitUpgradeComposite(accounts: {
+        owner: PublicKey;
+        program: PublicKey;
+        recipient?: PublicKey;
+    }) {
+        const { owner, program, recipient: inputRecipient } = accounts;
+        return {
+            admin: this.ownerOnlyComposite(owner),
+            recipient: inputRecipient ?? owner,
+            receipt: this.upgradeReceiptAddress(program),
+            programData: programDataAddress(program),
+            program,
+        };
+    }
+
+    async executeMatchingEngineUpgradeIx(accounts: {
         owner: PublicKey;
         matchingEngineBuffer: PublicKey;
+        payer?: PublicKey;
     }): Promise<TransactionInstruction> {
-        const { owner, matchingEngineBuffer } = accounts;
+        const { owner, matchingEngineBuffer, payer } = accounts;
 
         const matchingEngine = this.matchingEngineProgram();
         return this.program.methods
-            .upgradeMatchingEngine()
+            .executeMatchingEngineUpgrade()
             .accounts({
-                owner,
-                programData: programDataAddress(this.ID),
-                upgradeAuthority: this.upgradeAuthorityAddress(),
-                matchingEngineBuffer,
-                matchingEngineProgramData: programDataAddress(matchingEngine.ID),
-                matchingEngineProgram: matchingEngine.ID,
-                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+                matchingEngineCustodian: matchingEngine.custodianAddress(),
+                executeUpgrade: this.executeUpgradeComposite({
+                    owner,
+                    program: matchingEngine.ID,
+                    buffer: matchingEngineBuffer,
+                    payer,
+                }),
+            })
+            .instruction();
+    }
+
+    async commitMatchingEngineUpgradeIx(accounts: {
+        owner: PublicKey;
+        recipient?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const { owner, recipient } = accounts;
+        const matchingEngine = this.matchingEngineProgram();
+
+        return this.program.methods
+            .commitMatchingEngineUpgrade()
+            .accounts({
+                matchingEngineCustodian: matchingEngine.custodianAddress(),
+                commitUpgrade: this.commitUpgradeComposite({
+                    owner,
+                    program: matchingEngine.ID,
+                    recipient,
+                }),
             })
             .instruction();
     }
@@ -68,21 +129,41 @@ export class UpgradeManagerProgram {
     async executeTokenRouterUpgradeIx(accounts: {
         owner: PublicKey;
         tokenRouterBuffer: PublicKey;
+        payer?: PublicKey;
     }): Promise<TransactionInstruction> {
-        const { owner, tokenRouterBuffer } = accounts;
+        const { owner, tokenRouterBuffer, payer } = accounts;
 
         const tokenRouter = this.tokenRouterProgram();
         return this.program.methods
             .executeTokenRouterUpgrade()
             .accounts({
-                owner,
-                upgradeAuthority: this.upgradeAuthorityAddress(),
-                upgradeReceipt: this.upgradeReceiptAddress(tokenRouter.ID),
-                tokenRouterBuffer,
-                tokenRouterProgramData: programDataAddress(tokenRouter.ID),
                 tokenRouterCustodian: tokenRouter.custodianAddress(),
-                tokenRouterProgram: tokenRouter.ID,
-                bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+                executeUpgrade: this.executeUpgradeComposite({
+                    owner,
+                    program: tokenRouter.ID,
+                    buffer: tokenRouterBuffer,
+                    payer,
+                }),
+            })
+            .instruction();
+    }
+
+    async commitTokenRouterUpgradeIx(accounts: {
+        owner: PublicKey;
+        recipient?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const { owner, recipient } = accounts;
+        const tokenRouter = this.tokenRouterProgram();
+
+        return this.program.methods
+            .commitTokenRouterUpgrade()
+            .accounts({
+                tokenRouterCustodian: tokenRouter.custodianAddress(),
+                commitUpgrade: this.commitUpgradeComposite({
+                    owner,
+                    program: tokenRouter.ID,
+                    recipient,
+                }),
             })
             .instruction();
     }

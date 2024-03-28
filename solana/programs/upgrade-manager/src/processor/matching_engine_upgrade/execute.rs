@@ -2,15 +2,15 @@ use crate::{composite::*, utils::AuthorizeUpgrade};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
-pub struct ExecuteTokenRouterUpgrade<'info> {
+pub struct ExecuteMatchingEngineUpgrade<'info> {
     #[account(mut)]
-    token_router_custodian: Account<'info, token_router::state::Custodian>,
+    matching_engine_custodian: Account<'info, matching_engine::state::Custodian>,
 
     #[account(
         constraint = {
             require_keys_eq!(
                 execute_upgrade.program.key(),
-                token_router::id(),
+                matching_engine::id(),
             );
 
             true
@@ -19,7 +19,7 @@ pub struct ExecuteTokenRouterUpgrade<'info> {
     execute_upgrade: ExecuteUpgrade<'info>,
 }
 
-impl<'info> AuthorizeUpgrade<'info> for ExecuteTokenRouterUpgrade<'info> {
+impl<'info> AuthorizeUpgrade<'info> for ExecuteMatchingEngineUpgrade<'info> {
     fn execute_upgrade_composite_mut(&mut self) -> &mut ExecuteUpgrade<'info> {
         &mut self.execute_upgrade
     }
@@ -27,12 +27,12 @@ impl<'info> AuthorizeUpgrade<'info> for ExecuteTokenRouterUpgrade<'info> {
     fn authorize_upgrade(&self) -> Result<()> {
         let admin = &self.execute_upgrade.admin;
         let program = &self.execute_upgrade.program;
-        let custodian = &self.token_router_custodian;
+        let custodian = &self.matching_engine_custodian;
 
-        token_router::cpi::submit_ownership_transfer_request(CpiContext::new(
+        matching_engine::cpi::submit_ownership_transfer_request(CpiContext::new(
             program.to_account_info(),
-            token_router::cpi::accounts::SubmitOwnershipTransferRequest {
-                admin: token_router::cpi::accounts::OwnerOnlyMut {
+            matching_engine::cpi::accounts::SubmitOwnershipTransferRequest {
+                admin: matching_engine::cpi::accounts::OwnerOnlyMut {
                     owner: admin.owner.to_account_info(),
                     custodian: custodian.to_account_info(),
                 },
@@ -40,9 +40,9 @@ impl<'info> AuthorizeUpgrade<'info> for ExecuteTokenRouterUpgrade<'info> {
             },
         ))?;
 
-        token_router::cpi::confirm_ownership_transfer_request(CpiContext::new_with_signer(
+        matching_engine::cpi::confirm_ownership_transfer_request(CpiContext::new_with_signer(
             program.to_account_info(),
-            token_router::cpi::accounts::ConfirmOwnershipTransferRequest {
+            matching_engine::cpi::accounts::ConfirmOwnershipTransferRequest {
                 pending_owner: admin.upgrade_authority.to_account_info(),
                 custodian: custodian.to_account_info(),
             },

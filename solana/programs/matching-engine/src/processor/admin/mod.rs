@@ -7,6 +7,9 @@ pub use initialize::*;
 mod set_pause;
 pub use set_pause::*;
 
+mod migrate;
+pub use migrate::*;
+
 mod ownership_transfer_request;
 pub use ownership_transfer_request::*;
 

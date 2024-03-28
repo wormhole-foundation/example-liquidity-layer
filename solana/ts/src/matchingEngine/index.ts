@@ -393,6 +393,13 @@ export class MatchingEngineProgram {
         return { owner, custodian: this.checkedCustodianComposite(custodian) };
     }
 
+    ownerOnlyMutComposite(
+        owner: PublicKey,
+        custodian?: PublicKey,
+    ): { owner: PublicKey; custodian: PublicKey } {
+        return { owner, custodian: custodian ?? this.custodianAddress() };
+    }
+
     routerEndpointComposite(addr: PublicKey): { endpoint: PublicKey } {
         return {
             endpoint: addr,
@@ -568,7 +575,7 @@ export class MatchingEngineProgram {
         return this.program.methods
             .submitOwnershipTransferRequest()
             .accounts({
-                admin: this.ownerOnlyComposite(owner, inputCustodian),
+                admin: this.ownerOnlyMutComposite(owner, inputCustodian),
                 newOwner,
             })
             .instruction();
@@ -596,7 +603,7 @@ export class MatchingEngineProgram {
         return this.program.methods
             .cancelOwnershipTransferRequest()
             .accounts({
-                admin: this.ownerOnlyComposite(owner, inputCustodian),
+                admin: this.ownerOnlyMutComposite(owner, inputCustodian),
             })
             .instruction();
     }
@@ -610,7 +617,7 @@ export class MatchingEngineProgram {
         return this.program.methods
             .updateOwnerAssistant()
             .accounts({
-                admin: this.ownerOnlyComposite(owner, inputCustodian),
+                admin: this.ownerOnlyMutComposite(owner, inputCustodian),
                 newOwnerAssistant,
             })
             .instruction();
@@ -757,7 +764,7 @@ export class MatchingEngineProgram {
             .updateAuctionParameters()
             .accounts({
                 payer: inputPayer ?? owner,
-                admin: this.ownerOnlyComposite(owner, inputCustodian),
+                admin: this.ownerOnlyMutComposite(owner, inputCustodian),
                 proposal: inputProposal ?? (await this.proposalAddress()),
                 auctionConfig,
             })
@@ -851,7 +858,7 @@ export class MatchingEngineProgram {
             .accounts({
                 admin: {
                     ownerOrAssistant,
-                    custodian: this.checkedCustodianComposite(inputCustodian),
+                    custodian: inputCustodian ?? this.custodianAddress(),
                 },
                 newFeeRecipient,
                 newFeeRecipientToken: splToken.getAssociatedTokenAddressSync(
