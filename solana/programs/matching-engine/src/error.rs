@@ -53,6 +53,9 @@ pub enum MatchingEngineError {
     #[msg("NotPendingOwner")]
     NotPendingOwner = 0x20e,
 
+    #[msg("Paused")]
+    Paused = 0x80,
+
     #[msg("InvalidTokenAccount")]
     InvalidTokenAccount,
 

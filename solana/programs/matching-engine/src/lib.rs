@@ -66,6 +66,10 @@ pub mod matching_engine {
         processor::initialize(ctx, auction_params)
     }
 
+    pub fn set_pause(ctx: Context<SetPause>, pause: bool) -> Result<()> {
+        processor::set_pause(ctx, pause)
+    }
+
     pub fn add_cctp_router_endpoint(
         ctx: Context<AddCctpRouterEndpoint>,
         args: AddCctpRouterEndpointArgs,

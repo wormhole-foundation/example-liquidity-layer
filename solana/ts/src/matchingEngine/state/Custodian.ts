@@ -5,6 +5,8 @@ import { emitterAddress } from "../../common";
 export class Custodian {
     owner: PublicKey;
     pendingOwner: PublicKey | null;
+    paused: boolean;
+    pausedSetBy: PublicKey | null;
     ownerAssistant: PublicKey;
     feeRecipientToken: PublicKey;
     auctionConfigId: number;
@@ -13,6 +15,8 @@ export class Custodian {
     constructor(
         owner: PublicKey,
         pendingOwner: PublicKey | null,
+        paused: boolean,
+        pausedSetBy: PublicKey | null,
         ownerAssistant: PublicKey,
         feeRecipientToken: PublicKey,
         auctionConfigId: number,
@@ -20,6 +24,8 @@ export class Custodian {
     ) {
         this.owner = owner;
         this.pendingOwner = pendingOwner;
+        this.paused = paused;
+        this.pausedSetBy = pausedSetBy;
         this.ownerAssistant = ownerAssistant;
         this.feeRecipientToken = feeRecipientToken;
         this.auctionConfigId = auctionConfigId;
