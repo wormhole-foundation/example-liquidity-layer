@@ -1000,7 +1000,7 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Close Proposal without Owner", async function () {
+            it("Cannot Close Proposal Without Owner", async function () {
                 const ix = await engine.closeProposalIx({ owner: ownerAssistant.publicKey });
 
                 await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
@@ -1010,6 +1010,49 @@ describe("Matching Engine", function () {
                 const ix = await engine.closeProposalIx({ owner: owner.publicKey });
 
                 await expectIxOk(connection, [ix], [owner]);
+            });
+
+            it("Cannot Close Proposal (Proposal Already Enacted)", async function () {
+                const { nextProposalId } = await engine.fetchCustodian();
+
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.proposeAuctionParametersIx(
+                            {
+                                ownerOrAssistant: owner.publicKey,
+                            },
+                            newAuctionParameters,
+                        ),
+                    ],
+                    [owner],
+                );
+
+                const proposal = await engine.proposalAddress(nextProposalId);
+                const proposalDataBefore = await engine.fetchProposal({ address: proposal });
+
+                await waitUntilSlot(
+                    connection,
+                    proposalDataBefore.slotEnactDelay.toNumber() + SLOTS_PER_EPOCH + 1,
+                );
+
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.updateAuctionParametersIx({
+                            owner: owner.publicKey,
+                            proposal,
+                        }),
+                    ],
+                    [owner],
+                );
+
+                // Try to close the proposal after it's been enacted.
+                const ix = await engine.closeProposalIx({
+                    owner: owner.publicKey,
+                    proposal: proposal,
+                });
+                await expectIxErr(connection, [ix], [owner], "Error Code: ProposalAlreadyEnacted");
             });
         });
 
