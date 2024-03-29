@@ -1075,7 +1075,6 @@ export class MatchingEngineProgram {
             finalizedVaa: PublicKey;
         },
         args: CctpMessageArgs,
-        hasAuction: boolean = false,
     ): Promise<TransactionInstruction> {
         const { payer, fastVaa, finalizedVaa } = accounts;
 

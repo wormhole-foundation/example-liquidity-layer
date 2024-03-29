@@ -1224,8 +1224,7 @@ describe("Matching Engine", function () {
                     const { fastVaa, txDetails, auction } = await placeInitialOfferForTest(
                         playerOne,
                         baseFastOrder,
-                        ethRouter,
-                        offerPrice,
+                        { emitter: ethRouter, offerPrice },
                     );
                 });
             }
@@ -1234,7 +1233,10 @@ describe("Matching Engine", function () {
                 const fastOrder = { ...baseFastOrder } as FastMarketOrder;
                 fastOrder.maxFee = fastOrder.amountIn - 1n;
 
-                await placeInitialOfferForTest(playerOne, fastOrder, ethRouter, fastOrder.maxFee);
+                await placeInitialOfferForTest(playerOne, fastOrder, {
+                    emitter: ethRouter,
+                    offerPrice: fastOrder.maxFee,
+                });
             });
 
             it("Place Initial Offer (With Deadline)", async function () {
@@ -1248,7 +1250,10 @@ describe("Matching Engine", function () {
                 }
                 fastOrder.deadline = currTime + 10;
 
-                await placeInitialOfferForTest(playerOne, fastOrder, ethRouter, offerPrice);
+                await placeInitialOfferForTest(playerOne, fastOrder, {
+                    emitter: ethRouter,
+                    offerPrice,
+                });
             });
 
             it("Cannot Place Initial Offer (Fast VAA Expired)", async function () {
@@ -1657,7 +1662,7 @@ describe("Matching Engine", function () {
                     const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                         playerOne,
                         baseFastOrder,
-                        ethRouter,
+                        { emitter: ethRouter },
                     );
 
                     const initialOfferBalanceBefore = await getUsdcAtaBalance(
@@ -1698,7 +1703,7 @@ describe("Matching Engine", function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     playerOne,
                     baseFastOrder,
-                    ethRouter,
+                    { emitter: ethRouter },
                 );
 
                 const currentOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
@@ -1736,7 +1741,7 @@ describe("Matching Engine", function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     playerOne,
                     baseFastOrder,
-                    ethRouter,
+                    { emitter: ethRouter },
                 );
 
                 const initialOfferBalanceBefore = await getUsdcAtaBalance(
@@ -1769,7 +1774,7 @@ describe("Matching Engine", function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     playerOne,
                     baseFastOrder,
-                    ethRouter,
+                    { emitter: ethRouter },
                 );
 
                 const { startSlot, offerPrice } = auctionDataBefore.info!;
@@ -1802,7 +1807,7 @@ describe("Matching Engine", function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     playerOne,
                     baseFastOrder,
-                    ethRouter,
+                    { emitter: ethRouter },
                 );
 
                 // New Offer from playerOne.
@@ -1828,7 +1833,7 @@ describe("Matching Engine", function () {
                 const { auction, auctionDataBefore } = await placeInitialOfferForTest(
                     playerOne,
                     baseFastOrder,
-                    ethRouter,
+                    { emitter: ethRouter },
                 );
 
                 // Attempt to improve by the minimum allowed.
@@ -1951,7 +1956,9 @@ describe("Matching Engine", function () {
                     fastVaa,
                     auction,
                     auctionDataBefore: initialData,
-                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, ethRouter);
+                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, {
+                    emitter: ethRouter,
+                });
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -2067,7 +2074,9 @@ describe("Matching Engine", function () {
                     fastVaa,
                     auction,
                     auctionDataBefore: initialData,
-                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, ethRouter);
+                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, {
+                    emitter: ethRouter,
+                });
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -2135,7 +2144,9 @@ describe("Matching Engine", function () {
                     fastVaa,
                     auction,
                     auctionDataBefore: initialData,
-                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, ethRouter);
+                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, {
+                    emitter: ethRouter,
+                });
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -2221,7 +2232,9 @@ describe("Matching Engine", function () {
                     fastVaa,
                     auction,
                     auctionDataBefore: initialData,
-                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, ethRouter);
+                } = await placeInitialOfferForTest(playerTwo, baseFastOrder, {
+                    emitter: ethRouter,
+                });
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -2308,7 +2321,7 @@ describe("Matching Engine", function () {
                 const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
                     playerOne,
                     fastOrder,
-                    ethRouter,
+                    { emitter: ethRouter },
                 );
 
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
@@ -2326,20 +2339,16 @@ describe("Matching Engine", function () {
 
             it("Cannot Execute Fast Order with VAA Hash Mismatch", async function () {
                 const { fastVaaAccount, auction, auctionDataBefore } =
-                    await placeInitialOfferForTest(
-                        playerOne,
-                        baseFastOrder,
-                        ethRouter,
-                        baseFastOrder.maxFee,
-                    );
+                    await placeInitialOfferForTest(playerOne, baseFastOrder, {
+                        emitter: ethRouter,
+                        offerPrice: baseFastOrder.maxFee,
+                    });
 
                 const { fastVaa: anotherFastVaa, fastVaaAccount: anotherFastVaaAccount } =
-                    await placeInitialOfferForTest(
-                        playerOne,
-                        baseFastOrder,
-                        ethRouter,
-                        baseFastOrder.maxFee,
-                    );
+                    await placeInitialOfferForTest(playerOne, baseFastOrder, {
+                        emitter: ethRouter,
+                        offerPrice: baseFastOrder.maxFee,
+                    });
                 expect(fastVaaAccount.digest()).to.not.eql(anotherFastVaaAccount.digest());
 
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
@@ -2361,7 +2370,7 @@ describe("Matching Engine", function () {
                 const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
                     playerOne,
                     baseFastOrder,
-                    ethRouter,
+                    { emitter: ethRouter },
                 );
 
                 const bogusToken = engine.cctpMintRecipientAddress();
@@ -2388,7 +2397,7 @@ describe("Matching Engine", function () {
                 const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
                     playerOne,
                     baseFastOrder,
-                    ethRouter,
+                    { emitter: ethRouter },
                 );
 
                 const bogusToken = engine.cctpMintRecipientAddress();
@@ -2417,7 +2426,7 @@ describe("Matching Engine", function () {
                 const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
                     playerTwo,
                     baseFastOrder,
-                    ethRouter,
+                    { emitter: ethRouter },
                 );
 
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
@@ -2449,11 +2458,9 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Execute Fast Order (Auction Period Not Expired)", async function () {
-                const { fastVaa } = await placeInitialOfferForTest(
-                    playerOne,
-                    baseFastOrder,
-                    ethRouter,
-                );
+                const { fastVaa } = await placeInitialOfferForTest(playerOne, baseFastOrder, {
+                    emitter: ethRouter,
+                });
 
                 const ix = await engine.executeFastOrderCctpIx({
                     payer: playerOne.publicKey,
@@ -2472,7 +2479,7 @@ describe("Matching Engine", function () {
                 const { fastVaa, fastVaaAccount } = await placeInitialOfferForTest(
                     playerOne,
                     baseFastOrder,
-                    ethRouter,
+                    { emitter: ethRouter },
                 );
 
                 await expectIxErr(
@@ -3127,6 +3134,8 @@ describe("Matching Engine", function () {
                     ),
                 });
 
+                const vaaTimestamp = await getBlockTime(connection);
+
                 const finalizedVaa = await postLiquidityLayerVaa(
                     connection,
                     payer,
@@ -3134,13 +3143,13 @@ describe("Matching Engine", function () {
                     ethRouter,
                     wormholeSequence++,
                     finalizedMessage,
+                    { timestamp: vaaTimestamp! },
                 );
 
                 const { fastVaa, auction } = await placeInitialOfferForTest(
                     playerOne,
                     fastMarketOrder,
-                    ethRouter,
-                    fastMarketOrder.maxFee,
+                    { offerPrice: fastMarketOrder.maxFee, vaaTimestamp },
                 );
 
                 const ix = await engine.prepareOrderResponseCctpIx(
@@ -3153,7 +3162,6 @@ describe("Matching Engine", function () {
                         encodedCctpMessage,
                         cctpAttestation,
                     },
-                    true, // hasAuction
                 );
 
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
@@ -3582,9 +3590,12 @@ describe("Matching Engine", function () {
     async function placeInitialOfferForTest(
         participant: Keypair,
         fastMarketOrder: FastMarketOrder,
-        emitter: number[],
-        offerPrice?: bigint,
-        sourceChain?: wormholeSdk.ChainName,
+        optional: {
+            offerPrice?: bigint;
+            sourceChain?: wormholeSdk.ChainName;
+            emitter?: Array<number>;
+            vaaTimestamp?: number;
+        } = {},
     ): Promise<{
         fastVaa: PublicKey;
         fastVaaAccount: VaaAccount;
@@ -3592,10 +3603,13 @@ describe("Matching Engine", function () {
         auction: PublicKey;
         auctionDataBefore: Auction;
     }> {
+        let { offerPrice, sourceChain, vaaTimestamp } = optional;
+
         const {
             fast: { vaa: fastVaa, vaaAccount: fastVaaAccount },
         } = await observeCctpOrderVaas({
             sourceChain,
+            vaaTimestamp,
             fastMarketOrder,
         });
         offerPrice = offerPrice ?? fastMarketOrder.maxFee;
@@ -3931,6 +3945,7 @@ describe("Matching Engine", function () {
     async function observeCctpOrderVaas(
         args: {
             sourceChain?: wormholeSdk.ChainName;
+            vaaTimestamp?: number;
             fastMarketOrder?: FastMarketOrder;
             slowOrderResponse?: SlowOrderResponse;
             finalized?: boolean;
@@ -3947,7 +3962,7 @@ describe("Matching Engine", function () {
             cctpAttestation: Buffer;
         };
     }> {
-        let { sourceChain, fastMarketOrder, slowOrderResponse, finalized } = args;
+        let { sourceChain, vaaTimestamp, fastMarketOrder, slowOrderResponse, finalized } = args;
         sourceChain ??= "ethereum";
         fastMarketOrder ??= newFastMarketOrder();
         slowOrderResponse ??= newSlowOrderResponse();
@@ -3972,6 +3987,7 @@ describe("Matching Engine", function () {
             new LiquidityLayerMessage({
                 fastMarketOrder,
             }),
+            { timestamp: vaaTimestamp },
         );
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
         const fast = { vaa: fastVaa, vaaAccount: fastVaaAccount };
@@ -4008,6 +4024,7 @@ describe("Matching Engine", function () {
                 ethRouter,
                 finalizedSequence,
                 finalizedMessage,
+                { timestamp: vaaTimestamp },
             );
             const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
             return {

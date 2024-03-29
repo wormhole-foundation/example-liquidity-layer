@@ -489,11 +489,6 @@ export type TokenRouter = {
       "name": "redeemFastFill",
       "accounts": [
         {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
           "name": "custodian",
           "accounts": [
             {
@@ -504,33 +499,60 @@ export type TokenRouter = {
           ]
         },
         {
-          "name": "vaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader."
-          ]
-        },
-        {
           "name": "preparedFill",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "preparedCustodyToken",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            ""
+          "accounts": [
+            {
+              "name": "payer",
+              "isMut": true,
+              "isSigner": true
+            },
+            {
+              "name": "fillVaa",
+              "accounts": [
+                {
+                  "name": "vaa",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "preparedFill",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "custodyToken",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
+                "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
+                "from its custody account to this account.",
+                ""
+              ]
+            },
+            {
+              "name": "usdc",
+              "accounts": [
+                {
+                  "name": "mint",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "systemProgram",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false
         },
         {
           "name": "matchingEngineCustodian",
@@ -581,15 +603,6 @@ export type TokenRouter = {
     {
       "name": "consumePreparedFill",
       "accounts": [
-        {
-          "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
-          ]
-        },
         {
           "name": "redeemer",
           "isMut": false,
@@ -825,17 +838,19 @@ export type TokenRouter = {
       ],
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true,
-          "docs": [
-            "Owner of the program set in the [`OwnerConfig`] account."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
         },
         {
           "name": "newOwnerAssistant",
@@ -864,17 +879,18 @@ export type TokenRouter = {
       ],
       "accounts": [
         {
-          "name": "ownerOrAssistant",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Sender Config account. This program requires that the `owner` specified",
-            "in the context equals the pubkey specified in this account. Mutable."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         }
       ],
@@ -1877,11 +1893,6 @@ export const IDL: TokenRouter = {
       "name": "redeemFastFill",
       "accounts": [
         {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
           "name": "custodian",
           "accounts": [
             {
@@ -1892,33 +1903,60 @@ export const IDL: TokenRouter = {
           ]
         },
         {
-          "name": "vaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "zero-copy using the [VaaAccount](core_bridge_program::sdk::VaaAccount) reader."
-          ]
-        },
-        {
           "name": "preparedFill",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "preparedCustodyToken",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            ""
+          "accounts": [
+            {
+              "name": "payer",
+              "isMut": true,
+              "isSigner": true
+            },
+            {
+              "name": "fillVaa",
+              "accounts": [
+                {
+                  "name": "vaa",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "preparedFill",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "custodyToken",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
+                "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
+                "from its custody account to this account.",
+                ""
+              ]
+            },
+            {
+              "name": "usdc",
+              "accounts": [
+                {
+                  "name": "mint",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "systemProgram",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false
         },
         {
           "name": "matchingEngineCustodian",
@@ -1969,15 +2007,6 @@ export const IDL: TokenRouter = {
     {
       "name": "consumePreparedFill",
       "accounts": [
-        {
-          "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
-          ]
-        },
         {
           "name": "redeemer",
           "isMut": false,
@@ -2213,17 +2242,19 @@ export const IDL: TokenRouter = {
       ],
       "accounts": [
         {
-          "name": "owner",
-          "isMut": false,
-          "isSigner": true,
-          "docs": [
-            "Owner of the program set in the [`OwnerConfig`] account."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
         },
         {
           "name": "newOwnerAssistant",
@@ -2252,17 +2283,18 @@ export const IDL: TokenRouter = {
       ],
       "accounts": [
         {
-          "name": "ownerOrAssistant",
-          "isMut": false,
-          "isSigner": true
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Sender Config account. This program requires that the `owner` specified",
-            "in the context equals the pubkey specified in this account. Mutable."
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
           ]
         }
       ],

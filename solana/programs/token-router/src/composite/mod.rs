@@ -124,7 +124,26 @@ pub struct Admin<'info> {
 }
 
 #[derive(Accounts)]
-pub struct InitIfNeededPrepareFill<'info> {
+pub struct AdminMut<'info> {
+    #[account(
+        constraint = only_authorized(
+            &custodian,
+            &owner_or_assistant,
+            error!(TokenRouterError::OwnerOrAssistantOnly)
+        )?
+    )]
+    pub owner_or_assistant: Signer<'info>,
+
+    #[account(
+        mut,
+        seeds = [Custodian::SEED_PREFIX],
+        bump = Custodian::BUMP,
+    )]
+    pub custodian: Account<'info, Custodian>,
+}
+
+#[derive(Accounts)]
+pub struct InitIfNeededPreparedFill<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
@@ -166,7 +185,7 @@ pub struct InitIfNeededPrepareFill<'info> {
     pub system_program: Program<'info, System>,
 }
 
-impl<'info> Deref for InitIfNeededPrepareFill<'info> {
+impl<'info> Deref for InitIfNeededPreparedFill<'info> {
     type Target = Account<'info, PreparedFill>;
 
     fn deref(&self) -> &Self::Target {

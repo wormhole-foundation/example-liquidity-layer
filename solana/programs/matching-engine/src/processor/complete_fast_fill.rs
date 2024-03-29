@@ -56,7 +56,6 @@ pub struct CompleteFastFill<'info> {
     #[account(
         mut,
         token::mint = local_custody_token.mint,
-        token::authority = token_router_emitter,
     )]
     token_router_custody_token: Account<'info, token::TokenAccount>,
 

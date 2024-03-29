@@ -738,12 +738,12 @@ describe("Matching Engine <> Token Router", function () {
                 const ix = await tokenRouter.program.methods
                     .redeemFastFill()
                     .accounts({
-                        payer: payer.publicKey,
                         custodian: { custodian },
-                        vaa,
-                        preparedFill,
-                        preparedCustodyToken: tokenRouter.preparedCustodyTokenAddress(preparedFill),
-                        mint: tokenRouter.mint,
+                        preparedFill: tokenRouter.initIfNeededPreparedFillComposite({
+                            payer: payer.publicKey,
+                            vaa,
+                            preparedFill,
+                        }),
                         matchingEngineCustodian,
                         matchingEngineRedeemedFastFill,
                         matchingEngineFromEndpoint,
@@ -804,12 +804,12 @@ describe("Matching Engine <> Token Router", function () {
                 const ix = await tokenRouter.program.methods
                     .redeemFastFill()
                     .accounts({
-                        payer: payer.publicKey,
                         custodian: { custodian },
-                        vaa,
-                        preparedFill,
-                        preparedCustodyToken: tokenRouter.preparedCustodyTokenAddress(preparedFill),
-                        mint: tokenRouter.mint,
+                        preparedFill: tokenRouter.initIfNeededPreparedFillComposite({
+                            payer: payer.publicKey,
+                            vaa,
+                            preparedFill,
+                        }),
                         matchingEngineCustodian,
                         matchingEngineRedeemedFastFill,
                         matchingEngineFromEndpoint,

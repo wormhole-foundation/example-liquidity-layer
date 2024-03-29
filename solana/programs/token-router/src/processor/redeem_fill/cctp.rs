@@ -65,7 +65,7 @@ pub struct RedeemCctpFill<'info> {
         init_if_needed,
         payer = payer,
         token::mint = mint,
-        token::authority = custodian,
+        token::authority = prepared_fill,
         seeds = [
             crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
             prepared_fill.key().as_ref(),
