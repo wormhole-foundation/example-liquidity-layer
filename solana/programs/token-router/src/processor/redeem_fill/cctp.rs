@@ -3,7 +3,7 @@ use crate::{
     error::TokenRouterError,
     state::{Custodian, FillType, PreparedFill, PreparedFillInfo},
 };
-use anchor_lang::{prelude::*, system_program};
+use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
     messages::raw::{LiquidityLayerDepositMessage, MessageToVec},
@@ -73,13 +73,6 @@ pub struct RedeemCctpFill<'info> {
 
     prepared_fill: InitIfNeededPreparedFill<'info>,
 
-    /// CHECK: Mutable. Seeds must be \["custody"\].
-    #[account(
-        mut,
-        address = crate::cctp_mint_recipient::id() @ TokenRouterError::InvalidCustodyToken,
-    )]
-    cctp_mint_recipient: AccountInfo<'info>,
-
     /// Registered emitter account representing a Circle Integration on another network.
     ///
     /// Seeds must be \["registered_emitter", target_chain.to_be_bytes()\].
@@ -90,6 +83,9 @@ pub struct RedeemCctpFill<'info> {
         ],
         bump = router_endpoint.bump,
         seeds::program = matching_engine::id(),
+        constraint = {
+            router_endpoint.protocol != matching_engine::state::MessageProtocol::None
+        } @ TokenRouterError::EndpointDisabled,
     )]
     router_endpoint: Box<Account<'info, matching_engine::state::RouterEndpoint>>,
 
@@ -211,26 +207,6 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
         .unwrap()
         .to_fill_unchecked();
 
-    {
-        let data_len = PreparedFill::compute_size(fill.redeemer_message_len().try_into().unwrap());
-        let acc_info: &AccountInfo = ctx.accounts.prepared_fill.as_ref();
-        let lamport_diff = Rent::get().map(|rent| {
-            rent.minimum_balance(data_len)
-                .saturating_sub(acc_info.lamports())
-        })?;
-        system_program::transfer(
-            CpiContext::new(
-                ctx.accounts.system_program.to_account_info(),
-                system_program::Transfer {
-                    from: ctx.accounts.prepared_fill.payer.to_account_info(),
-                    to: ctx.accounts.prepared_fill.to_account_info(),
-                },
-            ),
-            lamport_diff,
-        )?;
-        acc_info.realloc(data_len, false)?;
-    }
-
     // Set prepared fill data.
     ctx.accounts
         .prepared_fill
@@ -249,20 +225,17 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
             redeemer_message: fill.message_to_vec(),
         });
 
-    // Transfer to prepared custody account.
+    // Finally transfer to prepared custody account.
     token::transfer(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
-                from: ctx.accounts.cctp_mint_recipient.to_account_info(),
+                from: ctx.accounts.cctp.mint_recipient.to_account_info(),
                 to: ctx.accounts.prepared_fill.custody_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
             &[Custodian::SIGNER_SEEDS],
         ),
         amount,
-    )?;
-
-    // TODO: close custody token.
-    Ok(())
+    )
 }

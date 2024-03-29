@@ -393,11 +393,6 @@
           ]
         },
         {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
           "name": "routerEndpoint",
           "isMut": false,
           "isSigner": false,

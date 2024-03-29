@@ -393,11 +393,6 @@ export type TokenRouter = {
           ]
         },
         {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
           "name": "routerEndpoint",
           "isMut": false,
           "isSigner": false,
@@ -1831,11 +1826,6 @@ export const IDL: TokenRouter = {
               "isSigner": false
             }
           ]
-        },
-        {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false
         },
         {
           "name": "routerEndpoint",

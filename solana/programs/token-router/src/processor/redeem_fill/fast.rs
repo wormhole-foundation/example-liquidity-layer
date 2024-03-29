@@ -2,7 +2,7 @@ use crate::{
     composite::*,
     state::{Custodian, FillType, PreparedFill, PreparedFillInfo},
 };
-use anchor_lang::{prelude::*, system_program};
+use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
     messages::raw::{LiquidityLayerMessage, MessageToVec},
@@ -92,26 +92,6 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
         .to_fast_fill_unchecked();
 
     let fill = fast_fill.fill();
-
-    {
-        let data_len = PreparedFill::compute_size(fill.redeemer_message_len().try_into().unwrap());
-        let acc_info: &AccountInfo = ctx.accounts.prepared_fill.as_ref();
-        let lamport_diff = Rent::get().map(|rent| {
-            rent.minimum_balance(data_len)
-                .saturating_sub(acc_info.lamports())
-        })?;
-        system_program::transfer(
-            CpiContext::new(
-                ctx.accounts.system_program.to_account_info(),
-                system_program::Transfer {
-                    from: ctx.accounts.prepared_fill.payer.to_account_info(),
-                    to: ctx.accounts.prepared_fill.to_account_info(),
-                },
-            ),
-            lamport_diff,
-        )?;
-        acc_info.realloc(data_len, false)?;
-    }
 
     // Set prepared fill data.
     ctx.accounts
