@@ -48,6 +48,7 @@ import {
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,
+    getBlockTime,
     getUsdcAtaBalance,
     numberToU64BN,
     postLiquidityLayerVaa,
@@ -1250,6 +1251,34 @@ describe("Matching Engine", function () {
                 await placeInitialOfferForTest(playerOne, fastOrder, ethRouter, offerPrice);
             });
 
+            it("Cannot Place Initial Offer (Fast VAA Expired)", async function () {
+                const fastMarketOrder = { ...baseFastOrder } as FastMarketOrder;
+                const fastVaa = await postLiquidityLayerVaa(
+                    connection,
+                    playerOne,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    new LiquidityLayerMessage({ fastMarketOrder }),
+                    { timestamp: 69 }, // Really old timestamp.
+                );
+
+                const [approveIx, ix] = await engine.placeInitialOfferIx(
+                    {
+                        payer: playerOne.publicKey,
+                        fastVaa,
+                    },
+                    fastMarketOrder.maxFee,
+                );
+
+                await expectIxErr(
+                    connection,
+                    [approveIx, ix],
+                    [playerOne],
+                    "FastMarketOrderExpired",
+                );
+            });
+
             it("Cannot Place Initial Offer (Invalid VAA)", async function () {
                 const fastVaa = await postLiquidityLayerVaa(
                     connection,
@@ -1432,7 +1461,7 @@ describe("Matching Engine", function () {
                     ethRouter,
                     wormholeSequence++,
                     new LiquidityLayerMessage({ fastMarketOrder: baseFastOrder }),
-                    "acala",
+                    { sourceChain: "acala" },
                 );
 
                 const { maxFee: offerPrice } = baseFastOrder;
@@ -2650,7 +2679,7 @@ describe("Matching Engine", function () {
                     ethRouter,
                     wormholeSequence++,
                     fastMessage,
-                    "arbitrum",
+                    { sourceChain: "arbitrum" },
                 );
 
                 const ix = await engine.prepareOrderResponseCctpIx(
@@ -2900,6 +2929,8 @@ describe("Matching Engine", function () {
                     ),
                 });
 
+                const vaaTime = await getBlockTime(connection);
+
                 const finalizedVaa = await postLiquidityLayerVaa(
                     connection,
                     payer,
@@ -2907,6 +2938,7 @@ describe("Matching Engine", function () {
                     ethRouter,
                     wormholeSequence++,
                     finalizedMessage,
+                    { timestamp: vaaTime! },
                 );
                 const fastVaa = await postLiquidityLayerVaa(
                     connection,
@@ -2915,6 +2947,7 @@ describe("Matching Engine", function () {
                     ethRouter,
                     wormholeSequence++,
                     fastMessage,
+                    { timestamp: vaaTime! },
                 );
 
                 const ix = await engine.prepareOrderResponseCctpIx(
@@ -3693,6 +3726,7 @@ describe("Matching Engine", function () {
             ),
         });
 
+        const vaaTimestamp = await getBlockTime(connection);
         const finalizedVaa = await postLiquidityLayerVaa(
             connection,
             payer,
@@ -3700,6 +3734,7 @@ describe("Matching Engine", function () {
             ethRouter,
             wormholeSequence++,
             finalizedMessage,
+            { timestamp: vaaTimestamp! },
         );
         const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
 
@@ -3710,6 +3745,7 @@ describe("Matching Engine", function () {
             ethRouter,
             wormholeSequence++,
             fastMessage,
+            { timestamp: vaaTimestamp! },
         );
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
 

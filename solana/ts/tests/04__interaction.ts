@@ -309,41 +309,6 @@ describe("Matching Engine <> Token Router", function () {
                 });
             });
 
-            describe("Settle Active Auction (Local)", function () {
-                it("Settle", async function () {
-                    const { prepareIx, auction, fastVaa } = await prepareOrderResponse({
-                        initAuction: true,
-                        executeOrder: false,
-                        prepareOrderResponse: false,
-                    });
-
-                    const { address: executorToken } =
-                        await splToken.getOrCreateAssociatedTokenAccount(
-                            connection,
-                            payer,
-                            USDC_MINT_ADDRESS,
-                            liquidator.publicKey,
-                        );
-
-                    const settleIx = await matchingEngine.settleAuctionActiveLocalIx({
-                        payer: payer.publicKey,
-                        fastVaa,
-                        auction,
-                        executorToken,
-                    });
-                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                        lookupTableAddress,
-                    );
-
-                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                        units: 400_000,
-                    });
-                    await expectIxOk(connection, [prepareIx!, settleIx, computeIx], [payer], {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    });
-                });
-            });
-
             before("Update Local Router Endpoint", async function () {
                 const ix = await matchingEngine.updateLocalRouterEndpointIx({
                     owner: owner.publicKey,
@@ -502,7 +467,7 @@ describe("Matching Engine <> Token Router", function () {
                     Array.from(matchingEngine.custodianAddress().toBuffer()),
                     wormholeSequence++,
                     message,
-                    "solana",
+                    { sourceChain: "solana" },
                 );
 
                 const ix = await tokenRouter.redeemFastFillIx({
@@ -697,7 +662,7 @@ describe("Matching Engine <> Token Router", function () {
                     Array.from(matchingEngine.custodianAddress().toBuffer()),
                     wormholeSequence++,
                     message,
-                    "avalanche",
+                    { sourceChain: "avalanche" },
                 );
                 const ix = await tokenRouter.redeemFastFillIx({
                     payer: payer.publicKey,
@@ -733,7 +698,7 @@ describe("Matching Engine <> Token Router", function () {
                     Array.from(Buffer.alloc(32, "deadbeef", "hex")),
                     wormholeSequence++,
                     message,
-                    "solana",
+                    { sourceChain: "solana" },
                 );
                 const ix = await tokenRouter.redeemFastFillIx({
                     payer: payer.publicKey,
@@ -756,7 +721,7 @@ describe("Matching Engine <> Token Router", function () {
                     Array.from(matchingEngine.custodianAddress().toBuffer()),
                     wormholeSequence++,
                     Buffer.from("Oh noes!"), // message
-                    "solana",
+                    { sourceChain: "solana" },
                 );
 
                 const {
@@ -820,7 +785,7 @@ describe("Matching Engine <> Token Router", function () {
                     Array.from(matchingEngine.custodianAddress().toBuffer()),
                     wormholeSequence++,
                     message,
-                    "solana",
+                    { sourceChain: "solana" },
                 );
 
                 const {

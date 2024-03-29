@@ -8,6 +8,8 @@ pub const CCTP_MESSAGE_SEED_PREFIX: &[u8] = b"cctp-msg";
 
 pub const FEE_PRECISION_MAX: u32 = 1_000_000;
 
+pub const VAA_AUCTION_EXPIRATION_TIME: u32 = 7200; // 2 hours
+
 pub use wormhole_solana_consts::USDC_MINT;
 
 use solana_program::{pubkey, pubkey::Pubkey};

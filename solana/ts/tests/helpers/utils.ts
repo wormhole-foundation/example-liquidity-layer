@@ -231,3 +231,8 @@ export async function getUsdcAtaBalance(connection: Connection, owner: PublicKey
         .then((token) => token.amount)
         .catch(() => 0n);
 }
+
+export async function getBlockTime(connection: Connection) {
+    let absoluteSlot = (await connection.getEpochInfo()).absoluteSlot;
+    return await connection.getBlockTime(absoluteSlot);
+}
