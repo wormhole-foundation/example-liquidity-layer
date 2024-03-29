@@ -577,7 +577,6 @@ export class TokenRouterProgram {
         const { encodedCctpMessage } = args;
 
         const {
-            custodian,
             preparedFill,
             cctpMintRecipient,
             routerEndpoint,
@@ -599,27 +598,29 @@ export class TokenRouterProgram {
         return this.program.methods
             .redeemCctpFill(args)
             .accounts({
-                payer,
-                custodian,
-                vaa,
-                preparedFill,
-                cctpMintRecipient,
-                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
-                mint: this.mint,
+                custodian: this.checkedCustodianComposite(),
+                preparedFill: this.initIfNeededPreparedFillComposite({
+                    payer,
+                    vaa,
+                    preparedFill,
+                }),
                 routerEndpoint: inputRouterEndpoint ?? routerEndpoint,
-                messageTransmitterAuthority,
-                messageTransmitterConfig,
-                usedNonces,
-                messageTransmitterEventAuthority,
-                tokenMessenger,
-                remoteTokenMessenger,
-                tokenMinter,
-                localToken,
-                tokenPair,
-                tokenMessengerMinterCustodyToken,
-                tokenMessengerMinterEventAuthority,
-                tokenMessengerMinterProgram,
-                messageTransmitterProgram,
+                cctp: {
+                    mintRecipient: { mintRecipient: cctpMintRecipient },
+                    messageTransmitterAuthority,
+                    messageTransmitterConfig,
+                    usedNonces,
+                    messageTransmitterEventAuthority,
+                    tokenMessenger,
+                    remoteTokenMessenger,
+                    tokenMinter,
+                    localToken,
+                    tokenPair,
+                    tokenMessengerMinterCustodyToken,
+                    tokenMessengerMinterEventAuthority,
+                    tokenMessengerMinterProgram,
+                    messageTransmitterProgram,
+                },
             })
             .instruction();
     }
@@ -658,7 +659,6 @@ export class TokenRouterProgram {
     }): Promise<TransactionInstruction> {
         const { payer, vaa } = accounts;
         const {
-            custodian,
             preparedFill,
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
@@ -671,7 +671,7 @@ export class TokenRouterProgram {
         return this.program.methods
             .redeemFastFill()
             .accounts({
-                custodian: { custodian },
+                custodian: this.checkedCustodianComposite(),
                 preparedFill: this.initIfNeededPreparedFillComposite({
                     payer,
                     vaa,

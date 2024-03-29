@@ -327,53 +327,74 @@
       "name": "redeemCctpFill",
       "accounts": [
         {
-          "name": "payer",
-          "isMut": true,
-          "isSigner": true
-        },
-        {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
-          ]
-        },
-        {
-          "name": "vaa",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "[verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint)."
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
           "name": "preparedFill",
-          "isMut": true,
-          "isSigner": false
+          "accounts": [
+            {
+              "name": "payer",
+              "isMut": true,
+              "isSigner": true
+            },
+            {
+              "name": "fillVaa",
+              "accounts": [
+                {
+                  "name": "vaa",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "preparedFill",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "custodyToken",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
+                "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
+                "from its custody account to this account.",
+                ""
+              ]
+            },
+            {
+              "name": "usdc",
+              "accounts": [
+                {
+                  "name": "mint",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "tokenProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "systemProgram",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "cctpMintRecipient",
           "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "preparedCustodyToken",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-            "from its custody account to this account.",
-            "",
-            "",
-            "NOTE: This account must be encoded as the mint recipient in the CCTP message."
-          ]
-        },
-        {
-          "name": "mint",
-          "isMut": false,
           "isSigner": false
         },
         {
@@ -387,83 +408,98 @@
           ]
         },
         {
-          "name": "messageTransmitterAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterConfig",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "usedNonces",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "first_nonce.to_string()\\] (CCTP Message Transmitter program)."
+          "name": "cctp",
+          "accounts": [
+            {
+              "name": "mintRecipient",
+              "accounts": [
+                {
+                  "name": "mintRecipient",
+                  "isMut": true,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "messageTransmitterAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterConfig",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "usedNonces",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "first_nonce.to_string()\\] (CCTP Message Transmitter program)."
+              ]
+            },
+            {
+              "name": "messageTransmitterEventAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessenger",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "remoteTokenMessenger",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "tokenMinter",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "localToken",
+              "isMut": true,
+              "isSigner": false,
+              "docs": [
+                "Token Messenger Minter's Local Token account. This program uses the mint of this account to",
+                "validate the `mint_recipient` token account's mint.",
+                ""
+              ]
+            },
+            {
+              "name": "tokenPair",
+              "isMut": false,
+              "isSigner": false,
+              "docs": [
+                "Token Messenger Minter program)."
+              ]
+            },
+            {
+              "name": "tokenMessengerMinterCustodyToken",
+              "isMut": true,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessengerMinterEventAuthority",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "tokenMessengerMinterProgram",
+              "isMut": false,
+              "isSigner": false
+            },
+            {
+              "name": "messageTransmitterProgram",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
-        },
-        {
-          "name": "messageTransmitterEventAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessenger",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "remoteTokenMessenger",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Messenger Minter program)."
-          ]
-        },
-        {
-          "name": "tokenMinter",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "localToken",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Token Messenger Minter's Local Token account. This program uses the mint of this account to",
-            "validate the `mint_recipient` token account's mint.",
-            ""
-          ]
-        },
-        {
-          "name": "tokenPair",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Token Messenger Minter program)."
-          ]
-        },
-        {
-          "name": "tokenMessengerMinterCustodyToken",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterEventAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenMessengerMinterProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "messageTransmitterProgram",
-          "isMut": false,
-          "isSigner": false
         },
         {
           "name": "tokenProgram",

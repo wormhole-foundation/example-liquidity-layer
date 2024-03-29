@@ -1,51 +1,77 @@
 use crate::{
+    composite::*,
     error::TokenRouterError,
     state::{Custodian, FillType, PreparedFill, PreparedFillInfo},
 };
 use anchor_lang::{prelude::*, system_program};
 use anchor_spl::token;
 use common::{
-    messages::raw::{LiquidityLayerDepositMessage, LiquidityLayerMessage, MessageToVec},
+    messages::raw::{LiquidityLayerDepositMessage, MessageToVec},
     wormhole_cctp_solana::{
         self,
         cctp::{message_transmitter_program, token_messenger_minter_program},
         cpi::ReceiveMessageArgs,
         utils::WormholeCctpPayload,
-        wormhole::VaaAccount,
     },
 };
-use matching_engine::state::MessageProtocol;
+
+#[derive(Accounts)]
+struct CctpReceiveMessage<'info> {
+    mint_recipient: CctpMintRecipientMut<'info>,
+
+    /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
+    message_transmitter_authority: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
+    message_transmitter_config: AccountInfo<'info>,
+
+    /// CHECK: Mutable. Seeds must be \["used_nonces", remote_domain.to_string(),
+    /// first_nonce.to_string()\] (CCTP Message Transmitter program).
+    #[account(mut)]
+    used_nonces: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Message Transmitter program)).
+    message_transmitter_event_authority: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
+    token_messenger: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
+    /// Messenger Minter program).
+    remote_token_messenger: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
+    token_minter: AccountInfo<'info>,
+
+    /// Token Messenger Minter's Local Token account. This program uses the mint of this account to
+    /// validate the `mint_recipient` token account's mint.
+    ///
+    /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
+    #[account(mut)]
+    local_token: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["token_pair", remote_domain.to_string(), remote_token_address\] (CCTP
+    /// Token Messenger Minter program).
+    token_pair: AccountInfo<'info>,
+
+    /// CHECK: Mutable. Seeds must be \["custody", mint\] (CCTP Token Messenger Minter program).
+    #[account(mut)]
+    token_messenger_minter_custody_token: AccountInfo<'info>,
+
+    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
+    token_messenger_minter_event_authority: AccountInfo<'info>,
+
+    token_messenger_minter_program:
+        Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
+    message_transmitter_program: Program<'info, message_transmitter_program::MessageTransmitter>,
+}
 
 /// Accounts required for [redeem_cctp_fill].
 #[derive(Accounts)]
 pub struct RedeemCctpFill<'info> {
-    #[account(mut)]
-    payer: Signer<'info>,
+    custodian: CheckedCustodian<'info>,
 
-    /// Custodian, but does not need to be deserialized.
-    ///
-    /// CHECK: Seeds must be \["emitter"\].
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-    )]
-    custodian: AccountInfo<'info>,
-
-    /// CHECK: Must be owned by the Wormhole Core Bridge program. Ownership check happens in
-    /// [verify_vaa_and_mint](wormhole_cctp_solana::cpi::verify_vaa_and_mint).
-    vaa: AccountInfo<'info>,
-
-    #[account(
-        init_if_needed,
-        payer = payer,
-        space = compute_prepared_fill_size(&vaa)?,
-        seeds = [
-            PreparedFill::SEED_PREFIX,
-            VaaAccount::load(&vaa)?.digest().as_ref(),
-        ],
-        bump,
-    )]
-    prepared_fill: Box<Account<'info, PreparedFill>>,
+    prepared_fill: InitIfNeededPreparedFill<'info>,
 
     /// CHECK: Mutable. Seeds must be \["custody"\].
     #[account(
@@ -53,30 +79,6 @@ pub struct RedeemCctpFill<'info> {
         address = crate::cctp_mint_recipient::id() @ TokenRouterError::InvalidCustodyToken,
     )]
     cctp_mint_recipient: AccountInfo<'info>,
-
-    /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
-    /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
-    /// from its custody account to this account.
-    ///
-    /// CHECK: Mutable. Seeds must be \["custody"\].
-    ///
-    /// NOTE: This account must be encoded as the mint recipient in the CCTP message.
-    #[account(
-        init_if_needed,
-        payer = payer,
-        token::mint = mint,
-        token::authority = prepared_fill,
-        seeds = [
-            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
-            prepared_fill.key().as_ref(),
-        ],
-        bump,
-    )]
-    prepared_custody_token: Box<Account<'info, token::TokenAccount>>,
-
-    /// CHECK: This mint must be USDC.
-    #[account(address = common::constants::USDC_MINT)]
-    mint: AccountInfo<'info>,
 
     /// Registered emitter account representing a Circle Integration on another network.
     ///
@@ -88,55 +90,11 @@ pub struct RedeemCctpFill<'info> {
         ],
         bump = router_endpoint.bump,
         seeds::program = matching_engine::id(),
-        constraint = router_endpoint.protocol != MessageProtocol::None @ TokenRouterError::EndpointDisabled,
     )]
     router_endpoint: Box<Account<'info, matching_engine::state::RouterEndpoint>>,
 
-    /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
-    message_transmitter_authority: UncheckedAccount<'info>,
+    cctp: CctpReceiveMessage<'info>,
 
-    /// CHECK: Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
-    message_transmitter_config: UncheckedAccount<'info>,
-
-    /// CHECK: Mutable. Seeds must be \["used_nonces", remote_domain.to_string(),
-    /// first_nonce.to_string()\] (CCTP Message Transmitter program).
-    #[account(mut)]
-    used_nonces: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Message Transmitter program)).
-    message_transmitter_event_authority: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
-    token_messenger: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
-    /// Messenger Minter program).
-    remote_token_messenger: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
-    token_minter: UncheckedAccount<'info>,
-
-    /// Token Messenger Minter's Local Token account. This program uses the mint of this account to
-    /// validate the `mint_recipient` token account's mint.
-    ///
-    /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
-    #[account(mut)]
-    local_token: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["token_pair", remote_domain.to_string(), remote_token_address\] (CCTP
-    /// Token Messenger Minter program).
-    token_pair: UncheckedAccount<'info>,
-
-    /// CHECK: Mutable. Seeds must be \["custody", mint\] (CCTP Token Messenger Minter program).
-    #[account(mut)]
-    token_messenger_minter_custody_token: UncheckedAccount<'info>,
-
-    /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program)).
-    token_messenger_minter_event_authority: UncheckedAccount<'info>,
-
-    token_messenger_minter_program:
-        Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
-    message_transmitter_program: Program<'info, message_transmitter_program::MessageTransmitter>,
     token_program: Program<'info, token::Token>,
     system_program: Program<'info, System>,
 }
@@ -164,47 +122,57 @@ pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) -> 
 
 fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) -> Result<()> {
     let vaa = wormhole_cctp_solana::cpi::verify_vaa_and_mint(
-        &ctx.accounts.vaa,
+        &ctx.accounts.prepared_fill.fill_vaa,
         CpiContext::new_with_signer(
-            ctx.accounts.message_transmitter_program.to_account_info(),
+            ctx.accounts
+                .cctp
+                .message_transmitter_program
+                .to_account_info(),
             message_transmitter_program::cpi::ReceiveTokenMessengerMinterMessage {
-                payer: ctx.accounts.payer.to_account_info(),
+                payer: ctx.accounts.prepared_fill.payer.to_account_info(),
                 caller: ctx.accounts.custodian.to_account_info(),
                 message_transmitter_authority: ctx
                     .accounts
+                    .cctp
                     .message_transmitter_authority
                     .to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
+                    .cctp
                     .message_transmitter_config
                     .to_account_info(),
-                used_nonces: ctx.accounts.used_nonces.to_account_info(),
+                used_nonces: ctx.accounts.cctp.used_nonces.to_account_info(),
                 token_messenger_minter_program: ctx
                     .accounts
+                    .cctp
                     .token_messenger_minter_program
                     .to_account_info(),
                 system_program: ctx.accounts.system_program.to_account_info(),
                 message_transmitter_event_authority: ctx
                     .accounts
+                    .cctp
                     .message_transmitter_event_authority
                     .to_account_info(),
                 message_transmitter_program: ctx
                     .accounts
+                    .cctp
                     .message_transmitter_program
                     .to_account_info(),
-                token_messenger: ctx.accounts.token_messenger.to_account_info(),
-                remote_token_messenger: ctx.accounts.remote_token_messenger.to_account_info(),
-                token_minter: ctx.accounts.token_minter.to_account_info(),
-                local_token: ctx.accounts.local_token.to_account_info(),
-                token_pair: ctx.accounts.token_pair.to_account_info(),
-                mint_recipient: ctx.accounts.cctp_mint_recipient.to_account_info(),
+                token_messenger: ctx.accounts.cctp.token_messenger.to_account_info(),
+                remote_token_messenger: ctx.accounts.cctp.remote_token_messenger.to_account_info(),
+                token_minter: ctx.accounts.cctp.token_minter.to_account_info(),
+                local_token: ctx.accounts.cctp.local_token.to_account_info(),
+                token_pair: ctx.accounts.cctp.token_pair.to_account_info(),
+                mint_recipient: ctx.accounts.cctp.mint_recipient.to_account_info(),
                 custody_token: ctx
                     .accounts
+                    .cctp
                     .token_messenger_minter_custody_token
                     .to_account_info(),
                 token_program: ctx.accounts.token_program.to_account_info(),
                 token_messenger_minter_event_authority: ctx
                     .accounts
+                    .cctp
                     .token_messenger_minter_event_authority
                     .to_account_info(),
             },
@@ -245,7 +213,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
 
     {
         let data_len = PreparedFill::compute_size(fill.redeemer_message_len().try_into().unwrap());
-        let acc_info: &AccountInfo = ctx.accounts.prepared_fill.as_ref().as_ref();
+        let acc_info: &AccountInfo = ctx.accounts.prepared_fill.as_ref();
         let lamport_diff = Rent::get().map(|rent| {
             rent.minimum_balance(data_len)
                 .saturating_sub(acc_info.lamports())
@@ -254,7 +222,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
             CpiContext::new(
                 ctx.accounts.system_program.to_account_info(),
                 system_program::Transfer {
-                    from: ctx.accounts.payer.to_account_info(),
+                    from: ctx.accounts.prepared_fill.payer.to_account_info(),
                     to: ctx.accounts.prepared_fill.to_account_info(),
                 },
             ),
@@ -264,19 +232,22 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
     }
 
     // Set prepared fill data.
-    ctx.accounts.prepared_fill.set_inner(PreparedFill {
-        info: PreparedFillInfo {
-            vaa_hash: vaa.digest().0,
-            bump: ctx.bumps.prepared_fill,
-            prepared_custody_token_bump: ctx.bumps.prepared_custody_token,
-            redeemer: Pubkey::from(fill.redeemer()),
-            prepared_by: ctx.accounts.payer.key(),
-            fill_type: FillType::WormholeCctpDeposit,
-            source_chain: fill.source_chain(),
-            order_sender: fill.order_sender(),
-        },
-        redeemer_message: fill.message_to_vec(),
-    });
+    ctx.accounts
+        .prepared_fill
+        .prepared_fill
+        .set_inner(PreparedFill {
+            info: PreparedFillInfo {
+                vaa_hash: vaa.digest().0,
+                bump: ctx.bumps.prepared_fill.prepared_fill,
+                prepared_custody_token_bump: ctx.bumps.prepared_fill.custody_token,
+                redeemer: Pubkey::from(fill.redeemer()),
+                prepared_by: ctx.accounts.prepared_fill.payer.key(),
+                fill_type: FillType::WormholeCctpDeposit,
+                source_chain: fill.source_chain(),
+                order_sender: fill.order_sender(),
+            },
+            redeemer_message: fill.message_to_vec(),
+        });
 
     // Transfer to prepared custody account.
     token::transfer(
@@ -284,7 +255,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
                 from: ctx.accounts.cctp_mint_recipient.to_account_info(),
-                to: ctx.accounts.prepared_custody_token.to_account_info(),
+                to: ctx.accounts.prepared_fill.custody_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
             &[Custodian::SIGNER_SEEDS],
@@ -294,20 +265,4 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
 
     // TODO: close custody token.
     Ok(())
-}
-
-fn compute_prepared_fill_size(vaa_acc_info: &AccountInfo<'_>) -> Result<usize> {
-    let vaa = VaaAccount::load(vaa_acc_info)?;
-    let msg =
-        LiquidityLayerMessage::try_from(vaa.payload()).map_err(|_| TokenRouterError::InvalidVaa)?;
-
-    let deposit = msg.deposit().ok_or(TokenRouterError::InvalidPayloadId)?;
-    let msg = LiquidityLayerDepositMessage::try_from(deposit.payload())
-        .map_err(|_| TokenRouterError::InvalidDepositMessage)?;
-    let fill = msg.fill().ok_or(TokenRouterError::InvalidPayloadId)?;
-    Ok(fill
-        .redeemer_message_len()
-        .try_into()
-        .map(PreparedFill::compute_size)
-        .unwrap())
 }

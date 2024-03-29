@@ -27,6 +27,30 @@ impl<'info> Deref for Usdc<'info> {
     }
 }
 
+/// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
+/// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
+/// from its custody account to this account.
+///
+/// CHECK: Mutable. Seeds must be \["custody"\].
+///
+/// NOTE: This account must be encoded as the mint recipient in the CCTP message.
+#[derive(Accounts)]
+pub struct CctpMintRecipientMut<'info> {
+    #[account(
+        mut,
+        address = crate::cctp_mint_recipient::id()
+    )]
+    pub mint_recipient: Box<Account<'info, token::TokenAccount>>,
+}
+
+impl<'info> Deref for CctpMintRecipientMut<'info> {
+    type Target = Account<'info, token::TokenAccount>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.mint_recipient
+    }
+}
+
 #[derive(Accounts)]
 pub struct LiquidityLayerVaa<'info> {
     /// CHECK: This VAA account must be a posted VAA from the Wormhole Core Bridge program.
