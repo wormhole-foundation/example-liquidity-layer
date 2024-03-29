@@ -65,8 +65,11 @@ pub struct RedeemFastFill<'info> {
     #[account(mut)]
     matching_engine_redeemed_fast_fill: UncheckedAccount<'info>,
 
+    /// CHECK: Seeds must be \["endpoint", source_chain.to_be_bytes()\] (Matching Engine program).
+    matching_engine_from_endpoint: UncheckedAccount<'info>,
+
     /// CHECK: Seeds must be \["endpoint", SOLANA_CHAIN.to_be_bytes()\] (Matching Engine program).
-    matching_engine_router_endpoint: UncheckedAccount<'info>,
+    matching_engine_to_endpoint: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["local-custody", source_chain.to_be_bytes()\]
     /// (Matching Engine program).
@@ -106,11 +109,13 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
                 .to_account_info(),
             token_router_emitter: ctx.accounts.custodian.to_account_info(),
             token_router_custody_token: ctx.accounts.prepared_custody_token.to_account_info(),
-            router_endpoint: matching_engine::cpi::accounts::LiveRouterEndpoint {
-                endpoint: ctx
-                    .accounts
-                    .matching_engine_router_endpoint
-                    .to_account_info(),
+            path: matching_engine::cpi::accounts::LiveRouterPath {
+                from_endpoint: matching_engine::cpi::accounts::LiveRouterEndpoint {
+                    endpoint: ctx.accounts.matching_engine_from_endpoint.to_account_info(),
+                },
+                to_endpoint: matching_engine::cpi::accounts::LiveRouterEndpoint {
+                    endpoint: ctx.accounts.matching_engine_to_endpoint.to_account_info(),
+                },
             },
             local_custody_token: ctx
                 .accounts

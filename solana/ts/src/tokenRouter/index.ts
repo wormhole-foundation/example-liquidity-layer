@@ -99,7 +99,8 @@ export type RedeemFastFillAccounts = {
     cctpMintRecipient: PublicKey;
     matchingEngineCustodian: PublicKey;
     matchingEngineRedeemedFastFill: PublicKey;
-    matchingEngineRouterEndpoint: PublicKey;
+    matchingEngineFromEndpoint: PublicKey;
+    matchingEngineToEndpoint: PublicKey;
     matchingEngineLocalCustodyToken: PublicKey;
     matchingEngineProgram: PublicKey;
 };
@@ -574,7 +575,8 @@ export class TokenRouterProgram {
             accounts: {
                 custodian: matchingEngineCustodian,
                 redeemedFastFill: matchingEngineRedeemedFastFill,
-                routerEndpoint: matchingEngineRouterEndpoint,
+                fromRouterEndpoint: matchingEngineFromEndpoint,
+                toRouterEndpoint: matchingEngineToEndpoint,
                 localCustodyToken: matchingEngineLocalCustodyToken,
                 matchingEngineProgram,
             },
@@ -586,7 +588,8 @@ export class TokenRouterProgram {
             cctpMintRecipient: this.cctpMintRecipientAddress(),
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
-            matchingEngineRouterEndpoint,
+            matchingEngineFromEndpoint,
+            matchingEngineToEndpoint,
             matchingEngineLocalCustodyToken,
             matchingEngineProgram,
         };
@@ -602,7 +605,8 @@ export class TokenRouterProgram {
             preparedFill,
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
-            matchingEngineRouterEndpoint,
+            matchingEngineFromEndpoint,
+            matchingEngineToEndpoint,
             matchingEngineLocalCustodyToken,
             matchingEngineProgram,
         } = await this.redeemFastFillAccounts(vaa);
@@ -618,7 +622,8 @@ export class TokenRouterProgram {
                 mint: this.mint,
                 matchingEngineCustodian,
                 matchingEngineRedeemedFastFill,
-                matchingEngineRouterEndpoint,
+                matchingEngineFromEndpoint,
+                matchingEngineToEndpoint,
                 matchingEngineLocalCustodyToken,
                 matchingEngineProgram,
             })

@@ -37,8 +37,10 @@ pub struct ExecuteFastOrderLocal<'info> {
 
     custodian: CheckedCustodian<'info>,
 
-    #[account(constraint = utils::require_local_endpoint(&execute_order.to_router_endpoint)?)]
     execute_order: ExecuteOrder<'info>,
+
+    #[account(constraint = utils::require_local_endpoint(&to_router_endpoint)?)]
+    to_router_endpoint: LiveRouterEndpoint<'info>,
 
     wormhole: WormholePublishMessage<'info>,
 

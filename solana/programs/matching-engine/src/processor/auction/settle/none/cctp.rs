@@ -98,7 +98,7 @@ pub struct SettleAuctionNoneCctp<'info> {
 
 /// TODO: add docstring
 pub fn settle_auction_none_cctp(ctx: Context<SettleAuctionNoneCctp>) -> Result<()> {
-    match ctx.accounts.fast_order_path.to.protocol {
+    match ctx.accounts.fast_order_path.to_endpoint.protocol {
         MessageProtocol::Cctp { domain } => handle_settle_auction_none_cctp(ctx, domain),
         _ => err!(MatchingEngineError::InvalidCctpEndpoint),
     }
@@ -133,7 +133,7 @@ fn handle_settle_auction_none_cctp(
         address: destination_caller,
         mint_recipient,
         protocol: _,
-    } = ctx.accounts.fast_order_path.to.as_ref();
+    } = ctx.accounts.fast_order_path.to_endpoint.as_ref();
 
     // This returns the CCTP nonce, but we do not need it.
     wormhole_cctp_solana::cpi::burn_and_publish(

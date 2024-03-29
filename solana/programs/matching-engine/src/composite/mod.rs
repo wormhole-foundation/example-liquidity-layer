@@ -247,17 +247,27 @@ impl<'info> Deref for LiveRouterEndpoint<'info> {
 }
 
 #[derive(Accounts)]
+pub struct LiveRouterPath<'info> {
+    pub from_endpoint: LiveRouterEndpoint<'info>,
+
+    #[account(
+        constraint = from_endpoint.chain != to_endpoint.chain @ MatchingEngineError::SameEndpoint
+    )]
+    pub to_endpoint: LiveRouterEndpoint<'info>,
+}
+
+#[derive(Accounts)]
 pub struct FastOrderPath<'info> {
     #[account(
         constraint = {
             let vaa = fast_vaa.load_unchecked();
             require_eq!(
-                from.chain,
+                path.from_endpoint.chain,
                 vaa.emitter_chain(),
                 MatchingEngineError::ErrInvalidSourceRouter
             );
             require!(
-                from.address == vaa.emitter_address(),
+                path.from_endpoint.address == vaa.emitter_address(),
                 MatchingEngineError::ErrInvalidSourceRouter
             );
 
@@ -266,7 +276,7 @@ pub struct FastOrderPath<'info> {
                 .fast_market_order()
                 .ok_or(MatchingEngineError::NotFastMarketOrder)?;
             require_eq!(
-                to.chain,
+                path.to_endpoint.chain,
                 order.target_chain(),
                 MatchingEngineError::ErrInvalidTargetRouter
             );
@@ -276,10 +286,15 @@ pub struct FastOrderPath<'info> {
     )]
     pub fast_vaa: LiquidityLayerVaa<'info>,
 
-    pub from: LiveRouterEndpoint<'info>,
+    pub path: LiveRouterPath<'info>,
+}
 
-    #[account(constraint = from.chain != to.chain @ MatchingEngineError::SameEndpoint)]
-    pub to: LiveRouterEndpoint<'info>,
+impl<'info> Deref for FastOrderPath<'info> {
+    type Target = LiveRouterPath<'info>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.path
+    }
 }
 
 #[derive(Accounts)]
@@ -354,8 +369,6 @@ pub struct ExecuteOrder<'info> {
     pub fast_vaa: LiquidityLayerVaa<'info>,
 
     pub active_auction: ActiveAuction<'info>,
-
-    pub to_router_endpoint: LiveRouterEndpoint<'info>,
 
     /// CHECK: Must be a token account, whose mint is [common::constants::USDC_MINT].
     #[account(mut)]

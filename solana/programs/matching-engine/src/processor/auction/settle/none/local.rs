@@ -58,7 +58,7 @@ pub struct SettleAuctionNoneLocal<'info> {
     prepared: ClosePreparedOrderResponse<'info>,
 
     #[account(
-        constraint = utils::require_local_endpoint(&fast_order_path.to)?,
+        constraint = utils::require_local_endpoint(&fast_order_path.to_endpoint)?,
     )]
     fast_order_path: FastOrderPath<'info>,
 

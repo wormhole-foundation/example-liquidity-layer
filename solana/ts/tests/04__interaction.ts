@@ -729,7 +729,8 @@ describe("Matching Engine <> Token Router", function () {
                     preparedFill,
                     matchingEngineCustodian,
                     matchingEngineRedeemedFastFill,
-                    matchingEngineRouterEndpoint,
+                    matchingEngineFromEndpoint,
+                    matchingEngineToEndpoint,
                     matchingEngineLocalCustodyToken,
                     matchingEngineProgram,
                 } = await tokenRouter.redeemFastFillAccounts(vaa, foreignChain);
@@ -745,7 +746,8 @@ describe("Matching Engine <> Token Router", function () {
                         mint: tokenRouter.mint,
                         matchingEngineCustodian,
                         matchingEngineRedeemedFastFill,
-                        matchingEngineRouterEndpoint,
+                        matchingEngineFromEndpoint,
+                        matchingEngineToEndpoint,
                         matchingEngineLocalCustodyToken,
                         matchingEngineProgram,
                     })
@@ -793,7 +795,8 @@ describe("Matching Engine <> Token Router", function () {
                     preparedFill,
                     matchingEngineCustodian,
                     matchingEngineRedeemedFastFill,
-                    matchingEngineRouterEndpoint,
+                    matchingEngineFromEndpoint,
+                    matchingEngineToEndpoint,
                     matchingEngineLocalCustodyToken,
                     matchingEngineProgram,
                 } = await tokenRouter.redeemFastFillAccounts(vaa, foreignChain);
@@ -809,7 +812,8 @@ describe("Matching Engine <> Token Router", function () {
                         mint: tokenRouter.mint,
                         matchingEngineCustodian,
                         matchingEngineRedeemedFastFill,
-                        matchingEngineRouterEndpoint,
+                        matchingEngineFromEndpoint,
+                        matchingEngineToEndpoint,
                         matchingEngineLocalCustodyToken,
                         matchingEngineProgram,
                     })

@@ -543,7 +543,12 @@ export type TokenRouter = {
           "isSigner": false
         },
         {
-          "name": "matchingEngineRouterEndpoint",
+          "name": "matchingEngineFromEndpoint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "matchingEngineToEndpoint",
           "isMut": false,
           "isSigner": false
         },
@@ -1926,7 +1931,12 @@ export const IDL: TokenRouter = {
           "isSigner": false
         },
         {
-          "name": "matchingEngineRouterEndpoint",
+          "name": "matchingEngineFromEndpoint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "matchingEngineToEndpoint",
           "isMut": false,
           "isSigner": false
         },
