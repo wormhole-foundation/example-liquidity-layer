@@ -5,8 +5,7 @@ import { Connection, Keypair } from "@solana/web3.js";
 import { ethers } from "ethers";
 import { LiquidityLayerMessage } from "../../src";
 import { CORE_BRIDGE_PID, GUARDIAN_KEY } from "./consts";
-import { postVaa } from "./utils";
-
+import { postVaa, getBlockTime } from "./utils";
 // TODO: return VaaAccount, too
 export async function postLiquidityLayerVaa(
     connection: Connection,
@@ -15,8 +14,14 @@ export async function postLiquidityLayerVaa(
     foreignEmitterAddress: Array<number>,
     sequence: bigint,
     message: LiquidityLayerMessage | Buffer,
-    sourceChain?: ChainName,
+    args?: { sourceChain?: ChainName; timestamp?: number },
 ) {
+    let { sourceChain, timestamp } = args ?? {};
+
+    if (timestamp === undefined) {
+        timestamp = (await getBlockTime(connection))!;
+    }
+
     const foreignEmitter = new MockEmitter(
         Buffer.from(foreignEmitterAddress).toString("hex"),
         coalesceChainId(sourceChain ?? "ethereum"),
@@ -27,7 +32,7 @@ export async function postLiquidityLayerVaa(
         0, // nonce,
         Buffer.isBuffer(message) ? message : message.encode(),
         0, // consistencyLevel
-        12345678, // timestamp
+        timestamp,
     );
     const vaaBuf = guardians.addSignatures(published, [0]);
 
