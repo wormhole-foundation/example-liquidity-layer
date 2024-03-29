@@ -1357,6 +1357,52 @@ describe("Matching Engine", function () {
                 );
             });
 
+            it("Cannot Place Initial Offer (Endpoint Disabled)", async function () {
+                const fastMarketOrder = { ...baseFastOrder } as FastMarketOrder;
+                const fastVaa = await postLiquidityLayerVaa(
+                    connection,
+                    playerOne,
+                    MOCK_GUARDIANS,
+                    ethRouter,
+                    wormholeSequence++,
+                    new LiquidityLayerMessage({ fastMarketOrder }),
+                );
+
+                // Disable the Eth router endpoint.
+                await expectIxOk(
+                    connection,
+                    [await engine.disableRouterEndpointIx({ owner: owner.publicKey }, ethChain)],
+                    [owner],
+                );
+
+                const [approveIx, ix] = await engine.placeInitialOfferIx(
+                    {
+                        payer: playerOne.publicKey,
+                        fastVaa,
+                    },
+                    fastMarketOrder.maxFee,
+                );
+
+                await expectIxErr(connection, [approveIx, ix], [playerOne], "EndpointDisabled");
+
+                // Enabled the Eth Router again.
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.updateCctpRouterEndpointIx(
+                            { owner: owner.publicKey },
+                            {
+                                chain: ethChain,
+                                cctpDomain: ethDomain,
+                                address: ethRouter,
+                                mintRecipient: null,
+                            },
+                        ),
+                    ],
+                    [owner],
+                );
+            });
+
             it("Cannot Place Initial Offer (Invalid Payload)", async function () {
                 const message = new LiquidityLayerMessage({
                     fastFill: {
