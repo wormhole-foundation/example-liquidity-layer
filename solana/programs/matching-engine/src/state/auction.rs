@@ -52,6 +52,9 @@ pub struct AuctionInfo {
     /// Sequence of the fast market order VAA.
     pub vaa_sequence: u64,
 
+    /// Timestamp of the fast market order VAA.
+    pub vaa_timestamp: u32,
+
     /// The chain where the transfer is initiated.
     pub source_chain: u16,
 

@@ -94,7 +94,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
     let source_chain = fast_vaa.emitter_chain();
 
     // We need to fetch clock values for a couple of operations in this instruction.
-    let start_slot = {
+    let (start_slot, vaa_timestamp) = {
         let Clock {
             slot,
             unix_timestamp,
@@ -103,13 +103,14 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
 
         // Check to see if the deadline has expired.
         let deadline = i64::from(order.deadline());
+        let vaa_timestamp = fast_vaa.timestamp();
         require!(
             (deadline == 0 || unix_timestamp < deadline)
-                && unix_timestamp < (fast_vaa.timestamp() + VAA_AUCTION_EXPIRATION_TIME).into(),
+                && unix_timestamp < (vaa_timestamp + VAA_AUCTION_EXPIRATION_TIME).into(),
             MatchingEngineError::FastMarketOrderExpired,
         );
 
-        slot
+        (slot, vaa_timestamp)
     };
 
     let max_fee = order.max_fee();
@@ -132,6 +133,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
             config_id: ctx.accounts.auction_config.id,
             custody_token_bump: ctx.bumps.auction_custody_token,
             vaa_sequence: fast_vaa.sequence(),
+            vaa_timestamp,
             source_chain,
             best_offer_token: initial_offer_token,
             initial_offer_token,

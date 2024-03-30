@@ -108,6 +108,16 @@ export class VaaAccount {
         }
     }
 
+    timestamp(): number {
+        if (this._encodedVaa !== undefined) {
+            return parseVaa(this._encodedVaa.buf).timestamp;
+        } else if (this._postedVaaV1 !== undefined) {
+            return this._postedVaaV1.timestamp;
+        } else {
+            throw new Error("impossible: timestamp() failed");
+        }
+    }
+
     payload(): Buffer {
         if (this._encodedVaa !== undefined) {
             return parseVaa(this._encodedVaa.buf).payload;

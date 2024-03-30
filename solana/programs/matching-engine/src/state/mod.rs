@@ -1,10 +1,13 @@
+mod auction;
+pub use auction::*;
+
 mod auction_config;
 pub use auction_config::*;
 
-pub(crate) mod auction;
-pub use auction::*;
+mod auction_history;
+pub use auction_history::*;
 
-pub(crate) mod custodian;
+mod custodian;
 pub use custodian::*;
 
 mod payer_sequence;

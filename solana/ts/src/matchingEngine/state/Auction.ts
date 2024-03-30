@@ -15,6 +15,7 @@ export type AuctionInfo = {
     configId: number;
     custodyTokenBump: number;
     vaaSequence: BN;
+    vaaTimestamp: number;
     sourceChain: number;
     bestOfferToken: PublicKey;
     initialOfferToken: PublicKey;

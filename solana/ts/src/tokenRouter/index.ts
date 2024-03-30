@@ -17,6 +17,7 @@ import {
     TokenMessengerMinterProgram,
 } from "../cctp";
 import {
+    Uint64,
     PayerSequence,
     cctpMessageAddress,
     coreMessageAddress,
@@ -155,11 +156,11 @@ export class TokenRouterProgram {
         )[0];
     }
 
-    coreMessageAddress(payer: PublicKey, payerSequenceValue: BN | bigint): PublicKey {
+    coreMessageAddress(payer: PublicKey, payerSequenceValue: Uint64): PublicKey {
         return coreMessageAddress(this.ID, payer, payerSequenceValue);
     }
 
-    cctpMessageAddress(payer: PublicKey, payerSequenceValue: BN | bigint): PublicKey {
+    cctpMessageAddress(payer: PublicKey, payerSequenceValue: Uint64): PublicKey {
         return cctpMessageAddress(this.ID, payer, payerSequenceValue);
     }
 

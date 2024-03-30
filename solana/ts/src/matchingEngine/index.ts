@@ -16,11 +16,14 @@ import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
 import {
+    Uint64,
     LiquidityLayerMessage,
     PayerSequence,
     cctpMessageAddress,
     coreMessageAddress,
     reclaimCctpMessageIx,
+    writeUint64BE,
+    isUint64,
 } from "../common";
 import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
@@ -28,6 +31,7 @@ import { VaaAccount } from "../wormhole";
 import {
     Auction,
     AuctionConfig,
+    AuctionHistory,
     AuctionInfo,
     AuctionParameters,
     Custodian,
@@ -223,11 +227,11 @@ export class MatchingEngineProgram {
         return this.program.account.proposal.fetch(addr);
     }
 
-    coreMessageAddress(payer: PublicKey, payerSequenceValue: BN | bigint): PublicKey {
+    coreMessageAddress(payer: PublicKey, payerSequenceValue: Uint64): PublicKey {
         return coreMessageAddress(this.ID, payer, payerSequenceValue);
     }
 
-    cctpMessageAddress(payer: PublicKey, payerSequenceValue: BN | bigint): PublicKey {
+    cctpMessageAddress(payer: PublicKey, payerSequenceValue: Uint64): PublicKey {
         return cctpMessageAddress(this.ID, payer, payerSequenceValue);
     }
 
@@ -309,6 +313,18 @@ export class MatchingEngineProgram {
             [Buffer.from("transfer-authority"), auction.toBuffer(), encodedOfferPrice],
             this.ID,
         )[0];
+    }
+
+    auctionHistoryAddress(id: Uint64): PublicKey {
+        return AuctionHistory.address(this.ID, id);
+    }
+
+    async fetchAuctionHistory(input: Uint64 | { address: PublicKey }): Promise<AuctionHistory> {
+        const addr =
+            typeof input === "bigint" || typeof input === "number" || input instanceof BN
+                ? this.auctionHistoryAddress(input)
+                : input.address;
+        return this.program.account.auctionHistory.fetch(addr);
     }
 
     async approveTransferAuthorityIx(
@@ -1572,7 +1588,7 @@ export class MatchingEngineProgram {
 
     async publishMessageAccounts(
         payer: PublicKey,
-        payerSequenceValue: BN | bigint,
+        payerSequenceValue: Uint64,
     ): Promise<PublishMessageAccounts> {
         const coreMessage = this.coreMessageAddress(payer, payerSequenceValue);
 

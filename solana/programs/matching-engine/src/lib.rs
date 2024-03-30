@@ -309,4 +309,23 @@ pub mod matching_engine {
     pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result<()> {
         processor::settle_auction_none_local(ctx)
     }
+
+    /// This instruction is used to create the first `AuctionHistory` account, whose PDA is derived
+    /// using ID == 0.
+    /// # Arguments
+    ///
+    /// * `ctx` - `CreateFirstAuctionHistory` context.
+    pub fn create_first_auction_history(ctx: Context<CreateFirstAuctionHistory>) -> Result<()> {
+        processor::create_first_auction_history(ctx)
+    }
+
+    /// This instruction is used to create a new `AuctionHistory` account. The PDA is derived using
+    /// its ID. A new history account can be created only when the current one is full (number of
+    /// entries equals the hard-coded max entries).
+    /// # Arguments
+    ///
+    /// * `ctx` - `CreateNewAuctionHistory` context.
+    pub fn create_new_auction_history(ctx: Context<CreateNewAuctionHistory>) -> Result<()> {
+        processor::create_new_auction_history(ctx)
+    }
 }

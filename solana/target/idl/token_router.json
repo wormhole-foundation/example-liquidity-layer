@@ -1430,8 +1430,5 @@
       "code": 7038,
       "name": "PayerNotPreparer"
     }
-  ],
-  "metadata": {
-    "address": "TokenRouter11111111111111111111111111111111"
-  }
+  ]
 }

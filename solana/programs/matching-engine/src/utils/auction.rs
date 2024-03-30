@@ -330,6 +330,7 @@ mod test {
                 security_deposit,
                 custody_token_bump: Default::default(),
                 vaa_sequence: Default::default(),
+                vaa_timestamp: Default::default(),
                 start_slot: START,
                 config_id: Default::default(),
                 source_chain: Default::default(),

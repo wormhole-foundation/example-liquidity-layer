@@ -2222,6 +2222,68 @@ export type MatchingEngine = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "createFirstAuctionHistory",
+      "docs": [
+        "This instruction is used to create the first `AuctionHistory` account, whose PDA is derived",
+        "using ID == 0.",
+        "# Arguments",
+        "",
+        "* `ctx` - `CreateFirstAuctionHistory` context."
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "firstHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "createNewAuctionHistory",
+      "docs": [
+        "This instruction is used to create a new `AuctionHistory` account. The PDA is derived using",
+        "its ID. A new history account can be created only when the current one is full (number of",
+        "entries equals the hard-coded max entries).",
+        "# Arguments",
+        "",
+        "* `ctx` - `CreateNewAuctionHistory` context."
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "currentHistory",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "newHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -2238,6 +2300,28 @@ export type MatchingEngine = {
             "name": "parameters",
             "type": {
               "defined": "AuctionParameters"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "auctionHistory",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": "AuctionHistoryHeader"
+            }
+          },
+          {
+            "name": "data",
+            "type": {
+              "vec": {
+                "defined": "AuctionEntry"
+              }
             }
           }
         ]
@@ -2559,6 +2643,49 @@ export type MatchingEngine = {
       }
     },
     {
+      "name": "AuctionEntry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": "AuctionInfo"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionHistoryHeader",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "minTimestamp",
+            "type": "u32"
+          },
+          {
+            "name": "maxTimestamp",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
       "name": "AuctionInfo",
       "type": {
         "kind": "struct",
@@ -2577,6 +2704,13 @@ export type MatchingEngine = {
               "Sequence of the fast market order VAA."
             ],
             "type": "u64"
+          },
+          {
+            "name": "vaaTimestamp",
+            "docs": [
+              "Timestamp of the fast market order VAA."
+            ],
+            "type": "u32"
           },
           {
             "name": "sourceChain",
@@ -5178,6 +5312,68 @@ export const IDL: MatchingEngine = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "createFirstAuctionHistory",
+      "docs": [
+        "This instruction is used to create the first `AuctionHistory` account, whose PDA is derived",
+        "using ID == 0.",
+        "# Arguments",
+        "",
+        "* `ctx` - `CreateFirstAuctionHistory` context."
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "firstHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "createNewAuctionHistory",
+      "docs": [
+        "This instruction is used to create a new `AuctionHistory` account. The PDA is derived using",
+        "its ID. A new history account can be created only when the current one is full (number of",
+        "entries equals the hard-coded max entries).",
+        "# Arguments",
+        "",
+        "* `ctx` - `CreateNewAuctionHistory` context."
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "currentHistory",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "newHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -5194,6 +5390,28 @@ export const IDL: MatchingEngine = {
             "name": "parameters",
             "type": {
               "defined": "AuctionParameters"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "auctionHistory",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": "AuctionHistoryHeader"
+            }
+          },
+          {
+            "name": "data",
+            "type": {
+              "vec": {
+                "defined": "AuctionEntry"
+              }
             }
           }
         ]
@@ -5515,6 +5733,49 @@ export const IDL: MatchingEngine = {
       }
     },
     {
+      "name": "AuctionEntry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": "AuctionInfo"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionHistoryHeader",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "minTimestamp",
+            "type": "u32"
+          },
+          {
+            "name": "maxTimestamp",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
       "name": "AuctionInfo",
       "type": {
         "kind": "struct",
@@ -5533,6 +5794,13 @@ export const IDL: MatchingEngine = {
               "Sequence of the fast market order VAA."
             ],
             "type": "u64"
+          },
+          {
+            "name": "vaaTimestamp",
+            "docs": [
+              "Timestamp of the fast market order VAA."
+            ],
+            "type": "u32"
           },
           {
             "name": "sourceChain",

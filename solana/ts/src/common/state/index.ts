@@ -10,7 +10,7 @@ export function emitterAddress(programId: PublicKey): PublicKey {
 export function coreMessageAddress(
     programId: PublicKey,
     payer: PublicKey,
-    payerSequenceValue: BN | bigint,
+    payerSequenceValue: Uint64,
 ): PublicKey {
     return messageAddress(programId, payer, payerSequenceValue, "core-msg");
 }
@@ -18,7 +18,7 @@ export function coreMessageAddress(
 export function cctpMessageAddress(
     programId: PublicKey,
     payer: PublicKey,
-    payerSequenceValue: BN | bigint,
+    payerSequenceValue: Uint64,
 ): PublicKey {
     return messageAddress(programId, payer, payerSequenceValue, "cctp-msg");
 }
@@ -26,7 +26,7 @@ export function cctpMessageAddress(
 function messageAddress(
     programId: PublicKey,
     payer: PublicKey,
-    payerSequenceValue: BN | bigint,
+    payerSequenceValue: Uint64,
     prefix: string,
 ): PublicKey {
     const encodedPayerSequenceValue = Buffer.alloc(8);

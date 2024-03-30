@@ -11,6 +11,7 @@ import {
     SystemProgram,
     TransactionInstruction,
     VersionedTransactionResponse,
+    Signer,
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
@@ -21,10 +22,12 @@ import {
     LiquidityLayerDeposit,
     LiquidityLayerMessage,
     SlowOrderResponse,
+    uint64ToBN,
 } from "../src/common";
 import {
     Auction,
     AuctionConfig,
+    AuctionHistory,
     AuctionParameters,
     Custodian,
     MatchingEngineProgram,
@@ -1891,6 +1894,7 @@ describe("Matching Engine", function () {
                     configId,
                     custodyTokenBump,
                     vaaSequence,
+                    vaaTimestamp,
                     bestOfferToken: prevBestOfferToken,
                     initialOfferToken,
                     startSlot,
@@ -1908,6 +1912,7 @@ describe("Matching Engine", function () {
                         configId,
                         custodyTokenBump,
                         vaaSequence,
+                        vaaTimestamp,
                         sourceChain,
                         bestOfferToken,
                         initialOfferToken,
@@ -3618,6 +3623,86 @@ describe("Matching Engine", function () {
                 });
             });
         });
+
+        describe("Auction History", function () {
+            it("Create First Auction History", async function () {
+                await createFirstAuctionHistoryForTest({
+                    payer: payer.publicKey,
+                    firstHistory: engine.auctionHistoryAddress(0),
+                });
+            });
+
+            it("Cannot Create First Auction History Again", async function () {
+                const auctionHistory = engine.auctionHistoryAddress(0);
+
+                await createFirstAuctionHistoryForTest(
+                    {
+                        payer: payer.publicKey,
+                        firstHistory: engine.auctionHistoryAddress(0),
+                    },
+                    {
+                        errorMsg: `Allocate: account Address { address: ${auctionHistory.toString()}, base: None } already in use`,
+                    },
+                );
+            });
+
+            async function createFirstAuctionHistoryForTest(
+                accounts: { payer: PublicKey; firstHistory?: PublicKey },
+                args: {
+                    signers?: Signer[];
+                    errorMsg?: string | null;
+                } = {},
+            ) {
+                let { signers, errorMsg } = args;
+                signers ??= [payer];
+                errorMsg ??= null;
+
+                const ix = await engine.program.methods
+                    .createFirstAuctionHistory()
+                    .accounts(createFirstAuctionHistoryAccounts(accounts))
+                    .instruction();
+
+                if (errorMsg !== null) {
+                    return expectIxErr(connection, [ix], signers, errorMsg);
+                }
+
+                await expectIxOk(connection, [ix], signers);
+
+                const auctionHistory = engine.auctionHistoryAddress(0);
+                const firstHistoryData = await engine.fetchAuctionHistory({
+                    address: auctionHistory,
+                });
+                expect(firstHistoryData).to.eql(
+                    new AuctionHistory(
+                        {
+                            id: uint64ToBN(0n),
+                            minTimestamp: 0,
+                            maxTimestamp: 0,
+                        },
+                        [],
+                    ),
+                );
+
+                return { auctionHistory };
+            }
+
+            function createFirstAuctionHistoryAccounts(accounts: {
+                payer: PublicKey;
+                firstHistory?: PublicKey;
+            }) {
+                const { payer } = accounts;
+                let { firstHistory } = accounts;
+                firstHistory ??= PublicKey.findProgramAddressSync(
+                    [Buffer.from("auction-history"), Buffer.alloc(8)],
+                    engine.ID,
+                )[0];
+
+                return {
+                    payer,
+                    firstHistory,
+                };
+            }
+        });
     });
 
     async function placeInitialOfferForTest(
@@ -3708,6 +3793,7 @@ describe("Matching Engine", function () {
                     configId: auctionConfigId,
                     custodyTokenBump,
                     vaaSequence: bigintToU64BN(fastVaaAccount.emitterInfo().sequence),
+                    vaaTimestamp: fastVaaAccount.timestamp(),
                     sourceChain: ethChain,
                     bestOfferToken: offerToken,
                     initialOfferToken: offerToken,
