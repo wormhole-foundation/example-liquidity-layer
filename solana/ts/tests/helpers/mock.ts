@@ -3,7 +3,7 @@ import { MockEmitter, MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock
 import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import { Connection, Keypair } from "@solana/web3.js";
 import { ethers } from "ethers";
-import { LiquidityLayerMessage } from "../../src";
+import { LiquidityLayerMessage } from "../../src/common";
 import { CORE_BRIDGE_PID, GUARDIAN_KEY } from "./consts";
 import { postVaa, getBlockTime } from "./utils";
 // TODO: return VaaAccount, too
@@ -14,13 +14,11 @@ export async function postLiquidityLayerVaa(
     foreignEmitterAddress: Array<number>,
     sequence: bigint,
     message: LiquidityLayerMessage | Buffer,
-    args?: { sourceChain?: ChainName; timestamp?: number },
+    args: { sourceChain?: ChainName; timestamp?: number } = {},
 ) {
-    let { sourceChain, timestamp } = args ?? {};
-
-    if (timestamp === undefined) {
-        timestamp = (await getBlockTime(connection))!;
-    }
+    let { sourceChain, timestamp } = args;
+    sourceChain ??= "ethereum";
+    timestamp ??= await getBlockTime(connection);
 
     const foreignEmitter = new MockEmitter(
         Buffer.from(foreignEmitterAddress).toString("hex"),

@@ -38,7 +38,6 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
     let ExecuteOrder {
         fast_vaa,
         active_auction,
-        to_router_endpoint: _,
         executor_token,
         initial_offer_token,
     } = execute_order;

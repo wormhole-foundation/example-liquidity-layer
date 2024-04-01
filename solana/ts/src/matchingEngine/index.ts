@@ -111,7 +111,8 @@ export type BurnAndPublishAccounts = {
 export type RedeemFastFillAccounts = {
     custodian: PublicKey;
     redeemedFastFill: PublicKey;
-    routerEndpoint: PublicKey;
+    fromRouterEndpoint: PublicKey;
+    toRouterEndpoint: PublicKey;
     localCustodyToken: PublicKey;
     matchingEngineProgram: PublicKey;
 };
@@ -503,20 +504,36 @@ export class MatchingEngineProgram {
         };
     }
 
-    fastOrderPathComposite(accounts: { fastVaa: PublicKey; from: PublicKey; to: PublicKey }): {
+    liveRouterPathComposite(accounts: { fromEndpoint: PublicKey; toEndpoint: PublicKey }): {
+        fromEndpoint: { endpoint: PublicKey };
+        toEndpoint: { endpoint: PublicKey };
+    } {
+        const { fromEndpoint, toEndpoint } = accounts;
+        return {
+            fromEndpoint: { endpoint: fromEndpoint },
+            toEndpoint: { endpoint: toEndpoint },
+        };
+    }
+
+    fastOrderPathComposite(accounts: {
+        fastVaa: PublicKey;
+        fromEndpoint: PublicKey;
+        toEndpoint: PublicKey;
+    }): {
         fastVaa: {
             vaa: PublicKey;
         };
-        from: {
-            endpoint: PublicKey;
+        path: {
+            fromEndpoint: {
+                endpoint: PublicKey;
+            };
+            toEndpoint: { endpoint: PublicKey };
         };
-        to: { endpoint: PublicKey };
     } {
-        const { fastVaa, from, to } = accounts;
+        const { fastVaa, fromEndpoint, toEndpoint } = accounts;
         return {
             fastVaa: { vaa: fastVaa },
-            from: { endpoint: from },
-            to: { endpoint: to },
+            path: this.liveRouterPathComposite({ fromEndpoint, toEndpoint }),
         };
     }
 
@@ -657,7 +674,6 @@ export class MatchingEngineProgram {
                 payer: inputPayer ?? ownerOrAssistant,
                 admin: this.adminComposite(ownerOrAssistant, inputCustodian),
                 routerEndpoint: inputRouterEndpoint ?? this.routerEndpointAddress(chain),
-                localRouterEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
                 localCustodyToken: this.localCustodyTokenAddress(chain),
                 remoteTokenMessenger: inputRemoteTokenMessenger ?? derivedRemoteTokenMessenger,
                 usdc: this.usdcComposite(),
@@ -995,8 +1011,8 @@ export class MatchingEngineProgram {
                 auction,
                 fastOrderPath: this.fastOrderPathComposite({
                     fastVaa,
-                    from: fromRouterEndpoint,
-                    to: toRouterEndpoint,
+                    fromEndpoint: fromRouterEndpoint,
+                    toEndpoint: toRouterEndpoint,
                 }),
                 offerToken,
                 auctionCustodyToken,
@@ -1059,7 +1075,6 @@ export class MatchingEngineProgram {
             finalizedVaa: PublicKey;
         },
         args: CctpMessageArgs,
-        hasAuction: boolean = false,
     ): Promise<TransactionInstruction> {
         const { payer, fastVaa, finalizedVaa } = accounts;
 
@@ -1234,8 +1249,8 @@ export class MatchingEngineProgram {
                 }),
                 fastOrderPath: this.fastOrderPathComposite({
                     fastVaa,
-                    from: this.routerEndpointAddress(fastVaaAccount.emitterInfo().chain),
-                    to: toRouterEndpoint,
+                    fromEndpoint: this.routerEndpointAddress(fastVaaAccount.emitterInfo().chain),
+                    toEndpoint: toRouterEndpoint,
                 }),
                 auction,
                 wormhole: {
@@ -1302,8 +1317,8 @@ export class MatchingEngineProgram {
                 }),
                 fastOrderPath: this.fastOrderPathComposite({
                     fastVaa,
-                    from: this.routerEndpointAddress(fastVaaAccount.emitterInfo().chain),
-                    to: toRouterEndpoint,
+                    fromEndpoint: this.routerEndpointAddress(fastVaaAccount.emitterInfo().chain),
+                    toEndpoint: toRouterEndpoint,
                 }),
                 auction: this.auctionAddress(fastVaaAccount.digest()),
                 wormhole: {
@@ -1414,11 +1429,11 @@ export class MatchingEngineProgram {
                         },
                         { info },
                     ),
-                    toRouterEndpoint: this.routerEndpointComposite(toRouterEndpoint),
                     executorToken:
                         inputExecutorToken ?? splToken.getAssociatedTokenAddressSync(mint, payer),
                     initialOfferToken,
                 },
+                toRouterEndpoint: this.routerEndpointComposite(toRouterEndpoint),
                 custodian: this.checkedCustodianComposite(custodian),
                 wormhole: {
                     config: coreBridgeConfig,
@@ -1505,15 +1520,15 @@ export class MatchingEngineProgram {
                         },
                         { info },
                     ),
-                    toRouterEndpoint: this.routerEndpointComposite(
-                        inputToRouterEndpoint ??
-                            this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
-                    ),
                     executorToken:
                         inputExecutorToken ??
                         splToken.getAssociatedTokenAddressSync(this.mint, payer),
                     initialOfferToken,
                 },
+                toRouterEndpoint: this.routerEndpointComposite(
+                    inputToRouterEndpoint ??
+                        this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+                ),
                 wormhole: {
                     config: coreBridgeConfig,
                     emitterSequence: coreEmitterSequence,
@@ -1531,24 +1546,24 @@ export class MatchingEngineProgram {
     ): Promise<{ vaaAccount: VaaAccount; accounts: RedeemFastFillAccounts }> {
         const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, vaa);
 
-        const localCustodyToken = this.localCustodyTokenAddress(
-            sourceChain ??
-                (() => {
-                    const { fastFill } = LiquidityLayerMessage.decode(vaaAccount.payload());
-                    if (fastFill === undefined) {
-                        throw new Error("Message not FastFill");
-                    }
+        sourceChain ??= (() => {
+            const { fastFill } = LiquidityLayerMessage.decode(vaaAccount.payload());
+            if (fastFill === undefined) {
+                throw new Error("Message not FastFill");
+            }
 
-                    return fastFill.fill.sourceChain;
-                })(),
-        );
+            return fastFill.fill.sourceChain;
+        })();
+
+        const localCustodyToken = this.localCustodyTokenAddress(sourceChain);
 
         return {
             vaaAccount,
             accounts: {
                 custodian: this.custodianAddress(),
                 redeemedFastFill: this.redeemedFastFillAddress(vaaAccount.digest()),
-                routerEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+                fromRouterEndpoint: this.routerEndpointAddress(sourceChain),
+                toRouterEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
                 localCustodyToken,
                 matchingEngineProgram: this.ID,
             },

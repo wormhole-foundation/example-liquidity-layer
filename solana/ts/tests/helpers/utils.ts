@@ -232,7 +232,8 @@ export async function getUsdcAtaBalance(connection: Connection, owner: PublicKey
         .catch(() => 0n);
 }
 
-export async function getBlockTime(connection: Connection) {
-    let absoluteSlot = (await connection.getEpochInfo()).absoluteSlot;
-    return await connection.getBlockTime(absoluteSlot);
+export async function getBlockTime(connection: Connection): Promise<number> {
+    const { absoluteSlot } = await connection.getEpochInfo();
+    // This should never fail... but if it does, we'll just return 0.
+    return connection.getBlockTime(absoluteSlot).then((value) => (value === null ? 0 : value));
 }

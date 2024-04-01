@@ -53,6 +53,8 @@ pub struct ExecuteFastOrderCctp<'info> {
 
     execute_order: ExecuteOrder<'info>,
 
+    to_router_endpoint: LiveRouterEndpoint<'info>,
+
     wormhole: WormholePublishMessage<'info>,
 
     cctp: CctpDepositForBurn<'info>,
@@ -65,7 +67,7 @@ pub struct ExecuteFastOrderCctp<'info> {
 
 /// TODO: add docstring
 pub fn execute_fast_order_cctp(ctx: Context<ExecuteFastOrderCctp>) -> Result<()> {
-    match ctx.accounts.execute_order.to_router_endpoint.protocol {
+    match ctx.accounts.to_router_endpoint.protocol {
         MessageProtocol::Cctp { domain } => handle_execute_fast_order_cctp(ctx, domain),
         _ => err!(MatchingEngineError::InvalidCctpEndpoint),
     }
@@ -166,10 +168,10 @@ pub fn handle_execute_fast_order_cctp(
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
             burn_source: None,
-            destination_caller: ctx.accounts.execute_order.to_router_endpoint.address,
+            destination_caller: ctx.accounts.to_router_endpoint.address,
             destination_cctp_domain,
             amount,
-            mint_recipient: ctx.accounts.execute_order.to_router_endpoint.mint_recipient,
+            mint_recipient: ctx.accounts.to_router_endpoint.mint_recipient,
             wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
             payload: fill.to_vec_payload(),
         },

@@ -1,18 +1,9 @@
-use crate::{error::TokenRouterError, state::Custodian};
+use crate::{composite::*, error::TokenRouterError};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct UpdateOwnerAssistant<'info> {
-    /// Owner of the program set in the [`OwnerConfig`] account.
-    owner: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-        has_one = owner @ TokenRouterError::OwnerOnly,
-    )]
-    custodian: Account<'info, Custodian>,
+    admin: OwnerOnlyMut<'info>,
 
     /// New Assistant.
     ///
@@ -27,7 +18,7 @@ pub struct UpdateOwnerAssistant<'info> {
 
 pub fn update_owner_assistant(ctx: Context<UpdateOwnerAssistant>) -> Result<()> {
     common::admin::utils::assistant::transfer_owner_assistant(
-        &mut ctx.accounts.custodian,
+        &mut ctx.accounts.admin.custodian,
         &ctx.accounts.new_owner_assistant,
     );
 

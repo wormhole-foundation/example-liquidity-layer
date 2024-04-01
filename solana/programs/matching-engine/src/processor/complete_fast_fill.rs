@@ -50,27 +50,26 @@ pub struct CompleteFastFill<'info> {
     )]
     redeemed_fast_fill: Account<'info, RedeemedFastFill>,
 
-    #[account(address = Pubkey::from(router_endpoint.address))]
+    #[account(address = Pubkey::from(path.to_endpoint.address))]
     token_router_emitter: Signer<'info>,
 
     #[account(
         mut,
         token::mint = local_custody_token.mint,
-        token::authority = token_router_emitter,
     )]
     token_router_custody_token: Account<'info, token::TokenAccount>,
 
     #[account(
         constraint = {
             require_eq!(
-                router_endpoint.chain,
+                path.to_endpoint.chain,
                 SOLANA_CHAIN,
                 MatchingEngineError::InvalidEndpoint
             );
             true
         }
     )]
-    router_endpoint: LiveRouterEndpoint<'info>,
+    path: LiveRouterPath<'info>,
 
     #[account(
         mut,
@@ -118,12 +117,12 @@ pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
             token::Transfer {
                 from: ctx.accounts.local_custody_token.to_account_info(),
                 to: ctx.accounts.token_router_custody_token.to_account_info(),
-                authority: ctx.accounts.router_endpoint.to_account_info(),
+                authority: ctx.accounts.path.from_endpoint.to_account_info(),
             },
             &[&[
                 RouterEndpoint::SEED_PREFIX,
-                &ctx.accounts.router_endpoint.chain.to_be_bytes(),
-                &[ctx.accounts.router_endpoint.bump],
+                &ctx.accounts.path.from_endpoint.chain.to_be_bytes(),
+                &[ctx.accounts.path.from_endpoint.bump],
             ]],
         ),
         fast_fill.amount(),

@@ -99,7 +99,8 @@ export type RedeemFastFillAccounts = {
     cctpMintRecipient: PublicKey;
     matchingEngineCustodian: PublicKey;
     matchingEngineRedeemedFastFill: PublicKey;
-    matchingEngineRouterEndpoint: PublicKey;
+    matchingEngineFromEndpoint: PublicKey;
+    matchingEngineToEndpoint: PublicKey;
     matchingEngineLocalCustodyToken: PublicKey;
     matchingEngineProgram: PublicKey;
 };
@@ -244,6 +245,65 @@ export class TokenRouterProgram {
         };
     }
 
+    checkedCustodianComposite(addr?: PublicKey): { custodian: PublicKey } {
+        return { custodian: addr ?? this.custodianAddress() };
+    }
+
+    adminComposite(
+        ownerOrAssistant: PublicKey,
+        custodian?: PublicKey,
+    ): { ownerOrAssistant: PublicKey; custodian: { custodian: PublicKey } } {
+        return { ownerOrAssistant, custodian: this.checkedCustodianComposite(custodian) };
+    }
+
+    adminMutComposite(
+        ownerOrAssistant: PublicKey,
+        custodian?: PublicKey,
+    ): { ownerOrAssistant: PublicKey; custodian: PublicKey } {
+        return { ownerOrAssistant, custodian: custodian ?? this.custodianAddress() };
+    }
+
+    ownerOnlyComposite(
+        owner: PublicKey,
+        custodian?: PublicKey,
+    ): { owner: PublicKey; custodian: { custodian: PublicKey } } {
+        return { owner, custodian: this.checkedCustodianComposite(custodian) };
+    }
+
+    ownerOnlyMutComposite(
+        owner: PublicKey,
+        custodian?: PublicKey,
+    ): { owner: PublicKey; custodian: PublicKey } {
+        return { owner, custodian: custodian ?? this.custodianAddress() };
+    }
+
+    liquidityLayerVaaComposite(vaa: PublicKey): { vaa: PublicKey } {
+        return {
+            vaa,
+        };
+    }
+
+    usdcComposite(mint?: PublicKey): { mint: PublicKey } {
+        return {
+            mint: mint ?? this.mint,
+        };
+    }
+
+    initIfNeededPreparedFillComposite(accounts: {
+        payer: PublicKey;
+        vaa: PublicKey;
+        preparedFill: PublicKey;
+    }) {
+        const { payer, vaa, preparedFill } = accounts;
+        return {
+            payer,
+            fillVaa: this.liquidityLayerVaaComposite(vaa),
+            preparedFill,
+            custodyToken: this.preparedCustodyTokenAddress(preparedFill),
+            usdc: this.usdcComposite(),
+        };
+    }
+
     async prepareMarketOrderIx(
         accounts: {
             payer: PublicKey;
@@ -339,7 +399,6 @@ export class TokenRouterProgram {
         return this.program.methods
             .consumePreparedFill()
             .accounts({
-                custodian: this.custodianAddress(),
                 redeemer,
                 rentRecipient,
                 preparedFill,
@@ -518,7 +577,6 @@ export class TokenRouterProgram {
         const { encodedCctpMessage } = args;
 
         const {
-            custodian,
             preparedFill,
             cctpMintRecipient,
             routerEndpoint,
@@ -540,27 +598,29 @@ export class TokenRouterProgram {
         return this.program.methods
             .redeemCctpFill(args)
             .accounts({
-                payer,
-                custodian,
-                vaa,
-                preparedFill,
-                cctpMintRecipient,
-                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
-                mint: this.mint,
+                custodian: this.checkedCustodianComposite(),
+                preparedFill: this.initIfNeededPreparedFillComposite({
+                    payer,
+                    vaa,
+                    preparedFill,
+                }),
                 routerEndpoint: inputRouterEndpoint ?? routerEndpoint,
-                messageTransmitterAuthority,
-                messageTransmitterConfig,
-                usedNonces,
-                messageTransmitterEventAuthority,
-                tokenMessenger,
-                remoteTokenMessenger,
-                tokenMinter,
-                localToken,
-                tokenPair,
-                tokenMessengerMinterCustodyToken,
-                tokenMessengerMinterEventAuthority,
-                tokenMessengerMinterProgram,
-                messageTransmitterProgram,
+                cctp: {
+                    mintRecipient: { mintRecipient: cctpMintRecipient },
+                    messageTransmitterAuthority,
+                    messageTransmitterConfig,
+                    usedNonces,
+                    messageTransmitterEventAuthority,
+                    tokenMessenger,
+                    remoteTokenMessenger,
+                    tokenMinter,
+                    localToken,
+                    tokenPair,
+                    tokenMessengerMinterCustodyToken,
+                    tokenMessengerMinterEventAuthority,
+                    tokenMessengerMinterProgram,
+                    messageTransmitterProgram,
+                },
             })
             .instruction();
     }
@@ -574,7 +634,8 @@ export class TokenRouterProgram {
             accounts: {
                 custodian: matchingEngineCustodian,
                 redeemedFastFill: matchingEngineRedeemedFastFill,
-                routerEndpoint: matchingEngineRouterEndpoint,
+                fromRouterEndpoint: matchingEngineFromEndpoint,
+                toRouterEndpoint: matchingEngineToEndpoint,
                 localCustodyToken: matchingEngineLocalCustodyToken,
                 matchingEngineProgram,
             },
@@ -586,23 +647,23 @@ export class TokenRouterProgram {
             cctpMintRecipient: this.cctpMintRecipientAddress(),
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
-            matchingEngineRouterEndpoint,
+            matchingEngineFromEndpoint,
+            matchingEngineToEndpoint,
             matchingEngineLocalCustodyToken,
             matchingEngineProgram,
         };
     }
-
     async redeemFastFillIx(accounts: {
         payer: PublicKey;
         vaa: PublicKey;
     }): Promise<TransactionInstruction> {
         const { payer, vaa } = accounts;
         const {
-            custodian,
             preparedFill,
             matchingEngineCustodian,
             matchingEngineRedeemedFastFill,
-            matchingEngineRouterEndpoint,
+            matchingEngineFromEndpoint,
+            matchingEngineToEndpoint,
             matchingEngineLocalCustodyToken,
             matchingEngineProgram,
         } = await this.redeemFastFillAccounts(vaa);
@@ -610,15 +671,16 @@ export class TokenRouterProgram {
         return this.program.methods
             .redeemFastFill()
             .accounts({
-                payer,
-                custodian: { custodian },
-                vaa,
-                preparedFill,
-                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
-                mint: this.mint,
+                custodian: this.checkedCustodianComposite(),
+                preparedFill: this.initIfNeededPreparedFillComposite({
+                    payer,
+                    vaa,
+                    preparedFill,
+                }),
                 matchingEngineCustodian,
                 matchingEngineRedeemedFastFill,
-                matchingEngineRouterEndpoint,
+                matchingEngineFromEndpoint,
+                matchingEngineToEndpoint,
                 matchingEngineLocalCustodyToken,
                 matchingEngineProgram,
             })
@@ -660,8 +722,7 @@ export class TokenRouterProgram {
         return this.program.methods
             .setPause(paused)
             .accounts({
-                ownerOrAssistant,
-                custodian: inputCustodian ?? this.custodianAddress(),
+                admin: this.adminMutComposite(ownerOrAssistant, inputCustodian),
             })
             .instruction();
     }
@@ -675,10 +736,7 @@ export class TokenRouterProgram {
         return this.program.methods
             .submitOwnershipTransferRequest()
             .accounts({
-                admin: {
-                    owner,
-                    custodian: inputCustodian ?? this.custodianAddress(),
-                },
+                admin: this.ownerOnlyMutComposite(owner, inputCustodian),
                 newOwner,
             })
             .instruction();
@@ -706,10 +764,7 @@ export class TokenRouterProgram {
         return this.program.methods
             .cancelOwnershipTransferRequest()
             .accounts({
-                admin: {
-                    owner,
-                    custodian: inputCustodian ?? this.custodianAddress(),
-                },
+                admin: this.ownerOnlyMutComposite(owner, inputCustodian),
             })
             .instruction();
     }
@@ -723,8 +778,7 @@ export class TokenRouterProgram {
         return this.program.methods
             .updateOwnerAssistant()
             .accounts({
-                owner,
-                custodian: inputCustodian ?? this.custodianAddress(),
+                admin: this.ownerOnlyMutComposite(owner, inputCustodian),
                 newOwnerAssistant,
             })
             .instruction();

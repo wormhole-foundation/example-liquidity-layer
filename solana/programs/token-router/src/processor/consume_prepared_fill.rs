@@ -1,22 +1,10 @@
-use crate::{
-    error::TokenRouterError,
-    state::{Custodian, PreparedFill},
-};
+use crate::{error::TokenRouterError, state::PreparedFill};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
 /// Accounts required for [consume_prepared_fill].
 #[derive(Accounts)]
 pub struct ConsumePreparedFill<'info> {
-    /// Custodian, but does not need to be deserialized.
-    ///
-    /// CHECK: Seeds must be \["emitter"\].
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-    )]
-    custodian: AccountInfo<'info>,
-
     /// This signer must be the same one encoded in the prepared fill.
     redeemer: Signer<'info>,
 
@@ -61,27 +49,38 @@ pub struct ConsumePreparedFill<'info> {
 
 /// TODO: add docstring
 pub fn consume_prepared_fill(ctx: Context<ConsumePreparedFill>) -> Result<()> {
+    let prepared_fill = &ctx.accounts.prepared_fill;
+
+    let prepared_fill_signer_seeds = &[
+        PreparedFill::SEED_PREFIX,
+        prepared_fill.vaa_hash.as_ref(),
+        &[prepared_fill.bump],
+    ];
+
+    let custody_token = &ctx.accounts.prepared_custody_token;
+    let token_program = &ctx.accounts.token_program;
+
     token::transfer(
         CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
+            token_program.to_account_info(),
             token::Transfer {
-                from: ctx.accounts.prepared_custody_token.to_account_info(),
+                from: custody_token.to_account_info(),
                 to: ctx.accounts.dst_token.to_account_info(),
-                authority: ctx.accounts.custodian.to_account_info(),
+                authority: prepared_fill.to_account_info(),
             },
-            &[Custodian::SIGNER_SEEDS],
+            &[prepared_fill_signer_seeds],
         ),
-        ctx.accounts.prepared_custody_token.amount,
+        custody_token.amount,
     )?;
 
     // Finally close token account.
     token::close_account(CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
+        token_program.to_account_info(),
         token::CloseAccount {
-            account: ctx.accounts.prepared_custody_token.to_account_info(),
+            account: custody_token.to_account_info(),
             destination: ctx.accounts.rent_recipient.to_account_info(),
-            authority: ctx.accounts.custodian.to_account_info(),
+            authority: prepared_fill.to_account_info(),
         },
-        &[Custodian::SIGNER_SEEDS],
+        &[prepared_fill_signer_seeds],
     ))
 }

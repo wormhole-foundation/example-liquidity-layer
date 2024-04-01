@@ -1159,7 +1159,7 @@ describe("Token Router", function () {
                     foreignEndpointAddress,
                     wormholeSequence++,
                     message,
-                    "polygon",
+                    { sourceChain: "polygon" },
                 );
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
