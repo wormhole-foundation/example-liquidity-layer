@@ -23,12 +23,14 @@ import {
     LiquidityLayerMessage,
     SlowOrderResponse,
     uint64ToBN,
+    uint64ToBigInt,
 } from "../src/common";
 import {
     Auction,
     AuctionConfig,
     AuctionHistory,
     AuctionParameters,
+    CctpMessageArgs,
     Custodian,
     MatchingEngineProgram,
     Proposal,
@@ -57,6 +59,8 @@ import {
     postLiquidityLayerVaa,
     waitUntilSlot,
 } from "./helpers";
+import { join } from "path";
+import { Cctp } from "../src/cctp/messages";
 
 chaiUse(chaiAsPromised);
 
@@ -2710,839 +2714,267 @@ describe("Matching Engine", function () {
             const localVariables = new Map<string, any>();
 
             it("Cannot Prepare Order Response with Emitter Chain Mismatch", async function () {
-                const redeemer = Keypair.generate();
-
-                const sourceCctpDomain = 0;
-                const cctpNonce = testCctpNonce++;
-                const amountIn = 690000n; // 69 cents
-
-                // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
-                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                    await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amountIn);
-
-                const fastMessage = new LiquidityLayerMessage({
-                    fastMarketOrder: {
-                        amountIn,
-                        minAmountOut: 0n,
-                        targetChain: wormholeSdk.CHAIN_ID_SOLANA as number,
-                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                        sender: new Array(32).fill(0),
-                        refundAddress: new Array(32).fill(0),
-                        maxFee: 42069n,
-                        initAuctionFee: 2000n,
-                        deadline: 2,
-                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                    },
+                const { fast, finalized } = await observeCctpOrderVaas({
+                    sourceChain: "ethereum",
+                    finalizedSourceChain: "arbitrum",
                 });
+                const fastEmitterInfo = fast.vaaAccount.emitterInfo();
+                const finalizedEmitterInfo = finalized!.vaaAccount.emitterInfo();
+                expect(fastEmitterInfo.chain).not.equals(finalizedEmitterInfo.chain);
 
-                const finalizedMessage = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: burnMessage.burnTokenAddress,
-                            amount: amountIn,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource,
-                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
-                        },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 420n,
-                            },
-                        },
-                    ),
-                });
-
-                const finalizedVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence++,
-                    finalizedMessage,
-                );
-                const fastVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence++,
-                    fastMessage,
-                    { sourceChain: "arbitrum" },
-                );
-
-                const ix = await engine.prepareOrderResponseCctpIx(
+                await prepareOrderResponseCctpForTest(
                     {
                         payer: payer.publicKey,
-                        fastVaa,
-                        finalizedVaa,
+                        fastVaa: fast.vaa,
+                        finalizedVaa: finalized!.vaa,
                     },
                     {
-                        encodedCctpMessage,
-                        cctpAttestation,
+                        args: finalized!.cctp,
+                        placeInitialOffer: false,
+                        errorMsg: "Error Code: VaaMismatch",
                     },
                 );
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
-                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
             });
 
             it("Cannot Prepare Order Response with Emitter Address Mismatch", async function () {
-                const redeemer = Keypair.generate();
-
-                const sourceCctpDomain = 0;
-                const cctpNonce = testCctpNonce++;
-                const amountIn = 690000n; // 69 cents
-
-                // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
-                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                    await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amountIn);
-
-                const fastMessage = new LiquidityLayerMessage({
-                    fastMarketOrder: {
-                        amountIn,
-                        minAmountOut: 0n,
-                        targetChain: wormholeSdk.CHAIN_ID_SOLANA as number,
-                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                        sender: new Array(32).fill(0),
-                        refundAddress: new Array(32).fill(0),
-                        maxFee: 42069n,
-                        initAuctionFee: 2000n,
-                        deadline: 2,
-                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                    },
+                const { fast, finalized } = await observeCctpOrderVaas({
+                    emitter: REGISTERED_TOKEN_ROUTERS["ethereum"]!,
+                    finalizedEmitter: REGISTERED_TOKEN_ROUTERS["arbitrum"]!,
                 });
+                const fastEmitterInfo = fast.vaaAccount.emitterInfo();
+                const finalizedEmitterInfo = finalized!.vaaAccount.emitterInfo();
+                expect(fastEmitterInfo.chain).equals(finalizedEmitterInfo.chain);
+                expect(fastEmitterInfo.address).not.eql(finalizedEmitterInfo.address);
 
-                const finalizedMessage = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: burnMessage.burnTokenAddress,
-                            amount: amountIn,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource,
-                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
-                        },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 420n,
-                            },
-                        },
-                    ),
-                });
-
-                const finalizedVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence++,
-                    finalizedMessage,
-                );
-                const fastVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    arbRouter,
-                    wormholeSequence++,
-                    fastMessage,
-                );
-
-                const ix = await engine.prepareOrderResponseCctpIx(
+                await prepareOrderResponseCctpForTest(
                     {
                         payer: payer.publicKey,
-                        fastVaa,
-                        finalizedVaa,
+                        fastVaa: fast.vaa,
+                        finalizedVaa: finalized!.vaa,
                     },
                     {
-                        encodedCctpMessage,
-                        cctpAttestation,
+                        args: finalized!.cctp,
+                        placeInitialOffer: false,
+                        errorMsg: "Error Code: VaaMismatch",
                     },
                 );
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
-                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
             });
 
             it("Cannot Prepare Order Response with Emitter Sequence Mismatch", async function () {
-                const redeemer = Keypair.generate();
-
-                const sourceCctpDomain = 0;
-                const cctpNonce = testCctpNonce++;
-                const amountIn = 690000n; // 69 cents
-
-                // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
-                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                    await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amountIn);
-
-                const fastMessage = new LiquidityLayerMessage({
-                    fastMarketOrder: {
-                        amountIn,
-                        minAmountOut: 0n,
-                        targetChain: wormholeSdk.CHAIN_ID_SOLANA as number,
-                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                        sender: new Array(32).fill(0),
-                        refundAddress: new Array(32).fill(0),
-                        maxFee: 42069n,
-                        initAuctionFee: 2000n,
-                        deadline: 2,
-                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                    },
+                const { fast, finalized } = await observeCctpOrderVaas({
+                    finalizedSequence: 69n,
                 });
+                const fastEmitterInfo = fast.vaaAccount.emitterInfo();
+                const finalizedEmitterInfo = finalized!.vaaAccount.emitterInfo();
+                expect(fastEmitterInfo.chain).equals(finalizedEmitterInfo.chain);
+                expect(fastEmitterInfo.address).to.eql(finalizedEmitterInfo.address);
+                expect(fastEmitterInfo.sequence).not.equals(finalizedEmitterInfo.sequence + 1n);
 
-                const finalizedMessage = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: burnMessage.burnTokenAddress,
-                            amount: amountIn,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource,
-                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
-                        },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 420n,
-                            },
-                        },
-                    ),
-                });
-
-                const finalizedVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence++,
-                    finalizedMessage,
-                );
-                const fastVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence + 2n,
-                    fastMessage,
-                );
-
-                const ix = await engine.prepareOrderResponseCctpIx(
+                await prepareOrderResponseCctpForTest(
                     {
                         payer: payer.publicKey,
-                        fastVaa,
-                        finalizedVaa,
+                        fastVaa: fast.vaa,
+                        finalizedVaa: finalized!.vaa,
                     },
                     {
-                        encodedCctpMessage,
-                        cctpAttestation,
+                        args: finalized!.cctp,
+                        placeInitialOffer: false,
+                        errorMsg: "Error Code: VaaMismatch",
                     },
                 );
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
-                await expectIxErr(connection, [computeIx, ix], [payer], "Error Code: VaaMismatch", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
             });
 
-            // TODO: Test timestamp mismatch
-            it.skip("Cannot Prepare Order Response with VAA Timestamp Mismatch", async function () {});
-
-            it("Prepare Order Response", async function () {
-                const redeemer = Keypair.generate();
-
-                const sourceCctpDomain = 0;
-                const cctpNonce = testCctpNonce++;
-                const amountIn = 690000n; // 69 cents
-
-                // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
-                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                    await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amountIn);
-
-                const fastMessage = new LiquidityLayerMessage({
-                    fastMarketOrder: {
-                        amountIn,
-                        minAmountOut: 0n,
-                        targetChain: wormholeSdk.CHAIN_ID_SOLANA as number,
-                        redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                        sender: new Array(32).fill(0),
-                        refundAddress: new Array(32).fill(0),
-                        maxFee: 42069n,
-                        initAuctionFee: 2000n,
-                        deadline: 2,
-                        redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                    },
+            it("Cannot Prepare Order Response with VAA Timestamp Mismatch", async function () {
+                const { fast, finalized } = await observeCctpOrderVaas({
+                    finalizedVaaTimestamp: 420,
                 });
+                const fastEmitterInfo = fast.vaaAccount.emitterInfo();
+                const finalizedEmitterInfo = finalized!.vaaAccount.emitterInfo();
+                expect(fastEmitterInfo.chain).equals(finalizedEmitterInfo.chain);
+                expect(fastEmitterInfo.address).to.eql(finalizedEmitterInfo.address);
+                expect(fastEmitterInfo.sequence).equals(finalizedEmitterInfo.sequence + 1n);
 
-                const finalizedMessage = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: burnMessage.burnTokenAddress,
-                            amount: amountIn,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource,
-                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
-                        },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 420n,
-                            },
-                        },
-                    ),
-                });
+                expect(fast.vaaAccount.timestamp()).not.equals(finalized!.vaaAccount.timestamp());
 
-                const vaaTime = await getBlockTime(connection);
-
-                const finalizedVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence++,
-                    finalizedMessage,
-                    { timestamp: vaaTime! },
-                );
-                const fastVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence++,
-                    fastMessage,
-                    { timestamp: vaaTime! },
-                );
-
-                const ix = await engine.prepareOrderResponseCctpIx(
+                await prepareOrderResponseCctpForTest(
                     {
                         payer: payer.publicKey,
-                        fastVaa,
-                        finalizedVaa,
+                        fastVaa: fast.vaa,
+                        finalizedVaa: finalized!.vaa,
                     },
                     {
-                        encodedCctpMessage,
-                        cctpAttestation,
+                        args: finalized!.cctp,
+                        placeInitialOffer: false,
+                        errorMsg: "Error Code: VaaMismatch",
                     },
                 );
+            });
 
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
+            it("Prepare Order Response", async function () {
+                const result = await prepareOrderResponseCctpForTest(
+                    {
+                        payer: payer.publicKey,
+                    },
+                    {
+                        placeInitialOffer: false,
+                    },
                 );
-                await expectIxOk(connection, [computeIx, ix], [payer], {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
-
-                // TODO: validate prepared slow order
-                const fastVaaHash = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
-                    vaa.digest(),
-                );
-                const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaHash);
-
-                const preparedOrderResponseData = await engine.fetchPreparedOrderResponse({
-                    address: preparedOrderResponse,
-                });
-                const { bump } = preparedOrderResponseData;
-
-                expect(preparedOrderResponseData).to.eql({
-                    bump,
-                    preparedBy: payer.publicKey,
-                    fastVaaHash: Array.from(fastVaaHash),
-                    sourceChain: ethChain,
-                    baseFee: bigintToU64BN(
-                        finalizedMessage.deposit!.message.slowOrderResponse!.baseFee,
-                    ),
-                });
-
-                const { amount: preparedCustodyBalance } = await splToken.getAccount(
-                    connection,
-                    engine.preparedCustodyTokenAddress(preparedOrderResponse),
-                );
-                expect(preparedCustodyBalance).equals(fastMessage.fastMarketOrder!.amountIn);
-
-                const { amount: cctpMintRecipientBalance } = await splToken.getAccount(
-                    connection,
-                    engine.cctpMintRecipientAddress(),
-                );
-                expect(cctpMintRecipientBalance).equals(0n);
+                const { fastVaa, finalizedVaa, args } = result!;
 
                 // Save for later.
-                localVariables.set("ix", ix);
-                localVariables.set("preparedOrderResponse", preparedOrderResponse);
+                localVariables.set("fastVaa", fastVaa);
+                localVariables.set("finalizedVaa", finalizedVaa);
+                localVariables.set("args", args);
             });
 
             it("Prepare Order Response for Same VAAs is No-op", async function () {
-                const ix = localVariables.get("ix") as TransactionInstruction;
-                expect(localVariables.delete("ix")).is.true;
+                const fastVaa = localVariables.get("fastVaa") as PublicKey;
+                expect(localVariables.delete("fastVaa")).is.true;
 
-                const preparedOrderResponse = localVariables.get(
-                    "preparedOrderResponse",
-                ) as PublicKey;
-                expect(localVariables.delete("preparedOrderResponse")).is.true;
+                const finalizedVaa = localVariables.get("finalizedVaa") as PublicKey;
+                expect(localVariables.delete("finalizedVaa")).is.true;
 
-                const preparedOrderResponseDataBefore = await engine.fetchPreparedOrderResponse({
-                    address: preparedOrderResponse,
-                });
+                const args = localVariables.get("args") as CctpMessageArgs;
+                expect(localVariables.delete("args")).is.true;
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
-                await expectIxOk(connection, [ix], [payer], {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
-
-                const preparedOrderResponseDataAfter = await engine.fetchPreparedOrderResponse({
-                    address: preparedOrderResponse,
-                });
-                expect(preparedOrderResponseDataAfter).to.eql(preparedOrderResponseDataBefore);
-            });
-
-            it("Prepare Order Response for Active Auction", async function () {
-                const redeemer = Keypair.generate();
-
-                const sourceCctpDomain = 0;
-                const cctpNonce = testCctpNonce++;
-                const amountIn = 690000n; // 69 cents
-
-                // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
-                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                    await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amountIn);
-
-                const fastMarketOrder = {
-                    amountIn,
-                    minAmountOut: 0n,
-                    targetChain: arbChain,
-                    redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                    sender: new Array(32).fill(0),
-                    refundAddress: new Array(32).fill(0),
-                    maxFee: 42069n,
-                    initAuctionFee: 2000n,
-                    deadline: 0,
-                    redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                };
-
-                const finalizedMessage = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: burnMessage.burnTokenAddress,
-                            amount: amountIn,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource,
-                            mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
-                        },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 420n,
-                            },
-                        },
-                    ),
-                });
-
-                const vaaTimestamp = await getBlockTime(connection);
-
-                const finalizedVaa = await postLiquidityLayerVaa(
-                    connection,
-                    payer,
-                    MOCK_GUARDIANS,
-                    ethRouter,
-                    wormholeSequence++,
-                    finalizedMessage,
-                    { timestamp: vaaTimestamp! },
-                );
-
-                const { fastVaa, auction } = await placeInitialOfferForTest(
-                    playerOne,
-                    fastMarketOrder,
-                    { offerPrice: fastMarketOrder.maxFee, vaaTimestamp },
-                );
-
-                const ix = await engine.prepareOrderResponseCctpIx(
+                await prepareOrderResponseCctpForTest(
                     {
                         payer: payer.publicKey,
                         fastVaa,
                         finalizedVaa,
                     },
                     {
-                        encodedCctpMessage,
-                        cctpAttestation,
+                        args,
+                        placeInitialOffer: false,
+                        alreadyPrepared: true,
                     },
                 );
+            });
 
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
+            it("Prepare Order Response for Active Auction", async function () {
+                await prepareOrderResponseCctpForTest(
+                    {
+                        payer: payer.publicKey,
+                    },
+                    {
+                        executeOrder: false,
+                    },
                 );
-                await expectIxOk(connection, [computeIx, ix], [payer], {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
+            });
 
-                // TODO: validate prepared slow order
-                const fastVaaHash = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
-                    vaa.digest(),
+            it("Prepare Order Response for Completed Auction Within Grace Period", async function () {
+                await prepareOrderResponseCctpForTest(
+                    {
+                        payer: payer.publicKey,
+                    },
+                    {
+                        executeWithinGracePeriod: true,
+                    },
                 );
-                const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaHash);
+            });
 
-                const preparedOrderResponseData = await engine.fetchPreparedOrderResponse({
-                    address: preparedOrderResponse,
-                });
-                const { bump } = preparedOrderResponseData;
-
-                expect(preparedOrderResponseData).to.eql({
-                    bump,
-                    preparedBy: payer.publicKey,
-                    fastVaaHash: Array.from(fastVaaHash),
-                    sourceChain: ethChain,
-                    baseFee: bigintToU64BN(
-                        finalizedMessage.deposit!.message.slowOrderResponse!.baseFee,
-                    ),
-                });
-
-                const { amount: preparedCustodyBalance } = await splToken.getAccount(
-                    connection,
-                    engine.preparedCustodyTokenAddress(preparedOrderResponse),
+            it("Prepare Order Response for Completed Auction After Grace Period", async function () {
+                await prepareOrderResponseCctpForTest(
+                    {
+                        payer: payer.publicKey,
+                    },
+                    {
+                        executeWithinGracePeriod: false,
+                    },
                 );
-                expect(preparedCustodyBalance).equals(fastMarketOrder.amountIn);
-
-                const { amount: cctpMintRecipientBalance } = await splToken.getAccount(
-                    connection,
-                    engine.cctpMintRecipientAddress(),
-                );
-                expect(cctpMintRecipientBalance).equals(0n);
             });
         });
 
         describe("Settle Auction", function () {
             describe("Auction Complete", function () {
+                it("Cannot Settle Non-Existent Auction", async function () {
+                    const result = await prepareOrderResponseCctpForTest(
+                        {
+                            payer: payer.publicKey,
+                        },
+                        {
+                            placeInitialOffer: false,
+                        },
+                    );
+                    const fastVaaAccount = await VaaAccount.fetch(connection, result!.fastVaa);
+
+                    await settleAuctionCompleteForTest(
+                        {
+                            executor: payer.publicKey,
+                            preparedOrderResponse: result!.preparedOrderResponse,
+                            auction: engine.auctionAddress(fastVaaAccount.digest()),
+                            bestOfferToken: splToken.getAssociatedTokenAddressSync(
+                                USDC_MINT_ADDRESS,
+                                payer.publicKey,
+                            ),
+                        },
+                        {
+                            placeInitialOffer: false,
+                            errorMsg: "auction. Error Code: AccountNotInitialized",
+                        },
+                    );
+                });
+
                 it("Cannot Settle Active Auction", async function () {
-                    const { preparedOrderResponse, auction } = await prepareOrderResponse({
-                        initAuction: true,
-                        executeOrder: false,
-                        prepareOrderResponse: true,
-                    });
-
-                    const ix = await engine.settleAuctionCompleteIx({
-                        executor: payer.publicKey,
-                        preparedOrderResponse,
-                        auction,
-                    });
-
-                    await expectIxErr(connection, [ix], [payer], "Error Code: AuctionNotCompleted");
+                    await settleAuctionCompleteForTest(
+                        {
+                            executor: payer.publicKey,
+                        },
+                        {
+                            executeOrder: false,
+                            errorMsg: "Error Code: AuctionNotCompleted",
+                        },
+                    );
                 });
 
                 it("Cannot Settle Completed Auction with No Penalty (Executor != Best Offer)", async function () {
-                    const { preparedOrderResponse, auction } = await prepareOrderResponse({
-                        initAuction: true,
-                        executeOrder: true,
-                        prepareOrderResponse: true,
-                    });
-                    const { status: statusBefore } = await engine.fetchAuction({
-                        address: auction,
-                    });
-                    expect(statusBefore.completed!.executePenalty).is.null;
-
-                    const ix = await engine.settleAuctionCompleteIx({
-                        executor: payer.publicKey,
-                        preparedOrderResponse,
-                        auction,
-                    });
-
-                    await expectIxErr(
-                        connection,
-                        [ix],
-                        [payer],
-                        "Error Code: ExecutorTokenMismatch",
+                    await settleAuctionCompleteForTest(
+                        {
+                            executor: payer.publicKey,
+                        },
+                        {
+                            executeWithinGracePeriod: true,
+                            errorMsg: "Error Code: ExecutorTokenMismatch",
+                        },
                     );
                 });
 
                 it("Settle Completed without Penalty", async function () {
-                    const { baseFee, preparedOrderResponse, auction } = await prepareOrderResponse({
-                        initAuction: true,
-                        executeOrder: true,
-                        prepareOrderResponse: true,
-                    });
-
-                    const preparedCustodyToken =
-                        engine.preparedCustodyTokenAddress(preparedOrderResponse);
-
-                    const { amount: preparedCustodyBalanceBefore } = await splToken.getAccount(
-                        connection,
-                        preparedCustodyToken,
-                    );
-
-                    const { info, status: statusBefore } = await engine.fetchAuction({
-                        address: auction,
-                    });
-                    expect(statusBefore.completed!.executePenalty).is.null;
-
-                    const { bestOfferToken } = info!;
-                    const { owner: bestOfferAuthority, amount: bestOfferTokenBalanceBefore } =
-                        await splToken.getAccount(connection, bestOfferToken);
-
-                    const authorityLamportsBefore = await connection.getBalance(bestOfferAuthority);
-
-                    const preparedOrderLamports = await connection
-                        .getAccountInfo(preparedOrderResponse)
-                        .then((info) => info!.lamports);
-                    const preparedCustodyLamports = await connection
-                        .getAccountInfo(preparedCustodyToken)
-                        .then((info) => info!.lamports);
-
-                    const ix = await engine.settleAuctionCompleteIx({
-                        executor: bestOfferAuthority,
-                        preparedOrderResponse,
-                    });
-
-                    await expectIxOk(connection, [ix], [payer]);
-
-                    const preparedCustodyInfo = await connection.getAccountInfo(
-                        preparedCustodyToken,
-                    );
-                    expect(preparedCustodyInfo).is.null;
-                    const preparedOrderResponseInfo = await connection.getAccountInfo(
-                        preparedOrderResponse,
-                    );
-                    expect(preparedOrderResponseInfo).is.null;
-
-                    const { amount: bestOfferTokenBalanceAfter } = await splToken.getAccount(
-                        connection,
-                        bestOfferToken,
-                    );
-                    expect(bestOfferTokenBalanceAfter).equals(
-                        preparedCustodyBalanceBefore + bestOfferTokenBalanceBefore,
-                    );
-
-                    const authorityLamportsAfter = await connection.getBalance(bestOfferAuthority);
-                    expect(authorityLamportsAfter).equals(
-                        authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
-                    );
-
-                    const { status: statusAfter } = await engine.fetchAuction({
-                        address: auction,
-                    });
-                    expect(statusAfter).to.eql({
-                        settled: {
-                            baseFee: bigintToU64BN(baseFee),
-                            totalPenalty: null,
+                    await settleAuctionCompleteForTest(
+                        {
+                            executor: playerOne.publicKey,
                         },
-                    });
+                        {
+                            executeWithinGracePeriod: true,
+                        },
+                    );
                 });
 
                 it("Settle Completed With Order Response Prepared During Active Auction", async function () {
-                    // Prepare the order response, but don't execute the order yet.
-                    const { baseFee, preparedOrderResponse, auction, fastVaa } =
-                        await prepareOrderResponse({
-                            initAuction: true,
-                            executeOrder: false,
-                            prepareOrderResponse: true,
-                        });
-
-                    // Now execute the fast order.
-                    {
-                        const { info } = await engine.fetchAuction({ address: auction });
-                        if (info === null) {
-                            throw new Error("No auction info found");
-                        }
-                        const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
-                        const auctionConfig = engine.auctionConfigAddress(configId);
-                        const { duration, gracePeriod } = await engine.fetchAuctionParameters(
-                            configId,
-                        );
-                        const endSlot = startSlot.addn(duration + gracePeriod - 1).toNumber();
-
-                        await waitUntilSlot(connection, endSlot);
-
-                        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                            units: 300_000,
-                        });
-                        const ix = await engine.executeFastOrderCctpIx({
-                            payer: payer.publicKey,
-                            fastVaa,
-                            auction,
-                            auctionConfig,
-                            bestOfferToken,
-                            initialOfferToken,
-                        });
-                        await expectIxOk(connection, [computeIx, ix], [payer]);
-                    }
-
-                    const preparedCustodyToken =
-                        engine.preparedCustodyTokenAddress(preparedOrderResponse);
-
-                    const { amount: preparedCustodyBalanceBefore } = await splToken.getAccount(
-                        connection,
-                        preparedCustodyToken,
-                    );
-
-                    const { info, status: statusBefore } = await engine.fetchAuction({
-                        address: auction,
-                    });
-                    expect(statusBefore.completed!.executePenalty).is.null;
-
-                    const { bestOfferToken } = info!;
-                    const { owner: bestOfferAuthority, amount: bestOfferTokenBalanceBefore } =
-                        await splToken.getAccount(connection, bestOfferToken);
-
-                    const authorityLamportsBefore = await connection.getBalance(bestOfferAuthority);
-
-                    const preparedOrderLamports = await connection
-                        .getAccountInfo(preparedOrderResponse)
-                        .then((info) => info!.lamports);
-                    const preparedCustodyLamports = await connection
-                        .getAccountInfo(preparedCustodyToken)
-                        .then((info) => info!.lamports);
-
-                    const ix = await engine.settleAuctionCompleteIx({
-                        executor: bestOfferAuthority,
-                        preparedOrderResponse,
-                    });
-
-                    await expectIxOk(connection, [ix], [payer]);
-
-                    const preparedCustodyInfo = await connection.getAccountInfo(
-                        preparedCustodyToken,
-                    );
-                    expect(preparedCustodyInfo).is.null;
-                    const preparedOrderResponseInfo = await connection.getAccountInfo(
-                        preparedOrderResponse,
-                    );
-                    expect(preparedOrderResponseInfo).is.null;
-
-                    const { amount: bestOfferTokenBalanceAfter } = await splToken.getAccount(
-                        connection,
-                        bestOfferToken,
-                    );
-                    expect(bestOfferTokenBalanceAfter).equals(
-                        preparedCustodyBalanceBefore + bestOfferTokenBalanceBefore,
-                    );
-
-                    const authorityLamportsAfter = await connection.getBalance(bestOfferAuthority);
-                    expect(authorityLamportsAfter).equals(
-                        authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
-                    );
-
-                    const { status: statusAfter } = await engine.fetchAuction({
-                        address: auction,
-                    });
-                    expect(statusAfter).to.eql({
-                        settled: {
-                            baseFee: bigintToU64BN(baseFee),
-                            totalPenalty: null,
+                    await settleAuctionCompleteForTest(
+                        {
+                            executor: playerOne.publicKey,
                         },
-                    });
+                        {
+                            executeWithinGracePeriod: true,
+                            prepareAfterExecuteOrder: false,
+                        },
+                    );
                 });
 
-                it("Settle Completed with Penalty", async function () {
-                    const { baseFee, preparedOrderResponse, auction } = await prepareOrderResponse({
-                        initAuction: true,
-                        executeOrder: true,
-                        prepareOrderResponse: true,
-                        executeLate: true,
-                    });
-
-                    const preparedCustodyToken =
-                        engine.preparedCustodyTokenAddress(preparedOrderResponse);
-
-                    const { amount: preparedCustodyBalanceBefore } = await splToken.getAccount(
-                        connection,
-                        preparedCustodyToken,
-                    );
-
-                    const { info, status: statusBefore } = await engine.fetchAuction({
-                        address: auction,
-                    });
-                    const executePenalty = statusBefore.completed!.executePenalty;
-                    expect(executePenalty).is.not.null;
-
-                    const { bestOfferToken } = info!;
-                    const { owner: bestOfferAuthority, amount: bestOfferTokenBalanceBefore } =
-                        await splToken.getAccount(connection, bestOfferToken);
-
-                    const authorityLamportsBefore = await connection.getBalance(bestOfferAuthority);
-
-                    const preparedOrderLamports = await connection
-                        .getAccountInfo(preparedOrderResponse)
-                        .then((info) => info!.lamports);
-                    const preparedCustodyLamports = await connection
-                        .getAccountInfo(preparedCustodyToken)
-                        .then((info) => info!.lamports);
-
-                    const ix = await engine.settleAuctionCompleteIx({
-                        executor: bestOfferAuthority,
-                        preparedOrderResponse,
-                    });
-
-                    await expectIxOk(connection, [ix], [payer]);
-
-                    const preparedCustodyInfo = await connection.getAccountInfo(
-                        preparedCustodyToken,
-                    );
-                    expect(preparedCustodyInfo).is.null;
-                    const preparedOrderResponseInfo = await connection.getAccountInfo(
-                        preparedOrderResponse,
-                    );
-                    expect(preparedOrderResponseInfo).is.null;
-
-                    const { amount: bestOfferTokenBalanceAfter } = await splToken.getAccount(
-                        connection,
-                        bestOfferToken,
-                    );
-                    expect(bestOfferTokenBalanceAfter).equals(
-                        preparedCustodyBalanceBefore + bestOfferTokenBalanceBefore,
-                    );
-
-                    const authorityLamportsAfter = await connection.getBalance(bestOfferAuthority);
-                    expect(authorityLamportsAfter).equals(
-                        authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
-                    );
-
-                    const { status: statusAfter } = await engine.fetchAuction({
-                        address: auction,
-                    });
-                    expect(statusAfter).to.eql({
-                        settled: {
-                            baseFee: bigintToU64BN(baseFee),
-                            totalPenalty: bigintToU64BN(
-                                BigInt(executePenalty!.toString()) + baseFee,
-                            ),
+                it("Settle Completed with Penalty (Executor == Best Offer)", async function () {
+                    await settleAuctionCompleteForTest(
+                        {
+                            executor: playerOne.publicKey,
                         },
-                    });
+                        {
+                            executeWithinGracePeriod: false,
+                        },
+                    );
+                });
+
+                it.skip("Settle Completed with Penalty (Executor != Best Offer)", async function () {
+                    // TODO
                 });
             });
 
@@ -3550,16 +2982,25 @@ describe("Matching Engine", function () {
                 const localVariables = new Map<string, any>();
 
                 it("Settle", async function () {
-                    const { fastVaa, fastVaaAccount, finalizedVaaAccount, preparedOrderResponse } =
-                        await prepareOrderResponse({
-                            initAuction: false,
+                    const { fast, finalized } = await observeCctpOrderVaas();
+
+                    const result = await prepareOrderResponseCctpForTest(
+                        {
+                            payer: payer.publicKey,
+                            fastVaa: fast.vaa,
+                            finalizedVaa: finalized!.vaa,
+                        },
+                        {
+                            args: finalized!.cctp,
+                            placeInitialOffer: false,
                             executeOrder: false,
-                            prepareOrderResponse: true,
-                        });
+                        },
+                    );
+                    const { preparedOrderResponse } = result!;
 
                     const settleIx = await engine.settleAuctionNoneCctpIx({
                         payer: payer.publicKey,
-                        fastVaa,
+                        fastVaa: fast.vaa,
                         preparedOrderResponse,
                     });
 
@@ -3580,7 +3021,7 @@ describe("Matching Engine", function () {
 
                     await expectIxOk(connection, [computeIx, settleIx], [payer]);
 
-                    const deposit = LiquidityLayerMessage.decode(finalizedVaaAccount.payload())
+                    const deposit = LiquidityLayerMessage.decode(finalized!.vaaAccount.payload())
                         .deposit!;
 
                     const { baseFee } = deposit.message.slowOrderResponse!;
@@ -3602,7 +3043,7 @@ describe("Matching Engine", function () {
                         await engine.fetchCctpMintRecipient();
                     expect(cctpMintRecipientBalance).equals(0n);
 
-                    const fastVaaHash = fastVaaAccount.digest();
+                    const fastVaaHash = fast.vaaAccount.digest();
                     const auctionData = await engine.fetchAuction(fastVaaHash);
                     const { bump, info } = auctionData;
                     expect(info).is.null;
@@ -3729,6 +3170,7 @@ describe("Matching Engine", function () {
             sourceChain,
             vaaTimestamp,
             fastMarketOrder,
+            finalized: false,
         });
         offerPrice = offerPrice ?? fastMarketOrder.maxFee;
 
@@ -3842,180 +3284,377 @@ describe("Matching Engine", function () {
         };
     }
 
-    async function prepareOrderResponse(args: {
-        initAuction: boolean;
-        executeOrder: boolean;
-        prepareOrderResponse: boolean;
-        executeLate?: boolean;
-    }) {
-        const baseFee = 420n;
+    type ForTestOpts = {
+        signers?: Signer[];
+        errorMsg?: string | null;
+    };
 
-        const {
-            initAuction,
-            executeOrder,
-            prepareOrderResponse,
-            executeLate: inputExecuteLate,
-        } = args;
+    function setDefaultForTestOpts<T extends ForTestOpts>(
+        opts: T,
+    ): [{ signers: Signer[]; errorMsg: string | null }, Omit<T, keyof ForTestOpts>] {
+        let { signers, errorMsg } = opts;
+        signers ??= [payer];
+        delete opts.signers;
 
-        const executeLate = inputExecuteLate ?? false;
+        errorMsg ??= null;
+        delete opts.errorMsg;
 
-        const redeemer = Keypair.generate();
-        const sourceCctpDomain = 0;
-        const cctpNonce = testCctpNonce++;
-        const amountIn = 690000n; // 69 cents
+        return [{ signers, errorMsg }, { ...opts }];
+    }
 
-        // Concoct a Circle message.
-        const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
-        const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-            await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amountIn);
+    type PrepareOrderResponseForTestOptionalOpts = {
+        args?: CctpMessageArgs;
+        placeInitialOffer?: boolean;
+        numImproveOffer?: number;
+        executeOrder?: boolean;
+        executeWithinGracePeriod?: boolean;
+        prepareAfterExecuteOrder?: boolean;
+        instructionOnly?: boolean;
+        alreadyPrepared?: boolean;
+    };
 
-        const maxFee = 42069n;
-        const currTime = await connection.getBlockTime(await connection.getSlot());
-        const fastMessage = new LiquidityLayerMessage({
-            fastMarketOrder: {
-                amountIn,
-                minAmountOut: 0n,
-                targetChain: arbChain,
-                redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                sender: new Array(32).fill(0),
-                refundAddress: new Array(32).fill(0),
-                maxFee,
-                initAuctionFee: 2000n,
-                deadline: currTime! + 2,
-                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+    async function prepareOrderResponseCctpForTest(
+        accounts: {
+            payer: PublicKey;
+            fastVaa?: PublicKey;
+            finalizedVaa?: PublicKey;
+        },
+        opts: ForTestOpts & ObserveCctpOrderVaasOpts & PrepareOrderResponseForTestOptionalOpts = {},
+    ): Promise<void | {
+        fastVaa: PublicKey;
+        finalizedVaa: PublicKey;
+        args: CctpMessageArgs;
+        preparedOrderResponse: PublicKey;
+        prepareOrderResponseInstruction?: TransactionInstruction;
+    }> {
+        let [
+            { signers, errorMsg },
+            {
+                args,
+                placeInitialOffer,
+                numImproveOffer,
+                executeOrder,
+                executeWithinGracePeriod,
+                prepareAfterExecuteOrder,
+                instructionOnly,
+                alreadyPrepared,
             },
-        });
+        ] = setDefaultForTestOpts(opts);
+        placeInitialOffer ??= true;
+        numImproveOffer ??= 0;
+        executeOrder ??= placeInitialOffer;
+        executeWithinGracePeriod ??= true;
+        prepareAfterExecuteOrder ??= true;
+        instructionOnly ??= false;
+        alreadyPrepared ??= false;
 
-        const finalizedMessage = new LiquidityLayerMessage({
-            deposit: new LiquidityLayerDeposit(
-                {
-                    tokenAddress: burnMessage.burnTokenAddress,
-                    amount: amountIn,
-                    sourceCctpDomain,
-                    destinationCctpDomain,
-                    cctpNonce,
-                    burnSource,
-                    mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
-                },
-                {
-                    slowOrderResponse: {
-                        baseFee,
-                    },
-                },
-            ),
-        });
+        const { fastVaa, finalizedVaa } = await (async () => {
+            const { fastVaa, finalizedVaa } = accounts;
 
-        const vaaTimestamp = await getBlockTime(connection);
-        const finalizedVaa = await postLiquidityLayerVaa(
-            connection,
-            payer,
-            MOCK_GUARDIANS,
-            ethRouter,
-            wormholeSequence++,
-            finalizedMessage,
-            { timestamp: vaaTimestamp! },
-        );
-        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
+            if (fastVaa !== undefined && finalizedVaa !== undefined && args !== undefined) {
+                return {
+                    fastVaa,
+                    finalizedVaa,
+                };
+            } else if (fastVaa === undefined && finalizedVaa === undefined) {
+                const { fast, finalized } = await observeCctpOrderVaas(opts);
+                args ??= finalized!.cctp;
 
-        const fastVaa = await postLiquidityLayerVaa(
-            connection,
-            payer,
-            MOCK_GUARDIANS,
-            ethRouter,
-            wormholeSequence++,
-            fastMessage,
-            { timestamp: vaaTimestamp! },
-        );
+                return {
+                    fastVaa: fast.vaa,
+                    finalizedVaa: finalized!.vaa,
+                };
+            } else {
+                throw new Error(
+                    "either all of fastVaa, finalizedVaa and args must be provided or neither",
+                );
+            }
+        })();
+
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
 
-        const prepareIx = await engine.prepareOrderResponseCctpIx(
+        const placeAndExecute = async () => {
+            if (placeInitialOffer) {
+                // Require that fast VAA is a fast market order before we can do this.
+                const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+                expect(fastMarketOrder).is.not.undefined;
+
+                // TODO: replace with placeInitialOfferForTest
+                const ixs = await engine.placeInitialOfferIx(
+                    {
+                        payer: playerOne.publicKey,
+                        fastVaa,
+                    },
+                    fastMarketOrder!.maxFee,
+                );
+                await expectIxOk(connection, ixs, [playerOne]);
+
+                if (executeOrder) {
+                    // TODO: replace with executeOfferForTest
+                    const auction = engine.auctionAddress(fastVaaAccount.digest());
+                    const { info } = await engine.fetchAuction({ address: auction });
+                    if (info === null) {
+                        throw new Error("No auction info found");
+                    }
+                    const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
+                    const auctionConfig = engine.auctionConfigAddress(configId);
+                    const { duration, gracePeriod, penaltyPeriod } =
+                        await engine.fetchAuctionParameters(configId);
+
+                    const endSlot = (() => {
+                        if (executeWithinGracePeriod) {
+                            return startSlot.addn(duration + gracePeriod - 1).toNumber();
+                        } else {
+                            return startSlot
+                                .addn(duration + gracePeriod + penaltyPeriod - 1)
+                                .toNumber();
+                        }
+                    })();
+
+                    await waitUntilSlot(connection, endSlot);
+
+                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                        units: 300_000,
+                    });
+                    const ix = await engine.executeFastOrderCctpIx({
+                        payer: accounts.payer,
+                        fastVaa,
+                        auction,
+                        auctionConfig,
+                        bestOfferToken,
+                        initialOfferToken,
+                    });
+                    await expectIxOk(connection, [computeIx, ix], [payer]);
+                }
+            }
+        };
+
+        if (prepareAfterExecuteOrder) {
+            await placeAndExecute();
+        }
+
+        const ix = await engine.prepareOrderResponseCctpIx(
             {
-                payer: payer.publicKey,
+                payer: accounts.payer,
                 fastVaa,
                 finalizedVaa,
             },
-            {
-                encodedCctpMessage,
-                cctpAttestation,
-            },
+            args!,
         );
 
-        const fastVaaHash = fastVaaAccount.digest();
-        const preparedBy = payer.publicKey;
-        const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaHash);
-        const auction = engine.auctionAddress(fastVaaHash);
-
-        if (initAuction) {
-            const [approveIx, ix] = await engine.placeInitialOfferIx(
-                {
-                    payer: playerOne.publicKey,
-                    fastVaa,
-                },
-                maxFee,
-            );
-            await expectIxOk(connection, [approveIx, ix], [playerOne]);
-
-            if (executeOrder) {
-                const { info } = await engine.fetchAuction({ address: auction });
-                if (info === null) {
-                    throw new Error("No auction info found");
-                }
-                const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
-                const auctionConfig = engine.auctionConfigAddress(configId);
-                const { duration, gracePeriod, penaltyPeriod } =
-                    await engine.fetchAuctionParameters(configId);
-
-                const endSlot = (() => {
-                    if (executeLate) {
-                        return startSlot
-                            .addn(duration + gracePeriod + penaltyPeriod - 1)
-                            .toNumber();
-                    } else {
-                        return startSlot.addn(duration + gracePeriod - 1).toNumber();
-                    }
-                })();
-
-                await waitUntilSlot(connection, endSlot);
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-                const ix = await engine.executeFastOrderCctpIx({
-                    payer: payer.publicKey,
-                    fastVaa,
-                    auction,
-                    auctionConfig,
-                    bestOfferToken,
-                    initialOfferToken,
-                });
-                await expectIxOk(connection, [computeIx, ix], [payer]);
-            }
+        if (errorMsg !== null) {
+            expect(instructionOnly).is.false;
+            return expectIxErr(connection, [ix], signers, errorMsg);
         }
 
-        if (prepareOrderResponse) {
-            const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                units: 300_000,
-            });
-            const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                lookupTableAddress,
+        const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaAccount.digest());
+        const preparedOrderResponseBefore = await (async () => {
+            if (alreadyPrepared) {
+                return engine.fetchPreparedOrderResponse({ address: preparedOrderResponse });
+            } else {
+                const accInfo = await connection.getAccountInfo(preparedOrderResponse);
+                expect(accInfo).is.null;
+                return null;
+            }
+        })();
+
+        if (instructionOnly) {
+            return {
+                fastVaa,
+                finalizedVaa,
+                args: args!,
+                preparedOrderResponse,
+                prepareOrderResponseInstruction: ix,
+            };
+        }
+
+        const preparedCustodyToken = engine.preparedCustodyTokenAddress(preparedOrderResponse);
+        {
+            const accInfo = await connection.getAccountInfo(preparedCustodyToken);
+            expect(accInfo !== null).equals(alreadyPrepared);
+        }
+
+        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+            units: 270_000,
+        });
+        const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+            lookupTableAddress,
+        );
+        await expectIxOk(connection, [computeIx, ix], signers, {
+            addressLookupTableAccounts: [lookupTableAccount!],
+        });
+
+        if (!prepareAfterExecuteOrder) {
+            await placeAndExecute();
+        }
+
+        const preparedOrderResponseData = await engine.fetchPreparedOrderResponse({
+            address: preparedOrderResponse,
+        });
+        const { bump } = preparedOrderResponseData;
+
+        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
+        const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
+        expect(preparedOrderResponseData).to.eql({
+            bump,
+            fastVaaHash: Array.from(fastVaaAccount.digest()),
+            preparedBy: accounts.payer,
+            sourceChain: fastVaaAccount.emitterInfo().chain,
+            baseFee: uint64ToBN(deposit!.message.slowOrderResponse!.baseFee),
+        });
+        if (preparedOrderResponseBefore) {
+            expect(preparedOrderResponseData).to.eql(preparedOrderResponseBefore);
+        }
+
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+        expect(fastMarketOrder).is.not.undefined;
+
+        {
+            const { amount } = await splToken.getAccount(connection, preparedCustodyToken);
+            expect(amount).equals(fastMarketOrder!.amountIn);
+        }
+
+        {
+            const { amount } = await splToken.getAccount(
+                connection,
+                engine.cctpMintRecipientAddress(),
             );
-            await expectIxOk(connection, [computeIx, prepareIx], [payer], {
-                addressLookupTableAccounts: [lookupTableAccount!],
-            });
+            expect(amount).equals(0n);
         }
 
         return {
-            baseFee,
-            fastMessage,
             fastVaa,
-            fastVaaAccount,
             finalizedVaa,
-            finalizedVaaAccount,
-            prepareIx: prepareOrderResponse ? null : prepareIx,
+            args: args!,
             preparedOrderResponse,
-            auction,
-            preparedBy,
         };
+    }
+
+    async function settleAuctionCompleteForTest(
+        accounts: {
+            executor: PublicKey;
+            preparedOrderResponse?: PublicKey;
+            auction?: PublicKey;
+            bestOfferToken?: PublicKey;
+        },
+        opts: ForTestOpts &
+            PrepareOrderResponseForTestOptionalOpts & {
+                preparedInSameTransaction?: boolean;
+            } = {},
+    ): Promise<void | { auction: PublicKey }> {
+        let [{ signers, errorMsg }, excludedForTestOpts] = setDefaultForTestOpts(opts);
+        let { preparedInSameTransaction } = excludedForTestOpts;
+        preparedInSameTransaction ??= false; // TODO: do something with this
+        if (preparedInSameTransaction) {
+            throw new Error("preparedInSameTransaction not implemented");
+        }
+
+        const { fastVaa, finalizedVaa, preparedOrderResponse } = await (async () => {
+            if (accounts.preparedOrderResponse !== undefined) {
+                return {
+                    fastVaa: null,
+                    finalizedVaa: null,
+                    preparedOrderResponse: accounts.preparedOrderResponse,
+                };
+            } else {
+                const result = await prepareOrderResponseCctpForTest(
+                    {
+                        payer: payer.publicKey,
+                    },
+                    excludedForTestOpts,
+                );
+                expect(typeof result == "object" && "preparedOrderResponse" in result).is.true;
+                return result!;
+            }
+        })();
+
+        const ix = await engine.settleAuctionCompleteIx({ ...accounts, preparedOrderResponse });
+
+        if (errorMsg !== null) {
+            return expectIxErr(connection, [ix], signers, errorMsg);
+        }
+
+        // If we are at this point, we require that prepareOrderResponseForTest be called. So these
+        // pubkeys must not be null.
+        if (fastVaa === null && finalizedVaa === null) {
+            throw new Error("Cannot provide preparedOrderResponse in accounts for successful test");
+        }
+
+        const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+
+        const auction = accounts.auction ?? engine.auctionAddress(fastVaaAccount.digest());
+        const { info, status: statusBefore } = await engine.fetchAuction({
+            address: auction,
+        });
+
+        const { bestOfferToken } = info!;
+        const { owner: bestOfferAuthority, amount: bestOfferTokenBalanceBefore } =
+            await splToken.getAccount(connection, bestOfferToken);
+
+        const withinGracePeriod = opts.executeWithinGracePeriod ?? true;
+        if (withinGracePeriod) {
+            expect(accounts.executor).to.eql(bestOfferAuthority);
+        } else {
+            // Do anything here?
+        }
+
+        const authorityLamportsBefore = await connection.getBalance(bestOfferAuthority);
+
+        const preparedCustodyToken = engine.preparedCustodyTokenAddress(preparedOrderResponse);
+        const { amount: preparedCustodyBalanceBefore } = await splToken.getAccount(
+            connection,
+            preparedCustodyToken,
+        );
+
+        const preparedOrderLamports = await connection
+            .getAccountInfo(preparedOrderResponse)
+            .then((info) => info!.lamports);
+        const preparedCustodyLamports = await connection
+            .getAccountInfo(preparedCustodyToken)
+            .then((info) => info!.lamports);
+
+        await expectIxOk(connection, [ix], [payer]);
+
+        {
+            const accInfo = await connection.getAccountInfo(preparedCustodyToken);
+            expect(accInfo).is.null;
+        }
+        {
+            const accInfo = await connection.getAccountInfo(preparedOrderResponse);
+            expect(accInfo).is.null;
+        }
+
+        const { amount: bestOfferTokenBalanceAfter } = await splToken.getAccount(
+            connection,
+            bestOfferToken,
+        );
+        expect(bestOfferTokenBalanceAfter).equals(
+            preparedCustodyBalanceBefore + bestOfferTokenBalanceBefore,
+        );
+
+        const authorityLamportsAfter = await connection.getBalance(bestOfferAuthority);
+        expect(authorityLamportsAfter).equals(
+            authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
+        );
+
+        const { status: statusAfter } = await engine.fetchAuction({
+            address: auction,
+        });
+
+        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
+        const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
+        const baseFee = uint64ToBN(deposit!.message.slowOrderResponse!.baseFee);
+
+        const executePenalty = statusBefore.completed!.executePenalty;
+        expect(statusAfter).to.eql({
+            settled: {
+                baseFee: uint64ToBN(baseFee),
+                totalPenalty:
+                    executePenalty !== null ? uint64ToBN(executePenalty.add(baseFee)) : null,
+            },
+        });
+
+        return { auction };
     }
 
     function newFastMarketOrder(
@@ -4061,55 +3700,78 @@ describe("Matching Engine", function () {
         };
     }
 
-    async function observeCctpOrderVaas(
-        args: {
-            sourceChain?: wormholeSdk.ChainName;
-            vaaTimestamp?: number;
-            fastMarketOrder?: FastMarketOrder;
-            slowOrderResponse?: SlowOrderResponse;
-            finalized?: boolean;
-        } = {},
-    ): Promise<{
-        fast: {
-            vaa: PublicKey;
-            vaaAccount: VaaAccount;
-        };
-        finalized?: {
-            vaa: PublicKey;
-            vaaAccount: VaaAccount;
-            encodedCctpMessage: Buffer;
-            cctpAttestation: Buffer;
-        };
+    type VaaResult = {
+        vaa: PublicKey;
+        vaaAccount: VaaAccount;
+    };
+
+    type FastObservedResult = VaaResult & {
+        fastMarketOrder: FastMarketOrder;
+    };
+
+    type FinalizedObservedResult = VaaResult & {
+        slowOrderResponse: SlowOrderResponse;
+        cctp: CctpMessageArgs;
+    };
+
+    type ObserveCctpOrderVaasOpts = {
+        sourceChain?: wormholeSdk.ChainName;
+        emitter?: Array<number>;
+        vaaTimestamp?: number;
+        fastMarketOrder?: FastMarketOrder;
+        finalized?: boolean;
+        slowOrderResponse?: SlowOrderResponse;
+        finalizedSourceChain?: wormholeSdk.ChainName;
+        finalizedEmitter?: Array<number>;
+        finalizedSequence?: bigint;
+        finalizedVaaTimestamp?: number;
+    };
+
+    async function observeCctpOrderVaas(args: ObserveCctpOrderVaasOpts = {}): Promise<{
+        fast: FastObservedResult;
+        finalized?: FinalizedObservedResult;
     }> {
-        let { sourceChain, vaaTimestamp, fastMarketOrder, slowOrderResponse, finalized } = args;
+        let {
+            sourceChain,
+            emitter,
+            vaaTimestamp,
+            fastMarketOrder,
+            finalized,
+            slowOrderResponse,
+            finalizedSourceChain,
+            finalizedEmitter,
+            finalizedSequence,
+            finalizedVaaTimestamp,
+        } = args;
         sourceChain ??= "ethereum";
+        emitter ??= REGISTERED_TOKEN_ROUTERS[sourceChain] ?? new Array(32).fill(0);
+        vaaTimestamp ??= await getBlockTime(connection);
         fastMarketOrder ??= newFastMarketOrder();
+        finalized ??= true;
         slowOrderResponse ??= newSlowOrderResponse();
-        finalized ??= false;
+        finalizedSourceChain ??= sourceChain;
+        finalizedEmitter ??= emitter;
+        finalizedSequence ??= finalized ? wormholeSequence++ : 0n;
+        finalizedVaaTimestamp ??= vaaTimestamp;
 
         const sourceCctpDomain = CHAIN_TO_DOMAIN[sourceChain];
         if (sourceCctpDomain === undefined) {
             throw new Error(`Invalid source chain: ${sourceChain}`);
         }
 
-        // TODO: consider taking this out this condition when other test methods use this method to
-        // generate VAAs.
-        const finalizedSequence = finalized ? wormholeSequence++ : 0n;
-        const fastSequence = wormholeSequence++;
-
         const fastVaa = await postLiquidityLayerVaa(
             connection,
             payer,
             MOCK_GUARDIANS,
-            ethRouter,
-            fastSequence,
+            emitter,
+            wormholeSequence++,
             new LiquidityLayerMessage({
                 fastMarketOrder,
             }),
             { timestamp: vaaTimestamp },
         );
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
-        const fast = { vaa: fastVaa, vaaAccount: fastVaaAccount };
+        const fast = { fastMarketOrder, vaa: fastVaa, vaaAccount: fastVaaAccount };
 
         if (finalized) {
             const { amountIn: amount } = fastMarketOrder;
@@ -4140,19 +3802,22 @@ describe("Matching Engine", function () {
                 connection,
                 payer,
                 MOCK_GUARDIANS,
-                ethRouter,
+                finalizedEmitter,
                 finalizedSequence,
                 finalizedMessage,
-                { timestamp: vaaTimestamp },
+                { sourceChain: finalizedSourceChain, timestamp: finalizedVaaTimestamp },
             );
             const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
             return {
                 fast,
                 finalized: {
+                    slowOrderResponse,
                     vaa: finalizedVaa,
                     vaaAccount: finalizedVaaAccount,
-                    encodedCctpMessage,
-                    cctpAttestation,
+                    cctp: {
+                        encodedCctpMessage,
+                        cctpAttestation,
+                    },
                 },
             };
         } else {
