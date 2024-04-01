@@ -54,4 +54,9 @@ pub enum MatchingEngineError {
     ExecutorTokenMismatch = 0x414,
     AuctionNotCompleted = 0x41a,
     CarpingNotAllowed = 0x41e,
+    AuctionNotSettled = 0x420,
+
+    CannotCloseAuctionYet = 0x500,
+    AuctionHistoryNotFull = 0x502,
+    AuctionHistoryFull = 0x504,
 }

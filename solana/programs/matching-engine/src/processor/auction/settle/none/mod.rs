@@ -95,6 +95,7 @@ fn settle_none_and_prepare_fill(
     auction.set_inner(Auction {
         bump: auction_bump_seed,
         vaa_hash: fast_vaa.digest().0,
+        vaa_timestamp: fast_vaa.timestamp(),
         status: AuctionStatus::Settled {
             base_fee,
             total_penalty: None,

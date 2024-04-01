@@ -2284,6 +2284,58 @@ export type MatchingEngine = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "addAuctionHistoryEntry",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "custodian",
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "history",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "because we will be writing to this account without using Anchor's [AccountsExit]."
+          ]
+        },
+        {
+          "name": "auction",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "beneficiary",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "was no auction) or the owner of the initial offer token account."
+          ]
+        },
+        {
+          "name": "beneficiaryToken",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -2347,6 +2399,13 @@ export type MatchingEngine = {
                 32
               ]
             }
+          },
+          {
+            "name": "vaaTimestamp",
+            "docs": [
+              "Timestamp of the fast market order VAA."
+            ],
+            "type": "u32"
           },
           {
             "name": "status",
@@ -2657,6 +2716,10 @@ export type MatchingEngine = {
             }
           },
           {
+            "name": "vaaTimestamp",
+            "type": "u32"
+          },
+          {
             "name": "info",
             "type": {
               "defined": "AuctionInfo"
@@ -2686,6 +2749,24 @@ export type MatchingEngine = {
       }
     },
     {
+      "name": "AuctionHistoryInternal",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": "AuctionHistoryHeader"
+            }
+          },
+          {
+            "name": "numEntries",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
       "name": "AuctionInfo",
       "type": {
         "kind": "struct",
@@ -2704,13 +2785,6 @@ export type MatchingEngine = {
               "Sequence of the fast market order VAA."
             ],
             "type": "u64"
-          },
-          {
-            "name": "vaaTimestamp",
-            "docs": [
-              "Timestamp of the fast market order VAA."
-            ],
-            "type": "u32"
           },
           {
             "name": "sourceChain",
@@ -3084,6 +3158,22 @@ export type MatchingEngine = {
     {
       "code": 7054,
       "name": "CarpingNotAllowed"
+    },
+    {
+      "code": 7056,
+      "name": "AuctionNotSettled"
+    },
+    {
+      "code": 7280,
+      "name": "CannotCloseAuctionYet"
+    },
+    {
+      "code": 7282,
+      "name": "AuctionHistoryNotFull"
+    },
+    {
+      "code": 7284,
+      "name": "AuctionHistoryFull"
     }
   ]
 };
@@ -5374,6 +5464,58 @@ export const IDL: MatchingEngine = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "addAuctionHistoryEntry",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "custodian",
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "history",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "because we will be writing to this account without using Anchor's [AccountsExit]."
+          ]
+        },
+        {
+          "name": "auction",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "beneficiary",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "was no auction) or the owner of the initial offer token account."
+          ]
+        },
+        {
+          "name": "beneficiaryToken",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -5437,6 +5579,13 @@ export const IDL: MatchingEngine = {
                 32
               ]
             }
+          },
+          {
+            "name": "vaaTimestamp",
+            "docs": [
+              "Timestamp of the fast market order VAA."
+            ],
+            "type": "u32"
           },
           {
             "name": "status",
@@ -5747,6 +5896,10 @@ export const IDL: MatchingEngine = {
             }
           },
           {
+            "name": "vaaTimestamp",
+            "type": "u32"
+          },
+          {
             "name": "info",
             "type": {
               "defined": "AuctionInfo"
@@ -5776,6 +5929,24 @@ export const IDL: MatchingEngine = {
       }
     },
     {
+      "name": "AuctionHistoryInternal",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": "AuctionHistoryHeader"
+            }
+          },
+          {
+            "name": "numEntries",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
       "name": "AuctionInfo",
       "type": {
         "kind": "struct",
@@ -5794,13 +5965,6 @@ export const IDL: MatchingEngine = {
               "Sequence of the fast market order VAA."
             ],
             "type": "u64"
-          },
-          {
-            "name": "vaaTimestamp",
-            "docs": [
-              "Timestamp of the fast market order VAA."
-            ],
-            "type": "u32"
           },
           {
             "name": "sourceChain",
@@ -6174,6 +6338,22 @@ export const IDL: MatchingEngine = {
     {
       "code": 7054,
       "name": "CarpingNotAllowed"
+    },
+    {
+      "code": 7056,
+      "name": "AuctionNotSettled"
+    },
+    {
+      "code": 7280,
+      "name": "CannotCloseAuctionYet"
+    },
+    {
+      "code": 7282,
+      "name": "AuctionHistoryNotFull"
+    },
+    {
+      "code": 7284,
+      "name": "AuctionHistoryFull"
     }
   ]
 };

@@ -3,7 +3,7 @@
 //! auction history, we will be using a header to perform these operations to validate just the
 //! beginning of each of these accounts. The history itself will be read in using [AccountInfo].
 
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use anchor_lang::prelude::*;
 
@@ -27,6 +27,7 @@ impl Deref for AuctionHistory {
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub struct AuctionEntry {
     pub vaa_hash: [u8; 32],
+    pub vaa_timestamp: u32,
     pub info: AuctionInfo,
 }
 
@@ -44,20 +45,18 @@ impl AuctionHistory {
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "integration-test")] {
-            pub const MAX_ENTRIES: usize = 2;
+            pub const MAX_ENTRIES: u32 = 2;
         } else {
-            pub const MAX_ENTRIES: usize = (10 * 1024 * 1000 - Self::START) / AuctionEntry::INIT_SPACE;
+            #[allow(clippy::cast_possible_truncation)]
+            pub const MAX_ENTRIES: u32 = ((10 * 1024 * 1000 - Self::START) / AuctionEntry::INIT_SPACE) as u32;
         }
     }
 }
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct AuctionHistoryInternal(AuctionHistoryHeader, u32);
-
-impl AuctionHistoryInternal {
-    pub fn num_entries(&self) -> usize {
-        usize::try_from(self.1).unwrap()
-    }
+pub struct AuctionHistoryInternal {
+    pub header: AuctionHistoryHeader,
+    pub num_entries: u32,
 }
 
 impl AccountDeserialize for AuctionHistoryInternal {
@@ -71,14 +70,21 @@ impl AccountDeserialize for AuctionHistoryInternal {
 
     fn try_deserialize_unchecked(buf: &mut &[u8]) -> Result<Self> {
         *buf = &mut &buf[8..];
-        Ok(Self(
-            AnchorDeserialize::deserialize(buf)?,
-            AnchorDeserialize::deserialize(buf)?,
-        ))
+        Ok(Self {
+            header: AnchorDeserialize::deserialize(buf)?,
+            num_entries: AnchorDeserialize::deserialize(buf)?,
+        })
     }
 }
 
-impl AccountSerialize for AuctionHistoryInternal {}
+impl AccountSerialize for AuctionHistoryInternal {
+    fn try_serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> Result<()> {
+        <AuctionHistory as anchor_lang::Discriminator>::DISCRIMINATOR.serialize(writer)?;
+        self.header.serialize(writer)?;
+        self.num_entries.serialize(writer)?;
+        Ok(())
+    }
+}
 
 impl Owner for AuctionHistoryInternal {
     fn owner() -> Pubkey {
@@ -90,56 +96,23 @@ impl Deref for AuctionHistoryInternal {
     type Target = AuctionHistoryHeader;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.header
     }
 }
 
-// pub fn insert_auction_entry(
-//     auction_history: &mut Account<AuctionHistory>,
-//     payer: &Signer,
-//     system_program: &Program<System>,
-//     entry: AuctionEntry,
-// ) -> Result<()> {
-//     auction_history.header.num_entries += 1;
+impl DerefMut for AuctionHistoryInternal {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.header
+    }
+}
 
-//     let n = auction_history.header.num_entries;
-//     if n > MAX_ENTRIES as u32 {
-//         return err!(ErrorCode::InstructionMissing);
-//     }
+#[cfg(test)]
+mod test {
+    use super::*;
 
-//     {
-//         let acc_info: &AccountInfo = auction_history.as_ref();
-
-//         let new_len = usize::try_from(n)
-//             .map(|n| START + n * AuctionEntry::INIT_SPACE)
-//             .unwrap();
-//         let lamport_diff =
-//             Rent::get().unwrap().minimum_balance(new_len) - acc_info.try_lamports()?;
-
-//         // Transfer lamports
-//         system_program::transfer(
-//             CpiContext::new(
-//                 system_program.to_account_info(),
-//                 system_program::Transfer {
-//                     from: payer.to_account_info(),
-//                     to: acc_info.to_account_info(),
-//                 },
-//             ),
-//             lamport_diff,
-//         )?;
-
-//         // Realloc.
-//         acc_info.realloc(new_len, false)?;
-//     }
-
-//     let mut data: &mut [_] = &mut acc_info.try_borrow_mut_data()?;
-
-//     let i = usize::try_from(auction_history.header.num_entries)
-//         .map(|i| i + AuctionEntry::INIT_SPACE + START)
-//         .unwrap();
-//     data = &mut data[i..(i + AuctionEntry::INIT_SPACE)];
-//     entry.serialize(&mut data)?;
-
-//     auction_history.header.num_entries += 1;
-//     Ok(())
-// }
+    #[test]
+    fn check_max_entries() {
+        const MAX: usize = (10 * 1024 * 1000 - AuctionHistory::START) / AuctionEntry::INIT_SPACE;
+        assert!(MAX <= u32::MAX.try_into().unwrap());
+    }
+}

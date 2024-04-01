@@ -15,7 +15,6 @@ export type AuctionInfo = {
     configId: number;
     custodyTokenBump: number;
     vaaSequence: BN;
-    vaaTimestamp: number;
     sourceChain: number;
     bestOfferToken: PublicKey;
     initialOfferToken: PublicKey;
@@ -29,12 +28,20 @@ export type AuctionInfo = {
 export class Auction {
     bump: number;
     vaaHash: number[];
+    vaaTimestamp: number;
     status: AuctionStatus;
     info: AuctionInfo | null;
 
-    constructor(bump: number, vaaHash: number[], status: AuctionStatus, info: AuctionInfo | null) {
+    constructor(
+        bump: number,
+        vaaHash: number[],
+        vaaTimestamp: number,
+        status: AuctionStatus,
+        info: AuctionInfo | null,
+    ) {
         this.bump = bump;
         this.vaaHash = vaaHash;
+        this.vaaTimestamp = vaaTimestamp;
         this.status = status;
         this.info = info;
     }

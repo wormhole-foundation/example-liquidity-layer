@@ -6,7 +6,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{constants::VAA_AUCTION_EXPIRATION_TIME, messages::raw::LiquidityLayerMessage};
+use common::messages::raw::LiquidityLayerMessage;
 
 #[derive(Accounts)]
 #[instruction(offer_price: u64)]
@@ -106,7 +106,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
         let vaa_timestamp = fast_vaa.timestamp();
         require!(
             (deadline == 0 || unix_timestamp < deadline)
-                && unix_timestamp < (vaa_timestamp + VAA_AUCTION_EXPIRATION_TIME).into(),
+                && unix_timestamp < (vaa_timestamp + crate::VAA_AUCTION_EXPIRATION_TIME).into(),
             MatchingEngineError::FastMarketOrderExpired,
         );
 
@@ -128,12 +128,12 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
     ctx.accounts.auction.set_inner(Auction {
         bump: ctx.bumps.auction,
         vaa_hash,
+        vaa_timestamp,
         status: AuctionStatus::Active,
         info: Some(AuctionInfo {
             config_id: ctx.accounts.auction_config.id,
             custody_token_bump: ctx.bumps.auction_custody_token,
             vaa_sequence: fast_vaa.sequence(),
-            vaa_timestamp,
             source_chain,
             best_offer_token: initial_offer_token,
             initial_offer_token,

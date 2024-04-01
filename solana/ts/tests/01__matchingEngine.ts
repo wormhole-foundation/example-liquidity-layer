@@ -1893,12 +1893,11 @@ describe("Matching Engine", function () {
                     newOfferAuthority,
                 );
 
-                const { bump, vaaHash, status, info } = auctionDataBefore;
+                const { bump, vaaHash, vaaTimestamp, status, info } = auctionDataBefore;
                 const {
                     configId,
                     custodyTokenBump,
                     vaaSequence,
-                    vaaTimestamp,
                     bestOfferToken: prevBestOfferToken,
                     initialOfferToken,
                     startSlot,
@@ -1912,11 +1911,10 @@ describe("Matching Engine", function () {
 
                 const auctionDataAfter = await engine.fetchAuction({ address: auction });
                 expect(auctionDataAfter).to.eql(
-                    new Auction(bump, vaaHash, status, {
+                    new Auction(bump, vaaHash, vaaTimestamp, status, {
                         configId,
                         custodyTokenBump,
                         vaaSequence,
-                        vaaTimestamp,
                         sourceChain,
                         bestOfferToken,
                         initialOfferToken,
@@ -2561,7 +2559,7 @@ describe("Matching Engine", function () {
                     executorToken: executorTokenBefore,
                 } = balancesBefore;
 
-                const { bump, vaaHash, info } = auctionDataBefore;
+                const { bump, vaaHash, vaaTimestamp, info } = auctionDataBefore;
 
                 const auctionDataAfter = await engine.fetchAuction({ address: auction });
 
@@ -2600,6 +2598,7 @@ describe("Matching Engine", function () {
                         new Auction(
                             bump,
                             vaaHash,
+                            vaaTimestamp,
                             {
                                 completed: {
                                     slot: bigintToU64BN(BigInt(txDetails.slot)),
@@ -2644,6 +2643,7 @@ describe("Matching Engine", function () {
                         new Auction(
                             bump,
                             vaaHash,
+                            vaaTimestamp,
                             {
                                 completed: {
                                     slot: bigintToU64BN(BigInt(txDetails.slot)),
@@ -3052,6 +3052,7 @@ describe("Matching Engine", function () {
                         new Auction(
                             bump,
                             Array.from(fastVaaHash),
+                            fast.vaaAccount.timestamp(),
                             {
                                 settled: {
                                     baseFee: bigintToU64BN(baseFee),
@@ -3230,12 +3231,12 @@ describe("Matching Engine", function () {
             new Auction(
                 bump,
                 Array.from(vaaHash),
+                fastVaaAccount.timestamp(),
                 { active: {} },
                 {
                     configId: auctionConfigId,
                     custodyTokenBump,
                     vaaSequence: bigintToU64BN(fastVaaAccount.emitterInfo().sequence),
-                    vaaTimestamp: fastVaaAccount.timestamp(),
                     sourceChain: ethChain,
                     bestOfferToken: offerToken,
                     initialOfferToken: offerToken,

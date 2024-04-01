@@ -1,4 +1,7 @@
-use crate::state::{AuctionHistory, AuctionHistoryHeader, AuctionHistoryInternal};
+use crate::{
+    error::MatchingEngineError,
+    state::{AuctionHistory, AuctionHistoryHeader, AuctionHistoryInternal},
+};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
@@ -14,8 +17,9 @@ pub struct CreateNewAuctionHistory<'info> {
         bump,
         constraint = {
             require_eq!(
-                current_history.num_entries(),
-                AuctionHistory::MAX_ENTRIES, // TODO: add err
+                current_history.num_entries,
+                AuctionHistory::MAX_ENTRIES,
+                MatchingEngineError::AuctionHistoryNotFull,
             );
 
             true
