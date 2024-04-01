@@ -2313,10 +2313,8 @@ describe("Matching Engine", function () {
                 );
             });
 
-            // Cannot perform this test w/o solana endpoint.
-            it.skip("Cannot Execute Fast Order (Invalid Chain)", async function () {
+            it("Cannot Execute Fast Order (Endpoint Disabled)", async function () {
                 const fastOrder = { ...baseFastOrder };
-                fastOrder.targetChain = ethChain;
 
                 const { fastVaa, auctionDataBefore } = await placeInitialOfferForTest(
                     playerOne,
@@ -2330,11 +2328,37 @@ describe("Matching Engine", function () {
                     auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 2).toNumber(),
                 );
 
+                // Need to create the instruction before disabling the router.
                 const ix = await engine.executeFastOrderCctpIx({
                     payer: playerOne.publicKey,
                     fastVaa,
                 });
-                await expectIxErr(connection, [ix], [playerOne], "Error Code: InvalidChain");
+
+                // Disable the arb endpoint before executing the order.
+                await expectIxOk(
+                    connection,
+                    [await engine.disableRouterEndpointIx({ owner: owner.publicKey }, arbChain)],
+                    [owner],
+                );
+
+                await expectIxErr(connection, [ix], [playerOne], "EndpointDisabled");
+
+                // Enabled the Arb Router again.
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.updateCctpRouterEndpointIx(
+                            { owner: owner.publicKey },
+                            {
+                                chain: arbChain,
+                                cctpDomain: arbDomain,
+                                address: arbRouter,
+                                mintRecipient: null,
+                            },
+                        ),
+                    ],
+                    [owner],
+                );
             });
 
             it("Cannot Execute Fast Order with VAA Hash Mismatch", async function () {
@@ -2670,7 +2694,6 @@ describe("Matching Engine", function () {
         describe("Prepare Order Response", function () {
             const localVariables = new Map<string, any>();
 
-            // TODO: add negative tests
             it("Cannot Prepare Order Response with Emitter Chain Mismatch", async function () {
                 const redeemer = Keypair.generate();
 
