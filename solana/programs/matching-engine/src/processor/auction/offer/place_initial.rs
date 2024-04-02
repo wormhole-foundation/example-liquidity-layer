@@ -28,9 +28,7 @@ pub struct PlaceInitialOffer<'info> {
     transfer_authority: AccountInfo<'info>,
 
     /// NOTE: This account is only used to pause inbound auctions.
-    #[account(
-        constraint = !custodian.paused @ MatchingEngineError::Paused,
-    )]
+    #[account(constraint = !custodian.paused @ MatchingEngineError::Paused)]
     custodian: CheckedCustodian<'info>,
 
     #[account(
@@ -40,11 +38,38 @@ pub struct PlaceInitialOffer<'info> {
                 custodian.auction_config_id,
                 MatchingEngineError::AuctionConfigMismatch,
             );
+
             true
         }
     )]
     auction_config: Account<'info, AuctionConfig>,
 
+    #[account(
+        constraint = {
+            let fast_vaa = fast_order_path.fast_vaa.load_unchecked();
+            let message = LiquidityLayerMessage::try_from(fast_vaa.payload()).unwrap();
+            let order = message
+                .fast_market_order()
+                .ok_or(MatchingEngineError::InvalidPayloadId)?;
+
+            let curr_time = Clock::get().unwrap().unix_timestamp;
+
+            // Check to see if the deadline has expired.
+            let deadline = order.deadline();
+            let expiration = i64::from(fast_vaa.timestamp()) + crate::VAA_AUCTION_EXPIRATION_TIME;
+            require!(
+                (deadline == 0 || curr_time < deadline.into()) && curr_time < expiration,
+                MatchingEngineError::FastMarketOrderExpired,
+            );
+
+            require!(
+                offer_price <= order.max_fee(),
+                MatchingEngineError::OfferPriceTooHigh
+            );
+
+            true
+        }
+    )]
     fast_order_path: FastOrderPath<'info>,
 
     /// This account should only be created once, and should never be changed to
@@ -91,36 +116,9 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
         .unwrap()
         .to_fast_market_order_unchecked();
 
-    let source_chain = fast_vaa.emitter_chain();
-
-    // We need to fetch clock values for a couple of operations in this instruction.
-    let (start_slot, vaa_timestamp) = {
-        let Clock {
-            slot,
-            unix_timestamp,
-            ..
-        } = Clock::get().unwrap();
-
-        // Check to see if the deadline has expired.
-        let deadline = i64::from(order.deadline());
-        let vaa_timestamp = fast_vaa.timestamp();
-        require!(
-            (deadline == 0 || unix_timestamp < deadline)
-                && unix_timestamp < (vaa_timestamp + crate::VAA_AUCTION_EXPIRATION_TIME).into(),
-            MatchingEngineError::FastMarketOrderExpired,
-        );
-
-        (slot, vaa_timestamp)
-    };
-
-    let max_fee = order.max_fee();
-    require!(
-        offer_price <= max_fee,
-        MatchingEngineError::OfferPriceTooHigh
-    );
-
     // Parse the transfer amount from the VAA.
     let amount_in = order.amount_in();
+    let security_deposit = order.max_fee();
 
     // Set up the Auction account for this auction.
     let initial_offer_token = ctx.accounts.offer_token.key();
@@ -128,18 +126,18 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
     ctx.accounts.auction.set_inner(Auction {
         bump: ctx.bumps.auction,
         vaa_hash,
-        vaa_timestamp,
+        vaa_timestamp: fast_vaa.timestamp(),
         status: AuctionStatus::Active,
         info: Some(AuctionInfo {
             config_id: ctx.accounts.auction_config.id,
             custody_token_bump: ctx.bumps.auction_custody_token,
             vaa_sequence: fast_vaa.sequence(),
-            source_chain,
+            source_chain: fast_vaa.emitter_chain(),
             best_offer_token: initial_offer_token,
             initial_offer_token,
-            start_slot,
+            start_slot: Clock::get().unwrap().slot,
             amount_in,
-            security_deposit: max_fee,
+            security_deposit,
             offer_price,
             amount_out: amount_in,
         }),
@@ -162,6 +160,6 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
                 &[ctx.bumps.transfer_authority],
             ]],
         ),
-        amount_in + max_fee,
+        amount_in + security_deposit,
     )
 }

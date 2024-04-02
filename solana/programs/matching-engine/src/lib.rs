@@ -33,7 +33,7 @@ const PREPARED_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"prepared-custody";
 const TRANSFER_AUTHORITY_SEED_PREFIX: &[u8] = b"transfer-authority";
 
 const FEE_PRECISION_MAX: u32 = 1_000_000;
-const VAA_AUCTION_EXPIRATION_TIME: u32 = 2 * 60 * 60; // 2 hours
+const VAA_AUCTION_EXPIRATION_TIME: i64 = 2 * 60 * 60; // 2 hours
 
 #[program]
 pub mod matching_engine {

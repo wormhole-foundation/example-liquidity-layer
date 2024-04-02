@@ -49,15 +49,14 @@ import {
     PAYER_KEYPAIR,
     REGISTERED_TOKEN_ROUTERS,
     USDC_MINT_ADDRESS,
-    bigintToU64BN,
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,
     getBlockTime,
     getUsdcAtaBalance,
-    numberToU64BN,
     postLiquidityLayerVaa,
     waitUntilSlot,
+    waitUntilTimestamp,
 } from "./helpers";
 import { join } from "path";
 import { Cctp } from "../src/cctp/messages";
@@ -262,7 +261,7 @@ describe("Matching Engine", function () {
                         ownerAssistant.publicKey,
                         feeRecipientToken,
                         expectedAuctionConfigId,
-                        bigintToU64BN(0n),
+                        uint64ToBN(0),
                     ),
                 );
 
@@ -1030,8 +1029,8 @@ describe("Matching Engine", function () {
                         },
                         ownerAssistant.publicKey,
                         owner.publicKey,
-                        numberToU64BN(currentSlot),
-                        numberToU64BN(currentSlot + SLOTS_PER_EPOCH),
+                        uint64ToBN(currentSlot),
+                        uint64ToBN(currentSlot + SLOTS_PER_EPOCH),
                         null,
                     ),
                 );
@@ -1218,7 +1217,7 @@ describe("Matching Engine", function () {
                     .proposalAddress(proposalId)
                     .then((addr) => engine.fetchProposal({ address: addr }));
                 expect(proposalDataAfter.slotEnactedAt).to.eql(
-                    numberToU64BN(await connection.getSlot()),
+                    uint64ToBN(await connection.getSlot()),
                 );
             });
 
@@ -1921,7 +1920,7 @@ describe("Matching Engine", function () {
                         startSlot,
                         amountIn,
                         securityDeposit,
-                        offerPrice: bigintToU64BN(offerPrice),
+                        offerPrice: uint64ToBN(offerPrice),
                         amountOut,
                     }),
                 );
@@ -2601,8 +2600,8 @@ describe("Matching Engine", function () {
                             vaaTimestamp,
                             {
                                 completed: {
-                                    slot: bigintToU64BN(BigInt(txDetails.slot)),
-                                    executePenalty: bigintToU64BN(penalty),
+                                    slot: uint64ToBN(txDetails.slot),
+                                    executePenalty: uint64ToBN(penalty),
                                 },
                             },
                             info,
@@ -2646,7 +2645,7 @@ describe("Matching Engine", function () {
                             vaaTimestamp,
                             {
                                 completed: {
-                                    slot: bigintToU64BN(BigInt(txDetails.slot)),
+                                    slot: uint64ToBN(txDetails.slot),
                                     executePenalty: null,
                                 },
                             },
@@ -2950,7 +2949,7 @@ describe("Matching Engine", function () {
                     );
                 });
 
-                it("Settle Completed With Order Response Prepared During Active Auction", async function () {
+                it("Settle Completed With Order Response Prepared Before Active Auction", async function () {
                     await settleAuctionCompleteForTest(
                         {
                             executor: playerOne.publicKey,
@@ -3055,7 +3054,7 @@ describe("Matching Engine", function () {
                             fast.vaaAccount.timestamp(),
                             {
                                 settled: {
-                                    baseFee: bigintToU64BN(baseFee),
+                                    baseFee: uint64ToBN(baseFee),
                                     totalPenalty: null,
                                 },
                             },
@@ -3067,10 +3066,21 @@ describe("Matching Engine", function () {
         });
 
         describe("Auction History", function () {
+            it("Cannot Create First Auction History with Incorrect PDA", async function () {
+                await createFirstAuctionHistoryForTest(
+                    {
+                        payer: payer.publicKey,
+                        firstHistory: Keypair.generate().publicKey,
+                    },
+                    {
+                        errorMsg: "Error Code: ConstraintSeeds",
+                    },
+                );
+            });
+
             it("Create First Auction History", async function () {
                 await createFirstAuctionHistoryForTest({
                     payer: payer.publicKey,
-                    firstHistory: engine.auctionHistoryAddress(0),
                 });
             });
 
@@ -3080,7 +3090,6 @@ describe("Matching Engine", function () {
                 await createFirstAuctionHistoryForTest(
                     {
                         payer: payer.publicKey,
-                        firstHistory: engine.auctionHistoryAddress(0),
                     },
                     {
                         errorMsg: `Allocate: account Address { address: ${auctionHistory.toString()}, base: None } already in use`,
@@ -3088,16 +3097,114 @@ describe("Matching Engine", function () {
                 );
             });
 
+            it.skip("Cannot Add Entry from Unsettled Auction", async function () {
+                // TODO
+            });
+
+            it("Cannot Add Entry from Settled Complete Auction Before Expiration Time", async function () {
+                const result = await settleAuctionCompleteForTest({
+                    executor: playerOne.publicKey,
+                });
+                const { auction } = result!;
+
+                await addAuctionHistoryEntryForTest(
+                    {
+                        payer: payer.publicKey,
+                        auction,
+                        history: engine.auctionHistoryAddress(0),
+                    },
+                    {
+                        errorMsg: "Error Code: CannotCloseAuctionYet",
+                    },
+                );
+            });
+
+            it("Cannot Add Entry from Settled Complete Auction with Beneficiary Token != Initial Offer Token", async function () {
+                // Set timestamps to 2 seconds before auction expiration so we don't have to wait
+                // too long.
+                const timestamp = await getBlockTime(connection);
+                const result = await settleAuctionCompleteForTest(
+                    {
+                        executor: playerOne.publicKey,
+                    },
+                    {
+                        vaaTimestamp: timestamp - 7200 + 2,
+                    },
+                );
+                const { auction } = result!;
+
+                await addAuctionHistoryEntryForTest(
+                    {
+                        payer: payer.publicKey,
+                        auction,
+                        history: engine.auctionHistoryAddress(0),
+                        beneficiary: payer.publicKey,
+                    },
+                    {
+                        timeToExpiration: 2,
+                        errorMsg: "beneficiary_token. Error Code: ConstraintAddress",
+                    },
+                );
+            });
+
+            it("Cannot Add Entry from Settled Complete Auction with Beneficiary != Initial Offer Token Owner", async function () {
+                // Set timestamps to 2 seconds before auction expiration so we don't have to wait
+                // too long.
+                const timestamp = await getBlockTime(connection);
+                const result = await settleAuctionCompleteForTest(
+                    {
+                        executor: playerOne.publicKey,
+                    },
+                    {
+                        vaaTimestamp: timestamp - 7200 + 2,
+                    },
+                );
+                const { auction } = result!;
+
+                await addAuctionHistoryEntryForTest(
+                    {
+                        payer: payer.publicKey,
+                        auction,
+                        history: engine.auctionHistoryAddress(0),
+                        beneficiary: payer.publicKey,
+                        beneficiaryToken: splToken.getAssociatedTokenAddressSync(
+                            USDC_MINT_ADDRESS,
+                            playerOne.publicKey,
+                        ),
+                    },
+                    { timeToExpiration: 2, errorMsg: "Error Code: ConstraintTokenOwner" },
+                );
+            });
+
+            it("Add Entry from Settled Complete Auction After Expiration Time", async function () {
+                // Set timestamps to 2 seconds before auction expiration so we don't have to wait
+                // too long.
+                const timestamp = await getBlockTime(connection);
+                const result = await settleAuctionCompleteForTest(
+                    {
+                        executor: playerOne.publicKey,
+                    },
+                    {
+                        vaaTimestamp: timestamp - 7200 + 2,
+                    },
+                );
+                const { auction } = result!;
+
+                await addAuctionHistoryEntryForTest(
+                    {
+                        payer: payer.publicKey,
+                        auction,
+                        history: engine.auctionHistoryAddress(0),
+                    },
+                    { timeToExpiration: 2 },
+                );
+            });
+
             async function createFirstAuctionHistoryForTest(
                 accounts: { payer: PublicKey; firstHistory?: PublicKey },
-                args: {
-                    signers?: Signer[];
-                    errorMsg?: string | null;
-                } = {},
+                opts: ForTestOpts = {},
             ) {
-                let { signers, errorMsg } = args;
-                signers ??= [payer];
-                errorMsg ??= null;
+                let [{ signers, errorMsg }] = setDefaultForTestOpts(opts);
 
                 const ix = await engine.program.methods
                     .createFirstAuctionHistory()
@@ -3117,9 +3224,9 @@ describe("Matching Engine", function () {
                 expect(firstHistoryData).to.eql(
                     new AuctionHistory(
                         {
-                            id: uint64ToBN(0n),
-                            minTimestamp: 0,
-                            maxTimestamp: 0,
+                            id: uint64ToBN(0),
+                            minTimestamp: null,
+                            maxTimestamp: null,
                         },
                         [],
                     ),
@@ -3134,15 +3241,112 @@ describe("Matching Engine", function () {
             }) {
                 const { payer } = accounts;
                 let { firstHistory } = accounts;
-                firstHistory ??= PublicKey.findProgramAddressSync(
-                    [Buffer.from("auction-history"), Buffer.alloc(8)],
-                    engine.ID,
-                )[0];
+                firstHistory ??= engine.auctionHistoryAddress(0);
 
                 return {
                     payer,
                     firstHistory,
                 };
+            }
+
+            async function addAuctionHistoryEntryForTest(
+                accounts: {
+                    payer: PublicKey;
+                    auction: PublicKey;
+                    history: PublicKey;
+                    beneficiary?: PublicKey;
+                    beneficiaryToken?: PublicKey;
+                },
+                opts: ForTestOpts & {
+                    timeToExpiration?: number;
+                } = {},
+            ) {
+                let [{ signers, errorMsg }, excludedForTestOpts] = setDefaultForTestOpts(opts);
+                let { timeToExpiration } = excludedForTestOpts;
+                timeToExpiration ??= 0;
+
+                // TODO: add complete auction here
+
+                if (timeToExpiration > 0) {
+                    const current = await getBlockTime(connection);
+                    await waitUntilTimestamp(connection, current + timeToExpiration);
+                }
+
+                const { beneficiary, beneficiaryToken } = await (async () => {
+                    if (accounts.beneficiary !== undefined) {
+                        return {
+                            beneficiary: accounts.beneficiary,
+                            beneficiaryToken:
+                                accounts.beneficiaryToken ??
+                                splToken.getAssociatedTokenAddressSync(
+                                    USDC_MINT_ADDRESS,
+                                    accounts.beneficiary,
+                                ),
+                        };
+                    } else {
+                        const { info } = await engine.fetchAuction({ address: accounts.auction });
+                        const beneficiaryToken = await (async () => {
+                            if (info === null) {
+                                const tokenAccount = await engine.fetchCustodian();
+                                return tokenAccount.feeRecipientToken;
+                            } else {
+                                return info!.initialOfferToken;
+                            }
+                        })();
+                        const { owner } = await splToken.getAccount(connection, beneficiaryToken);
+                        return {
+                            beneficiary: owner,
+                            beneficiaryToken: accounts.beneficiaryToken ?? beneficiaryToken,
+                        };
+                    }
+                })();
+
+                const { vaaHash, vaaTimestamp, info } = await engine.fetchAuction({
+                    address: accounts.auction,
+                });
+                expect(info).is.not.null;
+
+                const ix = await engine.program.methods
+                    .addAuctionHistoryEntry()
+                    .accounts({
+                        ...accounts,
+                        beneficiary,
+                        beneficiaryToken,
+                        custodian: engine.checkedCustodianComposite(),
+                    })
+                    .instruction();
+
+                if (errorMsg !== null) {
+                    return expectIxErr(connection, [ix], signers, errorMsg);
+                }
+
+                const { header, data } = await engine.fetchAuctionHistory({
+                    address: accounts.history,
+                });
+
+                const minTimestamp =
+                    header.minTimestamp === null
+                        ? vaaTimestamp
+                        : Math.min(vaaTimestamp, header.minTimestamp);
+                const maxTimestamp =
+                    header.maxTimestamp === null
+                        ? vaaTimestamp
+                        : Math.max(vaaTimestamp, header.maxTimestamp);
+
+                data.push({
+                    vaaHash,
+                    vaaTimestamp,
+                    info: info!,
+                });
+
+                await expectIxOk(connection, [ix], signers);
+
+                const historyData = await engine.fetchAuctionHistory({
+                    address: accounts.history,
+                });
+                expect(historyData).to.eql(
+                    new AuctionHistory({ id: header.id, minTimestamp, maxTimestamp }, data),
+                );
             }
         });
     });
@@ -3226,7 +3430,7 @@ describe("Matching Engine", function () {
         expect(fastMarketOrder).is.not.undefined;
         const { amountIn, maxFee } = fastMarketOrder!;
 
-        const expectedAmountIn = bigintToU64BN(amountIn);
+        const expectedAmountIn = uint64ToBN(amountIn);
         expect(auctionData).to.eql(
             new Auction(
                 bump,
@@ -3236,14 +3440,14 @@ describe("Matching Engine", function () {
                 {
                     configId: auctionConfigId,
                     custodyTokenBump,
-                    vaaSequence: bigintToU64BN(fastVaaAccount.emitterInfo().sequence),
+                    vaaSequence: uint64ToBN(fastVaaAccount.emitterInfo().sequence),
                     sourceChain: ethChain,
                     bestOfferToken: offerToken,
                     initialOfferToken: offerToken,
-                    startSlot: numberToU64BN(txDetails.slot),
+                    startSlot: uint64ToBN(txDetails.slot),
                     amountIn: expectedAmountIn,
-                    securityDeposit: bigintToU64BN(maxFee),
-                    offerPrice: bigintToU64BN(offerPrice),
+                    securityDeposit: uint64ToBN(maxFee),
+                    offerPrice: uint64ToBN(offerPrice),
                     amountOut: expectedAmountIn,
                 },
             ),
@@ -3476,7 +3680,7 @@ describe("Matching Engine", function () {
         }
 
         const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-            units: 270_000,
+            units: 280_000,
         });
         const { value: lookupTableAccount } = await connection.getAddressLookupTable(
             lookupTableAddress,
@@ -3539,6 +3743,7 @@ describe("Matching Engine", function () {
             bestOfferToken?: PublicKey;
         },
         opts: ForTestOpts &
+            ObserveCctpOrderVaasOpts &
             PrepareOrderResponseForTestOptionalOpts & {
                 preparedInSameTransaction?: boolean;
             } = {},

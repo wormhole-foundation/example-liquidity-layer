@@ -44,11 +44,7 @@ pub struct CreateNewAuctionHistory<'info> {
 
 pub fn create_new_auction_history(ctx: Context<CreateNewAuctionHistory>) -> Result<()> {
     ctx.accounts.new_history.set_inner(AuctionHistory {
-        header: AuctionHistoryHeader {
-            id: ctx.accounts.current_history.id + 1,
-            min_timestamp: Default::default(),
-            max_timestamp: Default::default(),
-        },
+        header: AuctionHistoryHeader::new(ctx.accounts.current_history.id + 1),
         data: Default::default(),
     });
 

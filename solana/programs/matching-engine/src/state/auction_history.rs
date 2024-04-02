@@ -34,8 +34,18 @@ pub struct AuctionEntry {
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, Default)]
 pub struct AuctionHistoryHeader {
     pub id: u64,
-    pub min_timestamp: u32,
-    pub max_timestamp: u32,
+    pub min_timestamp: Option<u32>,
+    pub max_timestamp: Option<u32>,
+}
+
+impl AuctionHistoryHeader {
+    pub fn new(id: u64) -> Self {
+        Self {
+            id,
+            min_timestamp: Default::default(),
+            max_timestamp: Default::default(),
+        }
+    }
 }
 
 impl AuctionHistory {

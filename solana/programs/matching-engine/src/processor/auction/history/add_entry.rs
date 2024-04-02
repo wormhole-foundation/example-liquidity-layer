@@ -48,9 +48,9 @@ pub struct AddAuctionHistoryEntry<'info> {
                 MatchingEngineError::AuctionNotSettled,
             );
 
+            let expiration = i64::from(auction.vaa_timestamp) + crate::VAA_AUCTION_EXPIRATION_TIME;
             require!(
-                Clock::get().unwrap().unix_timestamp
-                    >= i64::from(auction.vaa_timestamp + crate::VAA_AUCTION_EXPIRATION_TIME),
+                Clock::get().unwrap().unix_timestamp >= expiration,
                 MatchingEngineError::CannotCloseAuctionYet,
             );
 
@@ -100,10 +100,11 @@ fn handle_add_auction_history_entry(
     // Update the history account with this new entry's vaa timestamp if it is less than the min or
     // greater than the max.
     let auction = &ctx.accounts.auction;
-    if auction.vaa_timestamp < history.min_timestamp {
-        history.min_timestamp = auction.vaa_timestamp;
-    } else if auction.vaa_timestamp > history.max_timestamp {
-        history.max_timestamp = auction.vaa_timestamp;
+    if auction.vaa_timestamp < history.min_timestamp.unwrap_or(u32::MAX) {
+        history.min_timestamp = Some(auction.vaa_timestamp);
+    }
+    if auction.vaa_timestamp > history.max_timestamp.unwrap_or_default() {
+        history.max_timestamp = Some(auction.vaa_timestamp);
     }
 
     // Transfer lamports to history account and realloc.
@@ -112,8 +113,10 @@ fn handle_add_auction_history_entry(
 
         let index = acc_info.data_len();
         let new_len = index + AuctionEntry::INIT_SPACE;
-        let lamport_diff =
-            Rent::get().unwrap().minimum_balance(new_len) - acc_info.try_lamports()?;
+        let lamport_diff = Rent::get()
+            .unwrap()
+            .minimum_balance(new_len)
+            .saturating_sub(acc_info.lamports());
 
         // Transfer lamports
         system_program::transfer(

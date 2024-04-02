@@ -5,12 +5,13 @@ import { Uint64, writeUint64BE } from "../../common";
 
 export type AuctionHistoryHeader = {
     id: BN;
-    minTimestamp: number;
-    maxTimestamp: number;
+    minTimestamp: number | null;
+    maxTimestamp: number | null;
 };
 
 export type AuctionEntry = {
     vaaHash: Array<number>;
+    vaaTimestamp: number;
     info: AuctionInfo;
 };
 

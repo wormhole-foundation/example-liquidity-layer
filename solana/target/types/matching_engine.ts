@@ -2739,11 +2739,15 @@ export type MatchingEngine = {
           },
           {
             "name": "minTimestamp",
-            "type": "u32"
+            "type": {
+              "option": "u32"
+            }
           },
           {
             "name": "maxTimestamp",
-            "type": "u32"
+            "type": {
+              "option": "u32"
+            }
           }
         ]
       }
@@ -5919,11 +5923,15 @@ export const IDL: MatchingEngine = {
           },
           {
             "name": "minTimestamp",
-            "type": "u32"
+            "type": {
+              "option": "u32"
+            }
           },
           {
             "name": "maxTimestamp",
-            "type": "u32"
+            "type": {
+              "option": "u32"
+            }
           }
         ]
       }
