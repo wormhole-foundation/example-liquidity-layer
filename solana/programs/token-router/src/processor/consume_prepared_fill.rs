@@ -47,7 +47,6 @@ pub struct ConsumePreparedFill<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-/// TODO: add docstring
 pub fn consume_prepared_fill(ctx: Context<ConsumePreparedFill>) -> Result<()> {
     let prepared_fill = &ctx.accounts.prepared_fill;
 

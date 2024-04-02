@@ -95,7 +95,6 @@ pub struct CompleteFastFill<'info> {
     system_program: Program<'info, System>,
 }
 
-/// TODO: docstring
 pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
     let vaa = ctx.accounts.fast_fill_vaa.load_unchecked();
 

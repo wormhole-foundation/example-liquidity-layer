@@ -93,7 +93,6 @@ pub struct PrepareMarketOrderArgs {
     pub redeemer_message: Vec<u8>,
 }
 
-/// TODO: add docstring
 pub fn prepare_market_order(
     ctx: Context<PrepareMarketOrder>,
     args: PrepareMarketOrderArgs,
