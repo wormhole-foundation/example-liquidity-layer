@@ -2038,6 +2038,9 @@ describe("Matching Engine", function () {
                     playerOne.publicKey,
                     currentSequence - 1n,
                 );
+                const expectedLamports = await connection
+                    .getAccountInfo(cctpMessage)
+                    .then((info) => info!.lamports);
 
                 const messageTransmitter = engine.messageTransmitterProgram();
                 const { message } = await messageTransmitter.fetchMessageSent(cctpMessage);
@@ -2055,10 +2058,10 @@ describe("Matching Engine", function () {
 
                 const balanceBefore = await connection.getBalance(playerOne.publicKey);
 
-                await expectIxOk(connection, [ix], [playerOne]);
+                await expectIxOk(connection, [ix], [payer, playerOne]);
 
                 const balanceAfter = await connection.getBalance(playerOne.publicKey);
-                expect(balanceAfter - balanceBefore).equals(2918200);
+                expect(balanceAfter - balanceBefore).equals(expectedLamports);
             });
 
             it("Cannot Improve Offer After Execute Order", async function () {
