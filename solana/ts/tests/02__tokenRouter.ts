@@ -12,7 +12,7 @@ import {
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import { CctpTokenBurnMessage } from "../src/cctp";
-import { LiquidityLayerDeposit, LiquidityLayerMessage } from "../src/common";
+import { LiquidityLayerDeposit, LiquidityLayerMessage, uint64ToBN } from "../src/common";
 import { Custodian, PreparedOrder, TokenRouterProgram, localnet } from "../src/tokenRouter";
 import {
     CircleAttester,
@@ -23,7 +23,6 @@ import {
     OWNER_KEYPAIR,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
-    bigintToU64BN,
     expectIxErr,
     expectIxOk,
     postLiquidityLayerVaa,
@@ -598,7 +597,7 @@ describe("Token Router", function () {
                             preparedBy: payer.publicKey,
                             orderType: {
                                 market: {
-                                    minAmountOut: bigintToU64BN(minAmountOut),
+                                    minAmountOut: uint64ToBN(minAmountOut),
                                 },
                             },
                             srcToken: payerToken,

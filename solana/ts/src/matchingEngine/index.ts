@@ -940,9 +940,11 @@ export class MatchingEngineProgram {
             auctionConfig?: PublicKey;
             fromRouterEndpoint?: PublicKey;
             toRouterEndpoint?: PublicKey;
+        },
+        args: {
+            offerPrice: bigint;
             totalDeposit?: bigint;
         },
-        offerPrice: bigint,
     ): Promise<[approveIx: TransactionInstruction, placeInitialOfferIx: TransactionInstruction]> {
         const {
             payer,
@@ -952,8 +954,9 @@ export class MatchingEngineProgram {
             auctionConfig: inputAuctionConfig,
             fromRouterEndpoint: inputFromRouterEndpoint,
             toRouterEndpoint: inputToRouterEndpoint,
-            totalDeposit: inputTotalDeposit,
         } = accounts;
+
+        const { offerPrice, totalDeposit: inputTotalDeposit } = args;
 
         const offerToken = await (async () => {
             if (inputOfferToken !== undefined) {

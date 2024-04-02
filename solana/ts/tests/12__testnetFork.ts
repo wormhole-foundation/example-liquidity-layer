@@ -6,7 +6,6 @@ import * as tokenRouterSdk from "../src/tokenRouter";
 import { testnet, UpgradeManagerProgram, UpgradeReceipt } from "../src/upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../src/utils";
 import {
-    bigintToU64BN,
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,
@@ -18,6 +17,7 @@ import {
 
 // TODO: remove
 import "dotenv/config";
+import { uint64ToBN } from "../src/common";
 
 chaiUse(chaiAsPromised);
 
@@ -161,7 +161,7 @@ describe("Upgrade Manager", function () {
                 new UpgradeReceipt(bump, programDataBump, accounts.owner, {
                     uncommitted: {
                         buffer: matchingEngineBuffer,
-                        slot: bigintToU64BN(BigInt(txDetails!.slot)),
+                        slot: uint64ToBN(txDetails!.slot),
                     },
                 }),
             );
@@ -367,7 +367,7 @@ describe("Upgrade Manager", function () {
                 new UpgradeReceipt(bump, programDataBump, accounts.owner, {
                     uncommitted: {
                         buffer: tokenRouterBuffer,
-                        slot: bigintToU64BN(BigInt(txDetails!.slot)),
+                        slot: uint64ToBN(txDetails!.slot),
                     },
                 }),
             );

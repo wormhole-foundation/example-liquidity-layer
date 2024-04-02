@@ -3179,5 +3179,8 @@
       "code": 7284,
       "name": "AuctionHistoryFull"
     }
-  ]
+  ],
+  "metadata": {
+    "address": "MatchingEngine11111111111111111111111111111"
+  }
 }

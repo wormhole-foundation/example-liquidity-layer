@@ -927,7 +927,7 @@ describe("Matching Engine <> Token Router", function () {
                         payer: offerAuthorityOne.publicKey,
                         fastVaa,
                     },
-                    maxFee,
+                    { offerPrice: maxFee },
                 );
                 await expectIxOk(connection, [approveIx, ix], [offerAuthorityOne]);
 

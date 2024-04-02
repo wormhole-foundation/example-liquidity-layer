@@ -398,5 +398,8 @@
       "code": 6020,
       "name": "OwnerMismatch"
     }
-  ]
+  ],
+  "metadata": {
+    "address": "UpgradeManager11111111111111111111111111111"
+  }
 }
