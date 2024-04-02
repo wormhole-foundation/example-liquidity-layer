@@ -1048,16 +1048,41 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Close Proposal Without Owner", async function () {
-                const ix = await engine.closeProposalIx({ owner: ownerAssistant.publicKey });
+            it("Cannot close proposal as Non-Admin", async function () {
+                const ix = await engine.closeProposalIx({
+                    ownerOrAssistant: payer.publicKey,
+                });
 
-                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
+                await expectIxErr(connection, [ix], [payer], "Error Code: OwnerOrAssistantOnly");
             });
 
-            it("Close Proposal as Owner", async function () {
-                const ix = await engine.closeProposalIx({ owner: owner.publicKey });
+            it("Close proposal as Owner", async function () {
+                const ix = await engine.closeProposalIx({
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                });
 
-                await expectIxOk(connection, [ix], [owner]);
+                await expectIxOk(connection, [ix], [ownerAssistant]);
+            });
+
+            it("Close Proposal as Owner Assistant", async function () {
+                await expectIxOk(
+                    connection,
+                    [
+                        await engine.proposeAuctionParametersIx(
+                            {
+                                ownerOrAssistant: ownerAssistant.publicKey,
+                            },
+                            newAuctionParameters,
+                        ),
+                    ],
+                    [ownerAssistant],
+                );
+
+                const ix = await engine.closeProposalIx({
+                    ownerOrAssistant: ownerAssistant.publicKey,
+                });
+
+                await expectIxOk(connection, [ix], [ownerAssistant]);
             });
 
             it("Cannot Close Proposal (Proposal Already Enacted)", async function () {
@@ -1097,7 +1122,7 @@ describe("Matching Engine", function () {
 
                 // Try to close the proposal after it's been enacted.
                 const ix = await engine.closeProposalIx({
-                    owner: owner.publicKey,
+                    ownerOrAssistant: owner.publicKey,
                     proposal: proposal,
                 });
                 await expectIxErr(connection, [ix], [owner], "Error Code: ProposalAlreadyEnacted");

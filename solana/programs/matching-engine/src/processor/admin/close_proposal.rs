@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CloseProposal<'info> {
-    admin: OwnerOnly<'info>,
+    admin: Admin<'info>,
 
     /// CHECK: This account must equal proposal.by pubkey.
     #[account(
