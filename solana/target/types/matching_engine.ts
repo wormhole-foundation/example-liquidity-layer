@@ -1967,7 +1967,7 @@ export type MatchingEngine = {
           "name": "admin",
           "accounts": [
             {
-              "name": "owner",
+              "name": "ownerOrAssistant",
               "isMut": false,
               "isSigner": true
             },
@@ -4835,7 +4835,7 @@ export const IDL: MatchingEngine = {
           "name": "admin",
           "accounts": [
             {
-              "name": "owner",
+              "name": "ownerOrAssistant",
               "isMut": false,
               "isSigner": true
             },

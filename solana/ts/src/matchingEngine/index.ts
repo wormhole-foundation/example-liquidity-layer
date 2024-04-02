@@ -743,10 +743,10 @@ export class MatchingEngineProgram {
     }
 
     async closeProposalIx(accounts: {
-        owner: PublicKey;
+        ownerOrAssistant: PublicKey;
         proposal?: PublicKey;
     }): Promise<TransactionInstruction> {
-        const { owner, proposal: inputProposal } = accounts;
+        const { ownerOrAssistant, proposal: inputProposal } = accounts;
 
         const proposal = inputProposal ?? (await this.proposalAddress());
         const { by: proposedBy } = await this.fetchProposal({ address: proposal });
@@ -754,7 +754,7 @@ export class MatchingEngineProgram {
         return this.program.methods
             .closeProposal()
             .accounts({
-                admin: this.ownerOnlyComposite(owner),
+                admin: this.adminComposite(ownerOrAssistant),
                 proposedBy,
                 proposal,
             })

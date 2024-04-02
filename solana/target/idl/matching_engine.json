@@ -1967,7 +1967,7 @@
           "name": "admin",
           "accounts": [
             {
-              "name": "owner",
+              "name": "ownerOrAssistant",
               "isMut": false,
               "isSigner": true
             },
