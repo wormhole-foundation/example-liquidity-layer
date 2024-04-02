@@ -54,7 +54,6 @@ pub struct ClosePreparedOrder<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-/// TODO: add docstring
 pub fn close_prepared_order(ctx: Context<ClosePreparedOrder>) -> Result<()> {
     token::transfer(
         CpiContext::new_with_signer(

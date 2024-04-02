@@ -96,7 +96,6 @@ pub struct SettleAuctionNoneCctp<'info> {
     sysvars: RequiredSysvars<'info>,
 }
 
-/// TODO: add docstring
 pub fn settle_auction_none_cctp(ctx: Context<SettleAuctionNoneCctp>) -> Result<()> {
     match ctx.accounts.fast_order_path.to_endpoint.protocol {
         MessageProtocol::Cctp { domain } => handle_settle_auction_none_cctp(ctx, domain),
@@ -104,7 +103,6 @@ pub fn settle_auction_none_cctp(ctx: Context<SettleAuctionNoneCctp>) -> Result<(
     }
 }
 
-/// TODO: add docstring
 fn handle_settle_auction_none_cctp(
     ctx: Context<SettleAuctionNoneCctp>,
     destination_cctp_domain: u32,

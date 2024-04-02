@@ -93,7 +93,6 @@ pub struct SettleAuctionNoneLocal<'info> {
     sysvars: RequiredSysvars<'info>,
 }
 
-/// TODO: add docstring
 pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result<()> {
     let super::SettledNone {
         user_amount: amount,

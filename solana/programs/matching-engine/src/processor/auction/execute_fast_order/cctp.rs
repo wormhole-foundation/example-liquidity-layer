@@ -65,7 +65,6 @@ pub struct ExecuteFastOrderCctp<'info> {
     sysvars: RequiredSysvars<'info>,
 }
 
-/// TODO: add docstring
 pub fn execute_fast_order_cctp(ctx: Context<ExecuteFastOrderCctp>) -> Result<()> {
     match ctx.accounts.to_router_endpoint.protocol {
         MessageProtocol::Cctp { domain } => handle_execute_fast_order_cctp(ctx, domain),
