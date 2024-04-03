@@ -100,12 +100,14 @@ describe("Matching Engine", function () {
     let lookupTableAddress: PublicKey;
 
     const auctionParams: AuctionParameters = {
-        userPenaltyRewardBps: 250000, // 25%
-        initialPenaltyBps: 250000, // 25%
+        userPenaltyRewardBps: 250_000, // 25%
+        initialPenaltyBps: 250_000, // 25%
         duration: 2,
         gracePeriod: 5,
         penaltyPeriod: 10,
-        minOfferDeltaBps: 20000, // 2%
+        minOfferDeltaBps: 20_000, // 2%
+        securityDepositBase: uint64ToBN(4_200_000n),
+        securityDepositBps: 5_000, // 0.5%
     };
 
     let testCctpNonce = 2n ** 64n - 1n;
@@ -158,9 +160,7 @@ describe("Matching Engine", function () {
                 await expectIxErr(connection, [ix], [payer], "Error Code: FeeRecipientZeroPubkey");
             });
 
-            it("Cannot Initialize with Invalid Auction Duration", async function () {
-                const { duration: _, ...remaining } = auctionParams;
-
+            it("Cannot Initialize with Zero Auction Duration", async function () {
                 const ix = await engine.initializeIx(
                     {
                         owner: payer.publicKey,
@@ -168,14 +168,12 @@ describe("Matching Engine", function () {
                         feeRecipient,
                         mint: USDC_MINT_ADDRESS,
                     },
-                    { duration: 0, ...remaining },
+                    { ...auctionParams, duration: 0 },
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidAuctionDuration");
+                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroDuration");
             });
 
-            it("Cannot Initialize with Invalid Auction Grace Period", async function () {
-                const { gracePeriod: _, ...remaining } = auctionParams;
-
+            it("Cannot Initialize with Zero Auction Grace Period", async function () {
                 const ix = await engine.initializeIx(
                     {
                         owner: payer.publicKey,
@@ -183,19 +181,43 @@ describe("Matching Engine", function () {
                         feeRecipient,
                         mint: USDC_MINT_ADDRESS,
                     },
-                    { gracePeriod: 0, ...remaining },
+                    { ...auctionParams, gracePeriod: 0 },
+                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroGracePeriod");
+            });
+
+            it("Cannot Initialize with Zero Auction Penalty Period", async function () {
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: ownerAssistant.publicKey,
+                        feeRecipient,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    { ...auctionParams, penaltyPeriod: 0 },
+                );
+                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroPenaltyPeriod");
+            });
+
+            it("Cannot Initialize with Invalid User Penalty Bps", async function () {
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: ownerAssistant.publicKey,
+                        feeRecipient,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    { ...auctionParams, userPenaltyRewardBps: 1_000_001 },
                 );
                 await expectIxErr(
                     connection,
                     [ix],
                     [payer],
-                    "Error Code: InvalidAuctionGracePeriod",
+                    "Error Code: UserPenaltyRewardBpsTooLarge",
                 );
             });
 
-            it("Cannot Initialize with Invalid User Penalty", async function () {
-                const { userPenaltyRewardBps: _, ...remaining } = auctionParams;
-
+            it("Cannot Initialize with Invalid Initial Penalty Bps", async function () {
                 const ix = await engine.initializeIx(
                     {
                         owner: payer.publicKey,
@@ -203,14 +225,17 @@ describe("Matching Engine", function () {
                         feeRecipient,
                         mint: USDC_MINT_ADDRESS,
                     },
-                    { userPenaltyRewardBps: 4294967295, ...remaining },
+                    { ...auctionParams, initialPenaltyBps: 1_000_001 },
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: UserPenaltyTooLarge");
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer],
+                    "Error Code: InitialPenaltyBpsTooLarge",
+                );
             });
 
-            it("Cannot Initialize with Invalid Initial Penalty", async function () {
-                const { initialPenaltyBps: _, ...remaining } = auctionParams;
-
+            it("Cannot Initialize with Invalid Min Offer Delta Bps", async function () {
                 const ix = await engine.initializeIx(
                     {
                         owner: payer.publicKey,
@@ -218,14 +243,17 @@ describe("Matching Engine", function () {
                         feeRecipient,
                         mint: USDC_MINT_ADDRESS,
                     },
-                    { initialPenaltyBps: 4294967295, ...remaining },
+                    { ...auctionParams, minOfferDeltaBps: 1_000_001 },
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InitialPenaltyTooLarge");
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer],
+                    "Error Code: MinOfferDeltaBpsTooLarge",
+                );
             });
 
-            it("Cannot Initialize with Invalid Min Offer Delta", async function () {
-                const { minOfferDeltaBps: _, ...remaining } = auctionParams;
-
+            it("Cannot Initialize with Invalid Security Deposit Base", async function () {
                 const ix = await engine.initializeIx(
                     {
                         owner: payer.publicKey,
@@ -233,9 +261,27 @@ describe("Matching Engine", function () {
                         feeRecipient,
                         mint: USDC_MINT_ADDRESS,
                     },
-                    { minOfferDeltaBps: 4294967295, ...remaining },
+                    { ...auctionParams, securityDepositBase: uint64ToBN(0) },
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: MinOfferDeltaTooLarge");
+                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroSecurityDepositBase");
+            });
+
+            it("Cannot Initialize with Invalid Security Deposit Bps", async function () {
+                const ix = await engine.initializeIx(
+                    {
+                        owner: payer.publicKey,
+                        ownerAssistant: ownerAssistant.publicKey,
+                        feeRecipient,
+                        mint: USDC_MINT_ADDRESS,
+                    },
+                    { ...auctionParams, securityDepositBps: 1_000_001 },
+                );
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer],
+                    "Error Code: SecurityDepositBpsTooLarge",
+                );
             });
 
             it("Finally Initialize Program", async function () {
@@ -888,12 +934,14 @@ describe("Matching Engine", function () {
         describe("Propose New Auction Parameters", async function () {
             // Create a new set of auction parameters.
             const newAuctionParameters: AuctionParameters = {
-                userPenaltyRewardBps: 1000000,
-                initialPenaltyBps: 1000000,
+                userPenaltyRewardBps: 1_000_000, // 100%
+                initialPenaltyBps: 1_000_000, // 100%
                 duration: 1,
                 gracePeriod: 3,
                 penaltyPeriod: 5,
-                minOfferDeltaBps: 10000,
+                minOfferDeltaBps: 10_000, // 1%
+                securityDepositBase: uint64ToBN(69),
+                securityDepositBps: 100_000, // 10%
             };
 
             const localVariables = new Map<string, any>();
@@ -909,93 +957,126 @@ describe("Matching Engine", function () {
                 await expectIxErr(connection, [ix], [payer], "OwnerOrAssistantOnly");
             });
 
-            it("Cannot Propose New Auction Parameters (Invalid Auction Duration)", async function () {
-                const { duration: _, ...remaining } = newAuctionParameters;
-
+            it("Cannot Propose New Auction Parameters (Zero Duration)", async function () {
                 const ix = await engine.proposeAuctionParametersIx(
                     {
                         ownerOrAssistant: ownerAssistant.publicKey,
                     },
-                    { duration: 0, ...remaining },
+                    { ...newAuctionParameters, duration: 0 },
+                );
+
+                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: ZeroDuration");
+            });
+
+            it("Cannot Propose New Auction Parameters (Zero Grace Period)", async function () {
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    { ...newAuctionParameters, gracePeriod: 0 },
                 );
 
                 await expectIxErr(
                     connection,
                     [ix],
                     [ownerAssistant],
-                    "Error Code: InvalidAuctionDuration",
+                    "Error Code: ZeroGracePeriod",
                 );
             });
 
-            it("Cannot Propose New Auction Parameters (Invalid Auction Grace Period)", async function () {
-                const { gracePeriod: _, ...remaining } = newAuctionParameters;
-
+            it("Cannot Propose New Auction Parameters (Zero Penalty Period)", async function () {
                 const ix = await engine.proposeAuctionParametersIx(
                     {
                         ownerOrAssistant: ownerAssistant.publicKey,
                     },
-                    { gracePeriod: 0, ...remaining },
+                    { ...newAuctionParameters, penaltyPeriod: 0 },
                 );
 
                 await expectIxErr(
                     connection,
                     [ix],
                     [ownerAssistant],
-                    "Error Code: InvalidAuctionGracePeriod",
+                    "Error Code: ZeroPenaltyPeriod",
                 );
             });
 
-            it("Cannot Propose New Auction Parameters (Invalid User Penalty)", async function () {
-                const { userPenaltyRewardBps: _, ...remaining } = newAuctionParameters;
-
+            it("Cannot Propose New Auction Parameters (Invalid User Penalty Bps Too Large)", async function () {
                 const ix = await engine.proposeAuctionParametersIx(
                     {
                         ownerOrAssistant: ownerAssistant.publicKey,
                     },
-                    { userPenaltyRewardBps: 4294967295, ...remaining },
+                    { ...newAuctionParameters, userPenaltyRewardBps: 1_000_001 },
                 );
 
                 await expectIxErr(
                     connection,
                     [ix],
                     [ownerAssistant],
-                    "Error Code: UserPenaltyTooLarge",
+                    "Error Code: UserPenaltyRewardBpsTooLarge",
                 );
             });
 
-            it("Cannot Propose New Auction Parameters (Invalid Initial Penalty)", async function () {
-                const { initialPenaltyBps: _, ...remaining } = newAuctionParameters;
-
+            it("Cannot Propose New Auction Parameters (Invalid Initial Penalty Bps Too Large)", async function () {
                 const ix = await engine.proposeAuctionParametersIx(
                     {
                         ownerOrAssistant: ownerAssistant.publicKey,
                     },
-                    { initialPenaltyBps: 4294967295, ...remaining },
+                    { ...newAuctionParameters, initialPenaltyBps: 1_000_001 },
                 );
 
                 await expectIxErr(
                     connection,
                     [ix],
                     [ownerAssistant],
-                    "Error Code: InitialPenaltyTooLarge",
+                    "Error Code: InitialPenaltyBpsTooLarge",
                 );
             });
 
-            it("Cannot Propose New Auction Parameters (Invalid Min Offer Delta)", async function () {
-                const { minOfferDeltaBps: _, ...remaining } = newAuctionParameters;
-
+            it("Cannot Propose New Auction Parameters (Invalid Min Offer Delta Bps Too Large)", async function () {
                 const ix = await engine.proposeAuctionParametersIx(
                     {
                         ownerOrAssistant: ownerAssistant.publicKey,
                     },
-                    { minOfferDeltaBps: 4294967295, ...remaining },
+                    { ...newAuctionParameters, minOfferDeltaBps: 1_000_001 },
                 );
 
                 await expectIxErr(
                     connection,
                     [ix],
                     [ownerAssistant],
-                    "Error Code: MinOfferDeltaTooLarge",
+                    "Error Code: MinOfferDeltaBpsTooLarge",
+                );
+            });
+
+            it("Cannot Propose New Auction Parameters (Zero Security Deposit Base)", async function () {
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    { ...newAuctionParameters, securityDepositBase: uint64ToBN(0) },
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: ZeroSecurityDepositBase",
+                );
+            });
+
+            it("Cannot Propose New Auction Parameters (Security Deposit Bps Too Large)", async function () {
+                const ix = await engine.proposeAuctionParametersIx(
+                    {
+                        ownerOrAssistant: ownerAssistant.publicKey,
+                    },
+                    { ...newAuctionParameters, securityDepositBps: 1_000_001 },
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [ownerAssistant],
+                    "Error Code: SecurityDepositBpsTooLarge",
                 );
             });
 
@@ -1140,12 +1221,14 @@ describe("Matching Engine", function () {
 
             // Create a new set of auction parameters.
             const newAuctionParameters: AuctionParameters = {
-                userPenaltyRewardBps: 300000, // 30%
-                initialPenaltyBps: 200000, // 20%
+                userPenaltyRewardBps: 300_000, // 30%
+                initialPenaltyBps: 200_000, // 20%
                 duration: 3,
                 gracePeriod: 4,
                 penaltyPeriod: 8,
-                minOfferDeltaBps: 50000, // 5%
+                minOfferDeltaBps: 50_000, // 5%
+                securityDepositBase: uint64ToBN(690_000), // 0.69 USDC
+                securityDepositBps: 20_000, // 2%
             };
 
             before("Propose New Auction Parameters as Owner Assistant", async function () {

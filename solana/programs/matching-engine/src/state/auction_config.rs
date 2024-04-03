@@ -23,13 +23,21 @@ pub struct AuctionParameters {
 
     // The minimum offer increment in percentage terms.
     pub min_offer_delta_bps: u32,
+
+    /// The base security deposit, which will the the additional amount an auction participant must
+    /// deposit to participate in an auction.
+    pub security_deposit_base: u64,
+
+    /// Additional security deposit based on the notional of the order amount.
+    pub security_deposit_bps: u32,
 }
 
 #[account]
 #[derive(Debug, InitSpace, Copy)]
 pub struct AuctionConfig {
+    /// Monotonically increasing identifier for auction configs.
     pub id: u32,
-
+    /// Auction parameters, which are validated by [crate::utils::auction::require_valid_parameters].
     pub parameters: AuctionParameters,
 }
 
