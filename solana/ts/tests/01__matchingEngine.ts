@@ -582,7 +582,7 @@ describe("Matching Engine", function () {
                     connection,
                     [await createUpdateOwnerAssistantIx({ newAssistant: PublicKey.default })],
                     [payer, owner],
-                    "InvalidNewAssistant",
+                    "AssistantZeroPubkey",
                 );
             });
 
@@ -1549,12 +1549,7 @@ describe("Matching Engine", function () {
                     },
                     offerPrice,
                 );
-                await expectIxErr(
-                    connection,
-                    [approveIx, ix],
-                    [playerOne],
-                    "ErrInvalidSourceRouter",
-                );
+                await expectIxErr(connection, [approveIx, ix], [playerOne], "InvalidSourceRouter");
             });
 
             it("Cannot Place Initial Offer (Invalid Emitter Address)", async function () {
@@ -1575,12 +1570,7 @@ describe("Matching Engine", function () {
                     },
                     offerPrice,
                 );
-                await expectIxErr(
-                    connection,
-                    [approveIx, ix],
-                    [playerOne],
-                    "ErrInvalidSourceRouter",
-                );
+                await expectIxErr(connection, [approveIx, ix], [playerOne], "InvalidSourceRouter");
             });
 
             it("Cannot Place Initial Offer (Invalid Target Router Chain)", async function () {
@@ -1606,12 +1596,7 @@ describe("Matching Engine", function () {
                     },
                     offerPrice,
                 );
-                await expectIxErr(
-                    connection,
-                    [approveIx, ix],
-                    [playerOne],
-                    "ErrInvalidTargetRouter",
-                );
+                await expectIxErr(connection, [approveIx, ix], [playerOne], "InvalidTargetRouter");
             });
 
             it("Cannot Place Initial Offer Again", async function () {

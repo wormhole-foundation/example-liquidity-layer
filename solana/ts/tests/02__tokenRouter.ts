@@ -288,7 +288,7 @@ describe("Token Router", function () {
                     newOwnerAssistant: PublicKey.default,
                 });
 
-                await expectIxErr(connection, [ix], [owner], "Error Code: InvalidNewAssistant");
+                await expectIxErr(connection, [ix], [owner], "Error Code: AssistantZeroPubkey");
             });
 
             it("Cannot Update Assistant as Non-Owner", async function () {

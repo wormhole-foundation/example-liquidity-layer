@@ -264,11 +264,11 @@ pub struct FastOrderPath<'info> {
             require_eq!(
                 path.from_endpoint.chain,
                 vaa.emitter_chain(),
-                MatchingEngineError::ErrInvalidSourceRouter
+                MatchingEngineError::InvalidSourceRouter
             );
             require!(
                 path.from_endpoint.address == vaa.emitter_address(),
-                MatchingEngineError::ErrInvalidSourceRouter
+                MatchingEngineError::InvalidSourceRouter
             );
 
             let message = LiquidityLayerMessage::try_from(vaa.payload()).unwrap();
@@ -278,7 +278,7 @@ pub struct FastOrderPath<'info> {
             require_eq!(
                 path.to_endpoint.chain,
                 order.target_chain(),
-                MatchingEngineError::ErrInvalidTargetRouter
+                MatchingEngineError::InvalidTargetRouter
             );
 
             true

@@ -36,11 +36,11 @@ pub struct Initialize<'info> {
         payer = owner,
         associated_token::mint = mint,
         associated_token::authority = custodian,
-        address = crate::cctp_mint_recipient::id() @ TokenRouterError::InvalidCustodyToken,
+        address = crate::cctp_mint_recipient::id()
     )]
     cctp_mint_recipient: Account<'info, token::TokenAccount>,
 
-    #[account(address = common::constants::USDC_MINT @ TokenRouterError::NotUsdc)]
+    #[account(address = common::constants::USDC_MINT)]
     mint: Account<'info, token::Mint>,
 
     /// We use the program data to make sure this owner is the upgrade authority (the true owner,

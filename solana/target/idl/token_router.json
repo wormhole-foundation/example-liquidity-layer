@@ -3,7 +3,301 @@
   "name": "token_router",
   "instructions": [
     {
+      "name": "initialize",
+      "docs": [
+        "This instruction is be used to generate the program's `custodian` and `auction_config`",
+        "configs. It saves the `payer` as the `owner`. Finally, it sets the upgrade",
+        "authority to the `upgrade_manager_authority`. Upgrades are managed by the `upgrade_manager_program`.",
+        "# Arguments",
+        "",
+        "* `ctx`            - `Initialize` context."
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Owner of the program, who presumably deployed this program."
+          ]
+        },
+        {
+          "name": "custodian",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Sender Config account, which saves program data useful for other",
+            "instructions, specifically for outbound transfers. Also saves the payer",
+            "of the [`initialize`](crate::initialize) instruction as the program's",
+            "owner."
+          ]
+        },
+        {
+          "name": "ownerAssistant",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "cctpMintRecipient",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "programData",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "We use the program data to make sure this owner is the upgrade authority (the true owner,",
+            "who deployed this program)."
+          ]
+        },
+        {
+          "name": "upgradeManagerAuthority",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "upgradeManagerProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "bpfLoaderUpgradeableProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "associatedTokenProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "submitOwnershipTransferRequest",
+      "docs": [
+        "This instruction sets the `pending_owner` field in the `Custodian` account. This instruction",
+        "can only be called by the `owner`. The `pending_owner` address must be valid, meaning it",
+        "cannot be the zero address or the current owner.",
+        "# Arguments",
+        "",
+        "* `ctx` - `SubmitOwnershipTransferRequest` context."
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "newOwner",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "New Owner.",
+            ""
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "confirmOwnershipTransferRequest",
+      "docs": [
+        "This instruction confirms the ownership transfer request and sets the new `owner` in the",
+        "`Custodian` account. This instruction can only be called by the `pending_owner`. The",
+        "`pending_owner` must be the same as the `pending_owner` in the `Custodian` account.",
+        "# Arguments",
+        "",
+        "* `ctx` - `ConfirmOwnershipTransferRequest` context."
+      ],
+      "accounts": [
+        {
+          "name": "pendingOwner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Must be the pending owner of the program set in the [`OwnerConfig`]",
+            "account."
+          ]
+        },
+        {
+          "name": "custodian",
+          "isMut": true,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "cancelOwnershipTransferRequest",
+      "docs": [
+        "This instruction cancels an ownership transfer request by resetting the `pending_owner` field",
+        "in the `Custodian` account. This instruction can only be called by the `owner`.",
+        "# Arguments",
+        "",
+        "* `ctx` - `CancelOwnershipTransferRequest` context."
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "updateOwnerAssistant",
+      "docs": [
+        "This instruction is used to update the `owner_assistant` field in the `Custodian` account. This",
+        "instruction can only be called by the `owner`.",
+        "# Arguments",
+        "",
+        "* `ctx` - `UpdateOwnerAssistant` context."
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "newOwnerAssistant",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "New Assistant.",
+            ""
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "setPause",
+      "docs": [
+        "This instruction is used to pause or unpause further processing of new transfer. Only the `owner`",
+        "or `owner_assistant` can pause the program.",
+        "# Arguments",
+        "",
+        "* `ctx`   - `SetPause` context.",
+        "* `pause` - Boolean indicating whether to pause the program."
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "ownerOrAssistant",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "isMut": true,
+              "isSigner": false
+            }
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "migrate",
+      "docs": [
+        "This instruction is used for executing logic during an upgrade. This instruction can only be",
+        "called by the `upgrade_manager_program`.",
+        "# Arguments",
+        "",
+        "* `ctx` - `Migrate` context."
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "accounts": [
+            {
+              "name": "owner",
+              "isMut": false,
+              "isSigner": true
+            },
+            {
+              "name": "custodian",
+              "accounts": [
+                {
+                  "name": "custodian",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "prepareMarketOrder",
+      "docs": [
+        "This instruction is used to prepare a `PrepareOrder` account for a market order. The `amount_in`",
+        "is transferred from the `source` account to the `prepared_custody_token` account. Anyone",
+        "can call this instruction.",
+        "# Arguments",
+        "",
+        "* `ctx` - `PrepareMarketOrder` context.",
+        "* `args` - `PreparedMarketOrderArgs` struct, see `prepare.rs` for more info."
+      ],
       "accounts": [
         {
           "name": "payer",
@@ -89,6 +383,15 @@
     },
     {
       "name": "closePreparedOrder",
+      "docs": [
+        "This instruction is used to close a `PreparedOrder` account. This allows users to cancel",
+        "an outbound transfer in case the order is no longer needed, or they made a mistake",
+        "in the order. The `prepared_custody_token` account is closed and the tokens are refunded",
+        "to the `refund_token` account. This instruction can only be called by the `order_sender`.",
+        "# Arguments",
+        "",
+        "* `ctx` - `ClosePreparedOrder` context."
+      ],
       "accounts": [
         {
           "name": "custodian",
@@ -142,6 +445,16 @@
     },
     {
       "name": "placeMarketOrderCctp",
+      "docs": [
+        "This instruction is used to place a `MarketOrder`. This order type transfers tokens",
+        "from Solana to another registered Token Router endpoint on a different chain. This",
+        "instruction requires a `prepared_market_order` account to be present. Note: this",
+        "is the only order type on the Solana Token Router currently, and does not pass",
+        "through the matching engine.",
+        "# Arguments",
+        "",
+        "* `ctx` - `PlaceMarketOrder` context."
+      ],
       "accounts": [
         {
           "name": "payer",
@@ -325,6 +638,16 @@
     },
     {
       "name": "redeemCctpFill",
+      "docs": [
+        "This instruction is used to redeem a `Fill` VAA and redeem tokens from a CCTP transfer. After",
+        "the tokens are minted by the CCTP program, they are transferred to a token custody account.",
+        "The `prepared_fill` account is populated with information from the `Fill` vaa. This",
+        "This instruction only handles CCTP transfers.",
+        "# Arguments",
+        "",
+        "* `ctx`  - `RedeemCctpFill` context.",
+        "* `args` - `CctpMessageArgs` struct, see `redeem_fill/cctp.rs` for more info."
+      ],
       "accounts": [
         {
           "name": "custodian",
@@ -518,6 +841,15 @@
     },
     {
       "name": "redeemFastFill",
+      "docs": [
+        "This instruction is used to redeem a `FastFill` VAA created by the matching engine. This instruction",
+        "performs a cpi call to the matching engine to complete the fast fill. The tokens transferred to the",
+        "`prepared_custody_token` account, and a `prepared_fill` account is created. This instruction only",
+        "handles fast fills.",
+        "# Arguments",
+        "",
+        "* `ctx` - `RedeemFastFill` context."
+      ],
       "accounts": [
         {
           "name": "custodian",
@@ -633,6 +965,14 @@
     },
     {
       "name": "consumePreparedFill",
+      "docs": [
+        "This instruction is used to consume a `prepared_fill` account. The tokens are transferred from the",
+        "`prepared_custody_token` account to the `dst_token` account. The `prepared_custody_token` account is",
+        "closed. This instruction can only be called by the `redeemer` that is saved in the `prepared_fill`.",
+        "# Arguments",
+        "",
+        "* `ctx` - `ConsumePreparedFill` context."
+      ],
       "accounts": [
         {
           "name": "redeemer",
@@ -682,278 +1022,6 @@
           "name": "tokenProgram",
           "isMut": false,
           "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "initialize",
-      "docs": [
-        "This instruction is be used to generate your program's config.",
-        "And for convenience, we will store Wormhole-related PDAs in the",
-        "config so we can verify these accounts with a simple == constraint."
-      ],
-      "accounts": [
-        {
-          "name": "owner",
-          "isMut": true,
-          "isSigner": true,
-          "docs": [
-            "Owner of the program, who presumably deployed this program."
-          ]
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "Sender Config account, which saves program data useful for other",
-            "instructions, specifically for outbound transfers. Also saves the payer",
-            "of the [`initialize`](crate::initialize) instruction as the program's",
-            "owner."
-          ]
-        },
-        {
-          "name": "ownerAssistant",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "cctpMintRecipient",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "programData",
-          "isMut": true,
-          "isSigner": false,
-          "docs": [
-            "We use the program data to make sure this owner is the upgrade authority (the true owner,",
-            "who deployed this program)."
-          ]
-        },
-        {
-          "name": "upgradeManagerAuthority",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "upgradeManagerProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "bpfLoaderUpgradeableProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "systemProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "tokenProgram",
-          "isMut": false,
-          "isSigner": false
-        },
-        {
-          "name": "associatedTokenProgram",
-          "isMut": false,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "submitOwnershipTransferRequest",
-      "docs": [
-        "This instruction sets the `pending_owner` field in the `OwnerConfig`",
-        "account. This instruction is owner-only, meaning that only the owner",
-        "of the program (defined in the [Config] account) can submit an",
-        "ownership transfer request."
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "accounts": [
-            {
-              "name": "owner",
-              "isMut": false,
-              "isSigner": true
-            },
-            {
-              "name": "custodian",
-              "isMut": true,
-              "isSigner": false
-            }
-          ]
-        },
-        {
-          "name": "newOwner",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "New Owner.",
-            ""
-          ]
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "confirmOwnershipTransferRequest",
-      "docs": [
-        "This instruction confirms that the `pending_owner` is the signer of",
-        "the transaction and updates the `owner` field in the `SenderConfig`,",
-        "`RedeemerConfig`, and `OwnerConfig` accounts."
-      ],
-      "accounts": [
-        {
-          "name": "pendingOwner",
-          "isMut": false,
-          "isSigner": true,
-          "docs": [
-            "Must be the pending owner of the program set in the [`OwnerConfig`]",
-            "account."
-          ]
-        },
-        {
-          "name": "custodian",
-          "isMut": true,
-          "isSigner": false
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "cancelOwnershipTransferRequest",
-      "docs": [
-        "This instruction cancels the ownership transfer request by setting",
-        "the `pending_owner` field in the `OwnerConfig` account to `None`.",
-        "This instruction is owner-only, meaning that only the owner of the",
-        "program (defined in the [Config] account) can cancel an ownership",
-        "transfer request."
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "accounts": [
-            {
-              "name": "owner",
-              "isMut": false,
-              "isSigner": true
-            },
-            {
-              "name": "custodian",
-              "isMut": true,
-              "isSigner": false
-            }
-          ]
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "updateOwnerAssistant",
-      "docs": [
-        "This instruction updates the `assistant` field in the `OwnerConfig`",
-        "account. This instruction is owner-only, meaning that only the owner",
-        "of the program (defined in the [Config] account) can update the",
-        "assistant."
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "accounts": [
-            {
-              "name": "owner",
-              "isMut": false,
-              "isSigner": true
-            },
-            {
-              "name": "custodian",
-              "isMut": true,
-              "isSigner": false
-            }
-          ]
-        },
-        {
-          "name": "newOwnerAssistant",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "New Assistant.",
-            ""
-          ]
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "setPause",
-      "docs": [
-        "This instruction updates the `paused` boolean in the `SenderConfig`",
-        "account. This instruction is owner-only, meaning that only the owner",
-        "of the program (defined in the [Config] account) can pause outbound",
-        "transfers.",
-        "",
-        "# Arguments",
-        "",
-        "* `ctx` - `SetPause` context",
-        "* `paused` - Boolean indicating whether outbound transfers are paused."
-      ],
-      "accounts": [
-        {
-          "name": "admin",
-          "accounts": [
-            {
-              "name": "ownerOrAssistant",
-              "isMut": false,
-              "isSigner": true
-            },
-            {
-              "name": "custodian",
-              "isMut": true,
-              "isSigner": false
-            }
-          ]
-        }
-      ],
-      "args": [
-        {
-          "name": "paused",
-          "type": "bool"
-        }
-      ]
-    },
-    {
-      "name": "migrate",
-      "accounts": [
-        {
-          "name": "admin",
-          "accounts": [
-            {
-              "name": "owner",
-              "isMut": false,
-              "isSigner": true
-            },
-            {
-              "name": "custodian",
-              "accounts": [
-                {
-                  "name": "custodian",
-                  "isMut": false,
-                  "isSigner": false
-                }
-              ]
-            }
-          ]
         }
       ],
       "args": []
@@ -1272,163 +1340,95 @@
   "errors": [
     {
       "code": 6002,
-      "name": "OwnerOnly",
-      "msg": "OwnerOnly"
+      "name": "OwnerOnly"
     },
     {
       "code": 6004,
-      "name": "OwnerOrAssistantOnly",
-      "msg": "OwnerOrAssistantOnly"
-    },
-    {
-      "code": 6006,
-      "name": "InvalidCustodyToken",
-      "msg": "InvalidCustodyToken"
-    },
-    {
-      "code": 6008,
-      "name": "CpiDisallowed",
-      "msg": "CpiDisallowed"
-    },
-    {
-      "code": 6016,
-      "name": "UpgradeManagerRequired",
-      "msg": "UpgradeManagerRequired"
-    },
-    {
-      "code": 6032,
-      "name": "AssistantZeroPubkey",
-      "msg": "AssistantZeroPubkey"
-    },
-    {
-      "code": 6033,
-      "name": "ImmutableProgram",
-      "msg": "ImmutableProgram"
-    },
-    {
-      "code": 6034,
-      "name": "InvalidNewOwner",
-      "msg": "InvalidNewOwner"
-    },
-    {
-      "code": 6035,
-      "name": "NotUsdc",
-      "msg": "NotUsdc"
-    },
-    {
-      "code": 6036,
-      "name": "AlreadyOwner",
-      "msg": "AlreadyOwner"
-    },
-    {
-      "code": 6038,
-      "name": "NoTransferOwnershipRequest",
-      "msg": "NoTransferOwnershipRequest"
-    },
-    {
-      "code": 6040,
-      "name": "InvalidNewAssistant",
-      "msg": "InvalidNewAssistant"
-    },
-    {
-      "code": 6042,
-      "name": "NotPendingOwner",
-      "msg": "NotPendingOwner"
+      "name": "OwnerOrAssistantOnly"
     },
     {
       "code": 6048,
-      "name": "EndpointDisabled",
-      "msg": "EndpointDisabled"
-    },
-    {
-      "code": 6064,
-      "name": "ChainNotAllowed",
-      "msg": "ChainNotAllowed"
-    },
-    {
-      "code": 6066,
-      "name": "InvalidEndpoint",
-      "msg": "InvalidEndpoint"
-    },
-    {
-      "code": 6067,
-      "name": "InvalidMintRecipient",
-      "msg": "InvalidMintRecipient"
+      "name": "InvalidVaa"
     },
     {
       "code": 6068,
-      "name": "CctpRemoteTokenMessengerRequired",
-      "msg": "CctpRemoteTokenMessengerRequired"
+      "name": "InvalidDepositMessage"
     },
     {
       "code": 6070,
-      "name": "InvalidCctpEndpoint",
-      "msg": "InvalidCctpEndpoint"
+      "name": "InvalidPayloadId"
+    },
+    {
+      "code": 6096,
+      "name": "InvalidSourceRouter"
+    },
+    {
+      "code": 6100,
+      "name": "EndpointDisabled"
+    },
+    {
+      "code": 6102,
+      "name": "InvalidCctpEndpoint"
     },
     {
       "code": 6128,
-      "name": "Paused",
-      "msg": "Paused"
+      "name": "Paused"
     },
     {
       "code": 6256,
-      "name": "InsufficientAmount",
-      "msg": "InsufficientAmount"
+      "name": "AssistantZeroPubkey"
     },
     {
       "code": 6258,
-      "name": "MinAmountOutTooHigh",
-      "msg": "MinAmountOutTooHigh"
-    },
-    {
-      "code": 6288,
-      "name": "PreparedByMismatch",
-      "msg": "PreparedByMismatch"
-    },
-    {
-      "code": 6290,
-      "name": "OrderSenderMismatch",
-      "msg": "OrderSenderMismatch"
-    },
-    {
-      "code": 6292,
-      "name": "RefundTokenMismatch",
-      "msg": "RefundTokenMismatch"
-    },
-    {
-      "code": 6294,
-      "name": "PayerNotPreparer",
-      "msg": "PayerNotPreparer"
-    },
-    {
-      "code": 6512,
-      "name": "InvalidSourceRouter",
-      "msg": "InvalidSourceRouter"
-    },
-    {
-      "code": 6513,
-      "name": "InvalidVaa",
-      "msg": "InvalidVaa"
+      "name": "ImmutableProgram"
     },
     {
       "code": 6514,
-      "name": "InvalidDepositMessage",
-      "msg": "InvalidDepositMessage"
+      "name": "InvalidNewOwner"
     },
     {
       "code": 6516,
-      "name": "InvalidPayloadId",
-      "msg": "InvalidPayloadId"
+      "name": "AlreadyOwner"
     },
     {
       "code": 6518,
-      "name": "InvalidRedeemer",
-      "msg": "InvalidRedeemer"
+      "name": "NoTransferOwnershipRequest"
     },
     {
-      "code": 6544,
-      "name": "RedeemerMismatch",
-      "msg": "RedeemerMismatch"
+      "code": 6520,
+      "name": "NotPendingOwner"
+    },
+    {
+      "code": 7024,
+      "name": "InsufficientAmount"
+    },
+    {
+      "code": 7026,
+      "name": "MinAmountOutTooHigh"
+    },
+    {
+      "code": 7028,
+      "name": "InvalidRedeemer"
+    },
+    {
+      "code": 7030,
+      "name": "RedeemerMismatch"
+    },
+    {
+      "code": 7032,
+      "name": "PreparedByMismatch"
+    },
+    {
+      "code": 7034,
+      "name": "OrderSenderMismatch"
+    },
+    {
+      "code": 7036,
+      "name": "RefundTokenMismatch"
+    },
+    {
+      "code": 7038,
+      "name": "PayerNotPreparer"
     }
   ],
   "metadata": {

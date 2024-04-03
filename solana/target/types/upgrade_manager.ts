@@ -388,18 +388,15 @@ export type UpgradeManager = {
   "errors": [
     {
       "code": 6016,
-      "name": "NotUpgraded",
-      "msg": "NotUpgraded"
+      "name": "NotUpgraded"
     },
     {
       "code": 6018,
-      "name": "ProgramDataMismatch",
-      "msg": "ProgramDataMismatch"
+      "name": "ProgramDataMismatch"
     },
     {
       "code": 6020,
-      "name": "OwnerMismatch",
-      "msg": "OwnerMismatch"
+      "name": "OwnerMismatch"
     }
   ]
 };
@@ -794,18 +791,15 @@ export const IDL: UpgradeManager = {
   "errors": [
     {
       "code": 6016,
-      "name": "NotUpgraded",
-      "msg": "NotUpgraded"
+      "name": "NotUpgraded"
     },
     {
       "code": 6018,
-      "name": "ProgramDataMismatch",
-      "msg": "ProgramDataMismatch"
+      "name": "ProgramDataMismatch"
     },
     {
       "code": 6020,
-      "name": "OwnerMismatch",
-      "msg": "OwnerMismatch"
+      "name": "OwnerMismatch"
     }
   ]
 };
