@@ -32,6 +32,9 @@ const LOCAL_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"local-custody";
 const PREPARED_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"prepared-custody";
 const TRANSFER_AUTHORITY_SEED_PREFIX: &[u8] = b"transfer-authority";
 
+const FEE_PRECISION_MAX: u32 = 1_000_000;
+const VAA_AUCTION_EXPIRATION_TIME: i64 = 2 * 60 * 60; // 2 hours
+
 #[program]
 pub mod matching_engine {
     use super::*;
@@ -308,5 +311,42 @@ pub mod matching_engine {
     /// * `ctx` - `SettleAuctionNoneLocal` context.
     pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result<()> {
         processor::settle_auction_none_local(ctx)
+    }
+
+    /// This instruction is used to create the first `AuctionHistory` account, whose PDA is derived
+    /// using ID == 0.
+    /// # Arguments
+    ///
+    /// * `ctx` - `CreateFirstAuctionHistory` context.
+    pub fn create_first_auction_history(ctx: Context<CreateFirstAuctionHistory>) -> Result<()> {
+        processor::create_first_auction_history(ctx)
+    }
+
+    /// This instruction is used to create a new `AuctionHistory` account. The PDA is derived using
+    /// its ID. A new history account can be created only when the current one is full (number of
+    /// entries equals the hard-coded max entries).
+    /// # Arguments
+    ///
+    /// * `ctx` - `CreateNewAuctionHistory` context.
+    pub fn create_new_auction_history(ctx: Context<CreateNewAuctionHistory>) -> Result<()> {
+        processor::create_new_auction_history(ctx)
+    }
+
+    /// This instruction is used to add a new entry to the `AuctionHistory` account if there is an
+    /// `Auction` with some info. Regardless of whether there is info in this account, the
+    /// instruction finishes its operation by closing this auction account. If the history account
+    /// is full, this instruction will revert and `create_new_auction_history`` will have to be
+    /// called to initialize another history account.
+    ///
+    /// This mechanism is important for auction participants. The initial offer participant will
+    /// pay lamports to create the `Auction` account. This instruction allows him to reclaim some
+    /// lamports by closing that account. And the protocol's fee recipient will be able to claim
+    /// lamports by closing the empty `Auction` account it creates when he calls any of the
+    /// `settle_auction_none_*` instructions.
+    /// # Arguments
+    ///
+    /// * `ctx` - `AddAuctionHistoryEntry` context.
+    pub fn add_auction_history_entry(ctx: Context<AddAuctionHistoryEntry>) -> Result<()> {
+        processor::add_auction_history_entry(ctx)
     }
 }

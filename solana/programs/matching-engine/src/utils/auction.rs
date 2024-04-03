@@ -1,9 +1,9 @@
+use crate::FEE_PRECISION_MAX;
 use crate::{
     error::MatchingEngineError,
     state::{AuctionInfo, AuctionParameters},
 };
 use anchor_lang::prelude::*;
-use common::constants::FEE_PRECISION_MAX;
 
 #[derive(Debug, Default)]
 pub struct DepositPenalty {
@@ -223,8 +223,8 @@ mod test {
     #[test]
     fn initial_penalty_max_user_penalty_half() {
         let params = AuctionParameters {
-            user_penalty_reward_bps: common::constants::FEE_PRECISION_MAX / 2,
-            initial_penalty_bps: common::constants::FEE_PRECISION_MAX,
+            user_penalty_reward_bps: FEE_PRECISION_MAX / 2,
+            initial_penalty_bps: FEE_PRECISION_MAX,
             ..params_for_test()
         };
 
@@ -244,8 +244,8 @@ mod test {
     #[test]
     fn user_penalty_max_initial_penalty_half() {
         let params = AuctionParameters {
-            user_penalty_reward_bps: common::constants::FEE_PRECISION_MAX,
-            initial_penalty_bps: common::constants::FEE_PRECISION_MAX / 2,
+            user_penalty_reward_bps: FEE_PRECISION_MAX,
+            initial_penalty_bps: FEE_PRECISION_MAX / 2,
             ..params_for_test()
         };
 
@@ -265,8 +265,8 @@ mod test {
     #[test]
     fn penalty_slots_zero() {
         let params = AuctionParameters {
-            user_penalty_reward_bps: common::constants::FEE_PRECISION_MAX / 2,
-            initial_penalty_bps: common::constants::FEE_PRECISION_MAX / 2,
+            user_penalty_reward_bps: FEE_PRECISION_MAX / 2,
+            initial_penalty_bps: FEE_PRECISION_MAX / 2,
             penalty_period: 0,
             ..params_for_test()
         };
@@ -287,7 +287,7 @@ mod test {
     #[test]
     fn compute_min_offer_delta_max() {
         let mut params = params_for_test();
-        params.min_offer_delta_bps = common::constants::FEE_PRECISION_MAX;
+        params.min_offer_delta_bps = FEE_PRECISION_MAX;
 
         let offer_price = 10000000;
         let (info, _) = set_up(0, None, offer_price);

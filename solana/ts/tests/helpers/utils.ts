@@ -173,42 +173,6 @@ export function loadProgramBpf(artifactPath: string): PublicKey {
     return buffer;
 }
 
-export function getRandomInt(min: number, max: number) {
-    min = Math.ceil(min);
-    max = Math.floor(max);
-
-    // The maximum is exclusive and the minimum is inclusive.
-    return Math.floor(Math.random() * (max - min) + min);
-}
-
-export function getRandomBN(numBytes: number, range?: { min: BN; max: BN }) {
-    const base = new BN(getRandomInt(1, 256)).pow(new BN(getRandomInt(1, numBytes))).subn(1);
-    if (range === undefined) {
-        return new BN(base.toArray("le", numBytes), undefined, "le");
-    } else {
-        const absMax = new BN(256).pow(new BN(numBytes)).subn(1);
-        const { min, max } = range;
-        if (max.sub(min).lten(0)) {
-            throw new Error("max must be greater than min");
-        } else if (max.gt(absMax)) {
-            throw new Error(`max must be less than 256 ** ${numBytes}`);
-        }
-
-        const result = min.mul(absMax).add(max.sub(min).mul(base)).div(absMax);
-        return new BN(result.toArray("le", numBytes), undefined, "le");
-    }
-}
-
-export function bigintToU64BN(value: bigint): BN {
-    const buf = Buffer.alloc(8);
-    buf.writeBigUInt64BE(value);
-    return new BN(buf);
-}
-
-export function numberToU64BN(value: number): BN {
-    return bigintToU64BN(BigInt(value));
-}
-
 export async function waitBySlots(connection: Connection, numSlots: number) {
     const targetSlot = await connection.getSlot().then((slot) => slot + numSlots);
     return waitUntilSlot(connection, targetSlot);
@@ -225,6 +189,20 @@ export async function waitUntilSlot(connection: Connection, targetSlot: number) 
     });
 }
 
+export async function waitUntilTimestamp(connection: Connection, targetTimestamp: number) {
+    return new Promise((resolve, _) => {
+        const sub = connection.onSlotChange(async (slot) => {
+            const blockTime = await connection.getBlockTime(slot.slot);
+            if (blockTime === null) {
+                throw new Error("block time is null");
+            } else if (blockTime >= targetTimestamp) {
+                connection.removeSlotChangeListener(sub);
+                resolve(blockTime);
+            }
+        });
+    });
+}
+
 export async function getUsdcAtaBalance(connection: Connection, owner: PublicKey) {
     return splToken
         .getAccount(connection, splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner))
@@ -233,7 +211,9 @@ export async function getUsdcAtaBalance(connection: Connection, owner: PublicKey
 }
 
 export async function getBlockTime(connection: Connection): Promise<number> {
-    const { absoluteSlot } = await connection.getEpochInfo();
-    // This should never fail... but if it does, we'll just return 0.
-    return connection.getBlockTime(absoluteSlot).then((value) => (value === null ? 0 : value));
+    // This should never fail.
+    return connection
+        .getSlot()
+        .then(async (slot) => connection.getBlockTime(slot))
+        .then((value) => value!);
 }

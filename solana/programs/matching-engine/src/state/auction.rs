@@ -43,7 +43,7 @@ impl std::fmt::Display for AuctionStatus {
     }
 }
 
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, Copy)]
 pub struct AuctionInfo {
     pub config_id: u32,
 
@@ -112,6 +112,9 @@ pub struct Auction {
 
     /// VAA hash of the auction.
     pub vaa_hash: [u8; 32],
+
+    /// Timestamp of the fast market order VAA.
+    pub vaa_timestamp: u32,
 
     /// Auction status.
     pub status: AuctionStatus,

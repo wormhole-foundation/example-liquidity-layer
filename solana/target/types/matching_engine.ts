@@ -2222,6 +2222,136 @@ export type MatchingEngine = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "createFirstAuctionHistory",
+      "docs": [
+        "This instruction is used to create the first `AuctionHistory` account, whose PDA is derived",
+        "using ID == 0.",
+        "# Arguments",
+        "",
+        "* `ctx` - `CreateFirstAuctionHistory` context."
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "firstHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "createNewAuctionHistory",
+      "docs": [
+        "This instruction is used to create a new `AuctionHistory` account. The PDA is derived using",
+        "its ID. A new history account can be created only when the current one is full (number of",
+        "entries equals the hard-coded max entries).",
+        "# Arguments",
+        "",
+        "* `ctx` - `CreateNewAuctionHistory` context."
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "currentHistory",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "newHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "addAuctionHistoryEntry",
+      "docs": [
+        "This instruction is used to add a new entry to the `AuctionHistory` account if there is an",
+        "`Auction` with some info. Regardless of whether there is info in this account, the",
+        "instruction finishes its operation by closing this auction account. If the history account",
+        "is full, this instruction will revert and `create_new_auction_history`` will have to be",
+        "called to initialize another history account.",
+        "",
+        "This mechanism is important for auction participants. The initial offer participant will",
+        "pay lamports to create the `Auction` account. This instruction allows him to reclaim some",
+        "lamports by closing that account. And the protocol's fee recipient will be able to claim",
+        "lamports by closing the empty `Auction` account it creates when he calls any of the",
+        "`settle_auction_none_*` instructions.",
+        "# Arguments",
+        "",
+        "* `ctx` - `AddAuctionHistoryEntry` context."
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "custodian",
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "history",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "because we will be writing to this account without using Anchor's [AccountsExit]."
+          ]
+        },
+        {
+          "name": "auction",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "beneficiary",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "was no auction) or the owner of the initial offer token account."
+          ]
+        },
+        {
+          "name": "beneficiaryToken",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -2238,6 +2368,28 @@ export type MatchingEngine = {
             "name": "parameters",
             "type": {
               "defined": "AuctionParameters"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "auctionHistory",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": "AuctionHistoryHeader"
+            }
+          },
+          {
+            "name": "data",
+            "type": {
+              "vec": {
+                "defined": "AuctionEntry"
+              }
             }
           }
         ]
@@ -2263,6 +2415,13 @@ export type MatchingEngine = {
                 32
               ]
             }
+          },
+          {
+            "name": "vaaTimestamp",
+            "docs": [
+              "Timestamp of the fast market order VAA."
+            ],
+            "type": "u32"
           },
           {
             "name": "status",
@@ -2553,6 +2712,75 @@ export type MatchingEngine = {
           },
           {
             "name": "minOfferDeltaBps",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionEntry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "vaaTimestamp",
+            "type": "u32"
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": "AuctionInfo"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionHistoryHeader",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "minTimestamp",
+            "type": {
+              "option": "u32"
+            }
+          },
+          {
+            "name": "maxTimestamp",
+            "type": {
+              "option": "u32"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionHistoryInternal",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": "AuctionHistoryHeader"
+            }
+          },
+          {
+            "name": "numEntries",
             "type": "u32"
           }
         ]
@@ -2950,6 +3178,22 @@ export type MatchingEngine = {
     {
       "code": 7054,
       "name": "CarpingNotAllowed"
+    },
+    {
+      "code": 7056,
+      "name": "AuctionNotSettled"
+    },
+    {
+      "code": 7280,
+      "name": "CannotCloseAuctionYet"
+    },
+    {
+      "code": 7282,
+      "name": "AuctionHistoryNotFull"
+    },
+    {
+      "code": 7284,
+      "name": "AuctionHistoryFull"
     }
   ]
 };
@@ -5178,6 +5422,136 @@ export const IDL: MatchingEngine = {
         }
       ],
       "args": []
+    },
+    {
+      "name": "createFirstAuctionHistory",
+      "docs": [
+        "This instruction is used to create the first `AuctionHistory` account, whose PDA is derived",
+        "using ID == 0.",
+        "# Arguments",
+        "",
+        "* `ctx` - `CreateFirstAuctionHistory` context."
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "firstHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "createNewAuctionHistory",
+      "docs": [
+        "This instruction is used to create a new `AuctionHistory` account. The PDA is derived using",
+        "its ID. A new history account can be created only when the current one is full (number of",
+        "entries equals the hard-coded max entries).",
+        "# Arguments",
+        "",
+        "* `ctx` - `CreateNewAuctionHistory` context."
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "currentHistory",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "newHistory",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "addAuctionHistoryEntry",
+      "docs": [
+        "This instruction is used to add a new entry to the `AuctionHistory` account if there is an",
+        "`Auction` with some info. Regardless of whether there is info in this account, the",
+        "instruction finishes its operation by closing this auction account. If the history account",
+        "is full, this instruction will revert and `create_new_auction_history`` will have to be",
+        "called to initialize another history account.",
+        "",
+        "This mechanism is important for auction participants. The initial offer participant will",
+        "pay lamports to create the `Auction` account. This instruction allows him to reclaim some",
+        "lamports by closing that account. And the protocol's fee recipient will be able to claim",
+        "lamports by closing the empty `Auction` account it creates when he calls any of the",
+        "`settle_auction_none_*` instructions.",
+        "# Arguments",
+        "",
+        "* `ctx` - `AddAuctionHistoryEntry` context."
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true
+        },
+        {
+          "name": "custodian",
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
+        },
+        {
+          "name": "history",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "because we will be writing to this account without using Anchor's [AccountsExit]."
+          ]
+        },
+        {
+          "name": "auction",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "beneficiary",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "was no auction) or the owner of the initial offer token account."
+          ]
+        },
+        {
+          "name": "beneficiaryToken",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false
+        }
+      ],
+      "args": []
     }
   ],
   "accounts": [
@@ -5194,6 +5568,28 @@ export const IDL: MatchingEngine = {
             "name": "parameters",
             "type": {
               "defined": "AuctionParameters"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "auctionHistory",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": "AuctionHistoryHeader"
+            }
+          },
+          {
+            "name": "data",
+            "type": {
+              "vec": {
+                "defined": "AuctionEntry"
+              }
             }
           }
         ]
@@ -5219,6 +5615,13 @@ export const IDL: MatchingEngine = {
                 32
               ]
             }
+          },
+          {
+            "name": "vaaTimestamp",
+            "docs": [
+              "Timestamp of the fast market order VAA."
+            ],
+            "type": "u32"
           },
           {
             "name": "status",
@@ -5509,6 +5912,75 @@ export const IDL: MatchingEngine = {
           },
           {
             "name": "minOfferDeltaBps",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionEntry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "vaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "vaaTimestamp",
+            "type": "u32"
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": "AuctionInfo"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionHistoryHeader",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "minTimestamp",
+            "type": {
+              "option": "u32"
+            }
+          },
+          {
+            "name": "maxTimestamp",
+            "type": {
+              "option": "u32"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AuctionHistoryInternal",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "header",
+            "type": {
+              "defined": "AuctionHistoryHeader"
+            }
+          },
+          {
+            "name": "numEntries",
             "type": "u32"
           }
         ]
@@ -5906,6 +6378,22 @@ export const IDL: MatchingEngine = {
     {
       "code": 7054,
       "name": "CarpingNotAllowed"
+    },
+    {
+      "code": 7056,
+      "name": "AuctionNotSettled"
+    },
+    {
+      "code": 7280,
+      "name": "CannotCloseAuctionYet"
+    },
+    {
+      "code": 7282,
+      "name": "AuctionHistoryNotFull"
+    },
+    {
+      "code": 7284,
+      "name": "AuctionHistoryFull"
     }
   ]
 };

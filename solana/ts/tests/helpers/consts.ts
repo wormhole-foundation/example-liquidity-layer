@@ -52,7 +52,7 @@ export const CHAIN_TO_DOMAIN: Partial<{ [k in ChainName]: number }> = {
 
 export const REGISTERED_TOKEN_ROUTERS: Partial<{ [k in ChainName]: Array<number> }> = {
     ethereum: Array.from(Buffer.alloc(32, "f0", "hex")),
-    avalanche: Array.from(Buffer.alloc(32, "a1", "hex")),
+    avalanche: Array.from(Buffer.alloc(32, "f1", "hex")),
     optimism: Array.from(Buffer.alloc(32, "f2", "hex")),
     arbitrum: Array.from(Buffer.alloc(32, "f3", "hex")),
     base: Array.from(Buffer.alloc(32, "f6", "hex")),

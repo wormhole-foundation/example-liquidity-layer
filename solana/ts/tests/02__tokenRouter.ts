@@ -12,7 +12,7 @@ import {
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import { CctpTokenBurnMessage } from "../src/cctp";
-import { LiquidityLayerDeposit, LiquidityLayerMessage } from "../src/common";
+import { LiquidityLayerDeposit, LiquidityLayerMessage, uint64ToBN } from "../src/common";
 import { Custodian, PreparedOrder, TokenRouterProgram, localnet } from "../src/tokenRouter";
 import {
     CircleAttester,
@@ -23,7 +23,6 @@ import {
     OWNER_KEYPAIR,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
-    bigintToU64BN,
     expectIxErr,
     expectIxOk,
     postLiquidityLayerVaa,
@@ -598,7 +597,7 @@ describe("Token Router", function () {
                             preparedBy: payer.publicKey,
                             orderType: {
                                 market: {
-                                    minAmountOut: bigintToU64BN(minAmountOut),
+                                    minAmountOut: uint64ToBN(minAmountOut),
                                 },
                             },
                             srcToken: payerToken,
@@ -875,12 +874,26 @@ describe("Token Router", function () {
                     payer.publicKey,
                     currentSequence - 1n,
                 );
+                const expectedLamports = await connection
+                    .getAccountInfo(cctpMessage)
+                    .then((info) => info!.lamports);
 
                 const messageTransmitter = tokenRouter.messageTransmitterProgram();
                 const { message } = await messageTransmitter.fetchMessageSent(cctpMessage);
 
                 // Simulate attestation.
                 const cctpAttestation = new CircleAttester().createAttestation(message);
+
+                // Load another keypair w/ lamports.
+                const anotherPayer = Keypair.generate();
+                {
+                    const ix = SystemProgram.transfer({
+                        fromPubkey: payer.publicKey,
+                        toPubkey: anotherPayer.publicKey,
+                        lamports: 1000000,
+                    });
+                    await expectIxOk(connection, [ix], [payer]);
+                }
 
                 const ix = await tokenRouter.reclaimCctpMessageIx(
                     {
@@ -892,10 +905,10 @@ describe("Token Router", function () {
 
                 const balanceBefore = await connection.getBalance(payer.publicKey);
 
-                await expectIxOk(connection, [ix], [payer]);
+                await expectIxOk(connection, [ix], [anotherPayer, payer]);
 
                 const balanceAfter = await connection.getBalance(payer.publicKey);
-                expect(balanceAfter - balanceBefore).equals(2918208);
+                expect(balanceAfter - balanceBefore).equals(expectedLamports);
             });
 
             it("Pause", async function () {
