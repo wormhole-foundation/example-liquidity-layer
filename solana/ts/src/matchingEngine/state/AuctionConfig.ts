@@ -1,3 +1,4 @@
+import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 
 export type AuctionParameters = {
@@ -7,6 +8,8 @@ export type AuctionParameters = {
     gracePeriod: number;
     penaltyPeriod: number;
     minOfferDeltaBps: number;
+    securityDepositBase: BN;
+    securityDepositBps: number;
 };
 
 export class AuctionConfig {

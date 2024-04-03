@@ -22,13 +22,14 @@ cargo-test:
 	cargo test --workspace --all-targets --features $(NETWORK)
 
 .PHONY: build
-build: $(out_$(NETWORK))
-$(out_$(NETWORK)): cargo-test
+build:
 ifdef out_$(NETWORK)
+	mkdir $(out_$(NETWORK)) # do not want to continue if the directory already exists
 	anchor build --arch sbf -- --features $(NETWORK)
-	mkdir -p $(out_$(NETWORK))
 	cp target/deploy/*.so $(out_$(NETWORK))/
 endif
+
+$(out_$(NETWORK)): cargo-test
 
 .PHONY: test
 test: node_modules

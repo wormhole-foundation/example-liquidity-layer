@@ -47,26 +47,47 @@ pub fn compute_min_allowed_offer(params: &AuctionParameters, info: &AuctionInfo)
         .saturating_sub(mul_bps_unsafe(info.offer_price, params.min_offer_delta_bps))
 }
 
+#[inline]
+pub fn compute_notional_security_deposit(params: &AuctionParameters, notional: u64) -> u64 {
+    params
+        .security_deposit_base
+        .saturating_add(mul_bps_unsafe(notional, params.security_deposit_bps))
+}
+
 pub fn require_valid_parameters(params: &AuctionParameters) -> Result<()> {
+    let AuctionParameters {
+        user_penalty_reward_bps,
+        initial_penalty_bps,
+        duration,
+        grace_period,
+        penalty_period,
+        min_offer_delta_bps,
+        security_deposit_base,
+        security_deposit_bps,
+    } = params;
+
+    require!(*duration > 0, MatchingEngineError::ZeroDuration);
+    require!(*grace_period > 0, MatchingEngineError::ZeroGracePeriod);
+    require!(*penalty_period > 0, MatchingEngineError::ZeroPenaltyPeriod);
     require!(
-        params.duration > 0,
-        MatchingEngineError::InvalidAuctionDuration
+        *user_penalty_reward_bps <= FEE_PRECISION_MAX,
+        MatchingEngineError::UserPenaltyRewardBpsTooLarge
     );
     require!(
-        params.grace_period > 0,
-        MatchingEngineError::InvalidAuctionGracePeriod
+        *initial_penalty_bps <= FEE_PRECISION_MAX,
+        MatchingEngineError::InitialPenaltyBpsTooLarge
     );
     require!(
-        params.user_penalty_reward_bps <= FEE_PRECISION_MAX,
-        MatchingEngineError::UserPenaltyTooLarge
+        *min_offer_delta_bps <= FEE_PRECISION_MAX,
+        MatchingEngineError::MinOfferDeltaBpsTooLarge
     );
     require!(
-        params.initial_penalty_bps <= FEE_PRECISION_MAX,
-        MatchingEngineError::InitialPenaltyTooLarge
+        *security_deposit_base > 0,
+        MatchingEngineError::ZeroSecurityDepositBase,
     );
     require!(
-        params.min_offer_delta_bps <= FEE_PRECISION_MAX,
-        MatchingEngineError::MinOfferDeltaTooLarge
+        *security_deposit_bps <= FEE_PRECISION_MAX,
+        MatchingEngineError::SecurityDepositBpsTooLarge
     );
 
     Ok(())
@@ -350,7 +371,9 @@ mod test {
             duration: 2,
             grace_period: 4,
             penalty_period: 20,
-            min_offer_delta_bps: 50000, // 5%
+            min_offer_delta_bps: 50000,     // 5%
+            security_deposit_base: 1000000, // 1.0 USDC
+            security_deposit_bps: 5000,     // 0.5%
         };
 
         require_valid_parameters(&params).unwrap();

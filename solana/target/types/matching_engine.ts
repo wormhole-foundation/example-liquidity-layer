@@ -2356,10 +2356,16 @@ export type MatchingEngine = {
         "fields": [
           {
             "name": "id",
+            "docs": [
+              "Monotonically increasing identifier for auction configs."
+            ],
             "type": "u32"
           },
           {
             "name": "parameters",
+            "docs": [
+              "Auction parameters, which are validated by [crate::utils::auction::require_valid_parameters]."
+            ],
             "type": {
               "defined": "AuctionParameters"
             }
@@ -2706,6 +2712,21 @@ export type MatchingEngine = {
           },
           {
             "name": "minOfferDeltaBps",
+            "type": "u32"
+          },
+          {
+            "name": "securityDepositBase",
+            "docs": [
+              "The base security deposit, which will the the additional amount an auction participant must",
+              "deposit to participate in an auction."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "securityDepositBps",
+            "docs": [
+              "Additional security deposit based on the notional of the order amount."
+            ],
             "type": "u32"
           }
         ]
@@ -3096,6 +3117,10 @@ export type MatchingEngine = {
       "name": "OwnerOrAssistantOnly"
     },
     {
+      "code": 6016,
+      "name": "U64Overflow"
+    },
+    {
       "code": 6032,
       "name": "SameEndpoint"
     },
@@ -3165,23 +3190,39 @@ export type MatchingEngine = {
     },
     {
       "code": 6260,
-      "name": "InvalidAuctionDuration"
+      "name": "ZeroDuration"
     },
     {
       "code": 6262,
-      "name": "InvalidAuctionGracePeriod"
+      "name": "ZeroGracePeriod"
+    },
+    {
+      "code": 6263,
+      "name": "ZeroPenaltyPeriod"
     },
     {
       "code": 6264,
-      "name": "UserPenaltyTooLarge"
+      "name": "UserPenaltyRewardBpsTooLarge",
+      "msg": "Value exceeds 1000000"
     },
     {
       "code": 6266,
-      "name": "InitialPenaltyTooLarge"
+      "name": "InitialPenaltyBpsTooLarge",
+      "msg": "Value exceeds 1000000"
     },
     {
       "code": 6268,
-      "name": "MinOfferDeltaTooLarge"
+      "name": "MinOfferDeltaBpsTooLarge",
+      "msg": "Value exceeds 1000000"
+    },
+    {
+      "code": 6270,
+      "name": "ZeroSecurityDepositBase"
+    },
+    {
+      "code": 6271,
+      "name": "SecurityDepositBpsTooLarge",
+      "msg": "Value exceeds 1000000"
     },
     {
       "code": 6514,
@@ -5636,10 +5677,16 @@ export const IDL: MatchingEngine = {
         "fields": [
           {
             "name": "id",
+            "docs": [
+              "Monotonically increasing identifier for auction configs."
+            ],
             "type": "u32"
           },
           {
             "name": "parameters",
+            "docs": [
+              "Auction parameters, which are validated by [crate::utils::auction::require_valid_parameters]."
+            ],
             "type": {
               "defined": "AuctionParameters"
             }
@@ -5986,6 +6033,21 @@ export const IDL: MatchingEngine = {
           },
           {
             "name": "minOfferDeltaBps",
+            "type": "u32"
+          },
+          {
+            "name": "securityDepositBase",
+            "docs": [
+              "The base security deposit, which will the the additional amount an auction participant must",
+              "deposit to participate in an auction."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "securityDepositBps",
+            "docs": [
+              "Additional security deposit based on the notional of the order amount."
+            ],
             "type": "u32"
           }
         ]
@@ -6376,6 +6438,10 @@ export const IDL: MatchingEngine = {
       "name": "OwnerOrAssistantOnly"
     },
     {
+      "code": 6016,
+      "name": "U64Overflow"
+    },
+    {
       "code": 6032,
       "name": "SameEndpoint"
     },
@@ -6445,23 +6511,39 @@ export const IDL: MatchingEngine = {
     },
     {
       "code": 6260,
-      "name": "InvalidAuctionDuration"
+      "name": "ZeroDuration"
     },
     {
       "code": 6262,
-      "name": "InvalidAuctionGracePeriod"
+      "name": "ZeroGracePeriod"
+    },
+    {
+      "code": 6263,
+      "name": "ZeroPenaltyPeriod"
     },
     {
       "code": 6264,
-      "name": "UserPenaltyTooLarge"
+      "name": "UserPenaltyRewardBpsTooLarge",
+      "msg": "Value exceeds 1000000"
     },
     {
       "code": 6266,
-      "name": "InitialPenaltyTooLarge"
+      "name": "InitialPenaltyBpsTooLarge",
+      "msg": "Value exceeds 1000000"
     },
     {
       "code": 6268,
-      "name": "MinOfferDeltaTooLarge"
+      "name": "MinOfferDeltaBpsTooLarge",
+      "msg": "Value exceeds 1000000"
+    },
+    {
+      "code": 6270,
+      "name": "ZeroSecurityDepositBase"
+    },
+    {
+      "code": 6271,
+      "name": "SecurityDepositBpsTooLarge",
+      "msg": "Value exceeds 1000000"
     },
     {
       "code": 6514,

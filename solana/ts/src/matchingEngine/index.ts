@@ -25,6 +25,7 @@ import {
     writeUint64BE,
     isUint64,
     uint64ToBN,
+    uint64ToBigInt,
 } from "../common";
 import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
@@ -1037,52 +1038,69 @@ export class MatchingEngineProgram {
             }
         })();
 
-        const { auction, fromRouterEndpoint, toRouterEndpoint, totalDeposit } = await (async () => {
-            if (
-                inputAuction === undefined ||
-                inputFromRouterEndpoint === undefined ||
-                inputToRouterEndpoint === undefined ||
-                inputTotalDeposit === undefined
-            ) {
-                const vaaAccount = await VaaAccount.fetch(
-                    this.program.provider.connection,
-                    fastVaa,
-                );
-                const { fastMarketOrder } = LiquidityLayerMessage.decode(vaaAccount.payload());
-                if (fastMarketOrder === undefined) {
-                    throw new Error("Message not FastMarketOrder");
+        const { fetchedConfigId, auction, fromRouterEndpoint, toRouterEndpoint, totalDeposit } =
+            await (async () => {
+                if (
+                    inputAuction === undefined ||
+                    inputFromRouterEndpoint === undefined ||
+                    inputToRouterEndpoint === undefined ||
+                    inputTotalDeposit === undefined
+                ) {
+                    const vaaAccount = await VaaAccount.fetch(
+                        this.program.provider.connection,
+                        fastVaa,
+                    );
+                    const { fastMarketOrder } = LiquidityLayerMessage.decode(vaaAccount.payload());
+                    if (fastMarketOrder === undefined) {
+                        throw new Error("Message not FastMarketOrder");
+                    }
+
+                    const { auctionConfigId } = await this.fetchCustodian();
+                    const notionalDeposit = await this.computeNotionalSecurityDeposit(
+                        fastMarketOrder.amountIn,
+                        auctionConfigId,
+                    );
+
+                    return {
+                        fetchedConfigId: auctionConfigId,
+                        auction: inputAuction ?? this.auctionAddress(vaaAccount.digest()),
+                        fromRouterEndpoint:
+                            inputFromRouterEndpoint ??
+                            this.routerEndpointAddress(vaaAccount.emitterInfo().chain),
+                        toRouterEndpoint:
+                            inputToRouterEndpoint ??
+                            this.routerEndpointAddress(fastMarketOrder.targetChain),
+                        totalDeposit:
+                            fastMarketOrder.amountIn + fastMarketOrder.maxFee + notionalDeposit,
+                    };
+                } else {
+                    return {
+                        fetchedConfigId: null,
+                        auction: inputAuction,
+                        fromRouterEndpoint: inputFromRouterEndpoint,
+                        toRouterEndpoint: inputToRouterEndpoint,
+                        totalDeposit: inputTotalDeposit,
+                    };
                 }
-
-                return {
-                    auction: inputAuction ?? this.auctionAddress(vaaAccount.digest()),
-                    fromRouterEndpoint:
-                        inputFromRouterEndpoint ??
-                        this.routerEndpointAddress(vaaAccount.emitterInfo().chain),
-                    toRouterEndpoint:
-                        inputToRouterEndpoint ??
-                        this.routerEndpointAddress(fastMarketOrder.targetChain),
-                    totalDeposit: fastMarketOrder.amountIn + fastMarketOrder.maxFee,
-                };
-            } else {
-                return {
-                    auction: inputAuction,
-                    fromRouterEndpoint: inputFromRouterEndpoint,
-                    toRouterEndpoint: inputToRouterEndpoint,
-                    totalDeposit: inputTotalDeposit,
-                };
-            }
-        })();
-
-        const auctionCustodyToken = this.auctionCustodyTokenAddress(auction);
+            })();
 
         const auctionConfig = await (async () => {
             if (inputAuctionConfig === undefined) {
-                const { auctionConfigId } = await this.fetchCustodian();
+                const auctionConfigId = await (async () => {
+                    if (fetchedConfigId === null) {
+                        const { auctionConfigId } = await this.fetchCustodian();
+                        return auctionConfigId;
+                    } else {
+                        return fetchedConfigId;
+                    }
+                })();
                 return this.auctionConfigAddress(auctionConfigId);
             } else {
                 return inputAuctionConfig;
             }
         })();
+
+        const auctionCustodyToken = this.auctionCustodyTokenAddress(auction);
 
         const { transferAuthority, ix: approveIx } = await this.approveTransferAuthorityIx(
             { auction, owner: payer },
@@ -1874,8 +1892,18 @@ export class MatchingEngineProgram {
     }
 
     async computeMinOfferDelta(offerPrice: bigint): Promise<bigint> {
-        const auctionParams = await this.fetchAuctionParameters();
-        return (offerPrice * BigInt(auctionParams.minOfferDeltaBps)) / FEE_PRECISION_MAX;
+        const { minOfferDeltaBps } = await this.fetchAuctionParameters();
+        return (offerPrice * BigInt(minOfferDeltaBps)) / FEE_PRECISION_MAX;
+    }
+
+    async computeNotionalSecurityDeposit(amountIn: bigint, configId?: number) {
+        const { securityDepositBase, securityDepositBps } = await this.fetchAuctionParameters(
+            configId,
+        );
+        return (
+            uint64ToBigInt(securityDepositBase) +
+            (amountIn * BigInt(securityDepositBps)) / FEE_PRECISION_MAX
+        );
     }
 }
 

@@ -116,7 +116,16 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
 
     // Parse the transfer amount from the VAA.
     let amount_in = order.amount_in();
-    let security_deposit = order.max_fee();
+
+    // Saturating to u64::MAX is safe here. If the amount really ends up being this large, the
+    // checked addition below will catch it.
+    let security_deposit =
+        order
+            .max_fee()
+            .saturating_add(utils::auction::compute_notional_security_deposit(
+                &ctx.accounts.auction_config,
+                amount_in,
+            ));
 
     // Set up the Auction account for this auction.
     let config = &ctx.accounts.auction_config;
@@ -172,6 +181,8 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
                 &[ctx.bumps.transfer_authority],
             ]],
         ),
-        amount_in + security_deposit,
+        amount_in
+            .checked_add(security_deposit)
+            .ok_or(MatchingEngineError::U64Overflow)?,
     )
 }

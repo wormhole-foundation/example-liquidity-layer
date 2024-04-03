@@ -3,6 +3,8 @@ pub enum MatchingEngineError {
     OwnerOnly = 0x2,
     OwnerOrAssistantOnly = 0x4,
 
+    U64Overflow = 0x10,
+
     SameEndpoint = 0x20,
     InvalidEndpoint = 0x22,
 
@@ -25,11 +27,18 @@ pub enum MatchingEngineError {
     AssistantZeroPubkey = 0x100,
     FeeRecipientZeroPubkey = 0x101,
     ImmutableProgram = 0x102,
-    InvalidAuctionDuration = 0x104,
-    InvalidAuctionGracePeriod = 0x106,
-    UserPenaltyTooLarge = 0x108,
-    InitialPenaltyTooLarge = 0x10a,
-    MinOfferDeltaTooLarge = 0x10c,
+    ZeroDuration = 0x104,
+    ZeroGracePeriod = 0x106,
+    ZeroPenaltyPeriod = 0x107,
+    #[msg("Value exceeds 1000000")]
+    UserPenaltyRewardBpsTooLarge = 0x108,
+    #[msg("Value exceeds 1000000")]
+    InitialPenaltyBpsTooLarge = 0x10a,
+    #[msg("Value exceeds 1000000")]
+    MinOfferDeltaBpsTooLarge = 0x10c,
+    ZeroSecurityDepositBase = 0x10e,
+    #[msg("Value exceeds 1000000")]
+    SecurityDepositBpsTooLarge = 0x10f,
 
     InvalidNewOwner = 0x202,
     AlreadyOwner = 0x204,
@@ -59,4 +68,68 @@ pub enum MatchingEngineError {
     CannotCloseAuctionYet = 0x500,
     AuctionHistoryNotFull = 0x502,
     AuctionHistoryFull = 0x504,
+}
+
+#[cfg(test)]
+mod test {
+    use crate::FEE_PRECISION_MAX;
+    use anchor_lang::prelude::*;
+
+    use super::*;
+
+    #[test]
+    fn test_user_penalty_rewards_bps_too_large() {
+        match error!(MatchingEngineError::UserPenaltyRewardBpsTooLarge) {
+            Error::AnchorError(error) => {
+                assert_eq!(error.error_code_number, 6000 + 0x108);
+                assert_eq!(
+                    error.error_msg,
+                    format!("Value exceeds {FEE_PRECISION_MAX}")
+                );
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn test_initial_penalty_bps_too_large() {
+        match error!(MatchingEngineError::InitialPenaltyBpsTooLarge) {
+            Error::AnchorError(error) => {
+                assert_eq!(error.error_code_number, 6000 + 0x10a);
+                assert_eq!(
+                    error.error_msg,
+                    format!("Value exceeds {FEE_PRECISION_MAX}")
+                );
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn test_min_offer_delta_bps_too_large() {
+        match error!(MatchingEngineError::MinOfferDeltaBpsTooLarge) {
+            Error::AnchorError(error) => {
+                assert_eq!(error.error_code_number, 6000 + 0x10c);
+                assert_eq!(
+                    error.error_msg,
+                    format!("Value exceeds {FEE_PRECISION_MAX}")
+                );
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn test_security_deposit_bps_too_large() {
+        match error!(MatchingEngineError::SecurityDepositBpsTooLarge) {
+            Error::AnchorError(error) => {
+                assert_eq!(error.error_code_number, 6000 + 0x10f);
+                assert_eq!(
+                    error.error_msg,
+                    format!("Value exceeds {FEE_PRECISION_MAX}")
+                );
+            }
+            _ => panic!(),
+        }
+    }
 }
