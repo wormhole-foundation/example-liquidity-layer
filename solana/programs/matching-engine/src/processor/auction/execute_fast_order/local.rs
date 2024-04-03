@@ -62,6 +62,7 @@ pub struct ExecuteFastOrderLocal<'info> {
 
 pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<()> {
     let custodian = &ctx.accounts.custodian;
+    let token_program = &ctx.accounts.token_program;
 
     let super::PreparedOrderExecution {
         user_amount: amount,
@@ -71,7 +72,7 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         execute_order: &mut ctx.accounts.execute_order,
         payer_sequence: &mut ctx.accounts.payer_sequence,
         custodian,
-        token_program: &ctx.accounts.token_program,
+        token_program,
     })?;
 
     let payer = &ctx.accounts.payer;
@@ -94,7 +95,6 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         ctx.bumps.core_message,
     )?;
 
-    let token_program = &ctx.accounts.token_program;
     let auction_custody_token = &ctx.accounts.execute_order.active_auction.custody_token;
 
     // Transfer funds to the local custody account.
