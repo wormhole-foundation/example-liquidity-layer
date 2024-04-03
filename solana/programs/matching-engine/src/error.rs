@@ -1,194 +1,57 @@
-use anchor_lang::prelude::*;
-use common::admin::utils::upgrade::RequireValidInstructionsError;
-
-#[error_code]
+#[anchor_lang::error_code]
 pub enum MatchingEngineError {
-    /// Only the program's owner is permitted.
-    #[msg("OwnerOnly")]
     OwnerOnly = 0x2,
-
-    // Only the program's owner or assistant is permitted.
-    #[msg("OwnerOrAssistantOnly")]
     OwnerOrAssistantOnly = 0x4,
 
-    #[msg("CpiDisallowed")]
-    CpiDisallowed = 0x8,
-
-    #[msg("UpgradeManagerRequired")]
-    UpgradeManagerRequired = 0x10,
-
-    #[msg("SameEndpoint")]
     SameEndpoint = 0x20,
-
-    #[msg("InvalidEndpoint")]
     InvalidEndpoint = 0x22,
 
-    #[msg("AssistantZeroPubkey")]
-    AssistantZeroPubkey = 0x100,
+    InvalidVaa = 0x30,
 
-    #[msg("FeeRecipientZeroPubkey")]
-    FeeRecipientZeroPubkey = 0x101,
+    InvalidDeposit = 0x42,
+    InvalidDepositMessage = 0x44,
+    InvalidPayloadId = 0x46,
+    InvalidDepositPayloadId = 0x48,
+    NotFastMarketOrder = 0x4a,
+    VaaMismatch = 0x4c,
 
-    #[msg("ImmutableProgram")]
-    ImmutableProgram = 0x102,
+    InvalidSourceRouter = 0x60,
+    InvalidTargetRouter = 0x62,
+    EndpointDisabled = 0x64,
+    InvalidCctpEndpoint = 0x66,
 
-    #[msg("InvalidNewOwner")]
-    InvalidNewOwner = 0x202,
-
-    #[msg("AlreadyOwner")]
-    AlreadyOwner = 0x204,
-
-    #[msg("NoTransferOwnershipRequest")]
-    NoTransferOwnershipRequest = 0x206,
-
-    #[msg("InvalidNewAssistant")]
-    InvalidNewAssistant = 0x208,
-
-    #[msg("InvalidNewFeeRecipient")]
-    InvalidNewFeeRecipient = 0x20a,
-
-    #[msg("InvalidChain")]
-    InvalidChain = 0x20c,
-
-    #[msg("NotPendingOwner")]
-    NotPendingOwner = 0x20e,
-
-    #[msg("Paused")]
     Paused = 0x80,
 
-    #[msg("InvalidTokenAccount")]
-    InvalidTokenAccount,
+    AssistantZeroPubkey = 0x100,
+    FeeRecipientZeroPubkey = 0x101,
+    ImmutableProgram = 0x102,
+    InvalidAuctionDuration = 0x104,
+    InvalidAuctionGracePeriod = 0x106,
+    UserPenaltyTooLarge = 0x108,
+    InitialPenaltyTooLarge = 0x10a,
+    MinOfferDeltaTooLarge = 0x10c,
 
-    #[msg("ChainNotAllowed")]
-    ChainNotAllowed,
+    InvalidNewOwner = 0x202,
+    AlreadyOwner = 0x204,
+    NoTransferOwnershipRequest = 0x206,
+    NotPendingOwner = 0x208,
+    InvalidChain = 0x20c,
 
-    #[msg("InvalidMintRecipient")]
-    InvalidMintRecipient,
+    ChainNotAllowed = 0x240,
+    InvalidMintRecipient = 0x242,
 
-    #[msg("ErrInvalidSourceRouter")]
-    ErrInvalidSourceRouter,
+    ProposalAlreadyEnacted = 0x300,
+    ProposalDelayNotExpired = 0x302,
 
-    #[msg("ErrInvalidTargetRouter")]
-    ErrInvalidTargetRouter,
+    AuctionConfigMismatch = 0x340,
 
-    #[msg("TokenRouterProgramIdRequired")]
-    TokenRouterProgramIdRequired,
-
-    #[msg("InvalidAuctionDuration")]
-    InvalidAuctionDuration,
-
-    #[msg("InvalidAuctionGracePeriod")]
-    InvalidAuctionGracePeriod,
-
-    #[msg("UserPenaltyTooLarge")]
-    UserPenaltyTooLarge,
-
-    #[msg("InitialPenaltyTooLarge")]
-    InitialPenaltyTooLarge,
-
-    #[msg("MinOfferDeltaTooLarge")]
-    MinOfferDeltaTooLarge,
-
-    #[msg("InvalidVaa")]
-    InvalidVaa,
-
-    #[msg("NotFastMarketOrder")]
-    NotFastMarketOrder,
-
-    #[msg("FastMarketOrderExpired")]
-    FastMarketOrderExpired,
-
-    #[msg("OfferPriceTooHigh")]
-    OfferPriceTooHigh,
-
-    #[msg("AuctionAlreadyStarted")]
-    AuctionAlreadyStarted,
-
-    #[msg("InvalidEmitterForFastFill")]
-    InvalidEmitterForFastFill,
-
-    #[msg("InvalidDeposit")]
-    InvalidDeposit,
-
-    #[msg("InvalidDepositMessage")]
-    InvalidDepositMessage,
-
-    #[msg("InvalidPayloadId")]
-    InvalidPayloadId,
-
-    #[msg("InvalidDepositPayloadId")]
-    InvalidDepositPayloadId,
-
-    #[msg("AuctionNotActive")]
-    AuctionNotActive,
-
-    #[msg("AuctionPeriodExpired")]
-    AuctionPeriodExpired,
-
-    #[msg("AuctionPeriodNotExpired")]
-    AuctionPeriodNotExpired,
-
-    #[msg("OfferPriceNotImproved")]
-    OfferPriceNotImproved,
-
-    #[msg("BestOfferTokenNotPassedIn")]
-    BestOfferTokenNotPassedIn,
-
-    #[msg("PenaltyCalculationFailed")]
-    PenaltyCalculationFailed,
-
-    #[msg("VaaMismatch")]
-    VaaMismatch,
-
-    #[msg("MismatchedVaaHash")]
-    MismatchedVaaHash,
-
-    #[msg("ExecutorTokenMismatch")]
-    ExecutorTokenMismatch,
-
-    #[msg("InitialOfferTokenMismatch")]
-    InitialOfferTokenMismatch,
-
-    #[msg("FeeRecipientTokenMismatch")]
-    FeeRecipientTokenMismatch,
-
-    #[msg("AuctionNotCompleted")]
-    AuctionNotCompleted,
-
-    #[msg("AuctionConfigMismatch")]
-    AuctionConfigMismatch,
-
-    #[msg("EndpointDisabled")]
-    EndpointDisabled,
-
-    #[msg("InvalidCctpEndpoint")]
-    InvalidCctpEndpoint,
-
-    #[msg("CarpingNotAllowed")]
-    CarpingNotAllowed,
-
-    #[msg("ProposalAlreadyEnacted")]
-    ProposalAlreadyEnacted,
-
-    #[msg("ProposalDelayNotExpired")]
-    ProposalDelayNotExpired,
-
-    #[msg("InvalidProposalAction")]
-    InvalidProposalAction,
-}
-
-impl RequireValidInstructionsError for MatchingEngineError {
-    fn require_eq_this_program(actual_program_id: Pubkey) -> Result<()> {
-        require_keys_eq!(actual_program_id, crate::ID, Self::CpiDisallowed);
-        Ok(())
-    }
-
-    fn require_eq_upgrade_manager(actual_program_id: Pubkey) -> Result<()> {
-        require_keys_eq!(
-            actual_program_id,
-            common::constants::UPGRADE_MANAGER_PROGRAM_ID,
-            Self::UpgradeManagerRequired
-        );
-        Ok(())
-    }
+    FastMarketOrderExpired = 0x400,
+    OfferPriceTooHigh = 0x402,
+    InvalidEmitterForFastFill = 0x406,
+    AuctionNotActive = 0x408,
+    AuctionPeriodExpired = 0x40a,
+    AuctionPeriodNotExpired = 0x40c,
+    ExecutorTokenMismatch = 0x414,
+    AuctionNotCompleted = 0x41a,
+    CarpingNotAllowed = 0x41e,
 }

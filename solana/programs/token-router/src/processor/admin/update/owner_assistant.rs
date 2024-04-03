@@ -11,7 +11,7 @@ pub struct UpdateOwnerAssistant<'info> {
     #[account(
         constraint = {
             new_owner_assistant.key() != Pubkey::default()
-        } @ TokenRouterError::InvalidNewAssistant,
+        } @ TokenRouterError::AssistantZeroPubkey,
     )]
     new_owner_assistant: AccountInfo<'info>,
 }

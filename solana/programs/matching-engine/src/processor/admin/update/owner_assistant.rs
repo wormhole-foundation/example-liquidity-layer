@@ -12,7 +12,7 @@ pub struct UpdateOwnerAssistant<'info> {
     #[account(
         constraint = {
             new_owner_assistant.key() != Pubkey::default()
-        } @ MatchingEngineError::InvalidNewAssistant,
+        } @ MatchingEngineError::AssistantZeroPubkey,
     )]
     new_owner_assistant: AccountInfo<'info>,
 }
