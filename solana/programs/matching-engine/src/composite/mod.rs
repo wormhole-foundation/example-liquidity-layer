@@ -401,8 +401,6 @@ pub struct WormholePublishMessage<'info> {
 
 #[derive(Accounts)]
 pub struct CctpDepositForBurn<'info> {
-    pub burn_source: CctpMintRecipientMut<'info>,
-
     /// Circle-supported mint.
     ///
     /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP

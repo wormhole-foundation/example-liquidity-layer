@@ -4391,11 +4391,6 @@ describe("Matching Engine", function () {
             connection,
             feeRecipientToken,
         );
-        const preparedCustodyToken = engine.preparedCustodyTokenAddress(preparedOrderResponse);
-        const { amount: custodyBalanceBefore } = await splToken.getAccount(
-            connection,
-            preparedCustodyToken,
-        );
 
         await expectIxOk(connection, [computeIx, ix], signers);
 
@@ -4409,14 +4404,11 @@ describe("Matching Engine", function () {
         );
         expect(feeBalanceAfter).equals(feeBalanceBefore + baseFee);
 
-        const { amount: custodyBalanceAfter } = await splToken.getAccount(
-            connection,
-            preparedCustodyToken,
-        );
-        expect(custodyBalanceAfter).equals(custodyBalanceBefore - deposit.header.amount);
-
-        const { amount: cctpMintRecipientBalance } = await engine.fetchCctpMintRecipient();
-        expect(cctpMintRecipientBalance).equals(0n);
+        {
+            const preparedCustodyToken = engine.preparedCustodyTokenAddress(preparedOrderResponse);
+            const accInfo = await connection.getAccountInfo(preparedCustodyToken);
+            expect(accInfo).is.null;
+        }
 
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
         const fastVaaHash = fastVaaAccount.digest();

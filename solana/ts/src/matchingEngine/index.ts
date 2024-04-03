@@ -1615,7 +1615,6 @@ export class MatchingEngineProgram {
                     coreBridgeProgram,
                 },
                 cctp: {
-                    burnSource: this.cctpMintRecipientComposite(),
                     mint: this.mint,
                     tokenMessengerMinterSenderAuthority,
                     messageTransmitterConfig,
@@ -1785,7 +1784,6 @@ export class MatchingEngineProgram {
                     coreBridgeProgram,
                 },
                 cctp: {
-                    burnSource: this.cctpMintRecipientComposite(),
                     mint,
                     tokenMessengerMinterSenderAuthority,
                     messageTransmitterConfig,

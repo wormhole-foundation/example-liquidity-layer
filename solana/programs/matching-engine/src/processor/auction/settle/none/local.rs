@@ -1,6 +1,6 @@
 use crate::{
     composite::*,
-    state::{Auction, PayerSequence},
+    state::{Auction, Custodian, PayerSequence},
     utils,
 };
 use anchor_lang::prelude::*;
@@ -94,6 +94,10 @@ pub struct SettleAuctionNoneLocal<'info> {
 }
 
 pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result<()> {
+    let prepared_custody_token = &ctx.accounts.prepared.custody_token;
+    let custodian = &ctx.accounts.custodian;
+    let token_program = &ctx.accounts.token_program;
+
     let super::SettledNone {
         user_amount: amount,
         fill,
@@ -103,26 +107,53 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
             payer_sequence: &mut ctx.accounts.payer_sequence,
             fast_vaa: &ctx.accounts.fast_order_path.fast_vaa,
             prepared_order_response: &ctx.accounts.prepared.order_response,
-            prepared_custody_token: &ctx.accounts.prepared.custody_token,
+            prepared_custody_token,
             auction: &mut ctx.accounts.auction,
             fee_recipient_token: &ctx.accounts.fee_recipient_token,
-            dst_token: &ctx.accounts.local_custody_token,
-            token_program: &ctx.accounts.token_program,
+            custodian,
+            token_program,
         },
         ctx.bumps.auction,
     )?;
+
+    let payer = &ctx.accounts.payer;
 
     utils::wormhole::post_matching_engine_message(
         utils::wormhole::PostMatchingEngineMessage {
             wormhole: &ctx.accounts.wormhole,
             core_message: &ctx.accounts.core_message,
-            custodian: &ctx.accounts.custodian,
-            payer: &ctx.accounts.payer,
+            custodian,
+            payer,
             system_program: &ctx.accounts.system_program,
             sysvars: &ctx.accounts.sysvars,
         },
         common::messages::FastFill { amount, fill },
         &sequence_seed,
         ctx.bumps.core_message,
-    )
+    )?;
+
+    // Transfer funds to the local custody account.
+    token::transfer(
+        CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            token::Transfer {
+                from: prepared_custody_token.to_account_info(),
+                to: ctx.accounts.local_custody_token.to_account_info(),
+                authority: custodian.to_account_info(),
+            },
+            &[Custodian::SIGNER_SEEDS],
+        ),
+        amount,
+    )?;
+
+    // Finally close the account since it is no longer needed.
+    token::close_account(CpiContext::new_with_signer(
+        token_program.to_account_info(),
+        token::CloseAccount {
+            account: prepared_custody_token.to_account_info(),
+            destination: payer.to_account_info(),
+            authority: custodian.to_account_info(),
+        },
+        &[Custodian::SIGNER_SEEDS],
+    ))
 }

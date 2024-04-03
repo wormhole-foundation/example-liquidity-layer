@@ -1163,16 +1163,6 @@ export type MatchingEngine = {
           "name": "cctp",
           "accounts": [
             {
-              "name": "burnSource",
-              "accounts": [
-                {
-                  "name": "mintRecipient",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
-            },
-            {
               "name": "mint",
               "isMut": true,
               "isSigner": false,
@@ -1922,16 +1912,6 @@ export type MatchingEngine = {
         {
           "name": "cctp",
           "accounts": [
-            {
-              "name": "burnSource",
-              "accounts": [
-                {
-                  "name": "mintRecipient",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
-            },
             {
               "name": "mint",
               "isMut": true,
@@ -4484,16 +4464,6 @@ export const IDL: MatchingEngine = {
           "name": "cctp",
           "accounts": [
             {
-              "name": "burnSource",
-              "accounts": [
-                {
-                  "name": "mintRecipient",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
-            },
-            {
               "name": "mint",
               "isMut": true,
               "isSigner": false,
@@ -5243,16 +5213,6 @@ export const IDL: MatchingEngine = {
         {
           "name": "cctp",
           "accounts": [
-            {
-              "name": "burnSource",
-              "accounts": [
-                {
-                  "name": "mintRecipient",
-                  "isMut": true,
-                  "isSigner": false
-                }
-              ]
-            },
             {
               "name": "mint",
               "isMut": true,

@@ -107,6 +107,10 @@ fn handle_settle_auction_none_cctp(
     ctx: Context<SettleAuctionNoneCctp>,
     destination_cctp_domain: u32,
 ) -> Result<()> {
+    let prepared_custody_token = &ctx.accounts.prepared.custody_token;
+    let custodian = &ctx.accounts.custodian;
+    let token_program = &ctx.accounts.token_program;
+
     let super::SettledNone {
         user_amount: amount,
         fill,
@@ -116,11 +120,11 @@ fn handle_settle_auction_none_cctp(
             payer_sequence: &mut ctx.accounts.payer_sequence,
             fast_vaa: &ctx.accounts.fast_order_path.fast_vaa,
             prepared_order_response: &ctx.accounts.prepared.order_response,
-            prepared_custody_token: &ctx.accounts.prepared.custody_token,
+            prepared_custody_token,
             auction: &mut ctx.accounts.auction,
             fee_recipient_token: &ctx.accounts.fee_recipient_token,
-            dst_token: &ctx.accounts.cctp.burn_source,
-            token_program: &ctx.accounts.token_program,
+            custodian,
+            token_program,
         },
         ctx.bumps.auction,
     )?;
@@ -133,6 +137,8 @@ fn handle_settle_auction_none_cctp(
         protocol: _,
     } = ctx.accounts.fast_order_path.to_endpoint.as_ref();
 
+    let payer = &ctx.accounts.payer;
+
     // This returns the CCTP nonce, but we do not need it.
     wormhole_cctp_solana::cpi::burn_and_publish(
         CpiContext::new_with_signer(
@@ -141,14 +147,14 @@ fn handle_settle_auction_none_cctp(
                 .token_messenger_minter_program
                 .to_account_info(),
             wormhole_cctp_solana::cpi::DepositForBurnWithCaller {
-                burn_token_owner: ctx.accounts.custodian.to_account_info(),
-                payer: ctx.accounts.payer.to_account_info(),
+                burn_token_owner: custodian.to_account_info(),
+                payer: payer.to_account_info(),
                 token_messenger_minter_sender_authority: ctx
                     .accounts
                     .cctp
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
-                burn_token: ctx.accounts.cctp.burn_source.to_account_info(),
+                burn_token: prepared_custody_token.to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
                     .cctp
@@ -170,7 +176,7 @@ fn handle_settle_auction_none_cctp(
                     .cctp
                     .token_messenger_minter_program
                     .to_account_info(),
-                token_program: ctx.accounts.token_program.to_account_info(),
+                token_program: token_program.to_account_info(),
                 system_program: ctx.accounts.system_program.to_account_info(),
                 event_authority: ctx
                     .accounts
@@ -182,7 +188,7 @@ fn handle_settle_auction_none_cctp(
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::constants::CCTP_MESSAGE_SEED_PREFIX,
-                    ctx.accounts.payer.key().as_ref(),
+                    payer.key().as_ref(),
                     sequence_seed.as_ref(),
                     &[ctx.bumps.cctp_message],
                 ],
@@ -191,9 +197,9 @@ fn handle_settle_auction_none_cctp(
         CpiContext::new_with_signer(
             ctx.accounts.wormhole.core_bridge_program.to_account_info(),
             wormhole_cctp_solana::cpi::PostMessage {
-                payer: ctx.accounts.payer.to_account_info(),
+                payer: payer.to_account_info(),
                 message: ctx.accounts.core_message.to_account_info(),
-                emitter: ctx.accounts.custodian.to_account_info(),
+                emitter: custodian.to_account_info(),
                 config: ctx.accounts.wormhole.config.to_account_info(),
                 emitter_sequence: ctx.accounts.wormhole.emitter_sequence.to_account_info(),
                 fee_collector: ctx.accounts.wormhole.fee_collector.to_account_info(),
@@ -205,7 +211,7 @@ fn handle_settle_auction_none_cctp(
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
-                    ctx.accounts.payer.key().as_ref(),
+                    payer.key().as_ref(),
                     sequence_seed.as_ref(),
                     &[ctx.bumps.core_message],
                 ],
@@ -222,6 +228,14 @@ fn handle_settle_auction_none_cctp(
         },
     )?;
 
-    // Done.
-    Ok(())
+    // Finally close the account since it is no longer needed.
+    token::close_account(CpiContext::new_with_signer(
+        token_program.to_account_info(),
+        token::CloseAccount {
+            account: prepared_custody_token.to_account_info(),
+            destination: payer.to_account_info(),
+            authority: custodian.to_account_info(),
+        },
+        &[Custodian::SIGNER_SEEDS],
+    ))
 }

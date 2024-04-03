@@ -22,7 +22,7 @@ struct SettleNoneAndPrepareFill<'ctx, 'info> {
     prepared_custody_token: &'ctx AccountInfo<'info>,
     auction: &'ctx mut Account<'info, Auction>,
     fee_recipient_token: &'ctx Account<'info, token::TokenAccount>,
-    dst_token: &'ctx Account<'info, token::TokenAccount>,
+    custodian: &'ctx CheckedCustodian<'info>,
     token_program: &'ctx Program<'info, token::Token>,
 }
 
@@ -43,7 +43,7 @@ fn settle_none_and_prepare_fill(
         prepared_custody_token,
         auction,
         fee_recipient_token,
-        dst_token,
+        custodian,
         token_program,
     } = accounts;
 
@@ -75,18 +75,18 @@ fn settle_none_and_prepare_fill(
         base_fee,
     )?;
 
-    let user_amount = order.amount_in() - base_fee;
-    token::transfer(
+    // Set the authority of the custody token account to the custodian. He will take over from here.
+    token::set_authority(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
-            token::Transfer {
-                from: prepared_custody_token.to_account_info(),
-                to: dst_token.to_account_info(),
-                authority: prepared_order_response.to_account_info(),
+            token::SetAuthority {
+                current_authority: prepared_order_response.to_account_info(),
+                account_or_mint: prepared_custody_token.to_account_info(),
             },
             &[prepared_order_response_signer_seeds],
         ),
-        user_amount,
+        token::spl_token::instruction::AuthorityType::AccountOwner,
+        Some(custodian.key()),
     )?;
 
     // This is a necessary security check. This will prevent a relayer from starting an auction with
@@ -110,7 +110,7 @@ fn settle_none_and_prepare_fill(
     });
 
     Ok(SettledNone {
-        user_amount,
+        user_amount: order.amount_in() - base_fee,
         fill: Fill {
             source_chain: prepared_order_response.source_chain,
             order_sender: order.sender(),

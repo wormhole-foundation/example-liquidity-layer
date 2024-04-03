@@ -1,7 +1,7 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, Custodian, MessageProtocol, PayerSequence},
+    state::{Custodian, MessageProtocol, PayerSequence},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -76,6 +76,9 @@ pub fn handle_execute_fast_order_cctp(
     ctx: Context<ExecuteFastOrderCctp>,
     destination_cctp_domain: u32,
 ) -> Result<()> {
+    let custodian = &ctx.accounts.custodian;
+    let token_program = &ctx.accounts.token_program;
+
     let super::PreparedOrderExecution {
         user_amount: amount,
         fill,
@@ -83,9 +86,12 @@ pub fn handle_execute_fast_order_cctp(
     } = super::prepare_order_execution(super::PrepareFastExecution {
         execute_order: &mut ctx.accounts.execute_order,
         payer_sequence: &mut ctx.accounts.payer_sequence,
-        dst_token: &ctx.accounts.cctp.burn_source,
+        custodian: &ctx.accounts.custodian,
         token_program: &ctx.accounts.token_program,
     })?;
+
+    let auction_custody_token = &ctx.accounts.execute_order.active_auction.custody_token;
+    let payer = &ctx.accounts.payer;
 
     // Send the CCTP message to the destination chain.
     wormhole_cctp_solana::cpi::burn_and_publish(
@@ -95,14 +101,19 @@ pub fn handle_execute_fast_order_cctp(
                 .token_messenger_minter_program
                 .to_account_info(),
             wormhole_cctp_solana::cpi::DepositForBurnWithCaller {
-                burn_token_owner: ctx.accounts.custodian.to_account_info(),
-                payer: ctx.accounts.payer.to_account_info(),
+                burn_token_owner: custodian.to_account_info(),
+                payer: payer.to_account_info(),
                 token_messenger_minter_sender_authority: ctx
                     .accounts
                     .cctp
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
-                burn_token: ctx.accounts.cctp.burn_source.to_account_info(),
+                burn_token: ctx
+                    .accounts
+                    .execute_order
+                    .active_auction
+                    .custody_token
+                    .to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
                     .cctp
@@ -124,7 +135,7 @@ pub fn handle_execute_fast_order_cctp(
                     .cctp
                     .token_messenger_minter_program
                     .to_account_info(),
-                token_program: ctx.accounts.token_program.to_account_info(),
+                token_program: token_program.to_account_info(),
                 system_program: ctx.accounts.system_program.to_account_info(),
                 event_authority: ctx
                     .accounts
@@ -136,7 +147,7 @@ pub fn handle_execute_fast_order_cctp(
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::constants::CCTP_MESSAGE_SEED_PREFIX,
-                    ctx.accounts.payer.key().as_ref(),
+                    payer.key().as_ref(),
                     sequence_seed.as_ref(),
                     &[ctx.bumps.cctp_message],
                 ],
@@ -145,9 +156,9 @@ pub fn handle_execute_fast_order_cctp(
         CpiContext::new_with_signer(
             ctx.accounts.wormhole.core_bridge_program.to_account_info(),
             wormhole_cctp_solana::cpi::PostMessage {
-                payer: ctx.accounts.payer.to_account_info(),
+                payer: payer.to_account_info(),
                 message: ctx.accounts.core_message.to_account_info(),
-                emitter: ctx.accounts.custodian.to_account_info(),
+                emitter: custodian.to_account_info(),
                 config: ctx.accounts.wormhole.config.to_account_info(),
                 emitter_sequence: ctx.accounts.wormhole.emitter_sequence.to_account_info(),
                 fee_collector: ctx.accounts.wormhole.fee_collector.to_account_info(),
@@ -159,7 +170,7 @@ pub fn handle_execute_fast_order_cctp(
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::constants::CORE_MESSAGE_SEED_PREFIX,
-                    ctx.accounts.payer.key().as_ref(),
+                    payer.key().as_ref(),
                     sequence_seed.as_ref(),
                     &[ctx.bumps.core_message],
                 ],
@@ -178,26 +189,12 @@ pub fn handle_execute_fast_order_cctp(
 
     // Finally close the account since it is no longer needed.
     token::close_account(CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
+        token_program.to_account_info(),
         token::CloseAccount {
-            account: ctx
-                .accounts
-                .execute_order
-                .active_auction
-                .custody_token
-                .to_account_info(),
-            destination: ctx.accounts.payer.to_account_info(),
-            authority: ctx
-                .accounts
-                .execute_order
-                .active_auction
-                .auction
-                .to_account_info(),
+            account: auction_custody_token.to_account_info(),
+            destination: payer.to_account_info(),
+            authority: custodian.to_account_info(),
         },
-        &[&[
-            Auction::SEED_PREFIX,
-            ctx.accounts.execute_order.active_auction.vaa_hash.as_ref(),
-            &[ctx.accounts.execute_order.active_auction.bump],
-        ]],
+        &[Custodian::SIGNER_SEEDS],
     ))
 }

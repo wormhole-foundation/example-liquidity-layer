@@ -17,7 +17,7 @@ use common::messages::{raw::LiquidityLayerMessage, Fill};
 struct PrepareFastExecution<'ctx, 'info> {
     execute_order: &'ctx mut ExecuteOrder<'info>,
     payer_sequence: &'ctx mut Account<'info, PayerSequence>,
-    dst_token: &'ctx Account<'info, token::TokenAccount>,
+    custodian: &'ctx CheckedCustodian<'info>,
     token_program: &'ctx Program<'info, token::Token>,
 }
 
@@ -31,7 +31,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
     let PrepareFastExecution {
         execute_order,
         payer_sequence,
-        dst_token,
+        custodian,
         token_program,
     } = accounts;
 
@@ -138,24 +138,23 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             deposit_and_fee,
         )?;
 
-        // Transfer funds to local custody token account.
-        let user_amount =
-            auction_info.amount_in - auction_info.offer_price - init_auction_fee + user_reward;
-        token::transfer(
+        // Set the authority of the custody token account to the custodian. He will take over from
+        // here.
+        token::set_authority(
             CpiContext::new_with_signer(
                 token_program.to_account_info(),
-                token::Transfer {
-                    from: custody_token.to_account_info(),
-                    to: dst_token.to_account_info(),
-                    authority: auction.to_account_info(),
+                token::SetAuthority {
+                    current_authority: auction.to_account_info(),
+                    account_or_mint: custody_token.to_account_info(),
                 },
                 &[auction_signer_seeds],
             ),
-            user_amount,
+            token::spl_token::instruction::AuthorityType::AccountOwner,
+            Some(custodian.key()),
         )?;
 
         (
-            user_amount,
+            auction_info.amount_in - auction_info.offer_price - init_auction_fee + user_reward,
             AuctionStatus::Completed {
                 slot: current_slot,
                 execute_penalty: if penalty > 0 { Some(penalty) } else { None },

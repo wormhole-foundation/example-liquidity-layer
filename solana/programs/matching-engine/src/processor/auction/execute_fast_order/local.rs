@@ -1,6 +1,6 @@
 use crate::{
     composite::*,
-    state::{Auction, PayerSequence},
+    state::{Custodian, PayerSequence},
     utils,
 };
 use anchor_lang::prelude::*;
@@ -61,6 +61,8 @@ pub struct ExecuteFastOrderLocal<'info> {
 }
 
 pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<()> {
+    let custodian = &ctx.accounts.custodian;
+
     let super::PreparedOrderExecution {
         user_amount: amount,
         fill,
@@ -68,9 +70,11 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
     } = super::prepare_order_execution(super::PrepareFastExecution {
         execute_order: &mut ctx.accounts.execute_order,
         payer_sequence: &mut ctx.accounts.payer_sequence,
-        dst_token: &ctx.accounts.local_custody_token,
+        custodian,
         token_program: &ctx.accounts.token_program,
     })?;
+
+    let payer = &ctx.accounts.payer;
 
     // Publish message via Core Bridge.
     //
@@ -80,8 +84,8 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         utils::wormhole::PostMatchingEngineMessage {
             wormhole: &ctx.accounts.wormhole,
             core_message: &ctx.accounts.core_message,
-            custodian: &ctx.accounts.custodian,
-            payer: &ctx.accounts.payer,
+            custodian,
+            payer,
             system_program: &ctx.accounts.system_program,
             sysvars: &ctx.accounts.sysvars,
         },
@@ -90,28 +94,31 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         ctx.bumps.core_message,
     )?;
 
+    let token_program = &ctx.accounts.token_program;
+    let auction_custody_token = &ctx.accounts.execute_order.active_auction.custody_token;
+
+    // Transfer funds to the local custody account.
+    token::transfer(
+        CpiContext::new_with_signer(
+            token_program.to_account_info(),
+            token::Transfer {
+                from: auction_custody_token.to_account_info(),
+                to: ctx.accounts.local_custody_token.to_account_info(),
+                authority: custodian.to_account_info(),
+            },
+            &[Custodian::SIGNER_SEEDS],
+        ),
+        amount,
+    )?;
+
     // Finally close the account since it is no longer needed.
     token::close_account(CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
+        token_program.to_account_info(),
         token::CloseAccount {
-            account: ctx
-                .accounts
-                .execute_order
-                .active_auction
-                .custody_token
-                .to_account_info(),
-            destination: ctx.accounts.payer.to_account_info(),
-            authority: ctx
-                .accounts
-                .execute_order
-                .active_auction
-                .auction
-                .to_account_info(),
+            account: auction_custody_token.to_account_info(),
+            destination: payer.to_account_info(),
+            authority: custodian.to_account_info(),
         },
-        &[&[
-            Auction::SEED_PREFIX,
-            ctx.accounts.execute_order.active_auction.vaa_hash.as_ref(),
-            &[ctx.accounts.execute_order.active_auction.bump],
-        ]],
+        &[Custodian::SIGNER_SEEDS],
     ))
 }
