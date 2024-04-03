@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 #[event]
 #[derive(Debug)]
-pub struct AuctionUpdate {
+pub struct AuctionUpdated {
     pub auction: Pubkey,
     pub vaa: Option<Pubkey>,
     pub end_slot: u64,

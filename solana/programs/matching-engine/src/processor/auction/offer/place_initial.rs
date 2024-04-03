@@ -2,7 +2,7 @@ use crate::{
     composite::*,
     error::MatchingEngineError,
     state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus},
-    TRANSFER_AUTHORITY_SEED_PREFIX,
+    utils, TRANSFER_AUTHORITY_SEED_PREFIX,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -86,9 +86,7 @@ pub struct PlaceInitialOffer<'info> {
     )]
     auction: Box<Account<'info, Auction>>,
 
-    /// CHECK: Must be a token account, whose mint is `USDC_MINT` and have delegated authority to
-    /// the auction PDA.
-    offer_token: AccountInfo<'info>,
+    offer_token: Account<'info, token::TokenAccount>,
 
     #[account(
         init,
@@ -121,15 +119,15 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
     let security_deposit = order.max_fee();
 
     // Set up the Auction account for this auction.
+    let config = &ctx.accounts.auction_config;
     let initial_offer_token = ctx.accounts.offer_token.key();
-    let vaa_hash = fast_vaa.digest().0;
     ctx.accounts.auction.set_inner(Auction {
         bump: ctx.bumps.auction,
-        vaa_hash,
+        vaa_hash: fast_vaa.digest().0,
         vaa_timestamp: fast_vaa.timestamp(),
         status: AuctionStatus::Active,
         info: Some(AuctionInfo {
-            config_id: ctx.accounts.auction_config.id,
+            config_id: config.id,
             custody_token_bump: ctx.bumps.auction_custody_token,
             vaa_sequence: fast_vaa.sequence(),
             source_chain: fast_vaa.emitter_chain(),
@@ -141,6 +139,20 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
             offer_price,
             amount_out: amount_in,
         }),
+    });
+
+    let info = ctx.accounts.auction.info.as_ref().unwrap();
+
+    // Emit event for auction participants to listen to.
+    emit!(crate::events::AuctionUpdated {
+        auction: ctx.accounts.auction.key(),
+        vaa: Some(ctx.accounts.fast_order_path.fast_vaa.key()),
+        end_slot: info.auction_end_slot(config),
+        best_offer_token: initial_offer_token,
+        token_balance_before: ctx.accounts.offer_token.amount,
+        amount_in,
+        total_deposit: info.total_deposit(),
+        max_offer_price_allowed: utils::auction::compute_min_allowed_offer(config, info),
     });
 
     // Finally transfer tokens from the offer authority's token account to the

@@ -932,10 +932,7 @@ export type MatchingEngine = {
         {
           "name": "offerToken",
           "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "the auction PDA."
-          ]
+          "isSigner": false
         },
         {
           "name": "auctionCustodyToken",
@@ -1020,10 +1017,7 @@ export type MatchingEngine = {
         {
           "name": "offerToken",
           "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "the auction PDA."
-          ]
+          "isSigner": false
         },
         {
           "name": "tokenProgram",
@@ -3030,7 +3024,7 @@ export type MatchingEngine = {
       ]
     },
     {
-      "name": "AuctionUpdate",
+      "name": "AuctionUpdated",
       "fields": [
         {
           "name": "auction",
@@ -4218,10 +4212,7 @@ export const IDL: MatchingEngine = {
         {
           "name": "offerToken",
           "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "the auction PDA."
-          ]
+          "isSigner": false
         },
         {
           "name": "auctionCustodyToken",
@@ -4306,10 +4297,7 @@ export const IDL: MatchingEngine = {
         {
           "name": "offerToken",
           "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "the auction PDA."
-          ]
+          "isSigner": false
         },
         {
           "name": "tokenProgram",
@@ -6316,7 +6304,7 @@ export const IDL: MatchingEngine = {
       ]
     },
     {
-      "name": "AuctionUpdate",
+      "name": "AuctionUpdated",
       "fields": [
         {
           "name": "auction",

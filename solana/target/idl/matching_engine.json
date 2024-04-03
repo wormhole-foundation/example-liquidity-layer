@@ -932,10 +932,7 @@
         {
           "name": "offerToken",
           "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "the auction PDA."
-          ]
+          "isSigner": false
         },
         {
           "name": "auctionCustodyToken",
@@ -1020,10 +1017,7 @@
         {
           "name": "offerToken",
           "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "the auction PDA."
-          ]
+          "isSigner": false
         },
         {
           "name": "tokenProgram",
@@ -3030,7 +3024,7 @@
       ]
     },
     {
-      "name": "AuctionUpdate",
+      "name": "AuctionUpdated",
       "fields": [
         {
           "name": "auction",
