@@ -128,6 +128,28 @@ export type CctpMessageArgs = {
     cctpAttestation: Buffer;
 };
 
+export type AuctionSettled = {
+    auction: PublicKey;
+    bestOfferToken: PublicKey | null;
+    tokenBalanceAfter: BN;
+};
+
+export type AuctionUpdate = {
+    auction: PublicKey;
+    vaa: PublicKey | null;
+    endSlot: BN;
+    bestOfferToken: PublicKey;
+    tokenBalanceBefore: BN;
+    amountIn: BN;
+    totalDeposit: BN;
+    maxOfferPriceAllowed: BN;
+};
+
+export type OrderExecuted = {
+    auction: PublicKey;
+    vaa: PublicKey;
+};
+
 export class MatchingEngineProgram {
     private _programId: ProgramId;
     private _mint: PublicKey;
@@ -148,6 +170,18 @@ export class MatchingEngineProgram {
 
     get mint(): PublicKey {
         return this._mint;
+    }
+
+    onAuctionSettled(callback: (event: AuctionSettled, slot: number, signature: string) => void) {
+        return this.program.addEventListener("AuctionSettled", callback);
+    }
+
+    onAuctionUpdate(callback: (event: AuctionUpdate, slot: number, signature: string) => void) {
+        return this.program.addEventListener("AuctionUpdated", callback);
+    }
+
+    onOrderExecuted(callback: (event: OrderExecuted, slot: number, signature: string) => void) {
+        return this.program.addEventListener("OrderExecuted", callback);
     }
 
     custodianAddress(): PublicKey {
