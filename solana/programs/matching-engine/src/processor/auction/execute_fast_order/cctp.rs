@@ -92,6 +92,7 @@ pub fn handle_execute_fast_order_cctp(
 
     let auction_custody_token = &ctx.accounts.execute_order.active_auction.custody_token;
     let payer = &ctx.accounts.payer;
+    let system_program = &ctx.accounts.system_program;
 
     // Send the CCTP message to the destination chain.
     wormhole_cctp_solana::cpi::burn_and_publish(
@@ -136,7 +137,7 @@ pub fn handle_execute_fast_order_cctp(
                     .token_messenger_minter_program
                     .to_account_info(),
                 token_program: token_program.to_account_info(),
-                system_program: ctx.accounts.system_program.to_account_info(),
+                system_program: system_program.to_account_info(),
                 event_authority: ctx
                     .accounts
                     .cctp
@@ -162,7 +163,7 @@ pub fn handle_execute_fast_order_cctp(
                 config: ctx.accounts.wormhole.config.to_account_info(),
                 emitter_sequence: ctx.accounts.wormhole.emitter_sequence.to_account_info(),
                 fee_collector: ctx.accounts.wormhole.fee_collector.to_account_info(),
-                system_program: ctx.accounts.system_program.to_account_info(),
+                system_program: system_program.to_account_info(),
                 clock: ctx.accounts.sysvars.clock.to_account_info(),
                 rent: ctx.accounts.sysvars.rent.to_account_info(),
             },

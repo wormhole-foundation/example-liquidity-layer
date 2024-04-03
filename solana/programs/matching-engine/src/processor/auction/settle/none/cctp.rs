@@ -138,6 +138,7 @@ fn handle_settle_auction_none_cctp(
     } = ctx.accounts.fast_order_path.to_endpoint.as_ref();
 
     let payer = &ctx.accounts.payer;
+    let system_program = &ctx.accounts.system_program;
 
     // This returns the CCTP nonce, but we do not need it.
     wormhole_cctp_solana::cpi::burn_and_publish(
@@ -177,7 +178,7 @@ fn handle_settle_auction_none_cctp(
                     .token_messenger_minter_program
                     .to_account_info(),
                 token_program: token_program.to_account_info(),
-                system_program: ctx.accounts.system_program.to_account_info(),
+                system_program: system_program.to_account_info(),
                 event_authority: ctx
                     .accounts
                     .cctp
@@ -203,7 +204,7 @@ fn handle_settle_auction_none_cctp(
                 config: ctx.accounts.wormhole.config.to_account_info(),
                 emitter_sequence: ctx.accounts.wormhole.emitter_sequence.to_account_info(),
                 fee_collector: ctx.accounts.wormhole.fee_collector.to_account_info(),
-                system_program: ctx.accounts.system_program.to_account_info(),
+                system_program: system_program.to_account_info(),
                 clock: ctx.accounts.sysvars.clock.to_account_info(),
                 rent: ctx.accounts.sysvars.rent.to_account_info(),
             },
