@@ -3,6 +3,8 @@ pub enum MatchingEngineError {
     OwnerOnly = 0x2,
     OwnerOrAssistantOnly = 0x4,
 
+    U64Overflow = 0x10,
+
     SameEndpoint = 0x20,
     InvalidEndpoint = 0x22,
 

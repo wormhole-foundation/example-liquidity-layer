@@ -2570,12 +2570,15 @@ describe("Matching Engine", function () {
                     auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
                 );
 
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 250_000,
+                });
                 const ix = await engine.executeFastOrderCctpIx({
                     payer: playerOne.publicKey,
                     fastVaa,
                 });
 
-                await expectIxOk(connection, [ix], [playerOne]);
+                await expectIxOk(connection, [computeIx, ix], [playerOne]);
 
                 localVariables.set("ix", ix);
             });
@@ -3679,20 +3682,25 @@ describe("Matching Engine", function () {
         const auctionCustodyBalanceAfter = await engine.fetchAuctionCustodyTokenBalance(auction);
 
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fast.vaaAccount.payload());
-        const balanceChange = fastMarketOrder!.amountIn + fastMarketOrder!.maxFee;
+        expect(fastMarketOrder).is.not.undefined;
+        const { amountIn, maxFee } = fastMarketOrder!;
 
+        const auctionData = await engine.fetchAuction({ address: auction });
+        const { bump, info } = auctionData;
+        const { custodyTokenBump, securityDeposit } = info!;
+
+        const { auctionConfigId } = await engine.fetchCustodian();
+        const notionalDeposit = await engine.computeNotionalSecurityDeposit(
+            amountIn,
+            auctionConfigId,
+        );
+        expect(uint64ToBigInt(securityDeposit)).equals(maxFee + notionalDeposit);
+
+        const balanceChange = amountIn + uint64ToBigInt(securityDeposit);
         expect(offerTokenBalanceAfter).equals(offerTokenBalanceBefore - balanceChange);
         expect(auctionCustodyBalanceAfter).equals(auctionCustodyBalanceBefore + balanceChange);
 
         // Confirm the auction data.
-        const auctionData = await engine.fetchAuction({ address: auction });
-        const { bump, info } = auctionData;
-        const { custodyTokenBump } = info!;
-
-        const { auctionConfigId } = await engine.fetchCustodian();
-
-        expect(fastMarketOrder).is.not.undefined;
-        const { amountIn, maxFee } = fastMarketOrder!;
 
         const expectedAmountIn = uint64ToBN(amountIn);
         expect(auctionData).to.eql(
@@ -3710,7 +3718,7 @@ describe("Matching Engine", function () {
                     initialOfferToken: offerToken,
                     startSlot: uint64ToBN(txDetails.slot),
                     amountIn: expectedAmountIn,
-                    securityDeposit: uint64ToBN(maxFee),
+                    securityDeposit,
                     offerPrice: uint64ToBN(args.offerPrice),
                     amountOut: expectedAmountIn,
                 },

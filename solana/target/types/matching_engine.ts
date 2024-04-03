@@ -3117,6 +3117,10 @@ export type MatchingEngine = {
       "name": "OwnerOrAssistantOnly"
     },
     {
+      "code": 6016,
+      "name": "U64Overflow"
+    },
+    {
       "code": 6032,
       "name": "SameEndpoint"
     },
@@ -6432,6 +6436,10 @@ export const IDL: MatchingEngine = {
     {
       "code": 6004,
       "name": "OwnerOrAssistantOnly"
+    },
+    {
+      "code": 6016,
+      "name": "U64Overflow"
     },
     {
       "code": 6032,
