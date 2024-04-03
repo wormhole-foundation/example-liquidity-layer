@@ -21,7 +21,7 @@ struct SettleNoneAndPrepareFill<'ctx, 'info> {
     prepared_order_response: &'ctx Account<'info, PreparedOrderResponse>,
     prepared_custody_token: &'ctx AccountInfo<'info>,
     auction: &'ctx mut Account<'info, Auction>,
-    fee_recipient_token: &'ctx AccountInfo<'info>,
+    fee_recipient_token: &'ctx Account<'info, token::TokenAccount>,
     dst_token: &'ctx Account<'info, token::TokenAccount>,
     token_program: &'ctx Program<'info, token::Token>,
 }
@@ -101,6 +101,12 @@ fn settle_none_and_prepare_fill(
             total_penalty: None,
         },
         info: None,
+    });
+
+    emit!(crate::events::AuctionSettled {
+        auction: auction.key(),
+        best_offer_token: Default::default(),
+        token_balance_after: fee_recipient_token.amount.saturating_add(base_fee),
     });
 
     Ok(SettledNone {

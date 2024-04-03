@@ -12,7 +12,7 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::messages::{raw::LiquidityLayerPayload, Fill};
+use common::messages::{raw::LiquidityLayerMessage, Fill};
 
 struct PrepareFastExecution<'ctx, 'info> {
     execute_order: &'ctx mut ExecuteOrder<'info>,
@@ -42,18 +42,24 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
         initial_offer_token,
     } = execute_order;
 
-    let fast_vaa = fast_vaa.load_unchecked();
-    let order = LiquidityLayerPayload::try_from(fast_vaa.payload())
-        .map_err(|_| MatchingEngineError::InvalidVaa)?
-        .message()
-        .to_fast_market_order_unchecked();
-
     let ActiveAuction {
         auction,
         custody_token,
         config,
         best_offer_token,
     } = active_auction;
+
+    // Emit event for auction participants to listen to. We emit it early in the instruction handler
+    // for convenience of using the fast vaa reference.
+    emit!(crate::events::OrderExecuted {
+        auction: auction.key(),
+        vaa: fast_vaa.key(),
+    });
+
+    let fast_vaa = fast_vaa.load_unchecked();
+    let order = LiquidityLayerMessage::try_from(fast_vaa.payload())
+        .unwrap()
+        .to_fast_market_order_unchecked();
 
     // Create zero copy reference to `FastMarketOrder` payload.
 

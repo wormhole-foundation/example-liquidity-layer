@@ -61,7 +61,7 @@ pub struct SettleAuctionNoneCctp<'info> {
         mut,
         address = custodian.fee_recipient_token,
     )]
-    fee_recipient_token: AccountInfo<'info>,
+    fee_recipient_token: Account<'info, token::TokenAccount>,
 
     #[account(
         constraint = utils::require_vaa_hash_equals(
