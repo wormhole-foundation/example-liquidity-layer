@@ -7,6 +7,8 @@ mod composite;
 
 mod error;
 
+mod events;
+
 mod processor;
 use processor::*;
 

@@ -3006,6 +3006,92 @@ export type MatchingEngine = {
       }
     }
   ],
+  "events": [
+    {
+      "name": "AuctionSettled",
+      "fields": [
+        {
+          "name": "auction",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "bestOfferToken",
+          "type": {
+            "option": "publicKey"
+          },
+          "index": false
+        },
+        {
+          "name": "tokenBalanceAfter",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "AuctionUpdate",
+      "fields": [
+        {
+          "name": "auction",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "vaa",
+          "type": {
+            "option": "publicKey"
+          },
+          "index": false
+        },
+        {
+          "name": "endSlot",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "bestOfferToken",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "tokenBalanceBefore",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "amountIn",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "totalDeposit",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "maxOfferPriceAllowed",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "OrderExecuted",
+      "fields": [
+        {
+          "name": "auction",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "vaa",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
+    }
+  ],
   "errors": [
     {
       "code": 6002,
@@ -6204,6 +6290,92 @@ export const IDL: MatchingEngine = {
           }
         ]
       }
+    }
+  ],
+  "events": [
+    {
+      "name": "AuctionSettled",
+      "fields": [
+        {
+          "name": "auction",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "bestOfferToken",
+          "type": {
+            "option": "publicKey"
+          },
+          "index": false
+        },
+        {
+          "name": "tokenBalanceAfter",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "AuctionUpdate",
+      "fields": [
+        {
+          "name": "auction",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "vaa",
+          "type": {
+            "option": "publicKey"
+          },
+          "index": false
+        },
+        {
+          "name": "endSlot",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "bestOfferToken",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "tokenBalanceBefore",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "amountIn",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "totalDeposit",
+          "type": "u64",
+          "index": false
+        },
+        {
+          "name": "maxOfferPriceAllowed",
+          "type": "u64",
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "OrderExecuted",
+      "fields": [
+        {
+          "name": "auction",
+          "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "vaa",
+          "type": "publicKey",
+          "index": false
+        }
+      ]
     }
   ],
   "errors": [
