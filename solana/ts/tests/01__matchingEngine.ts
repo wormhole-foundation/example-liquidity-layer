@@ -12,6 +12,7 @@ import {
     TransactionInstruction,
     VersionedTransactionResponse,
     Signer,
+    AddressLookupTableAccount,
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
@@ -1351,6 +1352,27 @@ describe("Matching Engine", function () {
                 });
             }
 
+            it("Place Initial Offer (Tx)", async function () {
+                const { fast } = await observeCctpOrderVaas({ sourceChain: "ethereum" });
+
+                const txn = await engine.placeInitialOfferTx(
+                    {
+                        payer: playerOne.publicKey,
+                        fastVaa: fast.vaa,
+                        fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
+                        toRouterEndpoint: engine.routerEndpointAddress(
+                            fast.fastMarketOrder.targetChain,
+                        ),
+                    },
+                    { offerPrice: fast.fastMarketOrder.maxFee },
+                    [playerOne],
+                    { feeMicroLamports: 10, computeUnits: 200000 },
+                    { commitment: "confirmed" },
+                );
+
+                await expectIxOk(connection, txn.ixs, [playerOne]);
+            });
+
             it("Place Initial Offer (Offer == Max Fee; Max Fee == Amount Minus 1)", async function () {
                 await placeInitialOfferForTest(
                     {
@@ -1766,6 +1788,39 @@ describe("Matching Engine", function () {
                 });
             }
 
+            it("Improve Offer (Tx)", async function () {
+                const result = await placeInitialOfferForTest(
+                    {
+                        payer: playerOne.publicKey,
+                    },
+                    {
+                        signers: [playerOne],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
+                    },
+                );
+                const { auction, auctionDataBefore } = result!;
+
+                const currentOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
+                const newOffer =
+                    BigInt(auctionDataBefore.info!.offerPrice.toString()) -
+                    (await engine.computeMinOfferDelta(currentOffer)) -
+                    100n;
+
+                const txn = await engine.improveOfferTx(
+                    {
+                        auction,
+                        participant: playerTwo.publicKey,
+                    },
+                    newOffer,
+                    [playerTwo],
+                    { feeMicroLamports: 10, computeUnits: 200000 },
+                    { commitment: "confirmed" },
+                );
+
+                await expectIxOk(connection, txn.ixs, [playerTwo]);
+            });
+
             it("Improve Offer By Min Offer Delta", async function () {
                 const result = await placeInitialOfferForTest(
                     {
@@ -2113,6 +2168,45 @@ describe("Matching Engine", function () {
                 );
 
                 localVariables.set("auction", auction);
+            });
+
+            it("Execute Fast Order (Tx)", async function () {
+                const result = await placeInitialOfferForTest(
+                    {
+                        payer: playerTwo.publicKey,
+                    },
+                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
+                );
+                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+
+                const { duration, gracePeriod } = await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    initialData.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
+                );
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+
+                const tx = await engine.executeFastOrderTx(
+                    { payer: playerTwo.publicKey, fastVaa, auction },
+                    [playerTwo],
+                    {
+                        feeMicroLamports: 10,
+                        computeUnits: 400_000,
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    },
+                    { commitment: "confirmed" },
+                );
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 400_000,
+                });
+
+                await expectIxOkDetails(connection, [computeIx, ...tx.ixs], [playerTwo], {
+                    addressLookupTableAccounts: [lookupTableAccount!],
+                });
             });
 
             it("Reclaim by Closing CCTP Message", async function () {
@@ -3079,12 +3173,109 @@ describe("Matching Engine", function () {
                 it.skip("Settle Completed with Penalty (Executor != Best Offer)", async function () {
                     // TODO
                 });
+
+                it("Settle Completed (Tx)", async function () {
+                    const { fast, finalized } = await observeCctpOrderVaas({
+                        sourceChain: "ethereum",
+                    });
+
+                    const result = await placeInitialOfferForTest(
+                        {
+                            payer: playerTwo.publicKey,
+                            fastVaa: fast.vaa,
+                        },
+                        { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
+                    );
+                    const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+
+                    const { duration, gracePeriod } = await engine.fetchAuctionParameters();
+                    await waitUntilSlot(
+                        connection,
+                        initialData.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
+                    );
+
+                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                        lookupTableAddress,
+                    );
+
+                    const tx = await engine.executeFastOrderTx(
+                        { payer: playerTwo.publicKey, fastVaa, auction },
+                        [playerTwo],
+                        {
+                            feeMicroLamports: 10,
+                            computeUnits: 300_000,
+                            addressLookupTableAccounts: [lookupTableAccount!],
+                        },
+                        { commitment: "confirmed" },
+                    );
+
+                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                        units: 300_000,
+                    });
+
+                    await expectIxOkDetails(connection, [computeIx, ...tx.ixs], [playerTwo], {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    });
+
+                    const tx2 = await engine.settleAuctionCompleteTx(
+                        {
+                            executor: playerTwo.publicKey,
+                            auction,
+                            fastVaa,
+                            finalizedVaa: finalized!.vaa,
+                        },
+                        finalized!.cctp,
+                        [playerTwo],
+                        {
+                            feeMicroLamports: 10,
+                            computeUnits: 300_000,
+                            addressLookupTableAccounts: [lookupTableAccount!],
+                        },
+                        { commitment: "confirmed" },
+                    );
+                    await expectIxOkDetails(connection, [computeIx, ...tx2.ixs], [playerTwo], {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    });
+                });
             });
 
             describe("Settle No Auction (CCTP)", function () {
                 it("Settle", async function () {
                     await settleAuctionNoneForTest({
                         payer: payer.publicKey,
+                    });
+                });
+
+                it("Settle (Tx)", async function () {
+                    const { fast, finalized } = await observeCctpOrderVaas({
+                        sourceChain: "ethereum",
+                    });
+
+                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                        lookupTableAddress,
+                    );
+
+                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                        units: 500_000,
+                    });
+
+                    const tx = await engine.settleAuctionNoneTx(
+                        {
+                            executor: playerTwo.publicKey,
+                            fastVaa: fast.vaa,
+                            finalizedVaa: finalized!.vaa,
+                        },
+                        finalized!.cctp,
+                        [playerTwo],
+                        {
+                            feeMicroLamports: 10,
+                            computeUnits: 500_000,
+                            addressLookupTableAccounts: [lookupTableAccount!],
+                        },
+                        { commitment: "confirmed" },
+                    );
+                    await expectIxOkDetails(connection, [computeIx, ...tx.ixs], [playerTwo], {
+                        addressLookupTableAccounts: [lookupTableAccount!],
                     });
                 });
             });

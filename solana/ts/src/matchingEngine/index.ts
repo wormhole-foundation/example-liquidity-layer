@@ -4,17 +4,20 @@ import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { BN, Program } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
+    ConfirmOptions,
     Connection,
     PublicKey,
     SYSVAR_CLOCK_PUBKEY,
     SYSVAR_EPOCH_SCHEDULE_PUBKEY,
     SYSVAR_RENT_PUBKEY,
     SystemProgram,
+    Signer,
     TransactionInstruction,
 } from "@solana/web3.js";
 import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
+import { PreparedTransaction, PreparedTransactionOptions } from "..";
 import {
     Uint64,
     LiquidityLayerMessage,
@@ -22,8 +25,6 @@ import {
     cctpMessageAddress,
     coreMessageAddress,
     reclaimCctpMessageIx,
-    writeUint64BE,
-    isUint64,
     uint64ToBN,
     uint64ToBigInt,
 } from "../common";
@@ -1003,6 +1004,46 @@ export class MatchingEngineProgram {
         );
     }
 
+    async placeInitialOfferTx(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            fromRouterEndpoint?: PublicKey;
+            toRouterEndpoint?: PublicKey;
+            auction?: PublicKey;
+        },
+        args: {
+            offerPrice: bigint;
+            totalDeposit?: bigint;
+        },
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        confirmOptions?: ConfirmOptions,
+    ): Promise<PreparedTransaction> {
+        const { payer, fastVaa, auction, fromRouterEndpoint, toRouterEndpoint } = accounts;
+        const ixs = await this.placeInitialOfferIx(
+            {
+                payer,
+                fastVaa,
+                auction,
+                fromRouterEndpoint,
+                toRouterEndpoint,
+            },
+            args,
+        );
+
+        return {
+            ixs,
+            signers,
+            computeUnits: opts.computeUnits!,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "placeInitialOffer",
+            confirmOptions,
+        };
+    }
+
     async placeInitialOfferIx(
         accounts: {
             payer: PublicKey;
@@ -1131,6 +1172,42 @@ export class MatchingEngineProgram {
         return [approveIx, placeInitialOfferIx];
     }
 
+    async improveOfferTx(
+        accounts: {
+            participant: PublicKey;
+            auction: PublicKey;
+            auctionConfig?: PublicKey;
+            bestOfferToken?: PublicKey;
+        },
+        offerPrice: bigint,
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        confirmOptions?: ConfirmOptions,
+    ): Promise<PreparedTransaction> {
+        const { participant, auction, auctionConfig, bestOfferToken } = accounts;
+
+        const ixs = await this.improveOfferIx(
+            {
+                participant,
+                auction,
+                auctionConfig,
+                bestOfferToken,
+            },
+            offerPrice,
+        );
+
+        return {
+            ixs,
+            signers,
+            computeUnits: opts.computeUnits,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "improveOffer",
+            confirmOptions,
+        };
+    }
+
     async improveOfferIx(
         accounts: {
             participant: PublicKey;
@@ -1238,6 +1315,50 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    async settleAuctionCompleteTx(
+        accounts: {
+            executor: PublicKey;
+            fastVaa: PublicKey;
+            finalizedVaa: PublicKey;
+            bestOfferToken?: PublicKey;
+            auction?: PublicKey;
+        },
+        args: CctpMessageArgs,
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        confirmOptions?: ConfirmOptions,
+    ): Promise<PreparedTransaction> {
+        const { executor, fastVaa, finalizedVaa, auction, bestOfferToken } = accounts;
+        const prepareOrderResponseIx = await this.prepareOrderResponseCctpIx(
+            { payer: executor, fastVaa, finalizedVaa },
+            args,
+        );
+        const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+
+        // Fetch the prepared order response.
+        const preparedOrderResponse = this.preparedOrderResponseAddress(fastVaaAccount.digest());
+
+        const settleAuctionCompletedIx = await this.settleAuctionCompleteIx({
+            executor,
+            auction,
+            preparedOrderResponse,
+            bestOfferToken,
+        });
+
+        const preparedTx: PreparedTransaction = {
+            ixs: [prepareOrderResponseIx, settleAuctionCompletedIx],
+            signers,
+            computeUnits: opts.computeUnits!,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "settleAuctionComplete",
+            confirmOptions,
+        };
+
+        return preparedTx;
+    }
+
     async settleAuctionCompleteIx(accounts: {
         executor: PublicKey;
         preparedOrderResponse: PublicKey;
@@ -1294,6 +1415,64 @@ export class MatchingEngineProgram {
                 bestOfferToken,
             })
             .instruction();
+    }
+
+    async settleAuctionNoneTx(
+        accounts: {
+            executor: PublicKey;
+            fastVaa: PublicKey;
+            finalizedVaa: PublicKey;
+            auction?: PublicKey;
+        },
+        args: CctpMessageArgs,
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        confirmOptions?: ConfirmOptions,
+    ): Promise<PreparedTransaction> {
+        const { executor, fastVaa, finalizedVaa, auction } = accounts;
+        const prepareOrderResponseIx = await this.prepareOrderResponseCctpIx(
+            { payer: executor, fastVaa, finalizedVaa },
+            args,
+        );
+        const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+        if (fastMarketOrder === undefined) {
+            throw new Error("Message not FastMarketOrder");
+        }
+
+        // Fetch the prepared order response.
+        const preparedOrderResponse = this.preparedOrderResponseAddress(fastVaaAccount.digest());
+
+        const settleAuctionNoneIx = await (async () => {
+            if (fastMarketOrder.targetChain === wormholeSdk.CHAIN_ID_SOLANA) {
+                return this.settleAuctionNoneLocalIx({
+                    payer: executor,
+                    fastVaa,
+                    preparedOrderResponse,
+                    auction,
+                });
+            } else {
+                return this.settleAuctionNoneCctpIx({
+                    payer: executor,
+                    fastVaa,
+                    preparedOrderResponse,
+                    toRouterEndpoint: this.routerEndpointAddress(fastMarketOrder.targetChain),
+                });
+            }
+        })();
+
+        const preparedTx: PreparedTransaction = {
+            ixs: [prepareOrderResponseIx, settleAuctionNoneIx],
+            signers,
+            computeUnits: opts.computeUnits!,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "settleAuctionComplete",
+            confirmOptions,
+        };
+
+        return preparedTx;
     }
 
     async settleAuctionNoneLocalIx(accounts: {
@@ -1450,6 +1629,62 @@ export class MatchingEngineProgram {
                 },
             })
             .instruction();
+    }
+
+    async executeFastOrderTx(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            auction?: PublicKey;
+            executorToken?: PublicKey;
+        },
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        confirmOptions?: ConfirmOptions,
+    ): Promise<PreparedTransaction> {
+        const {
+            payer,
+            fastVaa,
+            auction: inputAuction,
+            executorToken: inputExecutorToken,
+        } = accounts;
+
+        const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+        if (fastMarketOrder === undefined) {
+            throw new Error("Message not FastMarketOrder");
+        }
+
+        const auction = inputAuction ?? this.auctionAddress(fastVaaAccount.digest());
+        const { targetChain } = fastMarketOrder;
+        const executeOrderIx = await (async () => {
+            if (targetChain === wormholeSdk.CHAIN_ID_SOLANA) {
+                return this.executeFastOrderLocalIx({
+                    payer,
+                    fastVaa,
+                    auction,
+                    executorToken: inputExecutorToken,
+                });
+            } else {
+                return this.executeFastOrderCctpIx({
+                    payer,
+                    fastVaa,
+                    auction,
+                    executorToken: inputExecutorToken,
+                });
+            }
+        })();
+
+        return {
+            ixs: [executeOrderIx],
+            signers,
+            computeUnits: opts.computeUnits!,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "executeOrder",
+            confirmOptions,
+        };
     }
 
     async executeFastOrderCctpIx(accounts: {
