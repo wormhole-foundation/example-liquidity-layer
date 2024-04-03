@@ -2287,6 +2287,22 @@
     },
     {
       "name": "addAuctionHistoryEntry",
+      "docs": [
+        "This instruction is used to add a new entry to the `AuctionHistory` account if there is an",
+        "`Auction` with some info. Regardless of whether there is info in this account, the",
+        "instruction finishes its operation by closing this auction account. If the history account",
+        "is full, this instruction will revert and `create_new_auction_history`` will have to be",
+        "called to initialize another history account.",
+        "",
+        "This mechanism is important for auction participants. The initial offer participant will",
+        "pay lamports to create the `Auction` account. This instruction allows him to reclaim some",
+        "lamports by closing that account. And the protocol's fee recipient will be able to claim",
+        "lamports by closing the empty `Auction` account it creates when he calls any of the",
+        "`settle_auction_none_*` instructions.",
+        "# Arguments",
+        "",
+        "* `ctx` - `AddAuctionHistoryEntry` context."
+      ],
       "accounts": [
         {
           "name": "payer",

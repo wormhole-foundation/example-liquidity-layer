@@ -24,6 +24,7 @@ import {
     reclaimCctpMessageIx,
     writeUint64BE,
     isUint64,
+    uint64ToBN,
 } from "../common";
 import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
@@ -32,6 +33,7 @@ import {
     Auction,
     AuctionConfig,
     AuctionHistory,
+    AuctionHistoryHeader,
     AuctionInfo,
     AuctionParameters,
     Custodian,
@@ -325,6 +327,41 @@ export class MatchingEngineProgram {
                 ? this.auctionHistoryAddress(input)
                 : input.address;
         return this.program.account.auctionHistory.fetch(addr);
+    }
+
+    async fetchAuctionHistoryHeader(
+        input: Uint64 | { address: PublicKey },
+    ): Promise<[AuctionHistoryHeader, number]> {
+        const addr =
+            typeof input === "bigint" || typeof input === "number" || input instanceof BN
+                ? this.auctionHistoryAddress(input)
+                : input.address;
+        const accInfo = await this.program.provider.connection.getAccountInfo(addr, {
+            dataSlice: { offset: 0, length: 30 },
+        });
+        if (accInfo === null) {
+            throw new Error("Auction history not found");
+        }
+
+        const { data } = accInfo;
+
+        // Validate discriminator.
+        let offset = 0;
+        const disc = data.subarray(offset, (offset += 8));
+        if (!disc.equals(Uint8Array.from([149, 208, 45, 154, 47, 248, 102, 245]))) {
+            throw new Error("Invalid account history discriminator");
+        }
+
+        const id = uint64ToBN(data.readBigUInt64LE(offset));
+        offset += 8;
+        const hasMinTimestamp = data[offset++] === 1;
+        const minTimestamp = hasMinTimestamp ? data.readUInt32LE(offset) : null;
+        offset += 4;
+        const hasMaxTimestamp = data[offset++] === 1;
+        const maxTimestamp = hasMaxTimestamp ? data.readUInt32LE(offset) : null;
+        offset += 4;
+        const numEntries = data.readUInt32LE(offset);
+        return [{ id, minTimestamp, maxTimestamp }, numEntries];
     }
 
     async approveTransferAuthorityIx(
