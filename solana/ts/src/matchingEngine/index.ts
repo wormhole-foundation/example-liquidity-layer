@@ -418,7 +418,7 @@ export class MatchingEngineProgram {
         return {
             transferAuthority,
             ix: splToken.createApproveInstruction(
-                splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, owner),
+                splToken.getAssociatedTokenAddressSync(this.mint, owner),
                 transferAuthority,
                 owner,
                 totalDeposit,

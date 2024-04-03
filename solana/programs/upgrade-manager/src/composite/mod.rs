@@ -14,7 +14,7 @@ pub struct ProgramOwnerOnly<'info> {
 
     /// CHECK: Upgrade authority for the liquidity layer program (either Token Router or Matching
     /// Engine). This address must equal the liquidity layer program data's upgrade authority.
-    #[account(address = common::constants::UPGRADE_MANAGER_AUTHORITY)]
+    #[account(address = common::UPGRADE_MANAGER_AUTHORITY)]
     pub upgrade_authority: AccountInfo<'info>,
 }
 

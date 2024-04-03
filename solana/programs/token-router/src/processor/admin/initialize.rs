@@ -40,7 +40,7 @@ pub struct Initialize<'info> {
     )]
     cctp_mint_recipient: Account<'info, token::TokenAccount>,
 
-    #[account(address = common::constants::USDC_MINT)]
+    #[account(address = common::USDC_MINT)]
     mint: Account<'info, token::Mint>,
 
     /// We use the program data to make sure this owner is the upgrade authority (the true owner,
@@ -57,13 +57,13 @@ pub struct Initialize<'info> {
     program_data: Account<'info, ProgramData>,
 
     /// CHECK: This program PDA will be the upgrade authority for the Token Router program.
-    #[account(address = common::constants::UPGRADE_MANAGER_AUTHORITY)]
+    #[account(address = common::UPGRADE_MANAGER_AUTHORITY)]
     upgrade_manager_authority: AccountInfo<'info>,
 
     /// CHECK: This program must exist.
     #[account(
         executable,
-        address = common::constants::UPGRADE_MANAGER_PROGRAM_ID,
+        address = common::UPGRADE_MANAGER_PROGRAM_ID,
     )]
     upgrade_manager_program: AccountInfo<'info>,
 

@@ -14,8 +14,8 @@ use common::{
 
 #[derive(Accounts)]
 pub struct Usdc<'info> {
-    /// CHECK: This address must equal [USDC_MINT](common::constants::USDC_MINT).
-    #[account(address = common::constants::USDC_MINT)]
+    /// CHECK: This address must equal [USDC_MINT](common::USDC_MINT).
+    #[account(address = common::USDC_MINT)]
     pub mint: AccountInfo<'info>,
 }
 

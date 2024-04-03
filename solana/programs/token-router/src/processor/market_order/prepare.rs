@@ -1,10 +1,12 @@
+use crate::{
+    composite::*,
+    error::TokenRouterError,
+    state::{OrderType, PreparedOrder, PreparedOrderInfo},
+};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-
-use crate::{
-    error::TokenRouterError,
-    state::{Custodian, OrderType, PreparedOrder, PreparedOrderInfo},
-};
+use common::TRANSFER_AUTHORITY_SEED_PREFIX;
+use solana_program::keccak;
 
 /// Accounts required for [prepare_market_order].
 #[derive(Accounts)]
@@ -13,23 +15,41 @@ pub struct PrepareMarketOrder<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    /// Custodian, but does not need to be deserialized.
-    ///
-    /// CHECK: Seeds must be \["emitter"\].
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-    )]
-    custodian: AccountInfo<'info>,
+    custodian: CheckedCustodian<'info>,
 
-    /// This signer will be encoded in the prepared order. He will also need to be present when
-    /// invoking any of the place market order instructions.
-    order_sender: Signer<'info>,
+    /// The auction participant needs to set approval to this PDA.
+    ///
+    /// CHECK: Seeds must be \["transfer-authority", prepared_order.key(), args.hash()\].
+    #[account(
+        seeds = [
+            TRANSFER_AUTHORITY_SEED_PREFIX,
+            prepared_order.key().as_ref(),
+            &args.hash().0,
+        ],
+        bump,
+    )]
+    transfer_authority: AccountInfo<'info>,
 
     #[account(
         init,
         payer = payer,
-        space = PreparedOrder::compute_size(args.redeemer_message.len())
+        space = PreparedOrder::compute_size(args.redeemer_message.len()),
+        constraint = {
+            require!(args.amount_in > 0, TokenRouterError::InsufficientAmount);
+
+            // Cannot send to zero address.
+            require!(args.redeemer != [0; 32], TokenRouterError::InvalidRedeemer);
+
+            // If provided, validate min amount out.
+            if let Some(min_amount_out) = args.min_amount_out {
+                require!(
+                    min_amount_out <= args.amount_in,
+                    TokenRouterError::MinAmountOutTooHigh,
+                );
+            }
+
+            true
+        }
     )]
     prepared_order: Account<'info, PreparedOrder>,
 
@@ -42,9 +62,13 @@ pub struct PrepareMarketOrder<'info> {
     /// NOTE: This token account must have delegated transfer authority to the custodian prior to
     /// invoking this instruction.
     #[account(mut)]
-    src_token: AccountInfo<'info>,
+    sender_token: Account<'info, token::TokenAccount>,
 
-    #[account(token::mint = mint)]
+    // TODO: Do we add a restriction that the refund token account must be the same owner as the
+    // sender token account?
+    #[account(
+        token::mint = usdc,
+    )]
     refund_token: Account<'info, token::TokenAccount>,
 
     /// Custody token account. This account will be closed at the end of this instruction. It just
@@ -54,7 +78,7 @@ pub struct PrepareMarketOrder<'info> {
     #[account(
         init,
         payer = payer,
-        token::mint = mint,
+        token::mint = usdc,
         token::authority = custodian,
         seeds = [
             crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
@@ -64,9 +88,7 @@ pub struct PrepareMarketOrder<'info> {
     )]
     prepared_custody_token: Account<'info, token::TokenAccount>,
 
-    /// CHECK: This mint must be USDC.
-    #[account(address = common::constants::USDC_MINT)]
-    mint: AccountInfo<'info>,
+    usdc: Usdc<'info>,
 
     token_program: Program<'info, token::Token>,
     system_program: Program<'info, System>,
@@ -93,10 +115,32 @@ pub struct PrepareMarketOrderArgs {
     pub redeemer_message: Vec<u8>,
 }
 
+impl PrepareMarketOrderArgs {
+    pub fn hash(&self) -> keccak::Hash {
+        match self.min_amount_out {
+            Some(min_amount_out) => keccak::hashv(&[
+                &self.amount_in.to_be_bytes(),
+                &min_amount_out.to_be_bytes(),
+                &self.target_chain.to_be_bytes(),
+                &self.redeemer,
+                &self.redeemer_message,
+            ]),
+            None => keccak::hashv(&[
+                &self.amount_in.to_be_bytes(),
+                &self.target_chain.to_be_bytes(),
+                &self.redeemer,
+                &self.redeemer_message,
+            ]),
+        }
+    }
+}
+
 pub fn prepare_market_order(
     ctx: Context<PrepareMarketOrder>,
     args: PrepareMarketOrderArgs,
 ) -> Result<()> {
+    let hashed_args = args.hash();
+
     let PrepareMarketOrderArgs {
         amount_in,
         min_amount_out,
@@ -105,26 +149,13 @@ pub fn prepare_market_order(
         redeemer_message,
     } = args;
 
-    require!(args.amount_in > 0, TokenRouterError::InsufficientAmount);
-
-    // Cannot send to zero address.
-    require!(args.redeemer != [0; 32], TokenRouterError::InvalidRedeemer);
-
-    // If provided, validate min amount out.
-    if let Some(min_amount_out) = min_amount_out {
-        require!(
-            min_amount_out <= amount_in,
-            TokenRouterError::MinAmountOutTooHigh,
-        );
-    }
-
     // Set the values in prepared order account.
     ctx.accounts.prepared_order.set_inner(PreparedOrder {
         info: PreparedOrderInfo {
-            order_sender: ctx.accounts.order_sender.key(),
+            order_sender: ctx.accounts.sender_token.owner,
             prepared_by: ctx.accounts.payer.key(),
             order_type: OrderType::Market { min_amount_out },
-            src_token: ctx.accounts.src_token.key(),
+            src_token: ctx.accounts.sender_token.key(),
             refund_token: ctx.accounts.refund_token.key(),
             target_chain,
             redeemer,
@@ -138,11 +169,16 @@ pub fn prepare_market_order(
         CpiContext::new_with_signer(
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
-                from: ctx.accounts.src_token.to_account_info(),
+                from: ctx.accounts.sender_token.to_account_info(),
                 to: ctx.accounts.prepared_custody_token.to_account_info(),
-                authority: ctx.accounts.custodian.to_account_info(),
+                authority: ctx.accounts.transfer_authority.to_account_info(),
             },
-            &[Custodian::SIGNER_SEEDS],
+            &[&[
+                TRANSFER_AUTHORITY_SEED_PREFIX,
+                ctx.accounts.prepared_order.key().as_ref(),
+                &hashed_args.0,
+                &[ctx.bumps.transfer_authority],
+            ]],
         ),
         amount_in,
     )

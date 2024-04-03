@@ -29,7 +29,7 @@ pub struct ExecuteFastOrderCctp<'info> {
     #[account(
         mut,
         seeds = [
-            common::constants::CORE_MESSAGE_SEED_PREFIX,
+            common::CORE_MESSAGE_SEED_PREFIX,
             payer.key().as_ref(),
             &payer_sequence.value.to_be_bytes(),
         ],
@@ -41,7 +41,7 @@ pub struct ExecuteFastOrderCctp<'info> {
     #[account(
         mut,
         seeds = [
-            common::constants::CCTP_MESSAGE_SEED_PREFIX,
+            common::CCTP_MESSAGE_SEED_PREFIX,
             payer.key().as_ref(),
             &payer_sequence.value.to_be_bytes(),
         ],
@@ -147,7 +147,7 @@ pub fn handle_execute_fast_order_cctp(
             &[
                 Custodian::SIGNER_SEEDS,
                 &[
-                    common::constants::CCTP_MESSAGE_SEED_PREFIX,
+                    common::CCTP_MESSAGE_SEED_PREFIX,
                     payer.key().as_ref(),
                     sequence_seed.as_ref(),
                     &[ctx.bumps.cctp_message],
@@ -170,7 +170,7 @@ pub fn handle_execute_fast_order_cctp(
             &[
                 Custodian::SIGNER_SEEDS,
                 &[
-                    common::constants::CORE_MESSAGE_SEED_PREFIX,
+                    common::CORE_MESSAGE_SEED_PREFIX,
                     payer.key().as_ref(),
                     sequence_seed.as_ref(),
                     &[ctx.bumps.core_message],
@@ -183,7 +183,7 @@ pub fn handle_execute_fast_order_cctp(
             destination_cctp_domain,
             amount,
             mint_recipient: ctx.accounts.to_router_endpoint.mint_recipient,
-            wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
+            wormhole_message_nonce: common::WORMHOLE_MESSAGE_NONCE,
             payload: fill.to_vec_payload(),
         },
     )?;

@@ -19,7 +19,7 @@ pub use utils::admin::AddCctpRouterEndpointArgs;
 
 use anchor_lang::prelude::*;
 
-declare_id!(common::constants::MATCHING_ENGINE_PROGRAM_ID);
+declare_id!(common::MATCHING_ENGINE_PROGRAM_ID);
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "testnet")] {
@@ -32,7 +32,6 @@ cfg_if::cfg_if! {
 const AUCTION_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"auction-custody";
 const LOCAL_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"local-custody";
 const PREPARED_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"prepared-custody";
-const TRANSFER_AUTHORITY_SEED_PREFIX: &[u8] = b"transfer-authority";
 
 const FEE_PRECISION_MAX: u32 = 1_000_000;
 const VAA_AUCTION_EXPIRATION_TIME: i64 = 2 * 60 * 60; // 2 hours

@@ -14,7 +14,7 @@ pub mod state;
 
 use anchor_lang::prelude::*;
 
-declare_id!(common::constants::TOKEN_ROUTER_PROGRAM_ID);
+declare_id!(common::TOKEN_ROUTER_PROGRAM_ID);
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "testnet")] {

@@ -62,7 +62,7 @@ pub fn burn_and_publish_fill(
             &[
                 Custodian::SIGNER_SEEDS,
                 &[
-                    common::constants::CORE_MESSAGE_SEED_PREFIX,
+                    common::CORE_MESSAGE_SEED_PREFIX,
                     ctx.accounts.payer.key().as_ref(),
                     ctx.accounts
                         .payer_sequence
@@ -79,7 +79,7 @@ pub fn burn_and_publish_fill(
             destination_cctp_domain: order.destination_cctp_domain(),
             amount: user_amount,
             mint_recipient: ctx.accounts.to_router_endpoint.mint_recipient,
-            wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
+            wormhole_message_nonce: common::WORMHOLE_MESSAGE_NONCE,
             payload: fill.to_vec_payload(),
         },
     )

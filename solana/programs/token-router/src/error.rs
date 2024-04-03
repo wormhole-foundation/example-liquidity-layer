@@ -9,6 +9,7 @@ pub enum TokenRouterError {
     InvalidPayloadId = 0x46,
 
     InvalidSourceRouter = 0x60,
+    InvalidTargetRouter = 0x62,
     EndpointDisabled = 0x64,
     InvalidCctpEndpoint = 0x66,
 

@@ -1,8 +1,7 @@
-use crate::{
-    composite::*, error::MatchingEngineError, state::Auction, utils, TRANSFER_AUTHORITY_SEED_PREFIX,
-};
+use crate::{composite::*, error::MatchingEngineError, state::Auction, utils};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
+use common::TRANSFER_AUTHORITY_SEED_PREFIX;
 
 #[derive(Accounts)]
 #[instruction(offer_price: u64)]

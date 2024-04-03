@@ -28,7 +28,7 @@ pub struct SettleAuctionNoneLocal<'info> {
     #[account(
         mut,
         seeds = [
-            common::constants::CORE_MESSAGE_SEED_PREFIX,
+            common::CORE_MESSAGE_SEED_PREFIX,
             payer.key().as_ref(),
             payer_sequence.value.to_be_bytes().as_ref(),
         ],

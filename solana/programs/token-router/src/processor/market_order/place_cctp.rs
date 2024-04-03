@@ -1,4 +1,5 @@
 use crate::{
+    composite::*,
     error::TokenRouterError,
     state::{Custodian, PayerSequence, PreparedOrder},
 };
@@ -17,11 +18,15 @@ use common::{
 #[derive(Accounts)]
 pub struct PlaceMarketOrderCctp<'info> {
     /// This account must be the same pubkey as the one who prepared the order.
+    #[account(mut)]
+    payer: Signer<'info>,
+
+    /// CHECK: This account must equal the prepared order's `prepared_by` pubkey.
     #[account(
         mut,
-        address = prepared_order.prepared_by @ TokenRouterError::PayerNotPreparer,
+        address = prepared_order.prepared_by
     )]
-    payer: Signer<'info>,
+    prepared_by: AccountInfo<'info>,
 
     #[account(
         init_if_needed,
@@ -33,27 +38,19 @@ pub struct PlaceMarketOrderCctp<'info> {
         ],
         bump,
     )]
-    payer_sequence: Account<'info, PayerSequence>,
+    payer_sequence: Box<Account<'info, PayerSequence>>,
 
     /// This program's Wormhole (Core Bridge) emitter authority.
     ///
     /// Seeds must be \["emitter"\].
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-        constraint = !custodian.paused @ TokenRouterError::Paused,
-    )]
-    custodian: Box<Account<'info, Custodian>>,
+    #[account(constraint = !custodian.paused @ TokenRouterError::Paused)]
+    custodian: CheckedCustodian<'info>,
 
     #[account(
         mut,
-        close = payer,
-        has_one = order_sender @ TokenRouterError::OrderSenderMismatch,
+        close = prepared_by,
     )]
-    prepared_order: Account<'info, PreparedOrder>,
-
-    /// Signer who must be the same one encoded in the prepared order.
-    order_sender: Signer<'info>,
+    prepared_order: Box<Account<'info, PreparedOrder>>,
 
     /// Circle-supported mint.
     ///
@@ -82,9 +79,6 @@ pub struct PlaceMarketOrderCctp<'info> {
     /// [RouterEndpoint::cctp_domain] is `Some(value)`.
     ///
     /// Seeds must be \["registered_emitter", target_chain.to_be_bytes()\].
-    ///
-    /// NOTE: In the EVM implementation, if there is no router endpoint then "ErrUnsupportedChain"
-    /// error is thrown (whereas here the account would not exist).
     #[account(
         seeds = [
             matching_engine::state::RouterEndpoint::SEED_PREFIX,
@@ -92,8 +86,17 @@ pub struct PlaceMarketOrderCctp<'info> {
         ],
         bump = router_endpoint.bump,
         seeds::program = matching_engine::id(),
+        constraint = {
+            require_eq!(
+                router_endpoint.chain,
+                prepared_order.target_chain,
+                TokenRouterError::InvalidTargetRouter,
+            );
+
+            true
+        }
     )]
-    router_endpoint: Account<'info, matching_engine::state::RouterEndpoint>,
+    router_endpoint: Box<Account<'info, matching_engine::state::RouterEndpoint>>,
 
     /// CHECK: Seeds must be \["Bridge"\] (Wormhole Core Bridge program).
     #[account(mut)]
@@ -103,7 +106,7 @@ pub struct PlaceMarketOrderCctp<'info> {
     #[account(
         mut,
         seeds = [
-            common::constants::CORE_MESSAGE_SEED_PREFIX,
+            common::CORE_MESSAGE_SEED_PREFIX,
             payer.key().as_ref(),
             payer_sequence.value.to_be_bytes().as_ref(),
         ],
@@ -115,7 +118,7 @@ pub struct PlaceMarketOrderCctp<'info> {
     #[account(
         mut,
         seeds = [
-            common::constants::CCTP_MESSAGE_SEED_PREFIX,
+            common::CCTP_MESSAGE_SEED_PREFIX,
             payer.key().as_ref(),
             payer_sequence.value.to_be_bytes().as_ref(),
         ],
@@ -192,6 +195,14 @@ fn handle_place_market_order_cctp(
 ) -> Result<()> {
     let redeemer_message = std::mem::take(&mut ctx.accounts.prepared_order.redeemer_message);
 
+    let custodian = &ctx.accounts.custodian;
+    let payer = &ctx.accounts.payer;
+    let prepared_custody_token = &ctx.accounts.prepared_custody_token;
+    let token_program = &ctx.accounts.token_program;
+    let system_program = &ctx.accounts.system_program;
+    let router_endpoint = &ctx.accounts.router_endpoint;
+
+    let order_info = &ctx.accounts.prepared_order.info;
     let sequence_seed = ctx.accounts.payer_sequence.take_and_uptick().to_be_bytes();
 
     // This returns the CCTP nonce, but we do not need it.
@@ -201,13 +212,13 @@ fn handle_place_market_order_cctp(
                 .token_messenger_minter_program
                 .to_account_info(),
             wormhole_cctp_solana::cpi::DepositForBurnWithCaller {
-                burn_token_owner: ctx.accounts.custodian.to_account_info(),
-                payer: ctx.accounts.payer.to_account_info(),
+                burn_token_owner: custodian.to_account_info(),
+                payer: payer.to_account_info(),
                 token_messenger_minter_sender_authority: ctx
                     .accounts
                     .token_messenger_minter_sender_authority
                     .to_account_info(),
-                burn_token: ctx.accounts.prepared_custody_token.to_account_info(),
+                burn_token: prepared_custody_token.to_account_info(),
                 message_transmitter_config: ctx
                     .accounts
                     .message_transmitter_config
@@ -226,8 +237,8 @@ fn handle_place_market_order_cctp(
                     .accounts
                     .token_messenger_minter_program
                     .to_account_info(),
-                token_program: ctx.accounts.token_program.to_account_info(),
-                system_program: ctx.accounts.system_program.to_account_info(),
+                token_program: token_program.to_account_info(),
+                system_program: system_program.to_account_info(),
                 event_authority: ctx
                     .accounts
                     .token_messenger_minter_event_authority
@@ -236,8 +247,8 @@ fn handle_place_market_order_cctp(
             &[
                 Custodian::SIGNER_SEEDS,
                 &[
-                    common::constants::CCTP_MESSAGE_SEED_PREFIX,
-                    ctx.accounts.payer.key().as_ref(),
+                    common::CCTP_MESSAGE_SEED_PREFIX,
+                    payer.key().as_ref(),
                     sequence_seed.as_ref(),
                     &[ctx.bumps.cctp_message],
                 ],
@@ -246,37 +257,37 @@ fn handle_place_market_order_cctp(
         CpiContext::new_with_signer(
             ctx.accounts.core_bridge_program.to_account_info(),
             wormhole_cctp_solana::cpi::PostMessage {
-                payer: ctx.accounts.payer.to_account_info(),
+                payer: payer.to_account_info(),
                 message: ctx.accounts.core_message.to_account_info(),
-                emitter: ctx.accounts.custodian.to_account_info(),
+                emitter: custodian.to_account_info(),
                 config: ctx.accounts.core_bridge_config.to_account_info(),
                 emitter_sequence: ctx.accounts.core_emitter_sequence.to_account_info(),
                 fee_collector: ctx.accounts.core_fee_collector.to_account_info(),
-                system_program: ctx.accounts.system_program.to_account_info(),
+                system_program: system_program.to_account_info(),
                 clock: ctx.accounts.clock.to_account_info(),
                 rent: ctx.accounts.rent.to_account_info(),
             },
             &[
                 Custodian::SIGNER_SEEDS,
                 &[
-                    common::constants::CORE_MESSAGE_SEED_PREFIX,
-                    ctx.accounts.payer.key().as_ref(),
+                    common::CORE_MESSAGE_SEED_PREFIX,
+                    payer.key().as_ref(),
                     sequence_seed.as_ref(),
                     &[ctx.bumps.core_message],
                 ],
             ],
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
-            burn_source: Some(ctx.accounts.prepared_order.src_token),
-            destination_caller: ctx.accounts.router_endpoint.address,
+            burn_source: Some(order_info.src_token),
+            destination_caller: router_endpoint.address,
             destination_cctp_domain,
-            amount: ctx.accounts.prepared_custody_token.amount,
-            mint_recipient: ctx.accounts.router_endpoint.mint_recipient,
-            wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
+            amount: prepared_custody_token.amount,
+            mint_recipient: router_endpoint.mint_recipient,
+            wormhole_message_nonce: common::WORMHOLE_MESSAGE_NONCE,
             payload: common::messages::Fill {
                 source_chain: SOLANA_CHAIN,
-                order_sender: ctx.accounts.order_sender.key().to_bytes(),
-                redeemer: ctx.accounts.prepared_order.redeemer,
+                order_sender: order_info.order_sender.to_bytes(),
+                redeemer: order_info.redeemer,
                 redeemer_message: redeemer_message.into(),
             }
             .to_vec_payload(),
@@ -285,11 +296,11 @@ fn handle_place_market_order_cctp(
 
     // Finally close token account.
     token::close_account(CpiContext::new_with_signer(
-        ctx.accounts.token_program.to_account_info(),
+        token_program.to_account_info(),
         token::CloseAccount {
-            account: ctx.accounts.prepared_custody_token.to_account_info(),
-            destination: ctx.accounts.payer.to_account_info(),
-            authority: ctx.accounts.custodian.to_account_info(),
+            account: prepared_custody_token.to_account_info(),
+            destination: payer.to_account_info(),
+            authority: custodian.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],
     ))

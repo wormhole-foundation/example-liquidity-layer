@@ -14,7 +14,7 @@ mod utils;
 
 use anchor_lang::prelude::*;
 
-declare_id!(common::constants::UPGRADE_MANAGER_PROGRAM_ID);
+declare_id!(common::UPGRADE_MANAGER_PROGRAM_ID);
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "testnet")] {
@@ -64,6 +64,6 @@ mod test {
         let (actual_addr, actual_bump_seed) =
             Pubkey::find_program_address(&[UPGRADE_AUTHORITY_SEED_PREFIX], &crate::id());
         assert_eq!(actual_bump_seed, UPGRADE_AUTHORITY_BUMP);
-        assert_eq!(actual_addr, common::constants::UPGRADE_MANAGER_AUTHORITY);
+        assert_eq!(actual_addr, common::UPGRADE_MANAGER_AUTHORITY);
     }
 }

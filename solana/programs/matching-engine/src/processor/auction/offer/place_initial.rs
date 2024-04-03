@@ -2,11 +2,11 @@ use crate::{
     composite::*,
     error::MatchingEngineError,
     state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus},
-    utils, TRANSFER_AUTHORITY_SEED_PREFIX,
+    utils,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::messages::raw::LiquidityLayerMessage;
+use common::{messages::raw::LiquidityLayerMessage, TRANSFER_AUTHORITY_SEED_PREFIX};
 
 #[derive(Accounts)]
 #[instruction(offer_price: u64)]
