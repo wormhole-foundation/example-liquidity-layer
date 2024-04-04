@@ -1,4 +1,4 @@
-use crate::{error::TokenRouterError, state::PreparedFill};
+use crate::state::PreparedFill;
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
@@ -6,6 +6,7 @@ use anchor_spl::token;
 #[derive(Accounts)]
 pub struct ConsumePreparedFill<'info> {
     /// This signer must be the same one encoded in the prepared fill.
+    #[account(address = prepared_fill.redeemer)]
     redeemer: Signer<'info>,
 
     /// CHECK: This recipient may not necessarily be the same one encoded in the prepared fill (as
@@ -13,12 +14,11 @@ pub struct ConsumePreparedFill<'info> {
     /// intention of consuming it, he will be out of luck. We will reward the redeemer with the
     /// closed account funds with a payer of his choosing.
     #[account(mut)]
-    rent_recipient: AccountInfo<'info>,
+    beneficiary: AccountInfo<'info>,
 
     #[account(
         mut,
-        close = rent_recipient,
-        has_one = redeemer @ TokenRouterError::RedeemerMismatch,
+        close = beneficiary,
     )]
     prepared_fill: Account<'info, PreparedFill>,
 
@@ -77,7 +77,7 @@ pub fn consume_prepared_fill(ctx: Context<ConsumePreparedFill>) -> Result<()> {
         token_program.to_account_info(),
         token::CloseAccount {
             account: custody_token.to_account_info(),
-            destination: ctx.accounts.rent_recipient.to_account_info(),
+            destination: ctx.accounts.beneficiary.to_account_info(),
             authority: prepared_fill.to_account_info(),
         },
         &[prepared_fill_signer_seeds],

@@ -419,7 +419,7 @@ export class TokenRouterProgram {
             .closePreparedOrder()
             .accounts({
                 preparedBy,
-                custodian: this.custodianAddress(),
+                custodian: this.checkedCustodianComposite(),
                 orderSender,
                 preparedOrder,
                 refundToken,
@@ -432,15 +432,15 @@ export class TokenRouterProgram {
         preparedFill: PublicKey;
         redeemer: PublicKey;
         dstToken: PublicKey;
-        rentRecipient: PublicKey;
+        beneficiary: PublicKey;
     }): Promise<TransactionInstruction> {
-        const { preparedFill, redeemer, dstToken, rentRecipient } = accounts;
+        const { preparedFill, redeemer, dstToken, beneficiary } = accounts;
 
         return this.program.methods
             .consumePreparedFill()
             .accounts({
                 redeemer,
-                rentRecipient,
+                beneficiary,
                 preparedFill,
                 dstToken,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),

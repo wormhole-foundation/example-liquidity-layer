@@ -1,5 +1,5 @@
 use crate::{
-    error::TokenRouterError,
+    composite::*,
     state::{Custodian, PreparedOrder},
 };
 use anchor_lang::prelude::*;
@@ -8,33 +8,30 @@ use anchor_spl::token;
 /// Accounts required for [close_prepared_order].
 #[derive(Accounts)]
 pub struct ClosePreparedOrder<'info> {
-    /// Custodian, but does not need to be deserialized.
-    ///
-    /// CHECK: Seeds must be \["emitter"\].
-    #[account(
-        seeds = [Custodian::SEED_PREFIX],
-        bump = Custodian::BUMP,
-    )]
-    custodian: AccountInfo<'info>,
+    custodian: CheckedCustodian<'info>,
 
     /// This signer must be the same one encoded in the prepared order.
+    #[account(address = prepared_order.order_sender)]
     order_sender: Signer<'info>,
-
-    /// CHECK: This payer must be the same one encoded in the prepared order.
-    #[account(mut)]
-    prepared_by: AccountInfo<'info>,
 
     #[account(
         mut,
         close = prepared_by,
-        has_one = prepared_by @ TokenRouterError::PreparedByMismatch,
-        has_one = order_sender @ TokenRouterError::OrderSenderMismatch,
-        has_one = refund_token @ TokenRouterError::RefundTokenMismatch,
     )]
     prepared_order: Account<'info, PreparedOrder>,
 
+    /// CHECK: This payer must be the same one encoded in the prepared order.
+    #[account(
+        mut,
+        address = prepared_order.prepared_by,
+    )]
+    prepared_by: AccountInfo<'info>,
+
     /// CHECK: This account must be the same one encoded in the prepared order.
-    #[account(mut)]
+    #[account(
+        mut,
+        address = prepared_order.refund_token,
+    )]
     refund_token: AccountInfo<'info>,
 
     /// Custody token account. This account will be closed at the end of this instruction. It just

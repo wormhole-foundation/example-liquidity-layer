@@ -628,7 +628,7 @@ describe("Token Router", function () {
                     connection,
                     [ix],
                     [ownerAssistant, payer],
-                    "Error Code: PreparedByMismatch",
+                    "prepared_by. Error Code: ConstraintAddress",
                 );
             });
 
@@ -644,7 +644,7 @@ describe("Token Router", function () {
                     connection,
                     [ix],
                     [payer, ownerAssistant],
-                    "Error Code: OrderSenderMismatch",
+                    "order_sender. Error Code: ConstraintAddress",
                 );
             });
 
@@ -658,7 +658,12 @@ describe("Token Router", function () {
                     refundToken,
                 });
 
-                await expectIxErr(connection, [ix], [payer], "Error Code: RefundTokenMismatch");
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer],
+                    "refund_token. Error Code: ConstraintAddress",
+                );
             });
 
             it("Close Prepared Order", async function () {

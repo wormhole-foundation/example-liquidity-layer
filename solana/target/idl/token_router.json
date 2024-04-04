@@ -401,11 +401,12 @@
       "accounts": [
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -417,12 +418,12 @@
           ]
         },
         {
-          "name": "preparedBy",
+          "name": "preparedOrder",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "preparedOrder",
+          "name": "preparedBy",
           "isMut": true,
           "isSigner": false
         },
@@ -983,7 +984,7 @@
           ]
         },
         {
-          "name": "rentRecipient",
+          "name": "beneficiary",
           "isMut": true,
           "isSigner": false,
           "docs": [
@@ -1413,26 +1414,6 @@
     {
       "code": 7028,
       "name": "InvalidRedeemer"
-    },
-    {
-      "code": 7030,
-      "name": "RedeemerMismatch"
-    },
-    {
-      "code": 7032,
-      "name": "PreparedByMismatch"
-    },
-    {
-      "code": 7034,
-      "name": "OrderSenderMismatch"
-    },
-    {
-      "code": 7036,
-      "name": "RefundTokenMismatch"
-    },
-    {
-      "code": 7038,
-      "name": "PayerNotPreparer"
     }
   ],
   "metadata": {

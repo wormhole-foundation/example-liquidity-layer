@@ -401,11 +401,12 @@ export type TokenRouter = {
       "accounts": [
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -417,12 +418,12 @@ export type TokenRouter = {
           ]
         },
         {
-          "name": "preparedBy",
+          "name": "preparedOrder",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "preparedOrder",
+          "name": "preparedBy",
           "isMut": true,
           "isSigner": false
         },
@@ -983,7 +984,7 @@ export type TokenRouter = {
           ]
         },
         {
-          "name": "rentRecipient",
+          "name": "beneficiary",
           "isMut": true,
           "isSigner": false,
           "docs": [
@@ -1413,26 +1414,6 @@ export type TokenRouter = {
     {
       "code": 7028,
       "name": "InvalidRedeemer"
-    },
-    {
-      "code": 7030,
-      "name": "RedeemerMismatch"
-    },
-    {
-      "code": 7032,
-      "name": "PreparedByMismatch"
-    },
-    {
-      "code": 7034,
-      "name": "OrderSenderMismatch"
-    },
-    {
-      "code": 7036,
-      "name": "RefundTokenMismatch"
-    },
-    {
-      "code": 7038,
-      "name": "PayerNotPreparer"
     }
   ]
 };
@@ -1840,11 +1821,12 @@ export const IDL: TokenRouter = {
       "accounts": [
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -1856,12 +1838,12 @@ export const IDL: TokenRouter = {
           ]
         },
         {
-          "name": "preparedBy",
+          "name": "preparedOrder",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "preparedOrder",
+          "name": "preparedBy",
           "isMut": true,
           "isSigner": false
         },
@@ -2422,7 +2404,7 @@ export const IDL: TokenRouter = {
           ]
         },
         {
-          "name": "rentRecipient",
+          "name": "beneficiary",
           "isMut": true,
           "isSigner": false,
           "docs": [
@@ -2852,26 +2834,6 @@ export const IDL: TokenRouter = {
     {
       "code": 7028,
       "name": "InvalidRedeemer"
-    },
-    {
-      "code": 7030,
-      "name": "RedeemerMismatch"
-    },
-    {
-      "code": 7032,
-      "name": "PreparedByMismatch"
-    },
-    {
-      "code": 7034,
-      "name": "OrderSenderMismatch"
-    },
-    {
-      "code": 7036,
-      "name": "RefundTokenMismatch"
-    },
-    {
-      "code": 7038,
-      "name": "PayerNotPreparer"
     }
   ]
 };
