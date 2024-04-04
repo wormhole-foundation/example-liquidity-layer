@@ -707,8 +707,22 @@ describe("Token Router", function () {
 
             const localVariables = new Map<string, any>();
 
-            it.skip("Cannot Place Market Order without Prepared Order", async function () {
-                // TODO
+            it("Cannot Place Market Order without Prepared Order", async function () {
+                const ix = await tokenRouter.placeMarketOrderCctpIx(
+                    {
+                        payer: payer.publicKey,
+                        preparedOrder: Keypair.generate().publicKey,
+                        preparedBy: payer.publicKey,
+                    },
+                    { targetChain: 23, destinationDomain: 3 },
+                );
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer],
+                    "prepared_order. Error Code: AccountNotInitialized",
+                );
             });
 
             it("Prepare Market Order", async function () {
