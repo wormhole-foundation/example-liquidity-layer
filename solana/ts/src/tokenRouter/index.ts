@@ -30,6 +30,7 @@ import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import { Custodian, PreparedFill, PreparedOrder } from "./state";
+import * as wormholeSdk from "@certusone/wormhole-sdk";
 
 export const PROGRAM_IDS = [
     "TokenRouter11111111111111111111111111111111",
@@ -456,7 +457,7 @@ export class TokenRouterProgram {
             routerEndpoint?: PublicKey;
         },
         args: {
-            targetChain?: number;
+            targetChain?: wormholeSdk.ChainId;
             destinationDomain?: number;
         } = {},
     ): Promise<TransactionInstruction> {
@@ -470,6 +471,10 @@ export class TokenRouterProgram {
             });
 
             preparedBy ??= info.preparedBy;
+
+            if (!wormholeSdk.isChain(info.targetChain)) {
+                throw new Error("Invalid chain found in prepared order");
+            }
             targetChain ??= info.targetChain;
         }
 
@@ -662,7 +667,7 @@ export class TokenRouterProgram {
 
     async redeemFastFillAccounts(
         vaa: PublicKey,
-        sourceChain?: number,
+        sourceChain?: wormholeSdk.ChainId,
     ): Promise<RedeemFastFillAccounts> {
         const {
             vaaAccount,

@@ -1023,7 +1023,7 @@ describe("Token Router", function () {
                             },
                             {
                                 fill: {
-                                    sourceChain: wormholeSdk.CHAIN_ID_SOLANA as number,
+                                    sourceChain: wormholeSdk.CHAIN_ID_SOLANA,
                                     orderSender: Array.from(payer.publicKey.toBuffer()),
                                     redeemer,
                                     redeemerMessage,

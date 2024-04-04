@@ -1,3 +1,4 @@
+import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { parseVaa } from "@certusone/wormhole-sdk";
 import { Connection, PublicKey } from "@solana/web3.js";
 import { ethers } from "ethers";
@@ -16,13 +17,13 @@ export type PostedVaaV1 = {
     guardianSetIndex: number;
     nonce: number;
     sequence: bigint;
-    emitterChain: number;
+    emitterChain: wormholeSdk.ChainId;
     emitterAddress: Array<number>;
     payload: Buffer;
 };
 
 export type EmitterInfo = {
-    chain: number;
+    chain: wormholeSdk.ChainId;
     address: Array<number>;
     sequence: bigint;
 };
@@ -64,6 +65,9 @@ export class VaaAccount {
             const sequence = data.readBigUInt64LE(offset);
             offset += 8;
             const emitterChain = data.readUInt16LE(offset);
+            if (!wormholeSdk.isChain(emitterChain)) {
+                throw new Error("invalid emitter chain");
+            }
             offset += 2;
             const emitterAddress = Array.from(data.subarray(offset, (offset += 32)));
             const payloadLen = data.readUInt32LE(offset);
@@ -92,7 +96,7 @@ export class VaaAccount {
         if (this._encodedVaa !== undefined) {
             const parsed = parseVaa(this._encodedVaa.buf);
             return {
-                chain: parsed.emitterChain,
+                chain: parsed.emitterChain as wormholeSdk.ChainId,
                 address: Array.from(parsed.emitterAddress),
                 sequence: parsed.sequence,
             };
