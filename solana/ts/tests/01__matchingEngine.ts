@@ -8,11 +8,10 @@ import {
     Connection,
     Keypair,
     PublicKey,
+    Signer,
     SystemProgram,
     TransactionInstruction,
     VersionedTransactionResponse,
-    Signer,
-    AddressLookupTableAccount,
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
@@ -59,8 +58,6 @@ import {
     waitUntilSlot,
     waitUntilTimestamp,
 } from "./helpers";
-import { join } from "path";
-import { Cctp } from "../src/cctp/messages";
 
 chaiUse(chaiAsPromised);
 
