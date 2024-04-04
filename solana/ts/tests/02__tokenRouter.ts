@@ -8,6 +8,7 @@ import {
     Keypair,
     PublicKey,
     SystemProgram,
+    TransactionInstruction,
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
@@ -27,6 +28,8 @@ import {
     expectIxOk,
     postLiquidityLayerVaa,
 } from "./helpers";
+import { token } from "@coral-xyz/anchor/dist/cjs/utils";
+import { VaaAccount } from "../src/wormhole";
 
 chaiUse(chaiAsPromised);
 
@@ -1492,7 +1495,6 @@ describe("Token Router", function () {
                 expect(localVariables.delete("args")).is.true;
 
                 const vaa = localVariables.get("vaa") as PublicKey;
-                expect(localVariables.delete("vaa")).is.true;
 
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
@@ -1510,89 +1512,90 @@ describe("Token Router", function () {
                 });
 
                 // TODO: check prepared fill account.
-            });
-        });
 
-        describe("Consume Prepared Fill", function () {
-            const redeemer = Keypair.generate();
-
-            const localVariables = new Map<string, any>();
-
-            it.skip("Redeem Fill (CCTP)", async function () {
-                // TODO
+                // Save for later.
+                localVariables.set("redeemIx", ix);
             });
 
-            it.skip("Consume Prepared Fill after Redeem Fill (CCTP)", async function () {
-                // TODO
-            });
+            it("Consume Prepared Fill after Redeem Fill", async function () {
+                const vaa = localVariables.get("vaa") as PublicKey;
+                expect(localVariables.delete("vaa")).is.true;
 
-            it.skip("Cannot Redeem Fill Again (CCTP)", async function () {
-                // TODO
-            });
-
-            async function redeemFillCctp() {
-                const encodedMintRecipient = Array.from(
-                    tokenRouter.cctpMintRecipientAddress().toBuffer(),
-                );
-                const sourceCctpDomain = 0;
-                const cctpNonce = testCctpNonce++;
-                const amount = 69n;
-
-                // Concoct a Circle message.
-                const burnSource = Array.from(Buffer.alloc(32, "beefdead", "hex"));
-                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                    await craftCctpTokenBurnMessage(
-                        tokenRouter,
-                        sourceCctpDomain,
-                        cctpNonce,
-                        encodedMintRecipient,
-                        amount,
-                        burnSource,
-                    );
-
-                const message = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: burnMessage.burnTokenAddress,
-                            amount,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource,
-                            mintRecipient: encodedMintRecipient,
-                        },
-                        {
-                            fill: {
-                                sourceChain: foreignChain,
-                                orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
-                                redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                            },
-                        },
-                    ),
-                });
-
-                const vaa = await postLiquidityLayerVaa(
+                const someone = Keypair.generate();
+                const dstToken = await splToken.createAssociatedTokenAccount(
                     connection,
                     payer,
-                    MOCK_GUARDIANS,
-                    foreignEndpointAddress,
-                    wormholeSequence++,
-                    message,
-                );
-                const redeemIx = await tokenRouter.redeemCctpFillIx(
-                    {
-                        payer: payer.publicKey,
-                        vaa,
-                    },
-                    {
-                        encodedCctpMessage,
-                        cctpAttestation,
-                    },
+                    USDC_MINT_ADDRESS,
+                    someone.publicKey,
                 );
 
-                return { amount, message, vaa, redeemIx };
-            }
+                const beneficiary = Keypair.generate().publicKey;
+
+                const vaaAccount = await VaaAccount.fetch(connection, vaa);
+                const preparedFill = tokenRouter.preparedFillAddress(vaaAccount.digest());
+
+                const expectedPreparedFillLamports = await connection
+                    .getAccountInfo(preparedFill)
+                    .then((info) => info!.lamports);
+
+                const custodyToken = tokenRouter.preparedCustodyTokenAddress(preparedFill);
+                const { amount: custodyTokenBalance } = await splToken.getAccount(
+                    connection,
+                    custodyToken,
+                );
+                const expectedCustodyTokenLamports = await connection
+                    .getAccountInfo(custodyToken)
+                    .then((info) => info!.lamports);
+
+                const ix = await tokenRouter.consumePreparedFillIx({
+                    preparedFill,
+                    redeemer: redeemer.publicKey,
+                    dstToken,
+                    beneficiary,
+                });
+
+                await expectIxOk(connection, [ix], [payer, redeemer]);
+
+                {
+                    const accInfo = await connection.getAccountInfo(preparedFill);
+                    expect(accInfo).is.null;
+                }
+                {
+                    const accInfo = await connection.getAccountInfo(custodyToken);
+                    expect(accInfo).is.null;
+                }
+
+                const { amount: dstTokenBalance } = await splToken.getAccount(connection, dstToken);
+                expect(dstTokenBalance).equals(custodyTokenBalance);
+
+                const beneficiaryBalance = await connection.getBalance(beneficiary);
+                expect(beneficiaryBalance).equals(
+                    expectedPreparedFillLamports + expectedCustodyTokenLamports,
+                );
+
+                // Save for later.
+                localVariables.set("consumeIx", ix);
+            });
+
+            it("Cannot Consume Fill Again", async function () {
+                const ix = localVariables.get("consumeIx") as TransactionInstruction;
+                expect(localVariables.delete("consumeIx")).is.true;
+
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer, redeemer],
+                    "prepared_fill. Error Code: AccountNotInitialized",
+                );
+            });
+
+            it("Cannot Redeem Fill Again (CCTP)", async function () {
+                const ix = localVariables.get("redeemIx") as TransactionInstruction;
+                expect(localVariables.delete("redeemIx")).is.true;
+
+                // NOTE: This is a CCTP message transmitter error.
+                await expectIxErr(connection, [ix], [payer], "Error Code: NonceAlreadyUsed");
+            });
         });
     });
 });

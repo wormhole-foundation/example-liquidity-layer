@@ -152,9 +152,9 @@ export class TokenRouterProgram {
         return splToken.getAssociatedTokenAddressSync(this.mint, this.custodianAddress(), true);
     }
 
-    preparedCustodyTokenAddress(preparedOrder: PublicKey): PublicKey {
+    preparedCustodyTokenAddress(preparedAccount: PublicKey): PublicKey {
         return PublicKey.findProgramAddressSync(
-            [Buffer.from("prepared-custody"), preparedOrder.toBuffer()],
+            [Buffer.from("prepared-custody"), preparedAccount.toBuffer()],
             this.ID,
         )[0];
     }
@@ -557,9 +557,9 @@ export class TokenRouterProgram {
         const msg = CctpTokenBurnMessage.from(cctpMessage);
         const cctpMintRecipient = this.cctpMintRecipientAddress();
 
-        const vaaAcct = await VaaAccount.fetch(this.program.provider.connection, vaa);
-        const { chain } = vaaAcct.emitterInfo();
-        const preparedFill = this.preparedFillAddress(vaaAcct.digest());
+        const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, vaa);
+        const { chain } = vaaAccount.emitterInfo();
+        const preparedFill = this.preparedFillAddress(vaaAccount.digest());
 
         const {
             authority: messageTransmitterAuthority,
