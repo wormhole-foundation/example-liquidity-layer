@@ -55,7 +55,7 @@ where
             &[
                 Custodian::SIGNER_SEEDS,
                 &[
-                    common::constants::CORE_MESSAGE_SEED_PREFIX,
+                    common::CORE_MESSAGE_SEED_PREFIX,
                     payer.key().as_ref(),
                     sequence_seed,
                     &[core_message_bump_seed],
@@ -63,7 +63,7 @@ where
             ],
         ),
         core_bridge_program::cpi::PostMessageArgs {
-            nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
+            nonce: common::WORMHOLE_MESSAGE_NONCE,
             payload: message.to_vec_payload(),
             commitment: core_bridge_program::Commitment::Finalized,
         },

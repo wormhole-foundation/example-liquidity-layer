@@ -1,5 +1,5 @@
-import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import { Uint64, writeUint64BE } from "..";
 
 export * from "./PayerSequence";
 
@@ -30,7 +30,7 @@ function messageAddress(
     prefix: string,
 ): PublicKey {
     const encodedPayerSequenceValue = Buffer.alloc(8);
-    encodedPayerSequenceValue.writeBigUInt64BE(BigInt(payerSequenceValue.toString()));
+    writeUint64BE(encodedPayerSequenceValue, payerSequenceValue);
     return PublicKey.findProgramAddressSync(
         [Buffer.from(prefix), payer.toBuffer(), encodedPayerSequenceValue],
         programId,

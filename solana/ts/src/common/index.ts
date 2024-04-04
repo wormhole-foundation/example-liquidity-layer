@@ -37,6 +37,34 @@ export function uint64ToBN(value: Uint64): BN {
     return new BN(buf);
 }
 
+export type VaaHash = Array<number> | Buffer | Uint8Array;
+
+export function vaaHashToUint8Array(vaaHash: VaaHash): Uint8Array {
+    if (Array.isArray(vaaHash)) {
+        return Uint8Array.from(vaaHash);
+    } else if (Buffer.isBuffer(vaaHash)) {
+        return Uint8Array.from(vaaHash);
+    } else {
+        return vaaHash;
+    }
+}
+
+export function vaaHashToBuffer(vaaHash: VaaHash): Buffer {
+    if (Buffer.isBuffer(vaaHash)) {
+        return vaaHash;
+    } else {
+        return Buffer.from(vaaHashToUint8Array(vaaHash));
+    }
+}
+
+export function vaaHashToArray(vaaHash: VaaHash): Array<number> {
+    if (Array.isArray(vaaHash)) {
+        return vaaHash;
+    } else {
+        return Array.from(vaaHashToUint8Array(vaaHash));
+    }
+}
+
 export async function reclaimCctpMessageIx(
     messageTransmitter: MessageTransmitterProgram,
     accounts: {

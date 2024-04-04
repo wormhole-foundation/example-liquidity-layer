@@ -30,7 +30,7 @@ pub struct SettleAuctionNoneCctp<'info> {
     #[account(
         mut,
         seeds = [
-            common::constants::CORE_MESSAGE_SEED_PREFIX,
+            common::CORE_MESSAGE_SEED_PREFIX,
             payer.key().as_ref(),
             &payer_sequence.value.to_be_bytes(),
         ],
@@ -42,7 +42,7 @@ pub struct SettleAuctionNoneCctp<'info> {
     #[account(
         mut,
         seeds = [
-            common::constants::CCTP_MESSAGE_SEED_PREFIX,
+            common::CCTP_MESSAGE_SEED_PREFIX,
             payer.key().as_ref(),
             &payer_sequence.value.to_be_bytes(),
         ],
@@ -138,6 +138,7 @@ fn handle_settle_auction_none_cctp(
     } = ctx.accounts.fast_order_path.to_endpoint.as_ref();
 
     let payer = &ctx.accounts.payer;
+    let system_program = &ctx.accounts.system_program;
 
     // This returns the CCTP nonce, but we do not need it.
     wormhole_cctp_solana::cpi::burn_and_publish(
@@ -177,7 +178,7 @@ fn handle_settle_auction_none_cctp(
                     .token_messenger_minter_program
                     .to_account_info(),
                 token_program: token_program.to_account_info(),
-                system_program: ctx.accounts.system_program.to_account_info(),
+                system_program: system_program.to_account_info(),
                 event_authority: ctx
                     .accounts
                     .cctp
@@ -187,7 +188,7 @@ fn handle_settle_auction_none_cctp(
             &[
                 Custodian::SIGNER_SEEDS,
                 &[
-                    common::constants::CCTP_MESSAGE_SEED_PREFIX,
+                    common::CCTP_MESSAGE_SEED_PREFIX,
                     payer.key().as_ref(),
                     sequence_seed.as_ref(),
                     &[ctx.bumps.cctp_message],
@@ -203,14 +204,14 @@ fn handle_settle_auction_none_cctp(
                 config: ctx.accounts.wormhole.config.to_account_info(),
                 emitter_sequence: ctx.accounts.wormhole.emitter_sequence.to_account_info(),
                 fee_collector: ctx.accounts.wormhole.fee_collector.to_account_info(),
-                system_program: ctx.accounts.system_program.to_account_info(),
+                system_program: system_program.to_account_info(),
                 clock: ctx.accounts.sysvars.clock.to_account_info(),
                 rent: ctx.accounts.sysvars.rent.to_account_info(),
             },
             &[
                 Custodian::SIGNER_SEEDS,
                 &[
-                    common::constants::CORE_MESSAGE_SEED_PREFIX,
+                    common::CORE_MESSAGE_SEED_PREFIX,
                     payer.key().as_ref(),
                     sequence_seed.as_ref(),
                     &[ctx.bumps.core_message],
@@ -223,7 +224,7 @@ fn handle_settle_auction_none_cctp(
             destination_cctp_domain,
             amount,
             mint_recipient: *mint_recipient,
-            wormhole_message_nonce: common::constants::WORMHOLE_MESSAGE_NONCE,
+            wormhole_message_nonce: common::WORMHOLE_MESSAGE_NONCE,
             payload: fill.to_vec_payload(),
         },
     )?;

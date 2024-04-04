@@ -20,8 +20,8 @@ use common::{
 
 #[derive(Accounts)]
 pub struct Usdc<'info> {
-    /// CHECK: This address must equal [USDC_MINT](common::constants::USDC_MINT).
-    #[account(address = common::constants::USDC_MINT)]
+    /// CHECK: This address must equal [USDC_MINT](common::USDC_MINT).
+    #[account(address = common::USDC_MINT)]
     pub mint: AccountInfo<'info>,
 }
 
@@ -190,7 +190,7 @@ pub struct LocalTokenRouter<'info> {
     pub token_router_emitter: AccountInfo<'info>,
 
     #[account(
-        associated_token::mint = common::constants::USDC_MINT,
+        associated_token::mint = common::USDC_MINT,
         associated_token::authority = token_router_emitter,
     )]
     pub token_router_mint_recipient: Account<'info, token::TokenAccount>,
@@ -370,7 +370,7 @@ pub struct ExecuteOrder<'info> {
 
     pub active_auction: ActiveAuction<'info>,
 
-    /// CHECK: Must be a token account, whose mint is [common::constants::USDC_MINT].
+    /// CHECK: Must be a token account, whose mint is [common::USDC_MINT].
     #[account(mut)]
     pub executor_token: AccountInfo<'info>,
 

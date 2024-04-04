@@ -306,20 +306,21 @@ export type TokenRouter = {
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "orderSender",
+          "name": "transferAuthority",
           "isMut": false,
-          "isSigner": true,
+          "isSigner": false,
           "docs": [
-            "This signer will be encoded in the prepared order. He will also need to be present when",
-            "invoking any of the place market order instructions."
+            "The auction participant needs to set approval to this PDA.",
+            ""
           ]
         },
         {
@@ -328,7 +329,7 @@ export type TokenRouter = {
           "isSigner": true
         },
         {
-          "name": "srcToken",
+          "name": "senderToken",
           "isMut": true,
           "isSigner": false,
           "docs": [
@@ -357,9 +358,14 @@ export type TokenRouter = {
           ]
         },
         {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false
+          "name": "usdc",
+          "accounts": [
+            {
+              "name": "mint",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "tokenProgram",
@@ -395,11 +401,12 @@ export type TokenRouter = {
       "accounts": [
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -411,12 +418,12 @@ export type TokenRouter = {
           ]
         },
         {
-          "name": "preparedBy",
+          "name": "preparedOrder",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "preparedOrder",
+          "name": "preparedBy",
           "isMut": true,
           "isSigner": false
         },
@@ -465,32 +472,29 @@ export type TokenRouter = {
           ]
         },
         {
+          "name": "preparedBy",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "payerSequence",
           "isMut": true,
           "isSigner": false
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            "",
-            "Seeds must be \\[\"emitter\"\\]."
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
           "name": "preparedOrder",
           "isMut": true,
           "isSigner": false
-        },
-        {
-          "name": "orderSender",
-          "isMut": false,
-          "isSigner": true,
-          "docs": [
-            "Signer who must be the same one encoded in the prepared order."
-          ]
         },
         {
           "name": "mint",
@@ -522,10 +526,7 @@ export type TokenRouter = {
             "CCTP domain encoded if this route is CCTP-enabled. For this instruction, it is required that",
             "[RouterEndpoint::cctp_domain] is `Some(value)`.",
             "",
-            "Seeds must be \\[\"registered_emitter\", target_chain.to_be_bytes()\\].",
-            "",
-            "NOTE: In the EVM implementation, if there is no router endpoint then \"ErrUnsupportedChain\"",
-            "error is thrown (whereas here the account would not exist)."
+            "Seeds must be \\[\"registered_emitter\", target_chain.to_be_bytes()\\]."
           ]
         },
         {
@@ -983,7 +984,7 @@ export type TokenRouter = {
           ]
         },
         {
-          "name": "rentRecipient",
+          "name": "beneficiary",
           "isMut": true,
           "isSigner": false,
           "docs": [
@@ -1363,6 +1364,10 @@ export type TokenRouter = {
       "name": "InvalidSourceRouter"
     },
     {
+      "code": 6098,
+      "name": "InvalidTargetRouter"
+    },
+    {
       "code": 6100,
       "name": "EndpointDisabled"
     },
@@ -1409,26 +1414,6 @@ export type TokenRouter = {
     {
       "code": 7028,
       "name": "InvalidRedeemer"
-    },
-    {
-      "code": 7030,
-      "name": "RedeemerMismatch"
-    },
-    {
-      "code": 7032,
-      "name": "PreparedByMismatch"
-    },
-    {
-      "code": 7034,
-      "name": "OrderSenderMismatch"
-    },
-    {
-      "code": 7036,
-      "name": "RefundTokenMismatch"
-    },
-    {
-      "code": 7038,
-      "name": "PayerNotPreparer"
     }
   ]
 };
@@ -1741,20 +1726,21 @@ export const IDL: TokenRouter = {
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
-          "name": "orderSender",
+          "name": "transferAuthority",
           "isMut": false,
-          "isSigner": true,
+          "isSigner": false,
           "docs": [
-            "This signer will be encoded in the prepared order. He will also need to be present when",
-            "invoking any of the place market order instructions."
+            "The auction participant needs to set approval to this PDA.",
+            ""
           ]
         },
         {
@@ -1763,7 +1749,7 @@ export const IDL: TokenRouter = {
           "isSigner": true
         },
         {
-          "name": "srcToken",
+          "name": "senderToken",
           "isMut": true,
           "isSigner": false,
           "docs": [
@@ -1792,9 +1778,14 @@ export const IDL: TokenRouter = {
           ]
         },
         {
-          "name": "mint",
-          "isMut": false,
-          "isSigner": false
+          "name": "usdc",
+          "accounts": [
+            {
+              "name": "mint",
+              "isMut": false,
+              "isSigner": false
+            }
+          ]
         },
         {
           "name": "tokenProgram",
@@ -1830,11 +1821,12 @@ export const IDL: TokenRouter = {
       "accounts": [
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "Custodian, but does not need to be deserialized.",
-            ""
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
@@ -1846,12 +1838,12 @@ export const IDL: TokenRouter = {
           ]
         },
         {
-          "name": "preparedBy",
+          "name": "preparedOrder",
           "isMut": true,
           "isSigner": false
         },
         {
-          "name": "preparedOrder",
+          "name": "preparedBy",
           "isMut": true,
           "isSigner": false
         },
@@ -1900,32 +1892,29 @@ export const IDL: TokenRouter = {
           ]
         },
         {
+          "name": "preparedBy",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "payerSequence",
           "isMut": true,
           "isSigner": false
         },
         {
           "name": "custodian",
-          "isMut": false,
-          "isSigner": false,
-          "docs": [
-            "This program's Wormhole (Core Bridge) emitter authority.",
-            "",
-            "Seeds must be \\[\"emitter\"\\]."
+          "accounts": [
+            {
+              "name": "custodian",
+              "isMut": false,
+              "isSigner": false
+            }
           ]
         },
         {
           "name": "preparedOrder",
           "isMut": true,
           "isSigner": false
-        },
-        {
-          "name": "orderSender",
-          "isMut": false,
-          "isSigner": true,
-          "docs": [
-            "Signer who must be the same one encoded in the prepared order."
-          ]
         },
         {
           "name": "mint",
@@ -1957,10 +1946,7 @@ export const IDL: TokenRouter = {
             "CCTP domain encoded if this route is CCTP-enabled. For this instruction, it is required that",
             "[RouterEndpoint::cctp_domain] is `Some(value)`.",
             "",
-            "Seeds must be \\[\"registered_emitter\", target_chain.to_be_bytes()\\].",
-            "",
-            "NOTE: In the EVM implementation, if there is no router endpoint then \"ErrUnsupportedChain\"",
-            "error is thrown (whereas here the account would not exist)."
+            "Seeds must be \\[\"registered_emitter\", target_chain.to_be_bytes()\\]."
           ]
         },
         {
@@ -2418,7 +2404,7 @@ export const IDL: TokenRouter = {
           ]
         },
         {
-          "name": "rentRecipient",
+          "name": "beneficiary",
           "isMut": true,
           "isSigner": false,
           "docs": [
@@ -2798,6 +2784,10 @@ export const IDL: TokenRouter = {
       "name": "InvalidSourceRouter"
     },
     {
+      "code": 6098,
+      "name": "InvalidTargetRouter"
+    },
+    {
       "code": 6100,
       "name": "EndpointDisabled"
     },
@@ -2844,26 +2834,6 @@ export const IDL: TokenRouter = {
     {
       "code": 7028,
       "name": "InvalidRedeemer"
-    },
-    {
-      "code": 7030,
-      "name": "RedeemerMismatch"
-    },
-    {
-      "code": 7032,
-      "name": "PreparedByMismatch"
-    },
-    {
-      "code": 7034,
-      "name": "OrderSenderMismatch"
-    },
-    {
-      "code": 7036,
-      "name": "RefundTokenMismatch"
-    },
-    {
-      "code": 7038,
-      "name": "PayerNotPreparer"
     }
   ]
 };

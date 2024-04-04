@@ -7,7 +7,7 @@ pub struct UpdateFeeRecipient<'info> {
     admin: AdminMut<'info>,
 
     #[account(
-        associated_token::mint = common::constants::USDC_MINT,
+        associated_token::mint = common::USDC_MINT,
         associated_token::authority = new_fee_recipient,
     )]
     new_fee_recipient_token: Account<'info, token::TokenAccount>,

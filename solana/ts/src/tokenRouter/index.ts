@@ -10,6 +10,7 @@ import {
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
+import { Keccak } from "sha3";
 import { IDL, TokenRouter } from "../../../target/types/token_router";
 import {
     CctpTokenBurnMessage,
@@ -17,17 +18,19 @@ import {
     TokenMessengerMinterProgram,
 } from "../cctp";
 import {
-    Uint64,
     PayerSequence,
+    Uint64,
     cctpMessageAddress,
     coreMessageAddress,
     reclaimCctpMessageIx,
+    uint64ToBN,
 } from "../common";
 import * as matchingEngineSdk from "../matchingEngine";
 import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import { Custodian, PreparedFill, PreparedOrder } from "./state";
+import * as wormholeSdk from "@certusone/wormhole-sdk";
 
 export const PROGRAM_IDS = [
     "TokenRouter11111111111111111111111111111111",
@@ -149,9 +152,9 @@ export class TokenRouterProgram {
         return splToken.getAssociatedTokenAddressSync(this.mint, this.custodianAddress(), true);
     }
 
-    preparedCustodyTokenAddress(preparedOrder: PublicKey): PublicKey {
+    preparedCustodyTokenAddress(preparedAccount: PublicKey): PublicKey {
         return PublicKey.findProgramAddressSync(
-            [Buffer.from("prepared-custody"), preparedOrder.toBuffer()],
+            [Buffer.from("prepared-custody"), preparedAccount.toBuffer()],
             this.ID,
         )[0];
     }
@@ -200,6 +203,29 @@ export class TokenRouterProgram {
     // TODO: fix
     async fetchPreparedFill(addr: PublicKey): Promise<PreparedFill> {
         return this.program.account.preparedFill.fetch(addr);
+    }
+
+    transferAuthorityAddress(preparedOrder: PublicKey, args: PrepareMarketOrderArgs): PublicKey {
+        const { amountIn, minAmountOut, targetChain, redeemer, redeemerMessage } = args;
+        const hasher = new Keccak(256);
+        hasher.update(uint64ToBN(amountIn).toBuffer("be", 8));
+        if (minAmountOut !== null) {
+            hasher.update(uint64ToBN(minAmountOut).toBuffer("be", 8));
+        }
+        hasher.update(
+            (() => {
+                const buf = Buffer.alloc(2);
+                buf.writeUInt16BE(targetChain);
+                return buf;
+            })(),
+        );
+        hasher.update(Buffer.from(redeemer));
+        hasher.update(redeemerMessage);
+
+        return PublicKey.findProgramAddressSync(
+            [Buffer.from("transfer-authority"), preparedOrder.toBuffer(), hasher.digest()],
+            this.ID,
+        )[0];
     }
 
     async commonAccounts(): Promise<TokenRouterCommonAccounts> {
@@ -305,37 +331,72 @@ export class TokenRouterProgram {
         };
     }
 
+    async approveTransferAuthorityIx(
+        accounts: {
+            preparedOrder: PublicKey;
+            senderToken: PublicKey;
+            sender?: PublicKey;
+        },
+        args: PrepareMarketOrderArgs,
+    ): Promise<{ transferAuthority: PublicKey; ix: TransactionInstruction }> {
+        const { preparedOrder, senderToken } = accounts;
+        const { amountIn } = args;
+
+        let { sender } = accounts;
+        sender ??= await (async () => {
+            const tokenAccount = await splToken.getAccount(
+                this.program.provider.connection,
+                senderToken,
+            );
+            return tokenAccount.owner;
+        })();
+
+        const transferAuthority = this.transferAuthorityAddress(preparedOrder, args);
+
+        return {
+            transferAuthority,
+            ix: splToken.createApproveInstruction(senderToken, transferAuthority, sender, amountIn),
+        };
+    }
+
     async prepareMarketOrderIx(
         accounts: {
             payer: PublicKey;
-            orderSender: PublicKey;
             preparedOrder: PublicKey;
-            srcToken: PublicKey;
-            refundToken: PublicKey;
+            senderToken: PublicKey;
+            refundToken?: PublicKey;
+            sender?: PublicKey;
         },
         args: PrepareMarketOrderArgs,
-    ): Promise<TransactionInstruction> {
-        const { payer, orderSender, preparedOrder, srcToken, refundToken } = accounts;
-        const { amountIn, minAmountOut, ...remainingArgs } = args;
+    ): Promise<[approveIx: TransactionInstruction, prepareIx: TransactionInstruction]> {
+        const { payer, preparedOrder, senderToken, sender } = accounts;
+        let { refundToken } = accounts;
+        refundToken ??= senderToken;
 
-        return this.program.methods
+        const { transferAuthority, ix: approveIx } = await this.approveTransferAuthorityIx(
+            { preparedOrder, senderToken, sender },
+            args,
+        );
+
+        const prepareIx = await this.program.methods
             .prepareMarketOrder({
-                amountIn: new BN(amountIn.toString()),
-                minAmountOut: minAmountOut === null ? null : new BN(minAmountOut.toString()),
-                ...remainingArgs,
+                ...args,
+                amountIn: uint64ToBN(args.amountIn),
+                minAmountOut: args.minAmountOut === null ? null : uint64ToBN(args.minAmountOut),
             })
             .accounts({
                 payer,
-                custodian: this.custodianAddress(),
-                orderSender,
+                custodian: this.checkedCustodianComposite(),
+                transferAuthority,
                 preparedOrder,
-                srcToken,
+                senderToken,
                 refundToken,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrder),
-                mint: this.mint,
-                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                usdc: this.usdcComposite(),
             })
             .instruction();
+
+        return [approveIx, prepareIx];
     }
 
     async closePreparedOrderIx(accounts: {
@@ -344,47 +405,26 @@ export class TokenRouterProgram {
         orderSender?: PublicKey;
         refundToken?: PublicKey;
     }): Promise<TransactionInstruction> {
-        const {
-            preparedOrder,
-            preparedBy: inputPreparedBy,
-            orderSender: inputOrderSender,
-            refundToken: inputRefundToken,
-        } = accounts;
+        const { preparedOrder } = accounts;
+        let { preparedBy, orderSender, refundToken } = accounts;
 
-        const { preparedBy, orderSender, refundToken } = await (async () => {
-            if (
-                inputPreparedBy === undefined ||
-                inputOrderSender === undefined ||
-                inputRefundToken === undefined
-            ) {
-                const {
-                    info: { preparedBy, orderSender, refundToken },
-                } = await this.fetchPreparedOrder(preparedOrder);
+        if (preparedBy === undefined || orderSender === undefined || refundToken === undefined) {
+            const { info } = await this.fetchPreparedOrder(preparedOrder);
 
-                return {
-                    preparedBy: inputPreparedBy ?? preparedBy,
-                    orderSender: inputOrderSender ?? orderSender,
-                    refundToken: inputRefundToken ?? refundToken,
-                };
-            } else {
-                return {
-                    preparedBy: inputPreparedBy,
-                    orderSender: inputOrderSender,
-                    refundToken: inputRefundToken,
-                };
-            }
-        })();
+            preparedBy ??= info.preparedBy;
+            orderSender ??= info.orderSender;
+            refundToken ??= info.refundToken;
+        }
 
         return this.program.methods
             .closePreparedOrder()
             .accounts({
                 preparedBy,
-                custodian: this.custodianAddress(),
+                custodian: this.checkedCustodianComposite(),
                 orderSender,
                 preparedOrder,
                 refundToken,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrder),
-                tokenProgram: splToken.TOKEN_PROGRAM_ID,
             })
             .instruction();
     }
@@ -393,15 +433,15 @@ export class TokenRouterProgram {
         preparedFill: PublicKey;
         redeemer: PublicKey;
         dstToken: PublicKey;
-        rentRecipient: PublicKey;
+        beneficiary: PublicKey;
     }): Promise<TransactionInstruction> {
-        const { preparedFill, redeemer, dstToken, rentRecipient } = accounts;
+        const { preparedFill, redeemer, dstToken, beneficiary } = accounts;
 
         return this.program.methods
             .consumePreparedFill()
             .accounts({
                 redeemer,
-                rentRecipient,
+                beneficiary,
                 preparedFill,
                 dstToken,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
@@ -413,33 +453,33 @@ export class TokenRouterProgram {
         accounts: {
             payer: PublicKey;
             preparedOrder: PublicKey;
-            orderSender?: PublicKey;
+            preparedBy?: PublicKey;
             routerEndpoint?: PublicKey;
         },
-        args?: {
-            targetChain: number;
-        },
+        args: {
+            targetChain?: wormholeSdk.ChainId;
+            destinationDomain?: number;
+        } = {},
     ): Promise<TransactionInstruction> {
-        const {
-            payer,
-            preparedOrder,
-            orderSender: inputOrderSender,
-            routerEndpoint: inputRouterEndpoint,
-        } = accounts;
-        const { orderSender, targetChain } = await (async () => {
-            if (inputOrderSender === undefined || args === undefined) {
-                const {
-                    info: { orderSender, targetChain },
-                } = await this.fetchPreparedOrder(preparedOrder).catch((_) => {
-                    throw new Error(
-                        "Cannot find prepared order. If it doesn't exist, please provide orderSender and targetChain.",
-                    );
-                });
-                return { orderSender, targetChain };
-            } else {
-                return { orderSender: inputOrderSender, targetChain: args.targetChain };
+        const { payer, preparedOrder } = accounts;
+        let { preparedBy, routerEndpoint } = accounts;
+        let { targetChain, destinationDomain } = args;
+
+        if (preparedBy === undefined || targetChain === undefined) {
+            const { info } = await this.fetchPreparedOrder(preparedOrder).catch((_) => {
+                throw new Error("Cannot find prepared order");
+            });
+
+            preparedBy ??= info.preparedBy;
+
+            if (!wormholeSdk.isChain(info.targetChain)) {
+                throw new Error("Invalid chain found in prepared order");
             }
-        })();
+            targetChain ??= info.targetChain;
+        }
+
+        const matchingEngine = this.matchingEngineProgram();
+        routerEndpoint ??= matchingEngine.routerEndpointAddress(targetChain);
 
         const payerSequence = this.payerSequenceAddress(payer);
         const { coreMessage, cctpMessage } = await this.fetchPayerSequenceValue({
@@ -451,16 +491,15 @@ export class TokenRouterProgram {
             };
         });
 
-        const matchingEngine = this.matchingEngineProgram();
-        const routerEndpoint = matchingEngine.routerEndpointAddress(targetChain);
-
-        const { protocol } = await matchingEngine.fetchRouterEndpoint({
-            address: routerEndpoint,
-        });
-        if (protocol.cctp === undefined) {
-            throw new Error("invalid router endpoint");
+        if (destinationDomain === undefined) {
+            const { protocol } = await matchingEngine.fetchRouterEndpoint({
+                address: routerEndpoint,
+            });
+            if (protocol.cctp === undefined) {
+                throw new Error("invalid router endpoint");
+            }
+            destinationDomain = protocol.cctp.domain;
         }
-        const mint = this.mint;
 
         const {
             senderAuthority: tokenMessengerMinterSenderAuthority,
@@ -473,8 +512,8 @@ export class TokenRouterProgram {
             messageTransmitterProgram,
             tokenMessengerMinterProgram,
         } = this.tokenMessengerMinterProgram().depositForBurnWithCallerAccounts(
-            mint,
-            protocol.cctp.domain,
+            this.mint,
+            destinationDomain,
         );
 
         const custodian = this.custodianAddress();
@@ -485,13 +524,13 @@ export class TokenRouterProgram {
             .placeMarketOrderCctp()
             .accounts({
                 payer,
+                preparedBy,
                 payerSequence,
-                custodian,
+                custodian: this.checkedCustodianComposite(),
                 preparedOrder,
-                orderSender: inputOrderSender ?? orderSender,
-                mint,
+                mint: this.mint,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrder),
-                routerEndpoint: inputRouterEndpoint ?? routerEndpoint,
+                routerEndpoint,
                 coreBridgeConfig,
                 coreMessage,
                 cctpMessage,
@@ -518,9 +557,9 @@ export class TokenRouterProgram {
         const msg = CctpTokenBurnMessage.from(cctpMessage);
         const cctpMintRecipient = this.cctpMintRecipientAddress();
 
-        const vaaAcct = await VaaAccount.fetch(this.program.provider.connection, vaa);
-        const { chain } = vaaAcct.emitterInfo();
-        const preparedFill = this.preparedFillAddress(vaaAcct.digest());
+        const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, vaa);
+        const { chain } = vaaAccount.emitterInfo();
+        const preparedFill = this.preparedFillAddress(vaaAccount.digest());
 
         const {
             authority: messageTransmitterAuthority,
@@ -628,7 +667,7 @@ export class TokenRouterProgram {
 
     async redeemFastFillAccounts(
         vaa: PublicKey,
-        sourceChain?: number,
+        sourceChain?: wormholeSdk.ChainId,
     ): Promise<RedeemFastFillAccounts> {
         const {
             vaaAccount,

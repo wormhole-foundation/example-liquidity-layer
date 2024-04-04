@@ -8,11 +8,10 @@ import {
     Connection,
     Keypair,
     PublicKey,
+    Signer,
     SystemProgram,
     TransactionInstruction,
     VersionedTransactionResponse,
-    Signer,
-    AddressLookupTableAccount,
 } from "@solana/web3.js";
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
@@ -59,8 +58,6 @@ import {
     waitUntilSlot,
     waitUntilTimestamp,
 } from "./helpers";
-import { join } from "path";
-import { Cctp } from "../src/cctp/messages";
 
 chaiUse(chaiAsPromised);
 
@@ -3170,8 +3167,15 @@ describe("Matching Engine", function () {
                     );
                 });
 
-                it.skip("Settle Completed with Penalty (Executor != Best Offer)", async function () {
-                    // TODO
+                it("Settle Completed with Penalty (Executor != Best Offer)", async function () {
+                    await settleAuctionCompleteForTest(
+                        {
+                            executor: playerTwo.publicKey,
+                        },
+                        {
+                            executeWithinGracePeriod: false,
+                        },
+                    );
                 });
 
                 it("Settle Completed (Tx)", async function () {
@@ -4249,17 +4253,25 @@ describe("Matching Engine", function () {
         });
 
         const { bestOfferToken } = info!;
+        const executorToken = splToken.getAssociatedTokenAddressSync(
+            USDC_MINT_ADDRESS,
+            accounts.executor,
+        );
         const { owner: bestOfferAuthority, amount: bestOfferTokenBalanceBefore } =
             await splToken.getAccount(connection, bestOfferToken);
 
-        const withinGracePeriod = opts.executeWithinGracePeriod ?? true;
-        if (withinGracePeriod) {
+        let executorTokenBalanceBefore: bigint | null = null;
+        if (
+            (opts.executeWithinGracePeriod ?? true) ||
+            accounts.executor.equals(bestOfferAuthority)
+        ) {
             expect(accounts.executor).to.eql(bestOfferAuthority);
         } else {
-            // Do anything here?
+            const { amount } = await splToken.getAccount(connection, executorToken);
+            executorTokenBalanceBefore = amount;
         }
 
-        const authorityLamportsBefore = await connection.getBalance(bestOfferAuthority);
+        const authorityLamportsBefore = await connection.getBalance(accounts.executor);
 
         const preparedCustodyToken = engine.preparedCustodyTokenAddress(preparedOrderResponse);
         const { amount: preparedCustodyBalanceBefore } = await splToken.getAccount(
@@ -4289,11 +4301,27 @@ describe("Matching Engine", function () {
             connection,
             bestOfferToken,
         );
-        expect(bestOfferTokenBalanceAfter).equals(
-            preparedCustodyBalanceBefore + bestOfferTokenBalanceBefore,
-        );
+        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
+        const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
+        const baseFee = deposit!.message.slowOrderResponse!.baseFee;
 
-        const authorityLamportsAfter = await connection.getBalance(bestOfferAuthority);
+        if (executorTokenBalanceBefore == null) {
+            expect(bestOfferTokenBalanceAfter).equals(
+                bestOfferTokenBalanceBefore + preparedCustodyBalanceBefore,
+            );
+        } else {
+            expect(bestOfferTokenBalanceAfter).equals(
+                bestOfferTokenBalanceBefore + preparedCustodyBalanceBefore - baseFee,
+            );
+
+            const { amount: executorTokenBalanceAfter } = await splToken.getAccount(
+                connection,
+                executorToken,
+            );
+            expect(executorTokenBalanceAfter).equals(executorTokenBalanceBefore + baseFee);
+        }
+
+        const authorityLamportsAfter = await connection.getBalance(accounts.executor);
         expect(authorityLamportsAfter).equals(
             authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
         );
@@ -4302,16 +4330,14 @@ describe("Matching Engine", function () {
             address: auction,
         });
 
-        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
-        const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
-        const baseFee = uint64ToBN(deposit!.message.slowOrderResponse!.baseFee);
-
         const executePenalty = statusBefore.completed!.executePenalty;
         expect(statusAfter).to.eql({
             settled: {
                 baseFee: uint64ToBN(baseFee),
                 totalPenalty:
-                    executePenalty !== null ? uint64ToBN(executePenalty.add(baseFee)) : null,
+                    executePenalty !== null
+                        ? uint64ToBN(executePenalty.add(uint64ToBN(baseFee)))
+                        : null,
             },
         });
 

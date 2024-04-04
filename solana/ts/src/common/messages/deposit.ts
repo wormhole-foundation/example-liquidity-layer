@@ -1,4 +1,4 @@
-import { BN } from "@coral-xyz/anchor";
+import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
 
 export const ID_DEPOSIT = 1;
@@ -17,7 +17,7 @@ export type DepositHeader = {
 };
 
 export type Fill = {
-    sourceChain: number;
+    sourceChain: wormholeSdk.ChainId;
     orderSender: Array<number>;
     redeemer: Array<number>;
     redeemerMessage: Buffer;
@@ -52,7 +52,7 @@ export class LiquidityLayerDeposit {
 
         const tokenAddress = Array.from(buf.subarray(offset, (offset += 32)));
         const amount = BigInt(
-            ethers.BigNumber.from(buf.subarray(offset, (offset += 32))).toString()
+            ethers.BigNumber.from(buf.subarray(offset, (offset += 32))).toString(),
         );
         const sourceCctpDomain = buf.readUInt32BE(offset);
         offset += 4;
@@ -74,6 +74,9 @@ export class LiquidityLayerDeposit {
             switch (depositPayloadId) {
                 case ID_DEPOSIT_FILL: {
                     const sourceChain = payload.readUInt16BE(offset);
+                    if (!wormholeSdk.isChain(sourceChain)) {
+                        throw new Error("Invalid source chain");
+                    }
                     offset += 2;
                     const orderSender = Array.from(payload.subarray(offset, (offset += 32)));
                     const redeemer = Array.from(payload.subarray(offset, (offset += 32)));
@@ -81,7 +84,7 @@ export class LiquidityLayerDeposit {
                     offset += 4;
                     const redeemerMessage = payload.subarray(
                         offset,
-                        (offset += redeemerMessageLen)
+                        (offset += redeemerMessageLen),
                     );
                     return {
                         fill: { sourceChain, orderSender, redeemer, redeemerMessage },
@@ -109,7 +112,7 @@ export class LiquidityLayerDeposit {
                 burnSource,
                 mintRecipient,
             },
-            message
+            message,
         );
     }
 

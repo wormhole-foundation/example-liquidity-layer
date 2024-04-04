@@ -9,6 +9,7 @@ pub enum TokenRouterError {
     InvalidPayloadId = 0x46,
 
     InvalidSourceRouter = 0x60,
+    InvalidTargetRouter = 0x62,
     EndpointDisabled = 0x64,
     InvalidCctpEndpoint = 0x66,
 
@@ -25,9 +26,4 @@ pub enum TokenRouterError {
     InsufficientAmount = 0x400,
     MinAmountOutTooHigh = 0x402,
     InvalidRedeemer = 0x404,
-    RedeemerMismatch = 0x406,
-    PreparedByMismatch = 0x408,
-    OrderSenderMismatch = 0x40a,
-    RefundTokenMismatch = 0x40c,
-    PayerNotPreparer = 0x40e,
 }

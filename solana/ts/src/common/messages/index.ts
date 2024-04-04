@@ -1,4 +1,4 @@
-import { BN } from "@coral-xyz/anchor";
+import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { Fill, ID_DEPOSIT, LiquidityLayerDeposit } from "./deposit";
 
 export * from "./deposit";
@@ -17,7 +17,7 @@ export type FastMarketOrder = {
     amountIn: bigint;
     // u64
     minAmountOut: bigint;
-    targetChain: number;
+    targetChain: wormholeSdk.ChainId;
     redeemer: Array<number>;
     sender: Array<number>;
     refundAddress: Array<number>;

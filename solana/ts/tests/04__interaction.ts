@@ -589,16 +589,16 @@ describe("Matching Engine <> Token Router", function () {
                 const redeemerMessage = localVariables.get("redeemerMessage") as Buffer;
                 expect(localVariables.delete("redeemerMessage")).is.true;
 
-                const rentRecipient = Keypair.generate().publicKey;
+                const beneficiary = Keypair.generate().publicKey;
                 const ix = await tokenRouter.consumePreparedFillIx({
                     preparedFill,
                     redeemer: redeemer.publicKey,
                     dstToken: payerToken,
-                    rentRecipient,
+                    beneficiary,
                 });
 
                 const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
-                const solBalanceBefore = await connection.getBalance(rentRecipient);
+                const solBalanceBefore = await connection.getBalance(beneficiary);
 
                 await expectIxOk(connection, [ix], [payer, redeemer]);
 
@@ -606,7 +606,7 @@ describe("Matching Engine <> Token Router", function () {
                 const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
                 expect(balanceAfter).equals(balanceBefore + amount);
 
-                const solBalanceAfter = await connection.getBalance(rentRecipient);
+                const solBalanceAfter = await connection.getBalance(beneficiary);
                 const preparedFillRent = await connection.getMinimumBalanceForRentExemption(
                     152 + redeemerMessage.length,
                 );
