@@ -136,7 +136,8 @@ export type AuctionSettled = {
     tokenBalanceAfter: BN;
 };
 
-export type AuctionUpdate = {
+export type AuctionUpdated = {
+    configId: number;
     auction: PublicKey;
     vaa: PublicKey | null;
     targetProtocol: MessageProtocol;
@@ -180,7 +181,7 @@ export class MatchingEngineProgram {
         return this.program.addEventListener("AuctionSettled", callback);
     }
 
-    onAuctionUpdate(callback: (event: AuctionUpdate, slot: number, signature: string) => void) {
+    onAuctionUpdate(callback: (event: AuctionUpdated, slot: number, signature: string) => void) {
         return this.program.addEventListener("AuctionUpdated", callback);
     }
 

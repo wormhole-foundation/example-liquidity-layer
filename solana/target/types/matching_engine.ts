@@ -3070,6 +3070,11 @@ export type MatchingEngine = {
       "name": "AuctionUpdated",
       "fields": [
         {
+          "name": "configId",
+          "type": "u32",
+          "index": false
+        },
+        {
           "name": "auction",
           "type": "publicKey",
           "index": false
@@ -6426,6 +6431,11 @@ export const IDL: MatchingEngine = {
     {
       "name": "AuctionUpdated",
       "fields": [
+        {
+          "name": "configId",
+          "type": "u32",
+          "index": false
+        },
         {
           "name": "auction",
           "type": "publicKey",

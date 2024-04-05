@@ -105,6 +105,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
 
         // Emit event for auction participants to listen to.
         emit!(crate::events::AuctionUpdated {
+            config_id: info.config_id,
             auction: auction.key(),
             vaa: Default::default(),
             target_protocol: auction.target_protocol,

@@ -163,6 +163,7 @@ pub fn place_initial_offer_cctp(
 
     // Emit event for auction participants to listen to.
     emit!(crate::events::AuctionUpdated {
+        config_id: info.config_id,
         auction: ctx.accounts.auction.key(),
         vaa: Some(ctx.accounts.fast_order_path.fast_vaa.key()),
         target_protocol: ctx.accounts.auction.target_protocol,
