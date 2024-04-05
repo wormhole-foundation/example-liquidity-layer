@@ -1,6 +1,6 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { VaaHash } from "..";
+import { VaaHash } from "../../common";
 
 export class PreparedOrderResponse {
     bump: number;
