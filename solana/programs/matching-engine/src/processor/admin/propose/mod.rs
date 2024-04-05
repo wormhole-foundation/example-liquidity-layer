@@ -30,10 +30,10 @@ fn propose(accounts: Propose, action: ProposalAction, proposal_bump_seed: u8) ->
             // Arbitrary set for fast testing.
             let slot_enact_delay = slot_proposed_at + 8;
         } else if #[cfg(feature = "testnet")] {
-                let _ = epoch_schedule;
-                // Arbitrary set to roughly 10 seconds (10 seconds / 0.4 seconds per slot) for
-                // faster testing.
-                let slot_enact_delay = slot_proposed_at + 25;
+            let _ = epoch_schedule;
+            // Arbitrary set to roughly 10 seconds (10 seconds / 0.4 seconds per slot) for
+            // faster testing.
+            let slot_enact_delay = slot_proposed_at + 25;
         } else {
             let slot_enact_delay = slot_proposed_at + epoch_schedule.slots_per_epoch;
         }
