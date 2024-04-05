@@ -40,6 +40,7 @@ import {
     AuctionInfo,
     AuctionParameters,
     Custodian,
+    MessageProtocol,
     PreparedOrderResponse,
     Proposal,
     RedeemedFastFill,
@@ -138,6 +139,7 @@ export type AuctionSettled = {
 export type AuctionUpdate = {
     auction: PublicKey;
     vaa: PublicKey | null;
+    targetProtocol: MessageProtocol;
     endSlot: BN;
     bestOfferToken: PublicKey;
     tokenBalanceBefore: BN;
@@ -149,6 +151,7 @@ export type AuctionUpdate = {
 export type OrderExecuted = {
     auction: PublicKey;
     vaa: PublicKey;
+    targetProtocol: MessageProtocol;
 };
 
 export class MatchingEngineProgram {

@@ -1,5 +1,6 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import { MessageProtocol } from "./RouterEndpoint";
 
 export type AuctionStatus = {
     notStarted?: {};
@@ -34,6 +35,7 @@ export class Auction {
     bump: number;
     vaaHash: number[];
     vaaTimestamp: number;
+    targetProtocol: MessageProtocol;
     status: AuctionStatus;
     info: AuctionInfo | null;
 
@@ -41,12 +43,14 @@ export class Auction {
         bump: number,
         vaaHash: number[],
         vaaTimestamp: number,
+        targetProtocol: MessageProtocol,
         status: AuctionStatus,
         info: AuctionInfo | null,
     ) {
         this.bump = bump;
         this.vaaHash = vaaHash;
         this.vaaTimestamp = vaaTimestamp;
+        this.targetProtocol = targetProtocol;
         this.status = status;
         this.info = info;
     }

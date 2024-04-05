@@ -54,6 +54,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
     emit!(crate::events::OrderExecuted {
         auction: auction.key(),
         vaa: fast_vaa.key(),
+        target_protocol: auction.target_protocol,
     });
 
     let fast_vaa = fast_vaa.load_unchecked();

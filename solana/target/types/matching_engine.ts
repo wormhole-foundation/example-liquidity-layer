@@ -2404,6 +2404,15 @@ export type MatchingEngine = {
             "type": "u32"
           },
           {
+            "name": "targetProtocol",
+            "docs": [
+              "Transfer protocol used to move assets."
+            ],
+            "type": {
+              "defined": "MessageProtocol"
+            }
+          },
+          {
             "name": "status",
             "docs": [
               "Auction status."
@@ -2414,6 +2423,9 @@ export type MatchingEngine = {
           },
           {
             "name": "info",
+            "docs": [
+              "Optional auction info. This field will be `None`` if there is no auction."
+            ],
             "type": {
               "option": {
                 "defined": "AuctionInfo"
@@ -2997,6 +3009,9 @@ export type MatchingEngine = {
     },
     {
       "name": "MessageProtocol",
+      "docs": [
+        "Protocol used to transfer assets."
+      ],
       "type": {
         "kind": "enum",
         "variants": [
@@ -3067,6 +3082,13 @@ export type MatchingEngine = {
           "index": false
         },
         {
+          "name": "targetProtocol",
+          "type": {
+            "defined": "MessageProtocol"
+          },
+          "index": false
+        },
+        {
           "name": "endSlot",
           "type": "u64",
           "index": false
@@ -3109,6 +3131,13 @@ export type MatchingEngine = {
         {
           "name": "vaa",
           "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "targetProtocol",
+          "type": {
+            "defined": "MessageProtocol"
+          },
           "index": false
         }
       ]
@@ -5732,6 +5761,15 @@ export const IDL: MatchingEngine = {
             "type": "u32"
           },
           {
+            "name": "targetProtocol",
+            "docs": [
+              "Transfer protocol used to move assets."
+            ],
+            "type": {
+              "defined": "MessageProtocol"
+            }
+          },
+          {
             "name": "status",
             "docs": [
               "Auction status."
@@ -5742,6 +5780,9 @@ export const IDL: MatchingEngine = {
           },
           {
             "name": "info",
+            "docs": [
+              "Optional auction info. This field will be `None`` if there is no auction."
+            ],
             "type": {
               "option": {
                 "defined": "AuctionInfo"
@@ -6325,6 +6366,9 @@ export const IDL: MatchingEngine = {
     },
     {
       "name": "MessageProtocol",
+      "docs": [
+        "Protocol used to transfer assets."
+      ],
       "type": {
         "kind": "enum",
         "variants": [
@@ -6395,6 +6439,13 @@ export const IDL: MatchingEngine = {
           "index": false
         },
         {
+          "name": "targetProtocol",
+          "type": {
+            "defined": "MessageProtocol"
+          },
+          "index": false
+        },
+        {
           "name": "endSlot",
           "type": "u64",
           "index": false
@@ -6437,6 +6488,13 @@ export const IDL: MatchingEngine = {
         {
           "name": "vaa",
           "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "targetProtocol",
+          "type": {
+            "defined": "MessageProtocol"
+          },
           "index": false
         }
       ]

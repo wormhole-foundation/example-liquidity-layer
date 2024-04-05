@@ -2025,7 +2025,8 @@ describe("Matching Engine", function () {
                     newOfferAuthority,
                 );
 
-                const { bump, vaaHash, vaaTimestamp, status, info } = auctionDataBefore;
+                const { bump, vaaHash, vaaTimestamp, targetProtocol, status, info } =
+                    auctionDataBefore;
                 const {
                     configId,
                     custodyTokenBump,
@@ -2043,7 +2044,7 @@ describe("Matching Engine", function () {
 
                 const auctionDataAfter = await engine.fetchAuction({ address: auction });
                 expect(auctionDataAfter).to.eql(
-                    new Auction(bump, vaaHash, vaaTimestamp, status, {
+                    new Auction(bump, vaaHash, vaaTimestamp, targetProtocol, status, {
                         configId,
                         custodyTokenBump,
                         vaaSequence,
@@ -2784,6 +2785,10 @@ describe("Matching Engine", function () {
                     redeemerMessage,
                 } = baseFastOrder;
 
+                const destinationDomain =
+                    CHAIN_TO_DOMAIN[wormholeSdk.coalesceChainName(targetChain)];
+                expect(destinationDomain).is.not.undefined;
+
                 if (hasPenalty) {
                     expect(penalty > 0n).is.true;
                     expect(userReward > 0n).is.true;
@@ -2793,6 +2798,7 @@ describe("Matching Engine", function () {
                             bump,
                             vaaHash,
                             vaaTimestamp,
+                            { cctp: { domain: destinationDomain! } },
                             {
                                 completed: {
                                     slot: uint64ToBN(txDetails.slot),
@@ -2838,6 +2844,7 @@ describe("Matching Engine", function () {
                             bump,
                             vaaHash,
                             vaaTimestamp,
+                            { cctp: { domain: destinationDomain! } },
                             {
                                 completed: {
                                     slot: uint64ToBN(txDetails.slot),
@@ -3245,7 +3252,7 @@ describe("Matching Engine", function () {
 
             describe("Settle No Auction (CCTP)", function () {
                 it("Settle", async function () {
-                    await settleAuctionNoneForTest({
+                    await settleAuctionNoneCctpForTest({
                         payer: payer.publicKey,
                     });
                 });
@@ -3662,7 +3669,7 @@ describe("Matching Engine", function () {
                             );
                             return result!.auction;
                         } else if (settlementType == "none") {
-                            const result = await settleAuctionNoneForTest(
+                            const result = await settleAuctionNoneCctpForTest(
                                 { payer: payer.publicKey },
                                 { vaaTimestamp },
                             );
@@ -3887,7 +3894,7 @@ describe("Matching Engine", function () {
 
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fast.vaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
-        const { amountIn, maxFee } = fastMarketOrder!;
+        const { amountIn, maxFee, targetChain } = fastMarketOrder!;
 
         const auctionData = await engine.fetchAuction({ address: auction });
         const { bump, info } = auctionData;
@@ -3905,6 +3912,8 @@ describe("Matching Engine", function () {
         expect(auctionCustodyBalanceAfter).equals(auctionCustodyBalanceBefore + balanceChange);
 
         // Confirm the auction data.
+        const destinationDomain = CHAIN_TO_DOMAIN[wormholeSdk.coalesceChainName(targetChain)];
+        expect(destinationDomain).is.not.undefined;
 
         const expectedAmountIn = uint64ToBN(amountIn);
         expect(auctionData).to.eql(
@@ -3912,6 +3921,7 @@ describe("Matching Engine", function () {
                 bump,
                 Array.from(vaaHash),
                 fast.vaaAccount.timestamp(),
+                { cctp: { domain: destinationDomain! } },
                 { active: {} },
                 {
                     configId: auctionConfigId,
@@ -4353,7 +4363,7 @@ describe("Matching Engine", function () {
         return { auction };
     }
 
-    async function settleAuctionNoneForTest(
+    async function settleAuctionNoneCctpForTest(
         accounts: {
             payer: PublicKey;
             fastVaa?: PublicKey;
@@ -4446,6 +4456,13 @@ describe("Matching Engine", function () {
         }
 
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+        expect(fastMarketOrder).is.not.undefined;
+
+        const destinationDomain =
+            CHAIN_TO_DOMAIN[wormholeSdk.coalesceChainName(fastMarketOrder!.targetChain)];
+        expect(destinationDomain).is.not.undefined;
+
         const fastVaaHash = fastVaaAccount.digest();
         const auction = engine.auctionAddress(fastVaaHash);
         const auctionData = await engine.fetchAuction({ address: auction });
@@ -4457,6 +4474,7 @@ describe("Matching Engine", function () {
                 bump,
                 Array.from(fastVaaHash),
                 fastVaaAccount.timestamp(),
+                { cctp: { domain: destinationDomain! } },
                 {
                     settled: {
                         baseFee: uint64ToBN(baseFee),

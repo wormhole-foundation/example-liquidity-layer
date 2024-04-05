@@ -107,6 +107,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
         emit!(crate::events::AuctionUpdated {
             auction: auction.key(),
             vaa: Default::default(),
+            target_protocol: auction.target_protocol,
             end_slot: info.auction_end_slot(config),
             best_offer_token: offer_token.key(),
             token_balance_before: offer_token.amount,

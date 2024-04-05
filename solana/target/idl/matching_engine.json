@@ -2404,6 +2404,15 @@
             "type": "u32"
           },
           {
+            "name": "targetProtocol",
+            "docs": [
+              "Transfer protocol used to move assets."
+            ],
+            "type": {
+              "defined": "MessageProtocol"
+            }
+          },
+          {
             "name": "status",
             "docs": [
               "Auction status."
@@ -2414,6 +2423,9 @@
           },
           {
             "name": "info",
+            "docs": [
+              "Optional auction info. This field will be `None`` if there is no auction."
+            ],
             "type": {
               "option": {
                 "defined": "AuctionInfo"
@@ -2997,6 +3009,9 @@
     },
     {
       "name": "MessageProtocol",
+      "docs": [
+        "Protocol used to transfer assets."
+      ],
       "type": {
         "kind": "enum",
         "variants": [
@@ -3067,6 +3082,13 @@
           "index": false
         },
         {
+          "name": "targetProtocol",
+          "type": {
+            "defined": "MessageProtocol"
+          },
+          "index": false
+        },
+        {
           "name": "endSlot",
           "type": "u64",
           "index": false
@@ -3109,6 +3131,13 @@
         {
           "name": "vaa",
           "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "targetProtocol",
+          "type": {
+            "defined": "MessageProtocol"
+          },
           "index": false
         }
       ]

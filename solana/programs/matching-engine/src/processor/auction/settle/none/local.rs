@@ -111,6 +111,7 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
             auction: &mut ctx.accounts.auction,
             fee_recipient_token: &ctx.accounts.fee_recipient_token,
             custodian,
+            to_router_endpoint: &ctx.accounts.fast_order_path.to_endpoint,
             token_program,
         },
         ctx.bumps.auction,

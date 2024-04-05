@@ -1,6 +1,8 @@
 use crate::state::AuctionParameters;
 use anchor_lang::prelude::*;
 
+use super::MessageProtocol;
+
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq, Eq, Default)]
 pub enum AuctionStatus {
     #[default]
@@ -129,9 +131,13 @@ pub struct Auction {
     /// Timestamp of the fast market order VAA.
     pub vaa_timestamp: u32,
 
+    /// Transfer protocol used to move assets.
+    pub target_protocol: MessageProtocol,
+
     /// Auction status.
     pub status: AuctionStatus,
 
+    /// Optional auction info. This field will be `None`` if there is no auction.
     pub info: Option<AuctionInfo>,
 }
 

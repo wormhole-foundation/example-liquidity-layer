@@ -1,7 +1,7 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus},
+    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, MessageProtocol},
     utils,
 };
 use anchor_lang::prelude::*;
@@ -46,6 +46,11 @@ pub struct PlaceInitialOfferCctp<'info> {
 
     #[account(
         constraint = {
+            match fast_order_path.to_endpoint.protocol {
+                MessageProtocol::Cctp { .. } | MessageProtocol::Local { .. } => (),
+                _ => return err!(MatchingEngineError::InvalidEndpoint),
+            }
+
             let fast_vaa = fast_order_path.fast_vaa.load_unchecked();
             let message = LiquidityLayerMessage::try_from(fast_vaa.payload()).unwrap();
             let order = message
@@ -137,6 +142,7 @@ pub fn place_initial_offer_cctp(
         bump: ctx.bumps.auction,
         vaa_hash: fast_vaa.digest().0,
         vaa_timestamp: fast_vaa.timestamp(),
+        target_protocol: ctx.accounts.fast_order_path.to_endpoint.protocol,
         status: AuctionStatus::Active,
         info: Some(AuctionInfo {
             config_id: config.id,
@@ -159,6 +165,7 @@ pub fn place_initial_offer_cctp(
     emit!(crate::events::AuctionUpdated {
         auction: ctx.accounts.auction.key(),
         vaa: Some(ctx.accounts.fast_order_path.fast_vaa.key()),
+        target_protocol: ctx.accounts.auction.target_protocol,
         end_slot: info.auction_end_slot(config),
         best_offer_token: initial_offer_token,
         token_balance_before: ctx.accounts.offer_token.amount,
