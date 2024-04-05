@@ -839,15 +839,15 @@
       "args": []
     },
     {
-      "name": "placeInitialOffer",
+      "name": "placeInitialOfferCctp",
       "docs": [
         "This instruction is used to create a new auction given a valid `FastMarketOrder` vaa. This",
         "instruction will record information about the auction and transfer funds from the payer to",
         "an auction-specific token custody account. This instruction can be called by anyone.",
         "# Arguments",
         "",
-        "* `ctx`       - `PlaceInitialOffer` context.",
-        "* `fee_offer` - The fee that the caller is willing to accept in order for fufilling the fast",
+        "* `ctx`       - `PlaceInitialOfferCctp` context.",
+        "* `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast",
         "order. This fee is paid in USDC."
       ],
       "accounts": [
@@ -962,7 +962,7 @@
       ],
       "args": [
         {
-          "name": "feeOffer",
+          "name": "offerPrice",
           "type": "u64"
         }
       ]
@@ -970,13 +970,13 @@
     {
       "name": "improveOffer",
       "docs": [
-        "This instruction is used to improve an existing auction offer. The `fee_offer` must be",
-        "greater than the current `fee_offer` in the auction. This instruction will revert if the",
-        "`fee_offer` is less than the current `fee_offer`. This instruction can be called by anyone.",
+        "This instruction is used to improve an existing auction offer. The `offer_price` must be",
+        "greater than the current `offer_price` in the auction. This instruction will revert if the",
+        "`offer_price` is less than the current `offer_price`. This instruction can be called by anyone.",
         "# Arguments",
         "",
         "* `ctx`       - `ImproveOffer` context.",
-        "* `fee_offer` - The fee that the caller is willing to accept in order for fufilling the fast",
+        "* `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast",
         "order. This fee is paid in USDC."
       ],
       "accounts": [
@@ -1027,7 +1027,7 @@
       ],
       "args": [
         {
-          "name": "feeOffer",
+          "name": "offerPrice",
           "type": "u64"
         }
       ]
@@ -2782,6 +2782,22 @@
       }
     },
     {
+      "name": "AuctionDestinationAssetInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "custodyTokenBump",
+            "type": "u8"
+          },
+          {
+            "name": "amountOut",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "AuctionInfo",
       "type": {
         "kind": "struct",
@@ -2840,7 +2856,9 @@
           {
             "name": "securityDeposit",
             "docs": [
-              "The additional deposit made by the highest bidder."
+              "The additional deposit made by the highest bidder.",
+              "",
+              "NOTE: This may not be the same denomination as the `amount_in`."
             ],
             "type": "u64"
           },
@@ -2852,12 +2870,21 @@
             "type": "u64"
           },
           {
-            "name": "amountOut",
+            "name": "destinationAssetInfo",
             "docs": [
-              "The amount of tokens to be sent to the user. For CCTP fast transfers, this amount will equal",
-              "the [amount_in](Self::amount_in)."
+              "If the destination asset is not equal to the asset used for auctions, this will be some",
+              "value specifying its custody token bump and amount out.",
+              "",
+              "NOTE: Because this is an option, the `AuctionDestinationAssetInfo` having some definition while this",
+              "field is None will not impact future serialization because the option's serialized value is",
+              "zero. Only when there will be other assets will this struct's members have to be carefully",
+              "considered."
             ],
-            "type": "u64"
+            "type": {
+              "option": {
+                "defined": "AuctionDestinationAssetInfo"
+              }
+            }
           }
         ]
       }

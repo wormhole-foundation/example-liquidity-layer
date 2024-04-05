@@ -44,6 +44,12 @@ impl std::fmt::Display for AuctionStatus {
 }
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, Copy)]
+pub struct AuctionDestinationAssetInfo {
+    pub custody_token_bump: u8,
+    pub amount_out: u64,
+}
+
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, Copy)]
 pub struct AuctionInfo {
     pub config_id: u32,
 
@@ -69,14 +75,21 @@ pub struct AuctionInfo {
     pub amount_in: u64,
 
     /// The additional deposit made by the highest bidder.
+    ///
+    /// NOTE: This may not be the same denomination as the `amount_in`.
     pub security_deposit: u64,
 
     /// The offer price of the auction.
     pub offer_price: u64,
 
-    /// The amount of tokens to be sent to the user. For CCTP fast transfers, this amount will equal
-    /// the [amount_in](Self::amount_in).
-    pub amount_out: u64,
+    /// If the destination asset is not equal to the asset used for auctions, this will be some
+    /// value specifying its custody token bump and amount out.
+    ///
+    /// NOTE: Because this is an option, the `AuctionDestinationAssetInfo` having some definition while this
+    /// field is None will not impact future serialization because the option's serialized value is
+    /// zero. Only when there will be other assets will this struct's members have to be carefully
+    /// considered.
+    pub destination_asset_info: Option<AuctionDestinationAssetInfo>,
 }
 
 impl AuctionInfo {

@@ -18,7 +18,6 @@ import { PreparedTransaction, PreparedTransactionOptions } from "..";
 import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
 import {
-    FastMarketOrder,
     LiquidityLayerMessage,
     PayerSequence,
     Uint64,
@@ -1003,7 +1002,7 @@ export class MatchingEngineProgram {
         confirmOptions?: ConfirmOptions,
     ): Promise<PreparedTransaction> {
         const { payer, fastVaa, auction, fromRouterEndpoint, toRouterEndpoint } = accounts;
-        const ixs = await this.placeInitialOfferIx(
+        const ixs = await this.placeInitialOfferCctpIx(
             {
                 payer,
                 fastVaa,
@@ -1026,7 +1025,7 @@ export class MatchingEngineProgram {
         };
     }
 
-    async placeInitialOfferIx(
+    async placeInitialOfferCctpIx(
         accounts: {
             payer: PublicKey;
             fastVaa: PublicKey;
@@ -1040,7 +1039,9 @@ export class MatchingEngineProgram {
             offerPrice: Uint64;
             totalDeposit?: Uint64;
         },
-    ): Promise<[approveIx: TransactionInstruction, placeInitialOfferIx: TransactionInstruction]> {
+    ): Promise<
+        [approveIx: TransactionInstruction, placeInitialOfferCctpIx: TransactionInstruction]
+    > {
         const { payer, fastVaa } = accounts;
 
         const { offerPrice } = args;
@@ -1095,8 +1096,8 @@ export class MatchingEngineProgram {
                 offerPrice,
             },
         );
-        const placeInitialOfferIx = await this.program.methods
-            .placeInitialOffer(uint64ToBN(offerPrice))
+        const placeInitialOfferCctpIx = await this.program.methods
+            .placeInitialOfferCctp(uint64ToBN(offerPrice))
             .accounts({
                 payer,
                 transferAuthority,
@@ -1114,7 +1115,7 @@ export class MatchingEngineProgram {
             })
             .instruction();
 
-        return [approveIx, placeInitialOfferIx];
+        return [approveIx, placeInitialOfferCctpIx];
     }
 
     async improveOfferTx(

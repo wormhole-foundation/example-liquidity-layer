@@ -10,7 +10,7 @@ use common::{messages::raw::LiquidityLayerMessage, TRANSFER_AUTHORITY_SEED_PREFI
 
 #[derive(Accounts)]
 #[instruction(offer_price: u64)]
-pub struct PlaceInitialOffer<'info> {
+pub struct PlaceInitialOfferCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
@@ -107,7 +107,10 @@ pub struct PlaceInitialOffer<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) -> Result<()> {
+pub fn place_initial_offer_cctp(
+    ctx: Context<PlaceInitialOfferCctp>,
+    offer_price: u64,
+) -> Result<()> {
     // Create zero copy reference to `FastMarketOrder` payload.
     let fast_vaa = ctx.accounts.fast_order_path.fast_vaa.load_unchecked();
     let order = LiquidityLayerMessage::try_from(fast_vaa.payload())
@@ -146,7 +149,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
             amount_in,
             security_deposit,
             offer_price,
-            amount_out: amount_in,
+            destination_asset_info: Default::default(),
         }),
     });
 

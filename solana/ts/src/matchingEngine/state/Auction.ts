@@ -11,6 +11,11 @@ export type AuctionStatus = {
     };
 };
 
+export type AuctionDestinationAssetInfo = {
+    custodyTokenBump: number;
+    amountOut: BN;
+};
+
 export type AuctionInfo = {
     configId: number;
     custodyTokenBump: number;
@@ -22,7 +27,7 @@ export type AuctionInfo = {
     amountIn: BN;
     securityDeposit: BN;
     offerPrice: BN;
-    amountOut: BN | null;
+    destinationAssetInfo: AuctionDestinationAssetInfo | null;
 };
 
 export class Auction {
