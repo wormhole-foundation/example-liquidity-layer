@@ -1,5 +1,6 @@
 use crate::{
     composite::*,
+    error::MatchingEngineError,
     state::{Custodian, PayerSequence},
     utils,
 };
@@ -39,7 +40,17 @@ pub struct ExecuteFastOrderLocal<'info> {
 
     execute_order: ExecuteOrder<'info>,
 
-    #[account(constraint = utils::require_local_endpoint(&to_router_endpoint)?)]
+    #[account(
+        constraint = {
+            require_eq!(
+                to_router_endpoint.protocol,
+                execute_order.active_auction.target_protocol,
+                MatchingEngineError::InvalidEndpoint
+            );
+
+            utils::require_local_endpoint(&to_router_endpoint)?
+        }
+    )]
     to_router_endpoint: LiveRouterEndpoint<'info>,
 
     wormhole: WormholePublishMessage<'info>,

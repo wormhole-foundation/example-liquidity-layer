@@ -1,3 +1,4 @@
+use crate::state::MessageProtocol;
 use anchor_lang::prelude::*;
 
 #[event]
@@ -5,4 +6,5 @@ use anchor_lang::prelude::*;
 pub struct OrderExecuted {
     pub auction: Pubkey,
     pub vaa: Pubkey,
+    pub target_protocol: MessageProtocol,
 }

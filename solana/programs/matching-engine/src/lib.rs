@@ -217,23 +217,26 @@ pub mod matching_engine {
     /// an auction-specific token custody account. This instruction can be called by anyone.
     /// # Arguments
     ///
-    /// * `ctx`       - `PlaceInitialOffer` context.
-    /// * `fee_offer` - The fee that the caller is willing to accept in order for fufilling the fast
+    /// * `ctx`       - `PlaceInitialOfferCctp` context.
+    /// * `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast
     ///                 order. This fee is paid in USDC.
-    pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, fee_offer: u64) -> Result<()> {
-        processor::place_initial_offer(ctx, fee_offer)
+    pub fn place_initial_offer_cctp(
+        ctx: Context<PlaceInitialOfferCctp>,
+        offer_price: u64,
+    ) -> Result<()> {
+        processor::place_initial_offer_cctp(ctx, offer_price)
     }
 
-    /// This instruction is used to improve an existing auction offer. The `fee_offer` must be
-    /// greater than the current `fee_offer` in the auction. This instruction will revert if the
-    /// `fee_offer` is less than the current `fee_offer`. This instruction can be called by anyone.
+    /// This instruction is used to improve an existing auction offer. The `offer_price` must be
+    /// greater than the current `offer_price` in the auction. This instruction will revert if the
+    /// `offer_price` is less than the current `offer_price`. This instruction can be called by anyone.
     /// # Arguments
     ///
     /// * `ctx`       - `ImproveOffer` context.
-    /// * `fee_offer` - The fee that the caller is willing to accept in order for fufilling the fast
+    /// * `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast
     ///                order. This fee is paid in USDC.
-    pub fn improve_offer(ctx: Context<ImproveOffer>, fee_offer: u64) -> Result<()> {
-        processor::improve_offer(ctx, fee_offer)
+    pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()> {
+        processor::improve_offer(ctx, offer_price)
     }
 
     /// This instruction is used to execute the fast order after the auction period has ended.

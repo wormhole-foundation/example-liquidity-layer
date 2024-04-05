@@ -1330,10 +1330,10 @@ describe("Matching Engine", function () {
             redeemerMessage: Buffer.from("All your base are belong to us."),
         };
 
-        describe("Place Initial Offer", function () {
+        describe("Place Initial CCTP Offer", function () {
             for (const offerPrice of [0n, baseFastOrder.maxFee / 2n, baseFastOrder.maxFee]) {
                 it(`Place Initial Offer (Price == ${offerPrice})`, async function () {
-                    await placeInitialOfferForTest(
+                    await placeInitialOfferCctpForTest(
                         {
                             payer: playerOne.publicKey,
                         },
@@ -1371,7 +1371,7 @@ describe("Matching Engine", function () {
             });
 
             it("Place Initial Offer (Offer == Max Fee; Max Fee == Amount Minus 1)", async function () {
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1392,7 +1392,7 @@ describe("Matching Engine", function () {
                 // Set the deadline to 10 seconds from now.
                 const deadline = currTime + 10;
 
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1405,7 +1405,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer (Fast VAA Expired)", async function () {
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1432,7 +1432,7 @@ describe("Matching Engine", function () {
                 const auction = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
                     engine.auctionAddress(vaa.digest()),
                 );
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                         fastVaa,
@@ -1466,7 +1466,7 @@ describe("Matching Engine", function () {
                     [owner],
                 );
 
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1501,7 +1501,7 @@ describe("Matching Engine", function () {
                     [owner],
                 );
 
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1554,7 +1554,7 @@ describe("Matching Engine", function () {
                 const auction = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
                     engine.auctionAddress(vaa.digest()),
                 );
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                         fastVaa,
@@ -1580,7 +1580,7 @@ describe("Matching Engine", function () {
                     .then((slot) => connection.getBlockTime(slot))
                     .then((blockTime) => blockTime! - 1);
 
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1594,7 +1594,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer (Offer Price Too High)", async function () {
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1611,7 +1611,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer (Invalid Emitter Chain)", async function () {
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
@@ -1628,7 +1628,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer (Invalid Emitter Address)", async function () {
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1647,7 +1647,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer (Invalid Target Router Chain)", async function () {
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                         toRouterEndpoint: engine.routerEndpointAddress(arbChain),
@@ -1668,7 +1668,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer Again", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1679,7 +1679,7 @@ describe("Matching Engine", function () {
                     },
                 );
 
-                await placeInitialOfferForTest(
+                await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                         fastVaa: result!.fastVaa,
@@ -1739,7 +1739,7 @@ describe("Matching Engine", function () {
         describe("Improve Offer", function () {
             for (const newOffer of [0n, baseFastOrder.maxFee / 2n]) {
                 it(`Improve Offer (Price == ${newOffer})`, async function () {
-                    const result = await placeInitialOfferForTest(
+                    const result = await placeInitialOfferCctpForTest(
                         {
                             payer: playerOne.publicKey,
                         },
@@ -1786,7 +1786,7 @@ describe("Matching Engine", function () {
             }
 
             it("Improve Offer (Tx)", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1819,7 +1819,7 @@ describe("Matching Engine", function () {
             });
 
             it("Improve Offer By Min Offer Delta", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1863,7 +1863,7 @@ describe("Matching Engine", function () {
             });
 
             it("Improve Offer With Same Best Offer Token Account", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1902,7 +1902,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Improve Offer (Auction Expired)", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1941,7 +1941,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Improve Offer (Invalid Best Offer Token Account)", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -1973,7 +1973,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Improve Offer (Carping Not Allowed)", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -2025,7 +2025,8 @@ describe("Matching Engine", function () {
                     newOfferAuthority,
                 );
 
-                const { bump, vaaHash, vaaTimestamp, status, info } = auctionDataBefore;
+                const { bump, vaaHash, vaaTimestamp, targetProtocol, status, info } =
+                    auctionDataBefore;
                 const {
                     configId,
                     custodyTokenBump,
@@ -2036,14 +2037,14 @@ describe("Matching Engine", function () {
                     amountIn,
                     securityDeposit,
                     offerPrice: prevOfferPrice,
-                    amountOut,
+                    destinationAssetInfo,
                     sourceChain,
                 } = info!;
                 expect(offerPrice).not.equals(BigInt(prevOfferPrice.toString()));
 
                 const auctionDataAfter = await engine.fetchAuction({ address: auction });
                 expect(auctionDataAfter).to.eql(
-                    new Auction(bump, vaaHash, vaaTimestamp, status, {
+                    new Auction(bump, vaaHash, vaaTimestamp, targetProtocol, status, {
                         configId,
                         custodyTokenBump,
                         vaaSequence,
@@ -2054,7 +2055,7 @@ describe("Matching Engine", function () {
                         amountIn,
                         securityDeposit,
                         offerPrice: uint64ToBN(offerPrice),
-                        amountOut,
+                        destinationAssetInfo,
                     }),
                 );
 
@@ -2101,7 +2102,7 @@ describe("Matching Engine", function () {
             it("Execute Fast Order Within Grace Period", async function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerTwo.publicKey,
                     },
@@ -2168,7 +2169,7 @@ describe("Matching Engine", function () {
             });
 
             it("Execute Fast Order (Tx)", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerTwo.publicKey,
                     },
@@ -2261,7 +2262,7 @@ describe("Matching Engine", function () {
             it("Execute Fast Order After Grace Period", async function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerTwo.publicKey,
                     },
@@ -2331,7 +2332,7 @@ describe("Matching Engine", function () {
             it("Execute Fast Order After Grace Period with Liquidator", async function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerTwo.publicKey,
                     },
@@ -2419,7 +2420,7 @@ describe("Matching Engine", function () {
             it("Execute Fast Order After Penalty Period with Liquidator", async function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerTwo.publicKey,
                     },
@@ -2505,7 +2506,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Execute Fast Order (Endpoint Disabled)", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -2553,7 +2554,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Execute Fast Order with VAA Hash Mismatch", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerTwo.publicKey,
                     },
@@ -2561,7 +2562,7 @@ describe("Matching Engine", function () {
                 );
                 const { fastVaaAccount, auction, auctionDataBefore } = result!;
 
-                const anotherResult = await placeInitialOfferForTest(
+                const anotherResult = await placeInitialOfferCctpForTest(
                     {
                         payer: playerTwo.publicKey,
                     },
@@ -2587,7 +2588,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Execute Fast Order (Invalid Best Offer Token Account)", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -2616,7 +2617,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Execute Fast Order (Invalid Initial Offer Token Account)", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -2647,7 +2648,7 @@ describe("Matching Engine", function () {
             it("Execute Fast Order", async function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerTwo.publicKey,
                     },
@@ -2687,7 +2688,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Execute Fast Order (Auction Period Not Expired)", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -2709,7 +2710,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Execute Fast Order Solana (Invalid Chain)", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -2784,6 +2785,10 @@ describe("Matching Engine", function () {
                     redeemerMessage,
                 } = baseFastOrder;
 
+                const destinationDomain =
+                    CHAIN_TO_DOMAIN[wormholeSdk.coalesceChainName(targetChain)];
+                expect(destinationDomain).is.not.undefined;
+
                 if (hasPenalty) {
                     expect(penalty > 0n).is.true;
                     expect(userReward > 0n).is.true;
@@ -2793,6 +2798,7 @@ describe("Matching Engine", function () {
                             bump,
                             vaaHash,
                             vaaTimestamp,
+                            { cctp: { domain: destinationDomain! } },
                             {
                                 completed: {
                                     slot: uint64ToBN(txDetails.slot),
@@ -2838,6 +2844,7 @@ describe("Matching Engine", function () {
                             bump,
                             vaaHash,
                             vaaTimestamp,
+                            { cctp: { domain: destinationDomain! } },
                             {
                                 completed: {
                                     slot: uint64ToBN(txDetails.slot),
@@ -3183,7 +3190,7 @@ describe("Matching Engine", function () {
                         sourceChain: "ethereum",
                     });
 
-                    const result = await placeInitialOfferForTest(
+                    const result = await placeInitialOfferCctpForTest(
                         {
                             payer: playerTwo.publicKey,
                             fastVaa: fast.vaa,
@@ -3245,7 +3252,7 @@ describe("Matching Engine", function () {
 
             describe("Settle No Auction (CCTP)", function () {
                 it("Settle", async function () {
-                    await settleAuctionNoneForTest({
+                    await settleAuctionNoneCctpForTest({
                         payer: payer.publicKey,
                     });
                 });
@@ -3318,7 +3325,7 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Add Entry from Unsettled Auction", async function () {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                     },
@@ -3662,7 +3669,7 @@ describe("Matching Engine", function () {
                             );
                             return result!.auction;
                         } else if (settlementType == "none") {
-                            const result = await settleAuctionNoneForTest(
+                            const result = await settleAuctionNoneCctpForTest(
                                 { payer: payer.publicKey },
                                 { vaaTimestamp },
                             );
@@ -3746,6 +3753,10 @@ describe("Matching Engine", function () {
                         ? vaaTimestamp
                         : Math.max(vaaTimestamp, header.maxTimestamp);
 
+                const prevDataLen = await connection
+                    .getAccountInfo(accounts.history)
+                    .then((info) => info!.data.length);
+
                 await expectIxOk(connection, [ix], signers);
 
                 const historyData = await engine.fetchAuctionHistory({
@@ -3764,11 +3775,16 @@ describe("Matching Engine", function () {
                     expect(historyData).to.eql(
                         new AuctionHistory({ id: header.id, minTimestamp, maxTimestamp }, data),
                     );
-                }
 
-                {
-                    const accInfo = await connection.getAccountInfo(accounts.history);
-                    expect(accInfo!.data).has.length(30 + historyData.data.length * 155);
+                    {
+                        const accInfo = await connection.getAccountInfo(accounts.history);
+
+                        let entrySize = 157;
+                        if (info!.destinationAssetInfo === null) {
+                            entrySize -= 9;
+                        }
+                        expect(accInfo!.data).has.length(prevDataLen + entrySize);
+                    }
                 }
 
                 {
@@ -3782,7 +3798,7 @@ describe("Matching Engine", function () {
         });
     });
 
-    async function placeInitialOfferForTest(
+    async function placeInitialOfferCctpForTest(
         accounts: {
             payer: PublicKey;
             fastVaa?: PublicKey;
@@ -3833,7 +3849,7 @@ describe("Matching Engine", function () {
         }
 
         // Place the initial offer.
-        const ixs = await engine.placeInitialOfferIx(
+        const ixs = await engine.placeInitialOfferCctpIx(
             { ...accounts, fastVaa: fast.vaa },
             {
                 offerPrice: args.offerPrice,
@@ -3878,7 +3894,7 @@ describe("Matching Engine", function () {
 
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fast.vaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
-        const { amountIn, maxFee } = fastMarketOrder!;
+        const { amountIn, maxFee, targetChain } = fastMarketOrder!;
 
         const auctionData = await engine.fetchAuction({ address: auction });
         const { bump, info } = auctionData;
@@ -3896,6 +3912,8 @@ describe("Matching Engine", function () {
         expect(auctionCustodyBalanceAfter).equals(auctionCustodyBalanceBefore + balanceChange);
 
         // Confirm the auction data.
+        const destinationDomain = CHAIN_TO_DOMAIN[wormholeSdk.coalesceChainName(targetChain)];
+        expect(destinationDomain).is.not.undefined;
 
         const expectedAmountIn = uint64ToBN(amountIn);
         expect(auctionData).to.eql(
@@ -3903,6 +3921,7 @@ describe("Matching Engine", function () {
                 bump,
                 Array.from(vaaHash),
                 fast.vaaAccount.timestamp(),
+                { cctp: { domain: destinationDomain! } },
                 { active: {} },
                 {
                     configId: auctionConfigId,
@@ -3915,7 +3934,7 @@ describe("Matching Engine", function () {
                     amountIn: expectedAmountIn,
                     securityDeposit,
                     offerPrice: uint64ToBN(args.offerPrice),
-                    amountOut: expectedAmountIn,
+                    destinationAssetInfo: null,
                 },
             ),
         );
@@ -4046,7 +4065,7 @@ describe("Matching Engine", function () {
 
         const placeAndExecute = async () => {
             if (placeInitialOffer) {
-                const result = await placeInitialOfferForTest(
+                const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                         fastVaa,
@@ -4344,7 +4363,7 @@ describe("Matching Engine", function () {
         return { auction };
     }
 
-    async function settleAuctionNoneForTest(
+    async function settleAuctionNoneCctpForTest(
         accounts: {
             payer: PublicKey;
             fastVaa?: PublicKey;
@@ -4437,6 +4456,13 @@ describe("Matching Engine", function () {
         }
 
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+        expect(fastMarketOrder).is.not.undefined;
+
+        const destinationDomain =
+            CHAIN_TO_DOMAIN[wormholeSdk.coalesceChainName(fastMarketOrder!.targetChain)];
+        expect(destinationDomain).is.not.undefined;
+
         const fastVaaHash = fastVaaAccount.digest();
         const auction = engine.auctionAddress(fastVaaHash);
         const auctionData = await engine.fetchAuction({ address: auction });
@@ -4448,6 +4474,7 @@ describe("Matching Engine", function () {
                 bump,
                 Array.from(fastVaaHash),
                 fastVaaAccount.timestamp(),
+                { cctp: { domain: destinationDomain! } },
                 {
                     settled: {
                         baseFee: uint64ToBN(baseFee),

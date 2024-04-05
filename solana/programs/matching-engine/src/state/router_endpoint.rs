@@ -1,15 +1,29 @@
 use anchor_lang::prelude::*;
 
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace)]
+/// Protocol used to transfer assets.
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq, InitSpace, Copy)]
 pub enum MessageProtocol {
+    /// Unassigned or disabled.
     None,
-    Local {
-        program_id: Pubkey,
-    },
+    /// Tokens destined for this network (Solana).
+    Local { program_id: Pubkey },
+    /// Tokens to be burned and minted via Circle's CCTP protocol.
     Cctp {
         /// CCTP domain, which is how CCTP registers identifies foreign networks.
         domain: u32,
     },
+}
+
+impl std::fmt::Display for MessageProtocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MessageProtocol::None => write!(f, "None"),
+            MessageProtocol::Local { program_id } => {
+                write!(f, "Local {{ program_id: {} }}", program_id)
+            }
+            MessageProtocol::Cctp { domain } => write!(f, "Cctp {{ domain: {} }}", domain),
+        }
+    }
 }
 
 #[account]

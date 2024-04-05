@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use crate::{
     composite::*,
     error::MatchingEngineError,
@@ -107,12 +109,20 @@ fn handle_add_auction_history_entry(
         history.max_timestamp = Some(auction.vaa_timestamp);
     }
 
+    let mut encoded_entry = Vec::with_capacity(AuctionEntry::INIT_SPACE);
+    AuctionEntry {
+        vaa_hash: auction.vaa_hash,
+        vaa_timestamp: auction.vaa_timestamp,
+        info,
+    }
+    .serialize(&mut encoded_entry)?;
+
     // Transfer lamports to history account and realloc.
     let write_index = {
         let acc_info: &AccountInfo = &ctx.accounts.history;
 
         let index = acc_info.data_len();
-        let new_len = index + AuctionEntry::INIT_SPACE;
+        let new_len = index + encoded_entry.len();
         let lamport_diff = Rent::get()
             .unwrap()
             .minimum_balance(new_len)
@@ -146,11 +156,5 @@ fn handle_add_auction_history_entry(
     cursor.set_position(write_index as u64);
 
     // Serialize entry data.
-    AuctionEntry {
-        vaa_hash: auction.vaa_hash,
-        vaa_timestamp: auction.vaa_timestamp,
-        info,
-    }
-    .serialize(&mut cursor)
-    .map_err(Into::into)
+    cursor.write_all(&encoded_entry).map_err(Into::into)
 }

@@ -23,6 +23,7 @@ struct SettleNoneAndPrepareFill<'ctx, 'info> {
     auction: &'ctx mut Account<'info, Auction>,
     fee_recipient_token: &'ctx Account<'info, token::TokenAccount>,
     custodian: &'ctx CheckedCustodian<'info>,
+    to_router_endpoint: &'ctx LiveRouterEndpoint<'info>,
     token_program: &'ctx Program<'info, token::Token>,
 }
 
@@ -44,6 +45,7 @@ fn settle_none_and_prepare_fill(
         auction,
         fee_recipient_token,
         custodian,
+        to_router_endpoint,
         token_program,
     } = accounts;
 
@@ -96,6 +98,7 @@ fn settle_none_and_prepare_fill(
         bump: auction_bump_seed,
         vaa_hash: fast_vaa.digest().0,
         vaa_timestamp: fast_vaa.timestamp(),
+        target_protocol: to_router_endpoint.protocol,
         status: AuctionStatus::Settled {
             base_fee,
             total_penalty: None,

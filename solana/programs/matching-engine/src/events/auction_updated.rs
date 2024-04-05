@@ -1,10 +1,13 @@
+use crate::state::MessageProtocol;
 use anchor_lang::prelude::*;
 
 #[event]
 #[derive(Debug)]
 pub struct AuctionUpdated {
+    pub config_id: u32,
     pub auction: Pubkey,
     pub vaa: Option<Pubkey>,
+    pub target_protocol: MessageProtocol,
     pub end_slot: u64,
     pub best_offer_token: Pubkey,
     pub token_balance_before: u64,

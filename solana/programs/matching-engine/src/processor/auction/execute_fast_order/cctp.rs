@@ -53,6 +53,17 @@ pub struct ExecuteFastOrderCctp<'info> {
 
     execute_order: ExecuteOrder<'info>,
 
+    #[account(
+        constraint = {
+            require_eq!(
+                to_router_endpoint.protocol,
+                execute_order.active_auction.target_protocol,
+                MatchingEngineError::InvalidEndpoint
+            );
+
+            true
+        }
+    )]
     to_router_endpoint: LiveRouterEndpoint<'info>,
 
     wormhole: WormholePublishMessage<'info>,

@@ -1,7 +1,7 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus},
+    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, MessageProtocol},
     utils,
 };
 use anchor_lang::prelude::*;
@@ -10,7 +10,7 @@ use common::{messages::raw::LiquidityLayerMessage, TRANSFER_AUTHORITY_SEED_PREFI
 
 #[derive(Accounts)]
 #[instruction(offer_price: u64)]
-pub struct PlaceInitialOffer<'info> {
+pub struct PlaceInitialOfferCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
@@ -46,6 +46,11 @@ pub struct PlaceInitialOffer<'info> {
 
     #[account(
         constraint = {
+            match fast_order_path.to_endpoint.protocol {
+                MessageProtocol::Cctp { .. } | MessageProtocol::Local { .. } => (),
+                _ => return err!(MatchingEngineError::InvalidEndpoint),
+            }
+
             let fast_vaa = fast_order_path.fast_vaa.load_unchecked();
             let message = LiquidityLayerMessage::try_from(fast_vaa.payload()).unwrap();
             let order = message
@@ -107,7 +112,10 @@ pub struct PlaceInitialOffer<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) -> Result<()> {
+pub fn place_initial_offer_cctp(
+    ctx: Context<PlaceInitialOfferCctp>,
+    offer_price: u64,
+) -> Result<()> {
     // Create zero copy reference to `FastMarketOrder` payload.
     let fast_vaa = ctx.accounts.fast_order_path.fast_vaa.load_unchecked();
     let order = LiquidityLayerMessage::try_from(fast_vaa.payload())
@@ -134,6 +142,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
         bump: ctx.bumps.auction,
         vaa_hash: fast_vaa.digest().0,
         vaa_timestamp: fast_vaa.timestamp(),
+        target_protocol: ctx.accounts.fast_order_path.to_endpoint.protocol,
         status: AuctionStatus::Active,
         info: Some(AuctionInfo {
             config_id: config.id,
@@ -146,7 +155,7 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
             amount_in,
             security_deposit,
             offer_price,
-            amount_out: amount_in,
+            destination_asset_info: Default::default(),
         }),
     });
 
@@ -154,8 +163,10 @@ pub fn place_initial_offer(ctx: Context<PlaceInitialOffer>, offer_price: u64) ->
 
     // Emit event for auction participants to listen to.
     emit!(crate::events::AuctionUpdated {
+        config_id: info.config_id,
         auction: ctx.accounts.auction.key(),
         vaa: Some(ctx.accounts.fast_order_path.fast_vaa.key()),
+        target_protocol: ctx.accounts.auction.target_protocol,
         end_slot: info.auction_end_slot(config),
         best_offer_token: initial_offer_token,
         token_balance_before: ctx.accounts.offer_token.amount,

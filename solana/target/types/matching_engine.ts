@@ -839,15 +839,15 @@ export type MatchingEngine = {
       "args": []
     },
     {
-      "name": "placeInitialOffer",
+      "name": "placeInitialOfferCctp",
       "docs": [
         "This instruction is used to create a new auction given a valid `FastMarketOrder` vaa. This",
         "instruction will record information about the auction and transfer funds from the payer to",
         "an auction-specific token custody account. This instruction can be called by anyone.",
         "# Arguments",
         "",
-        "* `ctx`       - `PlaceInitialOffer` context.",
-        "* `fee_offer` - The fee that the caller is willing to accept in order for fufilling the fast",
+        "* `ctx`       - `PlaceInitialOfferCctp` context.",
+        "* `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast",
         "order. This fee is paid in USDC."
       ],
       "accounts": [
@@ -962,7 +962,7 @@ export type MatchingEngine = {
       ],
       "args": [
         {
-          "name": "feeOffer",
+          "name": "offerPrice",
           "type": "u64"
         }
       ]
@@ -970,13 +970,13 @@ export type MatchingEngine = {
     {
       "name": "improveOffer",
       "docs": [
-        "This instruction is used to improve an existing auction offer. The `fee_offer` must be",
-        "greater than the current `fee_offer` in the auction. This instruction will revert if the",
-        "`fee_offer` is less than the current `fee_offer`. This instruction can be called by anyone.",
+        "This instruction is used to improve an existing auction offer. The `offer_price` must be",
+        "greater than the current `offer_price` in the auction. This instruction will revert if the",
+        "`offer_price` is less than the current `offer_price`. This instruction can be called by anyone.",
         "# Arguments",
         "",
         "* `ctx`       - `ImproveOffer` context.",
-        "* `fee_offer` - The fee that the caller is willing to accept in order for fufilling the fast",
+        "* `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast",
         "order. This fee is paid in USDC."
       ],
       "accounts": [
@@ -1027,7 +1027,7 @@ export type MatchingEngine = {
       ],
       "args": [
         {
-          "name": "feeOffer",
+          "name": "offerPrice",
           "type": "u64"
         }
       ]
@@ -2404,6 +2404,15 @@ export type MatchingEngine = {
             "type": "u32"
           },
           {
+            "name": "targetProtocol",
+            "docs": [
+              "Transfer protocol used to move assets."
+            ],
+            "type": {
+              "defined": "MessageProtocol"
+            }
+          },
+          {
             "name": "status",
             "docs": [
               "Auction status."
@@ -2414,6 +2423,9 @@ export type MatchingEngine = {
           },
           {
             "name": "info",
+            "docs": [
+              "Optional auction info. This field will be `None`` if there is no auction."
+            ],
             "type": {
               "option": {
                 "defined": "AuctionInfo"
@@ -2782,6 +2794,22 @@ export type MatchingEngine = {
       }
     },
     {
+      "name": "AuctionDestinationAssetInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "custodyTokenBump",
+            "type": "u8"
+          },
+          {
+            "name": "amountOut",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "AuctionInfo",
       "type": {
         "kind": "struct",
@@ -2840,7 +2868,9 @@ export type MatchingEngine = {
           {
             "name": "securityDeposit",
             "docs": [
-              "The additional deposit made by the highest bidder."
+              "The additional deposit made by the highest bidder.",
+              "",
+              "NOTE: This may not be the same denomination as the `amount_in`."
             ],
             "type": "u64"
           },
@@ -2852,12 +2882,21 @@ export type MatchingEngine = {
             "type": "u64"
           },
           {
-            "name": "amountOut",
+            "name": "destinationAssetInfo",
             "docs": [
-              "The amount of tokens to be sent to the user. For CCTP fast transfers, this amount will equal",
-              "the [amount_in](Self::amount_in)."
+              "If the destination asset is not equal to the asset used for auctions, this will be some",
+              "value specifying its custody token bump and amount out.",
+              "",
+              "NOTE: Because this is an option, the `AuctionDestinationAssetInfo` having some definition while this",
+              "field is None will not impact future serialization because the option's serialized value is",
+              "zero. Only when there will be other assets will this struct's members have to be carefully",
+              "considered."
             ],
-            "type": "u64"
+            "type": {
+              "option": {
+                "defined": "AuctionDestinationAssetInfo"
+              }
+            }
           }
         ]
       }
@@ -2970,6 +3009,9 @@ export type MatchingEngine = {
     },
     {
       "name": "MessageProtocol",
+      "docs": [
+        "Protocol used to transfer assets."
+      ],
       "type": {
         "kind": "enum",
         "variants": [
@@ -3028,6 +3070,11 @@ export type MatchingEngine = {
       "name": "AuctionUpdated",
       "fields": [
         {
+          "name": "configId",
+          "type": "u32",
+          "index": false
+        },
+        {
           "name": "auction",
           "type": "publicKey",
           "index": false
@@ -3036,6 +3083,13 @@ export type MatchingEngine = {
           "name": "vaa",
           "type": {
             "option": "publicKey"
+          },
+          "index": false
+        },
+        {
+          "name": "targetProtocol",
+          "type": {
+            "defined": "MessageProtocol"
           },
           "index": false
         },
@@ -3082,6 +3136,13 @@ export type MatchingEngine = {
         {
           "name": "vaa",
           "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "targetProtocol",
+          "type": {
+            "defined": "MessageProtocol"
+          },
           "index": false
         }
       ]
@@ -4140,15 +4201,15 @@ export const IDL: MatchingEngine = {
       "args": []
     },
     {
-      "name": "placeInitialOffer",
+      "name": "placeInitialOfferCctp",
       "docs": [
         "This instruction is used to create a new auction given a valid `FastMarketOrder` vaa. This",
         "instruction will record information about the auction and transfer funds from the payer to",
         "an auction-specific token custody account. This instruction can be called by anyone.",
         "# Arguments",
         "",
-        "* `ctx`       - `PlaceInitialOffer` context.",
-        "* `fee_offer` - The fee that the caller is willing to accept in order for fufilling the fast",
+        "* `ctx`       - `PlaceInitialOfferCctp` context.",
+        "* `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast",
         "order. This fee is paid in USDC."
       ],
       "accounts": [
@@ -4263,7 +4324,7 @@ export const IDL: MatchingEngine = {
       ],
       "args": [
         {
-          "name": "feeOffer",
+          "name": "offerPrice",
           "type": "u64"
         }
       ]
@@ -4271,13 +4332,13 @@ export const IDL: MatchingEngine = {
     {
       "name": "improveOffer",
       "docs": [
-        "This instruction is used to improve an existing auction offer. The `fee_offer` must be",
-        "greater than the current `fee_offer` in the auction. This instruction will revert if the",
-        "`fee_offer` is less than the current `fee_offer`. This instruction can be called by anyone.",
+        "This instruction is used to improve an existing auction offer. The `offer_price` must be",
+        "greater than the current `offer_price` in the auction. This instruction will revert if the",
+        "`offer_price` is less than the current `offer_price`. This instruction can be called by anyone.",
         "# Arguments",
         "",
         "* `ctx`       - `ImproveOffer` context.",
-        "* `fee_offer` - The fee that the caller is willing to accept in order for fufilling the fast",
+        "* `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast",
         "order. This fee is paid in USDC."
       ],
       "accounts": [
@@ -4328,7 +4389,7 @@ export const IDL: MatchingEngine = {
       ],
       "args": [
         {
-          "name": "feeOffer",
+          "name": "offerPrice",
           "type": "u64"
         }
       ]
@@ -5705,6 +5766,15 @@ export const IDL: MatchingEngine = {
             "type": "u32"
           },
           {
+            "name": "targetProtocol",
+            "docs": [
+              "Transfer protocol used to move assets."
+            ],
+            "type": {
+              "defined": "MessageProtocol"
+            }
+          },
+          {
             "name": "status",
             "docs": [
               "Auction status."
@@ -5715,6 +5785,9 @@ export const IDL: MatchingEngine = {
           },
           {
             "name": "info",
+            "docs": [
+              "Optional auction info. This field will be `None`` if there is no auction."
+            ],
             "type": {
               "option": {
                 "defined": "AuctionInfo"
@@ -6083,6 +6156,22 @@ export const IDL: MatchingEngine = {
       }
     },
     {
+      "name": "AuctionDestinationAssetInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "custodyTokenBump",
+            "type": "u8"
+          },
+          {
+            "name": "amountOut",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
       "name": "AuctionInfo",
       "type": {
         "kind": "struct",
@@ -6141,7 +6230,9 @@ export const IDL: MatchingEngine = {
           {
             "name": "securityDeposit",
             "docs": [
-              "The additional deposit made by the highest bidder."
+              "The additional deposit made by the highest bidder.",
+              "",
+              "NOTE: This may not be the same denomination as the `amount_in`."
             ],
             "type": "u64"
           },
@@ -6153,12 +6244,21 @@ export const IDL: MatchingEngine = {
             "type": "u64"
           },
           {
-            "name": "amountOut",
+            "name": "destinationAssetInfo",
             "docs": [
-              "The amount of tokens to be sent to the user. For CCTP fast transfers, this amount will equal",
-              "the [amount_in](Self::amount_in)."
+              "If the destination asset is not equal to the asset used for auctions, this will be some",
+              "value specifying its custody token bump and amount out.",
+              "",
+              "NOTE: Because this is an option, the `AuctionDestinationAssetInfo` having some definition while this",
+              "field is None will not impact future serialization because the option's serialized value is",
+              "zero. Only when there will be other assets will this struct's members have to be carefully",
+              "considered."
             ],
-            "type": "u64"
+            "type": {
+              "option": {
+                "defined": "AuctionDestinationAssetInfo"
+              }
+            }
           }
         ]
       }
@@ -6271,6 +6371,9 @@ export const IDL: MatchingEngine = {
     },
     {
       "name": "MessageProtocol",
+      "docs": [
+        "Protocol used to transfer assets."
+      ],
       "type": {
         "kind": "enum",
         "variants": [
@@ -6329,6 +6432,11 @@ export const IDL: MatchingEngine = {
       "name": "AuctionUpdated",
       "fields": [
         {
+          "name": "configId",
+          "type": "u32",
+          "index": false
+        },
+        {
           "name": "auction",
           "type": "publicKey",
           "index": false
@@ -6337,6 +6445,13 @@ export const IDL: MatchingEngine = {
           "name": "vaa",
           "type": {
             "option": "publicKey"
+          },
+          "index": false
+        },
+        {
+          "name": "targetProtocol",
+          "type": {
+            "defined": "MessageProtocol"
           },
           "index": false
         },
@@ -6383,6 +6498,13 @@ export const IDL: MatchingEngine = {
         {
           "name": "vaa",
           "type": "publicKey",
+          "index": false
+        },
+        {
+          "name": "targetProtocol",
+          "type": {
+            "defined": "MessageProtocol"
+          },
           "index": false
         }
       ]

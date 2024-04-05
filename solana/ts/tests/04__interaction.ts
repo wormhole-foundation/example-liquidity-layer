@@ -922,7 +922,7 @@ describe("Matching Engine <> Token Router", function () {
             const auction = matchingEngine.auctionAddress(fastVaaHash);
 
             if (initAuction) {
-                const [approveIx, ix] = await matchingEngine.placeInitialOfferIx(
+                const [approveIx, ix] = await matchingEngine.placeInitialOfferCctpIx(
                     {
                         payer: offerAuthorityOne.publicKey,
                         fastVaa,
