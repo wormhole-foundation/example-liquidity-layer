@@ -3126,6 +3126,18 @@ export type MatchingEngine = {
       ]
     },
     {
+      "name": "Enacted",
+      "fields": [
+        {
+          "name": "action",
+          "type": {
+            "defined": "ProposalAction"
+          },
+          "index": false
+        }
+      ]
+    },
+    {
       "name": "OrderExecuted",
       "fields": [
         {
@@ -3142,6 +3154,18 @@ export type MatchingEngine = {
           "name": "targetProtocol",
           "type": {
             "defined": "MessageProtocol"
+          },
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "Proposed",
+      "fields": [
+        {
+          "name": "action",
+          "type": {
+            "defined": "ProposalAction"
           },
           "index": false
         }
@@ -6488,6 +6512,18 @@ export const IDL: MatchingEngine = {
       ]
     },
     {
+      "name": "Enacted",
+      "fields": [
+        {
+          "name": "action",
+          "type": {
+            "defined": "ProposalAction"
+          },
+          "index": false
+        }
+      ]
+    },
+    {
       "name": "OrderExecuted",
       "fields": [
         {
@@ -6504,6 +6540,18 @@ export const IDL: MatchingEngine = {
           "name": "targetProtocol",
           "type": {
             "defined": "MessageProtocol"
+          },
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "Proposed",
+      "fields": [
+        {
+          "name": "action",
+          "type": {
+            "defined": "ProposalAction"
           },
           "index": false
         }

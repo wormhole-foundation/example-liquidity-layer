@@ -43,6 +43,7 @@ import {
     MessageProtocol,
     PreparedOrderResponse,
     Proposal,
+    ProposalAction,
     RedeemedFastFill,
     RouterEndpoint,
 } from "./state";
@@ -155,6 +156,14 @@ export type OrderExecuted = {
     targetProtocol: MessageProtocol;
 };
 
+export type Proposed = {
+    action: ProposalAction;
+};
+
+export type Enacted = {
+    action: ProposalAction;
+};
+
 export class MatchingEngineProgram {
     private _programId: ProgramId;
     private _mint: PublicKey;
@@ -187,6 +196,14 @@ export class MatchingEngineProgram {
 
     onOrderExecuted(callback: (event: OrderExecuted, slot: number, signature: string) => void) {
         return this.program.addEventListener("OrderExecuted", callback);
+    }
+
+    onProposed(callback: (event: Proposed, slot: number, signature: string) => void) {
+        return this.program.addEventListener("Proposed", callback);
+    }
+
+    onEnacted(callback: (event: Enacted, slot: number, signature: string) => void) {
+        return this.program.addEventListener("Enacted", callback);
     }
 
     custodianAddress(): PublicKey {

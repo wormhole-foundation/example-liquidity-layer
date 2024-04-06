@@ -3126,6 +3126,18 @@
       ]
     },
     {
+      "name": "Enacted",
+      "fields": [
+        {
+          "name": "action",
+          "type": {
+            "defined": "ProposalAction"
+          },
+          "index": false
+        }
+      ]
+    },
+    {
       "name": "OrderExecuted",
       "fields": [
         {
@@ -3142,6 +3154,18 @@
           "name": "targetProtocol",
           "type": {
             "defined": "MessageProtocol"
+          },
+          "index": false
+        }
+      ]
+    },
+    {
+      "name": "Proposed",
+      "fields": [
+        {
+          "name": "action",
+          "type": {
+            "defined": "ProposalAction"
           },
           "index": false
         }
