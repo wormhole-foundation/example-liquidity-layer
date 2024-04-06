@@ -3,9 +3,8 @@ use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct ExecuteMatchingEngineUpgrade<'info> {
-    /// CHECK: This custodian is not serialized the same way as the new implementation's.
     #[account(mut)]
-    matching_engine_custodian: AccountInfo<'info>,
+    matching_engine_custodian: Account<'info, matching_engine::state::Custodian>,
 
     #[account(
         constraint = {

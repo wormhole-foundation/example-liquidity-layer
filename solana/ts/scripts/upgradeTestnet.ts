@@ -69,7 +69,6 @@ async function upgradeMatchingEngine(
 
     const commitIx = await upgradeManager.commitMatchingEngineUpgradeIx({
         owner: owner.publicKey,
-        payer: owner.publicKey,
     });
 
     let commitTxSig: string | null = null;

@@ -166,9 +166,8 @@ describe("Upgrade Manager", function () {
                 }),
             );
 
-            // FIX: After successful upgrade, put this check back!
-            // const { owner } = await matchingEngine.fetchCustodian();
-            // expect(owner.equals(upgradeManager.upgradeAuthorityAddress())).is.true;
+            const { owner } = await matchingEngine.fetchCustodian();
+            expect(owner.equals(upgradeManager.upgradeAuthorityAddress())).is.true;
 
             return { matchingEngineBuffer };
         }
@@ -217,11 +216,7 @@ describe("Upgrade Manager", function () {
 
             const upgradeReceiptLamports = upgradeReceiptInfoBefore!.lamports;
 
-            // FIX: After successful upgrade, remove passing payer like this.
-            const ix = await upgradeManager.commitMatchingEngineUpgradeIx({
-                payer: payer.publicKey,
-                ...accounts,
-            });
+            const ix = await upgradeManager.commitMatchingEngineUpgradeIx(accounts);
             if (errorMsg !== null) {
                 return expectIxErr(connection, [ix], signers, errorMsg);
             }
