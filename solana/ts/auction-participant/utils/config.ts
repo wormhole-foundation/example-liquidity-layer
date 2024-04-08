@@ -1,28 +1,21 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
 import { IWormhole__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
-import {
-    Commitment,
-    Connection,
-    FetchFn,
-    FetchMiddleware,
-    PublicKey,
-    PublicKeyInitData,
-} from "@solana/web3.js";
-import {
-    Environment,
-    ParsedVaaWithBytes,
-    ProvidersOpts,
-} from "@wormhole-foundation/relayer-engine";
+import { Commitment, Connection, FetchFn, PublicKey, PublicKeyInitData } from "@solana/web3.js";
 import { ethers } from "ethers";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
-import * as winston from "winston";
 import { defaultLogger } from "./logger";
 
 export const EVM_FAST_CONSISTENCY_LEVEL = 200;
 
 export const CCTP_ATTESTATION_ENDPOINT_TESTNET = "https://iris-api-sandbox.circle.com";
 export const CCTP_ATTESTATION_ENDPOINT_MAINNET = "https://iris-api.circle.com";
+
+enum Environment {
+    MAINNET = "mainnet",
+    TESTNET = "testnet",
+    DEVNET = "devnet",
+}
 
 export type InputEndpointChainConfig = {
     chain: wormholeSdk.ChainName;
@@ -126,25 +119,25 @@ export class AppConfig {
         return this._cfg.sourceTxHash;
     }
 
-    solanaConnection(debug: boolean = false): Connection {
-        const fetchLogger = defaultLogger({ label: "fetch", level: debug ? "debug" : "error" });
-        fetchLogger.debug("Start debug logging Solana connection fetches.");
+    // solanaConnection(debug: boolean = false): Connection {
+    //     const fetchLogger = defaultLogger({ label: "fetch", level: debug ? "debug" : "error" });
+    //     fetchLogger.debug("Start debug logging Solana connection fetches.");
 
-        return new Connection(this._cfg.connection.rpc, {
-            commitment: this._cfg.connection.commitment,
-            wsEndpoint: this._cfg.connection.ws,
-            fetchMiddleware: function (
-                info: Parameters<FetchFn>[0],
-                init: Parameters<FetchFn>[1],
-                fetch: (...a: Parameters<FetchFn>) => void,
-            ) {
-                if (init !== undefined) {
-                    fetchLogger.debug(init.body);
-                }
-                return fetch(info, init);
-            },
-        });
-    }
+    //     return new Connection(this._cfg.connection.rpc, {
+    //         commitment: this._cfg.connection.commitment,
+    //         wsEndpoint: this._cfg.connection.ws,
+    //         fetchMiddleware: function (
+    //             info: Parameters<FetchFn>[0],
+    //             init: Parameters<FetchFn>[1],
+    //             fetch: (...a: Parameters<FetchFn>) => void,
+    //         ) {
+    //             if (init !== undefined) {
+    //                 fetchLogger.debug(init.body!);
+    //             }
+    //             return fetch(info, init);
+    //         },
+    //     });
+    // }
 
     solanaRpc(): string {
         return this._cfg.connection.rpc;
@@ -200,18 +193,6 @@ export class AppConfig {
         return this.recognizedTokenAccounts().some((key) => key.equals(tokenAccount));
     }
 
-    relayerAppProviderOpts(): ProvidersOpts {
-        return {
-            chains: this._cfg.endpointConfig.reduce(
-                (acc, cfg) => ({
-                    ...acc,
-                    [wormholeSdk.coalesceChainId(cfg.chain)]: { endpoints: [cfg.endpoint] },
-                }),
-                {},
-            ),
-        };
-    }
-
     pricingParameters(chain: number): PricingParameters | null {
         const pricing = this._cfg.pricing.find(
             (p) => wormholeSdk.coalesceChainId(p.chain) == chain,
@@ -226,18 +207,6 @@ export class AppConfig {
             coreBridgeAddress: this._wormholeAddresses[chainCfg.chain].core!,
             ...chainCfg,
         };
-    }
-
-    async startingSeqeunces(): Promise<StartingSequences> {
-        const sequences: StartingSequences = {};
-        for (const cfg of this._cfg.endpointConfig) {
-            const chainId = wormholeSdk.coalesceChainId(cfg.chain);
-            if (wormholeSdk.isEVMChain(cfg.chain)) {
-                sequences[chainId] = await this.fetchStartingSequenceEvm(chainId);
-            }
-        }
-
-        return sequences;
     }
 
     async fetchStartingSequenceEvm(chainId: wormholeSdk.ChainId): Promise<number> {
@@ -285,12 +254,12 @@ export class AppConfig {
         );
     }
 
-    isFastFinality(vaa: ParsedVaaWithBytes): boolean {
-        return (
-            vaa.consistencyLevel ==
-            this._chainCfgs[vaa.emitterChain as wormholeSdk.ChainId]?.fastConsistencyLevel
-        );
-    }
+    // isFastFinality(vaa: ParsedVaaWithBytes): boolean {
+    //     return (
+    //         vaa.consistencyLevel ==
+    //         this._chainCfgs[vaa.emitterChain as wormholeSdk.ChainId]?.fastConsistencyLevel
+    //     );
+    // }
 }
 
 function validateEnvironmentConfig(cfg: any): EnvironmentConfig {

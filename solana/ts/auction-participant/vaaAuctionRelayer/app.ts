@@ -1,15 +1,12 @@
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import {
-    Environment,
-    StandardRelayerApp,
-    StandardRelayerContext,
-} from "@wormhole-foundation/relayer-engine";
+import { tryHexToNativeString, ChainId } from "@certusone/wormhole-sdk";
 import "dotenv/config";
 import * as fs from "fs";
 import { MatchingEngineProgram } from "../../src/matchingEngine";
 import { PreparedTransaction } from "../../src";
 import * as utils from "../utils";
 import * as winston from "winston";
+import { VaaSpy } from "../../src/wormhole/spy";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
@@ -32,102 +29,93 @@ async function main(argv: string[]) {
     }
     const payer = Keypair.fromSecretKey(Buffer.from(process.env.SOLANA_PRIVATE_KEY, "base64"));
 
-    // Contains the starting sequences for each chain.
-    const startingSequences = await cfg.startingSeqeunces();
-
-    const app = new StandardRelayerApp<StandardRelayerContext>(Environment.TESTNET, {
-        name: "Initialize Auctions",
-        logger: utils.defaultLogger({ label: "app", level: cfg.appLogLevel() }),
-        missedVaaOptions: cfg.defaultMissedVaaOptions(),
-        providers: cfg.relayerAppProviderOpts(),
-    });
-
     const logicLogger = utils.defaultLogger({ label: "logic", level: cfg.logicLogLevel() });
     logicLogger.debug("Start logging logic");
 
     const preparedTransactionQueue: PreparedTransaction[] = [];
-    const vaaCache = utils.expiringList<string>(1000 * 60 * 5); // 5 minutes.
 
     spawnTransactionProcessor(connection, preparedTransactionQueue, logicLogger);
 
-    app.multiple(cfg.emitterFilter(), async (ctx, next) => {
-        const signedVaa = ctx.vaa!;
+    // Connect to spy.
 
-        if (startingSequences[signedVaa.emitterChain] > signedVaa.sequence) {
-            logicLogger.debug(
-                `Ignoring stale VAA sequence=${signedVaa.sequence}, chain=${signedVaa.emitterChain}`,
-            );
-            return;
-        }
-
-        // These chain ID checks are safe because we know the VAAs come from
-        // chain names in the config, which are checked against ChainName.
-        const { chain } = cfg.unsafeChainCfg(signedVaa.emitterChain);
-
-        // Cache the VAA ID to avoid double processing.
-        const vaaId = utils.vaaStringId(signedVaa);
-        if (vaaCache.has(vaaId)) {
-            return;
-        } else {
-            logicLogger.debug(`Found VAA: chain=${chain}, sequence=${signedVaa.sequence}`);
-            vaaCache.add(vaaId);
-        }
-
-        // Start a new auction if this is a fast VAA.
-        if (cfg.isFastFinality(signedVaa)) {
-            logicLogger.debug(
-                `Attempting to parse FastMarketOrder, sequence=${signedVaa.sequence}`,
-            );
-            const fastOrder = utils.tryParseFastMarketOrder(signedVaa);
-
-            if (fastOrder !== undefined) {
-                const unprocessedTxns = await utils.handlePlaceInitialOffer(
-                    connection,
-                    cfg,
-                    matchingEngine,
-                    signedVaa,
-                    fastOrder,
-                    payer,
-                    logicLogger,
-                );
-                preparedTransactionQueue.push(...unprocessedTxns);
-            } else {
-                logicLogger.warn(`Failed to parse FastMarketOrder, sequence=${signedVaa.sequence}`);
-                return;
-            }
-        } else {
-            // logicLogger.debug(
-            //     `Attempting to parse SlowOrderResponse, sequence=${signedVaa.sequence}`,
-            // );
-            // const slowOrderResponse = utils.tryParseSlowOrderResponse(signedVaa);
-            // if (slowOrderResponse !== undefined) {
-            //     const unprocessedTxns = await utils.handleSettleAuction(
-            //         connection,
-            //         cfg,
-            //         matchingEngine,
-            //         app,
-            //         ctx,
-            //         logicLogger,
-            //         signedVaa,
-            //         payer,
-            //     );
-            //     preparedTransactionQueue.push(...unprocessedTxns);
-            // } else {
-            //     logicLogger.warn(
-            //         `Failed to parse SlowOrderResponse, sequence=${signedVaa.sequence}`,
-            //     );
-            //     return;
-            // }
-        }
-
-        // Done.
-        await next();
+    const spy = new VaaSpy({
+        spyHost: "localhost:7073",
+        vaaFilters: [
+            {
+                chain: "pythnet",
+                nativeAddress: "G9LV2mp9ua1znRAfYwZz5cPiJMAbo1T6mbjdQsDZuMJg",
+            },
+        ],
+        enableCleanup: true,
+        seenThresholdMs: 5_000,
+        intervalMs: 250,
+        maxToRemove: 5,
     });
 
-    logicLogger.debug("Listening");
+    spy.onObservation(({ raw, parsed, chain, nativeAddress }) => {
+        console.log(
+            "observed",
+            parsed.emitterChain,
+            chain,
+            nativeAddress,
+            tryHexToNativeString(
+                parsed.emitterAddress.toString("hex"),
+                parsed.emitterChain as ChainId,
+            ),
+            parsed.sequence,
+        );
+    });
 
-    // Do it.
-    await app.listen();
+    // These chain ID checks are safe because we know the VAAs come from
+    // chain names in the config, which are checked against ChainName.
+    //const { chain } = cfg.unsafeChainCfg(signedVaa.emitterChain);
+
+    // // Start a new auction if this is a fast VAA.
+    // if (cfg.isFastFinality(signedVaa)) {
+    //     logicLogger.debug(
+    //         `Attempting to parse FastMarketOrder, sequence=${signedVaa.sequence}`,
+    //     );
+    //     const fastOrder = utils.tryParseFastMarketOrder(signedVaa);
+
+    //     if (fastOrder !== undefined) {
+    //         const unprocessedTxns = await utils.handlePlaceInitialOffer(
+    //             connection,
+    //             cfg,
+    //             matchingEngine,
+    //             signedVaa,
+    //             fastOrder,
+    //             payer,
+    //             logicLogger,
+    //         );
+    //         preparedTransactionQueue.push(...unprocessedTxns);
+    //     } else {
+    //         logicLogger.warn(`Failed to parse FastMarketOrder, sequence=${signedVaa.sequence}`);
+    //         return;
+    //     }
+    // } else {
+    // logicLogger.debug(
+    //     `Attempting to parse SlowOrderResponse, sequence=${signedVaa.sequence}`,
+    // );
+    // const slowOrderResponse = utils.tryParseSlowOrderResponse(signedVaa);
+    // if (slowOrderResponse !== undefined) {
+    //     const unprocessedTxns = await utils.handleSettleAuction(
+    //         connection,
+    //         cfg,
+    //         matchingEngine,
+    //         app,
+    //         ctx,
+    //         logicLogger,
+    //         signedVaa,
+    //         payer,
+    //     );
+    //     preparedTransactionQueue.push(...unprocessedTxns);
+    // } else {
+    //     logicLogger.warn(
+    //         `Failed to parse SlowOrderResponse, sequence=${signedVaa.sequence}`,
+    //     );
+    //     return;
+    // }
+    // }
 }
 
 async function spawnTransactionProcessor(
