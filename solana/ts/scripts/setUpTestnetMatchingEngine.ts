@@ -40,7 +40,7 @@ async function main() {
     if (process.env.SOLANA_PRIVATE_KEY === undefined) {
         throw new Error("SOLANA_PRIVATE_KEY is undefined");
     }
-    const payer = Keypair.fromSecretKey(Buffer.from(process.env.SOLANA_PRIVATE_KEY, "hex"));
+    const payer = Keypair.fromSecretKey(Buffer.from(process.env.SOLANA_PRIVATE_KEY, "base64"));
 
     // Set up program.
     await intialize(matchingEngine, payer);
