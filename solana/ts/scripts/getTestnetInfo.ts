@@ -40,23 +40,20 @@ async function main() {
         const matchingEngine = new matchingEngineSdk.MatchingEngineProgram(
             connection,
             matchingEngineSdk.testnet(),
-            USDC_MINT
+            USDC_MINT,
         );
 
         const custodian = matchingEngine.custodianAddress();
-        console.log(`Matching Engine Custodian: ${custodian.toString()}`);
-        console.log();
-        console.log("NOTE: The Custodian's address is the Matching Engine's emitter.");
-        console.log(`Emitter Address: ${custodian.toBuffer().toString("hex")}`);
+        console.log("Matching Engine");
+        console.log("  Custodian (NOTE: The Custodian's address is the program's emitter):");
+        console.log(`    Native:    ${custodian.toString()}`);
+        console.log(`    Universal: ${custodian.toBuffer().toString("hex")}`);
         console.log();
 
-        const custodyToken = matchingEngine.custodyTokenAccountAddress();
-        console.log(`Matching Engine Custody Token: ${custodyToken.toString()}`);
-        console.log();
-        console.log(
-            "NOTE: The Custody Token Account's address is the Matching Engine's mint recipient."
-        );
-        console.log(`Mint Recipient Address: ${custodyToken.toBuffer().toString("hex")}`);
+        const cctpMintRecipient = matchingEngine.cctpMintRecipientAddress();
+        console.log("  Mint Recipient:");
+        console.log(`    Native:    ${cctpMintRecipient.toString()}`);
+        console.log(`    Universal: ${cctpMintRecipient.toBuffer().toString("hex")}`);
         console.log();
 
         const custodianData = await matchingEngine.fetchCustodian();
@@ -65,17 +62,26 @@ async function main() {
         console.log();
 
         const auctionConfig = await matchingEngine.fetchAuctionConfig(
-            custodianData.auctionConfigId
+            custodianData.auctionConfigId,
         );
         console.log("Auction Config Data");
         console.log(JSON.stringify(auctionConfig, null, 2));
         console.log();
 
         for (const chainName of CHAINS) {
-            const chain = coalesceChainId(chainName);
-            const endpointData = await matchingEngine.fetchRouterEndpoint(chain);
-            console.log(`Router Endpoint: ${chainName} (${chain})`);
-            console.log(stringifyEndpoint(chainName, endpointData));
+            await matchingEngine
+                .fetchRouterEndpoint(coalesceChainId(chainName))
+                .then((endpointData) => {
+                    console.log(
+                        `Registered Endpoint (${chainName}): ${stringifyEndpoint(
+                            chainName,
+                            endpointData,
+                        )}`,
+                    );
+                })
+                .catch((_) => {
+                    console.log(`Not Registered: ${chainName}`);
+                });
             console.log();
         }
     }
@@ -84,23 +90,20 @@ async function main() {
         const tokenRouter = new tokenRouterSdk.TokenRouterProgram(
             connection,
             tokenRouterSdk.testnet(),
-            USDC_MINT
+            USDC_MINT,
         );
 
         const custodian = tokenRouter.custodianAddress();
-        console.log(`Token Router Custodian: ${custodian.toString()}`);
-        console.log();
-        console.log("NOTE: The Custodian's address is the Token Router's emitter.");
-        console.log(`Emitter Address: ${custodian.toBuffer().toString("hex")}`);
+        console.log(`Token Router`);
+        console.log("  Custodian (NOTE: The Custodian's address is the program's emitter):");
+        console.log(`    Native:    ${custodian.toString()}`);
+        console.log(`    Universal: ${custodian.toBuffer().toString("hex")}`);
         console.log();
 
-        const custodyToken = tokenRouter.custodyTokenAccountAddress();
-        console.log(`Token Router Custody Token: ${custodyToken.toString()}`);
-        console.log();
-        console.log(
-            "NOTE: The Custody Token Account's address is the Token Router's mint recipient."
-        );
-        console.log(`Mint Recipient Address: ${custodyToken.toBuffer().toString("hex")}`);
+        const cctpMintRecipient = tokenRouter.cctpMintRecipientAddress();
+        console.log("  Mint Recipient:");
+        console.log(`    Native:    ${cctpMintRecipient.toString()}`);
+        console.log(`    Universal: ${cctpMintRecipient.toBuffer().toString("hex")}`);
         console.log();
     }
 }
