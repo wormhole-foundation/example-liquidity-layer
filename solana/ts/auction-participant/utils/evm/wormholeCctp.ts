@@ -1,6 +1,7 @@
-import { ParsedVaaWithBytes } from "@wormhole-foundation/relayer-engine";
 import { ethers } from "ethers";
 import * as winston from "winston";
+import * as wormholeSdk from "@certusone/wormhole-sdk";
+import fetch from "node-fetch";
 
 const WORMHOLE_MESSAGE = new ethers.utils.Interface([
     "event LogMessagePublished(address indexed sender,uint64 sequence,uint32 nonce,bytes payload,uint8 consistencyLevel)",
@@ -13,11 +14,11 @@ export async function unsafeFindAssociatedCctpMessageAndAttestation(
     cctpAttestationEndpoint: string,
     coreBridgeAddress: string,
     txHash: string,
-    vaa: ParsedVaaWithBytes,
-    logger: winston.Logger
+    vaa: wormholeSdk.ParsedVaa,
+    logger: winston.Logger,
 ): Promise<{ encodedCctpMessage: Buffer; cctpAttestation: Buffer }> {
     const { logs } = await new ethers.providers.StaticJsonRpcProvider(rpc).getTransactionReceipt(
-        txHash
+        txHash,
     );
 
     const wormholeMessageIndex = findWormholeMessageIndex(logs, coreBridgeAddress, vaa, logger)!;
@@ -27,12 +28,12 @@ export async function unsafeFindAssociatedCctpMessageAndAttestation(
     // of this Wormhole message by knowing the emitter and that this message is
     // a slow order response.
     const encodedCctpMessage = ethers.utils.arrayify(
-        CCTP_MESSAGE.parseLog(logs[wormholeMessageIndex - 2]).args.message
+        CCTP_MESSAGE.parseLog(logs[wormholeMessageIndex - 2]).args.message,
     );
     const cctpAttestation = await fetchCctpAttestation(
         cctpAttestationEndpoint,
         encodedCctpMessage,
-        logger
+        logger,
     );
     return {
         encodedCctpMessage: Buffer.from(encodedCctpMessage),
@@ -43,8 +44,8 @@ export async function unsafeFindAssociatedCctpMessageAndAttestation(
 function findWormholeMessageIndex(
     logs: ethers.providers.Log[],
     coreBridgeAddress: string,
-    vaa: ParsedVaaWithBytes,
-    logger: winston.Logger
+    vaa: wormholeSdk.ParsedVaa,
+    logger: winston.Logger,
 ): number | undefined {
     for (let i = 0; i < logs.length; ++i) {
         const log = logs[i];
@@ -59,17 +60,17 @@ function findWormholeMessageIndex(
     }
 
     logger.error(
-        `Could not find wormhole message for VAA: chain=${vaa.emitterChain}, sequence=${vaa.sequence}`
+        `Could not find wormhole message for VAA: chain=${vaa.emitterChain}, sequence=${vaa.sequence}`,
     );
 }
 
 async function fetchCctpAttestation(
     cctpAttestationEndpoint: string,
     encodedCctpMessage: Uint8Array,
-    logger: winston.Logger
+    logger: winston.Logger,
 ): Promise<Uint8Array> {
     const attestationRequest = `${cctpAttestationEndpoint}/attestations/${ethers.utils.keccak256(
-        encodedCctpMessage
+        encodedCctpMessage,
     )}`;
     logger.info(`Attempting: ${attestationRequest}`);
 

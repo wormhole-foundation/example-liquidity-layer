@@ -2,7 +2,6 @@ import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { ConfirmOptions, Connection, Keypair, TransactionInstruction } from "@solana/web3.js";
 import { PreparedTransaction } from "../../src";
 import { MatchingEngineProgram } from "../../src/matchingEngine";
-import { ParsedVaaWithBytes } from "@wormhole-foundation/relayer-engine";
 import { AppConfig } from "./config";
 
 function unsafeFixSigVerifyIx(sigVerifyIx: TransactionInstruction, sigVerifyIxIndex: number) {
@@ -23,7 +22,7 @@ export async function preparePostVaaTxs(
     cfg: AppConfig,
     matchingEngine: MatchingEngineProgram,
     payer: Keypair,
-    vaa: ParsedVaaWithBytes,
+    vaa: wormholeSdk.ParsedVaa,
     confirmOptions?: ConfirmOptions,
 ): Promise<PreparedTransaction[]> {
     const vaaSignatureSet = Keypair.generate();
