@@ -129,8 +129,13 @@ export async function handlePlaceInitialOffer(
         unproccessedTxns.push(...preparedPostVaaTxs);
     }
 
+    // Calculate the security deposit for the initial offer.
+    const notionalDeposit = await matchingEngine.computeNotionalSecurityDeposit(
+        order.amountIn,
+        2, // TODO: Add this to config.
+    );
+
     logicLogger.debug(`Prepare initialize auction, sequence=${fastVaa.sequence}`);
-    // TODO: calculate the totalDeposit
     const initializeAuctionTx = await matchingEngine.placeInitialOfferTx(
         {
             payer: payer.publicKey,
@@ -139,7 +144,7 @@ export async function handlePlaceInitialOffer(
             fromRouterEndpoint,
             toRouterEndpoint,
         },
-        { offerPrice: order.maxFee },
+        { offerPrice: order.maxFee, totalDeposit: order.amountIn + order.maxFee + notionalDeposit },
         [payer],
         {
             computeUnits: cfg.initiateAuctionComputeUnits(),

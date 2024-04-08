@@ -21,7 +21,6 @@ contract UpgradeTokenRouter is CheckWormholeContracts, Script {
     address immutable _token = vm.envAddress("RELEASE_TOKEN_ADDRESS");
     address immutable _wormhole = vm.envAddress("RELEASE_WORMHOLE_ADDRESS");
     address immutable _cctpTokenMessenger = vm.envAddress("RELEASE_TOKEN_MESSENGER_ADDRESS");
-    address immutable _ownerAssistantAddress = vm.envAddress("RELEASE_OWNER_ASSISTANT_ADDRESS");
     bytes32 immutable _matchingEngineAddress = vm.envBytes32("RELEASE_MATCHING_ENGINE_ADDRESS");
     bytes32 immutable _matchingEngineMintRecipient =
         vm.envBytes32("RELEASE_MATCHING_ENGINE_MINT_RECIPIENT");

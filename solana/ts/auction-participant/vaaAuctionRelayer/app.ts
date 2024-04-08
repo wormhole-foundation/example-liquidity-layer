@@ -96,10 +96,10 @@ async function main(argv: string[]) {
                 return;
             }
         } else {
-            logicLogger.debug(
-                `Attempting to parse SlowOrderResponse, sequence=${signedVaa.sequence}`,
-            );
-            const slowOrderResponse = utils.tryParseSlowOrderResponse(signedVaa);
+            // logicLogger.debug(
+            //     `Attempting to parse SlowOrderResponse, sequence=${signedVaa.sequence}`,
+            // );
+            // const slowOrderResponse = utils.tryParseSlowOrderResponse(signedVaa);
             // if (slowOrderResponse !== undefined) {
             //     const unprocessedTxns = await utils.handleSettleAuction(
             //         connection,

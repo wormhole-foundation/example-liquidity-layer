@@ -1046,7 +1046,6 @@ export class MatchingEngineProgram {
         let { totalDeposit } = args;
 
         offerToken ??= await splToken.getAssociatedTokenAddress(this.mint, payer);
-
         let fetchedConfigId: Uint64 | null = null;
         if (
             auction === undefined ||
@@ -1057,7 +1056,6 @@ export class MatchingEngineProgram {
             const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
             auction ??= this.auctionAddress(vaaAccount.digest());
             fromRouterEndpoint ??= this.routerEndpointAddress(vaaAccount.emitterInfo().chain);
-
             const { fastMarketOrder } = LiquidityLayerMessage.decode(vaaAccount.payload());
             if (fastMarketOrder === undefined) {
                 throw new Error("Message not FastMarketOrder");
@@ -1084,7 +1082,6 @@ export class MatchingEngineProgram {
         }
 
         const auctionCustodyToken = this.auctionCustodyTokenAddress(auction);
-
         const { transferAuthority, ix: approveIx } = await this.approveTransferAuthorityIx(
             { auction, owner: payer },
             {
