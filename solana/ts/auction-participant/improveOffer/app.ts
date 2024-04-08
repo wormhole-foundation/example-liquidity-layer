@@ -1,10 +1,10 @@
-import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import "dotenv/config";
 import * as fs from "fs";
 import { MatchingEngineProgram } from "../../src/matchingEngine";
 import * as utils from "../utils";
 import { onAuctionSettledCallback, onAuctionUpdateCallback } from "./callback";
-import { CachedBlockhash, OfferToken } from ".";
+import { CachedBlockhash, OfferToken } from "./containers";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
@@ -44,7 +44,7 @@ async function main(argv: string[]) {
     matchingEngine.onAuctionSettled(onAuctionSettledCallback(offerToken, auctionLogger));
 
     // We play here.
-    matchingEngine.onAuctionUpdate(
+    matchingEngine.onAuctionUpdated(
         await onAuctionUpdateCallback(
             matchingEngine,
             offerToken,
