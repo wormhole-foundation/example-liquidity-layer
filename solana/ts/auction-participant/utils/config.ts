@@ -119,25 +119,26 @@ export class AppConfig {
         return this._cfg.sourceTxHash;
     }
 
-    // solanaConnection(debug: boolean = false): Connection {
-    //     const fetchLogger = defaultLogger({ label: "fetch", level: debug ? "debug" : "error" });
-    //     fetchLogger.debug("Start debug logging Solana connection fetches.");
+    solanaConnection(debug: boolean = false): Connection {
+        const fetchLogger = defaultLogger({ label: "fetch", level: debug ? "debug" : "error" });
+        fetchLogger.debug("Start debug logging Solana connection fetches.");
 
-    //     return new Connection(this._cfg.connection.rpc, {
-    //         commitment: this._cfg.connection.commitment,
-    //         wsEndpoint: this._cfg.connection.ws,
-    //         fetchMiddleware: function (
-    //             info: Parameters<FetchFn>[0],
-    //             init: Parameters<FetchFn>[1],
-    //             fetch: (...a: Parameters<FetchFn>) => void,
-    //         ) {
-    //             if (init !== undefined) {
-    //                 fetchLogger.debug(init.body!);
-    //             }
-    //             return fetch(info, init);
-    //         },
-    //     });
-    // }
+        return new Connection(this._cfg.connection.rpc, {
+            commitment: this._cfg.connection.commitment,
+            wsEndpoint: this._cfg.connection.ws,
+            fetchMiddleware: function (
+                info: Parameters<FetchFn>[0],
+                init: Parameters<FetchFn>[1],
+                fetch: (...a: Parameters<FetchFn>) => void,
+            ) {
+                if (init !== undefined) {
+                    // @ts-ignore: init is not null
+                    fetchLogger.debug(init.body!);
+                }
+                return fetch(info, init);
+            },
+        });
+    }
 
     solanaRpc(): string {
         return this._cfg.connection.rpc;
