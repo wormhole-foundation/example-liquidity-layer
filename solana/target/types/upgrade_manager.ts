@@ -324,6 +324,14 @@ export type UpgradeManager = {
   "accounts": [
     {
       "name": "upgradeReceipt",
+      "docs": [
+        "An account which reflects the status of an upgrade after one has been executed. This account",
+        "will only exist when an upgrade status is uncommitted.",
+        "",
+        "NOTE: Please be careful with modifying the schema of this account. If you upgrade a program",
+        "without committing, and follow it with an Upgrade Manager program upgrade with a new receipt",
+        "serialization, you will have a bad time."
+      ],
       "type": {
         "kind": "struct",
         "fields": [
@@ -352,6 +360,9 @@ export type UpgradeManager = {
   "types": [
     {
       "name": "UpgradeStatus",
+      "docs": [
+        "Current state of an upgrade."
+      ],
       "type": {
         "kind": "enum",
         "variants": [
@@ -717,6 +728,14 @@ export const IDL: UpgradeManager = {
   "accounts": [
     {
       "name": "upgradeReceipt",
+      "docs": [
+        "An account which reflects the status of an upgrade after one has been executed. This account",
+        "will only exist when an upgrade status is uncommitted.",
+        "",
+        "NOTE: Please be careful with modifying the schema of this account. If you upgrade a program",
+        "without committing, and follow it with an Upgrade Manager program upgrade with a new receipt",
+        "serialization, you will have a bad time."
+      ],
       "type": {
         "kind": "struct",
         "fields": [
@@ -745,6 +764,9 @@ export const IDL: UpgradeManager = {
   "types": [
     {
       "name": "UpgradeStatus",
+      "docs": [
+        "Current state of an upgrade."
+      ],
       "type": {
         "kind": "enum",
         "variants": [
