@@ -190,7 +190,7 @@ export class MatchingEngineProgram {
         return this.program.addEventListener("AuctionSettled", callback);
     }
 
-    onAuctionUpdate(callback: (event: AuctionUpdated, slot: number, signature: string) => void) {
+    onAuctionUpdated(callback: (event: AuctionUpdated, slot: number, signature: string) => void) {
         return this.program.addEventListener("AuctionUpdated", callback);
     }
 
@@ -1010,13 +1010,13 @@ export class MatchingEngineProgram {
         accounts: {
             payer: PublicKey;
             fastVaa: PublicKey;
-            fromRouterEndpoint?: PublicKey;
-            toRouterEndpoint?: PublicKey;
-            auction?: PublicKey;
+            fromRouterEndpoint: PublicKey;
+            toRouterEndpoint: PublicKey;
+            auction: PublicKey;
         },
         args: {
             offerPrice: Uint64;
-            totalDeposit?: Uint64;
+            totalDeposit: Uint64;
         },
         signers: Signer[],
         opts: PreparedTransactionOptions,
@@ -1143,10 +1143,13 @@ export class MatchingEngineProgram {
         accounts: {
             participant: PublicKey;
             auction: PublicKey;
-            auctionConfig?: PublicKey;
-            bestOfferToken?: PublicKey;
+            auctionConfig: PublicKey;
+            bestOfferToken: PublicKey;
         },
-        offerPrice: Uint64,
+        args: {
+            offerPrice: Uint64;
+            totalDeposit: Uint64;
+        },
         signers: Signer[],
         opts: PreparedTransactionOptions,
         confirmOptions?: ConfirmOptions,
@@ -1160,7 +1163,7 @@ export class MatchingEngineProgram {
                 auctionConfig,
                 bestOfferToken,
             },
-            offerPrice,
+            args,
         );
 
         return {
@@ -1182,23 +1185,28 @@ export class MatchingEngineProgram {
             auctionConfig?: PublicKey;
             bestOfferToken?: PublicKey;
         },
-        offerPrice: Uint64,
+        args: { offerPrice: Uint64; totalDeposit?: Uint64 },
     ): Promise<[approveIx: TransactionInstruction, improveOfferIx: TransactionInstruction]> {
         const { participant, auction, auctionConfig, bestOfferToken } = accounts;
+        const { offerPrice } = args;
 
-        // TODO: add cached args above
-        const { info: auctionInfo } = await this.fetchAuction({ address: auction });
-        if (auctionInfo === null) {
-            throw new Error("no auction info found");
+        let { totalDeposit } = args;
+
+        let auctionInfo: AuctionInfo | undefined;
+        if (totalDeposit === undefined) {
+            const { info } = await this.fetchAuction({ address: auction });
+            if (info === null) {
+                throw new Error("no auction info found");
+            }
+            auctionInfo = info;
+            totalDeposit = BigInt(auctionInfo.amountIn.add(auctionInfo.securityDeposit).toString());
         }
 
         const { transferAuthority, ix: approveIx } = await this.approveTransferAuthorityIx(
             { auction, owner: participant },
             {
-                totalDeposit: BigInt(
-                    auctionInfo.amountIn.add(auctionInfo.securityDeposit).toString(),
-                ),
                 offerPrice,
+                totalDeposit,
             },
         );
 
