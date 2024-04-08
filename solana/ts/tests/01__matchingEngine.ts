@@ -1352,16 +1352,26 @@ describe("Matching Engine", function () {
             it("Place Initial Offer (Tx)", async function () {
                 const { fast } = await observeCctpOrderVaas({ sourceChain: "ethereum" });
 
+                const auction = engine.auctionAddress(fast.vaaAccount.digest());
+                const { auctionConfigId } = await engine.fetchCustodian();
+
+                const { vaa: fastVaa, fastMarketOrder } = fast;
+                const notionalDeposit = await engine.computeNotionalSecurityDeposit(
+                    fastMarketOrder.amountIn,
+                    auctionConfigId,
+                );
+
+                const totalDeposit =
+                    fastMarketOrder.amountIn + fastMarketOrder.maxFee + notionalDeposit;
                 const txn = await engine.placeInitialOfferTx(
                     {
                         payer: playerOne.publicKey,
-                        fastVaa: fast.vaa,
+                        fastVaa,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
-                        toRouterEndpoint: engine.routerEndpointAddress(
-                            fast.fastMarketOrder.targetChain,
-                        ),
+                        toRouterEndpoint: engine.routerEndpointAddress(fastMarketOrder.targetChain),
+                        auction,
                     },
-                    { offerPrice: fast.fastMarketOrder.maxFee },
+                    { offerPrice: fast.fastMarketOrder.maxFee, totalDeposit },
                     [playerOne],
                     { feeMicroLamports: 10, computeUnits: 200000 },
                     { commitment: "confirmed" },
@@ -1766,7 +1776,7 @@ describe("Matching Engine", function () {
                             auction,
                             participant: playerTwo.publicKey,
                         },
-                        newOffer,
+                        { offerPrice: newOffer },
                     );
 
                     await expectIxOk(connection, [approveIx, ix], [playerTwo]);
@@ -1806,10 +1816,19 @@ describe("Matching Engine", function () {
 
                 const txn = await engine.improveOfferTx(
                     {
-                        auction,
                         participant: playerTwo.publicKey,
+                        auction,
+                        auctionConfig: engine.auctionConfigAddress(
+                            auctionDataBefore.info!.configId,
+                        ),
+                        bestOfferToken: auctionDataBefore.info!.bestOfferToken,
                     },
-                    newOffer,
+                    {
+                        offerPrice: newOffer,
+                        totalDeposit: auctionDataBefore.info!.amountIn.add(
+                            auctionDataBefore.info!.securityDeposit,
+                        ),
+                    },
                     [playerTwo],
                     { feeMicroLamports: 10, computeUnits: 200000 },
                     { commitment: "confirmed" },
@@ -1850,7 +1869,7 @@ describe("Matching Engine", function () {
                         auction,
                         participant: playerTwo.publicKey,
                     },
-                    newOffer,
+                    { offerPrice: newOffer },
                 );
 
                 await expectIxOk(connection, [approveIx, ix], [playerTwo]);
@@ -1890,7 +1909,7 @@ describe("Matching Engine", function () {
                         auction,
                         participant: playerOne.publicKey,
                     },
-                    newOffer,
+                    { offerPrice: newOffer },
                 );
 
                 await expectIxOk(connection, [approveIx, ix], [playerOne]);
@@ -1929,7 +1948,7 @@ describe("Matching Engine", function () {
                         auction,
                         participant: playerOne.publicKey,
                     },
-                    newOffer,
+                    { offerPrice: newOffer },
                 );
 
                 await expectIxErr(
@@ -1962,7 +1981,7 @@ describe("Matching Engine", function () {
                         participant: playerOne.publicKey,
                         bestOfferToken: engine.cctpMintRecipientAddress(),
                     },
-                    newOffer,
+                    { offerPrice: newOffer },
                 );
                 await expectIxErr(
                     connection,
@@ -1992,7 +2011,7 @@ describe("Matching Engine", function () {
                         auction,
                         participant: playerTwo.publicKey,
                     },
-                    newOffer,
+                    { offerPrice: newOffer },
                 );
 
                 await expectIxErr(
@@ -2248,7 +2267,7 @@ describe("Matching Engine", function () {
                         participant: playerOne.publicKey,
                         auction,
                     },
-                    baseFastOrder.maxFee,
+                    { offerPrice: baseFastOrder.maxFee },
                 );
 
                 await expectIxErr(
@@ -3961,7 +3980,7 @@ describe("Matching Engine", function () {
                 auction,
                 participant: participant.publicKey,
             },
-            newOffer,
+            { offerPrice: newOffer },
         );
 
         // Improve the bid with offer one.
