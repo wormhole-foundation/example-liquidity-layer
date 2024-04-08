@@ -35,6 +35,8 @@ pub fn propose_auction_parameters(
     crate::utils::auction::require_valid_parameters(&parameters)?;
 
     let id = ctx.accounts.admin.custodian.auction_config_id + 1;
+    let action = ProposalAction::UpdateAuctionParameters { id, parameters };
+
     super::propose(
         super::Propose {
             custodian: &ctx.accounts.admin.custodian,
@@ -42,7 +44,13 @@ pub fn propose_auction_parameters(
             by: &ctx.accounts.admin.owner_or_assistant,
             epoch_schedule: &ctx.accounts.epoch_schedule,
         },
-        ProposalAction::UpdateAuctionParameters { id, parameters },
+        action,
         ctx.bumps.proposal,
-    )
+    )?;
+
+    // Emit event reflecting the proposal.
+    emit!(crate::events::Proposed { action });
+
+    // Done.
+    Ok(())
 }

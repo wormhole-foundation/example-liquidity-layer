@@ -65,8 +65,12 @@ pub struct UpdateAuctionParameters<'info> {
 }
 
 pub fn update_auction_parameters(ctx: Context<UpdateAuctionParameters>) -> Result<()> {
-    if let ProposalAction::UpdateAuctionParameters { id, parameters } = ctx.accounts.proposal.action
-    {
+    let action = ctx.accounts.proposal.action;
+
+    // Emit event to reflect enacting the proposal.
+    emit!(crate::events::Enacted { action });
+
+    if let ProposalAction::UpdateAuctionParameters { id, parameters } = action {
         ctx.accounts
             .auction_config
             .set_inner(AuctionConfig { id, parameters });

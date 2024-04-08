@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 
 use crate::AuctionParameters;
 
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq, Eq)]
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq, Eq, Copy)]
 pub enum ProposalAction {
     None,
     UpdateAuctionParameters {
