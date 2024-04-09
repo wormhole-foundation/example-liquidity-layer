@@ -23,10 +23,10 @@ export class OfferToken {
         authority: Keypair,
         logger: winston.Logger,
     ) {
-        const out = new OfferToken(matchingEngine, authority);
-        await out.fetchBalance(matchingEngine.program.provider.connection, logger);
+        const that = new OfferToken(matchingEngine, authority);
+        await that.fetchBalance(matchingEngine.program.provider.connection, logger);
 
-        return out;
+        return that;
     }
 
     get authority() {

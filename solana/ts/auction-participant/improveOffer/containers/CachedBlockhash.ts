@@ -9,10 +9,10 @@ export class CachedBlockhash {
         this._noise = 0;
     }
 
-    static async initialize(connection: Connection, logger: winston.Logger) {
+    static async initialize(connection: Connection) {
         const out = new CachedBlockhash();
         await connection.getLatestBlockhash("finalized").then((blockhash) => {
-            out.update(blockhash, logger);
+            out.update(blockhash);
         });
 
         return out;
@@ -22,8 +22,12 @@ export class CachedBlockhash {
         return this._cached;
     }
 
-    update(fetched: BlockhashWithExpiryBlockHeight, logger: winston.Logger, slot?: number) {
-        if (slot) {
+    update(
+        fetched: BlockhashWithExpiryBlockHeight,
+        opts: { logger?: winston.Logger; slot?: number } = {},
+    ) {
+        const { logger, slot } = opts;
+        if (slot && logger !== undefined) {
             logger.debug(`Updated blockhash: ${fetched.blockhash} (slot ${slot})`);
         }
         this._cached = fetched;

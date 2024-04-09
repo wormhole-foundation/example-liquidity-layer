@@ -31,9 +31,6 @@ export async function onAuctionUpdateCallback(
         logger.info(`Recognized token account: ${ours.toString()}`);
     }
 
-    logger.info("Fetching active auction config");
-    const { auctionConfigId } = await matchingEngine.fetchCustodian();
-    logger.info(`Auction config ID: ${auctionConfigId.toString()}`);
     //const { parameters } = await matchingEngine.fetchAuctionConfig(auctionConfigId);
 
     // TODO: add to config
@@ -46,6 +43,7 @@ export async function onAuctionUpdateCallback(
     return async function (event: AuctionUpdated, slot: number, signature: string) {
         // Do we want to play?
         const {
+            configId,
             auction,
             vaa,
             bestOfferToken,
@@ -57,13 +55,13 @@ export async function onAuctionUpdateCallback(
         } = event;
 
         if (vaa === null) {
-            logger.debug("Improve offer");
+            logger.debug(`Improve offer: auction=${auction.toString()}`);
         } else {
-            logger.debug("Place initial offer");
+            logger.debug(`Place initial offer: auction=${auction.toString()}`);
         }
 
         if (ourTokenAccounts.find((ours) => ours.equals(bestOfferToken)) !== undefined) {
-            const tokenBalanceAfter = tokenBalanceBefore.add(totalDeposit);
+            const tokenBalanceAfter = tokenBalanceBefore.sub(totalDeposit);
 
             if (bestOfferToken.equals(offerToken.address)) {
                 offerToken.updateBalance(tokenBalanceAfter, logger, signature);
@@ -89,8 +87,8 @@ export async function onAuctionUpdateCallback(
             {
                 participant: offerToken.authority.publicKey,
                 auction,
-                auctionConfig: matchingEngine.auctionConfigAddress(auctionConfigId),
-                bestOfferToken: offerToken.address,
+                auctionConfig: matchingEngine.auctionConfigAddress(configId),
+                bestOfferToken,
             },
             { offerPrice, totalDeposit },
             [offerToken.authority],

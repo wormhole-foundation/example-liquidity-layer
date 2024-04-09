@@ -15,6 +15,9 @@ async function main(argv: string[]) {
     const cfgJson = JSON.parse(fs.readFileSync(argv[2], "utf-8"));
     const cfg = new utils.AppConfig(cfgJson);
 
+    const rpcLogger = utils.defaultLogger({ label: "auction", level: "warn" });
+    rpcLogger.info("Start logging auction participation.");
+
     const auctionLogger = utils.defaultLogger({ label: "auction", level: "debug" });
     auctionLogger.info("Start logging auction participation.");
 
@@ -22,7 +25,7 @@ async function main(argv: string[]) {
     orderLogger.info("Start logging order execution.");
 
     const connection = cfg.solanaConnection(
-        true, // debug
+        false, // debug
     );
     const matchingEngine = new MatchingEngineProgram(
         connection,
@@ -33,15 +36,12 @@ async function main(argv: string[]) {
     if (process.env.SOLANA_PRIVATE_KEY === undefined) {
         throw new Error("SOLANA_PRIVATE_KEY is undefined");
     }
-    const offerAuthority = Keypair.fromSecretKey(
+    const participant = Keypair.fromSecretKey(
         Buffer.from(process.env.SOLANA_PRIVATE_KEY, "base64"),
     );
 
-    const cachedBlockhash = await CachedBlockhash.initialize(connection, auctionLogger);
-    const offerToken = await OfferToken.initialize(matchingEngine, offerAuthority, auctionLogger);
-
-    // We update token balances whenever we settle our own auctions.
-    matchingEngine.onAuctionSettled(onAuctionSettledCallback(offerToken, auctionLogger));
+    const cachedBlockhash = await CachedBlockhash.initialize(connection);
+    const offerToken = await OfferToken.initialize(matchingEngine, participant, auctionLogger);
 
     // We play here.
     matchingEngine.onAuctionUpdated(
@@ -63,7 +63,9 @@ async function main(argv: string[]) {
             // No need to block. We'll just update the latest blockhash and use it when needed.
             connection
                 .getLatestBlockhash("finalized")
-                .then((blockhash) => cachedBlockhash.update(blockhash, auctionLogger, slot));
+                .then((blockhash) =>
+                    cachedBlockhash.update(blockhash, { logger: rpcLogger, slot }),
+                );
         }
 
         // for (let i = 0; i < 20; ++i) {
