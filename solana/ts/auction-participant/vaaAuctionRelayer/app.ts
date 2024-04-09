@@ -32,9 +32,9 @@ async function main(argv: string[]) {
     const logicLogger = utils.defaultLogger({ label: "logic", level: cfg.logicLogLevel() });
     logicLogger.debug("Start logging logic");
 
-    const preparedTransactionQueue: PreparedTransaction[] = [];
+    const transactionBatchQueue: PreparedTransaction[][] = [];
 
-    spawnTransactionProcessor(connection, preparedTransactionQueue, logicLogger);
+    spawnTransactionProcessor(connection, transactionBatchQueue, logicLogger);
 
     // TODO: Config all of these params.
     // Connect to spy.
@@ -63,6 +63,8 @@ async function main(argv: string[]) {
             );
         }
 
+        let txnBatch: PreparedTransaction[] = [];
+
         if (cfg.isFastFinality(parsed)) {
             // Start a new auction if this is a fast VAA.
             logicLogger.debug(`Attempting to parse FastMarketOrder, sequence=${parsed.sequence}`);
@@ -78,7 +80,7 @@ async function main(argv: string[]) {
                     payer,
                     logicLogger,
                 );
-                preparedTransactionQueue.push(...unprocessedTxns);
+                txnBatch.push(...unprocessedTxns);
             } else {
                 logicLogger.warn(`Failed to parse FastMarketOrder, sequence=${parsed.sequence}`);
                 return;
@@ -96,18 +98,21 @@ async function main(argv: string[]) {
                     raw,
                     payer,
                 );
-                preparedTransactionQueue.push(...unprocessedTxns);
+                txnBatch.push(...unprocessedTxns);
             } else {
                 logicLogger.warn(`Failed to parse SlowOrderResponse, sequence=${parsed.sequence}`);
                 return;
             }
         }
+
+        // Push transaction batch to queue.
+        transactionBatchQueue.push(txnBatch);
     });
 }
 
 async function spawnTransactionProcessor(
     connection: Connection,
-    preparedTransactionQueue: PreparedTransaction[],
+    preparedTransactionQueue: PreparedTransaction[][],
     logger: winston.Logger,
 ) {
     while (true) {
@@ -115,10 +120,11 @@ async function spawnTransactionProcessor(
             // Finally sleep so we don't spin so hard.
             await new Promise((resolve) => setTimeout(resolve, 100));
         } else {
-            logger.debug(`Found queued transactions (length=${preparedTransactionQueue.length})`);
-            const preparedTransaction = preparedTransactionQueue.shift()!;
+            logger.debug(`Found queued batches (length=${preparedTransactionQueue.length})`);
+            const preparedBatch = preparedTransactionQueue.shift()!;
 
-            await utils.sendTx(connection, preparedTransaction, logger);
+            // No await, just fire away.
+            utils.sendTxBatch(connection, preparedBatch, logger);
         }
     }
 }

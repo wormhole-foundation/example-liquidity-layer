@@ -15,8 +15,6 @@ import * as fs from "fs";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 
-export const TESTNET_GUARDIAN_RPC: string[] = ["https://api.testnet.wormholescan.io"];
-
 export function getArgs() {
     const argv = yargs.options({
         keyPair: {

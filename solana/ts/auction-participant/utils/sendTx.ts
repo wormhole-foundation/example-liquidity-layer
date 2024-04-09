@@ -32,6 +32,16 @@ export async function getNonceAccountData(
     };
 }
 
+export async function sendTxBatch(
+    connection: Connection,
+    preparedTransactions: PreparedTransaction[],
+    logger?: winston.Logger,
+): Promise<void> {
+    for (const preparedTransaction of preparedTransactions) {
+        await sendTx(connection, preparedTransaction, logger);
+    }
+}
+
 export async function sendTx(
     connection: Connection,
     preparedTransaction: PreparedTransaction,
@@ -120,11 +130,11 @@ export async function sendTx(
 
     if (logger !== undefined) {
         if (preparedTransaction.txName !== undefined) {
-            logger.debug(
+            logger.info(
                 `Transaction type: ${preparedTransaction.txName}, signature: ${txSignature}`,
             );
         } else {
-            logger.debug(`Transaction signature: ${txSignature}`);
+            logger.info(`Transaction signature: ${txSignature}`);
         }
     }
 
