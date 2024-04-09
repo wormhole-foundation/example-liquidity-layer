@@ -1,0 +1,23 @@
+secp256k1 unavailable, reverting to browser version
+2024-04-09 07:36:50.826 [logic] [34mdebug[39m: Start logging logic
+2024-04-09 07:38:28.688 [logic] [34mdebug[39m: Received VAA, chain=optimism_sepolia, sequence=302
+2024-04-09 07:40:06.973 [logic] [34mdebug[39m: Received VAA, chain=arbitrum_sepolia, sequence=669
+2024-04-09 07:40:06.973 [logic] [34mdebug[39m: Attempting to parse FastMarketOrder, sequence=669
+2024-04-09 07:40:07.653 [logic] [34mdebug[39m: Prepare verify signatures and post VAA, sequence=669
+2024-04-09 07:40:07.911 [logic] [34mdebug[39m: Prepare initialize auction, sequence=669
+2024-04-09 07:40:08.887 [logic] [34mdebug[39m: Found queued transactions (length=3)
+2024-04-09 07:40:08.899 [logic] [34mdebug[39m: Received VAA, chain=optimism_sepolia, sequence=307
+2024-04-09 07:40:08.900 [logic] [34mdebug[39m: Attempting to parse FastMarketOrder, sequence=307
+2024-04-09 07:40:09.411 [logic] [34mdebug[39m: Prepare verify signatures and post VAA, sequence=307
+2024-04-09 07:40:09.658 [logic] [34mdebug[39m: Prepare initialize auction, sequence=307
+2024-04-09 07:40:10.137 [logic] [34mdebug[39m: Transaction type: verifySignatures, signature: 4wkApy6EDDB89Lv8eJfAc1HA9sRuDRPV8s3Vi5CtNGGnGicgTzZ4UXLoWHW1b5AefuByUeRw2UjrcaDVb1GR8vom
+2024-04-09 07:40:10.137 [logic] [34mdebug[39m: Found queued transactions (length=5)
+2024-04-09 07:40:11.051 [logic] [34mdebug[39m: Transaction type: postVAA, signature: 31A9SuBibGN7B3ejUUnvJC54iJZKeDkxNyhxX86eMre3WchqPoM1WKgKmz3eWveN6zkfMCJiZRwLmdi1ATSXkuoF
+2024-04-09 07:40:11.052 [logic] [34mdebug[39m: Found queued transactions (length=4)
+2024-04-09 07:40:15.980 [logic] [34mdebug[39m: Transaction type: placeInitialOffer, signature: 4ePHyeTTMu6iKXcpwAFMF1pNkoYiPfhRjPTRFUJZS7HtGKDhu7XFDeGKFqQ2coWNZ9gNxJm7JDgqcQQmri9SphbA
+2024-04-09 07:40:15.981 [logic] [34mdebug[39m: Found queued transactions (length=3)
+2024-04-09 07:40:16.714 [logic] [34mdebug[39m: Transaction type: verifySignatures, signature: 2THZEDH7qr9zSSucDoM21iu8uMTrX2HkfbWGaWdqDPUJkGxm8Afpyf4TqAWykUDYZcbNJXD6inQ2UNZd6x4eXDYj
+2024-04-09 07:40:16.714 [logic] [34mdebug[39m: Found queued transactions (length=2)
+2024-04-09 07:40:19.495 [logic] [34mdebug[39m: Transaction type: postVAA, signature: 3Staoqk1WaPM29fdrQ2mJeiK6BoHyvfpfjeHw6g39NkMoL6e75hqSGaHmRnv41QSqwei9brhPrqHhBfuQ2ThJReY
+2024-04-09 07:40:19.496 [logic] [34mdebug[39m: Found queued transactions (length=1)
+2024-04-09 07:40:20.284 [logic] [34mdebug[39m: Transaction type: placeInitialOffer, signature: 2DQFKK6JWccoq949v29DXXHTPxdQRv8s6Xe7EYW9xkpVCL3mMKuv57RFfYzu85vCPY6nMZ9s1vJyWw8Pk21bvnGb

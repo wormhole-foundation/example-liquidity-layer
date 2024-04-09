@@ -1,5 +1,5 @@
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { tryHexToNativeString, ChainId } from "@certusone/wormhole-sdk";
+import * as wormholeSdk from "@certusone/wormhole-sdk";
 import "dotenv/config";
 import * as fs from "fs";
 import { MatchingEngineProgram } from "../../src/matchingEngine";
@@ -36,86 +36,73 @@ async function main(argv: string[]) {
 
     spawnTransactionProcessor(connection, preparedTransactionQueue, logicLogger);
 
+    // TODO: Config all of these params.
     // Connect to spy.
-
     const spy = new VaaSpy({
         spyHost: "localhost:7073",
-        vaaFilters: [
-            {
-                chain: "pythnet",
-                nativeAddress: "G9LV2mp9ua1znRAfYwZz5cPiJMAbo1T6mbjdQsDZuMJg",
-            },
-        ],
+        vaaFilters: cfg.emitterFilterForSpy(),
         enableCleanup: true,
-        seenThresholdMs: 5_000,
-        intervalMs: 250,
+        seenThresholdMs: 300_000,
+        intervalMs: 500,
         maxToRemove: 5,
     });
+    const DELAYED_VAA_THRESHOLD = 60; // Seconds.
 
-    spy.onObservation(({ raw, parsed, chain, nativeAddress }) => {
-        console.log(
-            "observed",
-            parsed.emitterChain,
-            chain,
-            nativeAddress,
-            tryHexToNativeString(
-                parsed.emitterAddress.toString("hex"),
-                parsed.emitterChain as ChainId,
-            ),
-            parsed.sequence,
-        );
+    spy.onObservation(async ({ raw, parsed, chain }) => {
+        // Since were using the vaa timestamp, there is potentially some clock drift. However,
+        // we don't want to accept VAA's that are too far in the past.
+        const currTime = Math.floor(Date.now() / 1000);
+        if (currTime - parsed.timestamp > DELAYED_VAA_THRESHOLD) {
+            logicLogger.info(
+                `Ignoring stale VAA, chain=${chain}, sequence=${parsed.sequence}, unixTime=${currTime}, vaaTime=${parsed.timestamp}`,
+            );
+            return;
+        } else {
+            logicLogger.debug(
+                `Received valid VAA, chain=${chain}, sequence=${parsed.sequence}, unixTime=${currTime}, vaaTime=${parsed.timestamp}`,
+            );
+        }
+
+        if (cfg.isFastFinality(parsed)) {
+            // Start a new auction if this is a fast VAA.
+            logicLogger.debug(`Attempting to parse FastMarketOrder, sequence=${parsed.sequence}`);
+            const fastOrder = utils.tryParseFastMarketOrder(parsed.payload);
+            if (fastOrder !== undefined) {
+                const unprocessedTxns = await utils.handlePlaceInitialOffer(
+                    connection,
+                    cfg,
+                    matchingEngine,
+                    parsed,
+                    raw,
+                    fastOrder,
+                    payer,
+                    logicLogger,
+                );
+                preparedTransactionQueue.push(...unprocessedTxns);
+            } else {
+                logicLogger.warn(`Failed to parse FastMarketOrder, sequence=${parsed.sequence}`);
+                return;
+            }
+        } else {
+            logicLogger.debug(`Attempting to parse SlowOrderResponse, sequence=${parsed.sequence}`);
+            const slowOrderResponse = utils.tryParseSlowOrderResponse(parsed.payload);
+            if (slowOrderResponse !== undefined) {
+                const unprocessedTxns = await utils.handleSettleAuction(
+                    connection,
+                    cfg,
+                    matchingEngine,
+                    logicLogger,
+                    parsed,
+                    raw,
+                    payer,
+                );
+                preparedTransactionQueue.push(...unprocessedTxns);
+            } else {
+                logicLogger.warn(`Failed to parse SlowOrderResponse, sequence=${parsed.sequence}`);
+                return;
+            }
+        }
     });
-
-    // These chain ID checks are safe because we know the VAAs come from
-    // chain names in the config, which are checked against ChainName.
-    //const { chain } = cfg.unsafeChainCfg(signedVaa.emitterChain);
-
-    // // Start a new auction if this is a fast VAA.
-    // if (cfg.isFastFinality(signedVaa)) {
-    //     logicLogger.debug(
-    //         `Attempting to parse FastMarketOrder, sequence=${signedVaa.sequence}`,
-    //     );
-    //     const fastOrder = utils.tryParseFastMarketOrder(signedVaa);
-
-    //     if (fastOrder !== undefined) {
-    //         const unprocessedTxns = await utils.handlePlaceInitialOffer(
-    //             connection,
-    //             cfg,
-    //             matchingEngine,
-    //             signedVaa,
-    //             fastOrder,
-    //             payer,
-    //             logicLogger,
-    //         );
-    //         preparedTransactionQueue.push(...unprocessedTxns);
-    //     } else {
-    //         logicLogger.warn(`Failed to parse FastMarketOrder, sequence=${signedVaa.sequence}`);
-    //         return;
-    //     }
-    // } else {
-    // logicLogger.debug(
-    //     `Attempting to parse SlowOrderResponse, sequence=${signedVaa.sequence}`,
-    // );
-    // const slowOrderResponse = utils.tryParseSlowOrderResponse(signedVaa);
-    // if (slowOrderResponse !== undefined) {
-    //     const unprocessedTxns = await utils.handleSettleAuction(
-    //         connection,
-    //         cfg,
-    //         matchingEngine,
-    //         app,
-    //         ctx,
-    //         logicLogger,
-    //         signedVaa,
-    //         payer,
-    //     );
-    //     preparedTransactionQueue.push(...unprocessedTxns);
-    // } else {
-    //     logicLogger.warn(
-    //         `Failed to parse SlowOrderResponse, sequence=${signedVaa.sequence}`,
-    //     );
-    //     return;
-    // }
-    // }
 }
 
 async function spawnTransactionProcessor(
@@ -126,7 +113,7 @@ async function spawnTransactionProcessor(
     while (true) {
         if (preparedTransactionQueue.length == 0) {
             // Finally sleep so we don't spin so hard.
-            await new Promise((resolve) => setTimeout(resolve, 1_000));
+            await new Promise((resolve) => setTimeout(resolve, 100));
         } else {
             logger.debug(`Found queued transactions (length=${preparedTransactionQueue.length})`);
             const preparedTransaction = preparedTransactionQueue.shift()!;

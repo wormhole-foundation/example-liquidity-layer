@@ -1,6 +1,5 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
-import { IWormhole__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 import { Commitment, Connection, FetchFn, PublicKey, PublicKeyInitData } from "@solana/web3.js";
 import { ethers } from "ethers";
 import { USDC_MINT_ADDRESS } from "../../tests/helpers";
@@ -10,6 +9,8 @@ export const EVM_FAST_CONSISTENCY_LEVEL = 200;
 
 export const CCTP_ATTESTATION_ENDPOINT_TESTNET = "https://iris-api-sandbox.circle.com";
 export const CCTP_ATTESTATION_ENDPOINT_MAINNET = "https://iris-api.circle.com";
+export const WORMHOLESCAN_VAA_ENDPOINT_TESTNET = "https://api.testnet.wormholescan.io/api/v1/vaas/";
+export const WORMHOLESCAN_VAA_ENDPOINT_MAINNET = "https://api.wormholescan.io/api/v1/vaas/";
 
 enum Environment {
     MAINNET = "mainnet",
@@ -47,7 +48,7 @@ export type ComputeUnitsConfig = {
     postVaa: number;
     settleAuctionNoneCctp: number;
     settleAuctionNoneLocal: number;
-    settleAuctionActive: number;
+    settleAuctionComplete: number;
     initiateAuction: number;
 };
 
@@ -77,9 +78,6 @@ export enum ChainType {
     Solana,
 }
 
-interface StartingSequences {
-    [key: number | wormholeSdk.ChainId]: number;
-}
 export class AppConfig {
     private _cfg: EnvironmentConfig;
 
@@ -172,12 +170,12 @@ export class AppConfig {
         return this._cfg.computeUnits.settleAuctionNoneLocal;
     }
 
-    initiateAuctionComputeUnits(): number {
-        return this._cfg.computeUnits.initiateAuction;
+    settleAuctionCompleteComputeUnits(): number {
+        return this._cfg.computeUnits.settleAuctionComplete;
     }
 
-    settleAuctionActiveComputeUnits(): number {
-        return this._cfg.computeUnits.settleAuctionActive;
+    initiateAuctionComputeUnits(): number {
+        return this._cfg.computeUnits.initiateAuction;
     }
 
     knownAtaOwners(): PublicKey[] {
@@ -210,57 +208,31 @@ export class AppConfig {
         };
     }
 
-    async fetchStartingSequenceEvm(chainId: wormholeSdk.ChainId): Promise<number> {
-        const chainCfg = this._chainCfgs[chainId];
-
-        if (chainCfg === undefined) {
-            throw new Error(`chain ${chainId} is not configured`);
-        }
-
-        const provider = new ethers.providers.JsonRpcProvider(chainCfg.rpc);
-        const wormhole = IWormhole__factory.connect(
-            this._wormholeAddresses[chainCfg.chain].core!,
-            provider,
-        );
-        const sequence = await wormhole.nextSequence(chainCfg.endpoint);
-        return sequence.toNumber();
-    }
-
-    defaultMissedVaaOptions(): {
-        startingSequenceConfig: Partial<{ [k in wormholeSdk.ChainId]: bigint }>;
-        forceSeenKeysReindex: boolean;
-    } {
-        return {
-            startingSequenceConfig: this._cfg.endpointConfig.reduce(
-                (acc, cfg) => ({
-                    ...acc,
-                    [wormholeSdk.coalesceChainId(cfg.chain)]: 0n,
-                }),
-                {},
-            ),
-            forceSeenKeysReindex: false,
-        };
-    }
-
     cctpAttestationEndpoint(): string {
         return this._cfg.environment == Environment.MAINNET
             ? CCTP_ATTESTATION_ENDPOINT_MAINNET
             : CCTP_ATTESTATION_ENDPOINT_TESTNET;
     }
 
-    emitterFilter(): Partial<{ [k in wormholeSdk.ChainId]: string[] | string }> {
-        return this._cfg.endpointConfig.reduce(
-            (acc, cfg) => ({ ...acc, [wormholeSdk.coalesceChainId(cfg.chain)]: cfg.endpoint }),
-            {},
-        );
+    wormholeScanVaaEndpoint(): string {
+        return this._cfg.environment == Environment.MAINNET
+            ? WORMHOLESCAN_VAA_ENDPOINT_MAINNET
+            : WORMHOLESCAN_VAA_ENDPOINT_TESTNET;
     }
 
-    // isFastFinality(vaa: ParsedVaaWithBytes): boolean {
-    //     return (
-    //         vaa.consistencyLevel ==
-    //         this._chainCfgs[vaa.emitterChain as wormholeSdk.ChainId]?.fastConsistencyLevel
-    //     );
-    // }
+    emitterFilterForSpy(): { chain: wormholeSdk.ChainName; nativeAddress: string }[] {
+        return this._cfg.endpointConfig.map((cfg) => ({
+            chain: cfg.chain,
+            nativeAddress: cfg.endpoint,
+        }));
+    }
+
+    isFastFinality(vaa: wormholeSdk.ParsedVaa): boolean {
+        return (
+            vaa.consistencyLevel ==
+            this._chainCfgs[vaa.emitterChain as wormholeSdk.ChainId]?.fastConsistencyLevel
+        );
+    }
 }
 
 function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
@@ -340,7 +312,7 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
             key !== "postVaa" &&
             key !== "settleAuctionNoneCctp" &&
             key !== "settleAuctionNoneLocal" &&
-            key !== "settleAuctionActive" &&
+            key !== "settleAuctionComplete" &&
             key !== "initiateAuction" &&
             key !== "improveOffer"
         ) {
@@ -444,7 +416,7 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
             postVaa: cfg.computeUnits.postVaa,
             settleAuctionNoneCctp: cfg.computeUnits.settleAuctionNoneCctp,
             settleAuctionNoneLocal: cfg.computeUnits.settleAuctionNoneLocal,
-            settleAuctionActive: cfg.computeUnits.settleAuctionActive,
+            settleAuctionComplete: cfg.computeUnits.settleAuctionComplete,
             initiateAuction: cfg.computeUnits.initiateAuction,
         },
         pricing: cfg.pricing,

@@ -52,7 +52,6 @@ function findWormholeMessageIndex(
         if (log.address != coreBridgeAddress) {
             continue;
         }
-
         const { sequence } = WORMHOLE_MESSAGE.parseLog(log).args;
         if (sequence.toString() == vaa.sequence.toString()) {
             return i;
@@ -80,7 +79,7 @@ async function fetchCctpAttestation(
         attestationResponse.status != "complete" ||
         attestationResponse.attestation == undefined
     ) {
-        logger.debug(`Iteration ${j}`);
+        logger.debug(`Attempting to fetch attestation, iteration=${j}`);
 
         const response = await fetch(attestationRequest);
         attestationResponse = await response.json();

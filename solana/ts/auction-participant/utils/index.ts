@@ -1,7 +1,8 @@
 export * from "./config";
 export * as evm from "./evm";
 export * from "./logger";
-//export * from "./sourceTxHash";
+export * from "./wormscan";
+export * from "./settleAuction";
 export * from "./sendTx";
 export * from "./preparePostVaaTx";
 export * from "./placeInitialOffer";
@@ -28,34 +29,28 @@ export async function isBalanceSufficient(
     return (await getUsdcAtaBalance(connection, owner)) >= amount;
 }
 
-// export function tryParseFastMarketOrder(
-//     signedVaa: ParsedVaaWithBytes,
-// ): FastMarketOrder | undefined {
-//     const { payload } = signedVaa;
-//     try {
-//         let { fastMarketOrder } = LiquidityLayerMessage.decode(payload);
-//         if (fastMarketOrder === undefined) {
-//             return undefined;
-//         } else {
-//             return fastMarketOrder;
-//         }
-//     } catch (err: any) {
-//         return undefined;
-//     }
-// }
+export function tryParseFastMarketOrder(payload: Buffer): FastMarketOrder | undefined {
+    try {
+        let { fastMarketOrder } = LiquidityLayerMessage.decode(payload);
+        if (fastMarketOrder === undefined) {
+            return undefined;
+        } else {
+            return fastMarketOrder;
+        }
+    } catch (err: any) {
+        return undefined;
+    }
+}
 
-// export function tryParseSlowOrderResponse(
-//     signedVaa: ParsedVaaWithBytes,
-// ): SlowOrderResponse | undefined {
-//     const { payload } = signedVaa;
-//     try {
-//         const { deposit } = LiquidityLayerMessage.decode(payload);
-//         if (deposit === undefined || deposit.message.slowOrderResponse === undefined) {
-//             return undefined;
-//         } else {
-//             return deposit.message.slowOrderResponse;
-//         }
-//     } catch (err: any) {
-//         return undefined;
-//     }
-// }
+export function tryParseSlowOrderResponse(payload: Buffer): SlowOrderResponse | undefined {
+    try {
+        const { deposit } = LiquidityLayerMessage.decode(payload);
+        if (deposit === undefined || deposit.message.slowOrderResponse === undefined) {
+            return undefined;
+        } else {
+            return deposit.message.slowOrderResponse;
+        }
+    } catch (err: any) {
+        return undefined;
+    }
+}
