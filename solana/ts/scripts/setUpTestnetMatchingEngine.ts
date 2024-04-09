@@ -9,8 +9,11 @@ import {
 } from "@solana/web3.js";
 import "dotenv/config";
 import { AuctionParameters, MatchingEngineProgram } from "../src/matchingEngine";
+import { uint64ToBN } from "../src/common";
+import { TokenRouterProgram } from "../src/tokenRouter";
 
-const PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
+const MATCHING_ENGINE_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
+const TOKEN_ROUTER_ID = "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md";
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 
 const AUCTION_PARAMS: AuctionParameters = {
@@ -19,7 +22,9 @@ const AUCTION_PARAMS: AuctionParameters = {
     duration: 5, // slots
     gracePeriod: 10, // slots
     penaltyPeriod: 20, // slots
-    minOfferDelta: 50000, // 5%
+    minOfferDeltaBps: 50000, // 5%
+    securityDepositBase: uint64ToBN(1000000n), // 1 USDC
+    securityDepositBps: 5000, // 0.5%
 };
 
 // Here we go.
@@ -29,7 +34,8 @@ main();
 
 async function main() {
     const connection = new Connection("https://api.devnet.solana.com", "confirmed");
-    const matchingEngine = new MatchingEngineProgram(connection, PROGRAM_ID, USDC_MINT);
+    const matchingEngine = new MatchingEngineProgram(connection, MATCHING_ENGINE_ID, USDC_MINT);
+    const tokenRouter = new TokenRouterProgram(connection, TOKEN_ROUTER_ID, USDC_MINT);
 
     if (process.env.SOLANA_PRIVATE_KEY === undefined) {
         throw new Error("SOLANA_PRIVATE_KEY is undefined");
@@ -42,6 +48,10 @@ async function main() {
     // Add endpoints.
     //
     // CCTP Domains listed here: https://developers.circle.com/stablecoins/docs/supported-domains.
+    {
+        // https://explorer.solana.com/address/tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md?cluster=devnet
+        await addLocalRouterEndpoint(matchingEngine, payer, tokenRouter);
+    }
     {
         // https://sepolia.etherscan.io/address/0x603541d1Cf7178C407aA7369b67CB7e0274952e2
         const foreignChain = "sepolia";
@@ -235,4 +245,45 @@ async function addCctpRouterEndpoint(
         "mintRecipient",
         foreignMintRecipient,
     );
+}
+
+async function addLocalRouterEndpoint(
+    matchingEngine: MatchingEngineProgram,
+    payer: Keypair,
+    tokenRouter: TokenRouterProgram,
+) {
+    await matchingEngine.fetchCustodian().catch((_) => {
+        throw new Error("no custodian found");
+    });
+
+    const connection = matchingEngine.program.provider.connection;
+
+    const chain = coalesceChainId("solana");
+    const endpoint = matchingEngine.routerEndpointAddress(chain);
+    const exists = await connection.getAccountInfo(endpoint).then((acct) => acct != null);
+
+    const endpointAddress = Array.from(
+        tryNativeToUint8Array(tokenRouter.custodianAddress().toString(), chain),
+    );
+    const endpointMintRecipient = Array.from(
+        tryNativeToUint8Array(tokenRouter.cctpMintRecipientAddress().toString(), chain),
+    );
+
+    if (exists) {
+        const { address, mintRecipient } = await matchingEngine.fetchRouterEndpoint(chain);
+        if (
+            Buffer.from(address).equals(Buffer.from(endpointAddress)) &&
+            Buffer.from(mintRecipient).equals(Buffer.from(endpointMintRecipient ?? endpointAddress))
+        ) {
+            console.log("local endpoint already exists", endpoint.toString());
+            return;
+        }
+    }
+
+    const ix = await matchingEngine.addLocalRouterEndpointIx({
+        ownerOrAssistant: payer.publicKey,
+        tokenRouterProgram: tokenRouter.ID,
+    });
+    const txSig = await sendAndConfirmTransaction(connection, new Transaction().add(ix), [payer]);
+    console.log("added local endpoint", txSig, "router", tokenRouter.ID.toString());
 }
