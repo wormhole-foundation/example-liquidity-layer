@@ -19,7 +19,6 @@ async function fetchCctpArgs(
 ): Promise<{ encodedCctpMessage: Buffer; cctpAttestation: Buffer } | undefined> {
     const cctpArgs = await (async () => {
         if (wormholeSdk.isEVMChain(fromChain)) {
-            console.log(txHash);
             return utils.evm.unsafeFindAssociatedCctpMessageAndAttestation(
                 rpc,
                 cfg.cctpAttestationEndpoint(),

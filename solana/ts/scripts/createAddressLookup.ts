@@ -63,6 +63,8 @@ async function main() {
         }),
     );
 
+    const logicLogger = utils.defaultLogger({ label: "logic", level: "info" });
+
     const createTx: PreparedTransaction = {
         ixs: [createIx],
         signers,
@@ -72,7 +74,7 @@ async function main() {
         confirmOptions: { preflightCommitment: "finalized" },
     };
 
-    await utils.sendTx(connection, createTx);
+    await utils.sendTx(connection, createTx, logicLogger);
 
     const usdcCommonAccounts = await matchingEngine.commonAccounts();
 

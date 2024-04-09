@@ -113,7 +113,7 @@ export async function sendTx(
                 }
             } else {
                 if (logger !== undefined) {
-                    logger.warn(err.message);
+                    logger.warn("Txn failed with unknown error");
                 }
             }
         });
