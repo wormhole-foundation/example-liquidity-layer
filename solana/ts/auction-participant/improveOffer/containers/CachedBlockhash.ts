@@ -1,4 +1,4 @@
-import { BlockhashWithExpiryBlockHeight, Connection } from "@solana/web3.js";
+import { BlockhashWithExpiryBlockHeight, Commitment, Connection } from "@solana/web3.js";
 import * as winston from "winston";
 
 export class CachedBlockhash {
@@ -9,10 +9,27 @@ export class CachedBlockhash {
         this._noise = 0;
     }
 
-    static async initialize(connection: Connection) {
+    static async initialize(
+        connection: Connection,
+        updateBlockhashFrequency: number,
+        commitment: Commitment,
+        logger: winston.Logger,
+    ) {
         const out = new CachedBlockhash();
-        await connection.getLatestBlockhash("finalized").then((blockhash) => {
-            out.update(blockhash);
+        await connection.getLatestBlockhash(commitment).then((blockhash) => {
+            out.update(blockhash, { logger });
+        });
+
+        connection.onSlotChange(async (info) => {
+            const { slot } = info;
+
+            // Update the latest blockhash every `updateBlockhashFrequency` slots.
+            if (slot % updateBlockhashFrequency == 0) {
+                // No need to block. We'll just update the latest blockhash and use it when needed.
+                connection
+                    .getLatestBlockhash(commitment)
+                    .then((blockhash) => out.update(blockhash, { logger, slot }));
+            }
         });
 
         return out;
@@ -27,8 +44,12 @@ export class CachedBlockhash {
         opts: { logger?: winston.Logger; slot?: number } = {},
     ) {
         const { logger, slot } = opts;
-        if (slot && logger !== undefined) {
-            logger.debug(`Updated blockhash: ${fetched.blockhash} (slot ${slot})`);
+        if (logger) {
+            if (slot) {
+                logger.debug(`Update blockhash: ${fetched.blockhash}, slot: ${slot}`);
+            } else {
+                logger.debug(`Update blockhash: ${fetched.blockhash}`);
+            }
         }
         this._cached = fetched;
         this._noise = 0;

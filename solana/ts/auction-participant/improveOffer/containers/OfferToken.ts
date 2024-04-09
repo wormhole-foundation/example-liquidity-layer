@@ -41,13 +41,14 @@ export class OfferToken {
         return this._balance;
     }
 
-    updateBalance(tokenBalance: BN, logger: winston.Logger, signature?: string) {
-        if (signature) {
-            logger.debug(
-                `Updating our token balance to ${tokenBalance.toString()} from tx ${signature}.`,
-            );
-        } else {
-            logger.debug(`Updating our token balance to ${tokenBalance.toString()}.`);
+    updateBalance(tokenBalance: BN, opts: { logger?: winston.Logger; signature?: string }) {
+        const { logger, signature } = opts;
+        if (logger) {
+            if (signature) {
+                logger.debug(`Update token balance: ${tokenBalance.toString()}, tx: ${signature}`);
+            } else {
+                logger.debug(`Update token balance: ${tokenBalance.toString()}`);
+            }
         }
         this._balance = tokenBalance;
     }
@@ -55,7 +56,7 @@ export class OfferToken {
     async fetchBalance(connection: Connection, logger: winston.Logger) {
         await splToken.getAccount(connection, this._address).then((token) => {
             this._balance = new BN(token.amount.toString());
-            logger.debug(`Fetched token balance: ${this._balance.toString()}`);
+            logger.debug(`Set token balance: ${this._balance.toString()}`);
         });
     }
 }
