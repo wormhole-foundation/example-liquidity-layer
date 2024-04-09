@@ -108,6 +108,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
             config_id: info.config_id,
             auction: auction.key(),
             vaa: Default::default(),
+            source_chain: info.source_chain,
             target_protocol: auction.target_protocol,
             end_slot: info.auction_end_slot(config),
             best_offer_token: offer_token.key(),

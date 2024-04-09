@@ -3087,6 +3087,11 @@ export type MatchingEngine = {
           "index": false
         },
         {
+          "name": "sourceChain",
+          "type": "u16",
+          "index": false
+        },
+        {
           "name": "targetProtocol",
           "type": {
             "defined": "MessageProtocol"
@@ -6470,6 +6475,11 @@ export const IDL: MatchingEngine = {
           "type": {
             "option": "publicKey"
           },
+          "index": false
+        },
+        {
+          "name": "sourceChain",
+          "type": "u16",
           "index": false
         },
         {

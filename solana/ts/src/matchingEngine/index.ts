@@ -141,6 +141,7 @@ export type AuctionUpdated = {
     configId: number;
     auction: PublicKey;
     vaa: PublicKey | null;
+    sourceChain: number;
     targetProtocol: MessageProtocol;
     endSlot: BN;
     bestOfferToken: PublicKey;

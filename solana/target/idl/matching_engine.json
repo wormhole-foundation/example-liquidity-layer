@@ -3087,6 +3087,11 @@
           "index": false
         },
         {
+          "name": "sourceChain",
+          "type": "u16",
+          "index": false
+        },
+        {
           "name": "targetProtocol",
           "type": {
             "defined": "MessageProtocol"
