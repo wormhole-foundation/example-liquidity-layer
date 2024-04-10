@@ -19,8 +19,7 @@ import {
 } from "./helpers/mock/MockMatchingEngineImplementation.sol";
 
 import "src/MatchingEngine/assets/Errors.sol";
-import {MatchingEngineImplementation} from "src/MatchingEngine/MatchingEngineImplementation.sol";
-import {MatchingEngineSetup} from "src/MatchingEngine/MatchingEngineSetup.sol";
+import {MatchingEngine} from "src/MatchingEngine/MatchingEngine.sol";
 
 import "src/interfaces/ITokenRouterTypes.sol";
 import {Messages} from "src/shared/Messages.sol";
@@ -36,8 +35,7 @@ import {
 
 import {FastTransferParameters} from "src/interfaces/ITokenRouterTypes.sol";
 import {ITokenRouter} from "src/interfaces/ITokenRouter.sol";
-import {TokenRouterImplementation} from "src/TokenRouter/TokenRouterImplementation.sol";
-import {TokenRouterSetup} from "src/TokenRouter/TokenRouterSetup.sol";
+import {TokenRouter} from "src/TokenRouter/TokenRouter.sol";
 import {RedeemedFill} from "src/interfaces/IRedeemFill.sol";
 
 import {WormholeCctpMessages} from "src/shared/WormholeCctpMessages.sol";
@@ -110,7 +108,7 @@ contract MatchingEngineTest is Test {
         returns (IMatchingEngine)
     {
         // Deploy Implementation.
-        MatchingEngineImplementation implementation = new MatchingEngineImplementation(
+        MatchingEngine implementation = new MatchingEngine(
             _token,
             _wormhole,
             _tokenMessenger,
@@ -121,13 +119,12 @@ contract MatchingEngineTest is Test {
             AUCTION_PENALTY_BLOCKS
         );
 
-        // Deploy Setup.
-        MatchingEngineSetup setup = new MatchingEngineSetup();
+        MatchingEngine proxy =
+            MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
-        address proxy =
-            setup.deployProxy(address(implementation), makeAddr("ownerAssistant"), FEE_RECIPIENT);
+        proxy.initialize();
 
-        return IMatchingEngine(proxy);
+        return IMatchingEngine(address(proxy));
     }
 
     function setUp() public {
@@ -145,6 +142,10 @@ contract MatchingEngineTest is Test {
             ETH_CHAIN, RouterEndpoint({router: ETH_ROUTER, mintRecipient: ETH_ROUTER}), ETH_DOMAIN
         );
 
+        // Change default state.
+        engine.updateOwnerAssistant(makeAddr("ownerAssistant"));
+        engine.updateFeeRecipient(FEE_RECIPIENT);
+
         vm.stopPrank();
 
         wormholeSimulator = new SigningWormholeSimulator(wormhole, TESTING_SIGNER);
@@ -156,6 +157,55 @@ contract MatchingEngineTest is Test {
     /**
      * ADMIN TESTS
      */
+    function testCannotInitializeAsNonDeployer() public {
+        address owner = makeAddr("owner");
+        address notDeployer = makeAddr("not deployer");
+
+        vm.startPrank(owner);
+        MatchingEngine implementation = new MatchingEngine(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE.fromUniversalAddress(),
+            USER_PENALTY_REWARD_BPS,
+            INITIAL_PENALTY_BPS,
+            AUCTION_DURATION,
+            AUCTION_GRACE_PERIOD,
+            AUCTION_PENALTY_BLOCKS
+        );
+
+        MatchingEngine proxy =
+            MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
+
+        vm.stopPrank();
+
+        vm.prank(notDeployer);
+        vm.expectRevert(
+            abi.encodeWithSignature("ErrCallerNotDeployer(address,address)", owner, notDeployer)
+        );
+        proxy.initialize();
+    }
+
+    function testCannotInitializeWithValue() public {
+        vm.startPrank(makeAddr("owner"));
+        MatchingEngine implementation = new MatchingEngine(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE.fromUniversalAddress(),
+            USER_PENALTY_REWARD_BPS,
+            INITIAL_PENALTY_BPS,
+            AUCTION_DURATION,
+            AUCTION_GRACE_PERIOD,
+            AUCTION_PENALTY_BLOCKS
+        );
+
+        MatchingEngine proxy =
+            MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
+
+        vm.expectRevert(abi.encodeWithSignature("ErrNonzeroMsgValue()"));
+        vm.deal(makeAddr("owner"), 42069);
+        proxy.initialize{value: 42069}();
+    }
+
     function testUpgradeContract() public {
         // Deploy new implementation.
         MockMatchingEngineImplementation newImplementation = new MockMatchingEngineImplementation(
@@ -177,11 +227,10 @@ contract MatchingEngineTest is Test {
         IMockMatchingEngine mockEngine = IMockMatchingEngine(address(engine));
 
         // Verify the new implementation.
-        assertEq(mockEngine.getImplementation(), address(newImplementation));
         assertTrue(mockEngine.isUpgraded());
     }
 
-    function testCannotUpgradeContractAgain() public {
+    function testCannotUpgradeContractImmutablesChanged() public {
         // Deploy new implementation.
         MockMatchingEngineImplementation newImplementation = new MockMatchingEngineImplementation(
             USDC_ADDRESS,
@@ -191,79 +240,13 @@ contract MatchingEngineTest is Test {
             INITIAL_PENALTY_BPS,
             AUCTION_DURATION,
             AUCTION_GRACE_PERIOD,
-            AUCTION_PENALTY_BLOCKS
+            69 // Change the penalty blocks.
         );
-
-        vm.startPrank(makeAddr("owner"));
 
         // Upgrade the contract.
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert();
         engine.upgradeContract(address(newImplementation));
-
-        vm.expectRevert(abi.encodeWithSignature("AlreadyInitialized()"));
-        engine.upgradeContract(address(newImplementation));
-    }
-
-    function testCannotUpgradeContractInvalidAuctionDuration() public {
-        vm.expectRevert(abi.encodeWithSignature("ErrInvalidAuctionDuration()"));
-        new MockMatchingEngineImplementation(
-            USDC_ADDRESS,
-            address(wormhole),
-            CIRCLE_BRIDGE.fromUniversalAddress(),
-            USER_PENALTY_REWARD_BPS,
-            INITIAL_PENALTY_BPS,
-            0, // Set the auction duration to zero.
-            AUCTION_GRACE_PERIOD,
-            AUCTION_PENALTY_BLOCKS
-        );
-    }
-
-    function testCannotUpgradeContractInvalidGracePeriod() public {
-        vm.expectRevert(abi.encodeWithSignature("ErrInvalidAuctionGracePeriod()"));
-        new MockMatchingEngineImplementation(
-            USDC_ADDRESS,
-            address(wormhole),
-            CIRCLE_BRIDGE.fromUniversalAddress(),
-            USER_PENALTY_REWARD_BPS,
-            INITIAL_PENALTY_BPS,
-            AUCTION_DURATION,
-            AUCTION_DURATION, // Set the grace period to the same as the duration.
-            AUCTION_PENALTY_BLOCKS
-        );
-    }
-
-    function revertTestHack(uint24 userPenaltyRewardBps, uint24 initialPenaltyBps) external {
-        new MockMatchingEngineImplementation(
-            USDC_ADDRESS,
-            address(wormhole),
-            CIRCLE_BRIDGE.fromUniversalAddress(),
-            userPenaltyRewardBps,
-            initialPenaltyBps,
-            AUCTION_DURATION,
-            AUCTION_GRACE_PERIOD,
-            AUCTION_PENALTY_BLOCKS
-        );
-    }
-
-    function testCannotUpgradeContractInvalidUserPenaltyReward() public {
-        bytes memory encodedSignature = abi.encodeWithSignature(
-            "revertTestHack(uint24,uint24)", engine.maxBpsFee() + 1, INITIAL_PENALTY_BPS
-        );
-        expectRevert(
-            address(this),
-            encodedSignature,
-            abi.encodeWithSignature("ErrInvalidUserPenaltyRewardBps()")
-        );
-    }
-
-    function testCannotUpgradeContractInvalidInitialPenalty() public {
-        bytes memory encodedSignature = abi.encodeWithSignature(
-            "revertTestHack(uint24,uint24)", USER_PENALTY_REWARD_BPS, engine.maxBpsFee() + 1
-        );
-        expectRevert(
-            address(this),
-            encodedSignature,
-            abi.encodeWithSignature("ErrInvalidInitialPenaltyBps()")
-        );
     }
 
     function testCannotUpgradeContractInvalidAddress() public {
@@ -560,7 +543,7 @@ contract MatchingEngineTest is Test {
 
         // Update the initial penalty to 0%. 50% of the way through the penalty period.
         {
-            _upgradeWithNewAuctionParams(
+            _deployWithNewAuctionParams(
                 engine.getUserPenaltyRewardBps(),
                 uint24(0),
                 engine.getAuctionDuration(),
@@ -577,7 +560,7 @@ contract MatchingEngineTest is Test {
 
         // Set the user reward to 0%
         {
-            _upgradeWithNewAuctionParams(
+            _deployWithNewAuctionParams(
                 0,
                 0, // 0% initial penalty.
                 engine.getAuctionDuration(),
@@ -594,7 +577,7 @@ contract MatchingEngineTest is Test {
 
         // Set the initial penalty to 100%
         {
-            _upgradeWithNewAuctionParams(
+            _deployWithNewAuctionParams(
                 engine.maxBpsFee() / 2, // 50%
                 engine.maxBpsFee(), // 100%
                 engine.getAuctionDuration(),
@@ -611,7 +594,7 @@ contract MatchingEngineTest is Test {
 
         // Set the user penalty to 100%
         {
-            _upgradeWithNewAuctionParams(
+            _deployWithNewAuctionParams(
                 engine.maxBpsFee(), // 100%
                 engine.maxBpsFee() / 2, // 50%
                 engine.getAuctionDuration(),
@@ -818,7 +801,7 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint64(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee - 1));
 
         _dealAndApproveUsdc(engine, order.amountIn + order.maxFee, PLAYER_TWO);
 
@@ -857,7 +840,7 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint64(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee - 1));
 
         _improveBid(order, fastMessage, newBid, PLAYER_ONE, PLAYER_TWO);
     }
@@ -872,7 +855,7 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint64(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee - 1));
 
         IWormhole.VM memory _vm = wormhole.parseVM(fastMessage);
 
@@ -965,7 +948,7 @@ contract MatchingEngineTest is Test {
         _placeInitialBid(order, fastMessage, order.maxFee, PLAYER_ONE);
 
         // Create a bid that is lower than the current bid.
-        newBid = uint64(bound(newBid, 0, order.maxFee));
+        newBid = uint64(bound(newBid, 0, order.maxFee - 1));
         _improveBid(order, fastMessage, newBid, PLAYER_ONE, PLAYER_TWO);
 
         IWormhole.VM memory _vm = wormhole.parseVM(fastMessage);
@@ -1659,7 +1642,7 @@ contract MatchingEngineTest is Test {
      */
     function _deployAndRegisterAvaxRouter() internal returns (ITokenRouter) {
         // Deploy Implementation.
-        TokenRouterImplementation implementation = new TokenRouterImplementation(
+        TokenRouter implementation = new TokenRouter(
             USDC_ADDRESS,
             address(wormhole),
             CIRCLE_BRIDGE.fromUniversalAddress(),
@@ -1669,22 +1652,21 @@ contract MatchingEngineTest is Test {
             ENGINE_DOMAIN
         );
 
-        // Deploy Setup.
-        TokenRouterSetup setup = new TokenRouterSetup();
+        TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
-        address proxy = setup.deployProxy(address(implementation), makeAddr("ownerAssistant"));
+        proxy.initialize();
 
         vm.prank(makeAddr("owner"));
         engine.addRouterEndpoint(
             AVAX_CHAIN,
             RouterEndpoint({
-                router: proxy.toUniversalAddress(),
-                mintRecipient: proxy.toUniversalAddress()
+                router: address(proxy).toUniversalAddress(),
+                mintRecipient: address(proxy).toUniversalAddress()
             }),
             AVAX_DOMAIN
         );
 
-        return ITokenRouter(proxy);
+        return ITokenRouter(address(proxy));
     }
 
     function _placeInitialBid(
@@ -2038,7 +2020,7 @@ contract MatchingEngineTest is Test {
         });
     }
 
-    function _upgradeWithNewAuctionParams(
+    function _deployWithNewAuctionParams(
         uint24 userPenaltyRewardBps,
         uint24 initialPenaltyBps,
         uint8 auctionDuration,
@@ -2046,7 +2028,7 @@ contract MatchingEngineTest is Test {
         uint8 auctionPenaltyBlocks
     ) internal {
         vm.startPrank(makeAddr("owner"));
-        MatchingEngineImplementation implementation = new MatchingEngineImplementation(
+        MatchingEngine implementation = new MatchingEngine(
             USDC_ADDRESS,
             address(wormhole),
             CIRCLE_BRIDGE.fromUniversalAddress(),
@@ -2057,7 +2039,12 @@ contract MatchingEngineTest is Test {
             auctionPenaltyBlocks
         );
 
-        engine.upgradeContract(address(implementation));
+        MatchingEngine proxy =
+            MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
+
+        proxy.initialize();
+
+        engine = IMatchingEngine(address(proxy));
     }
 
     function expectRevert(

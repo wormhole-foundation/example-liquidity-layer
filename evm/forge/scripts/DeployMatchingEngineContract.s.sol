@@ -7,9 +7,8 @@ import "forge-std/console2.sol";
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {MatchingEngineSetup} from "src/MatchingEngine/MatchingEngineSetup.sol";
-import {MatchingEngineImplementation} from
-    "src/MatchingEngine/MatchingEngineImplementation.sol";
+import {MatchingEngine} from
+    "src/MatchingEngine/MatchingEngine.sol";
 
 import {CheckWormholeContracts} from "./helpers/CheckWormholeContracts.sol";
 
@@ -29,10 +28,10 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
     uint8 immutable _auctionGracePeriod = uint8(vm.envUint("RELEASE_GRACE_PERIOD"));
     uint8 immutable _auctionPenaltyBlocks = uint8(vm.envUint("RELEASE_PENALTY_BLOCKS"));
 
-    function deploy() public {
+    function deployAndConfigure() public {
         requireValidChain(_chainId, _wormhole);
 
-        MatchingEngineImplementation implementation = new MatchingEngineImplementation(
+        MatchingEngine implementation = new MatchingEngine(
             _token,
             _wormhole,
             _cctpTokenMessenger,
@@ -43,19 +42,24 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
             _auctionPenaltyBlocks
         );
 
-        MatchingEngineSetup setup = new MatchingEngineSetup();
-        address proxy =
-            setup.deployProxy(address(implementation), _ownerAssistantAddress, _feeRecipientAddress);
+        MatchingEngine proxy =
+            MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
-        console2.log("Deployed MatchingEngine (chain=%s): %s", _chainId, proxy);
+        proxy.initialize();
+
+        console2.log("Deployed MatchingEngine (chain=%s): %s", _chainId, address(proxy));
+
+        // Set the owner assistant and fee recipient.
+        proxy.updateOwnerAssistant(_ownerAssistantAddress);
+        proxy.updateFeeRecipient(_feeRecipientAddress);
     }
 
     function run() public {
         // Begin sending transactions.
         vm.startBroadcast();
 
-        // Deploy setup, implementation and erc1967 proxy.
-        deploy();
+        // Deploy proxy and initialize.
+        deployAndConfigure();
 
         // Done.
         vm.stopBroadcast();

@@ -41,3 +41,7 @@ error ErrInvalidUserPenaltyRewardBps();
 error ErrInvalidInitialPenaltyBps();
 
 error ErrDeadlineExceeded();
+
+error ErrCallerNotDeployer(address deployer, address caller);
+
+error ErrNonzeroMsgValue();
