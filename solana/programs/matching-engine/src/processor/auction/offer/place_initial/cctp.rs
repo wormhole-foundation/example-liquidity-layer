@@ -166,6 +166,7 @@ pub fn place_initial_offer_cctp(
         config_id: info.config_id,
         auction: ctx.accounts.auction.key(),
         vaa: Some(ctx.accounts.fast_order_path.fast_vaa.key()),
+        source_chain: info.source_chain,
         target_protocol: ctx.accounts.auction.target_protocol,
         end_slot: info.auction_end_slot(config),
         best_offer_token: initial_offer_token,
