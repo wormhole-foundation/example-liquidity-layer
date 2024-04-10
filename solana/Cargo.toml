@@ -62,7 +62,7 @@ codegen-units = 1
 [workspace.lints.clippy]
 correctness = { level = "warn"}
 
-#arithmetic_side_effects = "deny"
+arithmetic_side_effects = "deny"
 as_conversions = "deny"
 cast_abs_to_unsigned = "deny"
 cast_lossless= "deny"

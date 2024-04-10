@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
 
+use crate::error::MatchingEngineError;
+
 #[account]
 #[derive(InitSpace)]
 pub struct PayerSequence {
@@ -9,12 +11,12 @@ pub struct PayerSequence {
 impl PayerSequence {
     pub const SEED_PREFIX: &'static [u8] = b"seq";
 
-    pub fn take_and_uptick(&mut self) -> u64 {
+    pub fn take_and_uptick(&mut self) -> Result<u64> {
         let seq = self.value;
 
-        self.value += 1;
+        self.value = seq.checked_add(1).ok_or(MatchingEngineError::U64Overflow)?;
 
-        seq
+        Ok(seq)
     }
 }
 

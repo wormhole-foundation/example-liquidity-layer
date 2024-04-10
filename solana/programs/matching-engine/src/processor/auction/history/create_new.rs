@@ -33,7 +33,11 @@ pub struct CreateNewAuctionHistory<'info> {
         space = AuctionHistory::START,
         seeds = [
             AuctionHistory::SEED_PREFIX,
-            &(current_history.id + 1).to_be_bytes()
+            &current_history
+                .id
+                .checked_add(1)
+                .map(|new_id| new_id.to_be_bytes())
+                .ok_or(MatchingEngineError::U32Overflow)?,
         ],
         bump,
     )]
@@ -43,8 +47,9 @@ pub struct CreateNewAuctionHistory<'info> {
 }
 
 pub fn create_new_auction_history(ctx: Context<CreateNewAuctionHistory>) -> Result<()> {
+    // NOTE: ID overflow was checked in the account context.
     ctx.accounts.new_history.set_inner(AuctionHistory {
-        header: AuctionHistoryHeader::new(ctx.accounts.current_history.id + 1),
+        header: AuctionHistoryHeader::new(ctx.accounts.current_history.id.saturating_add(1)),
         data: Default::default(),
     });
 

@@ -1,5 +1,6 @@
 use crate::{
     composite::*,
+    error::MatchingEngineError,
     state::{AuctionParameters, Proposal, ProposalAction},
 };
 use anchor_lang::prelude::*;
@@ -34,7 +35,13 @@ pub fn propose_auction_parameters(
 ) -> Result<()> {
     crate::utils::auction::require_valid_parameters(&parameters)?;
 
-    let id = ctx.accounts.admin.custodian.auction_config_id + 1;
+    let id = ctx
+        .accounts
+        .admin
+        .custodian
+        .auction_config_id
+        .checked_add(1)
+        .ok_or(MatchingEngineError::U32Overflow)?;
     let action = ProposalAction::UpdateAuctionParameters { id, parameters };
 
     super::propose(

@@ -3,6 +3,7 @@ pub use auction_parameters::*;
 
 use crate::{
     composite::*,
+    error::MatchingEngineError,
     state::{Proposal, ProposalAction},
 };
 use anchor_lang::prelude::*;
@@ -22,20 +23,33 @@ fn propose(accounts: Propose, action: ProposalAction, proposal_bump_seed: u8) ->
         epoch_schedule,
     } = accounts;
 
+    // Even though we will all be dead by the time this triggers, we will check if the next proposal
+    // ID will not overflow.
+    custodian
+        .next_proposal_id
+        .checked_add(1)
+        .ok_or(MatchingEngineError::U64Overflow)?;
+
     let slot_proposed_at = Clock::get().unwrap().slot;
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "integration-test")] {
             let _ = epoch_schedule;
             // Arbitrary set for fast testing.
-            let slot_enact_delay = slot_proposed_at + 8;
+            let slot_enact_delay = slot_proposed_at
+                .checked_add(8)
+                .ok_or(MatchingEngineError::U64Overflow)?;
         } else if #[cfg(feature = "testnet")] {
             let _ = epoch_schedule;
             // Arbitrary set to roughly 10 seconds (10 seconds / 0.4 seconds per slot) for
             // faster testing.
-            let slot_enact_delay = slot_proposed_at + 25;
+            let slot_enact_delay = slot_proposed_at
+                .checked_add(25)
+                .ok_or(MatchingEngineError::U64Overflow)?;
         } else {
-            let slot_enact_delay = slot_proposed_at + epoch_schedule.slots_per_epoch;
+            let slot_enact_delay = slot_proposed_at
+                .checked_add(epoch_schedule.slots_per_epoch)
+                .ok_or(MatchingEngineError::U64Overflow)?;
         }
     }
 

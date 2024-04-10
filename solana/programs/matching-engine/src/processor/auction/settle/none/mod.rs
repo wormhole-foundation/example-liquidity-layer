@@ -113,13 +113,15 @@ fn settle_none_and_prepare_fill(
     });
 
     Ok(SettledNone {
-        user_amount: order.amount_in() - base_fee,
+        user_amount: order.amount_in().saturating_sub(base_fee),
         fill: Fill {
             source_chain: prepared_order_response.source_chain,
             order_sender: order.sender(),
             redeemer: order.redeemer(),
             redeemer_message: order.message_to_vec().into(),
         },
-        sequence_seed: payer_sequence.take_and_uptick().to_be_bytes(),
+        sequence_seed: payer_sequence
+            .take_and_uptick()
+            .map(|seq| seq.to_be_bytes())?,
     })
 }

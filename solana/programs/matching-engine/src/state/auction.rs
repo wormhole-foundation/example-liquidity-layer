@@ -98,25 +98,27 @@ impl AuctionInfo {
     /// Compute start slot + duration.
     #[inline]
     pub fn auction_end_slot(&self, params: &AuctionParameters) -> u64 {
-        self.start_slot + u64::from(params.duration)
+        self.start_slot.saturating_add(params.duration.into())
     }
 
     /// Compute start slot + duration + grace period.
     #[inline]
     pub fn grace_period_end_slot(&self, params: &AuctionParameters) -> u64 {
-        self.auction_end_slot(params) + u64::from(params.grace_period)
+        self.auction_end_slot(params)
+            .saturating_add(params.grace_period.into())
     }
 
     /// Compute start slot + duration + grace period + penalty slots.
     #[inline]
     pub fn penalty_period_end_slot(&self, params: &AuctionParameters) -> u64 {
-        self.grace_period_end_slot(params) + u64::from(params.penalty_period)
+        self.grace_period_end_slot(params)
+            .saturating_add(params.penalty_period.into())
     }
 
     /// Compute amount in + security deposit.
     #[inline]
     pub fn total_deposit(&self) -> u64 {
-        self.amount_in + self.security_deposit
+        self.amount_in.saturating_add(self.security_deposit)
     }
 }
 

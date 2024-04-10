@@ -61,7 +61,8 @@ pub struct PlaceInitialOfferCctp<'info> {
 
             // Check to see if the deadline has expired.
             let deadline = order.deadline();
-            let expiration = i64::from(fast_vaa.timestamp()) + crate::VAA_AUCTION_EXPIRATION_TIME;
+            let expiration =
+                i64::from(fast_vaa.timestamp()).saturating_add(crate::VAA_AUCTION_EXPIRATION_TIME);
             require!(
                 (deadline == 0 || curr_time < deadline.into()) && curr_time < expiration,
                 MatchingEngineError::FastMarketOrderExpired,

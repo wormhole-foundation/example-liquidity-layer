@@ -37,7 +37,8 @@ pub struct UpdateAuctionParameters<'info> {
                 ProposalAction::UpdateAuctionParameters { id, .. } => {
                     require_eq!(
                         *id,
-                        admin.custodian.auction_config_id + 1,
+                        // NOTE: This value is checked in `propose_auction_parameters`.
+                        admin.custodian.auction_config_id.saturating_add(1),
                         MatchingEngineError::AuctionConfigMismatch
                     );
                 },
@@ -55,7 +56,8 @@ pub struct UpdateAuctionParameters<'info> {
         space = 8 + AuctionConfig::INIT_SPACE,
         seeds = [
             AuctionConfig::SEED_PREFIX,
-            (admin.custodian.auction_config_id + 1).to_be_bytes().as_ref()
+            // NOTE: This value is checked in `propose_auction_parameters`.
+            admin.custodian.auction_config_id.saturating_add(1).to_be_bytes().as_ref()
         ],
         bump,
     )]
@@ -88,13 +90,21 @@ fn handle_update_auction_parameters(
         .set_inner(AuctionConfig { id, parameters });
 
     // Update the auction config ID.
-    ctx.accounts.admin.custodian.auction_config_id += 1;
+    ctx.accounts.admin.custodian.auction_config_id = id;
 
     // Set the slot enacted at so it cannot be replayed.
     ctx.accounts.proposal.slot_enacted_at = Some(Clock::get().unwrap().slot);
 
     // Uptick the proposal ID so that someone can create a new proposal again.
-    ctx.accounts.admin.custodian.next_proposal_id += 1;
+    //
+    // NOTE: Overflow check is done in propose instructions.
+    let next_proposal_id = ctx
+        .accounts
+        .admin
+        .custodian
+        .next_proposal_id
+        .saturating_add(1);
+    ctx.accounts.admin.custodian.next_proposal_id = next_proposal_id;
 
     // Done.
     Ok(())

@@ -34,9 +34,10 @@ pub struct PrepareOrderResponseCctp<'info> {
                 fast_vaa.emitter_address() == finalized_vaa.emitter_address(),
                 MatchingEngineError::VaaMismatch
             );
+            // This operation is safe because it would have overflowed from the source chain.
             require_eq!(
                 fast_vaa.sequence(),
-                finalized_vaa.sequence() + 1,
+                finalized_vaa.sequence().saturating_add(1),
                 MatchingEngineError::VaaMismatch
             );
             require!(

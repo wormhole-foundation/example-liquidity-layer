@@ -17,17 +17,15 @@ pub fn compute_deposit_penalty(
     info: &AuctionInfo,
     current_slot: u64,
 ) -> DepositPenalty {
-    let grace_slot = info
-        .start_slot
-        .saturating_add(params.duration.into())
-        .saturating_add(params.grace_period.into());
+    let grace_slot = info.grace_period_end_slot(params);
 
     if current_slot <= grace_slot {
         Default::default()
     } else {
         let deposit = info.security_deposit;
-        let penalty_slot = grace_slot.saturating_add(params.penalty_period.into());
-        if current_slot >= penalty_slot || params.initial_penalty_bps == FEE_PRECISION_MAX {
+        if current_slot >= info.penalty_period_end_slot(params)
+            || params.initial_penalty_bps == FEE_PRECISION_MAX
+        {
             split_user_penalty_reward(params, deposit)
         } else {
             let base_penalty = mul_bps_unsafe(deposit, params.initial_penalty_bps);
@@ -35,10 +33,10 @@ pub fn compute_deposit_penalty(
             // Adjust the base amount to determine scaled penalty.
             //
             // NOTE: Integer division is safe here because penalty period cannot be zero.
-            #[allow(clippy::integer_division)]
-            let scaled = (u128::from(deposit.saturating_sub(base_penalty))
-                * u128::from(current_slot.saturating_sub(grace_slot)))
-                / u128::from(params.penalty_period);
+            #[allow(clippy::arithmetic_side_effects)]
+            let scaled = u128::from(deposit.saturating_sub(base_penalty))
+                .saturating_mul(current_slot.saturating_sub(grace_slot).into())
+                .saturating_div(params.penalty_period.into());
 
             // NOTE: Downcasting from u128 to u64 is safe because the values are guaranteed to be
             // within the range of u64 since penalty period (current slot - grace slot) is less than
@@ -108,7 +106,7 @@ fn split_user_penalty_reward(params: &AuctionParameters, amount: u64) -> Deposit
     let user_reward = mul_bps_unsafe(amount, params.user_penalty_reward_bps);
 
     DepositPenalty {
-        penalty: amount - user_reward,
+        penalty: amount.saturating_sub(user_reward),
         user_reward,
     }
 }
@@ -121,8 +119,10 @@ fn mul_bps_unsafe(amount: u64, bps: u32) -> u64 {
     const MAX: u128 = FEE_PRECISION_MAX as u128;
 
     // NOTE: Integer division is safe here because MAX is never zero.
-    #[allow(clippy::integer_division)]
-    let out = (u128::from(amount) * u128::from(bps)) / MAX;
+    #[allow(clippy::arithmetic_side_effects)]
+    let out = u128::from(amount)
+        .saturating_mul(bps.into())
+        .saturating_div(MAX);
 
     // NOTE: Downcasting from u128 to u64 is safe because the values are guaranteed to be within the
     // range of u64.
@@ -135,6 +135,7 @@ fn mul_bps_unsafe(amount: u64, bps: u32) -> u64 {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::arithmetic_side_effects)]
     #![allow(clippy::integer_division)]
 
     use crate::state::AuctionParameters;

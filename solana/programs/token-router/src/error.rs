@@ -3,6 +3,8 @@ pub enum TokenRouterError {
     OwnerOnly = 0x2,
     OwnerOrAssistantOnly = 0x4,
 
+    U64Overflow = 0x10,
+
     InvalidVaa = 0x30,
 
     InvalidDepositMessage = 0x44,
