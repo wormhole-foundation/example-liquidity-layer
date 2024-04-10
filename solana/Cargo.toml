@@ -63,7 +63,7 @@ codegen-units = 1
 correctness = { level = "warn"}
 
 #arithmetic_side_effects = "deny"
-#as_conversions = "deny"
+as_conversions = "deny"
 cast_abs_to_unsigned = "deny"
 cast_lossless= "deny"
 cast_possible_truncation = "deny"

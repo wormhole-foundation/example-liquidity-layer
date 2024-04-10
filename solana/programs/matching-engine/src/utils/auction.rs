@@ -43,6 +43,7 @@ pub fn compute_deposit_penalty(
             // NOTE: Downcasting from u128 to u64 is safe because the values are guaranteed to be
             // within the range of u64 since penalty period (current slot - grace slot) is less than
             // params.penalty_period.
+            #[allow(clippy::as_conversions)]
             #[allow(clippy::cast_possible_truncation)]
             let scaled = scaled as u64;
             split_user_penalty_reward(params, base_penalty.saturating_add(scaled))
@@ -115,6 +116,7 @@ fn split_user_penalty_reward(params: &AuctionParameters, amount: u64) -> Deposit
 #[inline]
 fn mul_bps_unsafe(amount: u64, bps: u32) -> u64 {
     // NOTE: Upcasting from u32 to u128 is safe here.
+    #[allow(clippy::as_conversions)]
     #[allow(clippy::cast_possible_truncation)]
     const MAX: u128 = FEE_PRECISION_MAX as u128;
 
@@ -124,6 +126,7 @@ fn mul_bps_unsafe(amount: u64, bps: u32) -> u64 {
 
     // NOTE: Downcasting from u128 to u64 is safe because the values are guaranteed to be within the
     // range of u64.
+    #[allow(clippy::as_conversions)]
     #[allow(clippy::cast_possible_truncation)]
     let out = out as u64;
 

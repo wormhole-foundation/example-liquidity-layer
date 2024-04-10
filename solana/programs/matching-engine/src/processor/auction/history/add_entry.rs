@@ -152,7 +152,8 @@ fn handle_add_auction_history_entry(
     let mut cursor = std::io::Cursor::new(acc_data);
     history.try_serialize(&mut cursor)?;
 
-    // This cast is safe since we know the write index is within u32.
+    // This cast is safe since we know the write index is within u64.
+    #[allow(clippy::as_conversions)]
     cursor.set_position(write_index as u64);
 
     // Serialize entry data.
