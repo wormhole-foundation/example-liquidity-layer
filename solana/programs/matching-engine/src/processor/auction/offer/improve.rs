@@ -53,7 +53,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
             auction,
             custody_token,
             best_offer_token,
-            config,
+            config: _,
         } = &ctx.accounts.active_auction;
 
         let token_program = &ctx.accounts.token_program;
@@ -100,8 +100,20 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
                 total_deposit,
             )?;
         }
+    }
 
-        let info = ctx.accounts.active_auction.info.as_ref().unwrap();
+    // Update info before we emit event.
+    {
+        let info = ctx.accounts.active_auction.info.as_mut().unwrap();
+        info.best_offer_token = offer_token.key();
+        info.offer_price = offer_price;
+    }
+
+    // Emit the auction updated event.
+    {
+        let auction = &ctx.accounts.active_auction;
+        let config = &auction.config;
+        let info = auction.info.as_ref().unwrap();
 
         // Emit event for auction participants to listen to.
         emit!(crate::events::AuctionUpdated {
@@ -119,9 +131,6 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
         });
     }
 
-    let info = ctx.accounts.active_auction.info.as_mut().unwrap();
-    info.best_offer_token = offer_token.key();
-    info.offer_price = offer_price;
-
+    // Done.
     Ok(())
 }
