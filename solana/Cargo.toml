@@ -82,7 +82,7 @@ correctness = { level = "warn"}
 #modulo_one = "deny"
 #out_of_bounds_indexing = "deny"
 #overflow_check_conditional = "deny"
-#panic = "deny"
+panic = "deny"
 recursive_format_impl = "deny"
 todo = "deny"
 unchecked_duration_subtraction = "deny"

@@ -73,6 +73,8 @@ pub enum MatchingEngineError {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::panic)]
+
     use crate::FEE_PRECISION_MAX;
     use anchor_lang::prelude::*;
 
