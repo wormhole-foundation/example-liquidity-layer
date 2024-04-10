@@ -1,7 +1,7 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{AuctionConfig, Proposal, ProposalAction},
+    state::{AuctionConfig, AuctionParameters, Proposal, ProposalAction},
 };
 use anchor_lang::prelude::*;
 
@@ -70,13 +70,22 @@ pub fn update_auction_parameters(ctx: Context<UpdateAuctionParameters>) -> Resul
     // Emit event to reflect enacting the proposal.
     emit!(crate::events::Enacted { action });
 
-    if let ProposalAction::UpdateAuctionParameters { id, parameters } = action {
-        ctx.accounts
-            .auction_config
-            .set_inner(AuctionConfig { id, parameters });
-    } else {
-        unreachable!();
+    match action {
+        ProposalAction::UpdateAuctionParameters { id, parameters } => {
+            handle_update_auction_parameters(ctx, id, parameters)
+        }
+        _ => err!(MatchingEngineError::InvalidProposal),
     }
+}
+
+fn handle_update_auction_parameters(
+    ctx: Context<UpdateAuctionParameters>,
+    id: u32,
+    parameters: AuctionParameters,
+) -> Result<()> {
+    ctx.accounts
+        .auction_config
+        .set_inner(AuctionConfig { id, parameters });
 
     // Update the auction config ID.
     ctx.accounts.admin.custodian.auction_config_id += 1;

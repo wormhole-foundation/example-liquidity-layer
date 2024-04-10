@@ -51,6 +51,7 @@ pub enum MatchingEngineError {
 
     ProposalAlreadyEnacted = 0x300,
     ProposalDelayNotExpired = 0x302,
+    InvalidProposal = 0x304,
 
     AuctionConfigMismatch = 0x340,
 
