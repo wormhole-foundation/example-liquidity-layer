@@ -1,5 +1,4 @@
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import "dotenv/config";
 import * as fs from "fs";
 import { MatchingEngineProgram } from "../../src/matchingEngine";
@@ -10,6 +9,14 @@ import { VaaSpy } from "../../src/wormhole/spy";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+const DELAYED_VAA_THRESHOLD = 60; // Seconds.
+
+// Spy config.
+const SPY_HOST = "localhost:7073";
+const ENABLE_CLEANUP = true;
+const SEEN_THRESHOLD_MS = 300_000;
+const INTERVAL_MS = 500;
+const MAX_TO_REMOVE = 5;
 
 main(process.argv);
 
@@ -36,17 +43,15 @@ async function main(argv: string[]) {
 
     spawnTransactionProcessor(connection, transactionBatchQueue, logicLogger);
 
-    // TODO: Config all of these params.
     // Connect to spy.
     const spy = new VaaSpy({
-        spyHost: "localhost:7073",
+        spyHost: SPY_HOST,
         vaaFilters: cfg.emitterFilterForSpy(),
-        enableCleanup: true,
-        seenThresholdMs: 300_000,
-        intervalMs: 500,
-        maxToRemove: 5,
+        enableCleanup: ENABLE_CLEANUP,
+        seenThresholdMs: SEEN_THRESHOLD_MS,
+        intervalMs: INTERVAL_MS,
+        maxToRemove: MAX_TO_REMOVE,
     });
-    const DELAYED_VAA_THRESHOLD = 60; // Seconds.
 
     spy.onObservation(async ({ raw, parsed, chain }) => {
         // Since were using the vaa timestamp, there is potentially some clock drift. However,
@@ -106,7 +111,9 @@ async function main(argv: string[]) {
         }
 
         // Push transaction batch to queue.
-        transactionBatchQueue.push(txnBatch);
+        if (txnBatch.length > 0) {
+            transactionBatchQueue.push(txnBatch);
+        }
     });
 }
 

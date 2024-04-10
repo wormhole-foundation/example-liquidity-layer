@@ -36,9 +36,28 @@ export async function sendTxBatch(
     connection: Connection,
     preparedTransactions: PreparedTransaction[],
     logger?: winston.Logger,
+    retryCount?: number,
 ): Promise<void> {
     for (const preparedTransaction of preparedTransactions) {
-        await sendTx(connection, preparedTransaction, logger);
+        const skipPreFlight = preparedTransaction.confirmOptions?.skipPreflight ?? false;
+
+        // If skipPreFlight is false, we will retry the transaction if it fails.
+        let success = false;
+        let counter = 0;
+        while (!success && counter < (retryCount ?? 3)) {
+            const response = await sendTx(connection, preparedTransaction, logger);
+
+            if (skipPreFlight) {
+                break;
+            }
+
+            success = response.success;
+            counter++;
+
+            if (logger !== undefined && !success) {
+                logger.warn(`Transaction failed, retrying, attempt=${counter}`);
+            }
+        }
     }
 }
 
@@ -47,7 +66,7 @@ export async function sendTx(
     preparedTransaction: PreparedTransaction,
     logger?: winston.Logger,
     cachedBlockhash?: BlockhashWithExpiryBlockHeight,
-): Promise<VersionedTransaction> {
+): Promise<{ success: boolean; txSig: string | void }> {
     const {
         nonceAccount,
         ixs,
@@ -100,7 +119,8 @@ export async function sendTx(
     const tx = new VersionedTransaction(messageV0);
     tx.sign(signers);
 
-    const txSignature = await connection
+    let success = true;
+    let txSignature = await connection
         .sendTransaction(tx, preparedTransaction.confirmOptions)
         .then(async (signature) => {
             const commitment = preparedTransaction.confirmOptions?.commitment;
@@ -116,6 +136,8 @@ export async function sendTx(
             return signature;
         })
         .catch((err) => {
+            success = false;
+
             if (err.logs !== undefined) {
                 const logs: string[] = err.logs;
                 if (logger !== undefined) {
@@ -138,5 +160,5 @@ export async function sendTx(
         }
     }
 
-    return tx;
+    return { success, txSig: txSignature };
 }
