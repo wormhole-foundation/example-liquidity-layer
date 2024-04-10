@@ -1348,6 +1348,10 @@ export type TokenRouter = {
       "name": "OwnerOrAssistantOnly"
     },
     {
+      "code": 6016,
+      "name": "U64Overflow"
+    },
+    {
       "code": 6048,
       "name": "InvalidVaa"
     },
@@ -2766,6 +2770,10 @@ export const IDL: TokenRouter = {
     {
       "code": 6004,
       "name": "OwnerOrAssistantOnly"
+    },
+    {
+      "code": 6016,
+      "name": "U64Overflow"
     },
     {
       "code": 6048,
