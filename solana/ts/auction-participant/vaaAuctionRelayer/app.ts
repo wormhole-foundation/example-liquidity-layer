@@ -14,7 +14,7 @@ const DELAYED_VAA_THRESHOLD = 60; // Seconds.
 // Spy config.
 const SPY_HOST = "localhost:7073";
 const ENABLE_CLEANUP = true;
-const SEEN_THRESHOLD_MS = 300_000;
+const SEEN_THRESHOLD_MS = 1_500_000;
 const INTERVAL_MS = 500;
 const MAX_TO_REMOVE = 5;
 
