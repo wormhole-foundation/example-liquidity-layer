@@ -49,20 +49,10 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
         best_offer_token,
     } = active_auction;
 
-    // Emit event for auction participants to listen to. We emit it early in the instruction handler
-    // for convenience of using the fast vaa reference.
-    emit!(crate::events::OrderExecuted {
-        auction: auction.key(),
-        vaa: fast_vaa.key(),
-        target_protocol: auction.target_protocol,
-    });
-
-    let fast_vaa = fast_vaa.load_unchecked();
-    let order = LiquidityLayerMessage::try_from(fast_vaa.payload())
+    let vaa = fast_vaa.load_unchecked();
+    let order = LiquidityLayerMessage::try_from(vaa.payload())
         .unwrap()
         .to_fast_market_order_unchecked();
-
-    // Create zero copy reference to `FastMarketOrder` payload.
 
     let (user_amount, new_status) = {
         let auction_info = auction.info.as_ref().unwrap();
@@ -90,7 +80,9 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             &[auction.bump],
         ];
 
-        if penalty > 0 && best_offer_token.key() != executor_token.key() {
+        let penalized = penalty > 0;
+
+        if penalized && best_offer_token.key() != executor_token.key() {
             // Pay the liquidator the penalty.
             token::transfer(
                 CpiContext::new_with_signer(
@@ -159,6 +151,16 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             Some(custodian.key()),
         )?;
 
+        // Emit the order executed event, which liquidators can listen to if this execution ended up
+        // being penalized so they can collect the base fee at settlement.
+        emit!(crate::events::OrderExecuted {
+            auction: auction.key(),
+            vaa: fast_vaa.key(),
+            source_chain: auction_info.source_chain,
+            target_protocol: auction.target_protocol,
+            penalized,
+        });
+
         let user_amount = auction_info
             .amount_in
             .saturating_sub(auction_info.offer_price)
@@ -168,7 +170,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             user_amount,
             AuctionStatus::Completed {
                 slot: current_slot,
-                execute_penalty: if penalty > 0 { Some(penalty) } else { None },
+                execute_penalty: if penalized { Some(penalty) } else { None },
             },
         )
     };
@@ -179,7 +181,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
     Ok(PreparedOrderExecution {
         user_amount,
         fill: Fill {
-            source_chain: fast_vaa.emitter_chain(),
+            source_chain: vaa.emitter_chain(),
             order_sender: order.sender(),
             redeemer: order.redeemer(),
             redeemer_message: <&[u8]>::from(order.redeemer_message()).to_vec().into(),
