@@ -16,11 +16,11 @@ use common::{
 pub struct Usdc<'info> {
     /// CHECK: This address must equal [USDC_MINT](common::USDC_MINT).
     #[account(address = common::USDC_MINT)]
-    pub mint: AccountInfo<'info>,
+    pub mint: UncheckedAccount<'info>,
 }
 
 impl<'info> Deref for Usdc<'info> {
-    type Target = AccountInfo<'info>;
+    type Target = UncheckedAccount<'info>;
 
     fn deref(&self) -> &Self::Target {
         &self.mint
@@ -66,7 +66,7 @@ pub struct LiquidityLayerVaa<'info> {
             true
         }
     )]
-    pub vaa: AccountInfo<'info>,
+    pub vaa: UncheckedAccount<'info>,
 }
 
 impl<'info> LiquidityLayerVaa<'info> {
@@ -76,7 +76,7 @@ impl<'info> LiquidityLayerVaa<'info> {
 }
 
 impl<'info> Deref for LiquidityLayerVaa<'info> {
-    type Target = AccountInfo<'info>;
+    type Target = UncheckedAccount<'info>;
 
     fn deref(&self) -> &Self::Target {
         &self.vaa
@@ -217,7 +217,7 @@ impl<'info> Deref for InitIfNeededPreparedFill<'info> {
     }
 }
 
-fn compute_prepared_fill_size(vaa_acc_info: &AccountInfo<'_>) -> Result<usize> {
+fn compute_prepared_fill_size(vaa_acc_info: &UncheckedAccount<'_>) -> Result<usize> {
     let vaa = VaaAccount::load(vaa_acc_info)?;
     let msg = LiquidityLayerMessage::try_from(vaa.payload()).unwrap();
 

@@ -47,7 +47,7 @@ pub struct Initialize<'info> {
             owner_assistant.key() != Pubkey::default()
         } @ MatchingEngineError::AssistantZeroPubkey
     )]
-    owner_assistant: AccountInfo<'info>,
+    owner_assistant: UncheckedAccount<'info>,
 
     /// CHECK: This account must not be the zero pubkey.
     #[account(
@@ -56,7 +56,7 @@ pub struct Initialize<'info> {
             fee_recipient.key() != Pubkey::default()
         ) @ MatchingEngineError::FeeRecipientZeroPubkey
     )]
-    fee_recipient: AccountInfo<'info>,
+    fee_recipient: UncheckedAccount<'info>,
 
     #[account(
         associated_token::mint = usdc,
@@ -90,14 +90,14 @@ pub struct Initialize<'info> {
 
     /// CHECK: This program PDA will be the upgrade authority for the Token Router program.
     #[account(address = common::UPGRADE_MANAGER_AUTHORITY)]
-    upgrade_manager_authority: AccountInfo<'info>,
+    upgrade_manager_authority: UncheckedAccount<'info>,
 
     /// CHECK: This program must exist.
     #[account(
         executable,
         address = common::UPGRADE_MANAGER_PROGRAM_ID,
     )]
-    upgrade_manager_program: AccountInfo<'info>,
+    upgrade_manager_program: UncheckedAccount<'info>,
 
     bpf_loader_upgradeable_program: Program<'info, BpfLoaderUpgradeable>,
     system_program: Program<'info, System>,

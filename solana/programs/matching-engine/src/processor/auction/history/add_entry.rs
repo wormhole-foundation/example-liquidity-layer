@@ -39,7 +39,7 @@ pub struct AddAuctionHistoryEntry<'info> {
             true
         }
     )]
-    history: AccountInfo<'info>,
+    history: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -64,7 +64,7 @@ pub struct AddAuctionHistoryEntry<'info> {
     /// CHECK: This account will either be the owner of the fee recipient token account (if there
     /// was no auction) or the owner of the initial offer token account.
     #[account(mut)]
-    beneficiary: AccountInfo<'info>,
+    beneficiary: UncheckedAccount<'info>,
 
     #[account(
         token::authority = beneficiary,
@@ -119,7 +119,7 @@ fn handle_add_auction_history_entry(
 
     // Transfer lamports to history account and realloc.
     let write_index = {
-        let acc_info: &AccountInfo = &ctx.accounts.history;
+        let acc_info: &UncheckedAccount = &ctx.accounts.history;
 
         let index = acc_info.data_len();
         let new_len = index + encoded_entry.len();

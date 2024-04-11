@@ -12,7 +12,7 @@ pub struct SettleAuctionComplete<'info> {
     /// prepared order response and its custody token account when we close these accounts. This
     /// means we disregard the `prepared_by` field in the prepared order response.
     #[account(mut)]
-    executor: AccountInfo<'info>,
+    executor: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -52,7 +52,7 @@ pub struct SettleAuctionComplete<'info> {
         ],
         bump,
     )]
-    prepared_custody_token: AccountInfo<'info>,
+    prepared_custody_token: UncheckedAccount<'info>,
 
     #[account(
         mut,

@@ -25,7 +25,7 @@ pub struct PlaceInitialOfferCctp<'info> {
         ],
         bump
     )]
-    transfer_authority: AccountInfo<'info>,
+    transfer_authority: UncheckedAccount<'info>,
 
     /// NOTE: This account is only used to pause inbound auctions.
     #[account(constraint = !custodian.paused @ MatchingEngineError::Paused)]

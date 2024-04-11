@@ -34,7 +34,7 @@ pub struct ExecuteFastOrderLocal<'info> {
         ],
         bump,
     )]
-    core_message: AccountInfo<'info>,
+    core_message: UncheckedAccount<'info>,
 
     custodian: CheckedCustodian<'info>,
 

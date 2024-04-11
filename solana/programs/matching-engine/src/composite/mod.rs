@@ -22,11 +22,11 @@ use common::{
 pub struct Usdc<'info> {
     /// CHECK: This address must equal [USDC_MINT](common::USDC_MINT).
     #[account(address = common::USDC_MINT)]
-    pub mint: AccountInfo<'info>,
+    pub mint: UncheckedAccount<'info>,
 }
 
 impl<'info> Deref for Usdc<'info> {
-    type Target = AccountInfo<'info>;
+    type Target = UncheckedAccount<'info>;
 
     fn deref(&self) -> &Self::Target {
         &self.mint
@@ -72,7 +72,7 @@ pub struct LiquidityLayerVaa<'info> {
             true
         }
     )]
-    pub vaa: AccountInfo<'info>,
+    pub vaa: UncheckedAccount<'info>,
 }
 
 impl<'info> LiquidityLayerVaa<'info> {
@@ -82,7 +82,7 @@ impl<'info> LiquidityLayerVaa<'info> {
 }
 
 impl<'info> Deref for LiquidityLayerVaa<'info> {
-    type Target = AccountInfo<'info>;
+    type Target = UncheckedAccount<'info>;
 
     fn deref(&self) -> &Self::Target {
         &self.vaa
@@ -177,7 +177,7 @@ pub struct LocalTokenRouter<'info> {
     /// CHECK: Must be an executable (the Token Router program), whose ID will be used to derive the
     /// emitter (router endpoint) address.
     #[account(executable)]
-    pub token_router_program: AccountInfo<'info>,
+    pub token_router_program: UncheckedAccount<'info>,
 
     /// CHECK: The Token Router program's emitter PDA (a.k.a. its custodian) will have account data.
     #[account(
@@ -187,7 +187,7 @@ pub struct LocalTokenRouter<'info> {
         owner = token_router_program.key() @ MatchingEngineError::InvalidEndpoint,
         constraint = !token_router_emitter.data_is_empty() @ MatchingEngineError::InvalidEndpoint,
     )]
-    pub token_router_emitter: AccountInfo<'info>,
+    pub token_router_emitter: UncheckedAccount<'info>,
 
     #[account(
         associated_token::mint = common::USDC_MINT,
@@ -337,7 +337,7 @@ pub struct ActiveAuction<'info> {
         mut,
         address = auction.info.as_ref().unwrap().best_offer_token,
     )]
-    pub best_offer_token: AccountInfo<'info>,
+    pub best_offer_token: UncheckedAccount<'info>,
 }
 
 impl<'info> VaaDigest for ActiveAuction<'info> {
@@ -372,29 +372,29 @@ pub struct ExecuteOrder<'info> {
 
     /// CHECK: Must be a token account, whose mint is [common::USDC_MINT].
     #[account(mut)]
-    pub executor_token: AccountInfo<'info>,
+    pub executor_token: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Must equal [initial_offer](Auction::initial_offer).
     #[account(
         mut,
         address = active_auction.info.as_ref().unwrap().initial_offer_token,
     )]
-    pub initial_offer_token: AccountInfo<'info>,
+    pub initial_offer_token: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
 pub struct WormholePublishMessage<'info> {
     /// CHECK: Seeds must be \["Bridge"\] (Wormhole Core Bridge program).
     #[account(mut)]
-    pub config: AccountInfo<'info>,
+    pub config: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["Sequence"\, custodian] (Wormhole Core Bridge program).
     #[account(mut)]
-    pub emitter_sequence: AccountInfo<'info>,
+    pub emitter_sequence: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["fee_collector"\] (Wormhole Core Bridge program).
     #[account(mut)]
-    pub fee_collector: AccountInfo<'info>,
+    pub fee_collector: UncheckedAccount<'info>,
 
     pub core_bridge_program: Program<'info, core_bridge_program::CoreBridge>,
 }
@@ -406,33 +406,33 @@ pub struct CctpDepositForBurn<'info> {
     /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
     /// Token Messenger Minter program's local token account.
     #[account(mut)]
-    pub mint: AccountInfo<'info>,
+    pub mint: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["sender_authority"\] (CCTP Token Messenger Minter program).
-    pub token_messenger_minter_sender_authority: AccountInfo<'info>,
+    pub token_messenger_minter_sender_authority: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
     #[account(mut)]
-    pub message_transmitter_config: AccountInfo<'info>,
+    pub message_transmitter_config: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
-    pub token_messenger: AccountInfo<'info>,
+    pub token_messenger: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
     /// Messenger Minter program).
-    pub remote_token_messenger: AccountInfo<'info>,
+    pub remote_token_messenger: UncheckedAccount<'info>,
 
     /// CHECK Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
-    pub token_minter: AccountInfo<'info>,
+    pub token_minter: UncheckedAccount<'info>,
 
     /// Local token account, which this program uses to validate the `mint` used to burn.
     ///
     /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
     #[account(mut)]
-    pub local_token: AccountInfo<'info>,
+    pub local_token: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
-    pub token_messenger_minter_event_authority: AccountInfo<'info>,
+    pub token_messenger_minter_event_authority: UncheckedAccount<'info>,
 
     pub token_messenger_minter_program:
         Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
@@ -445,46 +445,46 @@ pub struct CctpReceiveMessage<'info> {
     pub mint_recipient: CctpMintRecipientMut<'info>,
 
     /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
-    pub message_transmitter_authority: AccountInfo<'info>,
+    pub message_transmitter_authority: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
-    pub message_transmitter_config: AccountInfo<'info>,
+    pub message_transmitter_config: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["used_nonces", remote_domain.to_string(),
     /// first_nonce.to_string()\] (CCTP Message Transmitter program).
     #[account(mut)]
-    pub used_nonces: AccountInfo<'info>,
+    pub used_nonces: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["__event_authority"\] (CCTP Message Transmitter program)).
-    pub message_transmitter_event_authority: AccountInfo<'info>,
+    pub message_transmitter_event_authority: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
-    pub token_messenger: AccountInfo<'info>,
+    pub token_messenger: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
     /// Messenger Minter program).
-    pub remote_token_messenger: AccountInfo<'info>,
+    pub remote_token_messenger: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
-    pub token_minter: AccountInfo<'info>,
+    pub token_minter: UncheckedAccount<'info>,
 
     /// Token Messenger Minter's Local Token account. This program uses the mint of this account to
     /// validate the `mint_recipient` token account's mint.
     ///
     /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
     #[account(mut)]
-    pub local_token: AccountInfo<'info>,
+    pub local_token: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["token_pair", remote_domain.to_string(), remote_token_address\] (CCTP
     /// Token Messenger Minter program).
-    pub token_pair: AccountInfo<'info>,
+    pub token_pair: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["custody", mint\] (CCTP Token Messenger Minter program).
     #[account(mut)]
-    pub token_messenger_minter_custody_token: AccountInfo<'info>,
+    pub token_messenger_minter_custody_token: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
-    pub token_messenger_minter_event_authority: AccountInfo<'info>,
+    pub token_messenger_minter_event_authority: UncheckedAccount<'info>,
 
     pub token_messenger_minter_program:
         Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
@@ -499,7 +499,7 @@ pub struct ClosePreparedOrderResponse<'info> {
         mut,
         address = order_response.prepared_by,
     )]
-    pub by: AccountInfo<'info>,
+    pub by: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -521,7 +521,7 @@ pub struct ClosePreparedOrderResponse<'info> {
         ],
         bump,
     )]
-    pub custody_token: AccountInfo<'info>,
+    pub custody_token: UncheckedAccount<'info>,
 }
 
 impl<'info> VaaDigest for ClosePreparedOrderResponse<'info> {
@@ -537,11 +537,11 @@ pub struct RequiredSysvars<'info> {
     ///
     /// CHECK: Must equal clock ID.
     #[account(address = solana_program::sysvar::clock::id())]
-    pub clock: AccountInfo<'info>,
+    pub clock: UncheckedAccount<'info>,
 
     /// Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.
     ///
     /// CHECK: Must equal rent ID.
     #[account(address = solana_program::sysvar::rent::id())]
-    pub rent: AccountInfo<'info>,
+    pub rent: UncheckedAccount<'info>,
 }

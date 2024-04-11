@@ -15,7 +15,7 @@ pub struct ProgramOwnerOnly<'info> {
     /// CHECK: Upgrade authority for the liquidity layer program (either Token Router or Matching
     /// Engine). This address must equal the liquidity layer program data's upgrade authority.
     #[account(address = common::UPGRADE_MANAGER_AUTHORITY)]
-    pub upgrade_authority: AccountInfo<'info>,
+    pub upgrade_authority: UncheckedAccount<'info>,
 }
 
 impl<'info> Deref for ProgramOwnerOnly<'info> {
@@ -55,7 +55,7 @@ pub struct ExecuteUpgrade<'info> {
     ///
     /// CHECK: This address must be the deployed implementation pubkey.
     #[account(mut)]
-    pub buffer: AccountInfo<'info>,
+    pub buffer: UncheckedAccount<'info>,
 
     /// CHECK: Must be BPF Loader Upgradeable's PDA of liquidity layer program's program data.
     #[account(
@@ -69,7 +69,7 @@ pub struct ExecuteUpgrade<'info> {
     /// CHECK: Must be Token Router program . We cannot use the Program<'info, ..> definition here
     /// because we cannot set this account to be mutable in that case.
     #[account(mut)]
-    pub program: AccountInfo<'info>,
+    pub program: UncheckedAccount<'info>,
 
     pub bpf_loader_upgradeable_program: Program<'info, BpfLoaderUpgradeable>,
     pub system_program: Program<'info, System>,
@@ -94,7 +94,7 @@ pub struct CommitUpgrade<'info> {
 
     /// CHECK: This account will receive lamports from upgrade receipt.
     #[account(mut)]
-    recipient: AccountInfo<'info>,
+    recipient: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -125,7 +125,7 @@ pub struct CommitUpgrade<'info> {
 
     /// CHECK: Must be executable.
     #[account(executable)]
-    pub program: AccountInfo<'info>,
+    pub program: UncheckedAccount<'info>,
 
     #[account(
         seeds = [program.key().as_ref()],
@@ -141,11 +141,11 @@ pub struct RequiredSysvars<'info> {
     ///
     /// CHECK: Must equal clock ID.
     #[account(address = solana_program::sysvar::clock::id())]
-    pub clock: AccountInfo<'info>,
+    pub clock: UncheckedAccount<'info>,
 
     /// BPF Loader Upgradeable needs the rent sysvar for its upgrade instruction.
     ///
     /// CHECK: Must equal rent ID.
     #[account(address = solana_program::sysvar::rent::id())]
-    pub rent: AccountInfo<'info>,
+    pub rent: UncheckedAccount<'info>,
 }

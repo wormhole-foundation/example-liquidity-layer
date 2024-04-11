@@ -20,46 +20,46 @@ struct CctpReceiveMessage<'info> {
     mint_recipient: CctpMintRecipientMut<'info>,
 
     /// CHECK: Seeds must be \["message_transmitter_authority"\] (CCTP Message Transmitter program).
-    message_transmitter_authority: AccountInfo<'info>,
+    message_transmitter_authority: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["message_transmitter"\] (CCTP Message Transmitter program).
-    message_transmitter_config: AccountInfo<'info>,
+    message_transmitter_config: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["used_nonces", remote_domain.to_string(),
     /// first_nonce.to_string()\] (CCTP Message Transmitter program).
     #[account(mut)]
-    used_nonces: AccountInfo<'info>,
+    used_nonces: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["__event_authority"\] (CCTP Message Transmitter program)).
-    message_transmitter_event_authority: AccountInfo<'info>,
+    message_transmitter_event_authority: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["token_messenger"\] (CCTP Token Messenger Minter program).
-    token_messenger: AccountInfo<'info>,
+    token_messenger: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token
     /// Messenger Minter program).
-    remote_token_messenger: AccountInfo<'info>,
+    remote_token_messenger: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["token_minter"\] (CCTP Token Messenger Minter program).
-    token_minter: AccountInfo<'info>,
+    token_minter: UncheckedAccount<'info>,
 
     /// Token Messenger Minter's Local Token account. This program uses the mint of this account to
     /// validate the `mint_recipient` token account's mint.
     ///
     /// CHECK: Mutable. Seeds must be \["local_token", mint\] (CCTP Token Messenger Minter program).
     #[account(mut)]
-    local_token: AccountInfo<'info>,
+    local_token: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["token_pair", remote_domain.to_string(), remote_token_address\] (CCTP
     /// Token Messenger Minter program).
-    token_pair: AccountInfo<'info>,
+    token_pair: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["custody", mint\] (CCTP Token Messenger Minter program).
     #[account(mut)]
-    token_messenger_minter_custody_token: AccountInfo<'info>,
+    token_messenger_minter_custody_token: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
-    token_messenger_minter_event_authority: AccountInfo<'info>,
+    token_messenger_minter_event_authority: UncheckedAccount<'info>,
 
     token_messenger_minter_program:
         Program<'info, token_messenger_minter_program::TokenMessengerMinter>,

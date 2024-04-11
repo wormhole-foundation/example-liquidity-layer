@@ -36,7 +36,7 @@ pub struct SettleAuctionNoneCctp<'info> {
         ],
         bump,
     )]
-    core_message: AccountInfo<'info>,
+    core_message: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["cctp-msg", payer, payer_sequence.value\].
     #[account(
@@ -48,7 +48,7 @@ pub struct SettleAuctionNoneCctp<'info> {
         ],
         bump,
     )]
-    cctp_message: AccountInfo<'info>,
+    cctp_message: UncheckedAccount<'info>,
 
     custodian: CheckedCustodian<'info>,
 

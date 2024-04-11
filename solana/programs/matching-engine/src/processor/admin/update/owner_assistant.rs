@@ -14,7 +14,7 @@ pub struct UpdateOwnerAssistant<'info> {
             new_owner_assistant.key() != Pubkey::default()
         } @ MatchingEngineError::AssistantZeroPubkey,
     )]
-    new_owner_assistant: AccountInfo<'info>,
+    new_owner_assistant: UncheckedAccount<'info>,
 }
 
 pub fn update_owner_assistant(ctx: Context<UpdateOwnerAssistant>) -> Result<()> {

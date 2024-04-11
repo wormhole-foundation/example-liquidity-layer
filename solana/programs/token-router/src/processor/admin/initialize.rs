@@ -29,7 +29,7 @@ pub struct Initialize<'info> {
             owner_assistant.key() != Pubkey::default()
         } @ TokenRouterError::AssistantZeroPubkey
     )]
-    owner_assistant: AccountInfo<'info>,
+    owner_assistant: UncheckedAccount<'info>,
 
     #[account(
         init,
@@ -58,14 +58,14 @@ pub struct Initialize<'info> {
 
     /// CHECK: This program PDA will be the upgrade authority for the Token Router program.
     #[account(address = common::UPGRADE_MANAGER_AUTHORITY)]
-    upgrade_manager_authority: AccountInfo<'info>,
+    upgrade_manager_authority: UncheckedAccount<'info>,
 
     /// CHECK: This program must exist.
     #[account(
         executable,
         address = common::UPGRADE_MANAGER_PROGRAM_ID,
     )]
-    upgrade_manager_program: AccountInfo<'info>,
+    upgrade_manager_program: UncheckedAccount<'info>,
 
     bpf_loader_upgradeable_program: Program<'info, BpfLoaderUpgradeable>,
     system_program: Program<'info, System>,

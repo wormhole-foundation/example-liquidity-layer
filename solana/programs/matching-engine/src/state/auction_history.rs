@@ -1,7 +1,7 @@
 //! The auction history state does not follow the same pattern as the other account schemas. Because
 //! we do not lean on [AccountSerialize] and [AccountDeserialize] in account contexts for the full
 //! auction history, we will be using a header to perform these operations to validate just the
-//! beginning of each of these accounts. The history itself will be read in using [AccountInfo].
+//! beginning of each of these accounts. The history itself will be read in using [UncheckedAccount].
 
 use std::ops::{Deref, DerefMut};
 

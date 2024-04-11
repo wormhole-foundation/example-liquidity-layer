@@ -12,7 +12,7 @@ pub struct SubmitOwnershipTransferRequest<'info> {
         constraint = new_owner.key() != Pubkey::default() @ TokenRouterError::InvalidNewOwner,
         constraint = new_owner.key() != admin.owner.key() @ TokenRouterError::AlreadyOwner
     )]
-    new_owner: AccountInfo<'info>,
+    new_owner: UncheckedAccount<'info>,
 }
 
 pub fn submit_ownership_transfer_request(

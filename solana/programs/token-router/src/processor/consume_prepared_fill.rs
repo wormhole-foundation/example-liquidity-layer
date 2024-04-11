@@ -14,7 +14,7 @@ pub struct ConsumePreparedFill<'info> {
     /// intention of consuming it, he will be out of luck. We will reward the redeemer with the
     /// closed account funds with a payer of his choosing.
     #[account(mut)]
-    beneficiary: AccountInfo<'info>,
+    beneficiary: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -28,7 +28,7 @@ pub struct ConsumePreparedFill<'info> {
     ///
     /// CHECK: This token account must already exist.
     #[account(mut)]
-    dst_token: AccountInfo<'info>,
+    dst_token: UncheckedAccount<'info>,
 
     /// Custody token account. This account will be closed at the end of this instruction. It just
     /// acts as a conduit to allow this program to be the transfer initiator in the CCTP message.
