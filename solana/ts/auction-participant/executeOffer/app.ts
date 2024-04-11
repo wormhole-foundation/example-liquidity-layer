@@ -1,4 +1,4 @@
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
 import "dotenv/config";
 import * as fs from "fs";
 import winston from "winston";
@@ -112,7 +112,7 @@ class SlotOrderedAuctions {
     }
 }
 
-export async function onAuctionUpdateCallback(
+async function onAuctionUpdateCallback(
     matchingEngine: MatchingEngineProgram,
     cfg: utils.AppConfig,
     payer: Keypair,
@@ -137,27 +137,42 @@ export async function onAuctionUpdateCallback(
             logger.debug(
                 `current slot: ${currentSlot}, head slot: ${headSlot}, details.len = ${details.length}`,
             );
-            for (const { auction, fastVaa, execute } of details) {
-                // Execute auction.
-                logger.info(
-                    `Execute auction: ${auction.toString()}, fastVaa: ${fastVaa.toString()}, execute: ${execute}`,
-                );
-                matchingEngine
-                    .executeFastOrderTx(
-                        { payer: payer.publicKey, fastVaa, auction },
-                        [payer],
-                        {
-                            feeMicroLamports: 69_420,
-                            computeUnits: 290_000,
-                        },
-                        { skipPreflight: true },
-                    )
-                    .then((preppedTx) =>
-                        utils.sendTx(connection, preppedTx, logger, cachedBlockhash.latest),
-                    );
+            for (const deets of details) {
+                executeOrderWithRetry(deets);
             }
         }
     });
+
+    async function executeOrderWithRetry(accounts: { auction: PublicKey; fastVaa: PublicKey }) {
+        const { auction, fastVaa } = accounts;
+        // Execute auction.
+        logger.info(
+            `Execute with retry, auction: ${auction.toString()}, fastVaa: ${fastVaa.toString()}`,
+        );
+
+        let success = false;
+        while (!success) {
+            success = await matchingEngine
+                .executeFastOrderTx(
+                    { payer: payer.publicKey, fastVaa, auction },
+                    [payer],
+                    {
+                        feeMicroLamports: 69_420,
+                        computeUnits: 290_000,
+                    },
+                    { skipPreflight: true },
+                )
+                .then((preppedTx) =>
+                    utils.sendTx(connection, preppedTx, logger, cachedBlockhash.latest),
+                )
+                .then((_) => true)
+                .catch((err) => {
+                    logger.error(`${err.toString()}`);
+                    logger.debug(`Retrying execute order for auction: ${auction.toString()}`);
+                    return false;
+                });
+        }
+    }
 
     // Account for recognized token accounts so we do not offer against "ourselves".
     const ourTokenAccounts = Array.from(cfg.recognizedTokenAccounts());
