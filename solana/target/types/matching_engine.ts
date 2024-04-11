@@ -3375,6 +3375,10 @@ export type MatchingEngine = {
       "name": "AuctionNotSettled"
     },
     {
+      "code": 7058,
+      "name": "ExecutorNotPreparedBy"
+    },
+    {
       "code": 7280,
       "name": "CannotCloseAuctionYet"
     },
@@ -6764,6 +6768,10 @@ export const IDL: MatchingEngine = {
     {
       "code": 7056,
       "name": "AuctionNotSettled"
+    },
+    {
+      "code": 7058,
+      "name": "ExecutorNotPreparedBy"
     },
     {
       "code": 7280,

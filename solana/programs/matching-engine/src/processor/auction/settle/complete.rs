@@ -119,6 +119,17 @@ fn handle_settle_auction_complete(
             )
         }
         _ => {
+            // If there is a penalty, we want to return the lamports back to the person who paid to
+            // create the prepared order response and custody token accounts.
+            //
+            // The executor's intention here would be to collect the base fee to cover the cost to
+            // post the finalized VAA.
+            require_keys_eq!(
+                executor_token.owner,
+                prepared_order_response.prepared_by,
+                MatchingEngineError::ExecutorNotPreparedBy
+            );
+
             if executor_token.key() != best_offer_token.key() {
                 // Because the auction participant was penalized for executing the order late, he
                 // will be deducted the base fee. This base fee will be sent to the executor token

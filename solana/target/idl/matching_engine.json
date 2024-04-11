@@ -3375,6 +3375,10 @@
       "name": "AuctionNotSettled"
     },
     {
+      "code": 7058,
+      "name": "ExecutorNotPreparedBy"
+    },
+    {
       "code": 7280,
       "name": "CannotCloseAuctionYet"
     },
