@@ -1,12 +1,11 @@
-import { Connection, Keypair, PublicKey, TransactionInstruction } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import "dotenv/config";
 import * as fs from "fs";
 import winston from "winston";
-import { AuctionUpdated, FEE_PRECISION_MAX, MatchingEngineProgram } from "../../src/matchingEngine";
-import * as utils from "../utils";
-import { CachedBlockhash, OfferToken } from "./containers";
-import { BN } from "@coral-xyz/anchor";
 import { Uint64, uint64ToBigInt } from "../../src/common";
+import { AuctionUpdated, MatchingEngineProgram } from "../../src/matchingEngine";
+import { CachedBlockhash } from "../containers";
+import * as utils from "../utils";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");

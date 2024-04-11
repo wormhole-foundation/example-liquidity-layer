@@ -2,11 +2,10 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import "dotenv/config";
 import * as fs from "fs";
 import winston from "winston";
-import { AuctionUpdated, FEE_PRECISION_MAX, MatchingEngineProgram } from "../../src/matchingEngine";
-import * as utils from "../utils";
-import { CachedBlockhash, OfferToken } from "./containers";
-import { BN } from "@coral-xyz/anchor";
 import { Uint64, uint64ToBigInt } from "../../src/common";
+import { AuctionUpdated, MatchingEngineProgram } from "../../src/matchingEngine";
+import { CachedBlockhash, OfferToken } from "../containers";
+import * as utils from "../utils";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
@@ -117,7 +116,7 @@ export async function onAuctionUpdateCallback(
         logger.debug(
             `Found ${
                 vaa !== null ? "initial" : "improved"
-            } auction: ${auction.toString()}, tx=${signature}, `,
+            } auction: ${auction.toString()}, source chain: ${sourceChain}, slot: ${slot}, end slot: ${endSlot}, tx: ${signature}`,
         );
 
         if (shouldImproveOffer(amountIn, maxOfferPriceAllowed, pricingParams)) {
