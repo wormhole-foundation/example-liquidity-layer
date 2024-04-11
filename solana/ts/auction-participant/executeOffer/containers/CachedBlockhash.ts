@@ -20,15 +20,23 @@ export class CachedBlockhash {
             out.update(blockhash, { logger });
         });
 
+        let tryAgain = false;
         connection.onSlotChange(async (info) => {
             const { slot } = info;
 
             // Update the latest blockhash every `updateBlockhashFrequency` slots.
-            if (slot % updateBlockhashFrequency == 0) {
+            if (tryAgain || slot % updateBlockhashFrequency == 0) {
                 // No need to block. We'll just update the latest blockhash and use it when needed.
                 connection
                     .getLatestBlockhash(commitment)
-                    .then((blockhash) => out.update(blockhash, { logger, slot }));
+                    .then((blockhash) => {
+                        out.update(blockhash, { logger, slot });
+                        tryAgain = false;
+                    })
+                    .catch((err) => {
+                        logger.error(`${err.toString()}`);
+                        tryAgain = true;
+                    });
             }
         });
 
