@@ -141,11 +141,11 @@ export async function sendTx(
             if (err.logs !== undefined) {
                 const logs: string[] = err.logs;
                 if (logger !== undefined) {
-                    logger.warn(logs.join("\n"));
+                    logger.error(logs.join("\n"));
                 }
             } else {
                 if (logger !== undefined) {
-                    logger.warn("Txn failed with unknown error");
+                    logger.error("Txn failed with unknown error");
                 }
             }
         });

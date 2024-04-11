@@ -28,8 +28,7 @@ export class CachedBlockhash {
                 // No need to block. We'll just update the latest blockhash and use it when needed.
                 connection
                     .getLatestBlockhash(commitment)
-                    .then((blockhash) => out.update(blockhash, { logger, slot }))
-                    .catch((err) => logger.error(`${err.toString()}`));
+                    .then((blockhash) => out.update(blockhash, { logger, slot }));
             }
         });
 
