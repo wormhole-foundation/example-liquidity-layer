@@ -78,8 +78,11 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             user_reward,
         } = utils::auction::compute_deposit_penalty(config, auction_info, current_slot);
 
-        let mut deposit_and_fee =
-            auction_info.offer_price + auction_info.security_deposit - user_reward;
+        // Offer price + security deposit was checked in placing the initial offer.
+        let mut deposit_and_fee = auction_info
+            .offer_price
+            .saturating_add(auction_info.security_deposit)
+            .saturating_sub(user_reward);
 
         let auction_signer_seeds = &[
             Auction::SEED_PREFIX,
@@ -102,7 +105,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
                 penalty,
             )?;
 
-            deposit_and_fee -= penalty;
+            deposit_and_fee = deposit_and_fee.saturating_sub(penalty);
         }
 
         let init_auction_fee = order.init_auction_fee();
@@ -122,7 +125,9 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             )?;
         } else {
             // Add it to the reimbursement.
-            deposit_and_fee += init_auction_fee;
+            deposit_and_fee = deposit_and_fee
+                .checked_add(init_auction_fee)
+                .ok_or(MatchingEngineError::U64Overflow)?;
         }
 
         // Return the security deposit and the fee to the highest bidder.
@@ -154,8 +159,13 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             Some(custodian.key()),
         )?;
 
+        let user_amount = auction_info
+            .amount_in
+            .saturating_sub(auction_info.offer_price)
+            .saturating_sub(init_auction_fee)
+            .saturating_add(user_reward);
         (
-            auction_info.amount_in - auction_info.offer_price - init_auction_fee + user_reward,
+            user_amount,
             AuctionStatus::Completed {
                 slot: current_slot,
                 execute_penalty: if penalty > 0 { Some(penalty) } else { None },
@@ -174,6 +184,8 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             redeemer: order.redeemer(),
             redeemer_message: <&[u8]>::from(order.redeemer_message()).to_vec().into(),
         },
-        sequence_seed: payer_sequence.take_and_uptick().to_be_bytes(),
+        sequence_seed: payer_sequence
+            .take_and_uptick()
+            .map(|seq| seq.to_be_bytes())?,
     })
 }

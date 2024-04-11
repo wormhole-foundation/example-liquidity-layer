@@ -203,7 +203,11 @@ fn handle_place_market_order_cctp(
     let router_endpoint = &ctx.accounts.router_endpoint;
 
     let order_info = &ctx.accounts.prepared_order.info;
-    let sequence_seed = ctx.accounts.payer_sequence.take_and_uptick().to_be_bytes();
+    let sequence_seed = ctx
+        .accounts
+        .payer_sequence
+        .take_and_uptick()
+        .map(|seq| seq.to_be_bytes())?;
 
     // This returns the CCTP nonce, but we do not need it.
     wormhole_cctp_solana::cpi::burn_and_publish(

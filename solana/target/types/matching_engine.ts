@@ -3191,6 +3191,10 @@ export type MatchingEngine = {
       "name": "U64Overflow"
     },
     {
+      "code": 6018,
+      "name": "U32Overflow"
+    },
+    {
       "code": 6032,
       "name": "SameEndpoint"
     },
@@ -3329,6 +3333,10 @@ export type MatchingEngine = {
     {
       "code": 6770,
       "name": "ProposalDelayNotExpired"
+    },
+    {
+      "code": 6772,
+      "name": "InvalidProposal"
     },
     {
       "code": 6832,
@@ -6586,6 +6594,10 @@ export const IDL: MatchingEngine = {
       "name": "U64Overflow"
     },
     {
+      "code": 6018,
+      "name": "U32Overflow"
+    },
+    {
       "code": 6032,
       "name": "SameEndpoint"
     },
@@ -6724,6 +6736,10 @@ export const IDL: MatchingEngine = {
     {
       "code": 6770,
       "name": "ProposalDelayNotExpired"
+    },
+    {
+      "code": 6772,
+      "name": "InvalidProposal"
     },
     {
       "code": 6832,

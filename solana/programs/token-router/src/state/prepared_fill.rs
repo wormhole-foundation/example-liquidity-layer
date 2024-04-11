@@ -33,7 +33,11 @@ impl PreparedFill {
     pub const SEED_PREFIX: &'static [u8] = b"fill";
 
     pub fn compute_size(payload_len: usize) -> usize {
-        8 + 32 + 1 + 32 + 32 + FillType::INIT_SPACE + 8 + 2 + 32 + 4 + payload_len
+        // We should not expect `payload_len` to cause this operation to overflow.
+        #[allow(clippy::arithmetic_side_effects)]
+        let out = 8 + 32 + 1 + 32 + 32 + FillType::INIT_SPACE + 8 + 2 + 32 + 4 + payload_len;
+
+        out
     }
 }
 

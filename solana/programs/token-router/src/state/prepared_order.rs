@@ -29,7 +29,11 @@ pub struct PreparedOrder {
 
 impl PreparedOrder {
     pub(crate) fn compute_size(message_len: usize) -> usize {
-        8 + PreparedOrderInfo::INIT_SPACE + 4 + message_len
+        // We should not expect `message_len` to cause this operation to overflow.
+        #[allow(clippy::arithmetic_side_effects)]
+        let out = 8 + PreparedOrderInfo::INIT_SPACE + 4 + message_len;
+
+        out
     }
 }
 

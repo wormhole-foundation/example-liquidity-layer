@@ -50,7 +50,8 @@ pub struct AddAuctionHistoryEntry<'info> {
                 MatchingEngineError::AuctionNotSettled,
             );
 
-            let expiration = i64::from(auction.vaa_timestamp) + crate::VAA_AUCTION_EXPIRATION_TIME;
+            let expiration =
+                i64::from(auction.vaa_timestamp).saturating_add(crate::VAA_AUCTION_EXPIRATION_TIME);
             require!(
                 Clock::get().unwrap().unix_timestamp >= expiration,
                 MatchingEngineError::CannotCloseAuctionYet,
@@ -97,7 +98,7 @@ fn handle_add_auction_history_entry(
     };
 
     // This is safe because we already checked that this is less than MAX_ENTRIES.
-    history.num_entries += 1;
+    history.num_entries = history.num_entries.saturating_add(1);
 
     // Update the history account with this new entry's vaa timestamp if it is less than the min or
     // greater than the max.
@@ -122,7 +123,10 @@ fn handle_add_auction_history_entry(
         let acc_info: &UncheckedAccount = &ctx.accounts.history;
 
         let index = acc_info.data_len();
-        let new_len = index + encoded_entry.len();
+
+        // This operation should be safe because the size of an account should never be larger than
+        // u64 (usize in this case).
+        let new_len = index.saturating_add(encoded_entry.len());
         let lamport_diff = Rent::get()
             .unwrap()
             .minimum_balance(new_len)
@@ -152,7 +156,8 @@ fn handle_add_auction_history_entry(
     let mut cursor = std::io::Cursor::new(acc_data);
     history.try_serialize(&mut cursor)?;
 
-    // This cast is safe since we know the write index is within u32.
+    // This cast is safe since we know the write index is within u64.
+    #[allow(clippy::as_conversions)]
     cursor.set_position(write_index as u64);
 
     // Serialize entry data.

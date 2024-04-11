@@ -57,7 +57,12 @@ impl AuctionHistory {
         if #[cfg(feature = "integration-test")] {
             pub const MAX_ENTRIES: u32 = 2;
         } else {
+            /// This value is calculated based on the maximum account size of 10MB.
+            ///
+            /// NOTE: This value is guaranteed to be less than u32::MAX.
+            #[allow(clippy::as_conversions)]
             #[allow(clippy::cast_possible_truncation)]
+            #[allow(clippy::integer_division)]
             pub const MAX_ENTRIES: u32 = ((10 * 1024 * 1000 - Self::START) / AuctionEntry::INIT_SPACE) as u32;
         }
     }
@@ -118,6 +123,8 @@ impl DerefMut for AuctionHistoryInternal {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::integer_division)]
+
     use super::*;
 
     #[test]

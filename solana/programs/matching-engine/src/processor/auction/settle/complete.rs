@@ -86,7 +86,7 @@ fn handle_settle_auction_complete(
 
     ctx.accounts.auction.status = AuctionStatus::Settled {
         base_fee,
-        total_penalty: execute_penalty.map(|v| v + base_fee),
+        total_penalty: execute_penalty.map(|v| v.saturating_add(base_fee)),
     };
 
     let executor_token = &ctx.accounts.executor_token;
@@ -147,7 +147,7 @@ fn handle_settle_auction_complete(
                     base_fee,
                 )?;
 
-                repayment -= base_fee;
+                repayment = repayment.saturating_sub(base_fee);
             }
         }
     };

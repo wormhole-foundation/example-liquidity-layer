@@ -4,6 +4,7 @@ pub enum MatchingEngineError {
     OwnerOrAssistantOnly = 0x4,
 
     U64Overflow = 0x10,
+    U32Overflow = 0x12,
 
     SameEndpoint = 0x20,
     InvalidEndpoint = 0x22,
@@ -51,6 +52,7 @@ pub enum MatchingEngineError {
 
     ProposalAlreadyEnacted = 0x300,
     ProposalDelayNotExpired = 0x302,
+    InvalidProposal = 0x304,
 
     AuctionConfigMismatch = 0x340,
 
@@ -73,6 +75,8 @@ pub enum MatchingEngineError {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::panic)]
+
     use crate::FEE_PRECISION_MAX;
     use anchor_lang::prelude::*;
 
