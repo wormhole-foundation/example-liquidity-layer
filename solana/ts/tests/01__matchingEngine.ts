@@ -3141,6 +3141,7 @@ describe("Matching Engine", function () {
                             executor: payer.publicKey,
                         },
                         {
+                            prepareSigners: [payer],
                             executeOrder: false,
                             errorMsg: "Error Code: AuctionNotCompleted",
                         },
@@ -3153,6 +3154,7 @@ describe("Matching Engine", function () {
                             executor: payer.publicKey,
                         },
                         {
+                            prepareSigners: [payer],
                             executeWithinGracePeriod: true,
                             errorMsg: "Error Code: ExecutorTokenMismatch",
                         },
