@@ -3141,6 +3141,7 @@ describe("Matching Engine", function () {
                             executor: payer.publicKey,
                         },
                         {
+                            prepareSigners: [payer],
                             executeOrder: false,
                             errorMsg: "Error Code: AuctionNotCompleted",
                         },
@@ -3153,6 +3154,7 @@ describe("Matching Engine", function () {
                             executor: payer.publicKey,
                         },
                         {
+                            prepareSigners: [payer],
                             executeWithinGracePeriod: true,
                             errorMsg: "Error Code: ExecutorTokenMismatch",
                         },
@@ -3165,6 +3167,7 @@ describe("Matching Engine", function () {
                             executor: playerOne.publicKey,
                         },
                         {
+                            prepareSigners: [playerOne],
                             executeWithinGracePeriod: true,
                         },
                     );
@@ -3176,8 +3179,22 @@ describe("Matching Engine", function () {
                             executor: playerOne.publicKey,
                         },
                         {
+                            prepareSigners: [playerOne],
                             executeWithinGracePeriod: true,
                             prepareAfterExecuteOrder: false,
+                        },
+                    );
+                });
+
+                it("Cannot Settle Completed with Penalty (Executor != Prepared By)", async function () {
+                    await settleAuctionCompleteForTest(
+                        {
+                            executor: playerOne.publicKey,
+                        },
+                        {
+                            executeWithinGracePeriod: false,
+                            executorIsPreparer: false,
+                            errorMsg: "Error Code: ExecutorNotPreparedBy",
                         },
                     );
                 });
@@ -3188,6 +3205,7 @@ describe("Matching Engine", function () {
                             executor: playerOne.publicKey,
                         },
                         {
+                            prepareSigners: [playerOne],
                             executeWithinGracePeriod: false,
                         },
                     );
@@ -3199,6 +3217,7 @@ describe("Matching Engine", function () {
                             executor: playerTwo.publicKey,
                         },
                         {
+                            prepareSigners: [playerTwo],
                             executeWithinGracePeriod: false,
                         },
                     );
@@ -3684,7 +3703,7 @@ describe("Matching Engine", function () {
                         if (settlementType == "complete") {
                             const result = await settleAuctionCompleteForTest(
                                 { executor: playerOne.publicKey },
-                                { vaaTimestamp },
+                                { vaaTimestamp, prepareSigners: [playerOne] },
                             );
                             return result!.auction;
                         } else if (settlementType == "none") {
@@ -4121,15 +4140,21 @@ describe("Matching Engine", function () {
                     const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
                         units: 300_000,
                     });
+
+                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                        lookupTableAddress,
+                    );
                     const ix = await engine.executeFastOrderCctpIx({
-                        payer: accounts.payer,
+                        payer: payer.publicKey,
                         fastVaa,
                         auction,
                         auctionConfig,
                         bestOfferToken,
                         initialOfferToken,
                     });
-                    await expectIxOk(connection, [computeIx, ix], [payer]);
+                    await expectIxOk(connection, [computeIx, ix], [payer], {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    });
                 }
             }
         };
@@ -4234,7 +4259,7 @@ describe("Matching Engine", function () {
 
     async function settleAuctionCompleteForTest(
         accounts: {
-            executor: PublicKey;
+            executor?: PublicKey;
             preparedOrderResponse?: PublicKey;
             auction?: PublicKey;
             bestOfferToken?: PublicKey;
@@ -4242,12 +4267,17 @@ describe("Matching Engine", function () {
         opts: ForTestOpts &
             ObserveCctpOrderVaasOpts &
             PrepareOrderResponseForTestOptionalOpts & {
+                executorIsPreparer?: boolean;
+                prepareSigners?: Signer[];
                 preparedInSameTransaction?: boolean;
             } = {},
     ): Promise<void | { auction: PublicKey }> {
         let [{ signers, errorMsg }, excludedForTestOpts] = setDefaultForTestOpts(opts);
-        let { preparedInSameTransaction } = excludedForTestOpts;
+        let { executorIsPreparer, prepareSigners, preparedInSameTransaction } = excludedForTestOpts;
+        executorIsPreparer ??= true;
+        prepareSigners ??= [playerOne];
         preparedInSameTransaction ??= false; // TODO: do something with this
+
         if (preparedInSameTransaction) {
             throw new Error("preparedInSameTransaction not implemented");
         }
@@ -4262,16 +4292,27 @@ describe("Matching Engine", function () {
             } else {
                 const result = await prepareOrderResponseCctpForTest(
                     {
-                        payer: payer.publicKey,
+                        payer: executorIsPreparer
+                            ? accounts.executor ?? playerOne.publicKey
+                            : payer.publicKey,
                     },
-                    excludedForTestOpts,
+                    {
+                        signers: executorIsPreparer ? prepareSigners : [payer],
+                        ...excludedForTestOpts,
+                    },
                 );
                 expect(typeof result == "object" && "preparedOrderResponse" in result).is.true;
                 return result!;
             }
         })();
 
-        const ix = await engine.settleAuctionCompleteIx({ ...accounts, preparedOrderResponse });
+        const executor = accounts.executor ?? playerOne.publicKey;
+
+        const ix = await engine.settleAuctionCompleteIx({
+            ...accounts,
+            executor,
+            preparedOrderResponse,
+        });
 
         if (errorMsg !== null) {
             return expectIxErr(connection, [ix], signers, errorMsg);
@@ -4291,25 +4332,24 @@ describe("Matching Engine", function () {
         });
 
         const { bestOfferToken } = info!;
-        const executorToken = splToken.getAssociatedTokenAddressSync(
-            USDC_MINT_ADDRESS,
-            accounts.executor,
-        );
+        const executorToken = splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, executor);
         const { owner: bestOfferAuthority, amount: bestOfferTokenBalanceBefore } =
             await splToken.getAccount(connection, bestOfferToken);
 
         let executorTokenBalanceBefore: bigint | null = null;
-        if (
-            (opts.executeWithinGracePeriod ?? true) ||
-            accounts.executor.equals(bestOfferAuthority)
-        ) {
+        if ((opts.executeWithinGracePeriod ?? true) || executor.equals(bestOfferAuthority)) {
             expect(accounts.executor).to.eql(bestOfferAuthority);
         } else {
+            const { preparedBy } = await engine.fetchPreparedOrderResponse({
+                address: preparedOrderResponse,
+            });
+            expect(accounts.executor).to.eql(preparedBy);
+
             const { amount } = await splToken.getAccount(connection, executorToken);
             executorTokenBalanceBefore = amount;
         }
 
-        const authorityLamportsBefore = await connection.getBalance(accounts.executor);
+        const authorityLamportsBefore = await connection.getBalance(executor);
 
         const preparedCustodyToken = engine.preparedCustodyTokenAddress(preparedOrderResponse);
         const { amount: preparedCustodyBalanceBefore } = await splToken.getAccount(
@@ -4359,7 +4399,7 @@ describe("Matching Engine", function () {
             expect(executorTokenBalanceAfter).equals(executorTokenBalanceBefore + baseFee);
         }
 
-        const authorityLamportsAfter = await connection.getBalance(accounts.executor);
+        const authorityLamportsAfter = await connection.getBalance(executor);
         expect(authorityLamportsAfter).equals(
             authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
         );

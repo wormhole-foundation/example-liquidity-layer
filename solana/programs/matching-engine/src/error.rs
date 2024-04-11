@@ -64,6 +64,7 @@ pub enum MatchingEngineError {
     AuctionNotCompleted = 0x41a,
     CarpingNotAllowed = 0x41e,
     AuctionNotSettled = 0x420,
+    ExecutorNotPreparedBy = 0x422,
 
     CannotCloseAuctionYet = 0x500,
     AuctionHistoryNotFull = 0x502,
