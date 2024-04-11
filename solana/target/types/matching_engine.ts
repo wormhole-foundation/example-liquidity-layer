@@ -3156,10 +3156,20 @@ export type MatchingEngine = {
           "index": false
         },
         {
+          "name": "sourceChain",
+          "type": "u16",
+          "index": false
+        },
+        {
           "name": "targetProtocol",
           "type": {
             "defined": "MessageProtocol"
           },
+          "index": false
+        },
+        {
+          "name": "penalized",
+          "type": "bool",
           "index": false
         }
       ]
@@ -6559,10 +6569,20 @@ export const IDL: MatchingEngine = {
           "index": false
         },
         {
+          "name": "sourceChain",
+          "type": "u16",
+          "index": false
+        },
+        {
           "name": "targetProtocol",
           "type": {
             "defined": "MessageProtocol"
           },
+          "index": false
+        },
+        {
+          "name": "penalized",
+          "type": "bool",
           "index": false
         }
       ]
