@@ -1,12 +1,36 @@
 # Example Liquidity Layer on Solana
 
+## Assets
+
+- Matching Engine
+- Token Router
+- Upgrade Manager
+
 ## Dependencies
 
-- TODO
+- cargo -- Get started using [rustup](https://rustup.rs/)
+- npm -- Get started using [nvm](https://github.com/nvm-sh/nvm?tab=readme-ov-file#install--update-script)
+- solana -- Install the latest version [here](https://docs.solanalabs.com/cli/install#use-solanas-install-tool)
+- anchor -- Install [avm](https://book.anchor-lang.com/getting_started/installation.html#anchor)
 
 ## Build
 
-- `make`
+Currently there are two features that represent target Solana
+networks:
+
+- localnet (Solana Test Validator)
+- testnet (Solana devnet)
+
+Make sure the program pubkeys for whichever network you plan on deploying for is set as the correct
+const values found in [this lib.rs file](modules/common/src/lib.rs).
+
+So for testnet, you would specify the NETWORK env and execute `make build`. For example:
+
+```sh
+NETWORK=testnet make build
+```
+
+This will create an artifacts directory (in the example above, _artifacts_testnet_).
 
 ## Tests
 
@@ -14,7 +38,19 @@ To run both unit and integration tests, run `make test`.
 
 ## Deployment
 
-- TODO
+First [build](#build) for a specific network.
+
+Following the same example in the build section, assuming your keypair reflects the Upgrade
+Manager's pubkey `ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt`, you would deploy a new program by
+running the following command using the Solana CLI:
+
+```sh
+solana program deploy -u d --program-id ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt artifacts-testnet/upgrade_manager.so
+```
+
+## Managing Upgrades
+
+TODO
 
 ## Testnet Example Solver
 
