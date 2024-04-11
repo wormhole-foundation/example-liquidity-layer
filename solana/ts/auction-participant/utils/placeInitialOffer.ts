@@ -133,7 +133,9 @@ export async function handlePlaceInitialOffer(
         unproccessedTxns.push(...preparedPostVaaTxs);
     }
 
-    logicLogger.debug(`Prepare initialize auction, sequence=${fastVaa.sequence}`);
+    logicLogger.debug(
+        `Prepare initialize auction, sequence=${fastVaa.sequence}, auction=${auction}`,
+    );
     const initializeAuctionTx = await matchingEngine.placeInitialOfferTx(
         {
             payer: payer.publicKey,

@@ -74,7 +74,9 @@ export async function handleSettleAuction(
     raw: Uint8Array,
     payer: Keypair,
 ): Promise<PreparedTransaction[]> {
-    await new Promise((resolve) => setTimeout(resolve, 20_000));
+    // Since this testnet, Avax is enabled to send fast orders.
+    // We need to wait for the auction to be completed before we can settle it.
+    await new Promise((resolve) => setTimeout(resolve, 10_000));
 
     const unproccessedTxns: PreparedTransaction[] = [];
 
@@ -163,6 +165,9 @@ export async function handleSettleAuction(
         unproccessedTxns.push(...preparedPostVaaTxs);
     }
 
+    logicLogger.debug(
+        `Prepare settle auction, sequence=${fastVaaParsed.sequence}, auction=${auction}`,
+    );
     const settleAuctionTx = await createSettleTx(
         connection,
         {
@@ -170,6 +175,7 @@ export async function handleSettleAuction(
             fastVaa: fastVaaAccount,
             finalizedVaa: finalizedVaaAccount,
             auction,
+            bestOfferToken: auctionData.info!.bestOfferToken,
         },
         auctionData.status,
         cctpArgs,
@@ -194,6 +200,7 @@ async function createSettleTx(
         fastVaa: PublicKey;
         finalizedVaa: PublicKey;
         auction: PublicKey;
+        bestOfferToken: PublicKey;
     },
     status: AuctionStatus,
     cctpArgs: { encodedCctpMessage: Buffer; cctpAttestation: Buffer },
@@ -201,14 +208,13 @@ async function createSettleTx(
     matchingEngine: MatchingEngineProgram,
     cfg: utils.AppConfig,
 ): Promise<PreparedTransaction | undefined> {
-    const { executor, fastVaa, finalizedVaa, auction } = accounts;
+    const { executor, fastVaa, finalizedVaa, auction, bestOfferToken } = accounts;
 
     const { value: lookupTableAccount } = await connection.getAddressLookupTable(
         cfg.solanaAddressLookupTable(),
     );
 
     // Fetch our token account.
-    const executorToken = splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, executor);
     const preparedTransactionOptions = {
         computeUnits: cfg.settleAuctionCompleteComputeUnits(),
         feeMicroLamports: 10,
@@ -230,7 +236,7 @@ async function createSettleTx(
             executor,
             fastVaa,
             finalizedVaa,
-            bestOfferToken: executorToken,
+            bestOfferToken,
             auction,
         },
         cctpArgs,

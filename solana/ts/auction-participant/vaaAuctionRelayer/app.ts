@@ -54,23 +54,23 @@ async function main(argv: string[]) {
     });
 
     spy.onObservation(async ({ raw, parsed, chain }) => {
-        // Since were using the vaa timestamp, there is potentially some clock drift. However,
-        // we don't want to accept VAA's that are too far in the past.
-        const currTime = Math.floor(Date.now() / 1000);
-        if (currTime - parsed.timestamp > DELAYED_VAA_THRESHOLD) {
-            logicLogger.info(
-                `Ignoring stale VAA, chain=${chain}, sequence=${parsed.sequence}, unixTime=${currTime}, vaaTime=${parsed.timestamp}`,
-            );
-            return;
-        } else {
-            logicLogger.debug(
-                `Received valid VAA, chain=${chain}, sequence=${parsed.sequence}, unixTime=${currTime}, vaaTime=${parsed.timestamp}`,
-            );
-        }
-
         let txnBatch: PreparedTransaction[] = [];
 
         if (cfg.isFastFinality(parsed)) {
+            // Since were using the vaa timestamp, there is potentially some clock drift. However,
+            // we don't want to accept VAA's that are too far in the past.
+            const currTime = Math.floor(Date.now() / 1000);
+            if (currTime - parsed.timestamp > DELAYED_VAA_THRESHOLD) {
+                logicLogger.info(
+                    `Ignoring stale Fast VAA, chain=${chain}, sequence=${parsed.sequence}, unixTime=${currTime}, vaaTime=${parsed.timestamp}`,
+                );
+                return;
+            } else {
+                logicLogger.debug(
+                    `Received valid Fast VAA, chain=${chain}, sequence=${parsed.sequence}, unixTime=${currTime}, vaaTime=${parsed.timestamp}`,
+                );
+            }
+
             // Start a new auction if this is a fast VAA.
             logicLogger.debug(`Attempting to parse FastMarketOrder, sequence=${parsed.sequence}`);
             const fastOrder = utils.tryParseFastMarketOrder(parsed.payload);

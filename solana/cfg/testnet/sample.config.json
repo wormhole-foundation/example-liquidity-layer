@@ -7,7 +7,7 @@
   "connection": {
     "rpc": "https://api.devnet.solana.com",
     "commitment": "confirmed",
-    "nonceAccount": "BPi4NsjKvkSuGHf3fAZrgBgbvVCzDgB8XzBDC9ptyjuF",
+    "nonceAccount": "",
     "addressLookupTable": "Bw7Em8X9ZAryx9efp3btk9tnAVx5JREcCw2hfzbyF8qS"
   },
   "sourceTxHash": {
@@ -19,6 +19,7 @@
     "postVaa": 100000,
     "settleAuctionNoneCctp": 250000,
     "settleAuctionNoneLocal": 150000,
+    "settleAuctionComplete": 400000,
     "initiateAuction": 100000
   },
   "knownAtaOwners": [],
