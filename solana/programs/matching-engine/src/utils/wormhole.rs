@@ -6,7 +6,7 @@ use common::{
 
 pub struct PostMatchingEngineMessage<'ctx, 'info> {
     pub wormhole: &'ctx WormholePublishMessage<'info>,
-    pub core_message: &'ctx AccountInfo<'info>,
+    pub core_message: &'ctx UncheckedAccount<'info>,
     pub custodian: &'ctx CheckedCustodian<'info>,
     pub payer: &'ctx Signer<'info>,
     pub system_program: &'ctx Program<'info, System>,

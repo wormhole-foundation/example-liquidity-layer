@@ -60,8 +60,8 @@ pub(crate) fn handle_add_cctp_router_endpoint(
 
 pub(crate) fn handle_add_local_router_endpoint(
     router_endpoint: &mut Account<RouterEndpoint>,
-    token_router_program: &AccountInfo,
-    token_router_emitter: &AccountInfo,
+    token_router_program: &UncheckedAccount,
+    token_router_emitter: &UncheckedAccount,
     token_router_custody_token: &Account<token::TokenAccount>,
     router_endpoint_bump: Option<u8>,
 ) -> Result<()> {

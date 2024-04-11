@@ -26,7 +26,7 @@ pub struct PlaceMarketOrderCctp<'info> {
         mut,
         address = prepared_order.prepared_by
     )]
-    prepared_by: AccountInfo<'info>,
+    prepared_by: UncheckedAccount<'info>,
 
     #[account(
         init_if_needed,
@@ -57,7 +57,7 @@ pub struct PlaceMarketOrderCctp<'info> {
     /// CHECK: Mutable. This token account's mint must be the same as the one found in the CCTP
     /// Token Messenger Minter program's local token account.
     #[account(mut)]
-    mint: AccountInfo<'info>,
+    mint: UncheckedAccount<'info>,
 
     /// Temporary custody token account. This account will be closed at the end of this instruction.
     /// It just acts as a conduit to allow this program to be the transfer initiator in the CCTP
@@ -112,7 +112,7 @@ pub struct PlaceMarketOrderCctp<'info> {
         ],
         bump,
     )]
-    core_message: AccountInfo<'info>,
+    core_message: UncheckedAccount<'info>,
 
     /// CHECK: Mutable. Seeds must be \["cctp-msg", payer, payer_sequence.value\].
     #[account(
@@ -124,7 +124,7 @@ pub struct PlaceMarketOrderCctp<'info> {
         ],
         bump,
     )]
-    cctp_message: AccountInfo<'info>,
+    cctp_message: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["Sequence"\, custodian] (Wormhole Core Bridge program).
     #[account(mut)]
@@ -169,11 +169,11 @@ pub struct PlaceMarketOrderCctp<'info> {
 
     /// CHECK: Wormhole Core Bridge needs the clock sysvar based on its legacy implementation.
     #[account(address = solana_program::sysvar::clock::id())]
-    clock: AccountInfo<'info>,
+    clock: UncheckedAccount<'info>,
 
     /// CHECK: Wormhole Core Bridge needs the rent sysvar based on its legacy implementation.
     #[account(address = solana_program::sysvar::rent::id())]
-    rent: AccountInfo<'info>,
+    rent: UncheckedAccount<'info>,
 }
 
 /// This instruction invokes both Wormhole Core Bridge and CCTP Token Messenger Minter programs to

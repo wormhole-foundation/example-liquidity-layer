@@ -10,7 +10,7 @@ pub struct CloseProposal<'info> {
         mut,
         address = proposal.by
     )]
-    proposed_by: AccountInfo<'info>,
+    proposed_by: UncheckedAccount<'info>,
 
     #[account(
         mut,

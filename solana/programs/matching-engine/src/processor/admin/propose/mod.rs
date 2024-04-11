@@ -10,7 +10,7 @@ use anchor_lang::prelude::*;
 struct Propose<'ctx, 'info> {
     custodian: &'ctx CheckedCustodian<'info>,
     proposal: &'ctx mut Account<'info, Proposal>,
-    by: &'ctx AccountInfo<'info>,
+    by: &'ctx Signer<'info>,
     epoch_schedule: &'ctx Sysvar<'info, EpochSchedule>,
 }
 

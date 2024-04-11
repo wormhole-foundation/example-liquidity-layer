@@ -19,7 +19,7 @@ struct SettleNoneAndPrepareFill<'ctx, 'info> {
     payer_sequence: &'ctx mut Account<'info, PayerSequence>,
     fast_vaa: &'ctx LiquidityLayerVaa<'info>,
     prepared_order_response: &'ctx Account<'info, PreparedOrderResponse>,
-    prepared_custody_token: &'ctx AccountInfo<'info>,
+    prepared_custody_token: &'ctx UncheckedAccount<'info>,
     auction: &'ctx mut Account<'info, Auction>,
     fee_recipient_token: &'ctx Account<'info, token::TokenAccount>,
     custodian: &'ctx CheckedCustodian<'info>,

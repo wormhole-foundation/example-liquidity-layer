@@ -28,7 +28,7 @@ pub struct PrepareMarketOrder<'info> {
         ],
         bump,
     )]
-    transfer_authority: AccountInfo<'info>,
+    transfer_authority: UncheckedAccount<'info>,
 
     #[account(
         init,

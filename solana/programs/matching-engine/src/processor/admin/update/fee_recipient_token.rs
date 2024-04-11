@@ -20,7 +20,7 @@ pub struct UpdateFeeRecipient<'info> {
             new_fee_recipient.key() != Pubkey::default()
         } @ MatchingEngineError::FeeRecipientZeroPubkey,
     )]
-    new_fee_recipient: AccountInfo<'info>,
+    new_fee_recipient: UncheckedAccount<'info>,
 }
 
 pub fn update_fee_recipient(ctx: Context<UpdateFeeRecipient>) -> Result<()> {

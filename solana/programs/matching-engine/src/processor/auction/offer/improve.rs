@@ -17,7 +17,7 @@ pub struct ImproveOffer<'info> {
         ],
         bump
     )]
-    transfer_authority: AccountInfo<'info>,
+    transfer_authority: UncheckedAccount<'info>,
 
     #[account(
         constraint = {

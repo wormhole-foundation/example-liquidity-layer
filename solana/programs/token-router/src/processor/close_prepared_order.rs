@@ -25,14 +25,14 @@ pub struct ClosePreparedOrder<'info> {
         mut,
         address = prepared_order.prepared_by,
     )]
-    prepared_by: AccountInfo<'info>,
+    prepared_by: UncheckedAccount<'info>,
 
     /// CHECK: This account must be the same one encoded in the prepared order.
     #[account(
         mut,
         address = prepared_order.refund_token,
     )]
-    refund_token: AccountInfo<'info>,
+    refund_token: UncheckedAccount<'info>,
 
     /// Custody token account. This account will be closed at the end of this instruction. It just
     /// acts as a conduit to allow this program to be the transfer initiator in the CCTP message.
