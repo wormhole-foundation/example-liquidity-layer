@@ -1,0 +1,96 @@
+{
+  "environment": "testnet",
+  "logging": {
+    "app": "warn",
+    "logic": "debug"
+  },
+  "connection": {
+    "rpc": "https://api.devnet.solana.com",
+    "commitment": "confirmed",
+    "nonceAccount": "",
+    "addressLookupTable": "Bw7Em8X9ZAryx9efp3btk9tnAVx5JREcCw2hfzbyF8qS"
+  },
+  "sourceTxHash": {
+    "maxRetries": 20,
+    "retryBackoff": 5000
+  },
+  "computeUnits": {
+    "verifySignatures": 25000,
+    "postVaa": 100000,
+    "settleAuctionNoneCctp": 250000,
+    "settleAuctionNoneLocal": 150000,
+    "settleAuctionComplete": 400000,
+    "initiateAuction": 100000
+  },
+  "knownAtaOwners": [],
+  "endpointConfig": [
+    {
+      "chain": "sepolia",
+      "rpc": "",
+      "endpoint": "0x603541d1Cf7178C407aA7369b67CB7e0274952e2",
+      "chainType": 0
+    },
+    {
+      "chain": "avalanche",
+      "rpc": "",
+      "endpoint": "0x7353B29FDc79435dcC7ECc9Ac9F9b61d83B4E0F4",
+      "chainType": 0
+    },
+    {
+      "chain": "optimism_sepolia",
+      "rpc": "",
+      "endpoint": "0xc1Cf3501ef0b26c8A47759F738832563C7cB014A",
+      "chainType": 0
+    },
+    {
+      "chain": "arbitrum_sepolia",
+      "rpc": "",
+      "endpoint": "0xc1Cf3501ef0b26c8A47759F738832563C7cB014A",
+      "chainType": 0
+    },
+    {
+      "chain": "base_sepolia",
+      "rpc": "https://sepolia.base.org",
+      "endpoint": "0x4452B708C01d6aD7058a7541A3A82f0aD0A1abB1",
+      "chainType": 0
+    },
+    {
+      "chain": "polygon",
+      "rpc": "",
+      "endpoint": "0x3Ce8a3aC230Eb4bCE3688f2A1ab21d986a0A0B06",
+      "chainType": 0
+    }
+  ],
+  "pricing": [
+    {
+      "chain": "sepolia",
+      "probability": 0.0005,
+      "edgePctOfFv": 0
+    },
+    {
+      "chain": "avalanche",
+      "probability": 0.0005,
+      "edgePctOfFv": 0
+    },
+    {
+      "chain": "optimism_sepolia",
+      "probability": 0.0005,
+      "edgePctOfFv": 0
+    },
+    {
+      "chain": "arbitrum_sepolia",
+      "probability": 0.0005,
+      "edgePctOfFv": 0
+    },
+    {
+      "chain": "base_sepolia",
+      "probability": 0.0005,
+      "edgePctOfFv": 0
+    },
+    {
+      "chain": "polygon",
+      "probability": 0.1,
+      "edgePctOfFv": 0
+    }
+  ]
+}

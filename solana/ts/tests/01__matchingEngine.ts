@@ -3270,6 +3270,7 @@ describe("Matching Engine", function () {
                             auction,
                             fastVaa,
                             finalizedVaa: finalized!.vaa,
+                            bestOfferToken: initialData.info!.bestOfferToken,
                         },
                         finalized!.cctp,
                         [playerTwo],

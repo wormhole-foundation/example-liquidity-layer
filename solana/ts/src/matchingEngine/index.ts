@@ -1046,7 +1046,6 @@ export class MatchingEngineProgram {
         let { totalDeposit } = args;
 
         offerToken ??= await splToken.getAssociatedTokenAddress(this.mint, payer);
-
         let fetchedConfigId: Uint64 | null = null;
         if (
             auction === undefined ||
@@ -1057,7 +1056,6 @@ export class MatchingEngineProgram {
             const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
             auction ??= this.auctionAddress(vaaAccount.digest());
             fromRouterEndpoint ??= this.routerEndpointAddress(vaaAccount.emitterInfo().chain);
-
             const { fastMarketOrder } = LiquidityLayerMessage.decode(vaaAccount.payload());
             if (fastMarketOrder === undefined) {
                 throw new Error("Message not FastMarketOrder");
@@ -1084,7 +1082,6 @@ export class MatchingEngineProgram {
         }
 
         const auctionCustodyToken = this.auctionCustodyTokenAddress(auction);
-
         const { transferAuthority, ix: approveIx } = await this.approveTransferAuthorityIx(
             { auction, owner: payer },
             {
@@ -1267,15 +1264,16 @@ export class MatchingEngineProgram {
             executor: PublicKey;
             fastVaa: PublicKey;
             finalizedVaa: PublicKey;
-            bestOfferToken?: PublicKey;
-            auction?: PublicKey;
+            bestOfferToken: PublicKey;
+            auction: PublicKey;
         },
         args: CctpMessageArgs,
         signers: Signer[],
         opts: PreparedTransactionOptions,
         confirmOptions?: ConfirmOptions,
     ): Promise<PreparedTransaction> {
-        const { executor, fastVaa, finalizedVaa, auction, bestOfferToken } = accounts;
+        let { executor, fastVaa, finalizedVaa, auction, bestOfferToken } = accounts;
+
         const prepareOrderResponseIx = await this.prepareOrderResponseCctpIx(
             { payer: executor, fastVaa, finalizedVaa },
             args,
@@ -1284,6 +1282,16 @@ export class MatchingEngineProgram {
 
         // Fetch the prepared order response.
         const preparedOrderResponse = this.preparedOrderResponseAddress(fastVaaAccount.digest());
+
+        // The executor must be the owner of the best offer token if there is no penalty.
+        const { status } = await this.fetchAuction({ address: auction });
+        if (status.completed?.executePenalty === null) {
+            const { owner } = await splToken.getAccount(
+                this.program.provider.connection,
+                bestOfferToken,
+            );
+            executor = owner;
+        }
 
         const settleAuctionCompletedIx = await this.settleAuctionCompleteIx({
             executor,

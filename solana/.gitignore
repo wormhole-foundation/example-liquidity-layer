@@ -5,6 +5,8 @@
 .vscode
 **/*.rs.bk
 /artifacts-*
+/cfg/**/*.json
+!/cfg/**/sample.*.json
 /node_modules
 /target/*
 !/target/idl

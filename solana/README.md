@@ -1,91 +1,114 @@
-# Example Token Router on Solana
+# Example Liquidity Layer on Solana
+
+## Assets
+
+- Matching Engine
+- Token Router
+- Upgrade Manager
 
 ## Dependencies
 
-> **Warning**
-> Only Solana versions >= 1.14.14 and < 1.15 are supported.
-
-First, you will need `cargo` and `anchor` CLI tools. If you need these tools,
-please visit the [Anchor book] for more details.
+- cargo -- Get started using [rustup](https://rustup.rs/)
+- npm -- Get started using [nvm](https://github.com/nvm-sh/nvm?tab=readme-ov-file#install--update-script)
+- solana -- Install the latest version [here](https://docs.solanalabs.com/cli/install#use-solanas-install-tool)
+- anchor -- Install [avm](https://book.anchor-lang.com/getting_started/installation.html#anchor)
 
 ## Build
 
-Once you have the above CLI tools, you can build the programs by simply running:
+Currently there are two features that represent target Solana
+networks:
 
-- `NETWORK=testnet make`
+- localnet (Solana Test Validator)
+- testnet (Solana devnet)
 
-This will also install this subdirectory's dependencies, such as
-`node_modules` and the Wormhole programs from the `solana` directory of the
-[Wormhole repo]. This will also create a keypair for the program in the
-`target/deploy/`. This keypair can be used for devnet, testnet and mainnet. Do not delete this
-key after deploying to the network of your choice.
+Make sure the program pubkeys for whichever network you plan on deploying for is set as the correct
+const values found in [this lib.rs file](modules/common/src/lib.rs).
+
+So for testnet, you would specify the NETWORK env and execute `make build`. For example:
+
+```sh
+NETWORK=testnet make build
+```
+
+This will create an artifacts directory (in the example above, _artifacts_testnet_).
 
 ## Tests
 
-To run both unit and integration tests, run `make test`. If you want to isolate
-your testing, use either of these commands:
-
-- `make unit-test` - Runs `cargo clippy` and `cargo test`
-- `make integration-test` - Spawns a solana local validator and uses `ts-mocha`
-  with `@solana/web3.js` to interact with the example programs.
+To run both unit and integration tests, run `make test`.
 
 ## Deployment
 
-First, generate a program public key by running the following command:
+First [build](#build) for a specific network.
 
-- `solana-keygen pubkey target/deploy/token_bridge_relayer-keypair.json`
+Following the same example in the build section, assuming your keypair reflects the Upgrade
+Manager's pubkey `ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt`, you would deploy a new program by
+running the following command using the Solana CLI:
 
-Add your program's public key to the following file:
-
-- `programs/src/lib.rs`
-
-Then, build based on the target network. The deployment options are `devnet`, `testnet` and `mainnet`. We will use `testnet` as an example for this README.
-
-- `NETWORK=testnet make build`
-
-Next, we will need to create some keypairs for the deployment. The keypair that is used to deploy the program will become the `owner` of the program. Optionally, you can create a new keypair for the `assistant` and the `fee_recipient`, however, the same keypair can be used for all three. Create the keypair(s) in a location of your choice by running:
-
-- `solana-keygen new -o path/to/keypair.json`
-
-Then set the `FEE_RECIPIENT`, `ASSISTANT` and `TOKEN_ROUTER_PID` in the `env/tesnet.env` file. This env file will be used for your deployment, as well as setting up the program.
-
-Finally, deploy the program (from the `solana`) directory with the following command:
-
-```
-solana program deploy target/deploy/token_bridge_relayer.so \
-  --program-id target/deploy/token_bridge_relayer-keypair.json \
-  --commitment confirmed \
-  -u your_testnet_rpc \
-  -k your_deployment_keypair.json`
+```sh
+solana program deploy -u d --program-id ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt artifacts-testnet/upgrade_manager.so
 ```
 
-## Program Setup
+## Managing Upgrades
 
-### Step 1: Env File
+TODO
 
-You should still have your environment file from the [deployment](#deployment) section of this README. However (if you deleted it) create a new one and set the `FEE_RECIPIENT`, `ASSISTANT` and `TOKEN_ROUTER_PID` environment variables.
+## Testnet Example Solver
 
-### Step 2: Setup Configuration File
+The example solver is split up into three processes: `vaaAuctionRelayer`, `improveOffer` and
+`executeOrder`. All three rely on the same configuration file, which can created by copying the
+sample file `cfg/testnet/sample.config.json`.
 
-Depending on your target network, there should be an example config file in the `cfg` directory. Open your file of choice and configure it to your liking. DO NOT change the name of this file.
+To get started, create a durable nonce account (see these
+[instructions](https://solana.com/developers/guides/advanced/introduction-to-durable-nonces)) with
+your Solana keypair. Copy the public key and move it to the `nonceAccount` field in your config.
 
-### Step 3: Initialize the program
+**NOTE: We encourage using a durable nonce to avoid an expired blockhash error in case there is
+network congestion. We demonstrate how to use this nonce account in the `vaaAuctionRelayer`
+process.**
 
-Run the following command to initialize the program. Make sure to supply the keypair that was used to deploy the program:
+Next, you'll need an RPC for each network that you wish to relay `FastMarketOrders` from. Add each
+RPC to the config for the corresponding chain name.
 
-- `source env/testnet.env && yarn initialize -k your_deployment_keypair.json`
+Finally, you will need a funded USDC Associated Token Account (ATA), whose owner is your keypair.
 
-### Step 4: Register Foreign Contracts
+### Vaa Auction Relayer
 
-- `source env/testnet.env && yarn register-contracts -k your_deployment_keypair.json -n testnet`
+The `vaaAuctionRelayer` listens for `FastMarketOrder` VAAs emitted by the Liquidity Layer's network
+of contracts. It determines if the `maxFee` encoded in the `FastMarketOrder` VAA is high enough to
+participate in an auction, if it is, it executes a `place_initial_offer` instruction on the Solana
+`MatchingEngine`. If any known token accounts are the highest bidder at the end of an auction, this
+process will settle the auction by executing the `settle_auction_complete` instruction and posting
+the finalized VAA associated with the auction's `FastMarketOrder` VAA.
 
-### Step 5: Register Tokens (Sets Swap Rate and Max Swap Amount)
+To run the `vaaAuctionRelayer` execute the following command:
 
-- `source env/testnet.env && yarn register-tokens -k your_deployment_keypair.json -n testnet`
+```sh
+npx ts-node ts/auction-participant/vaaAuctionRelayer/app.ts path/to/config/your.config.json
+```
 
-### Step 6: Set Relayer Fees
+### Improve Offers
 
-- `source env/testnet.env && yarn set-relayer-fees -k your_deployment_keypair.json -n testnet`
+The `improveOffer` process listens for `AuctionUpdated` events on the `MatchingEngine` via
+websocket. Once an auction has been initiated, this process will determine if it is willing to
+improve the offer based on the `pricing` parameters in your config.
 
-[anchor book]: https://book.anchor-lang.com/getting_started/installation.html
-[wormhole repo]: https://github.com/wormhole-foundation/wormhole/tree/dev.v2/solana
+To run the `improveOffer` script, execute the following command:
+
+```sh
+npx ts-node ts/auction-participant/improveOffer/app.ts path/to/config/your.config.json
+```
+
+### Execute Fast Orders
+
+The `executeOrder` process listens for `AuctionUpdated` events on the `MatchingEngine` via
+websocket. At the end of an auction's duration (see `endSlot` of the `AuctionUpdated` event), this
+process will execute the order reflecting this auction within the auction's grace period.
+
+**NOTE: You will need an address lookup table for the execute order instructions because these
+instructions require so many accounts. This LUT address can be added to your config.**
+
+To run the `executeOrder` script, execute the following command:
+
+```sh
+npx ts-node ts/auction-participant/executeOrder/app.ts path/to/config/your.config.json
+```
