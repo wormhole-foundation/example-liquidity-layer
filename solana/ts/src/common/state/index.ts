@@ -1,8 +1,6 @@
 import { PublicKey } from "@solana/web3.js";
 import { Uint64, writeUint64BE } from "..";
 
-export * from "./PayerSequence";
-
 export function emitterAddress(programId: PublicKey): PublicKey {
     return PublicKey.findProgramAddressSync([Buffer.from("emitter")], programId)[0];
 }

@@ -19,7 +19,6 @@ import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
 import {
     LiquidityLayerMessage,
-    PayerSequence,
     Uint64,
     VaaHash,
     cctpMessageAddress,

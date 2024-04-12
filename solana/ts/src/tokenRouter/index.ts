@@ -1,6 +1,7 @@
 export * from "./state";
 
-import { BN, Program } from "@coral-xyz/anchor";
+import * as wormholeSdk from "@certusone/wormhole-sdk";
+import { Program } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     Connection,
@@ -18,8 +19,6 @@ import {
     TokenMessengerMinterProgram,
 } from "../cctp";
 import {
-    PayerSequence,
-    Uint64,
     cctpMessageAddress,
     coreMessageAddress,
     reclaimCctpMessageIx,
@@ -30,7 +29,6 @@ import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import { Custodian, PreparedFill, PreparedOrder } from "./state";
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 
 export const PROGRAM_IDS = [
     "TokenRouter11111111111111111111111111111111",
