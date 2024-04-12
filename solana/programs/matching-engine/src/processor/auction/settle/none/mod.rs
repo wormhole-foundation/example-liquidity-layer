@@ -57,9 +57,9 @@ fn settle_none_and_prepare_fill(
         &[prepared_order_response.bump],
     ];
 
-    // Pay the `fee_recipient` the base fee. This ensures that the protocol relayer is paid for
-    // relaying slow VAAs that do not have an associated auction. This prevents the protocol relayer
-    // from any MEV attacks.
+    // Pay the `fee_recipient` the base fee and init auction fee. This ensures that the protocol
+    // relayer is paid for relaying slow VAAs (which requires posting the fast order VAA) that do
+    // not have an associated auction.
     let fee = prepared_order_response
         .base_fee
         .saturating_add(order.init_auction_fee());
