@@ -13,7 +13,7 @@ pub enum AuctionStatus {
         execute_penalty: Option<u64>,
     },
     Settled {
-        base_fee: u64,
+        fee: u64,
         total_penalty: Option<u64>,
     },
 }
@@ -31,14 +31,11 @@ impl std::fmt::Display for AuctionStatus {
                 "Completed {{ slot: {}, execute_penalty: {:?} }}",
                 slot, execute_penalty
             ),
-            AuctionStatus::Settled {
-                base_fee,
-                total_penalty,
-            } => {
+            AuctionStatus::Settled { fee, total_penalty } => {
                 write!(
                     f,
-                    "Settled {{ base_fee: {}, total_penalty: {:?} }}",
-                    base_fee, total_penalty
+                    "Settled {{ fee: {}, total_penalty: {:?} }}",
+                    fee, total_penalty
                 )
             }
         }

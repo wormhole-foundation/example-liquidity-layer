@@ -60,7 +60,9 @@ fn settle_none_and_prepare_fill(
     // Pay the `fee_recipient` the base fee. This ensures that the protocol relayer is paid for
     // relaying slow VAAs that do not have an associated auction. This prevents the protocol relayer
     // from any MEV attacks.
-    let base_fee = prepared_order_response.base_fee;
+    let fee = prepared_order_response
+        .base_fee
+        .saturating_add(order.init_auction_fee());
     token::transfer(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
@@ -71,7 +73,7 @@ fn settle_none_and_prepare_fill(
             },
             &[prepared_order_response_signer_seeds],
         ),
-        base_fee,
+        fee,
     )?;
 
     // Set the authority of the custody token account to the custodian. He will take over from here.
@@ -97,7 +99,7 @@ fn settle_none_and_prepare_fill(
         vaa_timestamp: fast_vaa.timestamp(),
         target_protocol: to_router_endpoint.protocol,
         status: AuctionStatus::Settled {
-            base_fee,
+            fee,
             total_penalty: None,
         },
         info: None,
@@ -106,11 +108,11 @@ fn settle_none_and_prepare_fill(
     emit!(crate::events::AuctionSettled {
         auction: auction.key(),
         best_offer_token: Default::default(),
-        token_balance_after: fee_recipient_token.amount.saturating_add(base_fee),
+        token_balance_after: fee_recipient_token.amount.saturating_add(fee),
     });
 
     Ok(SettledNone {
-        user_amount: order.amount_in().saturating_sub(base_fee),
+        user_amount: order.amount_in().saturating_sub(fee),
         fill: Fill {
             source_chain: prepared_order_response.source_chain,
             order_sender: order.sender(),
