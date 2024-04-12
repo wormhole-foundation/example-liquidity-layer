@@ -22,8 +22,8 @@ import {
     PayerSequence,
     Uint64,
     VaaHash,
-    cctpMessageAddress,
-    coreMessageAddress,
+    cctpMessageAddressOld,
+    coreMessageAddressOld,
     reclaimCctpMessageIx,
     uint64ToBN,
     uint64ToBigInt,
@@ -292,11 +292,11 @@ export class MatchingEngineProgram {
     }
 
     coreMessageAddress(payer: PublicKey, payerSequenceValue: Uint64): PublicKey {
-        return coreMessageAddress(this.ID, payer, payerSequenceValue);
+        return coreMessageAddressOld(this.ID, payer, payerSequenceValue);
     }
 
     cctpMessageAddress(payer: PublicKey, payerSequenceValue: Uint64): PublicKey {
-        return cctpMessageAddress(this.ID, payer, payerSequenceValue);
+        return cctpMessageAddressOld(this.ID, payer, payerSequenceValue);
     }
 
     async reclaimCctpMessageIx(

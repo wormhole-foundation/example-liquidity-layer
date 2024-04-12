@@ -159,12 +159,12 @@ export class TokenRouterProgram {
         )[0];
     }
 
-    coreMessageAddress(payer: PublicKey, payerSequenceValue: Uint64): PublicKey {
-        return coreMessageAddress(this.ID, payer, payerSequenceValue);
+    coreMessageAddress(preparedOrder: PublicKey): PublicKey {
+        return coreMessageAddress(this.ID, preparedOrder);
     }
 
-    cctpMessageAddress(payer: PublicKey, payerSequenceValue: Uint64): PublicKey {
-        return cctpMessageAddress(this.ID, payer, payerSequenceValue);
+    cctpMessageAddress(preparedOrder: PublicKey): PublicKey {
+        return cctpMessageAddress(this.ID, preparedOrder);
     }
 
     async reclaimCctpMessageIx(
@@ -175,21 +175,6 @@ export class TokenRouterProgram {
         cctpAttestation: Buffer,
     ): Promise<TransactionInstruction> {
         return reclaimCctpMessageIx(this.messageTransmitterProgram(), accounts, cctpAttestation);
-    }
-
-    payerSequenceAddress(payer: PublicKey): PublicKey {
-        return PayerSequence.address(this.ID, payer);
-    }
-
-    async fetchPayerSequence(input: PublicKey | { address: PublicKey }): Promise<PayerSequence> {
-        const addr = "address" in input ? input.address : this.payerSequenceAddress(input);
-        return this.program.account.payerSequence.fetch(addr);
-    }
-
-    async fetchPayerSequenceValue(input: PublicKey | { address: PublicKey }): Promise<bigint> {
-        return this.fetchPayerSequence(input)
-            .then((acct) => BigInt(acct.value.toString()))
-            .catch((_) => 0n);
     }
 
     async fetchPreparedOrder(addr: PublicKey): Promise<PreparedOrder> {
@@ -481,15 +466,8 @@ export class TokenRouterProgram {
         const matchingEngine = this.matchingEngineProgram();
         routerEndpoint ??= matchingEngine.routerEndpointAddress(targetChain);
 
-        const payerSequence = this.payerSequenceAddress(payer);
-        const { coreMessage, cctpMessage } = await this.fetchPayerSequenceValue({
-            address: payerSequence,
-        }).then((value) => {
-            return {
-                coreMessage: this.coreMessageAddress(payer, value),
-                cctpMessage: this.cctpMessageAddress(payer, value),
-            };
-        });
+        const coreMessage = this.coreMessageAddress(preparedOrder);
+        const cctpMessage = this.cctpMessageAddress(preparedOrder);
 
         if (destinationDomain === undefined) {
             const { protocol } = await matchingEngine.fetchRouterEndpoint({
@@ -525,7 +503,6 @@ export class TokenRouterProgram {
             .accounts({
                 payer,
                 preparedBy,
-                payerSequence,
                 custodian: this.checkedCustodianComposite(),
                 preparedOrder,
                 mint: this.mint,

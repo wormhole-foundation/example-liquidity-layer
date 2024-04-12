@@ -477,11 +477,6 @@
           "isSigner": false
         },
         {
-          "name": "payerSequence",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
           "name": "custodian",
           "accounts": [
             {
@@ -1068,18 +1063,6 @@
               "to the `owner`."
             ],
             "type": "publicKey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "PayerSequence",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "value",
-            "type": "u64"
           }
         ]
       }
