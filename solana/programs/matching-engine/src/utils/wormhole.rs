@@ -16,7 +16,7 @@ pub struct PostMatchingEngineMessage<'ctx, 'info> {
 pub fn post_matching_engine_message<M>(
     ctx: PostMatchingEngineMessage,
     message: M,
-    sequence_seed: &[u8; 8],
+    associated: &Pubkey,
     core_message_bump_seed: u8,
 ) -> Result<()>
 where
@@ -56,8 +56,7 @@ where
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::CORE_MESSAGE_SEED_PREFIX,
-                    payer.key().as_ref(),
-                    sequence_seed,
+                    associated.as_ref(),
                     &[core_message_bump_seed],
                 ],
             ],

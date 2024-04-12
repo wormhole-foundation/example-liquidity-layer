@@ -1,6 +1,6 @@
 use crate::{
     composite::*,
-    state::{Auction, Custodian, PayerSequence},
+    state::{Auction, Custodian},
     utils,
 };
 use anchor_lang::prelude::*;
@@ -12,25 +12,12 @@ pub struct SettleAuctionNoneLocal<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    #[account(
-        init_if_needed,
-        payer = payer,
-        space = 8 + PayerSequence::INIT_SPACE,
-        seeds = [
-            PayerSequence::SEED_PREFIX,
-            payer.key().as_ref()
-        ],
-        bump,
-    )]
-    payer_sequence: Box<Account<'info, PayerSequence>>,
-
     /// CHECK: Mutable. Seeds must be \["msg", payer, payer_sequence.value\].
     #[account(
         mut,
         seeds = [
             common::CORE_MESSAGE_SEED_PREFIX,
-            payer.key().as_ref(),
-            payer_sequence.value.to_be_bytes().as_ref(),
+            auction.key().as_ref(),
         ],
         bump,
     )]
@@ -101,10 +88,8 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
     let super::SettledNone {
         user_amount: amount,
         fill,
-        sequence_seed,
     } = super::settle_none_and_prepare_fill(
         super::SettleNoneAndPrepareFill {
-            payer_sequence: &mut ctx.accounts.payer_sequence,
             fast_vaa: &ctx.accounts.fast_order_path.fast_vaa,
             prepared_order_response: &ctx.accounts.prepared.order_response,
             prepared_custody_token,
@@ -129,7 +114,7 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
             sysvars: &ctx.accounts.sysvars,
         },
         common::messages::FastFill { amount, fill },
-        &sequence_seed,
+        &ctx.accounts.auction.key(),
         ctx.bumps.core_message,
     )?;
 

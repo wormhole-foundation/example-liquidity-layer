@@ -10,9 +10,6 @@ pub use auction_history::*;
 mod custodian;
 pub use custodian::*;
 
-mod payer_sequence;
-pub use payer_sequence::*;
-
 mod prepared_order_response;
 pub use prepared_order_response::*;
 

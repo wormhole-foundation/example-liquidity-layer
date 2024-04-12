@@ -7,7 +7,7 @@ pub use local::*;
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, AuctionStatus, PayerSequence},
+    state::{Auction, AuctionStatus},
     utils::{self, auction::DepositPenalty},
 };
 use anchor_lang::prelude::*;
@@ -16,7 +16,6 @@ use common::messages::{raw::LiquidityLayerMessage, Fill};
 
 struct PrepareFastExecution<'ctx, 'info> {
     execute_order: &'ctx mut ExecuteOrder<'info>,
-    payer_sequence: &'ctx mut Account<'info, PayerSequence>,
     custodian: &'ctx CheckedCustodian<'info>,
     token_program: &'ctx Program<'info, token::Token>,
 }
@@ -24,13 +23,11 @@ struct PrepareFastExecution<'ctx, 'info> {
 struct PreparedOrderExecution {
     pub user_amount: u64,
     pub fill: Fill,
-    pub sequence_seed: [u8; 8],
 }
 
 fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrderExecution> {
     let PrepareFastExecution {
         execute_order,
-        payer_sequence,
         custodian,
         token_program,
     } = accounts;
@@ -186,8 +183,5 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             redeemer: order.redeemer(),
             redeemer_message: <&[u8]>::from(order.redeemer_message()).to_vec().into(),
         },
-        sequence_seed: payer_sequence
-            .take_and_uptick()
-            .map(|seq| seq.to_be_bytes())?,
     })
 }

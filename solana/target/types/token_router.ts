@@ -477,11 +477,6 @@ export type TokenRouter = {
           "isSigner": false
         },
         {
-          "name": "payerSequence",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
           "name": "custodian",
           "accounts": [
             {
@@ -1068,18 +1063,6 @@ export type TokenRouter = {
               "to the `owner`."
             ],
             "type": "publicKey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "payerSequence",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "value",
-            "type": "u64"
           }
         ]
       }
@@ -1901,11 +1884,6 @@ export const IDL: TokenRouter = {
           "isSigner": false
         },
         {
-          "name": "payerSequence",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
           "name": "custodian",
           "accounts": [
             {
@@ -2492,18 +2470,6 @@ export const IDL: TokenRouter = {
               "to the `owner`."
             ],
             "type": "publicKey"
-          }
-        ]
-      }
-    },
-    {
-      "name": "payerSequence",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "value",
-            "type": "u64"
           }
         ]
       }

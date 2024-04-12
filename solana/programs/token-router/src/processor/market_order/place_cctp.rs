@@ -1,7 +1,7 @@
 use crate::{
     composite::*,
     error::TokenRouterError,
-    state::{Custodian, PayerSequence, PreparedOrder},
+    state::{Custodian, PreparedOrder},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -28,21 +28,6 @@ pub struct PlaceMarketOrderCctp<'info> {
     )]
     prepared_by: UncheckedAccount<'info>,
 
-    #[account(
-        init_if_needed,
-        payer = payer,
-        space = 8 + PayerSequence::INIT_SPACE,
-        seeds = [
-            PayerSequence::SEED_PREFIX,
-            payer.key().as_ref()
-        ],
-        bump,
-    )]
-    payer_sequence: Box<Account<'info, PayerSequence>>,
-
-    /// This program's Wormhole (Core Bridge) emitter authority.
-    ///
-    /// Seeds must be \["emitter"\].
     #[account(constraint = !custodian.paused @ TokenRouterError::Paused)]
     custodian: CheckedCustodian<'info>,
 
@@ -107,8 +92,7 @@ pub struct PlaceMarketOrderCctp<'info> {
         mut,
         seeds = [
             common::CORE_MESSAGE_SEED_PREFIX,
-            payer.key().as_ref(),
-            payer_sequence.value.to_be_bytes().as_ref(),
+            prepared_order.key().as_ref(),
         ],
         bump,
     )]
@@ -119,8 +103,7 @@ pub struct PlaceMarketOrderCctp<'info> {
         mut,
         seeds = [
             common::CCTP_MESSAGE_SEED_PREFIX,
-            payer.key().as_ref(),
-            payer_sequence.value.to_be_bytes().as_ref(),
+            prepared_order.key().as_ref(),
         ],
         bump,
     )]
@@ -197,17 +180,13 @@ fn handle_place_market_order_cctp(
 
     let custodian = &ctx.accounts.custodian;
     let payer = &ctx.accounts.payer;
+    let prepared_order = &ctx.accounts.prepared_order;
     let prepared_custody_token = &ctx.accounts.prepared_custody_token;
     let token_program = &ctx.accounts.token_program;
     let system_program = &ctx.accounts.system_program;
     let router_endpoint = &ctx.accounts.router_endpoint;
 
     let order_info = &ctx.accounts.prepared_order.info;
-    let sequence_seed = ctx
-        .accounts
-        .payer_sequence
-        .take_and_uptick()
-        .map(|seq| seq.to_be_bytes())?;
 
     // This returns the CCTP nonce, but we do not need it.
     wormhole_cctp_solana::cpi::burn_and_publish(
@@ -252,8 +231,7 @@ fn handle_place_market_order_cctp(
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::CCTP_MESSAGE_SEED_PREFIX,
-                    payer.key().as_ref(),
-                    sequence_seed.as_ref(),
+                    prepared_order.key().as_ref(),
                     &[ctx.bumps.cctp_message],
                 ],
             ],
@@ -275,8 +253,7 @@ fn handle_place_market_order_cctp(
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::CORE_MESSAGE_SEED_PREFIX,
-                    payer.key().as_ref(),
-                    sequence_seed.as_ref(),
+                    prepared_order.key().as_ref(),
                     &[ctx.bumps.core_message],
                 ],
             ],

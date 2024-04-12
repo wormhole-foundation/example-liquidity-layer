@@ -2227,11 +2227,9 @@ describe("Matching Engine", function () {
             });
 
             it("Reclaim by Closing CCTP Message", async function () {
-                const currentSequence = await engine.fetchPayerSequenceValue(playerOne.publicKey);
-                const cctpMessage = engine.cctpMessageAddress(
-                    playerOne.publicKey,
-                    currentSequence - 1n,
-                );
+                const auction = localVariables.get("auction") as PublicKey;
+
+                const cctpMessage = engine.cctpMessageAddress(auction);
                 const expectedLamports = await connection
                     .getAccountInfo(cctpMessage)
                     .then((info) => info!.lamports);
@@ -2892,7 +2890,7 @@ describe("Matching Engine", function () {
                 expect(custodyTokenAfter).equals(0n);
 
                 // Validate the core message.
-                const message = await engine.getCoreMessage(executor);
+                const message = engine.coreMessageAddress(auction);
                 const {
                     message: { payload },
                 } = await getPostedMessage(connection, message);

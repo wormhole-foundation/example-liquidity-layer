@@ -1050,11 +1050,6 @@ export type MatchingEngine = {
           "isSigner": true
         },
         {
-          "name": "payerSequence",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
           "name": "coreMessage",
           "isMut": true,
           "isSigner": false
@@ -1280,11 +1275,6 @@ export type MatchingEngine = {
           "name": "payer",
           "isMut": true,
           "isSigner": true
-        },
-        {
-          "name": "payerSequence",
-          "isMut": true,
-          "isSigner": false
         },
         {
           "name": "coreMessage",
@@ -1781,11 +1771,6 @@ export type MatchingEngine = {
           "isSigner": true
         },
         {
-          "name": "payerSequence",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
           "name": "coreMessage",
           "isMut": true,
           "isSigner": false
@@ -2031,11 +2016,6 @@ export type MatchingEngine = {
           "name": "payer",
           "isMut": true,
           "isSigner": true
-        },
-        {
-          "name": "payerSequence",
-          "isMut": true,
-          "isSigner": false
         },
         {
           "name": "coreMessage",
@@ -2481,18 +2461,6 @@ export type MatchingEngine = {
           },
           {
             "name": "nextProposalId",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "payerSequence",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "value",
             "type": "u64"
           }
         ]
@@ -4463,11 +4431,6 @@ export const IDL: MatchingEngine = {
           "isSigner": true
         },
         {
-          "name": "payerSequence",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
           "name": "coreMessage",
           "isMut": true,
           "isSigner": false
@@ -4693,11 +4656,6 @@ export const IDL: MatchingEngine = {
           "name": "payer",
           "isMut": true,
           "isSigner": true
-        },
-        {
-          "name": "payerSequence",
-          "isMut": true,
-          "isSigner": false
         },
         {
           "name": "coreMessage",
@@ -5194,11 +5152,6 @@ export const IDL: MatchingEngine = {
           "isSigner": true
         },
         {
-          "name": "payerSequence",
-          "isMut": true,
-          "isSigner": false
-        },
-        {
           "name": "coreMessage",
           "isMut": true,
           "isSigner": false
@@ -5444,11 +5397,6 @@ export const IDL: MatchingEngine = {
           "name": "payer",
           "isMut": true,
           "isSigner": true
-        },
-        {
-          "name": "payerSequence",
-          "isMut": true,
-          "isSigner": false
         },
         {
           "name": "coreMessage",
@@ -5894,18 +5842,6 @@ export const IDL: MatchingEngine = {
           },
           {
             "name": "nextProposalId",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "payerSequence",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "value",
             "type": "u64"
           }
         ]

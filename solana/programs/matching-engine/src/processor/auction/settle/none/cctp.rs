@@ -1,7 +1,7 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, Custodian, MessageProtocol, PayerSequence, RouterEndpoint},
+    state::{Auction, Custodian, MessageProtocol, RouterEndpoint},
     utils,
 };
 use anchor_lang::prelude::*;
@@ -14,25 +14,12 @@ pub struct SettleAuctionNoneCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    #[account(
-        init_if_needed,
-        payer = payer,
-        space = 8 + PayerSequence::INIT_SPACE,
-        seeds = [
-            PayerSequence::SEED_PREFIX,
-            payer.key().as_ref()
-        ],
-        bump,
-    )]
-    payer_sequence: Box<Account<'info, PayerSequence>>,
-
     /// CHECK: Mutable. Seeds must be \["core-msg", payer, payer_sequence.value\].
     #[account(
         mut,
         seeds = [
             common::CORE_MESSAGE_SEED_PREFIX,
-            payer.key().as_ref(),
-            &payer_sequence.value.to_be_bytes(),
+            auction.key().as_ref(),
         ],
         bump,
     )]
@@ -43,8 +30,7 @@ pub struct SettleAuctionNoneCctp<'info> {
         mut,
         seeds = [
             common::CCTP_MESSAGE_SEED_PREFIX,
-            payer.key().as_ref(),
-            &payer_sequence.value.to_be_bytes(),
+            auction.key().as_ref(),
         ],
         bump,
     )]
@@ -114,10 +100,8 @@ fn handle_settle_auction_none_cctp(
     let super::SettledNone {
         user_amount: amount,
         fill,
-        sequence_seed,
     } = super::settle_none_and_prepare_fill(
         super::SettleNoneAndPrepareFill {
-            payer_sequence: &mut ctx.accounts.payer_sequence,
             fast_vaa: &ctx.accounts.fast_order_path.fast_vaa,
             prepared_order_response: &ctx.accounts.prepared.order_response,
             prepared_custody_token,
@@ -138,6 +122,7 @@ fn handle_settle_auction_none_cctp(
         protocol: _,
     } = ctx.accounts.fast_order_path.to_endpoint.as_ref();
 
+    let auction = &ctx.accounts.auction;
     let payer = &ctx.accounts.payer;
     let system_program = &ctx.accounts.system_program;
 
@@ -190,8 +175,7 @@ fn handle_settle_auction_none_cctp(
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::CCTP_MESSAGE_SEED_PREFIX,
-                    payer.key().as_ref(),
-                    sequence_seed.as_ref(),
+                    auction.key().as_ref(),
                     &[ctx.bumps.cctp_message],
                 ],
             ],
@@ -213,8 +197,7 @@ fn handle_settle_auction_none_cctp(
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::CORE_MESSAGE_SEED_PREFIX,
-                    payer.key().as_ref(),
-                    sequence_seed.as_ref(),
+                    auction.key().as_ref(),
                     &[ctx.bumps.core_message],
                 ],
             ],

@@ -821,14 +821,16 @@ describe("Token Router", function () {
                 });
 
                 checkAfterEffects({ preparedOrder, amountIn, burnSource: payerToken });
+
+                // Save for later.
+                localVariables.set("preparedOrder", preparedOrder);
             });
 
             it("Reclaim by Closing CCTP Message", async function () {
-                const currentSequence = await tokenRouter.fetchPayerSequenceValue(payer.publicKey);
-                const cctpMessage = tokenRouter.cctpMessageAddress(
-                    payer.publicKey,
-                    currentSequence - 1n,
-                );
+                const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
+                expect(localVariables.delete("preparedOrder")).is.true;
+
+                const cctpMessage = tokenRouter.cctpMessageAddress(preparedOrder);
                 const expectedLamports = await connection
                     .getAccountInfo(cctpMessage)
                     .then((info) => info!.lamports);
@@ -997,14 +999,11 @@ describe("Token Router", function () {
             }) {
                 const { preparedOrder, amountIn, burnSource } = args;
 
-                const { value: payerSequenceValue } = await tokenRouter.fetchPayerSequence(
-                    tokenRouter.payerSequenceAddress(payer.publicKey),
-                );
                 const {
                     message: { emitterAddress, payload },
                 } = await getPostedMessage(
                     connection,
-                    tokenRouter.coreMessageAddress(payer.publicKey, payerSequenceValue.subn(1)),
+                    tokenRouter.coreMessageAddress(preparedOrder),
                 );
                 expect(emitterAddress).to.eql(tokenRouter.custodianAddress().toBuffer());
 
