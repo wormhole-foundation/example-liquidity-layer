@@ -33,10 +33,13 @@ abstract contract Implementation is Initializable, ERC1967Upgrade {
         bool value;
     }
 
-    bytes32 private constant MIGRATING_SLOT = bytes32(uint256(keccak256("ntt.migrating")) - 1);
+    // keccak256(ll.migrating) - 1
+    bytes32 private constant MIGRATING_SLOT =
+        0xbbd20ff4b49567c06346afe56e8ef93c6ad369381bfcbbc717674577182819c6;
 
+    // keccak256(ll.migratesImmutables) - 1
     bytes32 private constant MIGRATES_IMMUTABLES_SLOT =
-        bytes32(uint256(keccak256("ntt.migratesImmutables")) - 1);
+        0xe0760c100f4f7987b71e72343e04776f5f180cf968c0fe3a1e429da0bb7630d0;
 
     function _getMigratingStorage() private pure returns (_Migrating storage $) {
         uint256 slot = uint256(MIGRATING_SLOT);
@@ -58,8 +61,8 @@ abstract contract Implementation is Initializable, ERC1967Upgrade {
         }
     }
 
-    function initialize() external payable onlyDelegateCall initializer {
-        _initialize();
+    function initialize(bytes memory initData) external payable onlyDelegateCall initializer {
+        _initialize(initData);
     }
 
     function migrate() external onlyDelegateCall reinitializer(_getInitializedVersion() + 1) {
@@ -73,7 +76,7 @@ abstract contract Implementation is Initializable, ERC1967Upgrade {
 
     function _migrate() internal virtual;
 
-    function _initialize() internal virtual;
+    function _initialize(bytes memory initData) internal virtual;
 
     function _checkImmutables() internal view virtual;
 

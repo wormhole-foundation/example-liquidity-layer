@@ -13,7 +13,7 @@ import {State} from "./assets/State.sol";
 import "./assets/Errors.sol";
 
 contract MatchingEngine is MatchingEngineFastOrders, MatchingEngineAdmin {
-    error AlreadyInitialized();
+    using BytesParsing for bytes;
 
     constructor(
         address cctpToken_,
@@ -37,21 +37,25 @@ contract MatchingEngine is MatchingEngineFastOrders, MatchingEngineAdmin {
         )
     {}
 
-    function __MatchingEngine_init() internal onlyInitializing {
+    function __MatchingEngine_init(bytes memory initData) internal onlyInitializing {
         if (msg.sender != _deployer) {
             revert ErrCallerNotDeployer(_deployer, msg.sender);
         }
-        if (msg.value != 0) {
-            revert ErrNonzeroMsgValue();
+
+        // Decode the init data, verify that the addresses are not the zero address.
+        (address ownerAssistant, address feeRecipient) = _parseInitData(initData);
+
+        if (ownerAssistant == address(0) || feeRecipient == address(0)) {
+            revert InvalidAddress();
         }
 
         getOwnerState().owner = msg.sender;
-        getOwnerAssistantState().ownerAssistant = msg.sender;
-        getFeeRecipientState().recipient = msg.sender;
+        getOwnerAssistantState().ownerAssistant = ownerAssistant;
+        getFeeRecipientState().recipient = feeRecipient;
     }
 
-    function _initialize() internal override {
-        __MatchingEngine_init();
+    function _initialize(bytes memory initData) internal override {
+        __MatchingEngine_init(initData);
     }
 
     function _checkImmutables() internal view override {
@@ -64,4 +68,15 @@ contract MatchingEngine is MatchingEngineFastOrders, MatchingEngineAdmin {
     }
 
     function _migrate() internal override {}
+
+    function _parseInitData(bytes memory initData) internal pure returns (address ownerAssistant, address feeRecipient) {
+        uint256 offset = 0;
+
+        (ownerAssistant, offset) = initData.asAddressUnchecked(offset);
+        (feeRecipient, offset) = initData.asAddressUnchecked(offset);
+
+        if (initData.length != offset) {
+            revert InvalidInitDataLength(initData.length, offset);
+        }
+    }
 }

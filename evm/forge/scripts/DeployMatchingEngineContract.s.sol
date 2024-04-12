@@ -45,13 +45,9 @@ contract DeployMatchingEngineContracts is CheckWormholeContracts, Script {
         MatchingEngine proxy =
             MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
-        proxy.initialize();
+        proxy.initialize(abi.encodePacked(_ownerAssistantAddress, _feeRecipientAddress));
 
         console2.log("Deployed MatchingEngine (chain=%s): %s", _chainId, address(proxy));
-
-        // Set the owner assistant and fee recipient.
-        proxy.updateOwnerAssistant(_ownerAssistantAddress);
-        proxy.updateFeeRecipient(_feeRecipientAddress);
     }
 
     function run() public {

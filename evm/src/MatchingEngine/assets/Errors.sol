@@ -44,4 +44,4 @@ error ErrDeadlineExceeded();
 
 error ErrCallerNotDeployer(address deployer, address caller);
 
-error ErrNonzeroMsgValue();
+error InvalidInitDataLength(uint256 actual, uint256 expected);

@@ -122,7 +122,7 @@ contract MatchingEngineTest is Test {
         MatchingEngine proxy =
             MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
-        proxy.initialize();
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), FEE_RECIPIENT));
 
         return IMatchingEngine(address(proxy));
     }
@@ -141,10 +141,6 @@ contract MatchingEngineTest is Test {
         engine.addRouterEndpoint(
             ETH_CHAIN, RouterEndpoint({router: ETH_ROUTER, mintRecipient: ETH_ROUTER}), ETH_DOMAIN
         );
-
-        // Change default state.
-        engine.updateOwnerAssistant(makeAddr("ownerAssistant"));
-        engine.updateFeeRecipient(FEE_RECIPIENT);
 
         vm.stopPrank();
 
@@ -182,11 +178,13 @@ contract MatchingEngineTest is Test {
         vm.expectRevert(
             abi.encodeWithSignature("ErrCallerNotDeployer(address,address)", owner, notDeployer)
         );
-        proxy.initialize();
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), FEE_RECIPIENT));
     }
 
-    function testCannotInitializeWithValue() public {
-        vm.startPrank(makeAddr("owner"));
+    function testCannotInitializeZeroInitData() public {
+        address owner = makeAddr("owner");
+
+        vm.startPrank(owner);
         MatchingEngine implementation = new MatchingEngine(
             USDC_ADDRESS,
             address(wormhole),
@@ -201,9 +199,82 @@ contract MatchingEngineTest is Test {
         MatchingEngine proxy =
             MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
-        vm.expectRevert(abi.encodeWithSignature("ErrNonzeroMsgValue()"));
-        vm.deal(makeAddr("owner"), 42069);
-        proxy.initialize{value: 42069}();
+        vm.expectRevert(
+            abi.encodeWithSignature("InvalidInitDataLength(uint256,uint256)", 0, 40)
+        );
+        proxy.initialize(new bytes(0));
+    }
+
+    function testCannotInitializeInvalidInitDataLength() public {
+        address owner = makeAddr("owner");
+
+        vm.startPrank(owner);
+        MatchingEngine implementation = new MatchingEngine(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE.fromUniversalAddress(),
+            USER_PENALTY_REWARD_BPS,
+            INITIAL_PENALTY_BPS,
+            AUCTION_DURATION,
+            AUCTION_GRACE_PERIOD,
+            AUCTION_PENALTY_BLOCKS
+        );
+
+        MatchingEngine proxy =
+            MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
+
+        vm.expectRevert(
+            abi.encodeWithSignature("InvalidInitDataLength(uint256,uint256)", 41, 40)
+        );
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), FEE_RECIPIENT, uint8(69)));
+    }
+
+    function testCannotInitializeInvalidFeeRecipientAddress() public {
+        address owner = makeAddr("owner");
+
+        vm.startPrank(owner);
+        MatchingEngine implementation = new MatchingEngine(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE.fromUniversalAddress(),
+            USER_PENALTY_REWARD_BPS,
+            INITIAL_PENALTY_BPS,
+            AUCTION_DURATION,
+            AUCTION_GRACE_PERIOD,
+            AUCTION_PENALTY_BLOCKS
+        );
+
+        MatchingEngine proxy =
+            MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
+
+        vm.expectRevert(
+            abi.encodeWithSignature("InvalidAddress()")
+        );
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), address(0)));
+    }
+
+    function testCannotInitializeInvalidOwnerAssistantAddress() public {
+        address owner = makeAddr("owner");
+
+        vm.startPrank(owner);
+        MatchingEngine implementation = new MatchingEngine(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE.fromUniversalAddress(),
+            USER_PENALTY_REWARD_BPS,
+            INITIAL_PENALTY_BPS,
+            AUCTION_DURATION,
+            AUCTION_GRACE_PERIOD,
+            AUCTION_PENALTY_BLOCKS
+        );
+
+        MatchingEngine proxy =
+            MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
+
+        vm.expectRevert(
+            abi.encodeWithSignature("InvalidAddress()")
+        );
+        proxy.initialize(abi.encodePacked(address(0), FEE_RECIPIENT));
     }
 
     function testUpgradeContract() public {
@@ -1654,7 +1725,7 @@ contract MatchingEngineTest is Test {
 
         TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
-        proxy.initialize();
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant")));
 
         vm.prank(makeAddr("owner"));
         engine.addRouterEndpoint(
@@ -2042,7 +2113,7 @@ contract MatchingEngineTest is Test {
         MatchingEngine proxy =
             MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
-        proxy.initialize();
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), FEE_RECIPIENT));
 
         engine = IMatchingEngine(address(proxy));
     }

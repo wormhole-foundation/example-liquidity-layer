@@ -94,7 +94,7 @@ contract TokenRouterTest is Test {
 
         TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
-        proxy.initialize();
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant")));
 
         return ITokenRouter(address(proxy));
     }
@@ -111,9 +111,6 @@ contract TokenRouterTest is Test {
         router.addRouterEndpoint(
             ARB_CHAIN, Endpoint({router: ARB_ROUTER, mintRecipient: ARB_ROUTER}), ARB_DOMAIN
         );
-
-        // Update the owner assistant, `owner` is the default.
-        router.updateOwnerAssistant(makeAddr("ownerAssistant"));
 
         // Set the fast transfer parameters for Arbitrum.
         router.updateFastTransferParameters(
@@ -157,11 +154,13 @@ contract TokenRouterTest is Test {
         vm.expectRevert(
             abi.encodeWithSignature("ErrCallerNotDeployer(address,address)", owner, notDeployer)
         );
-        proxy.initialize();
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant")));
     }
 
-    function testCannotInitializeWithValue() public {
-        vm.startPrank(makeAddr("owner"));
+    function testCannotInitializeZeroInitData() public {
+        address owner = makeAddr("owner");
+
+        vm.startPrank(owner);
         TokenRouter implementation = new TokenRouter(
             USDC_ADDRESS,
             address(wormhole),
@@ -173,9 +172,52 @@ contract TokenRouterTest is Test {
         );
         TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
-        vm.expectRevert(abi.encodeWithSignature("ErrNonzeroMsgValue()"));
-        vm.deal(makeAddr("owner"), 42069);
-        proxy.initialize{value: 42069}();
+        vm.expectRevert(
+            abi.encodeWithSignature("InvalidInitDataLength(uint256,uint256)", 0, 20)
+        );
+        proxy.initialize(new bytes(0));
+    }
+
+    function testCannotInitializeInvalidInitDataLength() public {
+        address owner = makeAddr("owner");
+
+        vm.startPrank(owner);
+        TokenRouter implementation = new TokenRouter(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE,
+            matchingEngineChain,
+            matchingEngineAddress,
+            matchingEngineMintRecipient,
+            matchingEngineDomain
+        );
+        TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
+
+        vm.expectRevert(
+            abi.encodeWithSignature("InvalidInitDataLength(uint256,uint256)", 40, 20)
+        );
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), makeAddr("hole")));
+    }
+
+    function testCannotInitializeInvalidAddress() public {
+        address owner = makeAddr("owner");
+
+        vm.startPrank(owner);
+        TokenRouter implementation = new TokenRouter(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE,
+            matchingEngineChain,
+            matchingEngineAddress,
+            matchingEngineMintRecipient,
+            matchingEngineDomain
+        );
+        TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
+
+        vm.expectRevert(
+            abi.encodeWithSignature("InvalidAddress()")
+        );
+        proxy.initialize(abi.encodePacked(address(0)));
     }
 
     function testUpgradeContract() public {

@@ -44,12 +44,9 @@ contract DeployTokenRouterContracts is CheckWormholeContracts, Script {
         TokenRouter proxy =
             TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
-        proxy.initialize();
+        proxy.initialize(abi.encodePacked(_ownerAssistantAddress));
 
         console2.log("Deployed TokenRouter (chain=%s): %s", _chainId, address(proxy));
-
-        // Set the owner assistant.
-        proxy.updateOwnerAssistant(_ownerAssistantAddress);
     }
 
     function run() public {

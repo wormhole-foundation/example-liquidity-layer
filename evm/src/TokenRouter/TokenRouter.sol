@@ -14,7 +14,7 @@ import {State} from "./assets/State.sol";
 import "./assets/Errors.sol";
 
 contract TokenRouter is TokenRouterAdmin, PlaceMarketOrder, RedeemFill {
-    error AlreadyInitialized();
+    using BytesParsing for bytes;
 
     constructor(
         address token_,
@@ -36,20 +36,24 @@ contract TokenRouter is TokenRouterAdmin, PlaceMarketOrder, RedeemFill {
         )
     {}
 
-    function __TokenRouter_init() internal onlyInitializing {
+    function __TokenRouter_init(bytes memory initData) internal onlyInitializing {
         if (msg.sender != _deployer) {
             revert ErrCallerNotDeployer(_deployer, msg.sender);
         }
-        if (msg.value != 0) {
-            revert ErrNonzeroMsgValue();
+
+        // Decode the init data, verify that the address is not the zero address.
+        (address ownerAssistant) = _parseInitData(initData);
+
+        if (ownerAssistant == address(0)) {
+            revert InvalidAddress();
         }
 
         getOwnerState().owner = msg.sender;
-        getOwnerAssistantState().ownerAssistant = msg.sender;
+        getOwnerAssistantState().ownerAssistant = ownerAssistant;
     }
 
-    function _initialize() internal override {
-        __TokenRouter_init();
+    function _initialize(bytes memory initData) internal override {
+        __TokenRouter_init(initData);
     }
 
     function _checkImmutables() internal view override {
@@ -61,4 +65,14 @@ contract TokenRouter is TokenRouterAdmin, PlaceMarketOrder, RedeemFill {
     }
 
     function _migrate() internal override {}
+
+    function _parseInitData(bytes memory initData) internal pure returns (address ownerAssistant) {
+        uint256 offset = 0;
+
+        (ownerAssistant, offset) = initData.asAddressUnchecked(offset);
+
+        if (initData.length != offset) {
+            revert InvalidInitDataLength(initData.length, offset);
+        }
+    }
 }
