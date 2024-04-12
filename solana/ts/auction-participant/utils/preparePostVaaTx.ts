@@ -50,7 +50,7 @@ export async function preparePostVaaTxs(
         const sigVerifyIx = vaaVerifySignaturesIxs.pop()!;
         // This is a spicy meatball. Advance nonce ix + two compute budget ixs precede the
         // sig verify ix.
-        unsafeFixSigVerifyIx(sigVerifyIx, 3);
+        unsafeFixSigVerifyIx(sigVerifyIx, 2);
         const verifySigsIx = vaaVerifySignaturesIxs.pop()!;
 
         const preparedVerify: PreparedTransaction = {
@@ -58,7 +58,6 @@ export async function preparePostVaaTxs(
             signers: [payer, vaaSignatureSet],
             computeUnits: cfg.verifySignaturesComputeUnits(),
             feeMicroLamports: 10,
-            nonceAccount: cfg.solanaNonceAccount(),
             txName: "verifySignatures",
             confirmOptions,
         };
@@ -68,7 +67,6 @@ export async function preparePostVaaTxs(
             signers: [payer],
             computeUnits: cfg.postVaaComputeUnits(),
             feeMicroLamports: 10,
-            nonceAccount: cfg.solanaNonceAccount(),
             txName: "postVAA",
             confirmOptions,
         };

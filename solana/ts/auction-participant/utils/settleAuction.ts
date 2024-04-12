@@ -132,6 +132,17 @@ export async function handleSettleAuction(
         return [];
     }
 
+    // Check to see if the auction is complete.
+    if (auctionData.status.completed === undefined) {
+        logicLogger.error(`Auction is not completed, sequence=${fastVaaParsed.sequence}`);
+        return [];
+    }
+
+    if (auctionData.status.settled !== undefined) {
+        logicLogger.info(`Auction has already been settled, sequence=${fastVaaParsed.sequence}`);
+        return [];
+    }
+
     // Fetch the CCTP message and attestation.
     const cctpArgs = await fetchCctpArgs(
         cfg,
@@ -177,7 +188,6 @@ export async function handleSettleAuction(
             auction,
             bestOfferToken: auctionData.info!.bestOfferToken,
         },
-        auctionData.status,
         cctpArgs,
         [payer],
         matchingEngine,
@@ -185,7 +195,9 @@ export async function handleSettleAuction(
     );
 
     if (settleAuctionTx === undefined) {
-        logicLogger.debug(`Auction is not completed, sequence=${fastVaaParsed.sequence}`);
+        logicLogger.debug(
+            `Failed to create settle auction instruction, sequence=${fastVaaParsed.sequence}`,
+        );
         return [];
     } else {
         unproccessedTxns.push(settleAuctionTx!);
@@ -202,7 +214,6 @@ async function createSettleTx(
         auction: PublicKey;
         bestOfferToken: PublicKey;
     },
-    status: AuctionStatus,
     cctpArgs: { encodedCctpMessage: Buffer; cctpAttestation: Buffer },
     signers: Signer[],
     matchingEngine: MatchingEngineProgram,
@@ -218,17 +229,12 @@ async function createSettleTx(
     const preparedTransactionOptions = {
         computeUnits: cfg.settleAuctionCompleteComputeUnits(),
         feeMicroLamports: 10,
-        nonceAccount: cfg.solanaNonceAccount(),
         addressLookupTableAccounts: [lookupTableAccount!],
     };
     const confirmOptions = {
         commitment: cfg.solanaCommitment(),
         skipPreflight: false,
     };
-
-    if (status.completed === undefined) {
-        return undefined;
-    }
 
     // Prepare the settle auction transaction.
     const settleAuctionTx = await matchingEngine.settleAuctionCompleteTx(

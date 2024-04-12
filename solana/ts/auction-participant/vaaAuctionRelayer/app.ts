@@ -6,6 +6,7 @@ import { PreparedTransaction } from "../../src";
 import * as utils from "../utils";
 import * as winston from "winston";
 import { VaaSpy } from "../../src/wormhole/spy";
+import { CachedBlockhash } from "../containers";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
@@ -42,6 +43,13 @@ async function main(argv: string[]) {
     const transactionBatchQueue: PreparedTransaction[][] = [];
 
     spawnTransactionProcessor(connection, transactionBatchQueue, logicLogger);
+
+    const cachedBlockhash = await CachedBlockhash.initialize(
+        connection,
+        32, // slots
+        "finalized",
+        logicLogger,
+    );
 
     // Connect to spy.
     const spy = new VaaSpy({

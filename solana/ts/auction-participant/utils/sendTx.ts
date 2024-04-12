@@ -37,6 +37,7 @@ export async function sendTxBatch(
     preparedTransactions: PreparedTransaction[],
     logger?: winston.Logger,
     retryCount?: number,
+    cachedBlockhash?: BlockhashWithExpiryBlockHeight,
 ): Promise<void> {
     for (const preparedTransaction of preparedTransactions) {
         const skipPreFlight = preparedTransaction.confirmOptions?.skipPreflight ?? false;
@@ -44,8 +45,8 @@ export async function sendTxBatch(
         // If skipPreFlight is false, we will retry the transaction if it fails.
         let success = false;
         let counter = 0;
-        while (!success && counter < (retryCount ?? 3)) {
-            const response = await sendTx(connection, preparedTransaction, logger);
+        while (!success && counter < (retryCount ?? 5)) {
+            const response = await sendTx(connection, preparedTransaction, logger, cachedBlockhash);
 
             if (skipPreFlight) {
                 break;
@@ -55,8 +56,15 @@ export async function sendTxBatch(
             counter++;
 
             if (logger !== undefined && !success) {
-                logger.warn(`Transaction failed, retrying, attempt=${counter}`);
+                logger.error(`Retrying failed transaction, attempt=${counter}`);
             }
+
+            // Wait half a slot before trying again.
+            await new Promise((resolve) => setTimeout(resolve, 200));
+        }
+
+        if (!success) {
+            return;
         }
     }
 }
@@ -145,7 +153,7 @@ export async function sendTx(
                 }
             } else {
                 if (logger !== undefined) {
-                    logger.error("Txn failed with unknown error");
+                    logger.error(err);
                 }
             }
         });
