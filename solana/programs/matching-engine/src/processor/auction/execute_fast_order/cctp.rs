@@ -1,7 +1,7 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Custodian, MessageProtocol, PayerSequence},
+    state::{Custodian, MessageProtocol},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -13,25 +13,12 @@ pub struct ExecuteFastOrderCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    #[account(
-        init_if_needed,
-        payer = payer,
-        space = 8 + PayerSequence::INIT_SPACE,
-        seeds = [
-            PayerSequence::SEED_PREFIX,
-            payer.key().as_ref()
-        ],
-        bump,
-    )]
-    payer_sequence: Account<'info, PayerSequence>,
-
     /// CHECK: Mutable. Seeds must be \["core-msg", payer, payer_sequence.value\].
     #[account(
         mut,
         seeds = [
             common::CORE_MESSAGE_SEED_PREFIX,
-            payer.key().as_ref(),
-            &payer_sequence.value.to_be_bytes(),
+            execute_order.active_auction.key().as_ref(),
         ],
         bump,
     )]
@@ -42,8 +29,7 @@ pub struct ExecuteFastOrderCctp<'info> {
         mut,
         seeds = [
             common::CCTP_MESSAGE_SEED_PREFIX,
-            payer.key().as_ref(),
-            &payer_sequence.value.to_be_bytes(),
+            execute_order.active_auction.key().as_ref(),
         ],
         bump,
     )]
@@ -93,15 +79,14 @@ pub fn handle_execute_fast_order_cctp(
     let super::PreparedOrderExecution {
         user_amount: amount,
         fill,
-        sequence_seed,
     } = super::prepare_order_execution(super::PrepareFastExecution {
         execute_order: &mut ctx.accounts.execute_order,
-        payer_sequence: &mut ctx.accounts.payer_sequence,
         custodian: &ctx.accounts.custodian,
         token_program: &ctx.accounts.token_program,
     })?;
 
-    let auction_custody_token = &ctx.accounts.execute_order.active_auction.custody_token;
+    let active_auction = &ctx.accounts.execute_order.active_auction;
+    let auction_custody_token = &active_auction.custody_token;
     let payer = &ctx.accounts.payer;
     let system_program = &ctx.accounts.system_program;
 
@@ -159,8 +144,7 @@ pub fn handle_execute_fast_order_cctp(
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::CCTP_MESSAGE_SEED_PREFIX,
-                    payer.key().as_ref(),
-                    sequence_seed.as_ref(),
+                    active_auction.key().as_ref(),
                     &[ctx.bumps.cctp_message],
                 ],
             ],
@@ -182,8 +166,7 @@ pub fn handle_execute_fast_order_cctp(
                 Custodian::SIGNER_SEEDS,
                 &[
                     common::CORE_MESSAGE_SEED_PREFIX,
-                    payer.key().as_ref(),
-                    sequence_seed.as_ref(),
+                    active_auction.key().as_ref(),
                     &[ctx.bumps.core_message],
                 ],
             ],

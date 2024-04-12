@@ -1,9 +1,4 @@
-use crate::{
-    composite::*,
-    error::MatchingEngineError,
-    state::{Custodian, PayerSequence},
-    utils,
-};
+use crate::{composite::*, error::MatchingEngineError, state::Custodian, utils};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
@@ -12,25 +7,12 @@ pub struct ExecuteFastOrderLocal<'info> {
     #[account(mut)]
     payer: Signer<'info>,
 
-    #[account(
-        init_if_needed,
-        payer = payer,
-        space = 8 + PayerSequence::INIT_SPACE,
-        seeds = [
-            PayerSequence::SEED_PREFIX,
-            payer.key().as_ref()
-        ],
-        bump,
-    )]
-    payer_sequence: Account<'info, PayerSequence>,
-
     /// CHECK: Mutable. Seeds must be \["msg", payer, payer_sequence.value\].
     #[account(
         mut,
         seeds = [
             common::CORE_MESSAGE_SEED_PREFIX,
-            payer.key().as_ref(),
-            &payer_sequence.value.to_be_bytes(),
+            execute_order.active_auction.key().as_ref(),
         ],
         bump,
     )]
@@ -78,15 +60,14 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
     let super::PreparedOrderExecution {
         user_amount: amount,
         fill,
-        sequence_seed,
     } = super::prepare_order_execution(super::PrepareFastExecution {
         execute_order: &mut ctx.accounts.execute_order,
-        payer_sequence: &mut ctx.accounts.payer_sequence,
         custodian,
         token_program,
     })?;
 
     let payer = &ctx.accounts.payer;
+    let active_auction = &ctx.accounts.execute_order.active_auction;
 
     // Publish message via Core Bridge.
     //
@@ -102,11 +83,11 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
             sysvars: &ctx.accounts.sysvars,
         },
         common::messages::FastFill { amount, fill },
-        &sequence_seed,
+        &active_auction.key(),
         ctx.bumps.core_message,
     )?;
 
-    let auction_custody_token = &ctx.accounts.execute_order.active_auction.custody_token;
+    let auction_custody_token = &active_auction.custody_token;
 
     // Transfer funds to the local custody account.
     token::transfer(

@@ -6,7 +6,7 @@ pub use local::*;
 
 use crate::{
     composite::*,
-    state::{Auction, AuctionStatus, PayerSequence, PreparedOrderResponse},
+    state::{Auction, AuctionStatus, PreparedOrderResponse},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -16,7 +16,6 @@ use common::messages::{
 };
 
 struct SettleNoneAndPrepareFill<'ctx, 'info> {
-    payer_sequence: &'ctx mut Account<'info, PayerSequence>,
     fast_vaa: &'ctx LiquidityLayerVaa<'info>,
     prepared_order_response: &'ctx Account<'info, PreparedOrderResponse>,
     prepared_custody_token: &'ctx UncheckedAccount<'info>,
@@ -30,7 +29,6 @@ struct SettleNoneAndPrepareFill<'ctx, 'info> {
 struct SettledNone {
     user_amount: u64,
     fill: Fill,
-    sequence_seed: [u8; 8],
 }
 
 fn settle_none_and_prepare_fill(
@@ -38,7 +36,6 @@ fn settle_none_and_prepare_fill(
     auction_bump_seed: u8,
 ) -> Result<SettledNone> {
     let SettleNoneAndPrepareFill {
-        payer_sequence,
         fast_vaa,
         prepared_order_response,
         prepared_custody_token,
@@ -120,8 +117,5 @@ fn settle_none_and_prepare_fill(
             redeemer: order.redeemer(),
             redeemer_message: order.message_to_vec().into(),
         },
-        sequence_seed: payer_sequence
-            .take_and_uptick()
-            .map(|seq| seq.to_be_bytes())?,
     })
 }
