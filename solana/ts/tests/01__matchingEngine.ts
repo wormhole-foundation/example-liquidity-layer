@@ -4410,7 +4410,7 @@ describe("Matching Engine", function () {
         const executePenalty = statusBefore.completed!.executePenalty;
         expect(statusAfter).to.eql({
             settled: {
-                baseFee: uint64ToBN(baseFee),
+                fee: uint64ToBN(baseFee),
                 totalPenalty:
                     executePenalty !== null
                         ? uint64ToBN(executePenalty.add(uint64ToBN(baseFee)))
@@ -4497,25 +4497,29 @@ describe("Matching Engine", function () {
 
         await expectIxOk(connection, [computeIx, ix], signers);
 
-        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
-        const deposit = LiquidityLayerMessage.decode(finalizedVaaAccount.payload()).deposit!;
+        const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+        expect(fastMarketOrder).is.not.undefined;
 
-        const { baseFee } = deposit.message.slowOrderResponse!;
+        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
+        const {
+            message: { slowOrderResponse },
+        } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload()).deposit!;
+        expect(slowOrderResponse).is.not.undefined;
+
+        const fee = slowOrderResponse!.baseFee + fastMarketOrder!.initAuctionFee;
+
         const { amount: feeBalanceAfter } = await splToken.getAccount(
             connection,
             feeRecipientToken,
         );
-        expect(feeBalanceAfter).equals(feeBalanceBefore + baseFee);
+        expect(feeBalanceAfter).equals(feeBalanceBefore + fee);
 
         {
             const preparedCustodyToken = engine.preparedCustodyTokenAddress(preparedOrderResponse);
             const accInfo = await connection.getAccountInfo(preparedCustodyToken);
             expect(accInfo).is.null;
         }
-
-        const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
-        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
-        expect(fastMarketOrder).is.not.undefined;
 
         const destinationDomain =
             CHAIN_TO_DOMAIN[wormholeSdk.coalesceChainName(fastMarketOrder!.targetChain)];
@@ -4535,7 +4539,7 @@ describe("Matching Engine", function () {
                 { cctp: { domain: destinationDomain! } },
                 {
                     settled: {
-                        baseFee: uint64ToBN(baseFee),
+                        fee: uint64ToBN(fee),
                         totalPenalty: null,
                     },
                 },

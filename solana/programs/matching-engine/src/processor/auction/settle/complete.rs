@@ -85,7 +85,7 @@ fn handle_settle_auction_complete(
     let base_fee = prepared_order_response.base_fee;
 
     ctx.accounts.auction.status = AuctionStatus::Settled {
-        base_fee,
+        fee: base_fee,
         total_penalty: execute_penalty.map(|v| v.saturating_add(base_fee)),
     };
 

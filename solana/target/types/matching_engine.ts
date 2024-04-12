@@ -2935,7 +2935,7 @@ export type MatchingEngine = {
             "name": "Settled",
             "fields": [
               {
-                "name": "baseFee",
+                "name": "fee",
                 "type": "u64"
               },
               {
@@ -6316,7 +6316,7 @@ export const IDL: MatchingEngine = {
             "name": "Settled",
             "fields": [
               {
-                "name": "baseFee",
+                "name": "fee",
                 "type": "u64"
               },
               {

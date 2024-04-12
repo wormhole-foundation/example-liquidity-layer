@@ -7,7 +7,7 @@ export type AuctionStatus = {
     active?: {};
     completed?: { slot: BN; executePenalty: BN | null };
     settled?: {
-        baseFee: BN;
+        fee: BN;
         totalPenalty: BN | null;
     };
 };
