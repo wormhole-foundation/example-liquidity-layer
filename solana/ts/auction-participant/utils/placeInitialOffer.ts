@@ -149,7 +149,6 @@ export async function handlePlaceInitialOffer(
         {
             computeUnits: cfg.initiateAuctionComputeUnits(),
             feeMicroLamports: 10,
-            nonceAccount: cfg.solanaNonceAccount(),
         },
         {
             commitment: cfg.solanaCommitment(),

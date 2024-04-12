@@ -34,7 +34,7 @@ export type SolanaConnectionConfig = {
     rpc: string;
     ws?: string;
     commitment: Commitment;
-    nonceAccount: PublicKeyInitData;
+    nonceAccount?: PublicKeyInitData;
     addressLookupTable: PublicKeyInitData;
 };
 
@@ -147,6 +147,10 @@ export class AppConfig {
     }
 
     solanaNonceAccount(): PublicKey {
+        if (this._cfg.connection.nonceAccount === undefined) {
+            throw new Error("nonceAccount is not configured");
+        }
+
         return new PublicKey(this._cfg.connection.nonceAccount);
     }
 
@@ -277,7 +281,9 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
     }
 
     // check nonce account pubkey
-    new PublicKey(cfg.connection.nonceAccount);
+    if (cfg.connection.nonceAccount !== undefined) {
+        new PublicKey(cfg.connection.nonceAccount);
+    }
 
     // check address lookup table pubkey
     new PublicKey(cfg.connection.addressLookupTable);
