@@ -2,7 +2,7 @@ import { BN } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import * as winston from "winston";
-import { MatchingEngineProgram } from "../../../src/matchingEngine";
+import { MatchingEngineProgram } from "../../src/matchingEngine";
 
 export class OfferToken {
     private _authority: Keypair;
