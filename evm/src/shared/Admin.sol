@@ -78,7 +78,6 @@ abstract contract Admin is IAdmin, Implementation {
     // Events.
     event OwnershipTransfered(address indexed oldOwner, address indexed newOwner);
     event IsPaused(bool paused);
-    event ContractUpgraded(address indexed newContract);
 
     /// @inheritdoc IAdmin
     function upgradeContract(address newImplementation) external onlyOwner {
@@ -86,8 +85,6 @@ abstract contract Admin is IAdmin, Implementation {
             revert InvalidAddress();
         }
         _upgrade(newImplementation);
-
-        emit ContractUpgraded(newImplementation);
     }
 
     /// @inheritdoc IAdmin
