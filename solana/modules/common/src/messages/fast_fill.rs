@@ -26,7 +26,9 @@ impl Readable for FastFill {
 
 impl Writeable for FastFill {
     fn written_size(&self) -> usize {
-        self.fill.written_size().saturating_add(8)
+        // This will panic if the size is too large to fit in a usize. But better to panic than to
+        // saturate to usize::MAX.
+        self.fill.written_size().checked_add(8).unwrap()
     }
 
     fn write<W>(&self, writer: &mut W) -> std::io::Result<()>

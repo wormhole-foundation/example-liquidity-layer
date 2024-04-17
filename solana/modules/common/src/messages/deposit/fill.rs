@@ -29,10 +29,11 @@ impl Readable for Fill {
 
 impl Writeable for Fill {
     fn written_size(&self) -> usize {
-        const ADDITIONAL: usize = 2 + 32 + 32;
+        const FIXED: usize = 2 + 32 + 32;
         self.redeemer_message
             .written_size()
-            .saturating_add(ADDITIONAL)
+            .checked_add(FIXED)
+            .unwrap()
     }
 
     fn write<W>(&self, writer: &mut W) -> std::io::Result<()>
