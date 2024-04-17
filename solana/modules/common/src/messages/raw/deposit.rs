@@ -110,7 +110,7 @@ impl<'a> Fill<'a> {
         let fill = Self(span);
 
         // Check payload length vs actual payload.
-        if fill.redeemer_message().len() != fill.redeemer_message_len().try_into().unwrap() {
+        if fill.redeemer_message().len() != usize::try_from(fill.redeemer_message_len()).unwrap() {
             return Err("Fill payload length mismatch");
         }
 
