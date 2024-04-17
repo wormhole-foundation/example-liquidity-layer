@@ -41,7 +41,10 @@ impl Readable for FastMarketOrder {
 
 impl Writeable for FastMarketOrder {
     fn written_size(&self) -> usize {
-        8 + 8 + 2 + 4 + 32 + 32 + 32 + 8 + 8 + 4 + self.redeemer_message.written_size()
+        const ADDITIONAL: usize = 8 + 8 + 2 + 4 + 32 + 32 + 32 + 8 + 8 + 4;
+        self.redeemer_message
+            .written_size()
+            .saturating_add(ADDITIONAL)
     }
 
     fn write<W>(&self, writer: &mut W) -> std::io::Result<()>

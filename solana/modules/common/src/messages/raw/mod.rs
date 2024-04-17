@@ -85,6 +85,8 @@ impl<'a> LiquidityLayerMessage<'a> {
     pub fn to_deposit_unchecked(self) -> Deposit<'a> {
         match self {
             Self::Deposit(inner) => inner,
+            // The purpose of using this method is knowing that the enum variant is Deposit.
+            #[allow(clippy::panic)]
             _ => panic!("LiquidityLayerMessage is not Deposit"),
         }
     }
@@ -99,6 +101,8 @@ impl<'a> LiquidityLayerMessage<'a> {
     pub fn to_fast_fill_unchecked(self) -> FastFill<'a> {
         match self {
             Self::FastFill(inner) => inner,
+            // The purpose of using this method is knowing that the enum variant is FastFill.
+            #[allow(clippy::panic)]
             _ => panic!("LiquidityLayerMessage is not FastFill"),
         }
     }
@@ -113,6 +117,8 @@ impl<'a> LiquidityLayerMessage<'a> {
     pub fn to_fast_market_order_unchecked(self) -> FastMarketOrder<'a> {
         match self {
             Self::FastMarketOrder(inner) => inner,
+            // The purpose of using this method is knowing that the enum variant is FastMarketOrder.
+            #[allow(clippy::panic)]
             _ => panic!("LiquidityLayerMessage is not FastMarketOrder"),
         }
     }

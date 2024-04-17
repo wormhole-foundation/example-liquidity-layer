@@ -39,6 +39,8 @@ impl<'a> LiquidityLayerDepositMessage<'a> {
     pub fn to_fill_unchecked(self) -> Fill<'a> {
         match self {
             Self::Fill(inner) => inner,
+            // The purpose of using this method is knowing that the enum variant is Fill.
+            #[allow(clippy::panic)]
             _ => panic!("LiquidityLayerDepositMessage is not Fill"),
         }
     }
@@ -53,6 +55,8 @@ impl<'a> LiquidityLayerDepositMessage<'a> {
     pub fn to_slow_order_response_unchecked(self) -> SlowOrderResponse<'a> {
         match self {
             Self::SlowOrderResponse(inner) => inner,
+            // The purpose of using this method is knowing that the enum variant is SlowOrderResponse.
+            #[allow(clippy::panic)]
             _ => panic!("LiquidityLayerDepositMessage is not SlowOrderResponse"),
         }
     }
