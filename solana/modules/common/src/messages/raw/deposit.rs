@@ -39,6 +39,8 @@ impl<'a> LiquidityLayerDepositMessage<'a> {
     pub fn to_fill_unchecked(self) -> Fill<'a> {
         match self {
             Self::Fill(inner) => inner,
+            // The purpose of using this method is knowing that the enum variant is Fill.
+            #[allow(clippy::panic)]
             _ => panic!("LiquidityLayerDepositMessage is not Fill"),
         }
     }
@@ -53,6 +55,8 @@ impl<'a> LiquidityLayerDepositMessage<'a> {
     pub fn to_slow_order_response_unchecked(self) -> SlowOrderResponse<'a> {
         match self {
             Self::SlowOrderResponse(inner) => inner,
+            // The purpose of using this method is knowing that the enum variant is SlowOrderResponse.
+            #[allow(clippy::panic)]
             _ => panic!("LiquidityLayerDepositMessage is not SlowOrderResponse"),
         }
     }
@@ -110,7 +114,7 @@ impl<'a> Fill<'a> {
         let fill = Self(span);
 
         // Check payload length vs actual payload.
-        if fill.redeemer_message().len() != fill.redeemer_message_len().try_into().unwrap() {
+        if fill.redeemer_message().len() != usize::try_from(fill.redeemer_message_len()).unwrap() {
             return Err("Fill payload length mismatch");
         }
 

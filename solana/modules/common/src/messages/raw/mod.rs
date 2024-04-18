@@ -85,6 +85,8 @@ impl<'a> LiquidityLayerMessage<'a> {
     pub fn to_deposit_unchecked(self) -> Deposit<'a> {
         match self {
             Self::Deposit(inner) => inner,
+            // The purpose of using this method is knowing that the enum variant is Deposit.
+            #[allow(clippy::panic)]
             _ => panic!("LiquidityLayerMessage is not Deposit"),
         }
     }
@@ -99,6 +101,8 @@ impl<'a> LiquidityLayerMessage<'a> {
     pub fn to_fast_fill_unchecked(self) -> FastFill<'a> {
         match self {
             Self::FastFill(inner) => inner,
+            // The purpose of using this method is knowing that the enum variant is FastFill.
+            #[allow(clippy::panic)]
             _ => panic!("LiquidityLayerMessage is not FastFill"),
         }
     }
@@ -113,6 +117,8 @@ impl<'a> LiquidityLayerMessage<'a> {
     pub fn to_fast_market_order_unchecked(self) -> FastMarketOrder<'a> {
         match self {
             Self::FastMarketOrder(inner) => inner,
+            // The purpose of using this method is knowing that the enum variant is FastMarketOrder.
+            #[allow(clippy::panic)]
             _ => panic!("LiquidityLayerMessage is not FastMarketOrder"),
         }
     }
@@ -158,7 +164,7 @@ impl<'a> FastFill<'a> {
 
         // Check payload length vs actual payload.
         let fill = fast_fill.fill();
-        if fill.redeemer_message().len() != fill.redeemer_message_len().try_into().unwrap() {
+        if fill.redeemer_message().len() != usize::try_from(fill.redeemer_message_len()).unwrap() {
             return Err("Fill payload length mismatch");
         }
 
@@ -229,7 +235,7 @@ impl<'a> FastMarketOrder<'a> {
 
         // Check payload length vs actual payload.
         if fast_market_order.redeemer_message().len()
-            != fast_market_order.redeemer_message_len().try_into().unwrap()
+            != usize::try_from(fast_market_order.redeemer_message_len()).unwrap()
         {
             return Err("FastMarketOrder payload length mismatch");
         }
