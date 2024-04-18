@@ -14,20 +14,15 @@ testnet = ["wormhole-solana-consts/testnet", "wormhole-cctp-solana/testnet"]
 localnet = ["wormhole-solana-consts/testnet", "wormhole-cctp-solana/testnet"]
 
 [dependencies]
+liquidity-layer-messages.workspace = true
+
 wormhole-cctp-solana = { workspace = true, features = ["cpi"] }
-wormhole-io.workspace = true
-wormhole-raw-vaas.workspace = true
 
 wormhole-solana-consts.workspace = true
 
 anchor-lang.workspace = true
 solana-program.workspace = true
 cfg-if.workspace = true
-
-ruint.workspace = true
-
-[dev-dependencies]
-hex-literal.workspace = true
 
 [lints]
 workspace = true

@@ -42,21 +42,21 @@ impl TypePrefixedPayload for SlowOrderResponse {
 
 #[cfg(test)]
 mod test {
-    use wormhole_io::Writeable;
+    use crate::raw;
 
-    use crate::messages;
+    use super::*;
 
     #[test]
     fn serde() {
-        let slow_order_response = messages::SlowOrderResponse {
+        let slow_order_response = SlowOrderResponse {
             base_fee: 1234567890,
         };
 
         let encoded = slow_order_response.to_vec();
 
-        let parsed = messages::raw::SlowOrderResponse::parse(&encoded).unwrap();
+        let parsed = raw::SlowOrderResponse::parse(&encoded).unwrap();
 
-        let expected = messages::SlowOrderResponse {
+        let expected = SlowOrderResponse {
             base_fee: parsed.base_fee(),
         };
 

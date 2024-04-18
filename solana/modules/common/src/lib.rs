@@ -1,9 +1,9 @@
 pub use wormhole_cctp_solana;
-pub use wormhole_io;
 
 pub mod admin;
 
-pub mod messages;
+pub use liquidity_layer_messages as messages;
+pub use messages::wormhole_io;
 
 pub const WORMHOLE_MESSAGE_NONCE: u32 = 0;
 

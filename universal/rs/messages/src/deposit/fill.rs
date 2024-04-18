@@ -55,14 +55,14 @@ impl TypePrefixedPayload for Fill {
 
 #[cfg(test)]
 mod test {
+    use crate::raw;
     use hex_literal::hex;
-    use wormhole_io::Writeable;
 
-    use crate::messages;
+    use super::*;
 
     #[test]
     fn serde() {
-        let fill = messages::Fill {
+        let fill = Fill {
             source_chain: 69,
             order_sender: hex!("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
             redeemer: hex!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
@@ -71,9 +71,9 @@ mod test {
 
         let encoded = fill.to_vec();
 
-        let parsed = messages::raw::Fill::parse(&encoded).unwrap();
+        let parsed = raw::Fill::parse(&encoded).unwrap();
 
-        let expected = messages::Fill {
+        let expected = Fill {
             source_chain: parsed.source_chain(),
             order_sender: parsed.order_sender(),
             redeemer: parsed.redeemer(),

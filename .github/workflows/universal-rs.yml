@@ -1,0 +1,62 @@
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+
+env:
+    CARGO_TERM_COLOR: always
+
+jobs:
+    test:
+        name: test ${{ matrix.rust }}
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        strategy:
+            fail-fast: false
+            matrix:
+                rust: ["stable", "beta", "nightly", "1.68"] # MSRV
+        steps:
+            - uses: actions/checkout@v3
+            - uses: dtolnay/rust-toolchain@master
+              with:
+                  toolchain: ${{ matrix.rust }}
+            - uses: Swatinem/rust-cache@v2
+            - name: test
+              run: cd universal/rs && cargo test --workspace --all-features
+
+    clippy:
+        name: clippy
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@v3
+            - uses: dtolnay/rust-toolchain@clippy
+            - run: cd universal/rs && cargo clippy --workspace --all-targets
+              env:
+                  RUSTFLAGS: -Dwarnings
+
+    docs:
+        name: docs
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@v3
+            - uses: dtolnay/rust-toolchain@nightly
+              with:
+                  components: rust-docs
+            - run: cd universal/rs && cargo doc --workspace --no-deps --document-private-items
+              env:
+                  RUSTDOCFLAGS: "--cfg docsrs -D warnings"
+
+    fmt:
+        name: fmt
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+        steps:
+            - uses: actions/checkout@v3
+            - uses: dtolnay/rust-toolchain@nightly
+              with:
+                  components: rustfmt
+            - run: cd universal/rs && cargo fmt --all --check
