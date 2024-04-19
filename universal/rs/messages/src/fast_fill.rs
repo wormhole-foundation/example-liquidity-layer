@@ -1,6 +1,6 @@
 //! Fast Fill
 
-use crate::messages::Fill;
+use crate::Fill;
 use wormhole_io::{Readable, TypePrefixedPayload, Writeable};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -48,10 +48,8 @@ impl TypePrefixedPayload for FastFill {
 
 #[cfg(test)]
 mod test {
+    use crate::raw;
     use hex_literal::hex;
-    use messages::raw;
-
-    use crate::messages;
 
     use super::*;
 

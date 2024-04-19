@@ -75,10 +75,8 @@ impl TypePrefixedPayload for FastMarketOrder {
 
 #[cfg(test)]
 mod test {
+    use crate::raw;
     use hex_literal::hex;
-    use messages::raw;
-
-    use crate::messages;
 
     use super::*;
 
