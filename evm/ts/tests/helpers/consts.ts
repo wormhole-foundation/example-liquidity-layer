@@ -22,7 +22,7 @@ export const USDC_DECIMALS: NetworkVars<number> = {
 };
 
 export const WORMHOLE_MESSAGE_FEE = 0;
-export const WORMHOLE_GUARDIAN_SET_INDEX = 3;
+export const WORMHOLE_GUARDIAN_SET_INDEX = 4;
 export const GUARDIAN_PRIVATE_KEY =
     "cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0";
 export const WALLET_PRIVATE_KEYS = [
