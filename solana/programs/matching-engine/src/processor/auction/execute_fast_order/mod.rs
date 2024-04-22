@@ -65,6 +65,18 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             user_reward,
         } = utils::auction::compute_deposit_penalty(config, auction_info, current_slot);
 
+        let init_auction_fee = order.init_auction_fee();
+
+        let user_amount = auction_info
+            .amount_in
+            .saturating_sub(auction_info.offer_price)
+            .saturating_sub(init_auction_fee)
+            .saturating_add(user_reward);
+
+        // Keep track of the remaining amount in the custody token account. Whatever remains will go
+        // to the executor.
+        let mut remaining_custodied_amount = custody_token.amount.saturating_sub(user_amount);
+
         // Offer price + security deposit was checked in placing the initial offer.
         let mut deposit_and_fee = auction_info
             .offer_price
@@ -80,58 +92,88 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
         let penalized = penalty > 0;
 
         if penalized && best_offer_token.key() != executor_token.key() {
-            // Pay the liquidator the penalty.
-            token::transfer(
-                CpiContext::new_with_signer(
-                    token_program.to_account_info(),
-                    anchor_spl::token::Transfer {
-                        from: custody_token.to_account_info(),
-                        to: executor_token.to_account_info(),
-                        authority: auction.to_account_info(),
-                    },
-                    &[auction_signer_seeds],
-                ),
-                penalty,
-            )?;
-
             deposit_and_fee = deposit_and_fee.saturating_sub(penalty);
         }
 
-        let init_auction_fee = order.init_auction_fee();
-        if best_offer_token.key() != initial_offer_token.key() {
-            // Pay the auction initiator their fee.
+        // If the initial offer token account doesn't exist anymore, we have nowhere to send the
+        // init auction fee. The executor will get these funds instead.
+        if !initial_offer_token.data_is_empty() {
+            if best_offer_token.key() != initial_offer_token.key() {
+                // Pay the auction initiator their fee.
+                token::transfer(
+                    CpiContext::new_with_signer(
+                        token_program.to_account_info(),
+                        anchor_spl::token::Transfer {
+                            from: custody_token.to_account_info(),
+                            to: initial_offer_token.to_account_info(),
+                            authority: auction.to_account_info(),
+                        },
+                        &[auction_signer_seeds],
+                    ),
+                    init_auction_fee,
+                )?;
+
+                // Because the initial offer token was paid this fee, we account for it here.
+                remaining_custodied_amount =
+                    remaining_custodied_amount.saturating_sub(init_auction_fee);
+            } else {
+                // Add it to the reimbursement.
+                deposit_and_fee = deposit_and_fee
+                    .checked_add(init_auction_fee)
+                    .ok_or(MatchingEngineError::U64Overflow)?;
+            }
+        }
+
+        // Return the security deposit and the fee to the highest bidder.
+        //
+        if best_offer_token.key() == executor_token.key() {
+            // If the best offer token is equal to the executor token, just send whatever remains in the
+            // custody token account.
             token::transfer(
                 CpiContext::new_with_signer(
                     token_program.to_account_info(),
                     anchor_spl::token::Transfer {
                         from: custody_token.to_account_info(),
-                        to: initial_offer_token.to_account_info(),
+                        to: best_offer_token.to_account_info(),
                         authority: auction.to_account_info(),
                     },
                     &[auction_signer_seeds],
                 ),
-                init_auction_fee,
+                remaining_custodied_amount,
             )?;
         } else {
-            // Add it to the reimbursement.
-            deposit_and_fee = deposit_and_fee
-                .checked_add(init_auction_fee)
-                .ok_or(MatchingEngineError::U64Overflow)?;
-        }
+            // Otherwise, send the deposit and fee to the best offer token.
+            token::transfer(
+                CpiContext::new_with_signer(
+                    token_program.to_account_info(),
+                    anchor_spl::token::Transfer {
+                        from: custody_token.to_account_info(),
+                        to: best_offer_token.to_account_info(),
+                        authority: auction.to_account_info(),
+                    },
+                    &[auction_signer_seeds],
+                ),
+                deposit_and_fee,
+            )?;
 
-        // Return the security deposit and the fee to the highest bidder.
-        token::transfer(
-            CpiContext::new_with_signer(
-                token_program.to_account_info(),
-                anchor_spl::token::Transfer {
-                    from: custody_token.to_account_info(),
-                    to: best_offer_token.to_account_info(),
-                    authority: auction.to_account_info(),
-                },
-                &[auction_signer_seeds],
-            ),
-            deposit_and_fee,
-        )?;
+            remaining_custodied_amount = remaining_custodied_amount.saturating_sub(deposit_and_fee);
+
+            // And pay the executor whatever remains in the auction custody token account.
+            if remaining_custodied_amount > 0 {
+                token::transfer(
+                    CpiContext::new_with_signer(
+                        token_program.to_account_info(),
+                        anchor_spl::token::Transfer {
+                            from: custody_token.to_account_info(),
+                            to: executor_token.to_account_info(),
+                            authority: auction.to_account_info(),
+                        },
+                        &[auction_signer_seeds],
+                    ),
+                    remaining_custodied_amount,
+                )?;
+            }
+        }
 
         // Set the authority of the custody token account to the custodian. He will take over from
         // here.
@@ -158,11 +200,6 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             penalized,
         });
 
-        let user_amount = auction_info
-            .amount_in
-            .saturating_sub(auction_info.offer_price)
-            .saturating_sub(init_auction_fee)
-            .saturating_add(user_reward);
         (
             user_amount,
             AuctionStatus::Completed {
