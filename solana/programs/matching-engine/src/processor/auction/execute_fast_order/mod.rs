@@ -129,6 +129,10 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
         if best_offer_token.key() == executor_token.key() {
             // If the best offer token is equal to the executor token, just send whatever remains in the
             // custody token account.
+            //
+            // NOTE: This will revert if the best offer token does not exist. But this will present
+            // an opportunity for another executor to execute this order and take what the best
+            // offer token would have received.
             token::transfer(
                 CpiContext::new_with_signer(
                     token_program.to_account_info(),
@@ -142,21 +146,26 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
                 remaining_custodied_amount,
             )?;
         } else {
-            // Otherwise, send the deposit and fee to the best offer token.
-            token::transfer(
-                CpiContext::new_with_signer(
-                    token_program.to_account_info(),
-                    anchor_spl::token::Transfer {
-                        from: custody_token.to_account_info(),
-                        to: best_offer_token.to_account_info(),
-                        authority: auction.to_account_info(),
-                    },
-                    &[auction_signer_seeds],
-                ),
-                deposit_and_fee,
-            )?;
+            // Otherwise, send the deposit and fee to the best offer token. If the best offer token
+            // doesn't exist at this point (which would be unusual), we will reserve these funds
+            // for the executor token.
+            if !best_offer_token.data_is_empty() {
+                token::transfer(
+                    CpiContext::new_with_signer(
+                        token_program.to_account_info(),
+                        anchor_spl::token::Transfer {
+                            from: custody_token.to_account_info(),
+                            to: best_offer_token.to_account_info(),
+                            authority: auction.to_account_info(),
+                        },
+                        &[auction_signer_seeds],
+                    ),
+                    deposit_and_fee,
+                )?;
 
-            remaining_custodied_amount = remaining_custodied_amount.saturating_sub(deposit_and_fee);
+                remaining_custodied_amount =
+                    remaining_custodied_amount.saturating_sub(deposit_and_fee);
+            }
 
             // And pay the executor whatever remains in the auction custody token account.
             if remaining_custodied_amount > 0 {
