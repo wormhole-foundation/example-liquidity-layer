@@ -173,7 +173,7 @@ contract TokenRouterTest is Test {
         TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
         vm.expectRevert(
-            abi.encodeWithSignature("InvalidInitDataLength(uint256,uint256)", 0, 20)
+            abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 0, 20)
         );
         proxy.initialize(new bytes(0));
     }
@@ -194,7 +194,7 @@ contract TokenRouterTest is Test {
         TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
         vm.expectRevert(
-            abi.encodeWithSignature("InvalidInitDataLength(uint256,uint256)", 40, 20)
+            abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 40, 20)
         );
         proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), makeAddr("hole")));
     }

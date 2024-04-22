@@ -71,8 +71,6 @@ contract TokenRouter is TokenRouterAdmin, PlaceMarketOrder, RedeemFill {
 
         (ownerAssistant, offset) = initData.asAddressUnchecked(offset);
 
-        if (initData.length != offset) {
-            revert InvalidInitDataLength(initData.length, offset);
-        }
+        initData.checkLength(offset);
     }
 }

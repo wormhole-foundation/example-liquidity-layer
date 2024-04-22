@@ -200,7 +200,7 @@ contract MatchingEngineTest is Test {
             MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
         vm.expectRevert(
-            abi.encodeWithSignature("InvalidInitDataLength(uint256,uint256)", 0, 40)
+            abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 0, 40)
         );
         proxy.initialize(new bytes(0));
     }
@@ -224,7 +224,7 @@ contract MatchingEngineTest is Test {
             MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
         vm.expectRevert(
-            abi.encodeWithSignature("InvalidInitDataLength(uint256,uint256)", 41, 40)
+            abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 41, 40)
         );
         proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), FEE_RECIPIENT, uint8(69)));
     }

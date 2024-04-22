@@ -75,8 +75,6 @@ contract MatchingEngine is MatchingEngineFastOrders, MatchingEngineAdmin {
         (ownerAssistant, offset) = initData.asAddressUnchecked(offset);
         (feeRecipient, offset) = initData.asAddressUnchecked(offset);
 
-        if (initData.length != offset) {
-            revert InvalidInitDataLength(initData.length, offset);
-        }
+        initData.checkLength(offset);
     }
 }
