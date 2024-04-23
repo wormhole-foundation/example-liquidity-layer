@@ -7,8 +7,7 @@ import "forge-std/console2.sol";
 
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-import {TokenRouterSetup} from "src/TokenRouter/TokenRouterSetup.sol";
-import {TokenRouterImplementation} from "src/TokenRouter/TokenRouterImplementation.sol";
+import {TokenRouter} from "src/TokenRouter/TokenRouter.sol";
 
 import {CheckWormholeContracts} from "./helpers/CheckWormholeContracts.sol";
 
@@ -29,10 +28,10 @@ contract DeployTokenRouterContracts is CheckWormholeContracts, Script {
     uint16 immutable _matchingEngineChain = uint16(vm.envUint("RELEASE_MATCHING_ENGINE_CHAIN"));
     uint32 immutable _matchingEngineDomain = uint32(vm.envUint("RELEASE_MATCHING_ENGINE_DOMAIN"));
 
-    function deploy() public {
+    function deployAndConfigure() public {
         requireValidChain(_chainId, _wormhole);
 
-        TokenRouterImplementation implementation = new TokenRouterImplementation(
+        TokenRouter implementation = new TokenRouter(
             _token,
             _wormhole,
             _cctpTokenMessenger,
@@ -42,18 +41,20 @@ contract DeployTokenRouterContracts is CheckWormholeContracts, Script {
             _matchingEngineDomain
         );
 
-        TokenRouterSetup setup = new TokenRouterSetup();
-        address proxy = setup.deployProxy(address(implementation), _ownerAssistantAddress);
+        TokenRouter proxy =
+            TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
-        console2.log("Deployed TokenRouter (chain=%s): %s", _chainId, proxy);
+        proxy.initialize(abi.encodePacked(_ownerAssistantAddress));
+
+        console2.log("Deployed TokenRouter (chain=%s): %s", _chainId, address(proxy));
     }
 
     function run() public {
         // Begin sending transactions.
         vm.startBroadcast();
 
-        // Deploy setup, implementation and erc1967 proxy.
-        deploy();
+        // Deploy proxy and initialize.
+        deployAndConfigure();
 
         // Done.
         vm.stopBroadcast();

@@ -4,7 +4,7 @@ pragma solidity ^0.8.19;
 
 import {IAdmin} from "src/interfaces/IAdmin.sol";
 
-import {ERC1967Upgrade} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
+import {Implementation} from "src/shared/Implementation.sol";
 
 // -------------------------------------- Persistent Storage ---------------------------------------
 
@@ -64,24 +64,10 @@ function getPausedState() pure returns (Paused storage state) {
     }
 }
 
-struct Implementation {
-    mapping(address => bool) isInitialized;
-}
-
-// keccak256("InitializedImplementations") - 1
-bytes32 constant IMPLEMENTATION_STORAGE_SLOT =
-    0x03c884046453e4665e8c45126546799c73dad598a4bcca7e00f0c13eaa1ae299;
-
-function getImplementationState() pure returns (Implementation storage state) {
-    assembly ("memory-safe") {
-        state.slot := IMPLEMENTATION_STORAGE_SLOT
-    }
-}
-
 /**
  * @dev This contract is shared between the `MatchingEngine` and `tokenRouter` contracts.
  */
-abstract contract Admin is IAdmin, ERC1967Upgrade {
+abstract contract Admin is IAdmin, Implementation {
     // Errors.
     error InvalidAddress();
     error NotTheOwner();
@@ -92,23 +78,13 @@ abstract contract Admin is IAdmin, ERC1967Upgrade {
     // Events.
     event OwnershipTransfered(address indexed oldOwner, address indexed newOwner);
     event IsPaused(bool paused);
-    event ContractUpgraded(address indexed oldContract, address indexed newContract);
 
     /// @inheritdoc IAdmin
     function upgradeContract(address newImplementation) external onlyOwner {
         if (newImplementation == address(0)) {
             revert InvalidAddress();
         }
-        address oldImplementation = _getImplementation();
-
-        _upgradeTo(newImplementation);
-
-        // Call initialize function of the new implementation.
-        (bool success, bytes memory reason) =
-            newImplementation.delegatecall(abi.encodeWithSignature("initialize()"));
-        require(success, string(reason));
-
-        emit ContractUpgraded(oldImplementation, newImplementation);
+        _upgrade(newImplementation);
     }
 
     /// @inheritdoc IAdmin

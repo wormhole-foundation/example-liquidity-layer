@@ -4,9 +4,30 @@ pragma solidity ^0.8.0;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IWormhole} from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
+import {ITokenMessenger} from "src/interfaces/external/ITokenMessenger.sol";
 import "./ITokenRouterTypes.sol";
 
 interface ITokenRouterState {
+    /**
+     * @notice Returns the chain ID of the matching engine.
+     */
+    function matchingEngineChain() external view returns (uint16);
+
+    /**
+     * @notice Returns the address of the matching engine.
+     */
+    function matchingEngineAddress() external view returns (bytes32);
+
+    /**
+     * @notice Returns the mint recipient of the matching engine.
+     */
+    function matchingEngineMintRecipient() external view returns (bytes32);
+
+    /**
+     * @notice Returns the domain of the matching engine.
+     */
+    function matchingEngineDomain() external view returns (uint32);
+
     /**
      * @notice Returns the router address for a given chain ID.
      * @param chain The Wormhole chain ID.

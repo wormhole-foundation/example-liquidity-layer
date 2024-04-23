@@ -8,9 +8,8 @@ import "forge-std/console2.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {IMatchingEngine} from "src/interfaces/IMatchingEngine.sol";
 
-import {MatchingEngineSetup} from "src/MatchingEngine/MatchingEngineSetup.sol";
-import {MatchingEngineImplementation} from
-    "src/MatchingEngine/MatchingEngineImplementation.sol";
+import {MatchingEngine} from
+    "src/MatchingEngine/MatchingEngine.sol";
 
 import {CheckWormholeContracts} from "./helpers/CheckWormholeContracts.sol";
 
@@ -36,7 +35,7 @@ contract UpgradeMatchingEngine is CheckWormholeContracts, Script {
     function upgrade() public {
         requireValidChain(_chainId, _wormhole);
 
-        MatchingEngineImplementation implementation = new MatchingEngineImplementation(
+        MatchingEngine implementation = new MatchingEngine(
             _token,
             _wormhole,
             _cctpTokenMessenger,

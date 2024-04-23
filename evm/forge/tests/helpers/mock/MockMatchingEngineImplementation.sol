@@ -2,8 +2,7 @@
 
 pragma solidity ^0.8.19;
 
-import {ERC1967Upgrade} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
-import {MatchingEngineImplementation} from "src/MatchingEngine/MatchingEngineImplementation.sol";
+import {MatchingEngine} from "src/MatchingEngine/MatchingEngine.sol";
 import {IMatchingEngine} from "src/interfaces/IMatchingEngine.sol";
 
 interface IMockMatchingEngine is IMatchingEngine {
@@ -12,7 +11,7 @@ interface IMockMatchingEngine is IMatchingEngine {
     function getImplementation() external view returns (address);
 }
 
-contract MockMatchingEngineImplementation is MatchingEngineImplementation {
+contract MockMatchingEngineImplementation is MatchingEngine {
     constructor(
         address _token,
         address _wormhole,
@@ -23,7 +22,7 @@ contract MockMatchingEngineImplementation is MatchingEngineImplementation {
         uint8 _auctionGracePeriod,
         uint8 _auctionPenaltyBlocks
     )
-        MatchingEngineImplementation(
+        MatchingEngine(
             _token,
             _wormhole,
             _cctpTokenMessenger,
@@ -37,9 +36,5 @@ contract MockMatchingEngineImplementation is MatchingEngineImplementation {
 
     function isUpgraded() external pure returns (bool) {
         return true;
-    }
-
-    function getImplementation() external view returns (address) {
-        return ERC1967Upgrade._getImplementation();
     }
 }

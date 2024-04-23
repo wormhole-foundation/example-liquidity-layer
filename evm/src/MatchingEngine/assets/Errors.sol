@@ -41,3 +41,7 @@ error ErrInvalidUserPenaltyRewardBps();
 error ErrInvalidInitialPenaltyBps();
 
 error ErrDeadlineExceeded();
+
+error ErrCallerNotDeployer(address deployer, address caller);
+
+error InvalidInitDataLength(uint256 actual, uint256 expected);

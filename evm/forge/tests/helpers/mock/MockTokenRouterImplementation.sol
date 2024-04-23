@@ -2,8 +2,7 @@
 
 pragma solidity ^0.8.19;
 
-import {ERC1967Upgrade} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Upgrade.sol";
-import {TokenRouterImplementation} from "src/TokenRouter/TokenRouterImplementation.sol";
+import {TokenRouter} from "src/TokenRouter/TokenRouter.sol";
 import {ITokenRouter} from "src/interfaces/ITokenRouter.sol";
 
 interface IMockTokenRouter is ITokenRouter {
@@ -12,7 +11,7 @@ interface IMockTokenRouter is ITokenRouter {
     function getImplementation() external view returns (address);
 }
 
-contract MockTokenRouterImplementation is TokenRouterImplementation {
+contract MockTokenRouterImplementation is TokenRouter {
     constructor(
         address _token,
         address _wormhole,
@@ -22,7 +21,7 @@ contract MockTokenRouterImplementation is TokenRouterImplementation {
         bytes32 _matchingEngineMintRecipient,
         uint32 _matchingEngineDomain
     )
-        TokenRouterImplementation(
+        TokenRouter(
             _token,
             _wormhole,
             _cctpTokenMessenger,
@@ -35,9 +34,5 @@ contract MockTokenRouterImplementation is TokenRouterImplementation {
 
     function isUpgraded() external pure returns (bool) {
         return true;
-    }
-
-    function getImplementation() external view returns (address) {
-        return ERC1967Upgrade._getImplementation();
     }
 }

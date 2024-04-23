@@ -22,8 +22,8 @@ import {
 } from "./helpers/mock/MockTokenRouterImplementation.sol";
 
 import "src/TokenRouter/assets/Errors.sol";
-import {TokenRouterImplementation} from "src/TokenRouter/TokenRouterImplementation.sol";
-import {TokenRouterSetup} from "src/TokenRouter/TokenRouterSetup.sol";
+import {TokenRouter} from "src/TokenRouter/TokenRouter.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import {Messages} from "src/shared/Messages.sol";
 import {Utils} from "src/shared/Utils.sol";
@@ -82,7 +82,7 @@ contract TokenRouterTest is Test {
         returns (ITokenRouter)
     {
         // Deploy Implementation.
-        TokenRouterImplementation implementation = new TokenRouterImplementation(
+        TokenRouter implementation = new TokenRouter(
             _token,
             _wormhole,
             _tokenMessenger,
@@ -92,12 +92,11 @@ contract TokenRouterTest is Test {
             matchingEngineDomain
         );
 
-        // Deploy Setup.
-        TokenRouterSetup setup = new TokenRouterSetup();
+        TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
-        address proxy = setup.deployProxy(address(implementation), makeAddr("ownerAssistant"));
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant")));
 
-        return ITokenRouter(proxy);
+        return ITokenRouter(address(proxy));
     }
 
     function setUp() public {
@@ -134,6 +133,93 @@ contract TokenRouterTest is Test {
     /**
      * ADMIN TESTS
      */
+    function testCannotInitializeAsNonDeployer() public {
+        address owner = makeAddr("owner");
+        address notDeployer = makeAddr("not deployer");
+
+        vm.startPrank(owner);
+        TokenRouter implementation = new TokenRouter(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE,
+            matchingEngineChain,
+            matchingEngineAddress,
+            matchingEngineMintRecipient,
+            matchingEngineDomain
+        );
+        TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
+        vm.stopPrank();
+
+        vm.prank(notDeployer);
+        vm.expectRevert(
+            abi.encodeWithSignature("ErrCallerNotDeployer(address,address)", owner, notDeployer)
+        );
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant")));
+    }
+
+    function testCannotInitializeZeroInitData() public {
+        address owner = makeAddr("owner");
+
+        vm.startPrank(owner);
+        TokenRouter implementation = new TokenRouter(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE,
+            matchingEngineChain,
+            matchingEngineAddress,
+            matchingEngineMintRecipient,
+            matchingEngineDomain
+        );
+        TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
+
+        vm.expectRevert(
+            abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 0, 20)
+        );
+        proxy.initialize(new bytes(0));
+    }
+
+    function testCannotInitializeInvalidInitDataLength() public {
+        address owner = makeAddr("owner");
+
+        vm.startPrank(owner);
+        TokenRouter implementation = new TokenRouter(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE,
+            matchingEngineChain,
+            matchingEngineAddress,
+            matchingEngineMintRecipient,
+            matchingEngineDomain
+        );
+        TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
+
+        vm.expectRevert(
+            abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 40, 20)
+        );
+        proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), makeAddr("hole")));
+    }
+
+    function testCannotInitializeInvalidAddress() public {
+        address owner = makeAddr("owner");
+
+        vm.startPrank(owner);
+        TokenRouter implementation = new TokenRouter(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE,
+            matchingEngineChain,
+            matchingEngineAddress,
+            matchingEngineMintRecipient,
+            matchingEngineDomain
+        );
+        TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
+
+        vm.expectRevert(
+            abi.encodeWithSignature("InvalidAddress()")
+        );
+        proxy.initialize(abi.encodePacked(address(0)));
+    }
+
     function testUpgradeContract() public {
         // Deploy new implementation.
         MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
@@ -154,11 +240,10 @@ contract TokenRouterTest is Test {
         IMockTokenRouter mockRouter = IMockTokenRouter(address(router));
 
         // Verify the new implementation.
-        assertEq(mockRouter.getImplementation(), address(newImplementation));
         assertTrue(mockRouter.isUpgraded());
     }
 
-    function testCannotUpgradeContractAgain() public {
+    function testCannotUpgradeContractDomainChanged() public {
         // Deploy new implementation.
         MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
             USDC_ADDRESS,
@@ -167,15 +252,84 @@ contract TokenRouterTest is Test {
             matchingEngineChain,
             matchingEngineAddress,
             matchingEngineMintRecipient,
+            69 // Different domain.
+        );
+
+        // Upgrade the contract.
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert();
+        router.upgradeContract(address(newImplementation));
+    }
+
+    function testCannotUpgradeContractMintRecipientChanged() public {
+        // Deploy new implementation.
+        MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE,
+            matchingEngineChain,
+            matchingEngineAddress,
+            makeAddr("newMintRecipient").toUniversalAddress(),
             matchingEngineDomain
         );
 
-        vm.startPrank(makeAddr("owner"));
+        // Upgrade the contract.
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert();
+        router.upgradeContract(address(newImplementation));
+    }
+
+    function testCannotUpgradeContractMatchingEngineAddressChanged() public {
+        // Deploy new implementation.
+        MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE,
+            matchingEngineChain,
+            makeAddr("newMatchingEngineAddress").toUniversalAddress(),
+            matchingEngineMintRecipient,
+            matchingEngineDomain
+        );
 
         // Upgrade the contract.
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert();
         router.upgradeContract(address(newImplementation));
+    }
 
-        vm.expectRevert(abi.encodeWithSignature("AlreadyInitialized()"));
+    function testCannotUpgradeContractMatchingEngineChainChanged() public {
+        // Deploy new implementation.
+        MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
+            USDC_ADDRESS,
+            address(wormhole),
+            CIRCLE_BRIDGE,
+            69, // Different chain.
+            matchingEngineAddress,
+            matchingEngineMintRecipient,
+            matchingEngineDomain
+        );
+
+        // Upgrade the contract.
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert();
+        router.upgradeContract(address(newImplementation));
+    }
+
+    function testCannotUpgradeContractTokenChanged() public {
+        // Deploy new implementation.
+        MockTokenRouterImplementation newImplementation = new MockTokenRouterImplementation(
+            makeAddr("newToken"),
+            address(wormhole),
+            CIRCLE_BRIDGE,
+            matchingEngineChain,
+            matchingEngineAddress,
+            matchingEngineMintRecipient,
+            matchingEngineDomain
+        );
+
+        // Upgrade the contract.
+        vm.prank(makeAddr("owner"));
+        vm.expectRevert();
         router.upgradeContract(address(newImplementation));
     }
 
@@ -915,7 +1069,9 @@ contract TokenRouterTest is Test {
         uint64 minTransferAmount = router.getMinFastTransferAmount();
 
         vm.expectRevert(
-            abi.encodeWithSignature("ErrInsufficientAmount(uint64,uint64)", amountIn, minTransferAmount)
+            abi.encodeWithSignature(
+                "ErrInsufficientAmount(uint64,uint64)", amountIn, minTransferAmount
+            )
         );
         router.placeFastMarketOrder(
             amountIn,
@@ -947,7 +1103,9 @@ contract TokenRouterTest is Test {
         assertTrue(minTransferAmount < minFee);
 
         vm.expectRevert(
-            abi.encodeWithSignature("ErrInsufficientAmount(uint64,uint64)", minTransferAmount, minFee)
+            abi.encodeWithSignature(
+                "ErrInsufficientAmount(uint64,uint64)", minTransferAmount, minFee
+            )
         );
         router.placeFastMarketOrder(
             minTransferAmount,
@@ -1081,7 +1239,9 @@ contract TokenRouterTest is Test {
 
     function testPlaceFastMarketOrder(uint64 amountIn, uint64 maxFee, uint32 deadline) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
+            bound(
+                amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount()
+            )
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 
@@ -1136,7 +1296,9 @@ contract TokenRouterTest is Test {
         uint32 deadline
     ) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
+            bound(
+                amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount()
+            )
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 
@@ -1199,7 +1361,9 @@ contract TokenRouterTest is Test {
         uint32 deadline
     ) public {
         amountIn = uint64(
-            bound(amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount())
+            bound(
+                amountIn, router.getMinFastTransferAmount() + 1, router.getMaxFastTransferAmount()
+            )
         );
         maxFee = uint64(bound(maxFee, router.getMinFee(), amountIn - 1));
 

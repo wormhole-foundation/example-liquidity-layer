@@ -5,6 +5,7 @@ pragma solidity ^0.8.19;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IWormhole} from "wormhole-solidity-sdk/interfaces/IWormhole.sol";
 import {ITokenRouterState} from "src/interfaces/ITokenRouterState.sol";
+import {ITokenMessenger} from "src/interfaces/external/ITokenMessenger.sol";
 import {FastTransferParameters, Endpoint} from "src/interfaces/ITokenRouterTypes.sol";
 
 import "./Errors.sol";
@@ -58,6 +59,26 @@ abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
     /// @inheritdoc ITokenRouterState
     function getDeployer() external view returns (address) {
         return _deployer;
+    }
+
+    /// @inheritdoc ITokenRouterState
+    function matchingEngineChain() external view returns (uint16) {
+        return _matchingEngineChain;
+    }
+
+    /// @inheritdoc ITokenRouterState
+    function matchingEngineAddress() external view returns (bytes32) {
+        return _matchingEngineAddress;
+    }
+
+    /// @inheritdoc ITokenRouterState
+    function matchingEngineMintRecipient() external view returns (bytes32) {
+        return _matchingEngineMintRecipient;
+    }
+
+    /// @inheritdoc ITokenRouterState
+    function matchingEngineDomain() external view returns (uint32) {
+        return _matchingEngineDomain;
     }
 
     /// @inheritdoc ITokenRouterState

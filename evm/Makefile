@@ -8,7 +8,6 @@ all: build
 unit-test: build
 	forge test --fork-url ${AVAX_RPC} -vv
 
-#integration-test: ts/tests/.env build
 .PHONY: integration-test
 integration-test: node_modules ts/tests/.env
 	bash ts/tests/run_integration_test.sh
@@ -36,9 +35,3 @@ clean:
 
 node_modules:
 	npm ci
-
-# lib/forge-std:
-# 	forge install foundry-rs/forge-std@v1.6.1 --no-git --no-commit
-
-# lib/openzeppelin-contracts:
-# 	forge install openzeppelin/openzeppelin-contracts@v4.8.1 --no-git --no-commit
