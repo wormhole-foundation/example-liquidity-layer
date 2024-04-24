@@ -176,8 +176,8 @@ pub mod matching_engine {
         processor::update_auction_parameters(ctx)
     }
 
-    /// This instruction is used to close an existing proposal by closing the propsal account. This
-    /// instruction can only be called by the `owner`.
+    /// This instruction is used to close an existing proposal by closing the proposal account. This
+    /// instruction can only be called by the `owner` or `owner_assistant`.
     /// # Arguments
     ///
     /// * `ctx` - `CloseProposal` context.
