@@ -195,7 +195,7 @@ pub mod matching_engine {
     }
 
     /// This instruction is used to update the `fee_recipient` field in the `Custodian` account. This
-    /// instruction can only be called by the `owner`.
+    /// instruction can only be called by the `owner` or `owner_assistant`.
     /// # Arguments
     ///
     /// * `ctx` - `UpdateFeeRecipient` context.
