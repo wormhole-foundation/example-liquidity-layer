@@ -686,8 +686,8 @@ export type MatchingEngine = {
     {
       "name": "closeProposal",
       "docs": [
-        "This instruction is used to close an existing proposal by closing the propsal account. This",
-        "instruction can only be called by the `owner`.",
+        "This instruction is used to close an existing proposal by closing the proposal account. This",
+        "instruction can only be called by the `owner` or `owner_assistant`.",
         "# Arguments",
         "",
         "* `ctx` - `CloseProposal` context."
@@ -767,7 +767,7 @@ export type MatchingEngine = {
       "name": "updateFeeRecipient",
       "docs": [
         "This instruction is used to update the `fee_recipient` field in the `Custodian` account. This",
-        "instruction can only be called by the `owner`.",
+        "instruction can only be called by the `owner` or `owner_assistant`.",
         "# Arguments",
         "",
         "* `ctx` - `UpdateFeeRecipient` context."
@@ -1539,12 +1539,42 @@ export type MatchingEngine = {
           ]
         },
         {
-          "name": "fastVaa",
+          "name": "fastOrderPath",
           "accounts": [
             {
-              "name": "vaa",
-              "isMut": false,
-              "isSigner": false
+              "name": "fastVaa",
+              "accounts": [
+                {
+                  "name": "vaa",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "path",
+              "accounts": [
+                {
+                  "name": "fromEndpoint",
+                  "accounts": [
+                    {
+                      "name": "endpoint",
+                      "isMut": false,
+                      "isSigner": false
+                    }
+                  ]
+                },
+                {
+                  "name": "toEndpoint",
+                  "accounts": [
+                    {
+                      "name": "endpoint",
+                      "isMut": false,
+                      "isSigner": false
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },
@@ -4071,8 +4101,8 @@ export const IDL: MatchingEngine = {
     {
       "name": "closeProposal",
       "docs": [
-        "This instruction is used to close an existing proposal by closing the propsal account. This",
-        "instruction can only be called by the `owner`.",
+        "This instruction is used to close an existing proposal by closing the proposal account. This",
+        "instruction can only be called by the `owner` or `owner_assistant`.",
         "# Arguments",
         "",
         "* `ctx` - `CloseProposal` context."
@@ -4152,7 +4182,7 @@ export const IDL: MatchingEngine = {
       "name": "updateFeeRecipient",
       "docs": [
         "This instruction is used to update the `fee_recipient` field in the `Custodian` account. This",
-        "instruction can only be called by the `owner`.",
+        "instruction can only be called by the `owner` or `owner_assistant`.",
         "# Arguments",
         "",
         "* `ctx` - `UpdateFeeRecipient` context."
@@ -4924,12 +4954,42 @@ export const IDL: MatchingEngine = {
           ]
         },
         {
-          "name": "fastVaa",
+          "name": "fastOrderPath",
           "accounts": [
             {
-              "name": "vaa",
-              "isMut": false,
-              "isSigner": false
+              "name": "fastVaa",
+              "accounts": [
+                {
+                  "name": "vaa",
+                  "isMut": false,
+                  "isSigner": false
+                }
+              ]
+            },
+            {
+              "name": "path",
+              "accounts": [
+                {
+                  "name": "fromEndpoint",
+                  "accounts": [
+                    {
+                      "name": "endpoint",
+                      "isMut": false,
+                      "isSigner": false
+                    }
+                  ]
+                },
+                {
+                  "name": "toEndpoint",
+                  "accounts": [
+                    {
+                      "name": "endpoint",
+                      "isMut": false,
+                      "isSigner": false
+                    }
+                  ]
+                }
+              ]
             }
           ]
         },

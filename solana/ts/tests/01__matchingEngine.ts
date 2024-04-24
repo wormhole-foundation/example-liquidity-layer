@@ -4559,6 +4559,10 @@ describe("Matching Engine", function () {
             }
         })();
 
+        const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+            lookupTableAddress,
+        );
+
         const placeAndExecute = async () => {
             if (placeInitialOffer) {
                 const result = await placeInitialOfferCctpForTest(
@@ -4599,9 +4603,6 @@ describe("Matching Engine", function () {
                         units: 300_000,
                     });
 
-                    const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                        lookupTableAddress,
-                    );
                     const ix = await engine.executeFastOrderCctpIx({
                         payer: payer.publicKey,
                         fastVaa,
@@ -4632,7 +4633,9 @@ describe("Matching Engine", function () {
 
         if (errorMsg !== null) {
             expect(instructionOnly).is.false;
-            return expectIxErr(connection, [ix], signers, errorMsg);
+            return expectIxErr(connection, [ix], signers, errorMsg, {
+                addressLookupTableAccounts: [lookupTableAccount!],
+            });
         }
 
         const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaAccount.digest());
@@ -4665,9 +4668,6 @@ describe("Matching Engine", function () {
         const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
             units: 280_000,
         });
-        const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-            lookupTableAddress,
-        );
         await expectIxOk(connection, [computeIx, ix], signers, {
             addressLookupTableAccounts: [lookupTableAccount!],
         });

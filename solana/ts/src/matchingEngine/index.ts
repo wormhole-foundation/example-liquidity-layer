@@ -1208,6 +1208,14 @@ export class MatchingEngineProgram {
         const { payer, fastVaa, finalizedVaa } = accounts;
 
         const fastVaaAcct = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+        const fromEndpoint = this.routerEndpointAddress(fastVaaAcct.emitterInfo().chain);
+
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAcct.payload());
+        if (fastMarketOrder === undefined) {
+            throw new Error("Message not FastMarketOrder");
+        }
+        const toEndpoint = this.routerEndpointAddress(fastMarketOrder.targetChain);
+
         const { encodedCctpMessage } = args;
         const {
             authority: messageTransmitterAuthority,
@@ -1234,7 +1242,7 @@ export class MatchingEngineProgram {
             .accounts({
                 payer,
                 custodian: this.checkedCustodianComposite(),
-                fastVaa: this.liquidityLayerVaaComposite(fastVaa),
+                fastOrderPath: this.fastOrderPathComposite({ fastVaa, fromEndpoint, toEndpoint }),
                 finalizedVaa: this.liquidityLayerVaaComposite(finalizedVaa),
                 preparedOrderResponse,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),

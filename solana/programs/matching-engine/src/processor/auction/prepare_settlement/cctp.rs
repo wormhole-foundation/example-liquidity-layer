@@ -7,7 +7,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
     messages::raw::{LiquidityLayerDepositMessage, LiquidityLayerMessage},
-    wormhole_cctp_solana::{self, cctp::message_transmitter_program, wormhole::VaaAccount},
+    wormhole_cctp_solana::{self, cctp::message_transmitter_program},
 };
 
 #[derive(Accounts)]
@@ -17,12 +17,12 @@ pub struct PrepareOrderResponseCctp<'info> {
 
     custodian: CheckedCustodian<'info>,
 
-    fast_vaa: LiquidityLayerVaa<'info>,
+    fast_order_path: FastOrderPath<'info>,
 
     #[account(
         constraint = {
             // Fast and finalized VAAs must reconcile with each other.
-            let fast_vaa = fast_vaa.load_unchecked();
+            let fast_vaa = fast_order_path.fast_vaa.load_unchecked();
             let finalized_vaa = finalized_vaa.load_unchecked();
 
             require_eq!(
@@ -67,7 +67,7 @@ pub struct PrepareOrderResponseCctp<'info> {
         space = 8 + PreparedOrderResponse::INIT_SPACE,
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
-            VaaAccount::load(&fast_vaa)?.digest().as_ref()
+            fast_order_path.fast_vaa.load_unchecked().digest().as_ref()
         ],
         bump,
     )]
@@ -191,7 +191,7 @@ fn handle_prepare_order_response_cctp(
         .to_slow_order_response_unchecked()
         .base_fee();
 
-    let fast_vaa = ctx.accounts.fast_vaa.load_unchecked();
+    let fast_vaa = ctx.accounts.fast_order_path.fast_vaa.load_unchecked();
     let amount = LiquidityLayerMessage::try_from(fast_vaa.payload())
         .unwrap()
         .to_fast_market_order_unchecked()
