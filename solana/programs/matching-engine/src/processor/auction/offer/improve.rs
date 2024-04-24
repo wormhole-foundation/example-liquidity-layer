@@ -63,7 +63,13 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
         if offer_token.key() != best_offer_token.key() {
             // These operations will seem silly, but we do this as a safety measure to ensure that
             // nothing terrible happened with the auction's custody account.
-            let total_deposit = ctx.accounts.active_auction.custody_token.amount;
+            let total_deposit = ctx
+                .accounts
+                .active_auction
+                .info
+                .as_ref()
+                .unwrap()
+                .total_deposit();
 
             // If the best offer token happens to be closed, we will just keep the funds in the
             // auction custody account. The executor token account will collect these funds when the
