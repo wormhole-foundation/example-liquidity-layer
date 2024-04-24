@@ -11,7 +11,7 @@ repository.workspace = true
 
 [features]
 testnet = ["wormhole-solana-consts/testnet", "wormhole-cctp-solana/testnet"]
-localnet = ["wormhole-solana-consts/testnet", "wormhole-cctp-solana/testnet"]
+localnet = ["wormhole-solana-consts/mainnet", "wormhole-cctp-solana/mainnet"]
 
 [dependencies]
 liquidity-layer-messages.workspace = true
