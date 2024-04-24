@@ -3365,6 +3365,10 @@ export type MatchingEngine = {
       "name": "ExecutorNotPreparedBy"
     },
     {
+      "code": 7060,
+      "name": "InvalidOfferToken"
+    },
+    {
       "code": 7280,
       "name": "CannotCloseAuctionYet"
     },
@@ -6744,6 +6748,10 @@ export const IDL: MatchingEngine = {
     {
       "code": 7058,
       "name": "ExecutorNotPreparedBy"
+    },
+    {
+      "code": 7060,
+      "name": "InvalidOfferToken"
     },
     {
       "code": 7280,
