@@ -1,8 +1,5 @@
-.DS_Store
 .anchor
 .env
-.private
-.vscode
 **/*.rs.bk
 /artifacts-*
 /cfg/**/*.json
