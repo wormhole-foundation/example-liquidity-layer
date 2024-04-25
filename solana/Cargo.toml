@@ -27,8 +27,7 @@ path = "programs/matching-engine"
 path = "programs/token-router"
 
 [workspace.dependencies.wormhole-cctp-solana]
-version = "0.1.0-alpha.6"
-default-features = false
+version = "0.2.0-alpha.2"
 
 [workspace.dependencies.wormhole-solana-utils]
 version = "0.2.0-alpha.15"
