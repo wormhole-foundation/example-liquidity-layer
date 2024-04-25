@@ -26,12 +26,8 @@ impl std::fmt::Display for MessageProtocol {
     }
 }
 
-#[account]
-#[derive(Debug, InitSpace)]
-/// Foreign emitter account data.
-pub struct RouterEndpoint {
-    pub bump: u8,
-
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace)]
+pub struct EndpointInfo {
     /// Emitter chain. Cannot equal `1` (Solana's Chain ID).
     pub chain: u16,
 
@@ -44,6 +40,22 @@ pub struct RouterEndpoint {
 
     /// Specific message protocol used to move assets.
     pub protocol: MessageProtocol,
+}
+
+#[account]
+#[derive(Debug, InitSpace)]
+/// Foreign emitter account data.
+pub struct RouterEndpoint {
+    pub bump: u8,
+    pub info: EndpointInfo,
+}
+
+impl std::ops::Deref for RouterEndpoint {
+    type Target = EndpointInfo;
+
+    fn deref(&self) -> &Self::Target {
+        &self.info
+    }
 }
 
 impl RouterEndpoint {

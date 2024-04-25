@@ -33,6 +33,7 @@ import {
     CctpMessageArgs,
     Custodian,
     MatchingEngineProgram,
+    PreparedOrderResponse,
     Proposal,
     RouterEndpoint,
     localnet,
@@ -773,8 +774,13 @@ describe("Matching Engine", function () {
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(ethChain);
                 expect(routerEndpointData).to.eql(
-                    new RouterEndpoint(255, ethChain, contractAddress, mintRecipient, {
-                        cctp: { domain: ethDomain },
+                    new RouterEndpoint(255, {
+                        chain: ethChain,
+                        address: contractAddress,
+                        mintRecipient,
+                        protocol: {
+                            cctp: { domain: ethDomain },
+                        },
                     }),
                 );
 
@@ -815,13 +821,12 @@ describe("Matching Engine", function () {
                 const routerEndpointData = await engine.fetchRouterEndpoint(ethChain);
                 const { bump } = routerEndpointData;
                 expect(routerEndpointData).to.eql(
-                    new RouterEndpoint(
-                        bump,
-                        ethChain,
-                        new Array(32).fill(0),
-                        new Array(32).fill(0),
-                        { none: {} },
-                    ),
+                    new RouterEndpoint(bump, {
+                        chain: ethChain,
+                        address: new Array(32).fill(0),
+                        mintRecipient: new Array(32).fill(0),
+                        protocol: { none: {} },
+                    }),
                 );
             });
 
@@ -854,8 +859,13 @@ describe("Matching Engine", function () {
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(ethChain);
                 expect(routerEndpointData).to.eql(
-                    new RouterEndpoint(255, ethChain, ethRouter, ethRouter, {
-                        cctp: { domain: ethDomain },
+                    new RouterEndpoint(255, {
+                        chain: ethChain,
+                        address: ethRouter,
+                        mintRecipient: ethRouter,
+                        protocol: {
+                            cctp: { domain: ethDomain },
+                        },
                     }),
                 );
             });
@@ -3358,7 +3368,7 @@ describe("Matching Engine", function () {
 
                 const {
                     protocol: { cctp },
-                } = await engine.fetchRouterEndpoint(targetChain);
+                } = await engine.fetchRouterEndpointInfo(targetChain);
                 expect(cctp).is.not.undefined;
 
                 const {
@@ -3372,9 +3382,8 @@ describe("Matching Engine", function () {
                 expect(destinationCctpDomain).equals(cctp!.domain);
 
                 const sourceChain = wormholeSdk.coalesceChainId(fromChainName);
-                const { mintRecipient: expectedMintRecipient } = await engine.fetchRouterEndpoint(
-                    wormholeSdk.coalesceChainId(toChainName),
-                );
+                const { mintRecipient: expectedMintRecipient } =
+                    await engine.fetchRouterEndpointInfo(wormholeSdk.coalesceChainId(toChainName));
                 expect(mintRecipient).to.eql(expectedMintRecipient);
 
                 const expectedFill: Fill = {
@@ -4683,19 +4692,34 @@ describe("Matching Engine", function () {
 
         const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
         const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
-        expect(preparedOrderResponseData).to.eql({
-            bump,
-            fastVaaHash: Array.from(fastVaaAccount.digest()),
-            preparedBy: accounts.payer,
-            sourceChain: fastVaaAccount.emitterInfo().chain,
-            baseFee: uint64ToBN(deposit!.message.slowOrderResponse!.baseFee),
-        });
-        if (preparedOrderResponseBefore) {
-            expect(preparedOrderResponseData).to.eql(preparedOrderResponseBefore);
-        }
+        expect(deposit).is.not.undefined;
 
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
+
+        const toEndpoint = await engine.fetchRouterEndpointInfo(fastMarketOrder!.targetChain);
+
+        expect(preparedOrderResponseData).to.eql(
+            new PreparedOrderResponse(
+                bump,
+                {
+                    fastVaaHash: Array.from(fastVaaAccount.digest()),
+                    preparedBy: accounts.payer,
+                    fastVaaTimestamp: fastVaaAccount.timestamp(),
+                    sourceChain: fastVaaAccount.emitterInfo().chain,
+                    baseFee: uint64ToBN(deposit!.message.slowOrderResponse!.baseFee),
+                    initAuctionFee: uint64ToBN(fastMarketOrder!.initAuctionFee),
+                    sender: fastMarketOrder!.sender,
+                    redeemer: fastMarketOrder!.redeemer,
+                    amountIn: uint64ToBN(fastMarketOrder!.amountIn),
+                },
+                toEndpoint,
+                fastMarketOrder!.redeemerMessage,
+            ),
+        );
+        if (preparedOrderResponseBefore) {
+            expect(preparedOrderResponseData).to.eql(preparedOrderResponseBefore);
+        }
 
         {
             const token = await splToken.getAccount(connection, preparedCustodyToken);
@@ -4798,7 +4822,9 @@ describe("Matching Engine", function () {
         if ((opts.executeWithinGracePeriod ?? true) || executor.equals(bestOfferAuthority)) {
             expect(accounts.executor).to.eql(bestOfferAuthority);
         } else {
-            const { preparedBy } = await engine.fetchPreparedOrderResponse({
+            const {
+                info: { preparedBy },
+            } = await engine.fetchPreparedOrderResponse({
                 address: preparedOrderResponse,
             });
             expect(accounts.executor).to.eql(preparedBy);

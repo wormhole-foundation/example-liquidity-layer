@@ -9,6 +9,7 @@ pub enum TokenRouterError {
 
     InvalidDepositMessage = 0x44,
     InvalidPayloadId = 0x46,
+    RedeemerMessageTooLarge = 0x4e,
 
     InvalidSourceRouter = 0x60,
     InvalidTargetRouter = 0x62,

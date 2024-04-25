@@ -1347,6 +1347,10 @@ export type TokenRouter = {
       "name": "InvalidPayloadId"
     },
     {
+      "code": 6078,
+      "name": "RedeemerMessageTooLarge"
+    },
+    {
       "code": 6096,
       "name": "InvalidSourceRouter"
     },
@@ -2752,6 +2756,10 @@ export const IDL: TokenRouter = {
     {
       "code": 6070,
       "name": "InvalidPayloadId"
+    },
+    {
+      "code": 6078,
+      "name": "RedeemerMessageTooLarge"
     },
     {
       "code": 6096,

@@ -12,7 +12,10 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::messages::{raw::LiquidityLayerMessage, Fill};
+use common::messages::{
+    raw::{LiquidityLayerMessage, MessageToVec},
+    Fill,
+};
 
 struct PrepareFastExecution<'ctx, 'info> {
     execute_order: &'ctx mut ExecuteOrder<'info>,
@@ -227,7 +230,10 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             source_chain: vaa.emitter_chain(),
             order_sender: order.sender(),
             redeemer: order.redeemer(),
-            redeemer_message: <&[u8]>::from(order.redeemer_message()).to_vec().into(),
+            redeemer_message: order
+                .message_to_vec()
+                .try_into()
+                .map_err(|_| MatchingEngineError::RedeemerMessageTooLarge)?,
         },
     })
 }

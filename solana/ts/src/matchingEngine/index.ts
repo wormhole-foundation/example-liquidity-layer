@@ -39,6 +39,7 @@ import {
     AuctionInfo,
     AuctionParameters,
     Custodian,
+    EndpointInfo,
     MessageProtocol,
     PreparedOrderResponse,
     Proposal,
@@ -247,6 +248,13 @@ export class MatchingEngineProgram {
                 ? input.address
                 : this.routerEndpointAddress(input);
         return this.program.account.routerEndpoint.fetch(addr);
+    }
+
+    async fetchRouterEndpointInfo(
+        input: wormholeSdk.ChainId | { address: PublicKey },
+    ): Promise<EndpointInfo> {
+        const { info } = await this.fetchRouterEndpoint(input);
+        return info;
     }
 
     auctionAddress(vaaHash: VaaHash): PublicKey {
@@ -1333,7 +1341,9 @@ export class MatchingEngineProgram {
         let { auction, bestOfferToken } = accounts;
 
         if (auction === undefined) {
-            const { fastVaaHash } = await this.fetchPreparedOrderResponse({
+            const {
+                info: { fastVaaHash },
+            } = await this.fetchPreparedOrderResponse({
                 address: preparedOrderResponse,
             });
 
@@ -1472,11 +1482,6 @@ export class MatchingEngineProgram {
                     by: payer,
                     orderResponse: preparedOrderResponse,
                 }),
-                fastOrderPath: this.fastOrderPathComposite({
-                    fastVaa,
-                    fromEndpoint: this.routerEndpointAddress(sourceChain),
-                    toEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
-                }),
                 auction,
                 wormhole: {
                     config: coreBridgeConfig,
@@ -1556,11 +1561,6 @@ export class MatchingEngineProgram {
                 prepared: this.closePreparedOrderResponseComposite({
                     by: payer,
                     orderResponse: preparedOrderResponse,
-                }),
-                fastOrderPath: this.fastOrderPathComposite({
-                    fastVaa,
-                    fromEndpoint: this.routerEndpointAddress(sourceChain),
-                    toEndpoint: toRouterEndpoint,
                 }),
                 auction,
                 wormhole: {
@@ -1919,7 +1919,7 @@ export class MatchingEngineProgram {
         let { destinationCctpDomain } = args;
 
         if (destinationCctpDomain === undefined) {
-            const { protocol } = await this.fetchRouterEndpoint(targetChain);
+            const { protocol } = await this.fetchRouterEndpointInfo(targetChain);
             if (protocol.cctp === undefined) {
                 throw new Error("not CCTP endpoint");
             }

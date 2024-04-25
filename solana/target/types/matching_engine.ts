@@ -1852,46 +1852,6 @@ export type MatchingEngine = {
           ]
         },
         {
-          "name": "fastOrderPath",
-          "accounts": [
-            {
-              "name": "fastVaa",
-              "accounts": [
-                {
-                  "name": "vaa",
-                  "isMut": false,
-                  "isSigner": false
-                }
-              ]
-            },
-            {
-              "name": "path",
-              "accounts": [
-                {
-                  "name": "fromEndpoint",
-                  "accounts": [
-                    {
-                      "name": "endpoint",
-                      "isMut": false,
-                      "isSigner": false
-                    }
-                  ]
-                },
-                {
-                  "name": "toEndpoint",
-                  "accounts": [
-                    {
-                      "name": "endpoint",
-                      "isMut": false,
-                      "isSigner": false
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
           "name": "auction",
           "isMut": true,
           "isSigner": false,
@@ -2090,46 +2050,6 @@ export type MatchingEngine = {
               "name": "custodyToken",
               "isMut": true,
               "isSigner": false
-            }
-          ]
-        },
-        {
-          "name": "fastOrderPath",
-          "accounts": [
-            {
-              "name": "fastVaa",
-              "accounts": [
-                {
-                  "name": "vaa",
-                  "isMut": false,
-                  "isSigner": false
-                }
-              ]
-            },
-            {
-              "name": "path",
-              "accounts": [
-                {
-                  "name": "fromEndpoint",
-                  "accounts": [
-                    {
-                      "name": "endpoint",
-                      "isMut": false,
-                      "isSigner": false
-                    }
-                  ]
-                },
-                {
-                  "name": "toEndpoint",
-                  "accounts": [
-                    {
-                      "name": "endpoint",
-                      "isMut": false,
-                      "isSigner": false
-                    }
-                  ]
-                }
-              ]
             }
           ]
         },
@@ -2506,25 +2426,20 @@ export type MatchingEngine = {
             "type": "u8"
           },
           {
-            "name": "fastVaaHash",
+            "name": "info",
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
+              "defined": "PreparedOrderResponseInfo"
             }
           },
           {
-            "name": "preparedBy",
-            "type": "publicKey"
+            "name": "toEndpoint",
+            "type": {
+              "defined": "EndpointInfo"
+            }
           },
           {
-            "name": "sourceChain",
-            "type": "u16"
-          },
-          {
-            "name": "baseFee",
-            "type": "u64"
+            "name": "redeemerMessage",
+            "type": "bytes"
           }
         ]
       }
@@ -2611,44 +2526,9 @@ export type MatchingEngine = {
             "type": "u8"
           },
           {
-            "name": "chain",
-            "docs": [
-              "Emitter chain. Cannot equal `1` (Solana's Chain ID)."
-            ],
-            "type": "u16"
-          },
-          {
-            "name": "address",
-            "docs": [
-              "Emitter address. Cannot be zero address."
-            ],
+            "name": "info",
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "mintRecipient",
-            "docs": [
-              "Future-proof field in case another network has token accounts to send assets to instead of",
-              "sending to the address directly."
-            ],
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "protocol",
-            "docs": [
-              "Specific message protocol used to move assets."
-            ],
-            "type": {
-              "defined": "MessageProtocol"
+              "defined": "EndpointInfo"
             }
           }
         ]
@@ -2894,6 +2774,114 @@ export type MatchingEngine = {
               "option": {
                 "defined": "AuctionDestinationAssetInfo"
               }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PreparedOrderResponseInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fastVaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "preparedBy",
+            "type": "publicKey"
+          },
+          {
+            "name": "fastVaaTimestamp",
+            "type": "u32"
+          },
+          {
+            "name": "sourceChain",
+            "type": "u16"
+          },
+          {
+            "name": "baseFee",
+            "type": "u64"
+          },
+          {
+            "name": "initAuctionFee",
+            "type": "u64"
+          },
+          {
+            "name": "sender",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "redeemer",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "amountIn",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EndpointInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "chain",
+            "docs": [
+              "Emitter chain. Cannot equal `1` (Solana's Chain ID)."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "address",
+            "docs": [
+              "Emitter address. Cannot be zero address."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "mintRecipient",
+            "docs": [
+              "Future-proof field in case another network has token accounts to send assets to instead of",
+              "sending to the address directly."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "protocol",
+            "docs": [
+              "Specific message protocol used to move assets."
+            ],
+            "type": {
+              "defined": "MessageProtocol"
             }
           }
         ]
@@ -3237,6 +3225,10 @@ export type MatchingEngine = {
     {
       "code": 6076,
       "name": "VaaMismatch"
+    },
+    {
+      "code": 6078,
+      "name": "RedeemerMessageTooLarge"
     },
     {
       "code": 6096,
@@ -5267,46 +5259,6 @@ export const IDL: MatchingEngine = {
           ]
         },
         {
-          "name": "fastOrderPath",
-          "accounts": [
-            {
-              "name": "fastVaa",
-              "accounts": [
-                {
-                  "name": "vaa",
-                  "isMut": false,
-                  "isSigner": false
-                }
-              ]
-            },
-            {
-              "name": "path",
-              "accounts": [
-                {
-                  "name": "fromEndpoint",
-                  "accounts": [
-                    {
-                      "name": "endpoint",
-                      "isMut": false,
-                      "isSigner": false
-                    }
-                  ]
-                },
-                {
-                  "name": "toEndpoint",
-                  "accounts": [
-                    {
-                      "name": "endpoint",
-                      "isMut": false,
-                      "isSigner": false
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        {
           "name": "auction",
           "isMut": true,
           "isSigner": false,
@@ -5505,46 +5457,6 @@ export const IDL: MatchingEngine = {
               "name": "custodyToken",
               "isMut": true,
               "isSigner": false
-            }
-          ]
-        },
-        {
-          "name": "fastOrderPath",
-          "accounts": [
-            {
-              "name": "fastVaa",
-              "accounts": [
-                {
-                  "name": "vaa",
-                  "isMut": false,
-                  "isSigner": false
-                }
-              ]
-            },
-            {
-              "name": "path",
-              "accounts": [
-                {
-                  "name": "fromEndpoint",
-                  "accounts": [
-                    {
-                      "name": "endpoint",
-                      "isMut": false,
-                      "isSigner": false
-                    }
-                  ]
-                },
-                {
-                  "name": "toEndpoint",
-                  "accounts": [
-                    {
-                      "name": "endpoint",
-                      "isMut": false,
-                      "isSigner": false
-                    }
-                  ]
-                }
-              ]
             }
           ]
         },
@@ -5921,25 +5833,20 @@ export const IDL: MatchingEngine = {
             "type": "u8"
           },
           {
-            "name": "fastVaaHash",
+            "name": "info",
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
+              "defined": "PreparedOrderResponseInfo"
             }
           },
           {
-            "name": "preparedBy",
-            "type": "publicKey"
+            "name": "toEndpoint",
+            "type": {
+              "defined": "EndpointInfo"
+            }
           },
           {
-            "name": "sourceChain",
-            "type": "u16"
-          },
-          {
-            "name": "baseFee",
-            "type": "u64"
+            "name": "redeemerMessage",
+            "type": "bytes"
           }
         ]
       }
@@ -6026,44 +5933,9 @@ export const IDL: MatchingEngine = {
             "type": "u8"
           },
           {
-            "name": "chain",
-            "docs": [
-              "Emitter chain. Cannot equal `1` (Solana's Chain ID)."
-            ],
-            "type": "u16"
-          },
-          {
-            "name": "address",
-            "docs": [
-              "Emitter address. Cannot be zero address."
-            ],
+            "name": "info",
             "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "mintRecipient",
-            "docs": [
-              "Future-proof field in case another network has token accounts to send assets to instead of",
-              "sending to the address directly."
-            ],
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "protocol",
-            "docs": [
-              "Specific message protocol used to move assets."
-            ],
-            "type": {
-              "defined": "MessageProtocol"
+              "defined": "EndpointInfo"
             }
           }
         ]
@@ -6309,6 +6181,114 @@ export const IDL: MatchingEngine = {
               "option": {
                 "defined": "AuctionDestinationAssetInfo"
               }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PreparedOrderResponseInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fastVaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "preparedBy",
+            "type": "publicKey"
+          },
+          {
+            "name": "fastVaaTimestamp",
+            "type": "u32"
+          },
+          {
+            "name": "sourceChain",
+            "type": "u16"
+          },
+          {
+            "name": "baseFee",
+            "type": "u64"
+          },
+          {
+            "name": "initAuctionFee",
+            "type": "u64"
+          },
+          {
+            "name": "sender",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "redeemer",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "amountIn",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EndpointInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "chain",
+            "docs": [
+              "Emitter chain. Cannot equal `1` (Solana's Chain ID)."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "address",
+            "docs": [
+              "Emitter address. Cannot be zero address."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "mintRecipient",
+            "docs": [
+              "Future-proof field in case another network has token accounts to send assets to instead of",
+              "sending to the address directly."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "protocol",
+            "docs": [
+              "Specific message protocol used to move assets."
+            ],
+            "type": {
+              "defined": "MessageProtocol"
             }
           }
         ]
@@ -6652,6 +6632,10 @@ export const IDL: MatchingEngine = {
     {
       "code": 6076,
       "name": "VaaMismatch"
+    },
+    {
+      "code": 6078,
+      "name": "RedeemerMessageTooLarge"
     },
     {
       "code": 6096,

@@ -6,23 +6,19 @@ pub use local::*;
 
 use crate::{
     composite::*,
+    error::MatchingEngineError,
     state::{Auction, AuctionStatus, PreparedOrderResponse},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::messages::{
-    raw::{LiquidityLayerMessage, MessageToVec},
-    Fill,
-};
+use common::messages::Fill;
 
 struct SettleNoneAndPrepareFill<'ctx, 'info> {
-    fast_vaa: &'ctx LiquidityLayerVaa<'info>,
-    prepared_order_response: &'ctx Account<'info, PreparedOrderResponse>,
+    prepared_order_response: &'ctx mut Account<'info, PreparedOrderResponse>,
     prepared_custody_token: &'ctx UncheckedAccount<'info>,
     auction: &'ctx mut Account<'info, Auction>,
     fee_recipient_token: &'ctx Account<'info, token::TokenAccount>,
     custodian: &'ctx CheckedCustodian<'info>,
-    to_router_endpoint: &'ctx LiveRouterEndpoint<'info>,
     token_program: &'ctx Program<'info, token::Token>,
 }
 
@@ -31,25 +27,18 @@ struct SettledNone {
     fill: Fill,
 }
 
-fn settle_none_and_prepare_fill(
-    accounts: SettleNoneAndPrepareFill<'_, '_>,
+fn settle_none_and_prepare_fill<'ctx, 'info>(
+    accounts: SettleNoneAndPrepareFill<'ctx, 'info>,
     auction_bump_seed: u8,
 ) -> Result<SettledNone> {
     let SettleNoneAndPrepareFill {
-        fast_vaa,
         prepared_order_response,
         prepared_custody_token,
         auction,
         fee_recipient_token,
         custodian,
-        to_router_endpoint,
         token_program,
     } = accounts;
-
-    let fast_vaa = fast_vaa.load_unchecked();
-    let order = LiquidityLayerMessage::try_from(fast_vaa.payload())
-        .unwrap()
-        .to_fast_market_order_unchecked();
 
     let prepared_order_response_signer_seeds = &[
         PreparedOrderResponse::SEED_PREFIX,
@@ -62,7 +51,7 @@ fn settle_none_and_prepare_fill(
     // not have an associated auction.
     let fee = prepared_order_response
         .base_fee
-        .saturating_add(order.init_auction_fee());
+        .saturating_add(prepared_order_response.init_auction_fee);
     token::transfer(
         CpiContext::new_with_signer(
             token_program.to_account_info(),
@@ -95,9 +84,9 @@ fn settle_none_and_prepare_fill(
     // setting this could lead to trapped funds (which would require an upgrade to fix).
     auction.set_inner(Auction {
         bump: auction_bump_seed,
-        vaa_hash: fast_vaa.digest().0,
-        vaa_timestamp: fast_vaa.timestamp(),
-        target_protocol: to_router_endpoint.protocol,
+        vaa_hash: prepared_order_response.fast_vaa_hash,
+        vaa_timestamp: prepared_order_response.fast_vaa_timestamp,
+        target_protocol: prepared_order_response.to_endpoint.protocol,
         status: AuctionStatus::Settled {
             fee,
             total_penalty: None,
@@ -112,12 +101,14 @@ fn settle_none_and_prepare_fill(
     });
 
     Ok(SettledNone {
-        user_amount: order.amount_in().saturating_sub(fee),
+        user_amount: prepared_order_response.amount_in.saturating_sub(fee),
         fill: Fill {
             source_chain: prepared_order_response.source_chain,
-            order_sender: order.sender(),
-            redeemer: order.redeemer(),
-            redeemer_message: order.message_to_vec().into(),
+            order_sender: prepared_order_response.sender,
+            redeemer: prepared_order_response.redeemer,
+            redeemer_message: std::mem::take(&mut prepared_order_response.redeemer_message)
+                .try_into()
+                .map_err(|_| MatchingEngineError::RedeemerMessageTooLarge)?,
         },
     })
 }

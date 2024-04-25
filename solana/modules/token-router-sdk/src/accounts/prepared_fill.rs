@@ -5,23 +5,35 @@ use token_router::state::PreparedFillInfo;
 use wormhole_io::{Readable, TypePrefixedPayload};
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct PreparedFill<P: TypePrefixedPayload> {
+pub struct PreparedFill<const N: usize, P>
+where
+    P: TypePrefixedPayload<N>,
+{
     pub info: PreparedFillInfo,
     pub message_size: u32,
     pub redeemer_message: P,
 }
 
-impl<P: TypePrefixedPayload> Owner for PreparedFill<P> {
+impl<const N: usize, P> Owner for PreparedFill<N, P>
+where
+    P: TypePrefixedPayload<N>,
+{
     fn owner() -> Pubkey {
         token_router::ID
     }
 }
 
-impl<P: TypePrefixedPayload> Discriminator for PreparedFill<P> {
+impl<const N: usize, P> Discriminator for PreparedFill<N, P>
+where
+    P: TypePrefixedPayload<N>,
+{
     const DISCRIMINATOR: [u8; 8] = token_router::state::PreparedFill::DISCRIMINATOR;
 }
 
-impl<P: TypePrefixedPayload> AccountSerialize for PreparedFill<P> {
+impl<const N: usize, P> AccountSerialize for PreparedFill<N, P>
+where
+    P: TypePrefixedPayload<N>,
+{
     fn try_serialize<W: std::io::prelude::Write>(&self, writer: &mut W) -> Result<()> {
         Self::DISCRIMINATOR.serialize(writer)?;
         self.info.serialize(writer)?;
@@ -31,7 +43,10 @@ impl<P: TypePrefixedPayload> AccountSerialize for PreparedFill<P> {
     }
 }
 
-impl<P: TypePrefixedPayload> AccountDeserialize for PreparedFill<P> {
+impl<const N: usize, P> AccountDeserialize for PreparedFill<N, P>
+where
+    P: TypePrefixedPayload<N>,
+{
     fn try_deserialize(buf: &mut &[u8]) -> Result<Self> {
         let disc_len = Self::DISCRIMINATOR.len();
         if buf.len() < disc_len {
@@ -53,7 +68,10 @@ impl<P: TypePrefixedPayload> AccountDeserialize for PreparedFill<P> {
     }
 }
 
-impl<P: TypePrefixedPayload> Deref for PreparedFill<P> {
+impl<const N: usize, P> Deref for PreparedFill<N, P>
+where
+    P: TypePrefixedPayload<N>,
+{
     type Target = PreparedFillInfo;
 
     fn deref(&self) -> &Self::Target {

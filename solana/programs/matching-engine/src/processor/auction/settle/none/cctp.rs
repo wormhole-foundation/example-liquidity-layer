@@ -1,8 +1,7 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, Custodian, MessageProtocol, RouterEndpoint},
-    utils,
+    state::{Auction, Custodian, EndpointInfo, MessageProtocol},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -49,15 +48,7 @@ pub struct SettleAuctionNoneCctp<'info> {
     )]
     fee_recipient_token: Account<'info, token::TokenAccount>,
 
-    #[account(
-        constraint = utils::require_vaa_hash_equals(
-            &prepared,
-            &fast_order_path.fast_vaa.load_unchecked()
-        )?,
-    )]
     prepared: ClosePreparedOrderResponse<'info>,
-
-    fast_order_path: FastOrderPath<'info>,
 
     /// There should be no account data here because an auction was never created.
     #[account(
@@ -83,7 +74,7 @@ pub struct SettleAuctionNoneCctp<'info> {
 }
 
 pub fn settle_auction_none_cctp(ctx: Context<SettleAuctionNoneCctp>) -> Result<()> {
-    match ctx.accounts.fast_order_path.to_endpoint.protocol {
+    match ctx.accounts.prepared.order_response.to_endpoint.protocol {
         MessageProtocol::Cctp { domain } => handle_settle_auction_none_cctp(ctx, domain),
         _ => err!(MatchingEngineError::InvalidCctpEndpoint),
     }
@@ -102,25 +93,22 @@ fn handle_settle_auction_none_cctp(
         fill,
     } = super::settle_none_and_prepare_fill(
         super::SettleNoneAndPrepareFill {
-            fast_vaa: &ctx.accounts.fast_order_path.fast_vaa,
-            prepared_order_response: &ctx.accounts.prepared.order_response,
+            prepared_order_response: &mut ctx.accounts.prepared.order_response,
             prepared_custody_token,
             auction: &mut ctx.accounts.auction,
             fee_recipient_token: &ctx.accounts.fee_recipient_token,
             custodian,
-            to_router_endpoint: &ctx.accounts.fast_order_path.to_endpoint,
             token_program,
         },
         ctx.bumps.auction,
     )?;
 
-    let RouterEndpoint {
-        bump: _,
+    let EndpointInfo {
         chain: _,
         address: destination_caller,
         mint_recipient,
         protocol: _,
-    } = ctx.accounts.fast_order_path.to_endpoint.as_ref();
+    } = ctx.accounts.prepared.order_response.to_endpoint;
 
     let auction = &ctx.accounts.auction;
     let payer = &ctx.accounts.payer;
@@ -204,12 +192,12 @@ fn handle_settle_auction_none_cctp(
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
             burn_source: None,
-            destination_caller: *destination_caller,
+            destination_caller,
             destination_cctp_domain,
             amount,
-            mint_recipient: *mint_recipient,
+            mint_recipient,
             wormhole_message_nonce: common::WORMHOLE_MESSAGE_NONCE,
-            payload: fill.to_vec_payload(),
+            payload: fill.to_vec(),
         },
     )?;
 

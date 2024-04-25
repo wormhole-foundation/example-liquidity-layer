@@ -36,18 +36,7 @@ pub struct SettleAuctionNoneLocal<'info> {
     )]
     fee_recipient_token: Account<'info, token::TokenAccount>,
 
-    #[account(
-        constraint = utils::require_vaa_hash_equals(
-            &prepared,
-            &fast_order_path.fast_vaa.load_unchecked()
-        )?,
-    )]
     prepared: ClosePreparedOrderResponse<'info>,
-
-    #[account(
-        constraint = utils::require_local_endpoint(&fast_order_path.to_endpoint)?,
-    )]
-    fast_order_path: FastOrderPath<'info>,
 
     /// There should be no account data here because an auction was never created.
     #[account(
@@ -68,7 +57,7 @@ pub struct SettleAuctionNoneLocal<'info> {
         mut,
         seeds = [
             crate::LOCAL_CUSTODY_TOKEN_SEED_PREFIX,
-            &fast_order_path.fast_vaa.load_unchecked().emitter_chain().to_be_bytes(),
+            &prepared.order_response.source_chain.to_be_bytes(),
         ],
         bump,
     )]
@@ -90,13 +79,11 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
         fill,
     } = super::settle_none_and_prepare_fill(
         super::SettleNoneAndPrepareFill {
-            fast_vaa: &ctx.accounts.fast_order_path.fast_vaa,
-            prepared_order_response: &ctx.accounts.prepared.order_response,
+            prepared_order_response: &mut ctx.accounts.prepared.order_response,
             prepared_custody_token,
             auction: &mut ctx.accounts.auction,
             fee_recipient_token: &ctx.accounts.fee_recipient_token,
             custodian,
-            to_router_endpoint: &ctx.accounts.fast_order_path.to_endpoint,
             token_program,
         },
         ctx.bumps.auction,
