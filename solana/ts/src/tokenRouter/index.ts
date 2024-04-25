@@ -468,7 +468,7 @@ export class TokenRouterProgram {
         const cctpMessage = this.cctpMessageAddress(preparedOrder);
 
         if (destinationDomain === undefined) {
-            const { protocol } = await matchingEngine.fetchRouterEndpoint({
+            const { protocol } = await matchingEngine.fetchRouterEndpointInfo({
                 address: routerEndpoint,
             });
             if (protocol.cctp === undefined) {

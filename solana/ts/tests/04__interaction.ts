@@ -128,13 +128,14 @@ describe("Matching Engine <> Token Router", function () {
                 );
                 const { bump } = routerEndpointData;
                 expect(routerEndpointData).to.eql(
-                    new matchingEngineSdk.RouterEndpoint(
-                        bump,
-                        wormholeSdk.CHAIN_ID_SOLANA,
-                        Array.from(tokenRouter.custodianAddress().toBuffer()),
-                        Array.from(tokenRouter.cctpMintRecipientAddress().toBuffer()),
-                        { local: { programId: tokenRouter.ID } },
-                    ),
+                    new matchingEngineSdk.RouterEndpoint(bump, {
+                        chain: wormholeSdk.CHAIN_ID_SOLANA,
+                        address: Array.from(tokenRouter.custodianAddress().toBuffer()),
+                        mintRecipient: Array.from(
+                            tokenRouter.cctpMintRecipientAddress().toBuffer(),
+                        ),
+                        protocol: { local: { programId: tokenRouter.ID } },
+                    }),
                 );
 
                 // Save for later.
@@ -180,13 +181,14 @@ describe("Matching Engine <> Token Router", function () {
                 );
                 const { bump } = routerEndpointData;
                 expect(routerEndpointData).to.eql(
-                    new matchingEngineSdk.RouterEndpoint(
-                        bump,
-                        wormholeSdk.CHAIN_ID_SOLANA,
-                        Array.from(tokenRouter.custodianAddress().toBuffer()),
-                        Array.from(tokenRouter.cctpMintRecipientAddress().toBuffer()),
-                        { local: { programId: tokenRouter.ID } },
-                    ),
+                    new matchingEngineSdk.RouterEndpoint(bump, {
+                        chain: wormholeSdk.CHAIN_ID_SOLANA,
+                        address: Array.from(tokenRouter.custodianAddress().toBuffer()),
+                        mintRecipient: Array.from(
+                            tokenRouter.cctpMintRecipientAddress().toBuffer(),
+                        ),
+                        protocol: { local: { programId: tokenRouter.ID } },
+                    }),
                 );
             });
 
@@ -213,13 +215,12 @@ describe("Matching Engine <> Token Router", function () {
                 );
                 const { bump } = routerEndpointData;
                 expect(routerEndpointData).to.eql(
-                    new matchingEngineSdk.RouterEndpoint(
-                        bump,
-                        wormholeSdk.CHAIN_ID_SOLANA,
-                        new Array(32).fill(0),
-                        new Array(32).fill(0),
-                        { none: {} },
-                    ),
+                    new matchingEngineSdk.RouterEndpoint(bump, {
+                        chain: wormholeSdk.CHAIN_ID_SOLANA,
+                        address: new Array(32).fill(0),
+                        mintRecipient: new Array(32).fill(0),
+                        protocol: { none: {} },
+                    }),
                 );
             });
 
@@ -495,13 +496,14 @@ describe("Matching Engine <> Token Router", function () {
                 );
                 const { bump } = routerEndpointData;
                 expect(routerEndpointData).to.eql(
-                    new matchingEngineSdk.RouterEndpoint(
-                        bump,
-                        wormholeSdk.CHAIN_ID_SOLANA,
-                        Array.from(tokenRouter.custodianAddress().toBuffer()),
-                        Array.from(tokenRouter.cctpMintRecipientAddress().toBuffer()),
-                        { local: { programId: tokenRouter.ID } },
-                    ),
+                    new matchingEngineSdk.RouterEndpoint(bump, {
+                        chain: wormholeSdk.CHAIN_ID_SOLANA,
+                        address: Array.from(tokenRouter.custodianAddress().toBuffer()),
+                        mintRecipient: Array.from(
+                            tokenRouter.cctpMintRecipientAddress().toBuffer(),
+                        ),
+                        protocol: { local: { programId: tokenRouter.ID } },
+                    }),
                 );
             });
 

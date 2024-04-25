@@ -1020,7 +1020,7 @@ describe("Token Router", function () {
 
                 const {
                     protocol: { cctp: cctpProtocol },
-                } = await tokenRouter.matchingEngineProgram().fetchRouterEndpoint(foreignChain);
+                } = await tokenRouter.matchingEngineProgram().fetchRouterEndpointInfo(foreignChain);
                 expect(cctpProtocol).is.not.null;
                 const { domain: destinationCctpDomain } = cctpProtocol!;
 
