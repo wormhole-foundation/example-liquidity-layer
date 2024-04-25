@@ -13,7 +13,7 @@ homepage = "https://wormhole.com"
 repository = "https://github.com/wormhole-foundation/example-liquidity-layer"
 
 [workspace.dependencies]
-wormhole-io = "0.1.2"
+wormhole-io = "0.2.0-alpha.3"
 wormhole-raw-vaas = "0.2.0-alpha.2"
 hex-literal = "0.4.1"
 
