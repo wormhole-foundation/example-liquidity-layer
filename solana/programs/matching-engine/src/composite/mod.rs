@@ -396,7 +396,9 @@ pub struct WormholePublishMessage<'info> {
     #[account(mut)]
     pub fee_collector: UncheckedAccount<'info>,
 
-    pub core_bridge_program: Program<'info, core_bridge_program::CoreBridge>,
+    /// CHECK: Must equal Wormhole Core Bridge program ID.
+    #[account(address = core_bridge_program::id())]
+    pub core_bridge_program: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -434,10 +436,13 @@ pub struct CctpDepositForBurn<'info> {
     /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
     pub token_messenger_minter_event_authority: UncheckedAccount<'info>,
 
-    pub token_messenger_minter_program:
-        Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
-    pub message_transmitter_program:
-        Program<'info, message_transmitter_program::MessageTransmitter>,
+    /// CHECK: Must equal CCTP Token Messenger Minter program ID.
+    #[account(address = token_messenger_minter_program::id())]
+    pub token_messenger_minter_program: UncheckedAccount<'info>,
+
+    /// CHECK: Must equal CCTP Message Transmitter program ID.
+    #[account(address = message_transmitter_program::id())]
+    pub message_transmitter_program: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -486,10 +491,13 @@ pub struct CctpReceiveMessage<'info> {
     /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
     pub token_messenger_minter_event_authority: UncheckedAccount<'info>,
 
-    pub token_messenger_minter_program:
-        Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
-    pub message_transmitter_program:
-        Program<'info, message_transmitter_program::MessageTransmitter>,
+    /// CHECK: Must equal CCTP Token Messenger Minter program ID.
+    #[account(address = token_messenger_minter_program::id())]
+    pub token_messenger_minter_program: UncheckedAccount<'info>,
+
+    /// CHECK: Must equal CCTP Message Transmitter program ID.
+    #[account(address = message_transmitter_program::id())]
+    pub message_transmitter_program: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]

@@ -61,9 +61,13 @@ struct CctpReceiveMessage<'info> {
     /// CHECK: Seeds must be \["__event_authority"\] (CCTP Token Messenger Minter program).
     token_messenger_minter_event_authority: UncheckedAccount<'info>,
 
-    token_messenger_minter_program:
-        Program<'info, token_messenger_minter_program::TokenMessengerMinter>,
-    message_transmitter_program: Program<'info, message_transmitter_program::MessageTransmitter>,
+    /// CHECK: Must equal CCTP Token Messenger Minter program ID.
+    #[account(address = token_messenger_minter_program::id())]
+    token_messenger_minter_program: UncheckedAccount<'info>,
+
+    /// CHECK: Must equal CCTP Message Transmitter program ID.
+    #[account(address = message_transmitter_program::id())]
+    message_transmitter_program: UncheckedAccount<'info>,
 }
 
 /// Accounts required for [redeem_cctp_fill].

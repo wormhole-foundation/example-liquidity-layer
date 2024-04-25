@@ -1992,43 +1992,17 @@ export class MatchingEngineProgram {
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new TokenMessengerMinterProgram(
-                    this.program.provider.connection,
-                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
-                );
-            }
-            case localnet(): {
-                return new TokenMessengerMinterProgram(
-                    this.program.provider.connection,
-                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new TokenMessengerMinterProgram(
+            this.program.provider.connection,
+            "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
+        );
     }
 
     messageTransmitterProgram(): MessageTransmitterProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new MessageTransmitterProgram(
-                    this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
-                );
-            }
-            case localnet(): {
-                return new MessageTransmitterProgram(
-                    this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new MessageTransmitterProgram(
+            this.program.provider.connection,
+            "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
+        );
     }
 
     coreBridgeProgramId(): PublicKey {
@@ -2037,7 +2011,7 @@ export class MatchingEngineProgram {
                 return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
             }
             case localnet(): {
-                return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
+                return new PublicKey("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
             }
             default: {
                 throw new Error("unsupported network");

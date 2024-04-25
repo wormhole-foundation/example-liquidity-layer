@@ -2,7 +2,7 @@ import { PublicKey, Keypair } from "@solana/web3.js";
 import { CONTRACTS, type ChainName } from "@certusone/wormhole-sdk";
 import { MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
 
-export const WORMHOLE_CONTRACTS = CONTRACTS.TESTNET;
+export const WORMHOLE_CONTRACTS = CONTRACTS.MAINNET;
 export const CORE_BRIDGE_PID = new PublicKey(WORMHOLE_CONTRACTS.solana.core);
 
 export const TOKEN_ROUTER_PID = new PublicKey("tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md");
@@ -35,9 +35,10 @@ export const GOVERNANCE_EMITTER_ADDRESS = new PublicKey("11111111111111111111111
 export const GUARDIAN_KEY = "cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0";
 export const MOCK_GUARDIANS = new MockGuardians(0, [GUARDIAN_KEY]);
 
-export const USDC_MINT_ADDRESS = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+export const USDC_MINT_ADDRESS = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 
-export const ETHEREUM_USDC_ADDRESS = "0x07865c6e87b9f70255377e024ace6630c1eaa37f";
+//export const ETHEREUM_USDC_ADDRESS = "0x07865c6e87b9f70255377e024ace6630c1eaa37f";
+export const ETHEREUM_USDC_ADDRESS = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
 export const CHAIN_TO_DOMAIN: Partial<{ [k in ChainName]: number }> = {
     ethereum: 0,
