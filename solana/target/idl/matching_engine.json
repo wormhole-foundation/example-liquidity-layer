@@ -3365,6 +3365,10 @@
       "name": "ExecutorNotPreparedBy"
     },
     {
+      "code": 7060,
+      "name": "InvalidOfferToken"
+    },
+    {
       "code": 7280,
       "name": "CannotCloseAuctionYet"
     },

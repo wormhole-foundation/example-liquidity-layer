@@ -64,7 +64,7 @@ chaiUse(chaiAsPromised);
 const SLOTS_PER_EPOCH = 8;
 
 describe("Matching Engine", function () {
-    const connection = new Connection(LOCALHOST, "confirmed");
+    const connection = new Connection(LOCALHOST, "processed");
 
     // owner is also the recipient in all tests
     const payer = PAYER_KEYPAIR;
@@ -1221,8 +1221,8 @@ describe("Matching Engine", function () {
             const newAuctionParameters: AuctionParameters = {
                 userPenaltyRewardBps: 300_000, // 30%
                 initialPenaltyBps: 200_000, // 20%
-                duration: 3,
-                gracePeriod: 4,
+                duration: 5,
+                gracePeriod: 7,
                 penaltyPeriod: 8,
                 minOfferDeltaBps: 50_000, // 5%
                 securityDepositBase: uint64ToBN(690_000), // 0.69 USDC
@@ -2434,6 +2434,419 @@ describe("Matching Engine", function () {
                 );
             });
 
+            it("Execute Fast Order After Grace Period with Liquidator (Initial Offer Token is Closed)", async function () {
+                const tmpOwner = Keypair.generate();
+                const transferLamportsToTmpOwnerIx = SystemProgram.transfer({
+                    fromPubkey: payer.publicKey,
+                    toPubkey: tmpOwner.publicKey,
+                    lamports: 1_000_000_000n,
+                });
+
+                const tmpAta = splToken.getAssociatedTokenAddressSync(
+                    USDC_MINT_ADDRESS,
+                    tmpOwner.publicKey,
+                );
+                const createTmpAtaIx = splToken.createAssociatedTokenAccountInstruction(
+                    payer.publicKey,
+                    tmpAta,
+                    tmpOwner.publicKey,
+                    USDC_MINT_ADDRESS,
+                );
+
+                const mintAmount = 10_000_000n * 1_000_000n;
+                const mintIx = splToken.createMintToInstruction(
+                    USDC_MINT_ADDRESS,
+                    tmpAta,
+                    payer.publicKey,
+                    mintAmount,
+                );
+                await expectIxOk(
+                    connection,
+                    [transferLamportsToTmpOwnerIx, createTmpAtaIx, mintIx],
+                    [payer],
+                );
+
+                // Place the initial offer with a token account that will be closed.
+                const result = await placeInitialOfferCctpForTest(
+                    {
+                        payer: tmpOwner.publicKey,
+                    },
+                    { signers: [tmpOwner], finalized: false, fastMarketOrder: baseFastOrder },
+                );
+                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+
+                // Burn funds out and close tmp ATA.
+                const { amount: burnAmount } = await splToken.getAccount(connection, tmpAta);
+                const burnIx = splToken.createBurnInstruction(
+                    tmpAta,
+                    USDC_MINT_ADDRESS,
+                    tmpOwner.publicKey,
+                    burnAmount,
+                );
+                const closeTokenAccountIx = splToken.createCloseAccountInstruction(
+                    tmpAta,
+                    payer.publicKey,
+                    tmpOwner.publicKey,
+                );
+                await expectIxOk(connection, [burnIx, closeTokenAccountIx], [tmpOwner]);
+
+                const improveBy = Number(
+                    await engine.computeMinOfferDelta(
+                        BigInt(initialData.info!.offerPrice.toString()),
+                    ),
+                );
+                const { auctionDataBefore } = await improveOfferForTest(
+                    auction,
+                    playerOne,
+                    improveBy,
+                );
+                const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
+
+                // Fetch the balances before.
+                const { amount: bestOfferTokenBefore } = await splToken.getAccount(
+                    connection,
+                    bestOfferToken,
+                );
+                const initialOfferTokenBefore = await splToken
+                    .getAccount(connection, initialOfferToken)
+                    .then((token) => token.amount)
+                    .catch((_) => 0n);
+                const custodyTokenBefore = await engine.fetchAuctionCustodyTokenBalance(auction);
+
+                const liquidatorToken = splToken.getAssociatedTokenAddressSync(
+                    USDC_MINT_ADDRESS,
+                    liquidator.publicKey,
+                );
+                const { amount: executorTokenBefore } = await splToken.getAccount(
+                    connection,
+                    liquidatorToken,
+                );
+
+                const { duration, gracePeriod, penaltyPeriod } =
+                    await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    auctionDataBefore
+                        .info!.startSlot.addn(duration + gracePeriod + penaltyPeriod / 2)
+                        .toNumber(),
+                );
+
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: liquidator.publicKey,
+                    fastVaa,
+                });
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                const txDetails = await expectIxOkDetails(
+                    connection,
+                    [computeIx, ix],
+                    [liquidator],
+                    { addressLookupTableAccounts: [lookupTableAccount!] },
+                );
+
+                await checkAfterEffects(
+                    txDetails!,
+                    auction,
+                    auctionDataBefore,
+                    {
+                        custodyToken: custodyTokenBefore,
+                        bestOfferToken: bestOfferTokenBefore,
+                        initialOfferToken: initialOfferTokenBefore,
+                        executorToken: executorTokenBefore,
+                    },
+                    liquidator.publicKey,
+                    true, // hasPenalty
+                    "ethereum",
+                    "arbitrum",
+                );
+            });
+
+            it("Execute Fast Order After Grace Period with Liquidator (Best Offer Token is Closed)", async function () {
+                // Start the auction with offer two so that we can
+                // check that the initial offer is refunded.
+                const result = await placeInitialOfferCctpForTest(
+                    {
+                        payer: playerTwo.publicKey,
+                    },
+                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
+                );
+                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+
+                const tmpOwner = Keypair.generate();
+                const transferLamportsToTmpOwnerIx = SystemProgram.transfer({
+                    fromPubkey: payer.publicKey,
+                    toPubkey: tmpOwner.publicKey,
+                    lamports: 1_000_000_000n,
+                });
+
+                const tmpAta = splToken.getAssociatedTokenAddressSync(
+                    USDC_MINT_ADDRESS,
+                    tmpOwner.publicKey,
+                );
+                const createTmpAtaIx = splToken.createAssociatedTokenAccountInstruction(
+                    payer.publicKey,
+                    tmpAta,
+                    tmpOwner.publicKey,
+                    USDC_MINT_ADDRESS,
+                );
+
+                const mintAmount = 10_000_000n * 1_000_000n;
+                const mintIx = splToken.createMintToInstruction(
+                    USDC_MINT_ADDRESS,
+                    tmpAta,
+                    payer.publicKey,
+                    mintAmount,
+                );
+                await expectIxOk(
+                    connection,
+                    [transferLamportsToTmpOwnerIx, createTmpAtaIx, mintIx],
+                    [payer],
+                );
+
+                // Improve the offer with a token account that will be closed. He will be the best
+                // offer.
+                const improveBy = Number(
+                    await engine.computeMinOfferDelta(
+                        BigInt(initialData.info!.offerPrice.toString()),
+                    ),
+                );
+                const { auctionDataBefore } = await improveOfferForTest(
+                    auction,
+                    tmpOwner,
+                    improveBy,
+                );
+
+                // Burn funds out and close tmp ATA.
+                const { amount: burnAmount } = await splToken.getAccount(connection, tmpAta);
+                const burnIx = splToken.createBurnInstruction(
+                    tmpAta,
+                    USDC_MINT_ADDRESS,
+                    tmpOwner.publicKey,
+                    burnAmount,
+                );
+                const closeTokenAccountIx = splToken.createCloseAccountInstruction(
+                    tmpAta,
+                    payer.publicKey,
+                    tmpOwner.publicKey,
+                );
+                await expectIxOk(connection, [burnIx, closeTokenAccountIx], [tmpOwner]);
+
+                const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
+
+                // Fetch the balances before.
+                const bestOfferTokenBefore = await splToken
+                    .getAccount(connection, bestOfferToken)
+                    .then((token) => token.amount)
+                    .catch((_) => 0n);
+                const initialOfferTokenBefore = await splToken
+                    .getAccount(connection, initialOfferToken)
+                    .then((token) => token.amount);
+                const custodyTokenBefore = await engine.fetchAuctionCustodyTokenBalance(auction);
+
+                const liquidatorToken = splToken.getAssociatedTokenAddressSync(
+                    USDC_MINT_ADDRESS,
+                    liquidator.publicKey,
+                );
+                const { amount: executorTokenBefore } = await splToken.getAccount(
+                    connection,
+                    liquidatorToken,
+                );
+
+                const { duration, gracePeriod, penaltyPeriod } =
+                    await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    auctionDataBefore
+                        .info!.startSlot.addn(duration + gracePeriod + penaltyPeriod / 2)
+                        .toNumber(),
+                );
+
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: liquidator.publicKey,
+                    fastVaa,
+                });
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                const txDetails = await expectIxOkDetails(
+                    connection,
+                    [computeIx, ix],
+                    [liquidator],
+                    { addressLookupTableAccounts: [lookupTableAccount!] },
+                );
+
+                await checkAfterEffects(
+                    txDetails!,
+                    auction,
+                    auctionDataBefore,
+                    {
+                        custodyToken: custodyTokenBefore,
+                        bestOfferToken: bestOfferTokenBefore,
+                        initialOfferToken: initialOfferTokenBefore,
+                        executorToken: executorTokenBefore,
+                    },
+                    liquidator.publicKey,
+                    true, // hasPenalty
+                    "ethereum",
+                    "arbitrum",
+                );
+            });
+
+            it("Execute Fast Order After Grace Period with Liquidator (Custody Token Has Extra)", async function () {
+                // Start the auction with offer two so that we can
+                // check that the initial offer is refunded.
+                const result = await placeInitialOfferCctpForTest(
+                    {
+                        payer: playerTwo.publicKey,
+                    },
+                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
+                );
+                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+
+                const tmpOwner = Keypair.generate();
+                const transferLamportsToTmpOwnerIx = SystemProgram.transfer({
+                    fromPubkey: payer.publicKey,
+                    toPubkey: tmpOwner.publicKey,
+                    lamports: 1_000_000_000n,
+                });
+
+                const tmpAta = splToken.getAssociatedTokenAddressSync(
+                    USDC_MINT_ADDRESS,
+                    tmpOwner.publicKey,
+                );
+                const createTmpAtaIx = splToken.createAssociatedTokenAccountInstruction(
+                    payer.publicKey,
+                    tmpAta,
+                    tmpOwner.publicKey,
+                    USDC_MINT_ADDRESS,
+                );
+
+                const mintAmount = 10_000_000n * 1_000_000n;
+                const mintIx = splToken.createMintToInstruction(
+                    USDC_MINT_ADDRESS,
+                    tmpAta,
+                    payer.publicKey,
+                    mintAmount,
+                );
+                await expectIxOk(
+                    connection,
+                    [transferLamportsToTmpOwnerIx, createTmpAtaIx, mintIx],
+                    [payer],
+                );
+
+                const improveBy = Number(
+                    await engine.computeMinOfferDelta(
+                        BigInt(initialData.info!.offerPrice.toString()),
+                    ),
+                );
+                const { auctionDataBefore: afterFirstImprovedData } = await improveOfferForTest(
+                    auction,
+                    tmpOwner,
+                    improveBy,
+                );
+
+                // Burn funds out and close tmp ATA.
+                const { amount: burnAmount } = await splToken.getAccount(connection, tmpAta);
+                const burnIx = splToken.createBurnInstruction(
+                    tmpAta,
+                    USDC_MINT_ADDRESS,
+                    tmpOwner.publicKey,
+                    burnAmount,
+                );
+                const closeTokenAccountIx = splToken.createCloseAccountInstruction(
+                    tmpAta,
+                    payer.publicKey,
+                    tmpOwner.publicKey,
+                );
+                await expectIxOk(connection, [burnIx, closeTokenAccountIx], [tmpOwner]);
+
+                const improveByAgain = Number(
+                    await engine.computeMinOfferDelta(
+                        BigInt(afterFirstImprovedData.info!.offerPrice.toString()),
+                    ),
+                );
+                const { auctionDataBefore } = await improveOfferForTest(
+                    auction,
+                    playerOne,
+                    improveByAgain,
+                );
+                const { bestOfferToken, initialOfferToken } = auctionDataBefore.info!;
+
+                // Fetch the balances before.
+                const bestOfferTokenBefore = await splToken
+                    .getAccount(connection, bestOfferToken)
+                    .then((token) => token.amount)
+                    .catch((_) => 0n);
+                const initialOfferTokenBefore = await splToken
+                    .getAccount(connection, initialOfferToken)
+                    .then((token) => token.amount);
+                const custodyTokenBefore = await engine.fetchAuctionCustodyTokenBalance(auction);
+
+                const liquidatorToken = splToken.getAssociatedTokenAddressSync(
+                    USDC_MINT_ADDRESS,
+                    liquidator.publicKey,
+                );
+                const { amount: executorTokenBefore } = await splToken.getAccount(
+                    connection,
+                    liquidatorToken,
+                );
+
+                const { duration, gracePeriod, penaltyPeriod } =
+                    await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    auctionDataBefore
+                        .info!.startSlot.addn(duration + gracePeriod + penaltyPeriod / 2)
+                        .toNumber(),
+                );
+
+                const ix = await engine.executeFastOrderCctpIx({
+                    payer: liquidator.publicKey,
+                    fastVaa,
+                });
+
+                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+                    units: 300_000,
+                });
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+                const txDetails = await expectIxOkDetails(
+                    connection,
+                    [computeIx, ix],
+                    [liquidator],
+                    { addressLookupTableAccounts: [lookupTableAccount!] },
+                );
+
+                await checkAfterEffects(
+                    txDetails!,
+                    auction,
+                    auctionDataBefore,
+                    {
+                        custodyToken: custodyTokenBefore,
+                        bestOfferToken: bestOfferTokenBefore,
+                        initialOfferToken: initialOfferTokenBefore,
+                        executorToken: executorTokenBefore,
+                    },
+                    liquidator.publicKey,
+                    true, // hasPenalty
+                    "ethereum",
+                    "arbitrum",
+                );
+            });
+
             it("Execute Fast Order After Penalty Period with Liquidator", async function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
@@ -2765,11 +3178,11 @@ describe("Matching Engine", function () {
                 toChainName: wormholeSdk.ChainName,
             ) {
                 const {
-                    custodyToken: custodyTokenBefore,
                     bestOfferToken: bestOfferTokenBefore,
                     initialOfferToken: initialOfferTokenBefore,
                     executorToken: executorTokenBefore,
                 } = balancesBefore;
+                let { custodyToken: custodyTokenBalance } = balancesBefore;
 
                 const { bump, vaaHash, vaaTimestamp, info } = auctionDataBefore;
 
@@ -2779,18 +3192,25 @@ describe("Matching Engine", function () {
                     info!;
 
                 // Validate balance changes.
-                const { amount: bestOfferTokenAfter } = await splToken.getAccount(
-                    connection,
-                    bestOfferToken,
-                );
-                const { amount: initialOfferTokenAfter } = await splToken.getAccount(
-                    connection,
-                    initialOfferToken,
-                );
+                const bestOfferTokenExists = await connection
+                    .getAccountInfo(bestOfferToken)
+                    .then((info) => info !== null);
+                const bestOfferTokenAfter = await splToken
+                    .getAccount(connection, bestOfferToken)
+                    .then((token) => token.amount)
+                    .catch((_) => 0n);
+
+                const initialOfferTokenExists = await connection
+                    .getAccountInfo(initialOfferToken)
+                    .then((info) => info !== null);
+                const initialOfferTokenAfter = await splToken
+                    .getAccount(connection, initialOfferToken)
+                    .then((token) => token.amount)
+                    .catch((_) => 0n);
 
                 const { penalty, userReward } = await engine.computeDepositPenalty(
                     info!,
-                    BigInt(txDetails.slot),
+                    uint64ToBigInt(txDetails.slot),
                     info!.configId,
                 );
 
@@ -2802,6 +3222,20 @@ describe("Matching Engine", function () {
                     redeemerMessage,
                 } = baseFastOrder;
 
+                // TODO: We need a better way to verify the executor token balance. We should have
+                // an expected number of closed token accounts and multiply that by the total
+                // deposit.
+                //
+                // Perhaps this will happen when we refactor the execute fast order tests.
+                custodyTokenBalance -=
+                    uint64ToBigInt(info!.amountIn.sub(info!.offerPrice)) - initAuctionFee;
+
+                // The initAuctionFee is still a part of custodyTokenBalance. If we do pay the
+                // initial offer token, we need to then remove it.
+                if (initialOfferTokenExists && !bestOfferToken.equals(initialOfferToken)) {
+                    custodyTokenBalance -= initAuctionFee;
+                }
+
                 const destinationDomain =
                     CHAIN_TO_DOMAIN[wormholeSdk.coalesceChainName(targetChain)];
                 expect(destinationDomain).is.not.undefined;
@@ -2809,6 +3243,8 @@ describe("Matching Engine", function () {
                 if (hasPenalty) {
                     expect(penalty > 0n).is.true;
                     expect(userReward > 0n).is.true;
+
+                    custodyTokenBalance -= userReward;
 
                     expect(auctionDataAfter).to.eql(
                         new Auction(
@@ -2827,30 +3263,53 @@ describe("Matching Engine", function () {
                     );
 
                     let depositAndFee =
-                        BigInt(offerPrice.add(securityDeposit).toString()) - userReward;
+                        uint64ToBigInt(offerPrice.add(securityDeposit)) - userReward;
                     const executorToken = splToken.getAssociatedTokenAddressSync(
                         USDC_MINT_ADDRESS,
                         executor,
                     );
-                    if (!executorToken.equals(bestOfferToken)) {
+                    if (executorToken.equals(bestOfferToken)) {
+                        expect(bestOfferTokenAfter).equals(
+                            bestOfferTokenBefore + custodyTokenBalance,
+                        );
+                    } else {
                         depositAndFee -= penalty;
+
+                        if (bestOfferTokenExists) {
+                            custodyTokenBalance -= depositAndFee;
+                        }
 
                         const { amount: executorTokenAfter } = await splToken.getAccount(
                             connection,
                             executorToken,
                         );
-                        expect(executorTokenAfter).equals(executorTokenBefore! + penalty);
+
+                        expect(executorTokenAfter).equals(
+                            executorTokenBefore! + custodyTokenBalance,
+                        );
                     }
 
                     if (bestOfferToken.equals(initialOfferToken)) {
                         expect(bestOfferTokenAfter).equals(
-                            bestOfferTokenBefore + depositAndFee + initAuctionFee,
+                            bestOfferTokenBefore +
+                                depositAndFee +
+                                initAuctionFee +
+                                (bestOfferTokenExists
+                                    ? 0n
+                                    : uint64ToBigInt(info!.amountIn.add(info!.securityDeposit))),
                         );
                     } else {
-                        expect(bestOfferTokenAfter).equals(bestOfferTokenBefore + depositAndFee);
-                        expect(initialOfferTokenAfter).equals(
-                            initialOfferTokenBefore + initAuctionFee,
-                        );
+                        if (bestOfferTokenExists) {
+                            expect(bestOfferTokenAfter).equals(
+                                bestOfferTokenBefore + depositAndFee,
+                            );
+                        }
+
+                        if (initialOfferTokenExists) {
+                            expect(initialOfferTokenAfter).equals(
+                                initialOfferTokenBefore + initAuctionFee,
+                            );
+                        }
                     }
                 } else {
                     expect(penalty).equals(0n);
@@ -3690,7 +4149,7 @@ describe("Matching Engine", function () {
                 // too long.
                 waitToExpiration ??= true;
 
-                const timeToWait = 3;
+                const timeToWait = 5;
 
                 // TODO: add complete auction here
                 const auction = await (async () => {
@@ -3991,9 +4450,9 @@ describe("Matching Engine", function () {
         improveBy: number,
     ) {
         const auctionData = await engine.fetchAuction({ address: auction });
-        const newOffer = BigInt(auctionData.info!.offerPrice.subn(improveBy).toString());
+        const newOffer = uint64ToBigInt(auctionData.info!.offerPrice.subn(improveBy));
 
-        const [approveIx, improveIx] = await engine.improveOfferIx(
+        const ixs = await engine.improveOfferIx(
             {
                 auction,
                 participant: participant.publicKey,
@@ -4002,10 +4461,10 @@ describe("Matching Engine", function () {
         );
 
         // Improve the bid with offer one.
-        await expectIxOk(connection, [approveIx, improveIx], [participant]);
+        await expectIxOk(connection, ixs, [participant]);
 
         const auctionDataBefore = await engine.fetchAuction({ address: auction });
-        expect(BigInt(auctionDataBefore.info!.offerPrice.toString())).equals(newOffer);
+        expect(uint64ToBigInt(auctionDataBefore.info!.offerPrice)).equals(newOffer);
 
         return {
             auctionDataBefore,

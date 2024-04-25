@@ -40,6 +40,11 @@ pub struct ImproveOffer<'info> {
     )]
     active_auction: ActiveAuction<'info>,
 
+    #[account(
+        constraint = {
+            offer_token.key() != active_auction.custody_token.key()
+        } @ MatchingEngineError::InvalidOfferToken,
+    )]
     offer_token: Account<'info, token::TokenAccount>,
 
     token_program: Program<'info, token::Token>,
@@ -63,24 +68,35 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
         if offer_token.key() != best_offer_token.key() {
             // These operations will seem silly, but we do this as a safety measure to ensure that
             // nothing terrible happened with the auction's custody account.
-            let total_deposit = ctx.accounts.active_auction.custody_token.amount;
+            let total_deposit = ctx
+                .accounts
+                .active_auction
+                .info
+                .as_ref()
+                .unwrap()
+                .total_deposit();
 
-            token::transfer(
-                CpiContext::new_with_signer(
-                    token_program.to_account_info(),
-                    anchor_spl::token::Transfer {
-                        from: custody_token.to_account_info(),
-                        to: best_offer_token.to_account_info(),
-                        authority: auction.to_account_info(),
-                    },
-                    &[&[
-                        Auction::SEED_PREFIX,
-                        auction.vaa_hash.as_ref(),
-                        &[auction.bump],
-                    ]],
-                ),
-                total_deposit,
-            )?;
+            // If the best offer token happens to be closed, we will just keep the funds in the
+            // auction custody account. The executor token account will collect these funds when the
+            // order is executed.
+            if !best_offer_token.data_is_empty() {
+                token::transfer(
+                    CpiContext::new_with_signer(
+                        token_program.to_account_info(),
+                        anchor_spl::token::Transfer {
+                            from: custody_token.to_account_info(),
+                            to: best_offer_token.to_account_info(),
+                            authority: auction.to_account_info(),
+                        },
+                        &[&[
+                            Auction::SEED_PREFIX,
+                            auction.vaa_hash.as_ref(),
+                            &[auction.bump],
+                        ]],
+                    ),
+                    total_deposit,
+                )?;
+            }
 
             token::transfer(
                 CpiContext::new_with_signer(
