@@ -27,8 +27,8 @@ struct SettledNone {
     fill: Fill,
 }
 
-fn settle_none_and_prepare_fill<'ctx, 'info>(
-    accounts: SettleNoneAndPrepareFill<'ctx, 'info>,
+fn settle_none_and_prepare_fill(
+    accounts: SettleNoneAndPrepareFill<'_, '_>,
     auction_bump_seed: u8,
 ) -> Result<SettledNone> {
     let SettleNoneAndPrepareFill {
