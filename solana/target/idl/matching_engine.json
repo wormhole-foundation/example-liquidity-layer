@@ -643,6 +643,13 @@
             {
               "name": "initial_offer_token",
               "writable": true
+            },
+            {
+              "name": "initial_participant",
+              "docs": [
+                "does not exist anymore, we will attempt to perform this check."
+              ],
+              "writable": true
             }
           ]
         },
@@ -830,6 +837,13 @@
             },
             {
               "name": "initial_offer_token",
+              "writable": true
+            },
+            {
+              "name": "initial_participant",
+              "docs": [
+                "does not exist anymore, we will attempt to perform this check."
+              ],
               "writable": true
             }
           ]

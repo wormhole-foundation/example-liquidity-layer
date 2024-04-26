@@ -84,6 +84,7 @@ fn handle_settle_auction_none_cctp(
     ctx: Context<SettleAuctionNoneCctp>,
     destination_cctp_domain: u32,
 ) -> Result<()> {
+    let prepared_by = &ctx.accounts.prepared.by;
     let prepared_custody_token = &ctx.accounts.prepared.custody_token;
     let custodian = &ctx.accounts.custodian;
     let token_program = &ctx.accounts.token_program;
@@ -206,7 +207,7 @@ fn handle_settle_auction_none_cctp(
         token_program.to_account_info(),
         token::CloseAccount {
             account: prepared_custody_token.to_account_info(),
-            destination: payer.to_account_info(),
+            destination: prepared_by.to_account_info(),
             authority: custodian.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],

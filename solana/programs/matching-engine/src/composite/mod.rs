@@ -380,6 +380,11 @@ pub struct ExecuteOrder<'info> {
         address = active_auction.info.as_ref().unwrap().initial_offer_token,
     )]
     pub initial_offer_token: UncheckedAccount<'info>,
+
+    /// CHECK: Must be the owner of initial offer token account. If the initial offer token account
+    /// does not exist anymore, we will attempt to perform this check.
+    #[account(mut)]
+    pub initial_participant: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]

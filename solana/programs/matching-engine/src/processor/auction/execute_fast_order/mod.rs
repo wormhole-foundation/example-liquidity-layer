@@ -23,12 +23,15 @@ struct PrepareFastExecution<'ctx, 'info> {
     token_program: &'ctx Program<'info, token::Token>,
 }
 
-struct PreparedOrderExecution {
+struct PreparedOrderExecution<'info> {
     pub user_amount: u64,
     pub fill: Fill,
+    pub beneficiary: Option<AccountInfo<'info>>,
 }
 
-fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrderExecution> {
+fn prepare_order_execution<'info>(
+    accounts: PrepareFastExecution<'_, 'info>,
+) -> Result<PreparedOrderExecution<'info>> {
     let PrepareFastExecution {
         execute_order,
         custodian,
@@ -40,6 +43,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
         active_auction,
         executor_token,
         initial_offer_token,
+        initial_participant,
     } = execute_order;
 
     let ActiveAuction {
@@ -54,7 +58,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
         .unwrap()
         .to_fast_market_order_unchecked();
 
-    let (user_amount, new_status) = {
+    let (user_amount, new_status, beneficiary) = {
         let auction_info = auction.info.as_ref().unwrap();
 
         let current_slot = Clock::get().unwrap().slot;
@@ -98,9 +102,25 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             deposit_and_fee = deposit_and_fee.saturating_sub(penalty);
         }
 
+        let mut beneficiary = None;
+
         // If the initial offer token account doesn't exist anymore, we have nowhere to send the
         // init auction fee. The executor will get these funds instead.
         if !initial_offer_token.data_is_empty() {
+            // First deserialize to token account to find owner. If data is not empty, this should
+            // always succeed.
+            {
+                let mut acc_data: &[_] = &initial_offer_token.try_borrow_data()?;
+                let token_data = token::TokenAccount::try_deserialize(&mut acc_data)?;
+                require_keys_eq!(
+                    token_data.owner,
+                    initial_participant.key(),
+                    ErrorCode::ConstraintTokenOwner
+                );
+
+                beneficiary.replace(initial_participant.to_account_info());
+            }
+
             if best_offer_token.key() != initial_offer_token.key() {
                 // Pay the auction initiator their fee.
                 token::transfer(
@@ -218,6 +238,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
                 slot: current_slot,
                 execute_penalty: if penalized { Some(penalty) } else { None },
             },
+            beneficiary,
         )
     };
 
@@ -235,5 +256,6 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
                 .try_into()
                 .map_err(|_| MatchingEngineError::RedeemerMessageTooLarge)?,
         },
+        beneficiary,
     })
 }

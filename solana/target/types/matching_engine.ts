@@ -649,6 +649,13 @@ export type MatchingEngine = {
             {
               "name": "initialOfferToken",
               "writable": true
+            },
+            {
+              "name": "initialParticipant",
+              "docs": [
+                "does not exist anymore, we will attempt to perform this check."
+              ],
+              "writable": true
             }
           ]
         },
@@ -836,6 +843,13 @@ export type MatchingEngine = {
             },
             {
               "name": "initialOfferToken",
+              "writable": true
+            },
+            {
+              "name": "initialParticipant",
+              "docs": [
+                "does not exist anymore, we will attempt to perform this check."
+              ],
               "writable": true
             }
           ]
