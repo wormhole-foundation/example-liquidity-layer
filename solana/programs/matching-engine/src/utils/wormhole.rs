@@ -20,7 +20,7 @@ pub fn post_matching_engine_message<M>(
     core_message_bump_seed: u8,
 ) -> Result<()>
 where
-    M: TypePrefixedPayload,
+    M: TypePrefixedPayload<1>,
 {
     let PostMatchingEngineMessage {
         wormhole,
@@ -63,7 +63,7 @@ where
         ),
         core_bridge_program::cpi::PostMessageArgs {
             nonce: common::WORMHOLE_MESSAGE_NONCE,
-            payload: message.to_vec_payload(),
+            payload: message.to_vec(),
             commitment: core_bridge_program::Commitment::Finalized,
         },
     )

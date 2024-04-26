@@ -9,7 +9,7 @@ pub struct DisableRouterEndpoint<'info> {
 }
 
 pub fn disable_router_endpoint(ctx: Context<DisableRouterEndpoint>) -> Result<()> {
-    let endpoint = &mut ctx.accounts.router_endpoint;
+    let endpoint = &mut ctx.accounts.router_endpoint.info;
     endpoint.protocol = MessageProtocol::None;
     endpoint.address = Default::default();
     endpoint.mint_recipient = Default::default();

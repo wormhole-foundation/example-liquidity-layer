@@ -6,25 +6,20 @@ export type MessageProtocol = {
     none?: {};
 };
 
-export class RouterEndpoint {
-    bump: number;
+export type EndpointInfo = {
     chain: number;
     address: Array<number>;
     mintRecipient: Array<number>;
     protocol: MessageProtocol;
+};
 
-    constructor(
-        bump: number,
-        chain: number,
-        address: Array<number>,
-        mintRecipient: Array<number>,
-        protocol: MessageProtocol,
-    ) {
+export class RouterEndpoint {
+    bump: number;
+    info: EndpointInfo;
+
+    constructor(bump: number, info: EndpointInfo) {
         this.bump = bump;
-        this.chain = chain;
-        this.address = address;
-        this.mintRecipient = mintRecipient;
-        this.protocol = protocol;
+        this.info = info;
     }
 
     static address(programId: PublicKey, chain: number) {

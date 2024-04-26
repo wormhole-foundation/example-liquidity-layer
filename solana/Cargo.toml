@@ -39,7 +39,7 @@ version = "0.2.0-alpha.11"
 features = ["anchor"]
 
 [workspace.dependencies]
-wormhole-io = "0.1.2"
+wormhole-io = "0.2.0-alpha.3"
 wormhole-solana-consts = "0.2.0-alpha.11"
 anchor-lang = "0.29.0"
 anchor-spl = "0.29.0"

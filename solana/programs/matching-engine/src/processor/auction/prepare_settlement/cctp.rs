@@ -1,13 +1,13 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Custodian, PreparedOrderResponse},
+    state::{Custodian, PreparedOrderResponse, PreparedOrderResponseInfo},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
-    messages::raw::{LiquidityLayerDepositMessage, LiquidityLayerMessage},
-    wormhole_cctp_solana::{self, cctp::message_transmitter_program, wormhole::VaaAccount},
+    messages::raw::{LiquidityLayerDepositMessage, LiquidityLayerMessage, MessageToVec},
+    wormhole_cctp_solana::{self, cctp::message_transmitter_program},
 };
 
 #[derive(Accounts)]
@@ -17,12 +17,12 @@ pub struct PrepareOrderResponseCctp<'info> {
 
     custodian: CheckedCustodian<'info>,
 
-    fast_vaa: LiquidityLayerVaa<'info>,
+    fast_order_path: FastOrderPath<'info>,
 
     #[account(
         constraint = {
             // Fast and finalized VAAs must reconcile with each other.
-            let fast_vaa = fast_vaa.load_unchecked();
+            let fast_vaa = fast_order_path.fast_vaa.load_unchecked();
             let finalized_vaa = finalized_vaa.load_unchecked();
 
             require_eq!(
@@ -64,10 +64,20 @@ pub struct PrepareOrderResponseCctp<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        space = 8 + PreparedOrderResponse::INIT_SPACE,
+        space = PreparedOrderResponse::compute_size({
+            let fast_vaa = fast_order_path.fast_vaa.load_unchecked();
+            let message = LiquidityLayerMessage::try_from(fast_vaa.payload())
+                .unwrap();
+            let order = message
+                .fast_market_order()
+                .ok_or(MatchingEngineError::InvalidPayloadId)?;
+
+            // This is safe to unwrap because the length will not exceed u32.
+            order.redeemer_message_len().try_into().unwrap()
+        }),
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
-            VaaAccount::load(&fast_vaa)?.digest().as_ref()
+            fast_order_path.fast_vaa.load_unchecked().digest().as_ref()
         ],
         bump,
     )]
@@ -177,25 +187,19 @@ fn handle_prepare_order_response_cctp(
         },
     )?;
 
-    // This should be infallible because:
-    // 1. We know that the fast VAA was used to start this auction (using its hash for the
-    //    auction data PDA).
-    // 2. The finalized VAA's sequence is one greater than the fast VAA's sequence.
-    //
-    // However, we will still process results in case Token Router implementation renders any of
-    // these assumptions invalid.
     let finalized_msg = LiquidityLayerMessage::try_from(finalized_vaa.payload()).unwrap();
     let deposit = finalized_msg.to_deposit_unchecked();
-    let base_fee = LiquidityLayerDepositMessage::try_from(deposit.payload())
-        .unwrap()
-        .to_slow_order_response_unchecked()
-        .base_fee();
+    let message = LiquidityLayerDepositMessage::try_from(deposit.payload()).unwrap();
+    let order_response = message
+        .slow_order_response()
+        .ok_or(MatchingEngineError::InvalidPayloadId)?;
 
-    let fast_vaa = ctx.accounts.fast_vaa.load_unchecked();
-    let amount = LiquidityLayerMessage::try_from(fast_vaa.payload())
+    let fast_vaa = ctx.accounts.fast_order_path.fast_vaa.load_unchecked();
+    let order = LiquidityLayerMessage::try_from(fast_vaa.payload())
         .unwrap()
-        .to_fast_market_order_unchecked()
-        .amount_in();
+        .to_fast_market_order_unchecked();
+
+    let amount_in = order.amount_in();
 
     // Write to the prepared slow order account, which will be closed by one of the following
     // instructions:
@@ -206,10 +210,19 @@ fn handle_prepare_order_response_cctp(
         .prepared_order_response
         .set_inner(PreparedOrderResponse {
             bump: ctx.bumps.prepared_order_response,
-            fast_vaa_hash: fast_vaa.digest().0,
-            prepared_by: ctx.accounts.payer.key(),
-            source_chain: finalized_vaa.emitter_chain(),
-            base_fee,
+            info: PreparedOrderResponseInfo {
+                fast_vaa_hash: fast_vaa.digest().0,
+                prepared_by: ctx.accounts.payer.key(),
+                source_chain: finalized_vaa.emitter_chain(),
+                base_fee: order_response.base_fee(),
+                fast_vaa_timestamp: fast_vaa.timestamp(),
+                amount_in,
+                sender: order.sender(),
+                redeemer: order.redeemer(),
+                init_auction_fee: order.init_auction_fee(),
+            },
+            to_endpoint: ctx.accounts.fast_order_path.to_endpoint.info,
+            redeemer_message: order.message_to_vec(),
         });
 
     // Finally transfer minted via CCTP to prepared custody token.
@@ -223,6 +236,6 @@ fn handle_prepare_order_response_cctp(
             },
             &[Custodian::SIGNER_SEEDS],
         ),
-        amount,
+        amount_in,
     )
 }

@@ -269,9 +269,11 @@ fn handle_place_market_order_cctp(
                 source_chain: SOLANA_CHAIN,
                 order_sender: order_info.order_sender.to_bytes(),
                 redeemer: order_info.redeemer,
-                redeemer_message: redeemer_message.into(),
+                redeemer_message: redeemer_message
+                    .try_into()
+                    .map_err(|_| TokenRouterError::RedeemerMessageTooLarge)?,
             }
-            .to_vec_payload(),
+            .to_vec(),
         },
     )?;
 

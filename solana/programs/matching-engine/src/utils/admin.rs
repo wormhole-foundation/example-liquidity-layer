@@ -48,10 +48,12 @@ pub(crate) fn handle_add_cctp_router_endpoint(
 
     router_endpoint.set_inner(RouterEndpoint {
         bump,
-        chain,
-        address,
-        mint_recipient,
-        protocol: MessageProtocol::Cctp { domain },
+        info: EndpointInfo {
+            chain,
+            address,
+            mint_recipient,
+            protocol: MessageProtocol::Cctp { domain },
+        },
     });
 
     // Done.
@@ -69,11 +71,13 @@ pub(crate) fn handle_add_local_router_endpoint(
 
     router_endpoint.set_inner(RouterEndpoint {
         bump,
-        chain: SOLANA_CHAIN,
-        address: token_router_emitter.key().to_bytes(),
-        mint_recipient: token_router_custody_token.key().to_bytes(),
-        protocol: crate::state::MessageProtocol::Local {
-            program_id: token_router_program.key(),
+        info: EndpointInfo {
+            chain: SOLANA_CHAIN,
+            address: token_router_emitter.key().to_bytes(),
+            mint_recipient: token_router_custody_token.key().to_bytes(),
+            protocol: crate::state::MessageProtocol::Local {
+                program_id: token_router_program.key(),
+            },
         },
     });
 

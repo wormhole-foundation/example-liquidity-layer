@@ -13,12 +13,10 @@ pub struct FastMarketOrder {
     pub max_fee: u64,
     pub init_auction_fee: u64,
     pub deadline: u32,
-    pub redeemer_message: WriteableBytes,
+    pub redeemer_message: WriteableBytes<u32>,
 }
 
 impl Readable for FastMarketOrder {
-    const SIZE: Option<usize> = None;
-
     fn read<R>(reader: &mut R) -> std::io::Result<Self>
     where
         Self: Sized,
@@ -40,16 +38,6 @@ impl Readable for FastMarketOrder {
 }
 
 impl Writeable for FastMarketOrder {
-    fn written_size(&self) -> usize {
-        const FIXED: usize = 8 + 8 + 2 + 4 + 32 + 32 + 32 + 8 + 8 + 4;
-        // This will panic if the size is too large to fit in a usize. But better to panic than to
-        // saturate to usize::MAX.
-        self.redeemer_message
-            .written_size()
-            .checked_add(FIXED)
-            .unwrap()
-    }
-
     fn write<W>(&self, writer: &mut W) -> std::io::Result<()>
     where
         Self: Sized,
@@ -69,8 +57,25 @@ impl Writeable for FastMarketOrder {
     }
 }
 
-impl TypePrefixedPayload for FastMarketOrder {
-    const TYPE: Option<u8> = Some(11);
+impl TypePrefixedPayload<1> for FastMarketOrder {
+    const TYPE: Option<[u8; 1]> = Some([11]);
+
+    fn written_size(&self) -> usize {
+        const FIXED: usize = 8 // amount_in
+            + 8 // min_amount_out
+            + 2 // target_chain
+            + 32 // redeemer
+            + 32 // sender
+            + 32 // refund_address
+            + 8 // max_fee
+            + 8 // init_auction_fee
+            + 4 // deadline
+            + 4 // redeemer_message length
+            ;
+        // This will panic if the size is too large to fit in a usize. But better to panic than to
+        // saturate to usize::MAX.
+        self.redeemer_message.len().checked_add(FIXED).unwrap()
+    }
 }
 
 #[cfg(test)]
@@ -94,10 +99,13 @@ mod test {
             max_fee: 1234567890,
             init_auction_fee: 69420,
             deadline: 420,
-            redeemer_message: b"All your base are belong to us.".to_vec().into(),
+            redeemer_message: b"All your base are belong to us."
+                .to_vec()
+                .try_into()
+                .unwrap(),
         };
 
-        let encoded = fast_market_order.to_vec_payload();
+        let encoded = fast_market_order.to_vec();
 
         let msg = raw::LiquidityLayerMessage::parse(&encoded).unwrap();
         let parsed = msg.to_fast_market_order_unchecked();
@@ -112,7 +120,12 @@ mod test {
             max_fee: parsed.max_fee(),
             init_auction_fee: parsed.init_auction_fee(),
             deadline: parsed.deadline(),
-            redeemer_message: parsed.redeemer_message().as_ref().to_vec().into(),
+            redeemer_message: parsed
+                .redeemer_message()
+                .as_ref()
+                .to_vec()
+                .try_into()
+                .unwrap(),
         };
 
         assert_eq!(fast_market_order, expected);

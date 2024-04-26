@@ -1347,6 +1347,10 @@
       "name": "InvalidPayloadId"
     },
     {
+      "code": 6078,
+      "name": "RedeemerMessageTooLarge"
+    },
+    {
       "code": 6096,
       "name": "InvalidSourceRouter"
     },

@@ -39,6 +39,7 @@ import {
     AuctionInfo,
     AuctionParameters,
     Custodian,
+    EndpointInfo,
     MessageProtocol,
     PreparedOrderResponse,
     Proposal,
@@ -247,6 +248,13 @@ export class MatchingEngineProgram {
                 ? input.address
                 : this.routerEndpointAddress(input);
         return this.program.account.routerEndpoint.fetch(addr);
+    }
+
+    async fetchRouterEndpointInfo(
+        input: wormholeSdk.ChainId | { address: PublicKey },
+    ): Promise<EndpointInfo> {
+        const { info } = await this.fetchRouterEndpoint(input);
+        return info;
     }
 
     auctionAddress(vaaHash: VaaHash): PublicKey {
@@ -1208,6 +1216,14 @@ export class MatchingEngineProgram {
         const { payer, fastVaa, finalizedVaa } = accounts;
 
         const fastVaaAcct = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+        const fromEndpoint = this.routerEndpointAddress(fastVaaAcct.emitterInfo().chain);
+
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAcct.payload());
+        if (fastMarketOrder === undefined) {
+            throw new Error("Message not FastMarketOrder");
+        }
+        const toEndpoint = this.routerEndpointAddress(fastMarketOrder.targetChain);
+
         const { encodedCctpMessage } = args;
         const {
             authority: messageTransmitterAuthority,
@@ -1234,7 +1250,7 @@ export class MatchingEngineProgram {
             .accounts({
                 payer,
                 custodian: this.checkedCustodianComposite(),
-                fastVaa: this.liquidityLayerVaaComposite(fastVaa),
+                fastOrderPath: this.fastOrderPathComposite({ fastVaa, fromEndpoint, toEndpoint }),
                 finalizedVaa: this.liquidityLayerVaaComposite(finalizedVaa),
                 preparedOrderResponse,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
@@ -1325,7 +1341,9 @@ export class MatchingEngineProgram {
         let { auction, bestOfferToken } = accounts;
 
         if (auction === undefined) {
-            const { fastVaaHash } = await this.fetchPreparedOrderResponse({
+            const {
+                info: { fastVaaHash },
+            } = await this.fetchPreparedOrderResponse({
                 address: preparedOrderResponse,
             });
 
@@ -1464,11 +1482,6 @@ export class MatchingEngineProgram {
                     by: payer,
                     orderResponse: preparedOrderResponse,
                 }),
-                fastOrderPath: this.fastOrderPathComposite({
-                    fastVaa,
-                    fromEndpoint: this.routerEndpointAddress(sourceChain),
-                    toEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
-                }),
                 auction,
                 wormhole: {
                     config: coreBridgeConfig,
@@ -1548,11 +1561,6 @@ export class MatchingEngineProgram {
                 prepared: this.closePreparedOrderResponseComposite({
                     by: payer,
                     orderResponse: preparedOrderResponse,
-                }),
-                fastOrderPath: this.fastOrderPathComposite({
-                    fastVaa,
-                    fromEndpoint: this.routerEndpointAddress(sourceChain),
-                    toEndpoint: toRouterEndpoint,
                 }),
                 auction,
                 wormhole: {
@@ -1911,7 +1919,7 @@ export class MatchingEngineProgram {
         let { destinationCctpDomain } = args;
 
         if (destinationCctpDomain === undefined) {
-            const { protocol } = await this.fetchRouterEndpoint(targetChain);
+            const { protocol } = await this.fetchRouterEndpointInfo(targetChain);
             if (protocol.cctp === undefined) {
                 throw new Error("not CCTP endpoint");
             }

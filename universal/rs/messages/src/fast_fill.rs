@@ -10,8 +10,6 @@ pub struct FastFill {
 }
 
 impl Readable for FastFill {
-    const SIZE: Option<usize> = None;
-
     fn read<R>(reader: &mut R) -> std::io::Result<Self>
     where
         Self: Sized,
@@ -25,12 +23,6 @@ impl Readable for FastFill {
 }
 
 impl Writeable for FastFill {
-    fn written_size(&self) -> usize {
-        // This will panic if the size is too large to fit in a usize. But better to panic than to
-        // saturate to usize::MAX.
-        self.fill.written_size().checked_add(8).unwrap()
-    }
-
     fn write<W>(&self, writer: &mut W) -> std::io::Result<()>
     where
         Self: Sized,
@@ -42,8 +34,14 @@ impl Writeable for FastFill {
     }
 }
 
-impl TypePrefixedPayload for FastFill {
-    const TYPE: Option<u8> = Some(12);
+impl TypePrefixedPayload<1> for FastFill {
+    const TYPE: Option<[u8; 1]> = Some([12]);
+
+    fn written_size(&self) -> usize {
+        // This will panic if the size is too large to fit in a usize. But better to panic than to
+        // saturate to usize::MAX.
+        self.fill.written_size().checked_add(8).unwrap()
+    }
 }
 
 #[cfg(test)]
@@ -63,11 +61,14 @@ mod test {
                     "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
                 ),
                 redeemer: hex!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-                redeemer_message: b"All your base are belong to us.".to_vec().into(),
+                redeemer_message: b"All your base are belong to us."
+                    .to_vec()
+                    .try_into()
+                    .unwrap(),
             },
         };
 
-        let encoded = fast_fill.to_vec_payload();
+        let encoded = fast_fill.to_vec();
 
         let msg = raw::LiquidityLayerMessage::parse(&encoded).unwrap();
         let parsed = msg.to_fast_fill_unchecked();
@@ -78,7 +79,13 @@ mod test {
                 source_chain: parsed.fill().source_chain(),
                 order_sender: parsed.fill().order_sender(),
                 redeemer: parsed.fill().redeemer(),
-                redeemer_message: parsed.fill().redeemer_message().as_ref().to_vec().into(),
+                redeemer_message: parsed
+                    .fill()
+                    .redeemer_message()
+                    .as_ref()
+                    .to_vec()
+                    .try_into()
+                    .unwrap(),
             },
         };
 

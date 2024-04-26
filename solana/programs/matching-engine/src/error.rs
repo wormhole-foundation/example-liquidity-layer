@@ -17,6 +17,7 @@ pub enum MatchingEngineError {
     InvalidDepositPayloadId = 0x48,
     NotFastMarketOrder = 0x4a,
     VaaMismatch = 0x4c,
+    RedeemerMessageTooLarge = 0x4e,
 
     InvalidSourceRouter = 0x60,
     InvalidTargetRouter = 0x62,

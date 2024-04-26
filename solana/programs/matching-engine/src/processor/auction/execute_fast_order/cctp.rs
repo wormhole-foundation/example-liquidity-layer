@@ -178,7 +178,7 @@ pub fn handle_execute_fast_order_cctp(
             amount,
             mint_recipient: ctx.accounts.to_router_endpoint.mint_recipient,
             wormhole_message_nonce: common::WORMHOLE_MESSAGE_NONCE,
-            payload: fill.to_vec_payload(),
+            payload: fill.to_vec(),
         },
     )?;
 
