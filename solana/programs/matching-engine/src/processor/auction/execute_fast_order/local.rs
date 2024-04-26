@@ -62,7 +62,14 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         fill,
         beneficiary,
     } = super::prepare_order_execution(super::PrepareFastExecution {
-        execute_order: &mut ctx.accounts.execute_order,
+        auction: &mut ctx.accounts.execute_order.active_auction.auction,
+        fast_vaa: &ctx.accounts.execute_order.fast_vaa,
+        custody_token: &ctx.accounts.execute_order.active_auction.custody_token,
+        config: &ctx.accounts.execute_order.active_auction.config,
+        executor_token: &ctx.accounts.execute_order.executor_token,
+        best_offer_token: &ctx.accounts.execute_order.active_auction.best_offer_token,
+        initial_offer_token: &ctx.accounts.execute_order.initial_offer_token,
+        initial_participant: &ctx.accounts.execute_order.initial_participant,
         custodian,
         token_program,
     })?;

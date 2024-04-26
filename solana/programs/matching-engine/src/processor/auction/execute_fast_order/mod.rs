@@ -7,7 +7,7 @@ pub use local::*;
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, AuctionStatus},
+    state::{Auction, AuctionConfig, AuctionStatus},
     utils::{self, auction::DepositPenalty},
 };
 use anchor_lang::prelude::*;
@@ -18,7 +18,14 @@ use common::messages::{
 };
 
 struct PrepareFastExecution<'ctx, 'info> {
-    execute_order: &'ctx mut ExecuteOrder<'info>,
+    auction: &'ctx mut Account<'info, Auction>,
+    fast_vaa: &'ctx LiquidityLayerVaa<'info>,
+    custody_token: &'ctx Account<'info, token::TokenAccount>,
+    config: &'ctx Account<'info, AuctionConfig>,
+    executor_token: &'ctx UncheckedAccount<'info>,
+    best_offer_token: &'ctx UncheckedAccount<'info>,
+    initial_offer_token: &'ctx UncheckedAccount<'info>,
+    initial_participant: &'ctx UncheckedAccount<'info>,
     custodian: &'ctx CheckedCustodian<'info>,
     token_program: &'ctx Program<'info, token::Token>,
 }
@@ -33,25 +40,17 @@ fn prepare_order_execution<'info>(
     accounts: PrepareFastExecution<'_, 'info>,
 ) -> Result<PreparedOrderExecution<'info>> {
     let PrepareFastExecution {
-        execute_order,
+        auction,
+        fast_vaa,
+        custody_token,
+        config,
+        executor_token,
+        best_offer_token,
+        initial_offer_token,
+        initial_participant,
         custodian,
         token_program,
     } = accounts;
-
-    let ExecuteOrder {
-        fast_vaa,
-        active_auction,
-        executor_token,
-        initial_offer_token,
-        initial_participant,
-    } = execute_order;
-
-    let ActiveAuction {
-        auction,
-        custody_token,
-        config,
-        best_offer_token,
-    } = active_auction;
 
     let vaa = fast_vaa.load_unchecked();
     let order = LiquidityLayerMessage::try_from(vaa.payload())
