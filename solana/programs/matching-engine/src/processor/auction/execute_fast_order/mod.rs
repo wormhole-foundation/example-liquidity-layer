@@ -107,11 +107,11 @@ fn prepare_order_execution<'info>(
         // If the initial offer token account doesn't exist anymore, we have nowhere to send the
         // init auction fee. The executor will get these funds instead.
         if !initial_offer_token.data_is_empty() {
-            // First deserialize to token account to find owner. If data is not empty, this should
-            // always succeed.
+            // Deserialize to token account to find owner. We know this is a legitimate token
+            // account, so it is safe to borrow and unwrap here.
             {
-                let mut acc_data: &[_] = &initial_offer_token.try_borrow_data()?;
-                let token_data = token::TokenAccount::try_deserialize(&mut acc_data)?;
+                let mut acc_data: &[_] = &initial_offer_token.data.borrow();
+                let token_data = token::TokenAccount::try_deserialize(&mut acc_data).unwrap();
                 require_keys_eq!(
                     token_data.owner,
                     initial_participant.key(),
