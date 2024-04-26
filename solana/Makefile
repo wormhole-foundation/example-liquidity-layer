@@ -54,7 +54,7 @@ test: node_modules $(CLONED_PROGRAMS)
 	cp target/deploy/token_router.so ts/tests/artifacts/new_testnet_token_router.so
 	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
 	anchor build --arch sbf -- --features integration-test
-	anchor test --skip-build --detach
+	anchor test --skip-build
 
 .PHONY: clippy
 clippy:
