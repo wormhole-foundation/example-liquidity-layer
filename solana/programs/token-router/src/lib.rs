@@ -8,6 +8,7 @@ mod composite;
 mod error;
 
 mod processor;
+pub use processor::PrepareMarketOrderArgs;
 use processor::*;
 
 pub mod state;
