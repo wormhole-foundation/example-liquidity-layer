@@ -51,7 +51,7 @@ abstract contract TokenRouterAdmin is ITokenRouterAdmin, Admin, State {
         external
         onlyOwner
     {
-        if (chain == 0) {
+        if (chain == _chainId || chain == 0) {
             revert ErrChainNotAllowed(chain);
         }
 
