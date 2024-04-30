@@ -8,12 +8,10 @@ SPY_BOOTSTRAP_mainnet="/dns4/wormhole-v2-mainnet-bootstrap.xlabs.xyz/udp/8999/qu
 SPY_NETWORK_testnet=/wormhole/testnet/2/1
 SPY_BOOTSTRAP_testnet="/dns4/t-guardian-01.nodes.stable.io/udp/8999/quic/p2p/12D3KooWCW3LGUtkCVkHZmVSZHzL3C4WRKWfqAiJPz1NR7dT9Bxh,/dns4/t-guardian-02.nodes.stable.io/udp/8999/quic/p2p/12D3KooWJXA6goBCiWM8ucjzc4jVUBSqL9Rri6UpjHbkMPErz5zK"
 
-CLONED_PROGRAMS=\
+CLONED_MAINNET_PROGRAMS=\
 	ts/tests/artifacts/mainnet_core_bridge.so \
 	ts/tests/artifacts/mainnet_cctp_token_messenger_minter.so \
-	ts/tests/artifacts/mainnet_cctp_message_transmitter.so \
-	ts/tests/artifacts/testnet_matching_engine.so \
-	ts/tests/artifacts/testnet_token_router.so
+	ts/tests/artifacts/mainnet_cctp_message_transmitter.so
 
 .PHONY: all
 all: check
@@ -34,27 +32,28 @@ node_modules: package-lock.json
 cargo-test:
 	cargo test --workspace --all-targets --features $(NETWORK)
 
+.PHONY: cargo-test-all
+cargo-test-all:
+	NETWORK=localnet $(MAKE) cargo-test
+	NETWORK=testnet $(MAKE) cargo-test
+
 .PHONY: build
 build:
 ifdef BUILD_$(NETWORK)
 	mkdir $(BUILD_$(NETWORK)) # do not want to continue if the directory already exists
-	anchor build --arch sbf -- --features $(NETWORK)
+	anchor build --no-idl -- --features $(NETWORK)
 	cp target/deploy/*.so $(BUILD_$(NETWORK))/
 endif
 
 $(BUILD_$(NETWORK)): cargo-test
 
-.PHONY: test
-test: node_modules $(CLONED_PROGRAMS)
-	NETWORK=localnet $(MAKE) cargo-test
-	NETWORK=testnet $(MAKE) cargo-test
-	anchor build --arch sbf -- --features testnet
-	mkdir -p ts/tests/artifacts
+.PHONY: anchor-test
+anchor-test: node_modules ts/tests/artifacts $(CLONED_MAINNET_PROGRAMS)
+	anchor build --no-idl -- --features testnet
 	cp target/deploy/matching_engine.so ts/tests/artifacts/new_testnet_matching_engine.so
 	cp target/deploy/token_router.so ts/tests/artifacts/new_testnet_token_router.so
-	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
-	anchor build --arch sbf -- --features integration-test
-	anchor test --skip-build
+	cp target/deploy/upgrade_manager.so ts/tests/artifacts/new_testnet_upgrade_manager.so
+	bash sh/run_anchor_test.sh
 
 .PHONY: clippy
 clippy:
@@ -90,9 +89,3 @@ ts/tests/artifacts/mainnet_cctp_token_messenger_minter.so: ts/tests/artifacts
 
 ts/tests/artifacts/mainnet_cctp_message_transmitter.so: ts/tests/artifacts
 	solana program dump -u m CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd ts/tests/artifacts/mainnet_cctp_message_transmitter.so
-
-ts/tests/artifacts/testnet_matching_engine.so: ts/tests/artifacts
-	solana program dump -u d mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS ts/tests/artifacts/testnet_matching_engine.so
-
-ts/tests/artifacts/testnet_token_router.so: ts/tests/artifacts
-	solana program dump -u d tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md ts/tests/artifacts/testnet_token_router.so

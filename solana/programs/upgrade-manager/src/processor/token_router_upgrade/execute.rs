@@ -3,8 +3,9 @@ use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct ExecuteTokenRouterUpgrade<'info> {
+    /// CHECK: Seeds must be \["emitter"\] (Token Router program).
     #[account(mut)]
-    token_router_custodian: Account<'info, token_router::state::Custodian>,
+    token_router_custodian: UncheckedAccount<'info>,
 
     #[account(
         constraint = {

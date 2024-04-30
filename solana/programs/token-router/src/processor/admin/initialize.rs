@@ -1,4 +1,4 @@
-use crate::{error::TokenRouterError, state::Custodian};
+use crate::{composite::*, error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use wormhole_solana_utils::cpi::bpf_loader_upgradeable::{self, BpfLoaderUpgradeable};
@@ -36,12 +36,11 @@ pub struct Initialize<'info> {
         payer = owner,
         associated_token::mint = mint,
         associated_token::authority = custodian,
-        address = crate::cctp_mint_recipient::id()
+        address = crate::CCTP_MINT_RECIPIENT
     )]
-    cctp_mint_recipient: Account<'info, token::TokenAccount>,
+    cctp_mint_recipient: Box<Account<'info, token::TokenAccount>>,
 
-    #[account(address = common::USDC_MINT)]
-    mint: Account<'info, token::Mint>,
+    mint: Usdc<'info>,
 
     /// We use the program data to make sure this owner is the upgrade authority (the true owner,
     /// who deployed this program).

@@ -25,7 +25,7 @@ pub struct Initialize<'info> {
     )]
     /// Custodian account, which saves program data useful for other
     /// instructions.
-    custodian: Account<'info, Custodian>,
+    custodian: Box<Account<'info, Custodian>>,
 
     #[account(
         init,
@@ -37,7 +37,7 @@ pub struct Initialize<'info> {
         ],
         bump,
     )]
-    auction_config: Account<'info, AuctionConfig>,
+    auction_config: Box<Account<'info, AuctionConfig>>,
 
     /// CHECK: This account must not be the zero pubkey.
     /// TODO: do we prevent the owner from being the owner assistant?
@@ -62,16 +62,16 @@ pub struct Initialize<'info> {
         associated_token::mint = usdc,
         associated_token::authority = fee_recipient,
     )]
-    fee_recipient_token: Account<'info, token::TokenAccount>,
+    fee_recipient_token: Box<Account<'info, token::TokenAccount>>,
 
     #[account(
         init_if_needed,
         payer = owner,
         associated_token::mint = usdc,
         associated_token::authority = custodian,
-        address = crate::cctp_mint_recipient::id(),
+        address = crate::CCTP_MINT_RECIPIENT,
     )]
-    cctp_mint_recipient: Account<'info, token::TokenAccount>,
+    cctp_mint_recipient: Box<Account<'info, token::TokenAccount>>,
 
     usdc: Usdc<'info>,
 
@@ -104,8 +104,12 @@ pub struct Initialize<'info> {
     token_program: Program<'info, token::Token>,
     associated_token_program: Program<'info, anchor_spl::associated_token::AssociatedToken>,
 }
+#[derive(Debug, AnchorSerialize, AnchorDeserialize)]
+pub struct InitializeArgs {
+    auction_params: AuctionParameters,
+}
 
-pub fn initialize(ctx: Context<Initialize>, auction_params: AuctionParameters) -> Result<()> {
+pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
     let owner: Pubkey = ctx.accounts.owner.key();
     let auction_config_id = 0;
 
@@ -133,6 +137,7 @@ pub fn initialize(ctx: Context<Initialize>, auction_params: AuctionParameters) -
         )?;
     }
 
+    let InitializeArgs { auction_params } = args;
     crate::utils::auction::require_valid_parameters(&auction_params)?;
 
     ctx.accounts.custodian.set_inner(Custodian {

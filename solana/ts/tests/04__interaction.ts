@@ -752,6 +752,8 @@ describe("Matching Engine <> Token Router", function () {
                         matchingEngineToEndpoint,
                         matchingEngineLocalCustodyToken,
                         matchingEngineProgram,
+                        tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                        systemProgram: SystemProgram.programId,
                     })
                     .instruction();
 
@@ -818,6 +820,8 @@ describe("Matching Engine <> Token Router", function () {
                         matchingEngineToEndpoint,
                         matchingEngineLocalCustodyToken,
                         matchingEngineProgram,
+                        tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                        systemProgram: SystemProgram.programId,
                     })
                     .instruction();
 

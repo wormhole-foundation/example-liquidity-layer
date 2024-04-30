@@ -20,6 +20,13 @@ cpi = ["no-entrypoint"]
 testnet = ["common/testnet", "matching-engine/testnet"]
 localnet = ["common/localnet", "matching-engine/localnet"]
 integration-test = ["localnet"]
+idl-build = [
+    "localnet",
+    "common/idl-build",
+    "matching-engine/idl-build",
+    "anchor-lang/idl-build",
+    "anchor-spl/idl-build"
+]
 
 [dependencies]
 common.workspace = true

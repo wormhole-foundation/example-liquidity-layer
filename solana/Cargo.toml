@@ -27,22 +27,22 @@ path = "programs/matching-engine"
 path = "programs/token-router"
 
 [workspace.dependencies.wormhole-cctp-solana]
-version = "0.2.0-alpha.2"
+version = "0.3.0-alpha.0"
 
 [workspace.dependencies.wormhole-solana-utils]
-version = "0.2.0-alpha.15"
+version = "0.3.0-alpha.0"
 features = ["anchor"]
 
 [workspace.dependencies.wormhole-solana-vaas]
-version = "0.2.0-alpha.11"
+version = "0.3.0-alpha.0"
 features = ["anchor"]
 
 [workspace.dependencies]
-wormhole-io = "0.2.0-alpha.3"
-wormhole-solana-consts = "0.2.0-alpha.11"
-anchor-lang = "0.29.0"
-anchor-spl = "0.29.0"
-solana-program = "1.17.20"
+wormhole-io = "0.3.0-alpha.0"
+wormhole-solana-consts = "0.3.0-alpha.0"
+anchor-lang = "=0.30.0"
+anchor-spl = "=0.30.0"
+solana-program = "1.18.11"
 hex = "0.4.3"
 ruint = "1.9.0"
 cfg-if = "1.0"

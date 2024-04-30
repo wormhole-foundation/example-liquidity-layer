@@ -4061,6 +4061,7 @@ describe("Matching Engine", function () {
                 return {
                     payer,
                     firstHistory,
+                    systemProgram: SystemProgram.programId,
                 };
             }
 
@@ -4133,6 +4134,7 @@ describe("Matching Engine", function () {
                     payer,
                     currentHistory,
                     newHistory,
+                    systemProgram: SystemProgram.programId,
                 };
             }
 
@@ -4232,6 +4234,7 @@ describe("Matching Engine", function () {
                         beneficiary,
                         beneficiaryToken,
                         custodian: engine.checkedCustodianComposite(),
+                        systemProgram: SystemProgram.programId,
                     })
                     .instruction();
 

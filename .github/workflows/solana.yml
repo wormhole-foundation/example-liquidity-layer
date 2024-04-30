@@ -1,0 +1,61 @@
+name: solana
+on:
+  push:
+    branches:
+      - main
+  pull_request: null
+
+env:
+  RUSTC_VERSION: 1.75.0
+jobs:
+  cancel-previous-runs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.9.1
+        with:
+          access_token: ${{ github.token }}
+  make-cargo-test-all:
+    name: make cargo-test-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUSTC_VERSION }}
+          components: clippy, rustfmt
+      - name: make cargo-test-all
+        run: make cargo-test-all
+        working-directory: ./solana
+  make-lint:
+    name: make lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUSTC_VERSION }}
+          components: clippy, rustfmt
+      - name: make lint
+        run: make lint
+        working-directory: ./solana
+  make-anchor-test:
+    name: make anchor-test
+    runs-on: ubuntu-latest
+    # Anchor Docker image: https://www.anchor-lang.com/docs/verifiable-builds#images
+    # container: backpackapp/build:v0.30.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: metadaoproject/setup-anchor@v2
+        with:
+          node-version: "20.11.0"
+          solana-cli-version: "1.18.11"
+          anchor-version: "0.30.0"
+      - name: Set default Rust toolchain
+        run: rustup default stable
+        working-directory: ./solana
+      - name: make anchor-test
+        run: make anchor-test
+        working-directory: ./solana

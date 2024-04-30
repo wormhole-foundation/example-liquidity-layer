@@ -1,8 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::result_large_err)]
 
-pub mod cctp_mint_recipient;
-
 mod composite;
 
 mod error;
@@ -17,15 +15,19 @@ pub mod state;
 pub mod utils;
 pub use utils::admin::AddCctpRouterEndpointArgs;
 
-use anchor_lang::prelude::*;
-
-declare_id!(common::MATCHING_ENGINE_PROGRAM_ID);
+use anchor_lang::{prelude::*, solana_program::pubkey};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "testnet")] {
+        declare_id!("mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS");
+
         const CUSTODIAN_BUMP: u8 = 254;
+        const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("6yKmqWarCry3c8ntYKzM4WiS2fVypxLbENE2fP8onJje");
     } else if #[cfg(feature = "localnet")] {
+        declare_id!("MatchingEngine11111111111111111111111111111");
+
         const CUSTODIAN_BUMP: u8 = 254;
+        const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("35iwWKi7ebFyXNaqpswd1g9e9jrjvqWPV39nCQPaBbX1");
     }
 }
 
@@ -47,8 +49,8 @@ pub mod matching_engine {
     ///
     /// * `ctx`            - `Initialize` context.
     /// * `auction_params` - The auction parameters, see `auction_config.rs`.
-    pub fn initialize(ctx: Context<Initialize>, auction_params: AuctionParameters) -> Result<()> {
-        processor::initialize(ctx, auction_params)
+    pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
+        processor::initialize(ctx, args)
     }
 
     /// This instruction is used to pause or unpause further processing of new auctions. Only the `owner`
@@ -352,5 +354,25 @@ pub mod matching_engine {
     /// * `ctx` - `AddAuctionHistoryEntry` context.
     pub fn add_auction_history_entry(ctx: Context<AddAuctionHistoryEntry>) -> Result<()> {
         processor::add_auction_history_entry(ctx)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use solana_program::pubkey::Pubkey;
+
+    #[test]
+    fn test_ata_address() {
+        let custodian =
+            Pubkey::create_program_address(crate::state::Custodian::SIGNER_SEEDS, &crate::id())
+                .unwrap();
+        assert_eq!(
+            super::CCTP_MINT_RECIPIENT,
+            anchor_spl::associated_token::get_associated_token_address(
+                &custodian,
+                &common::USDC_MINT,
+            ),
+            "custody ata mismatch"
+        );
     }
 }

@@ -15,7 +15,8 @@ import {
     TransactionInstruction,
 } from "@solana/web3.js";
 import { PreparedTransaction, PreparedTransactionOptions } from "..";
-import { IDL, MatchingEngine } from "../../../target/types/matching_engine";
+import IDL from "../../../target/idl/matching_engine.json";
+import { MatchingEngine } from "../../../target/types/matching_engine";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
 import {
     LiquidityLayerMessage,
@@ -173,9 +174,12 @@ export class MatchingEngineProgram {
     constructor(connection: Connection, programId: ProgramId, mint: PublicKey) {
         this._programId = programId;
         this._mint = mint;
-        this.program = new Program(IDL as any, new PublicKey(this._programId), {
-            connection,
-        });
+        this.program = new Program(
+            { ...(IDL as any), address: this._programId },
+            {
+                connection,
+            },
+        );
     }
 
     get ID(): PublicKey {
@@ -187,23 +191,23 @@ export class MatchingEngineProgram {
     }
 
     onAuctionSettled(callback: (event: AuctionSettled, slot: number, signature: string) => void) {
-        return this.program.addEventListener("AuctionSettled", callback);
+        return this.program.addEventListener("auctionSettled", callback);
     }
 
     onAuctionUpdated(callback: (event: AuctionUpdated, slot: number, signature: string) => void) {
-        return this.program.addEventListener("AuctionUpdated", callback);
+        return this.program.addEventListener("auctionUpdated", callback);
     }
 
     onOrderExecuted(callback: (event: OrderExecuted, slot: number, signature: string) => void) {
-        return this.program.addEventListener("OrderExecuted", callback);
+        return this.program.addEventListener("orderExecuted", callback);
     }
 
     onProposed(callback: (event: Proposed, slot: number, signature: string) => void) {
-        return this.program.addEventListener("Proposed", callback);
+        return this.program.addEventListener("proposed", callback);
     }
 
     onEnacted(callback: (event: Enacted, slot: number, signature: string) => void) {
-        return this.program.addEventListener("Enacted", callback);
+        return this.program.addEventListener("enacted", callback);
     }
 
     custodianAddress(): PublicKey {
@@ -640,6 +644,16 @@ export class MatchingEngineProgram {
         };
     }
 
+    requiredSysvarsComposite(): {
+        rent: PublicKey;
+        clock: PublicKey;
+    } {
+        return {
+            rent: SYSVAR_RENT_PUBKEY,
+            clock: SYSVAR_CLOCK_PUBKEY,
+        };
+    }
+
     async initializeIx(
         accounts: {
             owner: PublicKey;
@@ -653,7 +667,7 @@ export class MatchingEngineProgram {
 
         const upgradeManager = this.upgradeManagerProgram();
         return this.program.methods
-            .initialize(auctionParams)
+            .initialize({ auctionParams })
             .accounts({
                 owner,
                 custodian: this.custodianAddress(),
@@ -667,6 +681,9 @@ export class MatchingEngineProgram {
                 upgradeManagerAuthority: upgradeManager.upgradeAuthorityAddress(),
                 upgradeManagerProgram: upgradeManager.ID,
                 bpfLoaderUpgradeableProgram: BPF_LOADER_UPGRADEABLE_PROGRAM_ID,
+                associatedTokenProgram: splToken.ASSOCIATED_TOKEN_PROGRAM_ID,
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
             })
             .instruction();
     }
@@ -771,6 +788,8 @@ export class MatchingEngineProgram {
                 localCustodyToken: this.localCustodyTokenAddress(chain),
                 remoteTokenMessenger,
                 usdc: this.usdcComposite(),
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
             })
             .instruction();
     }
@@ -830,6 +849,7 @@ export class MatchingEngineProgram {
                 },
                 proposal,
                 epochSchedule: SYSVAR_EPOCH_SCHEDULE_PUBKEY,
+                systemProgram: SystemProgram.programId,
             })
             .instruction();
     }
@@ -891,6 +911,7 @@ export class MatchingEngineProgram {
                 admin: this.ownerOnlyMutComposite(owner, custodian),
                 proposal,
                 auctionConfig,
+                systemProgram: SystemProgram.programId,
             })
             .instruction();
     }
@@ -915,6 +936,7 @@ export class MatchingEngineProgram {
                 admin: this.adminComposite(ownerOrAssistant, custodian),
                 routerEndpoint,
                 local: this.localTokenRouterComposite(tokenRouterProgram),
+                systemProgram: SystemProgram.programId,
             })
             .instruction();
     }
@@ -1113,6 +1135,8 @@ export class MatchingEngineProgram {
                 offerToken,
                 auctionCustodyToken,
                 usdc: this.usdcComposite(),
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
             })
             .instruction();
 
@@ -1199,6 +1223,7 @@ export class MatchingEngineProgram {
                     { auctionInfo },
                 ),
                 offerToken: splToken.getAssociatedTokenAddressSync(this.mint, participant),
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
             })
             .instruction();
 
@@ -1271,6 +1296,8 @@ export class MatchingEngineProgram {
                     tokenMessengerMinterProgram,
                     messageTransmitterProgram,
                 },
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
             })
             .instruction();
     }
@@ -1368,6 +1395,7 @@ export class MatchingEngineProgram {
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
                 auction,
                 bestOfferToken,
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
             })
             .instruction();
     }
@@ -1489,6 +1517,10 @@ export class MatchingEngineProgram {
                     feeCollector: coreFeeCollector,
                     coreBridgeProgram,
                 },
+                localCustodyToken: this.localCustodyTokenAddress(sourceChain),
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
+                sysvars: this.requiredSysvarsComposite(),
             })
             .instruction();
     }
@@ -1581,6 +1613,9 @@ export class MatchingEngineProgram {
                     tokenMessengerMinterProgram,
                     messageTransmitterProgram,
                 },
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
+                sysvars: this.requiredSysvarsComposite(),
             })
             .instruction();
     }
@@ -1765,6 +1800,9 @@ export class MatchingEngineProgram {
                     tokenMessengerMinterProgram,
                     messageTransmitterProgram,
                 },
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
+                sysvars: this.requiredSysvarsComposite(),
             })
             .instruction();
     }
@@ -1848,6 +1886,9 @@ export class MatchingEngineProgram {
                     coreBridgeProgram,
                 },
                 localCustodyToken: this.localCustodyTokenAddress(sourceChain),
+                tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                systemProgram: SystemProgram.programId,
+                sysvars: this.requiredSysvarsComposite(),
             })
             .instruction();
     }
