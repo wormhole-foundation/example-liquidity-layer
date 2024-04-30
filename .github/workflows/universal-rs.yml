@@ -16,7 +16,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                rust: ["stable", "beta", "nightly", "1.68"] # MSRV
+                rust: ["stable", "beta", "nightly", "1.75"] # MSRV
         steps:
             - uses: actions/checkout@v3
             - uses: dtolnay/rust-toolchain@master
