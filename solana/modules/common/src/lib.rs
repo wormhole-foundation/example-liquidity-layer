@@ -18,15 +18,9 @@ use solana_program::{pubkey, pubkey::Pubkey};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "testnet")] {
-        pub const MATCHING_ENGINE_PROGRAM_ID: Pubkey = pubkey!("mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS");
-        pub const TOKEN_ROUTER_PROGRAM_ID: Pubkey = pubkey!("tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md");
-
         pub const UPGRADE_MANAGER_PROGRAM_ID: Pubkey = pubkey!("ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt");
         pub const UPGRADE_MANAGER_AUTHORITY: Pubkey = pubkey!("2sxpm9pvWmNWFzhgWtmxkMsdWk2uSNT9MoKvww53po1M");
     } else if #[cfg(feature = "localnet")] {
-        pub const MATCHING_ENGINE_PROGRAM_ID: Pubkey = pubkey!("MatchingEngine11111111111111111111111111111");
-        pub const TOKEN_ROUTER_PROGRAM_ID: Pubkey = pubkey!("TokenRouter11111111111111111111111111111111");
-
         pub const UPGRADE_MANAGER_PROGRAM_ID: Pubkey = pubkey!("UpgradeManager11111111111111111111111111111");
         pub const UPGRADE_MANAGER_AUTHORITY: Pubkey = pubkey!("9Nu3k9HKFChDcAC8SeCrCeHvsRcdZzZfdQxGaEynFHZ7");
     }

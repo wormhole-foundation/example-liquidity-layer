@@ -1,8 +1,6 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::result_large_err)]
 
-pub mod cctp_mint_recipient;
-
 mod composite;
 
 mod error;
@@ -13,15 +11,19 @@ use processor::*;
 
 pub mod state;
 
-use anchor_lang::prelude::*;
-
-declare_id!(common::TOKEN_ROUTER_PROGRAM_ID);
+use anchor_lang::{prelude::*, solana_program::pubkey};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "testnet")] {
+        declare_id!("tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md");
+
         const CUSTODIAN_BUMP: u8 = 255;
+        const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("EPEpG3P1Vvak3stx7RnwQD9vWFLpWzpXnbfXc1owrD7o");
     } else if #[cfg(feature = "localnet")] {
+        declare_id!("TokenRouter11111111111111111111111111111111");
+
         const CUSTODIAN_BUMP: u8 = 253;
+        const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("4TTRh2xhgbxnJC1y3EdcPC6MMYyLyasaQqkYDEgnaF8i");
     }
 }
 
@@ -172,5 +174,25 @@ pub mod token_router {
     /// * `ctx` - `ConsumePreparedFill` context.
     pub fn consume_prepared_fill(ctx: Context<ConsumePreparedFill>) -> Result<()> {
         processor::consume_prepared_fill(ctx)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use solana_program::pubkey::Pubkey;
+
+    #[test]
+    fn test_ata_address() {
+        let custodian =
+            Pubkey::create_program_address(crate::state::Custodian::SIGNER_SEEDS, &crate::id())
+                .unwrap();
+        assert_eq!(
+            super::CCTP_MINT_RECIPIENT,
+            anchor_spl::associated_token::get_associated_token_address(
+                &custodian,
+                &common::USDC_MINT
+            ),
+            "cctp mint recipient mismatch"
+        );
     }
 }

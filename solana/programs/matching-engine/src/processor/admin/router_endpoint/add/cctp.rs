@@ -5,9 +5,8 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::wormhole_cctp_solana::{
-    cctp::token_messenger_minter_program::{self, RemoteTokenMessenger},
-    utils::ExternalAccount,
+use common::wormhole_cctp_solana::cctp::token_messenger_minter_program::{
+    self, RemoteTokenMessenger,
 };
 
 #[derive(Accounts)]
@@ -55,7 +54,7 @@ pub struct AddCctpRouterEndpoint<'info> {
         bump,
         seeds::program = token_messenger_minter_program::id(),
     )]
-    remote_token_messenger: Account<'info, ExternalAccount<RemoteTokenMessenger>>,
+    remote_token_messenger: Account<'info, RemoteTokenMessenger>,
 
     token_program: Program<'info, token::Token>,
     system_program: Program<'info, System>,

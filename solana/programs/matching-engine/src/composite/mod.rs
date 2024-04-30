@@ -44,7 +44,7 @@ impl<'info> Deref for Usdc<'info> {
 pub struct CctpMintRecipientMut<'info> {
     #[account(
         mut,
-        address = crate::cctp_mint_recipient::id()
+        address = crate::CCTP_MINT_RECIPIENT
     )]
     pub mint_recipient: Box<Account<'info, token::TokenAccount>>,
 }

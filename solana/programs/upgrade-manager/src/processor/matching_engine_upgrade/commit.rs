@@ -3,8 +3,9 @@ use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CommitMatchingEngineUpgrade<'info> {
+    /// CHECK: Seeds must be \["emitter"\] (Matching Engine program).
     #[account(mut)]
-    matching_engine_custodian: Account<'info, matching_engine::state::Custodian>,
+    matching_engine_custodian: UncheckedAccount<'info>,
 
     #[account(
         constraint = {

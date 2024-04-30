@@ -5,7 +5,7 @@
 
 use std::ops::{Deref, DerefMut};
 
-use anchor_lang::prelude::*;
+use anchor_lang::{prelude::*, Discriminator};
 
 use super::AuctionInfo;
 
@@ -74,9 +74,13 @@ pub struct AuctionHistoryInternal {
     pub num_entries: u32,
 }
 
+impl Discriminator for AuctionHistoryInternal {
+    const DISCRIMINATOR: [u8; 8] = AuctionHistory::DISCRIMINATOR;
+}
+
 impl AccountDeserialize for AuctionHistoryInternal {
     fn try_deserialize(buf: &mut &[u8]) -> Result<Self> {
-        if buf[..8] != <AuctionHistory as anchor_lang::Discriminator>::DISCRIMINATOR {
+        if buf[..8] != Self::DISCRIMINATOR {
             err!(ErrorCode::AccountDiscriminatorMismatch)
         } else {
             Self::try_deserialize_unchecked(buf)
