@@ -103,8 +103,8 @@ solana-test-validator \
     --ticks-per-slot \
     16 \
     --url \
-    https://api.devnet.solana.com &
-#    > /dev/null 2>&1 &
+    https://api.devnet.solana.com \
+    > /dev/null 2>&1 &
 
 echo $! > .validator_pid
 

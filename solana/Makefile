@@ -52,7 +52,7 @@ anchor-test: node_modules ts/tests/artifacts $(CLONED_MAINNET_PROGRAMS)
 	anchor build --no-idl -- --features testnet
 	cp target/deploy/matching_engine.so ts/tests/artifacts/new_testnet_matching_engine.so
 	cp target/deploy/token_router.so ts/tests/artifacts/new_testnet_token_router.so
-	cp target/deploy/upgrade_manager.so ts/tests/artifacts/new_testnet_upgrade_manager.so
+	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
 	bash sh/run_anchor_test.sh
 
 .PHONY: clippy
