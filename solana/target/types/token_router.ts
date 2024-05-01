@@ -528,11 +528,22 @@ export type TokenRouter = {
           ]
         },
         {
-          "name": "transferAuthority",
+          "name": "programTransferAuthority",
           "docs": [
-            "The auction participant needs to set approval to this PDA.",
+            "The auction participant needs to set approval to this PDA if the sender (signer) is not",
+            "provided.",
             ""
-          ]
+          ],
+          "optional": true
+        },
+        {
+          "name": "sender",
+          "docs": [
+            "Sender, who has the authority to transfer assets from the sender token account. If this",
+            "account is not provided, the program transfer authority account must be some account."
+          ],
+          "signer": true,
+          "optional": true
         },
         {
           "name": "preparedOrder",
@@ -1128,6 +1139,14 @@ export type TokenRouter = {
     {
       "code": 6520,
       "name": "notPendingOwner"
+    },
+    {
+      "code": 6522,
+      "name": "tooManyAuthorities"
+    },
+    {
+      "code": 6524,
+      "name": "missingAuthority"
     },
     {
       "code": 7024,
