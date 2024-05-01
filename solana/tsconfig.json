@@ -6,7 +6,9 @@
     "module": "commonjs",
     "target": "es2020",
     "strict": true,
+    "noEmit":true,
     "resolveJsonModule": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "skipLibCheck":true
   }
 }

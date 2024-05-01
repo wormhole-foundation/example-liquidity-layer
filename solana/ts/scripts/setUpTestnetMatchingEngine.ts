@@ -202,7 +202,7 @@ async function addCctpRouterEndpoint(
             : Array.from(tryNativeToUint8Array(foreignMintRecipient, foreignChain));
 
     if (exists) {
-        const { address, mintRecipient } = await matchingEngine.fetchRouterEndpoint(chain);
+        const { info: {address, mintRecipient} } = await matchingEngine.fetchRouterEndpoint(chain);
         if (
             Buffer.from(address).equals(Buffer.from(endpointAddress)) &&
             Buffer.from(mintRecipient).equals(Buffer.from(endpointMintRecipient ?? endpointAddress))
@@ -270,7 +270,7 @@ async function addLocalRouterEndpoint(
     );
 
     if (exists) {
-        const { address, mintRecipient } = await matchingEngine.fetchRouterEndpoint(chain);
+        const { info: {address, mintRecipient} } = await matchingEngine.fetchRouterEndpoint(chain);
         if (
             Buffer.from(address).equals(Buffer.from(endpointAddress)) &&
             Buffer.from(mintRecipient).equals(Buffer.from(endpointMintRecipient ?? endpointAddress))

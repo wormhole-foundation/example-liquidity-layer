@@ -110,9 +110,9 @@ async function main() {
 
 function stringifyEndpoint(chainName: ChainName, endpoint: matchingEngineSdk.RouterEndpoint) {
     const out = {
-        address: tryUint8ArrayToNative(Uint8Array.from(endpoint.address), chainName),
-        mintRecipient: tryUint8ArrayToNative(Uint8Array.from(endpoint.mintRecipient), chainName),
-        protocol: endpoint.protocol,
+        address: tryUint8ArrayToNative(Uint8Array.from(endpoint.info.address), chainName),
+        mintRecipient: tryUint8ArrayToNative(Uint8Array.from(endpoint.info.mintRecipient), chainName),
+        protocol: endpoint.info.protocol,
     };
     return JSON.stringify(out, null, 2);
 }
