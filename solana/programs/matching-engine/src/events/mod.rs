@@ -7,6 +7,9 @@ pub use auction_updated::*;
 mod enacted;
 pub use enacted::*;
 
+mod filled_local_fast_order;
+pub use filled_local_fast_order::*;
+
 mod order_executed;
 pub use order_executed::*;
 

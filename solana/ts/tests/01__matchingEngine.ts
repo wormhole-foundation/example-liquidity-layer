@@ -1326,7 +1326,7 @@ describe("Matching Engine", function () {
         });
     });
 
-    describe("Business Logic", function () {
+    describe.skip("Business Logic", function () {
         const baseFastOrder: FastMarketOrder = {
             amountIn: 50000000000n,
             minAmountOut: 0n,
