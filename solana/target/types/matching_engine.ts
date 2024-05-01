@@ -795,10 +795,6 @@ export type MatchingEngine = {
           "signer": true
         },
         {
-          "name": "coreMessage",
-          "writable": true
-        },
-        {
           "name": "custodian",
           "accounts": [
             {
@@ -863,24 +859,8 @@ export type MatchingEngine = {
           ]
         },
         {
-          "name": "wormhole",
-          "accounts": [
-            {
-              "name": "config",
-              "writable": true
-            },
-            {
-              "name": "emitterSequence",
-              "writable": true
-            },
-            {
-              "name": "feeCollector",
-              "writable": true
-            },
-            {
-              "name": "coreBridgeProgram"
-            }
-          ]
+          "name": "fastFill",
+          "writable": true
         },
         {
           "name": "localCustodyToken",
@@ -910,6 +890,12 @@ export type MatchingEngine = {
               ]
             }
           ]
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -2280,6 +2266,19 @@ export type MatchingEngine = {
       ]
     },
     {
+      "name": "fastFill",
+      "discriminator": [
+        89,
+        120,
+        166,
+        41,
+        106,
+        227,
+        218,
+        121
+      ]
+    },
+    {
       "name": "preparedOrderResponse",
       "discriminator": [
         20,
@@ -2383,6 +2382,19 @@ export type MatchingEngine = {
         24,
         141,
         143
+      ]
+    },
+    {
+      "name": "filledLocalFastOrder",
+      "discriminator": [
+        94,
+        47,
+        97,
+        73,
+        210,
+        194,
+        163,
+        85
       ]
     },
     {
@@ -2628,6 +2640,10 @@ export type MatchingEngine = {
     {
       "code": 7060,
       "name": "invalidOfferToken"
+    },
+    {
+      "code": 7062,
+      "name": "fastFillTooLarge"
     },
     {
       "code": 7280,
@@ -3294,6 +3310,91 @@ export type MatchingEngine = {
                 "name": "messageProtocol"
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFill",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "preparedBy",
+            "type": "pubkey"
+          },
+          {
+            "name": "redeemed",
+            "type": "bool"
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": {
+                "name": "fastFillInfo"
+              }
+            }
+          },
+          {
+            "name": "redeemerMessage",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFillInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "sourceChain",
+            "type": "u16"
+          },
+          {
+            "name": "orderSender",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "redeemer",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "filledLocalFastOrder",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fastFill",
+            "type": "pubkey"
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": {
+                "name": "fastFillInfo"
+              }
+            }
+          },
+          {
+            "name": "redeemerMessage",
+            "type": "bytes"
           }
         ]
       }

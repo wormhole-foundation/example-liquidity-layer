@@ -69,6 +69,7 @@ pub enum MatchingEngineError {
     AuctionNotSettled = 0x420,
     ExecutorNotPreparedBy = 0x422,
     InvalidOfferToken = 0x424,
+    FastFillTooLarge = 0x426,
 
     CannotCloseAuctionYet = 0x500,
     AuctionHistoryNotFull = 0x502,

@@ -10,6 +10,9 @@ pub use auction_history::*;
 mod custodian;
 pub use custodian::*;
 
+mod fast_fill;
+pub use fast_fill::*;
+
 mod prepared_order_response;
 pub use prepared_order_response::*;
 
@@ -21,3 +24,5 @@ pub use redeemed_fast_fill::*;
 
 pub(crate) mod router_endpoint;
 pub use router_endpoint::*;
+
+const MAX_CPI_ALLOCATE_SIZE: usize = 10 * 1_024;

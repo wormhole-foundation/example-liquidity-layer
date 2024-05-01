@@ -1,16 +1,18 @@
 export * from "./state";
 
 import * as wormholeSdk from "@certusone/wormhole-sdk";
-import { BN, Program } from "@coral-xyz/anchor";
+import { BN, Program, utils } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     ConfirmOptions,
     Connection,
+    Finality,
     PublicKey,
     SYSVAR_CLOCK_PUBKEY,
     SYSVAR_EPOCH_SCHEDULE_PUBKEY,
     SYSVAR_RENT_PUBKEY,
     Signer,
+    SlotInfo,
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
@@ -41,6 +43,8 @@ import {
     AuctionParameters,
     Custodian,
     EndpointInfo,
+    FastFill,
+    FastFillInfo,
     MessageProtocol,
     PreparedOrderResponse,
     Proposal,
@@ -55,6 +59,8 @@ export const PROGRAM_IDS = [
 ] as const;
 
 export const FEE_PRECISION_MAX = 1_000_000n;
+
+export const CPI_EVENT_IX_SELECTOR = Uint8Array.from([228, 69, 165, 46, 81, 203, 154, 29]);
 
 export type ProgramId = (typeof PROGRAM_IDS)[number];
 
@@ -165,6 +171,12 @@ export type Enacted = {
     action: ProposalAction;
 };
 
+export type FilledLocalFastOrder = {
+    fastFill: PublicKey;
+    info: FastFillInfo;
+    redeemerMessage: Buffer;
+};
+
 export class MatchingEngineProgram {
     private _programId: ProgramId;
     private _mint: PublicKey;
@@ -208,6 +220,74 @@ export class MatchingEngineProgram {
 
     onEnacted(callback: (event: Enacted, slot: number, signature: string) => void) {
         return this.program.addEventListener("enacted", callback);
+    }
+
+    onFilledLocalFastOrder(
+        callback: (
+            event: FilledLocalFastOrder,
+            slot: number,
+            signature: string,
+            currentSlotInfo?: SlotInfo,
+        ) => void,
+        commitment: Finality = "confirmed",
+    ) {
+        const program = this.program;
+        const connection = program.provider.connection;
+
+        const signatureSlots: { signature: string; eventSlot: number }[] = [];
+
+        connection.onSlotChange(async (slotInfo) => {
+            // TODO: Make this more efficient by fetching multiple parsed transactions.
+            while (signatureSlots.length > 0) {
+                const { signature, eventSlot } = signatureSlots[0];
+
+                const parsedTx = await program.provider.connection.getParsedTransaction(signature, {
+                    commitment,
+                    maxSupportedTransactionVersion: 0,
+                });
+
+                if (parsedTx === null) {
+                    break;
+                }
+
+                // Finally dequeue.
+                signatureSlots.shift();
+
+                // Find the event.
+                for (const innerIx of parsedTx.meta?.innerInstructions!) {
+                    for (const ix of innerIx.instructions) {
+                        if (!ix.programId.equals(this.ID) || !("data" in ix)) {
+                            continue;
+                        }
+
+                        const data = utils.bytes.bs58.decode(ix.data);
+                        if (!data.subarray(0, 8).equals(CPI_EVENT_IX_SELECTOR)) {
+                            continue;
+                        }
+
+                        const decoded = program.coder.events.decode(
+                            utils.bytes.base64.encode(data.subarray(8)),
+                        );
+
+                        if (decoded !== null && decoded.name === "filledLocalFastOrder") {
+                            return callback(decoded.data, eventSlot, signature, slotInfo);
+                        }
+                    }
+                }
+            }
+        });
+
+        return this.onOrderExecuted(async (orderExecutedEvent, eventSlot, signature) => {
+            if (orderExecutedEvent.targetProtocol.local === undefined) {
+                return;
+            }
+
+            signatureSlots.push({ signature, eventSlot });
+        });
+    }
+
+    eventAuthorityAddress(): PublicKey {
+        return PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], this.ID)[0];
     }
 
     custodianAddress(): PublicKey {
@@ -363,6 +443,15 @@ export class MatchingEngineProgram {
             )
             .then((token) => token.amount)
             .catch((_) => 0n);
+    }
+
+    fastFillAddress(auction: PublicKey): PublicKey {
+        return FastFill.address(this.ID, auction);
+    }
+
+    fetchFastFill(input: PublicKey | { address: PublicKey }): Promise<FastFill> {
+        const addr = "address" in input ? input.address : this.fastFillAddress(input);
+        return this.program.account.fastFill.fetch(addr);
     }
 
     transferAuthorityAddress(auction: PublicKey, offerPrice: Uint64): PublicKey {
@@ -1870,43 +1959,32 @@ export class MatchingEngineProgram {
             initialParticipant = token.owner;
         }
 
-        const {
-            custodian,
-            coreMessage,
-            coreBridgeConfig,
-            coreEmitterSequence,
-            coreFeeCollector,
-            coreBridgeProgram,
-        } = await this.publishMessageAccounts(auction);
+        const activeAuction = await this.activeAuctionComposite(
+            {
+                auction,
+                config: auctionConfig,
+                bestOfferToken,
+            },
+            { auctionInfo },
+        );
 
         return this.program.methods
             .executeFastOrderLocal()
             .accounts({
                 payer,
-                custodian: this.checkedCustodianComposite(custodian),
-                coreMessage,
+                custodian: this.checkedCustodianComposite(),
                 executeOrder: {
                     fastVaa: this.liquidityLayerVaaComposite(fastVaa),
-                    activeAuction: await this.activeAuctionComposite(
-                        {
-                            auction,
-                            config: auctionConfig,
-                            bestOfferToken,
-                        },
-                        { auctionInfo },
-                    ),
+                    activeAuction,
                     executorToken,
                     initialOfferToken,
                     initialParticipant,
                 },
                 toRouterEndpoint: this.routerEndpointComposite(toRouterEndpoint),
-                wormhole: {
-                    config: coreBridgeConfig,
-                    emitterSequence: coreEmitterSequence,
-                    feeCollector: coreFeeCollector,
-                    coreBridgeProgram,
-                },
+                fastFill: this.fastFillAddress(activeAuction.auction),
                 localCustodyToken: this.localCustodyTokenAddress(sourceChain),
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
                 sysvars: this.requiredSysvarsComposite(),

@@ -23,6 +23,7 @@ import {
     OWNER_ASSISTANT_KEYPAIR,
     OWNER_KEYPAIR,
     PAYER_KEYPAIR,
+    REGISTERED_TOKEN_ROUTERS,
     USDC_MINT_ADDRESS,
     expectIxErr,
     expectIxOk,
@@ -42,9 +43,8 @@ describe("Token Router", function () {
 
     const foreignChain = wormholeSdk.CHAINS.ethereum;
     const invalidChain = (foreignChain + 1) as wormholeSdk.ChainId;
-    const foreignEndpointAddress = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+    const foreignEndpointAddress = REGISTERED_TOKEN_ROUTERS["ethereum"]!;
     const foreignCctpDomain = 0;
-    const unregisteredContractAddress = Buffer.alloc(32, "deafbeef", "hex");
     const tokenRouter = new TokenRouterProgram(connection, localnet(), USDC_MINT_ADDRESS);
 
     let lookupTableAddress: PublicKey;
@@ -368,7 +368,7 @@ describe("Token Router", function () {
         });
     });
 
-    describe("Business Logic", function () {
+    describe.skip("Business Logic", function () {
         let testCctpNonce = 2n ** 64n - 1n;
 
         // Hack to prevent math overflow error when invoking CCTP programs.

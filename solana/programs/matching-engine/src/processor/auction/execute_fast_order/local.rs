@@ -1,22 +1,18 @@
-use crate::{composite::*, error::MatchingEngineError, state::Custodian, utils};
+use crate::{
+    composite::*,
+    error::MatchingEngineError,
+    state::{Custodian, FastFill},
+    utils,
+};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
+use common::messages::raw::LiquidityLayerMessage;
 
+#[event_cpi]
 #[derive(Accounts)]
 pub struct ExecuteFastOrderLocal<'info> {
     #[account(mut)]
     payer: Signer<'info>,
-
-    /// CHECK: Mutable. Seeds must be \["msg", payer, payer_sequence.value\].
-    #[account(
-        mut,
-        seeds = [
-            common::CORE_MESSAGE_SEED_PREFIX,
-            execute_order.active_auction.key().as_ref(),
-        ],
-        bump,
-    )]
-    core_message: UncheckedAccount<'info>,
 
     custodian: CheckedCustodian<'info>,
 
@@ -35,7 +31,29 @@ pub struct ExecuteFastOrderLocal<'info> {
     )]
     to_router_endpoint: LiveRouterEndpoint<'info>,
 
-    wormhole: WormholePublishMessage<'info>,
+    #[account(
+        init,
+        payer = payer,
+        space = FastFill::checked_compute_size({
+            let vaa = execute_order.fast_vaa.load_unchecked();
+
+            // We can unwrap and convert to FastMarketOrder unchecked because we validate the VAA
+            // hash equals the one encoded in the auction account.
+            let order = LiquidityLayerMessage::try_from(vaa.payload())
+                .unwrap()
+                .to_fast_market_order_unchecked();
+
+            // It is safe to convert u32 to usize here.
+            order.redeemer_message_len().try_into().unwrap()
+        })
+        .ok_or(MatchingEngineError::FastFillTooLarge)?,
+        seeds = [
+            FastFill::SEED_PREFIX,
+            execute_order.active_auction.key().as_ref(),
+        ],
+        bump,
+    )]
+    fast_fill: Account<'info, FastFill>,
 
     #[account(
         mut,
@@ -67,26 +85,16 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         token_program,
     })?;
 
+    let fast_fill = FastFill::new(ctx.bumps.fast_fill, ctx.accounts.payer.key(), amount, fill);
+    emit_cpi!(crate::events::FilledLocalFastOrder {
+        fast_fill: ctx.accounts.fast_fill.key(),
+        info: fast_fill.info,
+        redeemer_message: fast_fill.redeemer_message.clone(),
+    });
+    ctx.accounts.fast_fill.set_inner(fast_fill);
+
     let payer = &ctx.accounts.payer;
     let active_auction = &ctx.accounts.execute_order.active_auction;
-
-    // Publish message via Core Bridge.
-    //
-    // NOTE: We cannot close the custody account yet because the user needs to be able to retrieve
-    // the funds when they complete the fast fill.
-    utils::wormhole::post_matching_engine_message(
-        utils::wormhole::PostMatchingEngineMessage {
-            wormhole: &ctx.accounts.wormhole,
-            core_message: &ctx.accounts.core_message,
-            custodian,
-            payer,
-            system_program: &ctx.accounts.system_program,
-            sysvars: &ctx.accounts.sysvars,
-        },
-        common::messages::FastFill { amount, fill },
-        &active_auction.key(),
-        ctx.bumps.core_message,
-    )?;
 
     let auction_custody_token = &active_auction.custody_token;
 

@@ -2,6 +2,7 @@ export * from "./Auction";
 export * from "./AuctionConfig";
 export * from "./AuctionHistory";
 export * from "./Custodian";
+export * from "./FastFill";
 export * from "./PreparedOrderResponse";
 export * from "./Proposal";
 export * from "./RedeemedFastFill";

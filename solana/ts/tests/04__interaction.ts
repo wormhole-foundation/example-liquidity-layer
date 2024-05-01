@@ -1,11 +1,12 @@
 import * as wormholeSdk from "@certusone/wormhole-sdk";
-import { BN } from "@coral-xyz/anchor";
+import { BN, utils } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
     ComputeBudgetProgram,
     Connection,
     Keypair,
+    ParsedTransactionWithMeta,
     PublicKey,
     SYSVAR_RENT_PUBKEY,
     SystemProgram,
@@ -14,7 +15,7 @@ import {
 import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import { CctpTokenBurnMessage } from "../src/cctp";
-import { LiquidityLayerDeposit, LiquidityLayerMessage } from "../src/common";
+import { LiquidityLayerDeposit, LiquidityLayerMessage, uint64ToBN } from "../src/common";
 import * as matchingEngineSdk from "../src/matchingEngine";
 import * as tokenRouterSdk from "../src/tokenRouter";
 import { VaaAccount } from "../src/wormhole";
@@ -26,6 +27,7 @@ import {
     OWNER_ASSISTANT_KEYPAIR,
     OWNER_KEYPAIR,
     PAYER_KEYPAIR,
+    REGISTERED_TOKEN_ROUTERS,
     USDC_MINT_ADDRESS,
     expectIxErr,
     expectIxOk,
@@ -58,7 +60,7 @@ describe("Matching Engine <> Token Router", function () {
     const liquidator = Keypair.generate();
 
     let lookupTableAddress: PublicKey;
-    const ethRouter = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+    const ethRouter = REGISTERED_TOKEN_ROUTERS["ethereum"]!;
 
     describe("Admin", function () {
         describe("Local Router Endpoint", function () {
@@ -330,6 +332,26 @@ describe("Matching Engine <> Token Router", function () {
         });
 
         describe("Execute Fast Order (Local)", function () {
+            const emittedEvents: {
+                event: matchingEngineSdk.FilledLocalFastOrder;
+                slot: number;
+                signature: string;
+            }[] = [];
+
+            let listenerId: number | null;
+
+            before("Start Event Listener", async function () {
+                listenerId = matchingEngine.onFilledLocalFastOrder((event, slot, signature) => {
+                    emittedEvents.push({ event, slot, signature });
+                });
+            });
+
+            after("Stop Event Listener", async function () {
+                if (listenerId !== null) {
+                    matchingEngine.program.removeEventListener(listenerId!);
+                }
+            });
+
             it("Cannot Execute Fast Order (Auction Period Not Expired)", async function () {
                 const { auction: auctionAddress, fastVaa } = await prepareOrderResponse({
                     initAuction: true,
@@ -363,8 +385,8 @@ describe("Matching Engine <> Token Router", function () {
                 );
             });
 
-            it("Execute after Auction Period has Expired", async function () {
-                const { fastMarketOrder, auction, fastVaa } = await prepareOrderResponse({
+            it("Execute within Grace Period", async function () {
+                const { auction, fastVaa, fastVaaAccount } = await prepareOrderResponse({
                     initAuction: true,
                     executeOrder: false,
                     prepareOrderResponse: false,
@@ -411,9 +433,55 @@ describe("Matching Engine <> Token Router", function () {
                     BigInt(txDetails!.slot),
                     info!.configId,
                 );
-                const { amountIn, maxFee: offerPrice, initAuctionFee } = fastMarketOrder;
+
+                const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+                const {
+                    amountIn,
+                    maxFee: offerPrice,
+                    initAuctionFee,
+                    redeemer,
+                    redeemerMessage,
+                } = fastMarketOrder!;
                 const userAmount = amountIn - offerPrice - initAuctionFee + userReward;
                 expect(localCustodyTokenBalanceAfter).equals(userAmount);
+
+                // Check Fast Fill account.
+                const fastFill = matchingEngine.fastFillAddress(auction);
+                const fastFillData = await matchingEngine.fetchFastFill({ address: fastFill });
+                const { bump } = fastFillData;
+                expect(fastFillData).to.eql(
+                    new matchingEngineSdk.FastFill(
+                        bump,
+                        payer.publicKey,
+                        false,
+                        {
+                            amount: uint64ToBN(userAmount),
+                            sourceChain: fastVaaAccount.emitterInfo().chain,
+                            orderSender: fastMarketOrder!.sender,
+                            redeemer: new PublicKey(redeemer),
+                        },
+                        redeemerMessage,
+                    ),
+                );
+
+                while (emittedEvents.length == 0) {
+                    console.log("waiting...");
+                    await new Promise((resolve) => setTimeout(resolve, 200));
+                }
+
+                const { event, slot, signature } = emittedEvents.shift()!;
+                expect(slot).equals(txDetails!.slot);
+                expect(signature).equals(txDetails!.transaction.signatures[0]);
+                expect(event).to.eql({
+                    fastFill,
+                    info: {
+                        amount: uint64ToBN(userAmount),
+                        sourceChain: fastVaaAccount.emitterInfo().chain,
+                        orderSender: fastMarketOrder!.sender,
+                        redeemer: new PublicKey(redeemer),
+                    },
+                    redeemerMessage,
+                });
             });
 
             before("Update Local Router Endpoint", async function () {
@@ -858,7 +926,7 @@ describe("Matching Engine <> Token Router", function () {
                 minAmountOut: 0n,
                 targetChain: wormholeSdk.CHAINS.solana,
                 redeemer: Array.from(redeemer.publicKey.toBuffer()),
-                sender: new Array(32).fill(0),
+                sender: new Array(32).fill(69),
                 refundAddress: new Array(32).fill(0),
                 maxFee,
                 initAuctionFee: 2000n,

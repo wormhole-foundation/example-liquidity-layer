@@ -789,10 +789,6 @@
           "signer": true
         },
         {
-          "name": "core_message",
-          "writable": true
-        },
-        {
           "name": "custodian",
           "accounts": [
             {
@@ -857,24 +853,8 @@
           ]
         },
         {
-          "name": "wormhole",
-          "accounts": [
-            {
-              "name": "config",
-              "writable": true
-            },
-            {
-              "name": "emitter_sequence",
-              "writable": true
-            },
-            {
-              "name": "fee_collector",
-              "writable": true
-            },
-            {
-              "name": "core_bridge_program"
-            }
-          ]
+          "name": "fast_fill",
+          "writable": true
         },
         {
           "name": "local_custody_token",
@@ -904,6 +884,12 @@
               ]
             }
           ]
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -2274,6 +2260,19 @@
       ]
     },
     {
+      "name": "FastFill",
+      "discriminator": [
+        89,
+        120,
+        166,
+        41,
+        106,
+        227,
+        218,
+        121
+      ]
+    },
+    {
       "name": "PreparedOrderResponse",
       "discriminator": [
         20,
@@ -2377,6 +2376,19 @@
         24,
         141,
         143
+      ]
+    },
+    {
+      "name": "FilledLocalFastOrder",
+      "discriminator": [
+        94,
+        47,
+        97,
+        73,
+        210,
+        194,
+        163,
+        85
       ]
     },
     {
@@ -2622,6 +2634,10 @@
     {
       "code": 7060,
       "name": "InvalidOfferToken"
+    },
+    {
+      "code": 7062,
+      "name": "FastFillTooLarge"
     },
     {
       "code": 7280,
@@ -3288,6 +3304,91 @@
                 "name": "MessageProtocol"
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "FastFill",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "prepared_by",
+            "type": "pubkey"
+          },
+          {
+            "name": "redeemed",
+            "type": "bool"
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": {
+                "name": "FastFillInfo"
+              }
+            }
+          },
+          {
+            "name": "redeemer_message",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FastFillInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "source_chain",
+            "type": "u16"
+          },
+          {
+            "name": "order_sender",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "redeemer",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FilledLocalFastOrder",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fast_fill",
+            "type": "pubkey"
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": {
+                "name": "FastFillInfo"
+              }
+            }
+          },
+          {
+            "name": "redeemer_message",
+            "type": "bytes"
           }
         ]
       }
