@@ -1031,6 +1031,7 @@ export class MatchingEngineProgram {
         const ixs = await this.placeInitialOfferCctpIx(
             {
                 payer,
+                feePayer: signers[0]?.publicKey,
                 fastVaa,
                 auction,
                 fromRouterEndpoint,
@@ -1054,6 +1055,7 @@ export class MatchingEngineProgram {
     async placeInitialOfferCctpIx(
         accounts: {
             payer: PublicKey;
+            feePayer?: PublicKey;
             fastVaa: PublicKey;
             offerToken?: PublicKey;
             auction?: PublicKey;
@@ -1068,7 +1070,7 @@ export class MatchingEngineProgram {
     ): Promise<
         [approveIx: TransactionInstruction, placeInitialOfferCctpIx: TransactionInstruction]
     > {
-        const { payer, fastVaa } = accounts;
+        const { payer, feePayer, fastVaa } = accounts;
 
         const { offerPrice } = args;
 
@@ -1122,7 +1124,7 @@ export class MatchingEngineProgram {
         const placeInitialOfferCctpIx = await this.program.methods
             .placeInitialOfferCctp(uint64ToBN(offerPrice))
             .accounts({
-                payer,
+                payer: feePayer ?? payer,
                 transferAuthority,
                 custodian: this.checkedCustodianComposite(),
                 auctionConfig,
