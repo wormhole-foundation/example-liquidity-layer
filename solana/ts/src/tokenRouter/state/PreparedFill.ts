@@ -7,9 +7,12 @@ export type FillType = {
     fastFill?: {};
 };
 
-export type PreparedFillInfo = {
-    vaaHash: Array<number>;
+export type PreparedFillSeeds = {
+    fillSource: PublicKey;
     bump: number;
+};
+
+export type PreparedFillInfo = {
     preparedCustodyTokenBump: number;
     preparedBy: PublicKey;
     fillType: FillType;
@@ -19,17 +22,19 @@ export type PreparedFillInfo = {
 };
 
 export class PreparedFill {
+    seeds: PreparedFillSeeds;
     info: PreparedFillInfo;
     redeemerMessage: Buffer;
 
-    constructor(info: PreparedFillInfo, redeemerMessage: Buffer) {
+    constructor(seeds: PreparedFillSeeds, info: PreparedFillInfo, redeemerMessage: Buffer) {
+        this.seeds = seeds;
         this.info = info;
         this.redeemerMessage = redeemerMessage;
     }
 
-    static address(programId: PublicKey, vaaHash: Array<number> | Uint8Array | Buffer) {
+    static address(programId: PublicKey, fillSourcet: PublicKey) {
         return PublicKey.findProgramAddressSync(
-            [Buffer.from("fill"), Buffer.from(vaaHash)],
+            [Buffer.from("fill"), fillSourcet.toBuffer()],
             programId,
         )[0];
     }

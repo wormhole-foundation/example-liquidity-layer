@@ -52,8 +52,8 @@ pub fn consume_prepared_fill(ctx: Context<ConsumePreparedFill>) -> Result<()> {
 
     let prepared_fill_signer_seeds = &[
         PreparedFill::SEED_PREFIX,
-        prepared_fill.vaa_hash.as_ref(),
-        &[prepared_fill.bump],
+        prepared_fill.seeds.fill_source.as_ref(),
+        &[prepared_fill.seeds.bump],
     ];
 
     let custody_token = &ctx.accounts.prepared_custody_token;

@@ -130,7 +130,11 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
                 bpf_loader_upgradeable::SetUpgradeAuthority {
                     program_data: ctx.accounts.program_data.to_account_info(),
                     current_authority: ctx.accounts.owner.to_account_info(),
-                    new_authority: Some(ctx.accounts.upgrade_manager_authority.to_account_info()),
+                    new_authority: ctx
+                        .accounts
+                        .upgrade_manager_authority
+                        .to_account_info()
+                        .into(),
                 },
             ),
             &crate::id(),

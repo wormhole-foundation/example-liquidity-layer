@@ -267,7 +267,7 @@ fn handle_place_market_order_cctp(
             ],
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
-            burn_source: Some(order_info.src_token),
+            burn_source: order_info.src_token.into(),
             destination_caller: router_endpoint.address,
             destination_cctp_domain,
             amount: prepared_custody_token.amount,

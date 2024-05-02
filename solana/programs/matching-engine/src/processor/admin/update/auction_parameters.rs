@@ -93,7 +93,7 @@ fn handle_update_auction_parameters(
     ctx.accounts.admin.custodian.auction_config_id = id;
 
     // Set the slot enacted at so it cannot be replayed.
-    ctx.accounts.proposal.slot_enacted_at = Some(Clock::get().unwrap().slot);
+    ctx.accounts.proposal.slot_enacted_at = Clock::get().unwrap().slot.into();
 
     // Uptick the proposal ID so that someone can create a new proposal again.
     //

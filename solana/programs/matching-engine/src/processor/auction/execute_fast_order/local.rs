@@ -1,8 +1,7 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Custodian, FastFill},
-    utils,
+    state::{Custodian, FastFill, ReservedFastFillSequence},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -18,18 +17,30 @@ pub struct ExecuteFastOrderLocal<'info> {
 
     execute_order: ExecuteOrder<'info>,
 
+    /// This account will be closed at the end of this instruction instead of using the close
+    /// account directive here.
+    ///
+    /// NOTE: We do not need to do a VAA hash check because that was already performed when the
+    /// reserved sequence was created.
     #[account(
-        constraint = {
-            require_eq!(
-                to_router_endpoint.protocol,
-                execute_order.active_auction.target_protocol,
-                MatchingEngineError::InvalidEndpoint
-            );
-
-            utils::require_local_endpoint(&to_router_endpoint)?
-        }
+        mut,
+        seeds = [
+            ReservedFastFillSequence::SEED_PREFIX,
+            reserved_sequence.seeds.fast_vaa_hash.as_ref(),
+        ],
+        bump = reserved_sequence.seeds.bump,
     )]
-    to_router_endpoint: LiveRouterEndpoint<'info>,
+    reserved_sequence: Account<'info, ReservedFastFillSequence>,
+
+    /// When the reserved sequence account was created, the beneficiary was set to the best offer
+    /// token's owner. This account will receive the lamports from the reserved sequence account.
+    ///
+    /// CHECK: This account's address must equal the one encoded in the reserved sequence account.
+    #[account(
+        mut,
+        address = reserved_sequence.beneficiary,
+    )]
+    best_offer_participant: UncheckedAccount<'info>,
 
     #[account(
         init,
@@ -49,7 +60,9 @@ pub struct ExecuteFastOrderLocal<'info> {
         .ok_or(MatchingEngineError::FastFillTooLarge)?,
         seeds = [
             FastFill::SEED_PREFIX,
-            execute_order.active_auction.key().as_ref(),
+            &reserved_sequence.fast_fill_seeds.source_chain.to_be_bytes(),
+            &reserved_sequence.fast_fill_seeds.order_sender,
+            &reserved_sequence.fast_fill_seeds.sequence.to_be_bytes(),
         ],
         bump,
     )]
@@ -85,11 +98,17 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         token_program,
     })?;
 
-    let fast_fill = FastFill::new(ctx.bumps.fast_fill, ctx.accounts.payer.key(), amount, fill);
+    let fast_fill = FastFill::new(
+        fill,
+        ctx.accounts.reserved_sequence.fast_fill_seeds.sequence,
+        ctx.bumps.fast_fill,
+        ctx.accounts.payer.key(),
+        amount,
+    );
     emit_cpi!(crate::events::FilledLocalFastOrder {
-        fast_fill: ctx.accounts.fast_fill.key(),
+        seeds: fast_fill.seeds,
         info: fast_fill.info,
-        redeemer_message: fast_fill.redeemer_message.clone(),
+        auction: ctx.accounts.execute_order.active_auction.key().into(),
     });
     ctx.accounts.fast_fill.set_inner(fast_fill);
 
@@ -109,7 +128,7 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         amount,
     )?;
 
-    // Finally close the account since it is no longer needed.
+    // Close the custody token account since it is no longer needed.
     token::close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
         token::CloseAccount {
@@ -118,5 +137,11 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
             authority: custodian.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],
-    ))
+    ))?;
+
+    // Finally close the reserved sequence account and give the lamports to the best offer
+    // participant.
+    ctx.accounts
+        .reserved_sequence
+        .close(ctx.accounts.best_offer_participant.to_account_info())
 }

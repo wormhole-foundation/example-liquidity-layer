@@ -368,7 +368,7 @@ describe("Token Router", function () {
         });
     });
 
-    describe.skip("Business Logic", function () {
+    describe("Business Logic", function () {
         let testCctpNonce = 2n ** 64n - 1n;
 
         // Hack to prevent math overflow error when invoking CCTP programs.
@@ -1393,7 +1393,7 @@ describe("Token Router", function () {
                 );
             });
 
-            it("Cannot Redeem Fill with Invalid Payload ID", async function () {
+            it("Cannot Redeem Fill with Invalid Deposit Payload ID", async function () {
                 const cctpNonce = testCctpNonce++;
 
                 // Concoct a Circle message.
@@ -1448,9 +1448,15 @@ describe("Token Router", function () {
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress,
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidPayloadId", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer],
+                    "Error Code: InvalidDepositPayloadId",
+                    {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    },
+                );
             });
 
             it("Disable Router Endpoint on Matching Engine", async function () {
@@ -1643,9 +1649,7 @@ describe("Token Router", function () {
 
                 const beneficiary = Keypair.generate().publicKey;
 
-                const vaaAccount = await VaaAccount.fetch(connection, vaa);
-                const preparedFill = tokenRouter.preparedFillAddress(vaaAccount.digest());
-
+                const preparedFill = tokenRouter.preparedFillAddress(vaa);
                 const expectedPreparedFillLamports = await connection
                     .getAccountInfo(preparedFill)
                     .then((info) => info!.lamports);

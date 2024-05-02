@@ -67,6 +67,6 @@ pub fn add_cctp_router_endpoint(
     utils::admin::handle_add_cctp_router_endpoint(
         &mut ctx.accounts.router_endpoint,
         args,
-        Some(ctx.bumps.router_endpoint),
+        ctx.bumps.router_endpoint.into(),
     )
 }

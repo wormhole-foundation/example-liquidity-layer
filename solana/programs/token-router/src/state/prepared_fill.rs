@@ -8,9 +8,13 @@ pub enum FillType {
 }
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
-pub struct PreparedFillInfo {
-    pub vaa_hash: [u8; 32],
+pub struct PreparedFillSeeds {
+    pub fill_source: Pubkey,
     pub bump: u8,
+}
+
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
+pub struct PreparedFillInfo {
     pub prepared_custody_token_bump: u8,
 
     pub prepared_by: Pubkey,
@@ -25,6 +29,7 @@ pub struct PreparedFillInfo {
 #[account]
 #[derive(Debug)]
 pub struct PreparedFill {
+    pub seeds: PreparedFillSeeds,
     pub info: PreparedFillInfo,
     pub redeemer_message: Vec<u8>,
 }
@@ -32,12 +37,19 @@ pub struct PreparedFill {
 impl PreparedFill {
     pub const SEED_PREFIX: &'static [u8] = b"fill";
 
-    pub fn compute_size(payload_len: usize) -> usize {
-        // We should not expect `payload_len` to cause this operation to overflow.
-        #[allow(clippy::arithmetic_side_effects)]
-        let out = 8 + 32 + 1 + 32 + 32 + FillType::INIT_SPACE + 8 + 2 + 32 + 4 + payload_len;
+    pub fn checked_compute_size(payload_len: usize) -> Option<usize> {
+        const FIXED: usize = 8 // DISCRIMINATOR
+            + PreparedFillSeeds::INIT_SPACE
+            + 1 // prepared_custody_token_bump
+            + 32 // prepared_by
+            + FillType::INIT_SPACE
+            + 2 // source_chain
+            + 32 // order_sender
+            + 32 // redeemer
+            + 4 // payload len
+        ;
 
-        out
+        payload_len.checked_add(FIXED)
     }
 }
 

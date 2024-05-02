@@ -1,17 +1,16 @@
 use crate::{
     composite::*,
     error::TokenRouterError,
-    state::{Custodian, FillType, PreparedFill, PreparedFillInfo},
+    state::{Custodian, FillType, PreparedFill, PreparedFillInfo, PreparedFillSeeds},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
-    messages::raw::{LiquidityLayerDepositMessage, MessageToVec},
+    messages::raw::{LiquidityLayerDepositMessage, LiquidityLayerMessage, MessageToVec},
     wormhole_cctp_solana::{
         self,
         cctp::{message_transmitter_program, token_messenger_minter_program},
         cpi::ReceiveMessageArgs,
-        utils::WormholeCctpPayload,
     },
 };
 
@@ -73,9 +72,44 @@ struct CctpReceiveMessage<'info> {
 /// Accounts required for [redeem_cctp_fill].
 #[derive(Accounts)]
 pub struct RedeemCctpFill<'info> {
+    #[account(mut)]
+    payer: Signer<'info>,
+
     custodian: CheckedCustodian<'info>,
 
-    prepared_fill: InitIfNeededPreparedFill<'info>,
+    fill_vaa: LiquidityLayerVaa<'info>,
+
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = try_compute_prepared_fill_size(&fill_vaa)?,
+        seeds = [
+            PreparedFill::SEED_PREFIX,
+            fill_vaa.key().as_ref(),
+        ],
+        bump,
+    )]
+    prepared_fill: Account<'info, PreparedFill>,
+
+    /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
+    /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
+    /// from its custody account to this account.
+    ///
+    /// CHECK: Mutable. Seeds must be \["custody"\].
+    #[account(
+        init_if_needed,
+        payer = payer,
+        token::mint = usdc,
+        token::authority = prepared_fill,
+        seeds = [
+            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
+            prepared_fill.key().as_ref(),
+        ],
+        bump,
+    )]
+    prepared_custody_token: Account<'info, token::TokenAccount>,
+
+    usdc: Usdc<'info>,
 
     /// Registered emitter account representing a Circle Integration on another network.
     ///
@@ -122,14 +156,14 @@ pub fn redeem_cctp_fill(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) -> 
 
 fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) -> Result<()> {
     let vaa = wormhole_cctp_solana::cpi::verify_vaa_and_mint(
-        &ctx.accounts.prepared_fill.fill_vaa,
+        &ctx.accounts.fill_vaa,
         CpiContext::new_with_signer(
             ctx.accounts
                 .cctp
                 .message_transmitter_program
                 .to_account_info(),
             message_transmitter_program::cpi::ReceiveTokenMessengerMinterMessage {
-                payer: ctx.accounts.prepared_fill.payer.to_account_info(),
+                payer: ctx.accounts.payer.to_account_info(),
                 caller: ctx.accounts.custodian.to_account_info(),
                 message_transmitter_authority: ctx
                     .accounts
@@ -185,6 +219,8 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
     )?;
 
     // Validate that this message originated from a registered emitter.
+    //
+    // TODO: Put into account context.
     let endpoint = &ctx.accounts.router_endpoint;
     let emitter = vaa.emitter_info();
     require_eq!(
@@ -198,36 +234,34 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
     );
 
     // Wormhole CCTP deposit should be ours, so make sure this is a fill we recognize.
-    let deposit = WormholeCctpPayload::try_from(vaa.payload())
+    let deposit = LiquidityLayerMessage::try_from(vaa.payload())
         .unwrap()
-        .message()
         .to_deposit_unchecked();
 
-    // NOTE: This is safe because we know the amount is within u64 range.
+    // This is safe because we know the amount is within u64 range.
     let amount = u64::try_from(ruint::aliases::U256::from_be_bytes(deposit.amount())).unwrap();
 
-    // Verify as Liquiditiy Layer Deposit message.
+    // This operation is safe because we already validated the fill from the account context.
     let fill = LiquidityLayerDepositMessage::try_from(deposit.payload())
         .unwrap()
         .to_fill_unchecked();
 
     // Set prepared fill data.
-    ctx.accounts
-        .prepared_fill
-        .prepared_fill
-        .set_inner(PreparedFill {
-            info: PreparedFillInfo {
-                vaa_hash: vaa.digest().0,
-                bump: ctx.bumps.prepared_fill.prepared_fill,
-                prepared_custody_token_bump: ctx.bumps.prepared_fill.custody_token,
-                redeemer: Pubkey::from(fill.redeemer()),
-                prepared_by: ctx.accounts.prepared_fill.payer.key(),
-                fill_type: FillType::WormholeCctpDeposit,
-                source_chain: fill.source_chain(),
-                order_sender: fill.order_sender(),
-            },
-            redeemer_message: fill.message_to_vec(),
-        });
+    ctx.accounts.prepared_fill.set_inner(PreparedFill {
+        seeds: PreparedFillSeeds {
+            fill_source: ctx.accounts.fill_vaa.key(),
+            bump: ctx.bumps.prepared_fill,
+        },
+        info: PreparedFillInfo {
+            prepared_custody_token_bump: ctx.bumps.prepared_custody_token,
+            redeemer: Pubkey::from(fill.redeemer()),
+            prepared_by: ctx.accounts.payer.key(),
+            fill_type: FillType::WormholeCctpDeposit,
+            source_chain: fill.source_chain(),
+            order_sender: fill.order_sender(),
+        },
+        redeemer_message: fill.message_to_vec(),
+    });
 
     // Finally transfer to prepared custody account.
     token::transfer(
@@ -235,11 +269,29 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
             ctx.accounts.token_program.to_account_info(),
             token::Transfer {
                 from: ctx.accounts.cctp.mint_recipient.to_account_info(),
-                to: ctx.accounts.prepared_fill.custody_token.to_account_info(),
+                to: ctx.accounts.prepared_custody_token.to_account_info(),
                 authority: ctx.accounts.custodian.to_account_info(),
             },
             &[Custodian::SIGNER_SEEDS],
         ),
         amount,
     )
+}
+
+fn try_compute_prepared_fill_size(fill_vaa: &LiquidityLayerVaa) -> Result<usize> {
+    let vaa = fill_vaa.load_unchecked();
+    let msg = LiquidityLayerMessage::try_from(vaa.payload()).unwrap();
+
+    let deposit = msg
+        .deposit()
+        .ok_or(error!(TokenRouterError::InvalidPayloadId))?;
+    let msg = LiquidityLayerDepositMessage::try_from(deposit.payload())
+        .map_err(|_| TokenRouterError::InvalidDepositMessage)?;
+    let fill = msg
+        .fill()
+        .ok_or(TokenRouterError::InvalidDepositPayloadId)?;
+
+    // It is safe to unwrap the redeemer message length because u32 -> usize is infallible.
+    PreparedFill::checked_compute_size(fill.redeemer_message_len().try_into().unwrap())
+        .ok_or(error!(TokenRouterError::PreparedFillTooLarge))
 }

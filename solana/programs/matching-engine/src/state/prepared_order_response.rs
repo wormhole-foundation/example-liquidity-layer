@@ -2,6 +2,7 @@ use anchor_lang::prelude::*;
 
 use super::EndpointInfo;
 
+// TODO: Change seeds
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub struct PreparedOrderResponseInfo {
     pub fast_vaa_hash: [u8; 32],
