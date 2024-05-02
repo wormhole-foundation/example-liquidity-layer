@@ -290,7 +290,7 @@ fn handle_place_market_order_cctp(
         token_program.to_account_info(),
         token::CloseAccount {
             account: prepared_custody_token.to_account_info(),
-            destination: payer.to_account_info(),
+            destination: ctx.accounts.prepared_by.to_account_info(),
             authority: custodian.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],

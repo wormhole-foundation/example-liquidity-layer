@@ -70,6 +70,7 @@ pub struct SettleAuctionNoneLocal<'info> {
 }
 
 pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result<()> {
+    let prepared_by = &ctx.accounts.prepared.by;
     let prepared_custody_token = &ctx.accounts.prepared.custody_token;
     let custodian = &ctx.accounts.custodian;
     let token_program = &ctx.accounts.token_program;
@@ -124,7 +125,7 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
         token_program.to_account_info(),
         token::CloseAccount {
             account: prepared_custody_token.to_account_info(),
-            destination: payer.to_account_info(),
+            destination: prepared_by.to_account_info(),
             authority: custodian.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],

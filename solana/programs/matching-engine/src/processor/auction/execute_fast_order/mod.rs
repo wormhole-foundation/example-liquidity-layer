@@ -23,38 +23,36 @@ struct PrepareFastExecution<'ctx, 'info> {
     token_program: &'ctx Program<'info, token::Token>,
 }
 
-struct PreparedOrderExecution {
+struct PreparedOrderExecution<'info> {
     pub user_amount: u64,
     pub fill: Fill,
+    pub beneficiary: Option<AccountInfo<'info>>,
 }
 
-fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrderExecution> {
+fn prepare_order_execution<'info>(
+    accounts: PrepareFastExecution<'_, 'info>,
+) -> Result<PreparedOrderExecution<'info>> {
     let PrepareFastExecution {
         execute_order,
         custodian,
         token_program,
     } = accounts;
 
-    let ExecuteOrder {
-        fast_vaa,
-        active_auction,
-        executor_token,
-        initial_offer_token,
-    } = execute_order;
-
-    let ActiveAuction {
-        auction,
-        custody_token,
-        config,
-        best_offer_token,
-    } = active_auction;
+    let auction = &mut execute_order.active_auction.auction;
+    let fast_vaa = &execute_order.fast_vaa;
+    let custody_token = &execute_order.active_auction.custody_token;
+    let config = &execute_order.active_auction.config;
+    let executor_token = &execute_order.executor_token;
+    let best_offer_token = &execute_order.active_auction.best_offer_token;
+    let initial_offer_token = &execute_order.initial_offer_token;
+    let initial_participant = &execute_order.initial_participant;
 
     let vaa = fast_vaa.load_unchecked();
     let order = LiquidityLayerMessage::try_from(vaa.payload())
         .unwrap()
         .to_fast_market_order_unchecked();
 
-    let (user_amount, new_status) = {
+    let (user_amount, new_status, beneficiary) = {
         let auction_info = auction.info.as_ref().unwrap();
 
         let current_slot = Clock::get().unwrap().slot;
@@ -98,9 +96,25 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
             deposit_and_fee = deposit_and_fee.saturating_sub(penalty);
         }
 
+        let mut beneficiary = None;
+
         // If the initial offer token account doesn't exist anymore, we have nowhere to send the
         // init auction fee. The executor will get these funds instead.
         if !initial_offer_token.data_is_empty() {
+            // Deserialize to token account to find owner. We know this is a legitimate token
+            // account, so it is safe to borrow and unwrap here.
+            {
+                let mut acc_data: &[_] = &initial_offer_token.data.borrow();
+                let token_data = token::TokenAccount::try_deserialize(&mut acc_data).unwrap();
+                require_keys_eq!(
+                    token_data.owner,
+                    initial_participant.key(),
+                    ErrorCode::ConstraintTokenOwner
+                );
+
+                beneficiary.replace(initial_participant.to_account_info());
+            }
+
             if best_offer_token.key() != initial_offer_token.key() {
                 // Pay the auction initiator their fee.
                 token::transfer(
@@ -218,6 +232,7 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
                 slot: current_slot,
                 execute_penalty: if penalized { Some(penalty) } else { None },
             },
+            beneficiary,
         )
     };
 
@@ -235,5 +250,6 @@ fn prepare_order_execution(accounts: PrepareFastExecution) -> Result<PreparedOrd
                 .try_into()
                 .map_err(|_| MatchingEngineError::RedeemerMessageTooLarge)?,
         },
+        beneficiary,
     })
 }

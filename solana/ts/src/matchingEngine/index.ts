@@ -1704,26 +1704,29 @@ export class MatchingEngineProgram {
             auctionConfig?: PublicKey;
             bestOfferToken?: PublicKey;
             initialOfferToken?: PublicKey;
+            initialParticipant?: PublicKey;
         },
         opts: {
             targetChain?: wormholeSdk.ChainId;
         } = {},
     ) {
+        const connection = this.program.provider.connection;
+
         const { payer, fastVaa, auctionConfig, bestOfferToken } = accounts;
 
-        let { auction, executorToken, initialOfferToken } = accounts;
+        let { auction, executorToken, initialOfferToken, initialParticipant } = accounts;
         let { targetChain } = opts;
 
         executorToken ??= splToken.getAssociatedTokenAddressSync(this.mint, payer);
 
         let fastVaaAccount: VaaAccount | undefined;
         if (auction === undefined) {
-            fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+            fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
             auction = this.auctionAddress(fastVaaAccount.digest());
         }
 
         if (targetChain === undefined) {
-            fastVaaAccount ??= await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+            fastVaaAccount ??= await VaaAccount.fetch(connection, fastVaa);
 
             const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
             if (fastMarketOrder === undefined) {
@@ -1740,6 +1743,11 @@ export class MatchingEngineProgram {
             }
             auctionInfo = info;
             initialOfferToken = info.initialOfferToken;
+        }
+
+        if (initialParticipant === undefined) {
+            const token = await splToken.getAccount(connection, initialOfferToken);
+            initialParticipant = token.owner;
         }
 
         const {
@@ -1781,6 +1789,7 @@ export class MatchingEngineProgram {
                     ),
                     executorToken,
                     initialOfferToken,
+                    initialParticipant,
                 },
                 toRouterEndpoint: this.routerEndpointComposite(toRouterEndpoint),
                 custodian: this.checkedCustodianComposite(custodian),
@@ -1818,21 +1827,25 @@ export class MatchingEngineProgram {
             auctionConfig?: PublicKey;
             bestOfferToken?: PublicKey;
             initialOfferToken?: PublicKey;
+            initialParticipant?: PublicKey;
             toRouterEndpoint?: PublicKey;
         },
         opts: {
             sourceChain?: wormholeSdk.ChainId;
         } = {},
     ) {
+        const connection = this.program.provider.connection;
+
         const { payer, fastVaa, auctionConfig, bestOfferToken } = accounts;
 
-        let { auction, executorToken, toRouterEndpoint, initialOfferToken } = accounts;
+        let { auction, executorToken, toRouterEndpoint, initialOfferToken, initialParticipant } =
+            accounts;
         let { sourceChain } = opts;
         executorToken ??= splToken.getAssociatedTokenAddressSync(this.mint, payer);
         toRouterEndpoint ??= this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA);
 
         if (auction === undefined) {
-            const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
+            const vaaAccount = await VaaAccount.fetch(connection, fastVaa);
             auction = this.auctionAddress(vaaAccount.digest());
         }
 
@@ -1850,6 +1863,11 @@ export class MatchingEngineProgram {
             }
             sourceChain ??= auctionInfo.sourceChain;
             initialOfferToken ??= auctionInfo.initialOfferToken;
+        }
+
+        if (initialParticipant === undefined) {
+            const token = await splToken.getAccount(connection, initialOfferToken);
+            initialParticipant = token.owner;
         }
 
         const {
@@ -1879,6 +1897,7 @@ export class MatchingEngineProgram {
                     ),
                     executorToken,
                     initialOfferToken,
+                    initialParticipant,
                 },
                 toRouterEndpoint: this.routerEndpointComposite(toRouterEndpoint),
                 wormhole: {

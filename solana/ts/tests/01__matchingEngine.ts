@@ -2544,6 +2544,7 @@ describe("Matching Engine", function () {
                 const ix = await engine.executeFastOrderCctpIx({
                     payer: liquidator.publicKey,
                     fastVaa,
+                    initialParticipant: payer.publicKey,
                 });
 
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
