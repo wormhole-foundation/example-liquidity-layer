@@ -93,10 +93,7 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
     });
     ctx.accounts.fast_fill.set_inner(fast_fill);
 
-    let payer = &ctx.accounts.payer;
-    let active_auction = &ctx.accounts.execute_order.active_auction;
-
-    let auction_custody_token = &active_auction.custody_token;
+    let auction_custody_token = &ctx.accounts.execute_order.active_auction.custody_token;
 
     // Transfer funds to the local custody account.
     token::transfer(
@@ -117,7 +114,7 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         token_program.to_account_info(),
         token::CloseAccount {
             account: auction_custody_token.to_account_info(),
-            destination: beneficiary.unwrap_or(payer.to_account_info()),
+            destination: beneficiary.unwrap_or(ctx.accounts.payer.to_account_info()),
             authority: custodian.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],

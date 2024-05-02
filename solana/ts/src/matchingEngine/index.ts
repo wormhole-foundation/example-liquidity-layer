@@ -141,6 +141,7 @@ export type AuctionSettled = {
     auction: PublicKey;
     bestOfferToken: PublicKey | null;
     tokenBalanceAfter: BN;
+    withExecute: MessageProtocol | null;
 };
 
 export type AuctionUpdated = {
@@ -225,7 +226,7 @@ export class MatchingEngineProgram {
     onFilledLocalFastOrder(
         callback: (
             event: FilledLocalFastOrder,
-            slot: number,
+            eventSlot: number,
             signature: string,
             currentSlotInfo?: SlotInfo,
         ) => void,
@@ -277,8 +278,18 @@ export class MatchingEngineProgram {
             }
         });
 
-        return this.onOrderExecuted(async (orderExecutedEvent, eventSlot, signature) => {
+        this.onOrderExecuted(async (orderExecutedEvent, eventSlot, signature) => {
             if (orderExecutedEvent.targetProtocol.local === undefined) {
+                return;
+            }
+
+            signatureSlots.push({ signature, eventSlot });
+        });
+
+        // No new listener IDs are created on subsequent addEventListener calls.
+        return this.onAuctionSettled(async (auctionSettledEvent, eventSlot, signature) => {
+            const withExecute = auctionSettledEvent.withExecute;
+            if (withExecute === null || withExecute.local === undefined) {
                 return;
             }
 
@@ -1579,35 +1590,22 @@ export class MatchingEngineProgram {
             sourceChain ??= fastVaaAccount.emitterInfo().chain;
         }
 
-        const {
-            custodian,
-            coreMessage,
-            coreBridgeConfig,
-            coreEmitterSequence,
-            coreFeeCollector,
-            coreBridgeProgram,
-        } = await this.publishMessageAccounts(auction);
-
         const { feeRecipientToken } = await this.fetchCustodian();
 
         return this.program.methods
             .settleAuctionNoneLocal()
             .accounts({
                 payer,
-                coreMessage,
-                custodian: this.checkedCustodianComposite(custodian),
+                custodian: this.checkedCustodianComposite(),
                 feeRecipientToken,
                 prepared: this.closePreparedOrderResponseComposite({
                     by: payer,
                     orderResponse: preparedOrderResponse,
                 }),
                 auction,
-                wormhole: {
-                    config: coreBridgeConfig,
-                    emitterSequence: coreEmitterSequence,
-                    feeCollector: coreFeeCollector,
-                    coreBridgeProgram,
-                },
+                fastFill: this.fastFillAddress(auction),
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
                 localCustodyToken: this.localCustodyTokenAddress(sourceChain),
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
@@ -1982,9 +1980,9 @@ export class MatchingEngineProgram {
                 },
                 toRouterEndpoint: this.routerEndpointComposite(toRouterEndpoint),
                 fastFill: this.fastFillAddress(activeAuction.auction),
-                localCustodyToken: this.localCustodyTokenAddress(sourceChain),
                 eventAuthority: this.eventAuthorityAddress(),
                 program: this.ID,
+                localCustodyToken: this.localCustodyTokenAddress(sourceChain),
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
                 sysvars: this.requiredSysvarsComposite(),

@@ -6,7 +6,6 @@ pub use local::*;
 
 use crate::{
     composite::*,
-    error::MatchingEngineError,
     state::{Auction, AuctionStatus, PreparedOrderResponse},
 };
 use anchor_lang::prelude::*;
@@ -98,17 +97,21 @@ fn settle_none_and_prepare_fill(
         auction: auction.key(),
         best_offer_token: Default::default(),
         token_balance_after: fee_recipient_token.amount.saturating_add(fee),
+        with_execute: Some(auction.target_protocol),
     });
 
+    // TryInto is safe to unwrap here because the redeemer message had to have been able to fit in
+    // the prepared order response account (so it would not have exceed u32::MAX).
+    let redeemer_message = std::mem::take(&mut prepared_order_response.redeemer_message)
+        .try_into()
+        .unwrap();
     Ok(SettledNone {
         user_amount: prepared_custody_token.amount.saturating_sub(fee),
         fill: Fill {
             source_chain: prepared_order_response.source_chain,
             order_sender: prepared_order_response.sender,
             redeemer: prepared_order_response.redeemer,
-            redeemer_message: std::mem::take(&mut prepared_order_response.redeemer_message)
-                .try_into()
-                .map_err(|_| MatchingEngineError::RedeemerMessageTooLarge)?,
+            redeemer_message,
         },
     })
 }

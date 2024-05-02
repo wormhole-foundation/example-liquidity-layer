@@ -170,6 +170,7 @@ fn handle_settle_auction_complete(
         auction: ctx.accounts.auction.key(),
         best_offer_token: Some(best_offer_token.key()),
         token_balance_after: best_offer_token.amount.saturating_add(repayment),
+        with_execute: Default::default(),
     });
 
     // Finally close the prepared custody token account.
