@@ -2,8 +2,6 @@ pub mod admin;
 
 pub mod auction;
 
-pub(crate) mod wormhole;
-
 use crate::{error::MatchingEngineError, state::RouterEndpoint};
 use anchor_lang::prelude::*;
 use common::wormhole_cctp_solana::wormhole::{VaaAccount, SOLANA_CHAIN};

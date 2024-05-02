@@ -1777,10 +1777,6 @@
           "signer": true
         },
         {
-          "name": "core_message",
-          "writable": true
-        },
-        {
           "name": "custodian",
           "accounts": [
             {
@@ -1823,24 +1819,8 @@
           "writable": true
         },
         {
-          "name": "wormhole",
-          "accounts": [
-            {
-              "name": "config",
-              "writable": true
-            },
-            {
-              "name": "emitter_sequence",
-              "writable": true
-            },
-            {
-              "name": "fee_collector",
-              "writable": true
-            },
-            {
-              "name": "core_bridge_program"
-            }
-          ]
+          "name": "fast_fill",
+          "writable": true
         },
         {
           "name": "local_custody_token",
@@ -1870,6 +1850,12 @@
               ]
             }
           ]
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -3068,6 +3054,19 @@
               "recipient token account."
             ],
             "type": "u64"
+          },
+          {
+            "name": "with_execute",
+            "docs": [
+              "This value will only be some if there was no active auction."
+            ],
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "MessageProtocol"
+                }
+              }
+            }
           }
         ]
       }

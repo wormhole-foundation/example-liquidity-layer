@@ -1783,10 +1783,6 @@ export type MatchingEngine = {
           "signer": true
         },
         {
-          "name": "coreMessage",
-          "writable": true
-        },
-        {
           "name": "custodian",
           "accounts": [
             {
@@ -1829,24 +1825,8 @@ export type MatchingEngine = {
           "writable": true
         },
         {
-          "name": "wormhole",
-          "accounts": [
-            {
-              "name": "config",
-              "writable": true
-            },
-            {
-              "name": "emitterSequence",
-              "writable": true
-            },
-            {
-              "name": "feeCollector",
-              "writable": true
-            },
-            {
-              "name": "coreBridgeProgram"
-            }
-          ]
+          "name": "fastFill",
+          "writable": true
         },
         {
           "name": "localCustodyToken",
@@ -1876,6 +1856,12 @@ export type MatchingEngine = {
               ]
             }
           ]
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -3074,6 +3060,19 @@ export type MatchingEngine = {
               "recipient token account."
             ],
             "type": "u64"
+          },
+          {
+            "name": "withExecute",
+            "docs": [
+              "This value will only be some if there was no active auction."
+            ],
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "messageProtocol"
+                }
+              }
+            }
           }
         ]
       }

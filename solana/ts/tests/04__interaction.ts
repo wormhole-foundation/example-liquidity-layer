@@ -32,6 +32,7 @@ import {
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,
+    getBlockTime,
     postLiquidityLayerVaa,
     waitUntilSlot,
 } from "./helpers";
@@ -285,14 +286,52 @@ describe("Matching Engine <> Token Router", function () {
 
         let wormholeSequence = 4000n;
 
-        describe.skip("Settle Auction", function () {
+        describe("Settle Auction", function () {
+            const emittedEvents: {
+                event: matchingEngineSdk.FilledLocalFastOrder;
+                slot: number;
+                signature: string;
+            }[] = [];
+
+            let listenerId: number | null;
+
+            before("Update Local Router Endpoint", async function () {
+                const ix = await matchingEngine.updateLocalRouterEndpointIx({
+                    owner: owner.publicKey,
+                    tokenRouterProgram: tokenRouter.ID,
+                });
+                await expectIxOk(connection, [ix], [owner]);
+            });
+
+            before("Start Event Listener", async function () {
+                listenerId = matchingEngine.onFilledLocalFastOrder((event, slot, signature) => {
+                    emittedEvents.push({ event, slot, signature });
+                });
+            });
+
+            after("Disable Local Router Endpoint", async function () {
+                const ix = await matchingEngine.disableRouterEndpointIx(
+                    {
+                        owner: owner.publicKey,
+                    },
+                    wormholeSdk.CHAIN_ID_SOLANA,
+                );
+                await expectIxOk(connection, [ix], [owner]);
+            });
+
+            after("Stop Event Listener", async function () {
+                if (listenerId !== null) {
+                    matchingEngine.program.removeEventListener(listenerId!);
+                }
+            });
+
             describe("Settle No Auction (Local)", function () {
                 it("Settle", async function () {
-                    const { prepareIx, auction, fastVaa, finalizedVaa } =
+                    const { auction, fastVaa, fastVaaAccount, finalizedVaaAccount } =
                         await prepareOrderResponse({
                             initAuction: false,
                             executeOrder: false,
-                            prepareOrderResponse: false,
+                            prepareOrderResponse: true,
                         });
                     const settleIx = await matchingEngine.settleAuctionNoneLocalIx({
                         payer: payer.publicKey,
@@ -306,28 +345,60 @@ describe("Matching Engine <> Token Router", function () {
                     const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
                         units: 400_000,
                     });
-                    await expectIxOk(connection, [prepareIx!, settleIx, computeIx], [payer], {
-                        addressLookupTableAccounts: [lookupTableAccount!],
+                    const txDetails = await expectIxOkDetails(
+                        connection,
+                        [settleIx, computeIx],
+                        [payer],
+                        {
+                            addressLookupTableAccounts: [lookupTableAccount!],
+                        },
+                    );
+
+                    const { fastMarketOrder } = LiquidityLayerMessage.decode(
+                        fastVaaAccount.payload(),
+                    );
+                    expect(fastMarketOrder).is.not.undefined;
+                    const { amountIn, initAuctionFee, sender, redeemer, redeemerMessage } =
+                        fastMarketOrder!;
+
+                    const message = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
+                    const { slowOrderResponse } = message.deposit!.message;
+                    expect(slowOrderResponse).is.not.undefined;
+                    const { baseFee } = slowOrderResponse!;
+
+                    // Check Fast Fill account.
+                    const fastFill = matchingEngine.fastFillAddress(auction);
+                    const fastFillData = await matchingEngine.fetchFastFill({ address: fastFill });
+                    const { bump } = fastFillData;
+                    expect(fastFillData).to.eql(
+                        new matchingEngineSdk.FastFill(
+                            bump,
+                            payer.publicKey,
+                            false,
+                            {
+                                amount: uint64ToBN(amountIn - baseFee - initAuctionFee),
+                                sourceChain: fastVaaAccount.emitterInfo().chain,
+                                orderSender: sender,
+                                redeemer: new PublicKey(redeemer),
+                            },
+                            redeemerMessage,
+                        ),
+                    );
+
+                    while (emittedEvents.length == 0) {
+                        console.log("waiting...");
+                        await new Promise((resolve) => setTimeout(resolve, 200));
+                    }
+
+                    const { event, slot, signature } = emittedEvents.shift()!;
+                    expect(slot).equals(txDetails!.slot);
+                    expect(signature).equals(txDetails!.transaction.signatures[0]);
+                    expect(event).to.eql({
+                        fastFill,
+                        info: fastFillData.info,
+                        redeemerMessage,
                     });
                 });
-            });
-
-            before("Update Local Router Endpoint", async function () {
-                const ix = await matchingEngine.updateLocalRouterEndpointIx({
-                    owner: owner.publicKey,
-                    tokenRouterProgram: tokenRouter.ID,
-                });
-                await expectIxOk(connection, [ix], [owner]);
-            });
-
-            after("Disable Local Router Endpoint", async function () {
-                const ix = await matchingEngine.disableRouterEndpointIx(
-                    {
-                        owner: owner.publicKey,
-                    },
-                    wormholeSdk.CHAIN_ID_SOLANA,
-                );
-                await expectIxOk(connection, [ix], [owner]);
             });
         });
 
@@ -407,11 +478,8 @@ describe("Matching Engine <> Token Router", function () {
                     info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
                 );
 
-                const auctionCustodyTokenBalanceBefore =
-                    await matchingEngine.fetchAuctionCustodyTokenBalance(auction);
                 const localCustodyTokenBalanceBefore =
                     await matchingEngine.fetchLocalCustodyTokenBalance(foreignChain);
-                expect(localCustodyTokenBalanceBefore).equals(0n);
 
                 const ix = await matchingEngine.executeFastOrderLocalIx({
                     payer: payer.publicKey,
@@ -428,22 +496,25 @@ describe("Matching Engine <> Token Router", function () {
                 const localCustodyTokenBalanceAfter =
                     await matchingEngine.fetchLocalCustodyTokenBalance(foreignChain);
 
-                const { penalty, userReward } = await matchingEngine.computeDepositPenalty(
-                    info!,
-                    BigInt(txDetails!.slot),
-                    info!.configId,
-                );
+                // const { penalty, userReward } = await matchingEngine.computeDepositPenalty(
+                //     info!,
+                //     BigInt(txDetails!.slot),
+                //     info!.configId,
+                // );
 
                 const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
                 const {
                     amountIn,
                     maxFee: offerPrice,
                     initAuctionFee,
+                    sender,
                     redeemer,
                     redeemerMessage,
                 } = fastMarketOrder!;
-                const userAmount = amountIn - offerPrice - initAuctionFee + userReward;
-                expect(localCustodyTokenBalanceAfter).equals(userAmount);
+                const userAmount = amountIn - offerPrice - initAuctionFee;
+                expect(localCustodyTokenBalanceAfter).equals(
+                    localCustodyTokenBalanceBefore + userAmount,
+                );
 
                 // Check Fast Fill account.
                 const fastFill = matchingEngine.fastFillAddress(auction);
@@ -457,7 +528,7 @@ describe("Matching Engine <> Token Router", function () {
                         {
                             amount: uint64ToBN(userAmount),
                             sourceChain: fastVaaAccount.emitterInfo().chain,
-                            orderSender: fastMarketOrder!.sender,
+                            orderSender: sender,
                             redeemer: new PublicKey(redeemer),
                         },
                         redeemerMessage,
@@ -474,12 +545,7 @@ describe("Matching Engine <> Token Router", function () {
                 expect(signature).equals(txDetails!.transaction.signatures[0]);
                 expect(event).to.eql({
                     fastFill,
-                    info: {
-                        amount: uint64ToBN(userAmount),
-                        sourceChain: fastVaaAccount.emitterInfo().chain,
-                        orderSender: fastMarketOrder!.sender,
-                        redeemer: new PublicKey(redeemer),
-                    },
+                    info: fastFillData.info,
                     redeemerMessage,
                 });
             });
@@ -958,6 +1024,7 @@ describe("Matching Engine <> Token Router", function () {
                 ),
             });
 
+            const vaaTimestamp = await getBlockTime(connection);
             const finalizedVaa = await postLiquidityLayerVaa(
                 connection,
                 payer,
@@ -965,6 +1032,7 @@ describe("Matching Engine <> Token Router", function () {
                 ethRouter,
                 wormholeSequence++,
                 finalizedMessage,
+                { timestamp: vaaTimestamp },
             );
             const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
 
@@ -975,6 +1043,7 @@ describe("Matching Engine <> Token Router", function () {
                 ethRouter,
                 wormholeSequence++,
                 fastMessage,
+                { timestamp: vaaTimestamp },
             );
             const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
 

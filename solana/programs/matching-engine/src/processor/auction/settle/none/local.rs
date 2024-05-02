@@ -1,27 +1,16 @@
 use crate::{
     composite::*,
-    state::{Auction, Custodian},
-    utils,
+    state::{Auction, Custodian, FastFill},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
 /// Accounts required for [settle_auction_none_local].
+#[event_cpi]
 #[derive(Accounts)]
 pub struct SettleAuctionNoneLocal<'info> {
     #[account(mut)]
     payer: Signer<'info>,
-
-    /// CHECK: Mutable. Seeds must be \["msg", payer, payer_sequence.value\].
-    #[account(
-        mut,
-        seeds = [
-            common::CORE_MESSAGE_SEED_PREFIX,
-            auction.key().as_ref(),
-        ],
-        bump,
-    )]
-    core_message: UncheckedAccount<'info>,
 
     custodian: CheckedCustodian<'info>,
 
@@ -51,7 +40,17 @@ pub struct SettleAuctionNoneLocal<'info> {
     )]
     auction: Box<Account<'info, Auction>>,
 
-    wormhole: WormholePublishMessage<'info>,
+    #[account(
+        init,
+        payer = payer,
+        space = FastFill::checked_compute_size(prepared.order_response.redeemer_message.len()).unwrap(),
+        seeds = [
+            FastFill::SEED_PREFIX,
+            auction.key().as_ref(),
+        ],
+        bump,
+    )]
+    fast_fill: Account<'info, FastFill>,
 
     #[account(
         mut,
@@ -90,21 +89,13 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
         ctx.bumps.auction,
     )?;
 
-    let payer = &ctx.accounts.payer;
-
-    utils::wormhole::post_matching_engine_message(
-        utils::wormhole::PostMatchingEngineMessage {
-            wormhole: &ctx.accounts.wormhole,
-            core_message: &ctx.accounts.core_message,
-            custodian,
-            payer,
-            system_program: &ctx.accounts.system_program,
-            sysvars: &ctx.accounts.sysvars,
-        },
-        common::messages::FastFill { amount, fill },
-        &ctx.accounts.auction.key(),
-        ctx.bumps.core_message,
-    )?;
+    let fast_fill = FastFill::new(ctx.bumps.fast_fill, ctx.accounts.payer.key(), amount, fill);
+    emit_cpi!(crate::events::FilledLocalFastOrder {
+        fast_fill: ctx.accounts.fast_fill.key(),
+        info: fast_fill.info,
+        redeemer_message: fast_fill.redeemer_message.clone(),
+    });
+    ctx.accounts.fast_fill.set_inner(fast_fill);
 
     // Transfer funds to the local custody account.
     token::transfer(
