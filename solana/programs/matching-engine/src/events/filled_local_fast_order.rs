@@ -1,9 +1,9 @@
-use crate::state::FastFillInfo;
+use crate::state::{FastFillInfo, FastFillSeeds};
 use anchor_lang::prelude::*;
 
 #[event]
 pub struct FilledLocalFastOrder {
-    pub fast_fill: Pubkey,
+    pub seeds: FastFillSeeds,
     pub info: FastFillInfo,
-    pub redeemer_message: Vec<u8>,
+    pub auction: Option<Pubkey>,
 }

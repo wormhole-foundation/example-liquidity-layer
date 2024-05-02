@@ -25,7 +25,7 @@ pub struct ImproveOffer<'info> {
             let info = active_auction.info.as_ref().unwrap();
 
             require!(
-                Clock::get().unwrap().slot <= info.auction_end_slot(&active_auction.config),
+                info.within_auction_duration(&active_auction.config),
                 MatchingEngineError::AuctionPeriodExpired
             );
 

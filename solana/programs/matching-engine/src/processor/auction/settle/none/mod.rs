@@ -75,7 +75,7 @@ fn settle_none_and_prepare_fill(
             &[prepared_order_response_signer_seeds],
         ),
         token::spl_token::instruction::AuthorityType::AccountOwner,
-        Some(custodian.key()),
+        custodian.key().into(),
     )?;
 
     // This is a necessary security check. This will prevent a relayer from starting an auction with
@@ -97,7 +97,7 @@ fn settle_none_and_prepare_fill(
         auction: auction.key(),
         best_offer_token: Default::default(),
         token_balance_after: fee_recipient_token.amount.saturating_add(fee),
-        with_execute: Some(auction.target_protocol),
+        with_execute: auction.target_protocol.into(),
     });
 
     // TryInto is safe to unwrap here because the redeemer message had to have been able to fit in

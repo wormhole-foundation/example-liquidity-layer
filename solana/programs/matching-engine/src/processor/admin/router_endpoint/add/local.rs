@@ -32,6 +32,6 @@ pub fn add_local_router_endpoint(ctx: Context<AddLocalRouterEndpoint>) -> Result
         &ctx.accounts.local.token_router_program,
         &ctx.accounts.local.token_router_emitter,
         &ctx.accounts.local.token_router_mint_recipient,
-        Some(ctx.bumps.router_endpoint),
+        ctx.bumps.router_endpoint.into(),
     )
 }

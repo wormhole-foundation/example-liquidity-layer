@@ -1,37 +1,60 @@
+import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import { Uint64, writeUint64BE } from "../../common";
 
 export type FastFillInfo = {
     amount: BN;
-    sourceChain: number;
-    orderSender: Array<number>;
     redeemer: PublicKey;
 };
 
-export class FastFill {
+export type FastFillSeeds = {
+    sourceChain: number;
+    orderSender: Array<number>;
+    sequence: BN;
     bump: number;
+};
+
+export class FastFill {
+    seeds: FastFillSeeds;
     preparedBy: PublicKey;
     redeemed: boolean;
     info: FastFillInfo;
     redeemerMessage: Buffer;
 
     constructor(
-        bump: number,
+        seeds: FastFillSeeds,
         preparedBy: PublicKey,
         redeemed: boolean,
         info: FastFillInfo,
         redeemerMessage: Buffer,
     ) {
-        this.bump = bump;
+        this.seeds = seeds;
         this.preparedBy = preparedBy;
         this.redeemed = redeemed;
         this.info = info;
         this.redeemerMessage = redeemerMessage;
     }
 
-    static address(programId: PublicKey, auction: PublicKey) {
+    static address(
+        programId: PublicKey,
+        sourceChain: wormholeSdk.ChainId,
+        orderSender: Array<number>,
+        sequence: Uint64,
+    ) {
+        const encodedSourceChain = Buffer.alloc(2);
+        encodedSourceChain.writeUInt16BE(sourceChain);
+
+        const encodedSequence = Buffer.alloc(8);
+        writeUint64BE(encodedSequence, sequence);
+
         return PublicKey.findProgramAddressSync(
-            [Buffer.from("fast-fill"), Buffer.from(auction.toBuffer())],
+            [
+                Buffer.from("fast-fill"),
+                encodedSourceChain,
+                Buffer.from(orderSender),
+                encodedSequence,
+            ],
             programId,
         )[0];
     }

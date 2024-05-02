@@ -336,11 +336,6 @@
       ],
       "accounts": [
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
           "name": "custodian",
           "accounts": [
             {
@@ -349,15 +344,7 @@
           ]
         },
         {
-          "name": "fast_fill_vaa",
-          "accounts": [
-            {
-              "name": "vaa"
-            }
-          ]
-        },
-        {
-          "name": "redeemed_fast_fill",
+          "name": "fast_fill",
           "writable": true
         },
         {
@@ -395,9 +382,6 @@
         },
         {
           "name": "token_program"
-        },
-        {
-          "name": "system_program"
         }
       ],
       "args": []
@@ -845,12 +829,24 @@
           ]
         },
         {
-          "name": "to_router_endpoint",
-          "accounts": [
-            {
-              "name": "endpoint"
-            }
-          ]
+          "name": "reserved_sequence",
+          "docs": [
+            "This account will be closed at the end of this instruction instead of using the close",
+            "account directive here.",
+            "",
+            "NOTE: We do not need to do a VAA hash check because that was already performed when the",
+            "reserved sequence was created."
+          ],
+          "writable": true
+        },
+        {
+          "name": "best_offer_participant",
+          "docs": [
+            "When the reserved sequence account was created, the beneficiary was set to the best offer",
+            "token's owner. This account will receive the lamports from the reserved sequence account.",
+            ""
+          ],
+          "writable": true
         },
         {
           "name": "fast_fill",
@@ -1467,6 +1463,204 @@
       ]
     },
     {
+      "name": "reserve_fast_fill_sequence_active_auction",
+      "discriminator": [
+        206,
+        255,
+        241,
+        68,
+        224,
+        129,
+        210,
+        187
+      ],
+      "accounts": [
+        {
+          "name": "reserve_sequence",
+          "accounts": [
+            {
+              "name": "payer",
+              "writable": true,
+              "signer": true
+            },
+            {
+              "name": "fast_order_path",
+              "accounts": [
+                {
+                  "name": "fast_vaa",
+                  "accounts": [
+                    {
+                      "name": "vaa"
+                    }
+                  ]
+                },
+                {
+                  "name": "path",
+                  "accounts": [
+                    {
+                      "name": "from_endpoint",
+                      "accounts": [
+                        {
+                          "name": "endpoint"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "to_endpoint",
+                      "accounts": [
+                        {
+                          "name": "endpoint"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "sequencer",
+              "docs": [
+                "This sequencer determines the next reserved sequence. If it does not exist for a given",
+                "source chain and sender, it will be created.",
+                "",
+                "Auction participants may want to consider pricing the creation of this account into their",
+                "offer prices by checking whether this sequencer already exists for those orders destined for",
+                "Solana."
+              ],
+              "writable": true
+            },
+            {
+              "name": "reserved",
+              "docs": [
+                "This account will be used to determine the sequence of the next fast fill. When a local",
+                "order is executed or an non-existent auction is settled, this account will be closed."
+              ],
+              "writable": true
+            },
+            {
+              "name": "system_program"
+            }
+          ]
+        },
+        {
+          "name": "auction",
+          "docs": [
+            "must have been created by this point. Otherwise the auction account must reflect a completed",
+            "auction."
+          ]
+        },
+        {
+          "name": "auction_config"
+        },
+        {
+          "name": "best_offer_token",
+          "docs": [
+            "Best offer token account, whose owner will be the beneficiary of the reserved fast fill",
+            "sequence account when it is closed."
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "reserve_fast_fill_sequence_no_auction",
+      "discriminator": [
+        61,
+        148,
+        140,
+        87,
+        186,
+        87,
+        212,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "reserve_sequence",
+          "accounts": [
+            {
+              "name": "payer",
+              "writable": true,
+              "signer": true
+            },
+            {
+              "name": "fast_order_path",
+              "accounts": [
+                {
+                  "name": "fast_vaa",
+                  "accounts": [
+                    {
+                      "name": "vaa"
+                    }
+                  ]
+                },
+                {
+                  "name": "path",
+                  "accounts": [
+                    {
+                      "name": "from_endpoint",
+                      "accounts": [
+                        {
+                          "name": "endpoint"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "to_endpoint",
+                      "accounts": [
+                        {
+                          "name": "endpoint"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "sequencer",
+              "docs": [
+                "This sequencer determines the next reserved sequence. If it does not exist for a given",
+                "source chain and sender, it will be created.",
+                "",
+                "Auction participants may want to consider pricing the creation of this account into their",
+                "offer prices by checking whether this sequencer already exists for those orders destined for",
+                "Solana."
+              ],
+              "writable": true
+            },
+            {
+              "name": "reserved",
+              "docs": [
+                "This account will be used to determine the sequence of the next fast fill. When a local",
+                "order is executed or an non-existent auction is settled, this account will be closed."
+              ],
+              "writable": true
+            },
+            {
+              "name": "system_program"
+            }
+          ]
+        },
+        {
+          "name": "prepared_order_response",
+          "docs": [
+            "The preparer will be the beneficiary of the reserved fast fill sequence account when it is",
+            "closed. This instruction will not allow this account to be provided if there is an existing",
+            "auction, which would enforce the order be executed when it is time to complete the auction."
+          ]
+        },
+        {
+          "name": "auction",
+          "docs": [
+            "must have been created by this point. Otherwise the auction account must reflect a completed",
+            "auction."
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "set_pause",
       "docs": [
         "This instruction is used to pause or unpause further processing of new auctions. Only the `owner`",
@@ -1815,6 +2009,19 @@
           "name": "auction",
           "docs": [
             "There should be no account data here because an auction was never created."
+          ],
+          "writable": true
+        },
+        {
+          "name": "reserved_sequence",
+          "docs": [
+            "This account will be closed at the end of this instruction instead of using the close",
+            "account directive here.",
+            "",
+            "If we could reference the beneficiary using `prepared.by`, this would be a different story.",
+            "",
+            "NOTE: We do not need to do a VAA hash check because that was already performed when the",
+            "reserved sequence was created."
           ],
           "writable": true
         },
@@ -2259,6 +2466,19 @@
       ]
     },
     {
+      "name": "FastFillSequencer",
+      "discriminator": [
+        70,
+        193,
+        18,
+        127,
+        227,
+        183,
+        46,
+        177
+      ]
+    },
+    {
       "name": "PreparedOrderResponse",
       "discriminator": [
         20,
@@ -2285,19 +2505,6 @@
       ]
     },
     {
-      "name": "RedeemedFastFill",
-      "discriminator": [
-        44,
-        188,
-        179,
-        117,
-        17,
-        246,
-        14,
-        11
-      ]
-    },
-    {
       "name": "RemoteTokenMessenger",
       "discriminator": [
         105,
@@ -2308,6 +2515,19 @@
         233,
         138,
         252
+      ]
+    },
+    {
+      "name": "ReservedFastFillSequence",
+      "discriminator": [
+        77,
+        151,
+        219,
+        66,
+        126,
+        238,
+        151,
+        179
       ]
     },
     {
@@ -2582,10 +2802,6 @@
       "name": "OfferPriceTooHigh"
     },
     {
-      "code": 7030,
-      "name": "InvalidEmitterForFastFill"
-    },
-    {
       "code": 7032,
       "name": "AuctionNotActive"
     },
@@ -2624,6 +2840,42 @@
     {
       "code": 7062,
       "name": "FastFillTooLarge"
+    },
+    {
+      "code": 7064,
+      "name": "AuctionExists"
+    },
+    {
+      "code": 7065,
+      "name": "AccountNotAuction"
+    },
+    {
+      "code": 7066,
+      "name": "BestOfferTokenMismatch"
+    },
+    {
+      "code": 7068,
+      "name": "BestOfferTokenRequired"
+    },
+    {
+      "code": 7070,
+      "name": "PreparedByMismatch"
+    },
+    {
+      "code": 7071,
+      "name": "PreparedOrderResponseNotRequired"
+    },
+    {
+      "code": 7072,
+      "name": "AuctionConfigNotRequired"
+    },
+    {
+      "code": 7073,
+      "name": "BestOfferTokenNotRequired"
+    },
+    {
+      "code": 7076,
+      "name": "FastFillAlreadyRedeemed"
     },
     {
       "code": 7280,
@@ -3313,8 +3565,12 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "bump",
-            "type": "u8"
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "FastFillSeeds"
+              }
+            }
           },
           {
             "name": "prepared_by",
@@ -3349,6 +3605,18 @@
             "type": "u64"
           },
           {
+            "name": "redeemer",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FastFillSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
             "name": "source_chain",
             "type": "u16"
           },
@@ -3362,8 +3630,57 @@
             }
           },
           {
-            "name": "redeemer",
-            "type": "pubkey"
+            "name": "sequence",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FastFillSequencer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "FastFillSequencerSeeds"
+              }
+            }
+          },
+          {
+            "name": "next_sequence",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FastFillSequencerSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "source_chain",
+            "type": "u16"
+          },
+          {
+            "name": "sender",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }
@@ -3374,8 +3691,12 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "fast_fill",
-            "type": "pubkey"
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "FastFillSeeds"
+              }
+            }
           },
           {
             "name": "info",
@@ -3386,8 +3707,10 @@
             }
           },
           {
-            "name": "redeemer_message",
-            "type": "bytes"
+            "name": "auction",
+            "type": {
+              "option": "pubkey"
+            }
           }
         ]
       }
@@ -3657,31 +3980,6 @@
       }
     },
     {
-      "name": "RedeemedFastFill",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "bump",
-            "type": "u8"
-          },
-          {
-            "name": "vaa_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "sequence",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
       "name": "RemoteTokenMessenger",
       "type": {
         "kind": "struct",
@@ -3698,6 +3996,55 @@
                 32
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReservedFastFillSequence",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "ReservedFastFillSequenceSeeds"
+              }
+            }
+          },
+          {
+            "name": "beneficiary",
+            "type": "pubkey"
+          },
+          {
+            "name": "fast_fill_seeds",
+            "type": {
+              "defined": {
+                "name": "FastFillSeeds"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReservedFastFillSequenceSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fast_vaa_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }

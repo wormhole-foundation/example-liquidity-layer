@@ -145,7 +145,7 @@ pub fn place_initial_offer_cctp(
         vaa_timestamp: fast_vaa.timestamp(),
         target_protocol: ctx.accounts.fast_order_path.to_endpoint.protocol,
         status: AuctionStatus::Active,
-        info: Some(AuctionInfo {
+        info: AuctionInfo {
             config_id: config.id,
             custody_token_bump: ctx.bumps.auction_custody_token,
             vaa_sequence: fast_vaa.sequence(),
@@ -157,7 +157,8 @@ pub fn place_initial_offer_cctp(
             security_deposit,
             offer_price,
             destination_asset_info: Default::default(),
-        }),
+        }
+        .into(),
     });
 
     let info = ctx.accounts.auction.info.as_ref().unwrap();
@@ -166,7 +167,7 @@ pub fn place_initial_offer_cctp(
     emit!(crate::events::AuctionUpdated {
         config_id: info.config_id,
         auction: ctx.accounts.auction.key(),
-        vaa: Some(ctx.accounts.fast_order_path.fast_vaa.key()),
+        vaa: ctx.accounts.fast_order_path.fast_vaa.key().into(),
         source_chain: info.source_chain,
         target_protocol: ctx.accounts.auction.target_protocol,
         end_slot: info.auction_end_slot(config),

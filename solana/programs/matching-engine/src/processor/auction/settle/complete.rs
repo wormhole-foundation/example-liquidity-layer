@@ -168,7 +168,7 @@ fn handle_settle_auction_complete(
 
     emit!(crate::events::AuctionSettled {
         auction: ctx.accounts.auction.key(),
-        best_offer_token: Some(best_offer_token.key()),
+        best_offer_token: best_offer_token.key().into(),
         token_balance_after: best_offer_token.amount.saturating_add(repayment),
         with_execute: Default::default(),
     });

@@ -625,6 +625,11 @@ export type TokenRouter = {
       ],
       "accounts": [
         {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
           "name": "custodian",
           "accounts": [
             {
@@ -633,48 +638,32 @@ export type TokenRouter = {
           ]
         },
         {
-          "name": "preparedFill",
+          "name": "fillVaa",
           "accounts": [
             {
-              "name": "payer",
-              "writable": true,
-              "signer": true
-            },
+              "name": "vaa"
+            }
+          ]
+        },
+        {
+          "name": "preparedFill",
+          "writable": true
+        },
+        {
+          "name": "preparedCustodyToken",
+          "docs": [
+            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
+            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
+            "from its custody account to this account.",
+            ""
+          ],
+          "writable": true
+        },
+        {
+          "name": "usdc",
+          "accounts": [
             {
-              "name": "fillVaa",
-              "accounts": [
-                {
-                  "name": "vaa"
-                }
-              ]
-            },
-            {
-              "name": "preparedFill",
-              "writable": true
-            },
-            {
-              "name": "custodyToken",
-              "docs": [
-                "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-                "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-                "from its custody account to this account.",
-                ""
-              ],
-              "writable": true
-            },
-            {
-              "name": "usdc",
-              "accounts": [
-                {
-                  "name": "mint"
-                }
-              ]
-            },
-            {
-              "name": "tokenProgram"
-            },
-            {
-              "name": "systemProgram"
+              "name": "mint"
             }
           ]
         },
@@ -797,6 +786,11 @@ export type TokenRouter = {
       ],
       "accounts": [
         {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
           "name": "custodian",
           "accounts": [
             {
@@ -805,57 +799,33 @@ export type TokenRouter = {
           ]
         },
         {
+          "name": "fastFill",
+          "writable": true
+        },
+        {
           "name": "preparedFill",
+          "writable": true
+        },
+        {
+          "name": "preparedCustodyToken",
+          "docs": [
+            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
+            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
+            "from its custody account to this account.",
+            ""
+          ],
+          "writable": true
+        },
+        {
+          "name": "usdc",
           "accounts": [
             {
-              "name": "payer",
-              "writable": true,
-              "signer": true
-            },
-            {
-              "name": "fillVaa",
-              "accounts": [
-                {
-                  "name": "vaa"
-                }
-              ]
-            },
-            {
-              "name": "preparedFill",
-              "writable": true
-            },
-            {
-              "name": "custodyToken",
-              "docs": [
-                "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-                "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-                "from its custody account to this account.",
-                ""
-              ],
-              "writable": true
-            },
-            {
-              "name": "usdc",
-              "accounts": [
-                {
-                  "name": "mint"
-                }
-              ]
-            },
-            {
-              "name": "tokenProgram"
-            },
-            {
-              "name": "systemProgram"
+              "name": "mint"
             }
           ]
         },
         {
           "name": "matchingEngineCustodian",
-          "writable": true
-        },
-        {
-          "name": "matchingEngineRedeemedFastFill",
           "writable": true
         },
         {
@@ -1028,6 +998,19 @@ export type TokenRouter = {
       ]
     },
     {
+      "name": "fastFill",
+      "discriminator": [
+        89,
+        120,
+        166,
+        41,
+        106,
+        227,
+        218,
+        121
+      ]
+    },
+    {
       "name": "preparedFill",
       "discriminator": [
         202,
@@ -1091,6 +1074,10 @@ export type TokenRouter = {
     {
       "code": 6070,
       "name": "invalidPayloadId"
+    },
+    {
+      "code": 6072,
+      "name": "invalidDepositPayloadId"
     },
     {
       "code": 6078,
@@ -1159,6 +1146,10 @@ export type TokenRouter = {
     {
       "code": 7028,
       "name": "invalidRedeemer"
+    },
+    {
+      "code": 7030,
+      "name": "preparedFillTooLarge"
     }
   ],
   "types": [
@@ -1277,6 +1268,87 @@ export type TokenRouter = {
                 "name": "messageProtocol"
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFill",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "fastFillSeeds"
+              }
+            }
+          },
+          {
+            "name": "preparedBy",
+            "type": "pubkey"
+          },
+          {
+            "name": "redeemed",
+            "type": "bool"
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": {
+                "name": "fastFillInfo"
+              }
+            }
+          },
+          {
+            "name": "redeemerMessage",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFillInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "redeemer",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFillSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sourceChain",
+            "type": "u16"
+          },
+          {
+            "name": "orderSender",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "sequence",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }
@@ -1413,6 +1485,14 @@ export type TokenRouter = {
         "kind": "struct",
         "fields": [
           {
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "preparedFillSeeds"
+              }
+            }
+          },
+          {
             "name": "info",
             "type": {
               "defined": {
@@ -1432,19 +1512,6 @@ export type TokenRouter = {
       "type": {
         "kind": "struct",
         "fields": [
-          {
-            "name": "vaaHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          },
           {
             "name": "preparedCustodyTokenBump",
             "type": "u8"
@@ -1477,6 +1544,22 @@ export type TokenRouter = {
           {
             "name": "redeemer",
             "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "preparedFillSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fillSource",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }

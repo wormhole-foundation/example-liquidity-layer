@@ -37,6 +37,7 @@ const PREPARED_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"prepared-custody";
 
 const FEE_PRECISION_MAX: u32 = 1_000_000;
 const VAA_AUCTION_EXPIRATION_TIME: i64 = 2 * 60 * 60; // 2 hours
+const EXECUTE_FAST_ORDER_LOCAL_ADDITIONAL_GRACE_PERIOD: u64 = 5; // slots
 
 #[program]
 pub mod matching_engine {
@@ -354,6 +355,18 @@ pub mod matching_engine {
     /// * `ctx` - `AddAuctionHistoryEntry` context.
     pub fn add_auction_history_entry(ctx: Context<AddAuctionHistoryEntry>) -> Result<()> {
         processor::add_auction_history_entry(ctx)
+    }
+
+    pub fn reserve_fast_fill_sequence_active_auction(
+        ctx: Context<ReserveFastFillSequenceActiveAuction>,
+    ) -> Result<()> {
+        processor::reserve_fast_fill_sequence_active_auction(ctx)
+    }
+
+    pub fn reserve_fast_fill_sequence_no_auction(
+        ctx: Context<ReserveFastFillSequenceNoAuction>,
+    ) -> Result<()> {
+        processor::reserve_fast_fill_sequence_no_auction(ctx)
     }
 }
 

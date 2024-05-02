@@ -1,14 +1,11 @@
 use std::ops::Deref;
 
-use crate::{
-    error::TokenRouterError,
-    state::{Custodian, PreparedFill},
-};
+use crate::{error::TokenRouterError, state::Custodian};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
     admin::utils::{assistant::only_authorized, ownable::only_owner},
-    messages::raw::{LiquidityLayerDepositMessage, LiquidityLayerMessage, LiquidityLayerPayload},
+    messages::raw::LiquidityLayerMessage,
     wormhole_cctp_solana::wormhole::VaaAccount,
 };
 
@@ -60,7 +57,7 @@ pub struct LiquidityLayerVaa<'info> {
             let vaa = VaaAccount::load(&vaa)?;
 
             // Is it a legitimate LL message?
-            LiquidityLayerPayload::try_from(vaa.payload()).map_err(|_| TokenRouterError::InvalidVaa)?;
+            LiquidityLayerMessage::try_from(vaa.payload()).map_err(|_| TokenRouterError::InvalidVaa)?;
 
             // Done.
             true
@@ -164,80 +161,4 @@ pub struct AdminMut<'info> {
         bump = Custodian::BUMP,
     )]
     pub custodian: Account<'info, Custodian>,
-}
-
-#[derive(Accounts)]
-pub struct InitIfNeededPreparedFill<'info> {
-    #[account(mut)]
-    pub payer: Signer<'info>,
-
-    pub fill_vaa: LiquidityLayerVaa<'info>,
-
-    #[account(
-        init_if_needed,
-        payer = payer,
-        space = compute_prepared_fill_size(&fill_vaa)?,
-        seeds = [
-            PreparedFill::SEED_PREFIX,
-            fill_vaa.load_unchecked().digest().as_ref(),
-        ],
-        bump,
-    )]
-    pub prepared_fill: Account<'info, PreparedFill>,
-
-    /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
-    /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
-    /// from its custody account to this account.
-    ///
-    /// CHECK: Mutable. Seeds must be \["custody"\].
-    #[account(
-        init_if_needed,
-        payer = payer,
-        token::mint = usdc,
-        token::authority = prepared_fill,
-        seeds = [
-            crate::PREPARED_CUSTODY_TOKEN_SEED_PREFIX,
-            prepared_fill.key().as_ref(),
-        ],
-        bump,
-    )]
-    pub custody_token: Account<'info, token::TokenAccount>,
-
-    pub usdc: Usdc<'info>,
-
-    pub token_program: Program<'info, token::Token>,
-    pub system_program: Program<'info, System>,
-}
-
-impl<'info> Deref for InitIfNeededPreparedFill<'info> {
-    type Target = Account<'info, PreparedFill>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.prepared_fill
-    }
-}
-
-fn compute_prepared_fill_size(vaa_acc_info: &UncheckedAccount<'_>) -> Result<usize> {
-    let vaa = VaaAccount::load(vaa_acc_info)?;
-    let msg = LiquidityLayerMessage::try_from(vaa.payload()).unwrap();
-
-    match msg {
-        LiquidityLayerMessage::Deposit(deposit) => {
-            let msg = LiquidityLayerDepositMessage::try_from(deposit.payload())
-                .map_err(|_| TokenRouterError::InvalidDepositMessage)?;
-            let fill = msg.fill().ok_or(TokenRouterError::InvalidPayloadId)?;
-            Ok(fill
-                .redeemer_message_len()
-                .try_into()
-                .map(PreparedFill::compute_size)
-                .unwrap())
-        }
-        LiquidityLayerMessage::FastFill(fast_fill) => Ok(fast_fill
-            .fill()
-            .redeemer_message_len()
-            .try_into()
-            .map(PreparedFill::compute_size)
-            .unwrap()),
-        _ => err!(TokenRouterError::InvalidPayloadId),
-    }
 }

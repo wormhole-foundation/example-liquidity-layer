@@ -619,6 +619,11 @@
       ],
       "accounts": [
         {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
           "name": "custodian",
           "accounts": [
             {
@@ -627,48 +632,32 @@
           ]
         },
         {
-          "name": "prepared_fill",
+          "name": "fill_vaa",
           "accounts": [
             {
-              "name": "payer",
-              "writable": true,
-              "signer": true
-            },
+              "name": "vaa"
+            }
+          ]
+        },
+        {
+          "name": "prepared_fill",
+          "writable": true
+        },
+        {
+          "name": "prepared_custody_token",
+          "docs": [
+            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
+            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
+            "from its custody account to this account.",
+            ""
+          ],
+          "writable": true
+        },
+        {
+          "name": "usdc",
+          "accounts": [
             {
-              "name": "fill_vaa",
-              "accounts": [
-                {
-                  "name": "vaa"
-                }
-              ]
-            },
-            {
-              "name": "prepared_fill",
-              "writable": true
-            },
-            {
-              "name": "custody_token",
-              "docs": [
-                "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-                "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-                "from its custody account to this account.",
-                ""
-              ],
-              "writable": true
-            },
-            {
-              "name": "usdc",
-              "accounts": [
-                {
-                  "name": "mint"
-                }
-              ]
-            },
-            {
-              "name": "token_program"
-            },
-            {
-              "name": "system_program"
+              "name": "mint"
             }
           ]
         },
@@ -791,6 +780,11 @@
       ],
       "accounts": [
         {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
           "name": "custodian",
           "accounts": [
             {
@@ -799,57 +793,33 @@
           ]
         },
         {
+          "name": "fast_fill",
+          "writable": true
+        },
+        {
           "name": "prepared_fill",
+          "writable": true
+        },
+        {
+          "name": "prepared_custody_token",
+          "docs": [
+            "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
+            "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
+            "from its custody account to this account.",
+            ""
+          ],
+          "writable": true
+        },
+        {
+          "name": "usdc",
           "accounts": [
             {
-              "name": "payer",
-              "writable": true,
-              "signer": true
-            },
-            {
-              "name": "fill_vaa",
-              "accounts": [
-                {
-                  "name": "vaa"
-                }
-              ]
-            },
-            {
-              "name": "prepared_fill",
-              "writable": true
-            },
-            {
-              "name": "custody_token",
-              "docs": [
-                "Mint recipient token account, which is encoded as the mint recipient in the CCTP message.",
-                "The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message",
-                "from its custody account to this account.",
-                ""
-              ],
-              "writable": true
-            },
-            {
-              "name": "usdc",
-              "accounts": [
-                {
-                  "name": "mint"
-                }
-              ]
-            },
-            {
-              "name": "token_program"
-            },
-            {
-              "name": "system_program"
+              "name": "mint"
             }
           ]
         },
         {
           "name": "matching_engine_custodian",
-          "writable": true
-        },
-        {
-          "name": "matching_engine_redeemed_fast_fill",
           "writable": true
         },
         {
@@ -1022,6 +992,19 @@
       ]
     },
     {
+      "name": "FastFill",
+      "discriminator": [
+        89,
+        120,
+        166,
+        41,
+        106,
+        227,
+        218,
+        121
+      ]
+    },
+    {
       "name": "PreparedFill",
       "discriminator": [
         202,
@@ -1085,6 +1068,10 @@
     {
       "code": 6070,
       "name": "InvalidPayloadId"
+    },
+    {
+      "code": 6072,
+      "name": "InvalidDepositPayloadId"
     },
     {
       "code": 6078,
@@ -1153,6 +1140,10 @@
     {
       "code": 7028,
       "name": "InvalidRedeemer"
+    },
+    {
+      "code": 7030,
+      "name": "PreparedFillTooLarge"
     }
   ],
   "types": [
@@ -1271,6 +1262,87 @@
                 "name": "MessageProtocol"
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "FastFill",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "FastFillSeeds"
+              }
+            }
+          },
+          {
+            "name": "prepared_by",
+            "type": "pubkey"
+          },
+          {
+            "name": "redeemed",
+            "type": "bool"
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": {
+                "name": "FastFillInfo"
+              }
+            }
+          },
+          {
+            "name": "redeemer_message",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FastFillInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "redeemer",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FastFillSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "source_chain",
+            "type": "u16"
+          },
+          {
+            "name": "order_sender",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "sequence",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }
@@ -1407,6 +1479,14 @@
         "kind": "struct",
         "fields": [
           {
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "PreparedFillSeeds"
+              }
+            }
+          },
+          {
             "name": "info",
             "type": {
               "defined": {
@@ -1426,19 +1506,6 @@
       "type": {
         "kind": "struct",
         "fields": [
-          {
-            "name": "vaa_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "bump",
-            "type": "u8"
-          },
           {
             "name": "prepared_custody_token_bump",
             "type": "u8"
@@ -1471,6 +1538,22 @@
           {
             "name": "redeemer",
             "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PreparedFillSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fill_source",
+            "type": "pubkey"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }

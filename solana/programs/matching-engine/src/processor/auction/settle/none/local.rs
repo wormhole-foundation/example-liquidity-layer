@@ -1,6 +1,7 @@
 use crate::{
     composite::*,
-    state::{Auction, Custodian, FastFill},
+    error::MatchingEngineError,
+    state::{Auction, Custodian, FastFill, ReservedFastFillSequence},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -25,6 +26,17 @@ pub struct SettleAuctionNoneLocal<'info> {
     )]
     fee_recipient_token: Account<'info, token::TokenAccount>,
 
+    #[account(
+        constraint = {
+            require_keys_eq!(
+                prepared.by.key(),
+                reserved_sequence.beneficiary,
+                MatchingEngineError::PreparedByMismatch
+            );
+
+            true
+        }
+    )]
     prepared: ClosePreparedOrderResponse<'info>,
 
     /// There should be no account data here because an auction was never created.
@@ -40,13 +52,32 @@ pub struct SettleAuctionNoneLocal<'info> {
     )]
     auction: Box<Account<'info, Auction>>,
 
+    /// This account will be closed at the end of this instruction instead of using the close
+    /// account directive here.
+    ///
+    /// If we could reference the beneficiary using `prepared.by`, this would be a different story.
+    ///
+    /// NOTE: We do not need to do a VAA hash check because that was already performed when the
+    /// reserved sequence was created.
+    #[account(
+        mut,
+        seeds = [
+            ReservedFastFillSequence::SEED_PREFIX,
+            reserved_sequence.seeds.fast_vaa_hash.as_ref(),
+        ],
+        bump = reserved_sequence.seeds.bump,
+    )]
+    reserved_sequence: Account<'info, ReservedFastFillSequence>,
+
     #[account(
         init,
         payer = payer,
         space = FastFill::checked_compute_size(prepared.order_response.redeemer_message.len()).unwrap(),
         seeds = [
             FastFill::SEED_PREFIX,
-            auction.key().as_ref(),
+            &reserved_sequence.fast_fill_seeds.source_chain.to_be_bytes(),
+            &reserved_sequence.fast_fill_seeds.order_sender,
+            &reserved_sequence.fast_fill_seeds.sequence.to_be_bytes(),
         ],
         bump,
     )]
@@ -89,11 +120,17 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
         ctx.bumps.auction,
     )?;
 
-    let fast_fill = FastFill::new(ctx.bumps.fast_fill, ctx.accounts.payer.key(), amount, fill);
+    let fast_fill = FastFill::new(
+        fill,
+        ctx.accounts.reserved_sequence.fast_fill_seeds.sequence,
+        ctx.bumps.fast_fill,
+        ctx.accounts.payer.key(),
+        amount,
+    );
     emit_cpi!(crate::events::FilledLocalFastOrder {
-        fast_fill: ctx.accounts.fast_fill.key(),
+        seeds: fast_fill.seeds,
         info: fast_fill.info,
-        redeemer_message: fast_fill.redeemer_message.clone(),
+        auction: Default::default(),
     });
     ctx.accounts.fast_fill.set_inner(fast_fill);
 
@@ -111,7 +148,7 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
         amount,
     )?;
 
-    // Finally close the account since it is no longer needed.
+    // Close the custody token account since it is no longer needed.
     token::close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
         token::CloseAccount {
@@ -120,5 +157,11 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
             authority: custodian.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],
-    ))
+    ))?;
+
+    // Finally close the reserved sequence account and give the lamports to the one who paid the
+    // lamports for the prepared order response.
+    ctx.accounts
+        .reserved_sequence
+        .close(prepared_by.to_account_info())
 }

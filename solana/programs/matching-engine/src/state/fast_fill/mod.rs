@@ -1,18 +1,30 @@
+mod reserved_sequence;
+pub use reserved_sequence::*;
+
+mod sequencer;
+pub use sequencer::*;
+
 use anchor_lang::prelude::*;
 use common::messages::Fill;
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace)]
 pub struct FastFillInfo {
     pub amount: u64,
+    pub redeemer: Pubkey,
+}
+
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace)]
+pub struct FastFillSeeds {
     pub source_chain: u16,
     pub order_sender: [u8; 32],
-    pub redeemer: Pubkey,
+    pub sequence: u64,
+    pub bump: u8,
 }
 
 #[account]
 #[derive(Debug)]
 pub struct FastFill {
-    pub bump: u8,
+    pub seeds: FastFillSeeds,
     pub prepared_by: Pubkey,
     pub redeemed: bool,
     pub info: FastFillInfo,
@@ -24,7 +36,7 @@ impl FastFill {
 
     pub(crate) fn checked_compute_size(redeemer_message_len: usize) -> Option<usize> {
         const FIXED: usize = 8 // DISCRIMINATOR
-        + 1 // bump
+        + FastFillSeeds::INIT_SPACE
         + 32 // prepared_by
         + 1 // redeemed
         + FastFillInfo::INIT_SPACE
@@ -36,7 +48,7 @@ impl FastFill {
             .filter(|&size| size <= super::MAX_CPI_ALLOCATE_SIZE)
     }
 
-    pub fn new(bump: u8, prepared_by: Pubkey, amount: u64, fill: Fill) -> Self {
+    pub fn new(fill: Fill, sequence: u64, bump: u8, prepared_by: Pubkey, amount: u64) -> Self {
         let Fill {
             source_chain,
             order_sender,
@@ -44,13 +56,16 @@ impl FastFill {
             redeemer_message,
         } = fill;
         Self {
-            bump,
+            seeds: FastFillSeeds {
+                source_chain,
+                order_sender,
+                sequence,
+                bump,
+            },
             prepared_by,
             redeemed: Default::default(),
             info: FastFillInfo {
                 amount,
-                source_chain,
-                order_sender,
                 redeemer: Pubkey::from(redeemer),
             },
             redeemer_message: redeemer_message.into(),

@@ -30,6 +30,13 @@ export const OWNER_KEYPAIR = Keypair.fromSecretKey(
     ),
 );
 
+export const PLAYER_ONE_KEYPAIR = Keypair.fromSecretKey(
+    Buffer.from(
+        "4STrqllKVVva0Fphqyf++6uGTVReATBe2cI26oIuVBft77CQP9qQrMTU1nM9ql0EnCpSgmCmm20m8khMo9WdPQ==",
+        "base64",
+    ),
+);
+
 export const GOVERNANCE_EMITTER_ADDRESS = new PublicKey("11111111111111111111111111111115");
 
 export const GUARDIAN_KEY = "cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0";

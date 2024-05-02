@@ -93,29 +93,39 @@ pub struct AuctionInfo {
 
 impl AuctionInfo {
     /// Compute start slot + duration.
-    #[inline]
     pub fn auction_end_slot(&self, params: &AuctionParameters) -> u64 {
         self.start_slot.saturating_add(params.duration.into())
     }
 
     /// Compute start slot + duration + grace period.
-    #[inline]
-    pub fn grace_period_end_slot(&self, params: &AuctionParameters) -> u64 {
+    pub fn grace_period_end_slot(
+        &self,
+        params: &AuctionParameters,
+        additional_grace_period: Option<u64>,
+    ) -> u64 {
         self.auction_end_slot(params)
             .saturating_add(params.grace_period.into())
+            .saturating_add(additional_grace_period.unwrap_or_default())
     }
 
     /// Compute start slot + duration + grace period + penalty slots.
-    #[inline]
-    pub fn penalty_period_end_slot(&self, params: &AuctionParameters) -> u64 {
-        self.grace_period_end_slot(params)
+    pub fn penalty_period_end_slot(
+        &self,
+        params: &AuctionParameters,
+        additional_grace_period: Option<u64>,
+    ) -> u64 {
+        self.grace_period_end_slot(params, additional_grace_period)
             .saturating_add(params.penalty_period.into())
     }
 
     /// Compute amount in + security deposit.
-    #[inline]
     pub fn total_deposit(&self) -> u64 {
         self.amount_in.saturating_add(self.security_deposit)
+    }
+
+    /// Determine whether the auction is still within its duration (using [Clock]).
+    pub fn within_auction_duration(&self, params: &AuctionParameters) -> bool {
+        Clock::get().unwrap().slot <= self.auction_end_slot(params)
     }
 }
 

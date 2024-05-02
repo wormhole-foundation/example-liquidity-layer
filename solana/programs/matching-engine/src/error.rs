@@ -59,7 +59,6 @@ pub enum MatchingEngineError {
 
     FastMarketOrderExpired = 0x400,
     OfferPriceTooHigh = 0x402,
-    InvalidEmitterForFastFill = 0x406,
     AuctionNotActive = 0x408,
     AuctionPeriodExpired = 0x40a,
     AuctionPeriodNotExpired = 0x40c,
@@ -70,6 +69,15 @@ pub enum MatchingEngineError {
     ExecutorNotPreparedBy = 0x422,
     InvalidOfferToken = 0x424,
     FastFillTooLarge = 0x426,
+    AuctionExists = 0x428,
+    AccountNotAuction = 0x429,
+    BestOfferTokenMismatch = 0x42a,
+    BestOfferTokenRequired = 0x42c,
+    PreparedByMismatch = 0x42e,
+    PreparedOrderResponseNotRequired = 0x42f,
+    AuctionConfigNotRequired = 0x430,
+    BestOfferTokenNotRequired = 0x431,
+    FastFillAlreadyRedeemed = 0x434,
 
     CannotCloseAuctionYet = 0x500,
     AuctionHistoryNotFull = 0x502,
