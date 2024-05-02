@@ -81,14 +81,7 @@ pub fn handle_execute_fast_order_cctp(
         fill,
         beneficiary,
     } = super::prepare_order_execution(super::PrepareFastExecution {
-        auction: &mut ctx.accounts.execute_order.active_auction.auction,
-        fast_vaa: &ctx.accounts.execute_order.fast_vaa,
-        custody_token: &ctx.accounts.execute_order.active_auction.custody_token,
-        config: &ctx.accounts.execute_order.active_auction.config,
-        executor_token: &ctx.accounts.execute_order.executor_token,
-        best_offer_token: &ctx.accounts.execute_order.active_auction.best_offer_token,
-        initial_offer_token: &ctx.accounts.execute_order.initial_offer_token,
-        initial_participant: &ctx.accounts.execute_order.initial_participant,
+        execute_order: &mut ctx.accounts.execute_order,
         custodian: &ctx.accounts.custodian,
         token_program: &ctx.accounts.token_program,
     })?;
