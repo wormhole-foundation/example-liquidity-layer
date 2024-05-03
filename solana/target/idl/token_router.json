@@ -1136,11 +1136,11 @@
     },
     {
       "code": 6522,
-      "name": "TooManyAuthorities"
+      "name": "MissingAuthority"
     },
     {
-      "code": 6524,
-      "name": "MissingAuthority"
+      "code": 6523,
+      "name": "TooManyAuthorities"
     },
     {
       "code": 7024,
