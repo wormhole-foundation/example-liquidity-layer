@@ -324,15 +324,15 @@ export class TokenRouterProgram {
         accounts: {
             preparedOrder: PublicKey;
             senderToken: PublicKey;
-            sender?: PublicKey;
+            senderTokenAuthority?: PublicKey;
         },
         args: PrepareMarketOrderArgs,
     ): Promise<{ transferAuthority: PublicKey; ix: TransactionInstruction }> {
         const { preparedOrder, senderToken } = accounts;
         const { amountIn } = args;
 
-        let { sender } = accounts;
-        sender ??= await (async () => {
+        let { senderTokenAuthority } = accounts;
+        senderTokenAuthority ??= await (async () => {
             const tokenAccount = await splToken.getAccount(
                 this.program.provider.connection,
                 senderToken,
@@ -344,7 +344,12 @@ export class TokenRouterProgram {
 
         return {
             transferAuthority,
-            ix: splToken.createApproveInstruction(senderToken, transferAuthority, sender, amountIn),
+            ix: splToken.createApproveInstruction(
+                senderToken,
+                transferAuthority,
+                senderTokenAuthority,
+                amountIn,
+            ),
         };
     }
 
@@ -353,19 +358,39 @@ export class TokenRouterProgram {
             payer: PublicKey;
             preparedOrder: PublicKey;
             senderToken: PublicKey;
+            senderTokenAuthority?: PublicKey;
             refundToken?: PublicKey;
-            sender?: PublicKey;
+            programTransferAuthority?: PublicKey | null;
+            sender?: PublicKey | null;
         },
-        args: PrepareMarketOrderArgs,
-    ): Promise<[approveIx: TransactionInstruction, prepareIx: TransactionInstruction]> {
-        const { payer, preparedOrder, senderToken, sender } = accounts;
-        let { refundToken } = accounts;
+        args: { useTransferAuthority?: boolean } & PrepareMarketOrderArgs,
+    ): Promise<[approveIx: TransactionInstruction | null, prepareIx: TransactionInstruction]> {
+        const { payer, preparedOrder, senderToken, senderTokenAuthority } = accounts;
+
+        let { refundToken, programTransferAuthority, sender } = accounts;
         refundToken ??= senderToken;
 
-        const { transferAuthority, ix: approveIx } = await this.approveTransferAuthorityIx(
-            { preparedOrder, senderToken, sender },
-            args,
-        );
+        let { useTransferAuthority } = args;
+        useTransferAuthority ??= true;
+
+        let approveIx: TransactionInstruction | null = null;
+
+        if (sender === undefined) {
+            sender = null;
+        }
+
+        if (programTransferAuthority === undefined) {
+            if (useTransferAuthority) {
+                const approveResult = await this.approveTransferAuthorityIx(
+                    { preparedOrder, senderToken, senderTokenAuthority },
+                    args,
+                );
+                programTransferAuthority = approveResult.transferAuthority;
+                approveIx = approveResult.ix;
+            } else {
+                programTransferAuthority = null;
+            }
+        }
 
         const prepareIx = await this.program.methods
             .prepareMarketOrder({
@@ -376,7 +401,9 @@ export class TokenRouterProgram {
             .accounts({
                 payer,
                 custodian: this.checkedCustodianComposite(),
-                transferAuthority,
+                programTransferAuthority,
+                // @ts-ignore Sender can be null.
+                sender,
                 preparedOrder,
                 senderToken,
                 refundToken,
