@@ -12,8 +12,6 @@ fi
 rm -rf .anchor/test-ledger
 mkdir -p .anchor
 
-anchor build -- --features integration-test
-
 ### Start up the validator.
 echo "Starting solana-test-validator"
 

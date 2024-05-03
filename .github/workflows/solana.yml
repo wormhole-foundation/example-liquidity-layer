@@ -41,11 +41,25 @@ jobs:
       - name: make lint
         run: make lint
         working-directory: ./solana
+  make-anchor-build-idl:
+    name: make anchor-build-idl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: metadaoproject/setup-anchor@v2
+        with:
+          node-version: "20.11.0"
+          solana-cli-version: "1.18.11"
+          anchor-version: "0.30.0"
+      - name: Set default Rust toolchain
+        run: rustup default stable
+        working-directory: ./solana
+      - name: make anchor-build-idl
+        run: make anchor-build-idl
+        working-directory: ./solana
   make-anchor-test:
     name: make anchor-test
     runs-on: ubuntu-latest
-    # Anchor Docker image: https://www.anchor-lang.com/docs/verifiable-builds#images
-    # container: backpackapp/build:v0.30.0
     steps:
       - uses: actions/checkout@v4
       - uses: metadaoproject/setup-anchor@v2

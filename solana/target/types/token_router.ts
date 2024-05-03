@@ -1142,11 +1142,11 @@ export type TokenRouter = {
     },
     {
       "code": 6522,
-      "name": "tooManyAuthorities"
+      "name": "missingAuthority"
     },
     {
-      "code": 6524,
-      "name": "missingAuthority"
+      "code": 6523,
+      "name": "tooManyAuthorities"
     },
     {
       "code": 7024,
