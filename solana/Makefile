@@ -45,14 +45,23 @@ ifdef BUILD_$(NETWORK)
 	cp target/deploy/*.so $(BUILD_$(NETWORK))/
 endif
 
-$(BUILD_$(NETWORK)): cargo-test
-
-.PHONY: anchor-test
-anchor-test: node_modules ts/tests/artifacts $(CLONED_MAINNET_PROGRAMS)
+.PHONY: anchor-test-setup
+anchor-test-setup: node_modules ts/tests/artifacts $(CLONED_MAINNET_PROGRAMS)
 	anchor build --no-idl -- --features testnet
 	cp target/deploy/matching_engine.so ts/tests/artifacts/new_testnet_matching_engine.so
 	cp target/deploy/token_router.so ts/tests/artifacts/new_testnet_token_router.so
 	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
+	anchor build -- --features integration-test
+
+.PHONY: anchor-build-idl
+anchor-build-idl:
+	anchor build -- --features localnet
+	git diff --exit-code
+
+$(BUILD_$(NETWORK)): cargo-test
+
+.PHONY: anchor-test
+anchor-test: anchor-test-setup
 	bash sh/run_anchor_test.sh
 
 .PHONY: clippy
