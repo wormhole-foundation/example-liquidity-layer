@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 
 use super::MessageProtocol;
 
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, PartialEq, Eq, Default)]
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, Default, InitSpace, PartialEq, Eq)]
 pub enum AuctionStatus {
     #[default]
     NotStarted,
@@ -42,13 +42,13 @@ impl std::fmt::Display for AuctionStatus {
     }
 }
 
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, Copy)]
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace)]
 pub struct AuctionDestinationAssetInfo {
     pub custody_token_bump: u8,
     pub amount_out: u64,
 }
 
-#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace, Copy)]
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace)]
 pub struct AuctionInfo {
     pub config_id: u32,
 
@@ -80,6 +80,9 @@ pub struct AuctionInfo {
 
     /// The offer price of the auction.
     pub offer_price: u64,
+
+    /// Length of the redeemer message, which may impact the expense to execute the auction.
+    pub redeemer_message_len: u32,
 
     /// If the destination asset is not equal to the asset used for auctions, this will be some
     /// value specifying its custody token bump and amount out.

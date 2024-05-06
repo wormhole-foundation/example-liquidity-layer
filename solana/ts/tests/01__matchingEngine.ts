@@ -2062,6 +2062,7 @@ describe("Matching Engine", function () {
                     offerPrice: prevOfferPrice,
                     destinationAssetInfo,
                     sourceChain,
+                    redeemerMessageLen,
                 } = info!;
                 expect(offerPrice).not.equals(BigInt(prevOfferPrice.toString()));
 
@@ -2078,6 +2079,7 @@ describe("Matching Engine", function () {
                         amountIn,
                         securityDeposit,
                         offerPrice: uint64ToBN(offerPrice),
+                        redeemerMessageLen,
                         destinationAssetInfo,
                     }),
                 );
@@ -4265,7 +4267,7 @@ describe("Matching Engine", function () {
                     {
                         const accInfo = await connection.getAccountInfo(accounts.history);
 
-                        let entrySize = 157;
+                        let entrySize = 161;
                         if (info!.destinationAssetInfo === null) {
                             entrySize -= 9;
                         }
@@ -4380,7 +4382,7 @@ describe("Matching Engine", function () {
 
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fast.vaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
-        const { amountIn, maxFee, targetChain } = fastMarketOrder!;
+        const { amountIn, maxFee, targetChain, redeemerMessage } = fastMarketOrder!;
 
         const auctionData = await engine.fetchAuction({ address: auction });
         const { bump, info } = auctionData;
@@ -4420,6 +4422,7 @@ describe("Matching Engine", function () {
                     amountIn: expectedAmountIn,
                     securityDeposit,
                     offerPrice: uint64ToBN(args.offerPrice),
+                    redeemerMessageLen: redeemerMessage.length,
                     destinationAssetInfo: null,
                 },
             ),

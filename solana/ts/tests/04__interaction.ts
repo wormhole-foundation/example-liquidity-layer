@@ -708,7 +708,7 @@ describe("Matching Engine <> Token Router", function () {
 
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fast.vaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
-        const { amountIn, maxFee, targetChain } = fastMarketOrder!;
+        const { amountIn, maxFee, redeemerMessage } = fastMarketOrder!;
 
         const auctionData = await matchingEngine.fetchAuction({ address: auction });
         const { bump, info } = auctionData;
@@ -745,6 +745,7 @@ describe("Matching Engine <> Token Router", function () {
                     amountIn: expectedAmountIn,
                     securityDeposit,
                     offerPrice: uint64ToBN(args.offerPrice),
+                    redeemerMessageLen: redeemerMessage.length,
                     destinationAssetInfo: null,
                 },
             ),

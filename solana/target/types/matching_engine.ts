@@ -2591,6 +2591,19 @@ export type MatchingEngine = {
       ]
     },
     {
+      "name": "fastFillSequenceReserved",
+      "discriminator": [
+        6,
+        154,
+        159,
+        87,
+        13,
+        183,
+        211,
+        152
+      ]
+    },
+    {
       "name": "filledLocalFastOrder",
       "discriminator": [
         94,
@@ -3213,6 +3226,13 @@ export type MatchingEngine = {
             "type": "u64"
           },
           {
+            "name": "redeemerMessageLen",
+            "docs": [
+              "Length of the redeemer message, which may impact the expense to execute the auction."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "destinationAssetInfo",
             "docs": [
               "If the destination asset is not equal to the asset used for auctions, this will be some",
@@ -3403,6 +3423,10 @@ export type MatchingEngine = {
                 "name": "messageProtocol"
               }
             }
+          },
+          {
+            "name": "redeemerMessageLen",
+            "type": "u32"
           },
           {
             "name": "endSlot",
@@ -3642,6 +3666,31 @@ export type MatchingEngine = {
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFillSequenceReserved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fastVaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "fastFillSeeds",
+            "type": {
+              "defined": {
+                "name": "fastFillSeeds"
+              }
+            }
           }
         ]
       }

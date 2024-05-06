@@ -2585,6 +2585,19 @@
       ]
     },
     {
+      "name": "FastFillSequenceReserved",
+      "discriminator": [
+        6,
+        154,
+        159,
+        87,
+        13,
+        183,
+        211,
+        152
+      ]
+    },
+    {
       "name": "FilledLocalFastOrder",
       "discriminator": [
         94,
@@ -3207,6 +3220,13 @@
             "type": "u64"
           },
           {
+            "name": "redeemer_message_len",
+            "docs": [
+              "Length of the redeemer message, which may impact the expense to execute the auction."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "destination_asset_info",
             "docs": [
               "If the destination asset is not equal to the asset used for auctions, this will be some",
@@ -3397,6 +3417,10 @@
                 "name": "MessageProtocol"
               }
             }
+          },
+          {
+            "name": "redeemer_message_len",
+            "type": "u32"
           },
           {
             "name": "end_slot",
@@ -3636,6 +3660,31 @@
           {
             "name": "bump",
             "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FastFillSequenceReserved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fast_vaa_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "fast_fill_seeds",
+            "type": {
+              "defined": {
+                "name": "FastFillSeeds"
+              }
+            }
           }
         ]
       }

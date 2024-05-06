@@ -28,6 +28,7 @@ export type AuctionInfo = {
     amountIn: BN;
     securityDeposit: BN;
     offerPrice: BN;
+    redeemerMessageLen: number;
     destinationAssetInfo: AuctionDestinationAssetInfo | null;
 };
 
