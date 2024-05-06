@@ -10,8 +10,15 @@ use common::wormhole_cctp_solana::wormhole::SOLANA_CHAIN;
 /// Accounts required for [complete_fast_fill].
 #[derive(Accounts)]
 pub struct CompleteFastFill<'info> {
+    /// Custodian, which may be used in the future.
     custodian: CheckedCustodian<'info>,
 
+    /// Fast fill account.
+    ///
+    /// NOTE: This account may have been closed if the fast fill was already redeemed, so this
+    /// deserialization will fail in this case.
+    ///
+    /// Seeds must be \["fast-fill", source_chain, order_sender, sequence\].
     #[account(
         mut,
         seeds = [

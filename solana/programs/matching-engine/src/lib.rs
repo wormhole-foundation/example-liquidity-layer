@@ -428,6 +428,16 @@ pub mod matching_engine {
     ) -> Result<()> {
         processor::reserve_fast_fill_sequence_no_auction(ctx)
     }
+
+    /// This instruction is used to return lamports to the creator of the `FastFill` account only
+    /// when this fill was redeemed via the Token Router program.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - `CloseRedeemedFastFill` context.
+    pub fn close_redeemed_fast_fill(ctx: Context<CloseRedeemedFastFill>) -> Result<()> {
+        processor::close_redeemed_fast_fill(ctx)
+    }
 }
 
 #[cfg(test)]

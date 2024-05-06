@@ -321,6 +321,39 @@
       "args": []
     },
     {
+      "name": "close_redeemed_fast_fill",
+      "docs": [
+        "This instruction is used to return lamports to the creator of the `FastFill` account only",
+        "when this fill was redeemed via the Token Router program.",
+        "",
+        "# Arguments",
+        "",
+        "* `ctx` - `CloseRedeemedFastFill` context."
+      ],
+      "discriminator": [
+        44,
+        104,
+        207,
+        178,
+        224,
+        7,
+        28,
+        219
+      ],
+      "accounts": [
+        {
+          "name": "prepared_by",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "fast_fill",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "complete_fast_fill",
       "docs": [
         "This instruction is used to complete the fast fill after the `FastFill` account has been",
@@ -353,6 +386,14 @@
         },
         {
           "name": "fast_fill",
+          "docs": [
+            "Fast fill account.",
+            "",
+            "NOTE: This account may have been closed if the fast fill was already redeemed, so this",
+            "deserialization will fail in this case.",
+            "",
+            "Seeds must be \\[\"fast-fill\", source_chain, order_sender, sequence\\]."
+          ],
           "writable": true
         },
         {
@@ -2954,6 +2995,10 @@
     {
       "code": 7076,
       "name": "FastFillAlreadyRedeemed"
+    },
+    {
+      "code": 7077,
+      "name": "FastFillNotRedeemed"
     },
     {
       "code": 7280,
