@@ -349,8 +349,12 @@ export type MatchingEngine = {
       "accounts": [
         {
           "name": "preparedBy",
-          "writable": true,
-          "signer": true
+          "docs": [
+            "Instead of having the preparer sign for this instruction, we allow anyone to call this",
+            "instruction on behalf of the preparer.",
+            ""
+          ],
+          "writable": true
         },
         {
           "name": "fastFill",
@@ -2697,6 +2701,19 @@ export type MatchingEngine = {
       ]
     },
     {
+      "name": "fastFillRedeemed",
+      "discriminator": [
+        192,
+        96,
+        201,
+        180,
+        102,
+        112,
+        34,
+        102
+      ]
+    },
+    {
       "name": "fastFillSequenceReserved",
       "discriminator": [
         6,
@@ -3746,6 +3763,22 @@ export type MatchingEngine = {
           },
           {
             "name": "redeemer",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFillRedeemed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "preparedBy",
+            "type": "pubkey"
+          },
+          {
+            "name": "fastFill",
             "type": "pubkey"
           }
         ]

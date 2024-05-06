@@ -3,11 +3,15 @@ use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CloseRedeemedFastFill<'info> {
+    /// Instead of having the preparer sign for this instruction, we allow anyone to call this
+    /// instruction on behalf of the preparer.
+    ///
+    /// CHECK: Must equal the `prepared_by` field of the `fast_fill` account.
     #[account(
         mut,
         address = fast_fill.prepared_by,
     )]
-    prepared_by: Signer<'info>,
+    prepared_by: UncheckedAccount<'info>,
 
     #[account(
         mut,

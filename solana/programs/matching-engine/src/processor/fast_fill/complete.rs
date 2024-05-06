@@ -77,6 +77,12 @@ pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
     // Mark fast fill account as redeemed. This will block subsequent calls for this fast fill.
     ctx.accounts.fast_fill.redeemed = true;
 
+    // Emit event that the fast fill is redeemed. Listeners can close this account.
+    emit!(crate::events::FastFillRedeemed {
+        prepared_by: ctx.accounts.fast_fill.prepared_by,
+        fast_fill: ctx.accounts.fast_fill.key(),
+    });
+
     // Finally transfer to local token router's token account.
     token::transfer(
         CpiContext::new_with_signer(
