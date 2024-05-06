@@ -181,6 +181,11 @@ export type FilledLocalFastOrder = {
     info: FastFillInfo;
 };
 
+export type FastFillSequenceReserved = {
+    fastVaaHash: Array<number>;
+    fastFillSeeds: FastFillSeeds;
+};
+
 export type FastOrderPathComposite = {
     fastVaa: {
         vaa: PublicKey;
@@ -317,6 +322,12 @@ export class MatchingEngineProgram {
 
             signatureSlots.push({ signature, eventSlot });
         });
+    }
+
+    onFastFillSequenceReserved(
+        callback: (event: FastFillSequenceReserved, slot: number, signature: string) => void,
+    ) {
+        return this.program.addEventListener("fastFillSequenceReserved", callback);
     }
 
     eventAuthorityAddress(): PublicKey {
