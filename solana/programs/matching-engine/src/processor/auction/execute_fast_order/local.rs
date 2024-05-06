@@ -105,7 +105,7 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         ctx.accounts.payer.key(),
         amount,
     );
-    emit_cpi!(crate::events::FilledLocalFastOrder {
+    emit_cpi!(crate::events::LocalFastOrderFilled {
         seeds: fast_fill.seeds,
         info: fast_fill.info,
         auction: ctx.accounts.execute_order.active_auction.key().into(),

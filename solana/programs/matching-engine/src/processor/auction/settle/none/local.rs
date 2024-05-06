@@ -127,7 +127,7 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
         ctx.accounts.payer.key(),
         amount,
     );
-    emit_cpi!(crate::events::FilledLocalFastOrder {
+    emit_cpi!(crate::events::LocalFastOrderFilled {
         seeds: fast_fill.seeds,
         info: fast_fill.info,
         auction: Default::default(),
