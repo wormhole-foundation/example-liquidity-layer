@@ -825,8 +825,7 @@ export type TokenRouter = {
           ]
         },
         {
-          "name": "matchingEngineCustodian",
-          "writable": true
+          "name": "matchingEngineCustodian"
         },
         {
           "name": "matchingEngineFromEndpoint"

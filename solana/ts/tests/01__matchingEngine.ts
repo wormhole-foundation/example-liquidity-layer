@@ -4672,7 +4672,7 @@ describe("Matching Engine", function () {
         const preparedOrderResponseData = await engine.fetchPreparedOrderResponse({
             address: preparedOrderResponse,
         });
-        const { bump } = preparedOrderResponseData;
+        const { seeds } = preparedOrderResponseData;
 
         const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
         const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
@@ -4685,9 +4685,11 @@ describe("Matching Engine", function () {
 
         expect(preparedOrderResponseData).to.eql(
             new PreparedOrderResponse(
-                bump,
                 {
                     fastVaaHash: Array.from(fastVaaAccount.digest()),
+                    bump: seeds.bump,
+                },
+                {
                     preparedBy: accounts.payer,
                     fastVaaTimestamp: fastVaaAccount.timestamp(),
                     sourceChain: fastVaaAccount.emitterInfo().chain,

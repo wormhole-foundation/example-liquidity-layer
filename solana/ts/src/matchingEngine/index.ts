@@ -1513,13 +1513,11 @@ export class MatchingEngineProgram {
         let { auction, bestOfferToken } = accounts;
 
         if (auction === undefined) {
-            const {
-                info: { fastVaaHash },
-            } = await this.fetchPreparedOrderResponse({
+            const { seeds } = await this.fetchPreparedOrderResponse({
                 address: preparedOrderResponse,
             });
 
-            auction = this.auctionAddress(fastVaaHash);
+            auction = this.auctionAddress(seeds.fastVaaHash);
         }
 
         if (bestOfferToken === undefined) {

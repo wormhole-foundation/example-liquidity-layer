@@ -819,8 +819,7 @@
           ]
         },
         {
-          "name": "matching_engine_custodian",
-          "writable": true
+          "name": "matching_engine_custodian"
         },
         {
           "name": "matching_engine_from_endpoint"

@@ -3853,8 +3853,12 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "bump",
-            "type": "u8"
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "PreparedOrderResponseSeeds"
+              }
+            }
           },
           {
             "name": "info",
@@ -3884,15 +3888,6 @@
       "type": {
         "kind": "struct",
         "fields": [
-          {
-            "name": "fast_vaa_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
           {
             "name": "prepared_by",
             "type": "pubkey"
@@ -3934,6 +3929,27 @@
           {
             "name": "amount_in",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PreparedOrderResponseSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fast_vaa_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }
