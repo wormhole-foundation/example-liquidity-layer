@@ -7,6 +7,9 @@ pub use auction_updated::*;
 mod enacted;
 pub use enacted::*;
 
+mod fast_fill_redeemed;
+pub use fast_fill_redeemed::*;
+
 mod fast_fill_sequence_reserved;
 pub use fast_fill_sequence_reserved::*;
 

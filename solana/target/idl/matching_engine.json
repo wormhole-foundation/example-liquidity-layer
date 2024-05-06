@@ -343,8 +343,12 @@
       "accounts": [
         {
           "name": "prepared_by",
-          "writable": true,
-          "signer": true
+          "docs": [
+            "Instead of having the preparer sign for this instruction, we allow anyone to call this",
+            "instruction on behalf of the preparer.",
+            ""
+          ],
+          "writable": true
         },
         {
           "name": "fast_fill",
@@ -2691,6 +2695,19 @@
       ]
     },
     {
+      "name": "FastFillRedeemed",
+      "discriminator": [
+        192,
+        96,
+        201,
+        180,
+        102,
+        112,
+        34,
+        102
+      ]
+    },
+    {
       "name": "FastFillSequenceReserved",
       "discriminator": [
         6,
@@ -3740,6 +3757,22 @@
           },
           {
             "name": "redeemer",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "FastFillRedeemed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "prepared_by",
+            "type": "pubkey"
+          },
+          {
+            "name": "fast_fill",
             "type": "pubkey"
           }
         ]
