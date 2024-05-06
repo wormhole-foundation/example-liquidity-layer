@@ -156,6 +156,7 @@ pub fn place_initial_offer_cctp(
             amount_in,
             security_deposit,
             offer_price,
+            redeemer_message_len: order.redeemer_message_len(),
             destination_asset_info: Default::default(),
         }
         .into(),
@@ -170,6 +171,7 @@ pub fn place_initial_offer_cctp(
         vaa: ctx.accounts.fast_order_path.fast_vaa.key().into(),
         source_chain: info.source_chain,
         target_protocol: ctx.accounts.auction.target_protocol,
+        redeemer_message_len: info.redeemer_message_len,
         end_slot: info.auction_end_slot(config),
         best_offer_token: initial_offer_token,
         token_balance_before: ctx.accounts.offer_token.amount,

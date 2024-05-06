@@ -48,6 +48,13 @@ fn set_reserved_sequence_data(
     let sequencer_seeds = sequencer.seeds;
     let next_sequence = &mut sequencer.next_sequence;
 
+    let fast_fill_seeds = FastFillSeeds {
+        source_chain: sequencer_seeds.source_chain,
+        order_sender: sequencer_seeds.sender,
+        sequence: *next_sequence,
+        bump: Default::default(), // unused
+    };
+
     // The beneficiary for the reserved fast fill sequence lamports will be the one who prepared the
     // order response. Presumably the payer will be associated with whomever prepared the order
     // response.
@@ -57,18 +64,20 @@ fn set_reserved_sequence_data(
             bump: bumps.reserved,
         },
         beneficiary,
-        fast_fill_seeds: FastFillSeeds {
-            source_chain: sequencer_seeds.source_chain,
-            order_sender: sequencer_seeds.sender,
-            sequence: *next_sequence,
-            bump: Default::default(), // unused
-        },
+        fast_fill_seeds,
     });
 
     // Now uptick sequencer's value. If this errors out, we have problems.
     *next_sequence = next_sequence
         .checked_add(1)
         .ok_or(MatchingEngineError::U64Overflow)?;
+
+    // Emit an event to help auction participants track the fast fill sequence so they can more
+    // easily execute local orders.
+    emit!(crate::events::FastFillSequenceReserved {
+        fast_vaa_hash,
+        fast_fill_seeds,
+    });
 
     // Done.
     Ok(())

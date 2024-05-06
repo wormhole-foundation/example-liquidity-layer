@@ -386,6 +386,7 @@ mod test {
                 initial_offer_token: Default::default(),
                 amount_in: Default::default(),
                 offer_price,
+                redeemer_message_len: Default::default(),
                 destination_asset_info: Default::default(),
             },
             START + slots_elapsed.unwrap_or_default(),
