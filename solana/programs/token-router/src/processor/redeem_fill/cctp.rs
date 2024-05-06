@@ -95,7 +95,7 @@ pub struct RedeemCctpFill<'info> {
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
     /// from its custody account to this account.
     ///
-    /// CHECK: Mutable. Seeds must be \["custody"\].
+    /// CHECK: Mutable. Seeds must be \["custody"\, prepared_fill.key()].
     #[account(
         init_if_needed,
         payer = payer,
@@ -122,8 +122,28 @@ pub struct RedeemCctpFill<'info> {
         bump = router_endpoint.bump,
         seeds::program = matching_engine::id(),
         constraint = {
-            router_endpoint.protocol != matching_engine::state::MessageProtocol::None
-        } @ TokenRouterError::EndpointDisabled,
+            require!(
+                router_endpoint.protocol != matching_engine::state::MessageProtocol::None,
+                TokenRouterError::EndpointDisabled
+            );
+
+            // Validate that this message originated from a registered emitter.
+            //
+            // TODO: Put into account context.
+            let endpoint = &router_endpoint;
+            let emitter = fill_vaa.load_unchecked().emitter_info();
+            require_eq!(
+                emitter.chain,
+                endpoint.chain,
+                TokenRouterError::InvalidSourceRouter
+            );
+            require!(
+                emitter.address == endpoint.address,
+                TokenRouterError::InvalidSourceRouter
+            );
+
+            true
+        }
     )]
     router_endpoint: Box<Account<'info, matching_engine::state::RouterEndpoint>>,
 
@@ -217,21 +237,6 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
             attestation: args.cctp_attestation,
         },
     )?;
-
-    // Validate that this message originated from a registered emitter.
-    //
-    // TODO: Put into account context.
-    let endpoint = &ctx.accounts.router_endpoint;
-    let emitter = vaa.emitter_info();
-    require_eq!(
-        emitter.chain,
-        endpoint.chain,
-        TokenRouterError::InvalidSourceRouter
-    );
-    require!(
-        emitter.address == endpoint.address,
-        TokenRouterError::InvalidSourceRouter
-    );
 
     // Wormhole CCTP deposit should be ours, so make sure this is a fill we recognize.
     let deposit = LiquidityLayerMessage::try_from(vaa.payload())

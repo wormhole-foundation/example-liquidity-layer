@@ -45,7 +45,7 @@ pub struct RedeemFastFill<'info> {
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
     /// from its custody account to this account.
     ///
-    /// CHECK: Mutable. Seeds must be \["custody"\].
+    /// CHECK: Mutable. Seeds must be \["custody"\, prepared_fill.key()].
     #[account(
         init_if_needed,
         payer = payer,
@@ -62,7 +62,6 @@ pub struct RedeemFastFill<'info> {
     usdc: Usdc<'info>,
 
     /// CHECK: Seeds must be \["emitter"] (Matching Engine program).
-    #[account(mut)]
     matching_engine_custodian: UncheckedAccount<'info>,
 
     /// CHECK: Seeds must be \["endpoint", source_chain.to_be_bytes()\] (Matching Engine program).
