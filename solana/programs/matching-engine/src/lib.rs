@@ -44,18 +44,21 @@ pub mod matching_engine {
     use super::*;
 
     /// This instruction is be used to generate the program's `custodian` and `auction_config`
-    /// configs. It also reates the `owner` and `fee_recipient` accounts. Finally, it sets the upgrade
-    /// authority to the `upgrade_manager_authority`. Upgrades are managed by the `upgrade_manager_program`.
+    /// configs. It also reates the `owner` and `fee_recipient` accounts. Finally, it sets the
+    /// upgrade authority to the `upgrade_manager_authority`. Upgrades are managed by the
+    /// `upgrade_manager_program`.
+    ///
     /// # Arguments
     ///
-    /// * `ctx`            - `Initialize` context.
-    /// * `auction_params` - The auction parameters, see `auction_config.rs`.
+    /// * `ctx`  - `Initialize` context.
+    /// * `args` - Initialize args, which has the initial [AuctionParameters].
     pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
         processor::initialize(ctx, args)
     }
 
-    /// This instruction is used to pause or unpause further processing of new auctions. Only the `owner`
-    /// or `owner_assistant` can pause the program.
+    /// This instruction is used to pause or unpause further processing of new auctions. Only the
+    /// `owner` or `owner_assistant` can pause the program.
+    ///
     /// # Arguments
     ///
     /// * `ctx`   - `SetPause` context.
@@ -64,8 +67,10 @@ pub mod matching_engine {
         processor::set_pause(ctx, pause)
     }
 
-    /// This instruction is used to add a new Token Router endpoint from a foreign chain. The endpoint
-    /// must be CCTP compatible. This instruction can only be called by the `owner` or `owner_assistant`.
+    /// This instruction is used to add a new Token Router endpoint from a foreign chain. The
+    /// endpoint must be CCTP compatible. This instruction can only be called by the `owner` or
+    /// `owner_assistant`.
+    ///
     /// # Arguments
     ///
     /// * `ctx`  - `AddCctpRouterEndpoint` context.
@@ -80,6 +85,7 @@ pub mod matching_engine {
     /// This instruction is used to add a new Local Router endpoint. Local means that the
     /// Token Router program exists on Solana. This instruction can only be called by the
     /// `owner` or `owner_assistant`.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `AddLocalRouterEndpoint` context.
@@ -88,8 +94,9 @@ pub mod matching_engine {
     }
 
     /// This instruction is used to disable a router endpoint. This instruction does not close the
-    /// account, it only sets the `protocol` to `None` and clears the `address` and `mint_recipient`.
-    /// This instruction can only be called by the `owner`.
+    /// account, it only sets the `protocol` to `None` and clears the `address` and
+    /// `mint_recipient`. This instruction can only be called by the `owner`.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `DisableRouterEndpoint` context.
@@ -100,6 +107,7 @@ pub mod matching_engine {
     /// This instruction is used to update a CCTP router endpoint. It allows the caller to change
     /// the `address`, `mint_recipient`, and `domain`. This instruction can only be called by the
     /// `owner`.
+    ///
     /// # Arguments
     ///
     /// * `ctx`  - `UpdateCctpRouterEndpoint` context.
@@ -113,6 +121,7 @@ pub mod matching_engine {
 
     /// This instruction is used to update a Local router endpoint. It allows the caller to change
     /// the `address` and `mint_recipient`. This instruction can only be called by the `owner`.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `UpdateLocalRouterEndpoint` context.
@@ -123,6 +132,7 @@ pub mod matching_engine {
     /// This instruction sets the `pending_owner` field in the `Custodian` account. This instruction
     /// can only be called by the `owner`. The `pending_owner` address must be valid, meaning it
     /// cannot be the zero address or the current owner.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `SubmitOwnershipTransferRequest` context.
@@ -135,6 +145,7 @@ pub mod matching_engine {
     /// This instruction confirms the ownership transfer request and sets the new `owner` in the
     /// `Custodian` account. This instruction can only be called by the `pending_owner`. The
     /// `pending_owner` must be the same as the `pending_owner` in the `Custodian` account.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `ConfirmOwnershipTransferRequest` context.
@@ -144,8 +155,9 @@ pub mod matching_engine {
         processor::confirm_ownership_transfer_request(ctx)
     }
 
-    /// This instruction cancels an ownership transfer request by resetting the `pending_owner` field
-    /// in the `Custodian` account. This instruction can only be called by the `owner`.
+    /// This instruction cancels an ownership transfer request by resetting the `pending_owner`
+    /// field in the `Custodian` account. This instruction can only be called by the `owner`.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `CancelOwnershipTransferRequest` context.
@@ -158,6 +170,7 @@ pub mod matching_engine {
     /// This instruction is used to propose new auction parameters. A proposal cannot be enacted
     /// until one epoch has passed. This instruction can only be called by the `owner` or
     /// `owner_assistant`.
+    ///
     /// # Arguments
     ///
     /// * `ctx`    - `ProposeAuctionParameters` context.
@@ -172,6 +185,7 @@ pub mod matching_engine {
     /// This instruction is used to enact an existing auction update proposal. It can only be
     /// executed after the `slot_enact_delay` has passed. This instruction can only be called by
     /// the `owner` of the proposal.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `UpdateAuctionParameters` context.
@@ -181,6 +195,7 @@ pub mod matching_engine {
 
     /// This instruction is used to close an existing proposal by closing the proposal account. This
     /// instruction can only be called by the `owner` or `owner_assistant`.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `CloseProposal` context.
@@ -188,8 +203,9 @@ pub mod matching_engine {
         processor::close_proposal(ctx)
     }
 
-    /// This instruction is used to update the `owner_assistant` field in the `Custodian` account. This
-    /// instruction can only be called by the `owner`.
+    /// This instruction is used to update the `owner_assistant` field in the `Custodian` account.
+    /// This instruction can only be called by the `owner`.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `UpdateOwnerAssistant` context.
@@ -197,8 +213,9 @@ pub mod matching_engine {
         processor::update_owner_assistant(ctx)
     }
 
-    /// This instruction is used to update the `fee_recipient` field in the `Custodian` account. This
-    /// instruction can only be called by the `owner` or `owner_assistant`.
+    /// This instruction is used to update the `fee_recipient` field in the `Custodian` account.
+    /// This instruction can only be called by the `owner` or `owner_assistant`.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `UpdateFeeRecipient` context.
@@ -208,6 +225,7 @@ pub mod matching_engine {
 
     /// This instruction is used for executing logic during an upgrade. This instruction can only be
     /// called by the `upgrade_manager_program`.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `Migrate` context.
@@ -220,9 +238,9 @@ pub mod matching_engine {
     /// an auction-specific token custody account. This instruction can be called by anyone.
     /// # Arguments
     ///
-    /// * `ctx`       - `PlaceInitialOfferCctp` context.
-    /// * `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast
-    ///                 order. This fee is paid in USDC.
+    /// * `ctx`         - `PlaceInitialOfferCctp` context.
+    /// * `offer_price` - The fee that the caller is willing to accept in order for fufilling the
+    ///                   fast order. This fee is paid in USDC.
     pub fn place_initial_offer_cctp(
         ctx: Context<PlaceInitialOfferCctp>,
         offer_price: u64,
@@ -232,20 +250,23 @@ pub mod matching_engine {
 
     /// This instruction is used to improve an existing auction offer. The `offer_price` must be
     /// greater than the current `offer_price` in the auction. This instruction will revert if the
-    /// `offer_price` is less than the current `offer_price`. This instruction can be called by anyone.
+    /// `offer_price` is less than the current `offer_price`. This instruction can be called by
+    /// anyone.
+    ///
     /// # Arguments
     ///
-    /// * `ctx`       - `ImproveOffer` context.
-    /// * `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast
-    ///                order. This fee is paid in USDC.
+    /// * `ctx`         - `ImproveOffer` context.
+    /// * `offer_price` - The fee that the caller is willing to accept in order for fufilling the
+    ///                   fast order. This fee is paid in USDC.
     pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()> {
         processor::improve_offer(ctx, offer_price)
     }
 
     /// This instruction is used to execute the fast order after the auction period has ended.
-    /// It should be executed before the `grace_period` has ended, otherwise the `highest_bidder`
-    /// will incur a penalty. Once executed, a CCTP transfer will be sent to the recipient encoded
-    /// in the `FastMarketOrder` VAA on the target chain.
+    /// It should be executed before the `grace_period` has ended, otherwise the best offer will
+    /// incur a penalty. Once executed, a CCTP transfer will be sent to the recipient encoded in the
+    /// `FastMarketOrder` VAA on the target chain.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `ExecuteFastOrderCctp` context.
@@ -254,8 +275,9 @@ pub mod matching_engine {
     }
 
     /// This instruction is used to execute the fast order after the auction period has ended.
-    /// It should be executed before the `grace_period` has ended, otherwise the `highest_bidder`
-    /// will incur a penalty. Once executed, a `fast_fill` VAA will be emitted.
+    /// It should be executed before the `grace_period` has ended, otherwise the best offer will
+    /// incur a penalty. Once executed, a `FastFill` account will be created.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `ExecuteFastOrderLocal` context.
@@ -263,9 +285,11 @@ pub mod matching_engine {
         processor::execute_fast_order_local(ctx)
     }
 
-    /// This instruction is used to complete the fast fill after the `fast_fill` VAA has been
-    /// emitted. The Token Router program on Solana will invoke this instruction to complete the
-    /// fast fill. Tokens will be deposited into the local endpoint's custody account.
+    /// This instruction is used to complete the fast fill after the `FastFill` account has been
+    /// created. The Token Router program on Solana will invoke this instruction to complete the
+    /// fast fill, marking it as redeemed. Tokens will be deposited into the local endpoint's
+    /// custody account.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `CompleteFastFill` context.
@@ -274,9 +298,11 @@ pub mod matching_engine {
     }
 
     /// This instruction is used to prepare the order response for a CCTP transfer. This instruction
-    /// will redeem the finalized transfer associated with a particular auction, and deposit the funds
-    /// to the `prepared_custody_token` account that is created during execution. This instruction
-    /// will create a `PreparedOrderResponse` account that will be used to settle the auction.
+    /// will redeem the finalized transfer associated with a particular auction, and deposit the
+    /// funds to the `prepared_custody_token` account that is created during execution. This
+    /// instruction will create a `PreparedOrderResponse` account that will be used to settle the
+    /// auction.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `PrepareOrderResponseCctp` context.
@@ -287,10 +313,11 @@ pub mod matching_engine {
         processor::prepare_order_response_cctp(ctx, args)
     }
 
-    /// This instruction is used to settle the acution after the `FastMarketOrder` has been executed,
-    /// and the `PreparedOrderResponse` has been created. This instruction will settle the auction
-    /// by transferring the funds from the `prepared_custody_token` account to the `highest_bidder`
-    /// account.
+    /// This instruction is used to settle the acution after the `FastMarketOrder` has been
+    /// executed, and the `PreparedOrderResponse` has been created. This instruction will settle the
+    /// auction by transferring the funds from the `prepared_custody_token` account to the best
+    /// offer account.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `SettleAuctionComplete` context.
@@ -299,9 +326,10 @@ pub mod matching_engine {
     }
 
     /// This instruction is used to route funds to the `recipient` for a `FastMarketOrder` with
-    /// no corresponding auction on Solana. This instruction can be called by anyone, but the
-    /// `base_fee` associated with relaying a finalized VAA will be paid to the `fee_recipient`.
-    /// This instruction generates a `Fill` message.
+    /// no corresponding auction on Solana. This instruction can be called by anyone, but the sum of
+    /// `init_auction_fee` and `base_fee` associated with relaying a finalized VAA will be paid to
+    /// the `fee_recipient`. This instruction generates a `Fill` message.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `SettleAuctionNoneCctp` context.
@@ -309,10 +337,11 @@ pub mod matching_engine {
         processor::settle_auction_none_cctp(ctx)
     }
 
-    /// This instruction is used to settle a `FastMarketOrder` with no corresponding auction. The funds
-    /// are routed to the `recipient` on the target chain by executing a CCTP transfer and sending a `Fill`
-    /// message. This instruction can be called by anyone, but the `base_fee` associated with relaying a
-    /// finalized VAA will be paid to the `fee_recipient`.
+    /// This instruction is used to settle a `FastMarketOrder` with no corresponding auction. This
+    /// instruction can be called by anyone, but the sum of `init_auction_fee` and `base_fee`
+    /// associated with relaying a finalized VAA will be paid to the `fee_recipient`. This
+    /// instruction creates a `FastFill` account.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `SettleAuctionNoneLocal` context.
@@ -322,6 +351,7 @@ pub mod matching_engine {
 
     /// This instruction is used to create the first `AuctionHistory` account, whose PDA is derived
     /// using ID == 0.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `CreateFirstAuctionHistory` context.
@@ -332,6 +362,7 @@ pub mod matching_engine {
     /// This instruction is used to create a new `AuctionHistory` account. The PDA is derived using
     /// its ID. A new history account can be created only when the current one is full (number of
     /// entries equals the hard-coded max entries).
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `CreateNewAuctionHistory` context.
@@ -350,6 +381,7 @@ pub mod matching_engine {
     /// lamports by closing that account. And the protocol's fee recipient will be able to claim
     /// lamports by closing the empty `Auction` account it creates when he calls any of the
     /// `settle_auction_none_*` instructions.
+    ///
     /// # Arguments
     ///
     /// * `ctx` - `AddAuctionHistoryEntry` context.
@@ -357,12 +389,40 @@ pub mod matching_engine {
         processor::add_auction_history_entry(ctx)
     }
 
+    /// This instruction is used to reserve a sequence number for a fast fill. Fast fills are orders
+    /// that have been fulfilled and are destined for Solana and are seeded by source chain, order
+    /// sender and sequence number (similar to how Wormhole VAAs are identified by emitter chain,
+    /// emitter address and sequence number).
+    ///
+    /// Prior to executing `execute_fast_order_local` after the duration of an auction, the winning
+    /// auction participant should call this instruction to reserve the fast fill's sequence number.
+    /// This sequence number is warehoused in the `ReservedFastFillSequence` account and will be
+    /// closed when the order is executed.
+    ///
+    /// Auction participants can listen to the `FastFillSequenceReserved` event to track when he
+    /// (or associated payer) called this instruction so he can execute local orders easily.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - `ReserveFastFillSequenceActiveAuction` context.
     pub fn reserve_fast_fill_sequence_active_auction(
         ctx: Context<ReserveFastFillSequenceActiveAuction>,
     ) -> Result<()> {
         processor::reserve_fast_fill_sequence_active_auction(ctx)
     }
-
+    /// This instruction is used to reserve a sequence number for a fast fill. Fast fills are orders
+    /// that have been fulfilled and are destined for Solana and are seeded by source chain, order
+    /// sender and sequence number (similar to how Wormhole VAAs are identified by emitter chain,
+    /// emitter address and sequence number).
+    ///
+    /// Prior to executing `settle_auction_none_local` if there is no auction, whomever prepared the
+    /// order response should call this instruction to reserve the fast fill's sequence number.
+    /// This sequence number is warehoused in the `ReservedFastFillSequence` account and will be
+    /// closed when the funds are finally settled.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - `ReserveFastFillSequenceNoAuction` context.
     pub fn reserve_fast_fill_sequence_no_auction(
         ctx: Context<ReserveFastFillSequenceNoAuction>,
     ) -> Result<()> {
