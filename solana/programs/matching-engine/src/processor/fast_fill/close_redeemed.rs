@@ -3,7 +3,10 @@ use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
 pub struct CloseRedeemedFastFill<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        address = fast_fill.prepared_by,
+    )]
     prepared_by: Signer<'info>,
 
     #[account(
