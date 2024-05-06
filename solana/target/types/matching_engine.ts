@@ -327,6 +327,39 @@ export type MatchingEngine = {
       "args": []
     },
     {
+      "name": "closeRedeemedFastFill",
+      "docs": [
+        "This instruction is used to return lamports to the creator of the `FastFill` account only",
+        "when this fill was redeemed via the Token Router program.",
+        "",
+        "# Arguments",
+        "",
+        "* `ctx` - `CloseRedeemedFastFill` context."
+      ],
+      "discriminator": [
+        44,
+        104,
+        207,
+        178,
+        224,
+        7,
+        28,
+        219
+      ],
+      "accounts": [
+        {
+          "name": "preparedBy",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "fastFill",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "completeFastFill",
       "docs": [
         "This instruction is used to complete the fast fill after the `FastFill` account has been",
@@ -359,6 +392,14 @@ export type MatchingEngine = {
         },
         {
           "name": "fastFill",
+          "docs": [
+            "Fast fill account.",
+            "",
+            "NOTE: This account may have been closed if the fast fill was already redeemed, so this",
+            "deserialization will fail in this case.",
+            "",
+            "Seeds must be \\[\"fast-fill\", source_chain, order_sender, sequence\\]."
+          ],
           "writable": true
         },
         {
@@ -2960,6 +3001,10 @@ export type MatchingEngine = {
     {
       "code": 7076,
       "name": "fastFillAlreadyRedeemed"
+    },
+    {
+      "code": 7077,
+      "name": "fastFillNotRedeemed"
     },
     {
       "code": 7280,

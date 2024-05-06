@@ -1,3 +1,6 @@
+mod close_redeemed;
+pub use close_redeemed::*;
+
 mod complete;
 pub use complete::*;
 
