@@ -41,8 +41,8 @@ fn settle_none_and_prepare_fill(
 
     let prepared_order_response_signer_seeds = &[
         PreparedOrderResponse::SEED_PREFIX,
-        prepared_order_response.fast_vaa_hash.as_ref(),
-        &[prepared_order_response.bump],
+        prepared_order_response.seeds.fast_vaa_hash.as_ref(),
+        &[prepared_order_response.seeds.bump],
     ];
 
     // Pay the `fee_recipient` the base fee and init auction fee. This ensures that the protocol
@@ -83,7 +83,7 @@ fn settle_none_and_prepare_fill(
     // setting this could lead to trapped funds (which would require an upgrade to fix).
     auction.set_inner(Auction {
         bump: auction_bump_seed,
-        vaa_hash: prepared_order_response.fast_vaa_hash,
+        vaa_hash: prepared_order_response.seeds.fast_vaa_hash,
         vaa_timestamp: prepared_order_response.fast_vaa_timestamp,
         target_protocol: prepared_order_response.to_endpoint.protocol,
         status: AuctionStatus::Settled {

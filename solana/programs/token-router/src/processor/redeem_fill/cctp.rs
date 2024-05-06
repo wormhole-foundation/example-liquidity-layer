@@ -128,8 +128,6 @@ pub struct RedeemCctpFill<'info> {
             );
 
             // Validate that this message originated from a registered emitter.
-            //
-            // TODO: Put into account context.
             let endpoint = &router_endpoint;
             let emitter = fill_vaa.load_unchecked().emitter_info();
             require_eq!(

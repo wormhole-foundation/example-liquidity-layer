@@ -16,7 +16,7 @@ pub struct ReserveFastFillSequenceNoAuction<'info> {
         constraint = {
             // Check association with fast order path.
             require!(
-                prepared_order_response.fast_vaa_hash
+                prepared_order_response.seeds.fast_vaa_hash
                     == reserve_sequence.fast_order_path.fast_vaa.load_unchecked().digest().0,
                 MatchingEngineError::VaaMismatch
             );
@@ -32,7 +32,7 @@ pub struct ReserveFastFillSequenceNoAuction<'info> {
     #[account(
         seeds = [
             Auction::SEED_PREFIX,
-            prepared_order_response.fast_vaa_hash.as_ref(),
+            prepared_order_response.seeds.fast_vaa_hash.as_ref(),
         ],
         bump,
         constraint = auction.data_is_empty() @ MatchingEngineError::AuctionExists,
@@ -48,7 +48,7 @@ pub fn reserve_fast_fill_sequence_no_auction(
     super::set_reserved_sequence_data(
         &mut ctx.accounts.reserve_sequence,
         &ctx.bumps.reserve_sequence,
-        prepared_order_response.fast_vaa_hash,
+        prepared_order_response.seeds.fast_vaa_hash,
         prepared_order_response.prepared_by,
     )
 }

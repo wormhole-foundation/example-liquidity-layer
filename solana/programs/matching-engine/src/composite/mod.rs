@@ -533,9 +533,9 @@ pub struct ClosePreparedOrderResponse<'info> {
         close = by,
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
-            order_response.fast_vaa_hash.as_ref()
+            order_response.seeds.fast_vaa_hash.as_ref()
         ],
-        bump = order_response.bump,
+        bump = order_response.seeds.bump,
     )]
     pub order_response: Box<Account<'info, PreparedOrderResponse>>,
 
@@ -553,7 +553,7 @@ pub struct ClosePreparedOrderResponse<'info> {
 
 impl<'info> VaaDigest for ClosePreparedOrderResponse<'info> {
     fn digest(&self) -> [u8; 32] {
-        self.order_response.fast_vaa_hash
+        self.order_response.seeds.fast_vaa_hash
     }
 }
 

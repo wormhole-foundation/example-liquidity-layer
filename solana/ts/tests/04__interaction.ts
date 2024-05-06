@@ -956,7 +956,7 @@ describe("Matching Engine <> Token Router", function () {
         const preparedOrderResponseData = await matchingEngine.fetchPreparedOrderResponse({
             address: preparedOrderResponse,
         });
-        const { bump } = preparedOrderResponseData;
+        const { seeds } = preparedOrderResponseData;
 
         const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
         const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
@@ -971,9 +971,11 @@ describe("Matching Engine <> Token Router", function () {
 
         expect(preparedOrderResponseData).to.eql(
             new matchingEngineSdk.PreparedOrderResponse(
-                bump,
                 {
                     fastVaaHash: Array.from(fastVaaAccount.digest()),
+                    bump: seeds.bump,
+                },
+                {
                     preparedBy: accounts.payer,
                     fastVaaTimestamp: fastVaaAccount.timestamp(),
                     sourceChain: fastVaaAccount.emitterInfo().chain,

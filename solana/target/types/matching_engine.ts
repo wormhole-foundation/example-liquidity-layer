@@ -3859,8 +3859,12 @@ export type MatchingEngine = {
         "kind": "struct",
         "fields": [
           {
-            "name": "bump",
-            "type": "u8"
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "preparedOrderResponseSeeds"
+              }
+            }
           },
           {
             "name": "info",
@@ -3890,15 +3894,6 @@ export type MatchingEngine = {
       "type": {
         "kind": "struct",
         "fields": [
-          {
-            "name": "fastVaaHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
           {
             "name": "preparedBy",
             "type": "pubkey"
@@ -3940,6 +3935,27 @@ export type MatchingEngine = {
           {
             "name": "amountIn",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "preparedOrderResponseSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fastVaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }

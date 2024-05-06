@@ -1,7 +1,9 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Custodian, PreparedOrderResponse, PreparedOrderResponseInfo},
+    state::{
+        Custodian, PreparedOrderResponse, PreparedOrderResponseInfo, PreparedOrderResponseSeeds,
+    },
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -209,9 +211,11 @@ fn handle_prepare_order_response_cctp(
     ctx.accounts
         .prepared_order_response
         .set_inner(PreparedOrderResponse {
-            bump: ctx.bumps.prepared_order_response,
-            info: PreparedOrderResponseInfo {
+            seeds: PreparedOrderResponseSeeds {
                 fast_vaa_hash: fast_vaa.digest().0,
+                bump: ctx.bumps.prepared_order_response,
+            },
+            info: PreparedOrderResponseInfo {
                 prepared_by: ctx.accounts.payer.key(),
                 source_chain: finalized_vaa.emitter_chain(),
                 base_fee: order_response.base_fee(),

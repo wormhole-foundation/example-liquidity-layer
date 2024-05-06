@@ -46,7 +46,7 @@ pub struct SettleAuctionNoneLocal<'info> {
         space = 8 + Auction::INIT_SPACE_NO_AUCTION,
         seeds = [
             Auction::SEED_PREFIX,
-            prepared.order_response.fast_vaa_hash.as_ref(),
+            prepared.order_response.seeds.fast_vaa_hash.as_ref(),
         ],
         bump,
     )]
