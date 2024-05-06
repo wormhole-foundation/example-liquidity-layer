@@ -1252,7 +1252,7 @@ describe("Matching Engine <> Token Router", function () {
     }
 
     type EmittedFilledLocalFastOrder = {
-        event: matchingEngineSdk.FilledLocalFastOrder;
+        event: matchingEngineSdk.LocalFastOrderFilled;
         slot: number;
         signature: string;
     };
@@ -1266,7 +1266,7 @@ describe("Matching Engine <> Token Router", function () {
         },
         emittedEvents: EmittedFilledLocalFastOrder[],
         opts: SettleAuctionNoneOpts = {},
-    ): Promise<void | { event: matchingEngineSdk.FilledLocalFastOrder }> {
+    ): Promise<void | { event: matchingEngineSdk.LocalFastOrderFilled }> {
         const [{ errorMsg, signers }, excludedForTestOpts] = setDefaultForTestOpts(opts);
 
         const reserveResult = await reserveFastFillSequenceNoAuctionForTest(

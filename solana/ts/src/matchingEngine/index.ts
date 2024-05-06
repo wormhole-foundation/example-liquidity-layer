@@ -175,7 +175,7 @@ export type Enacted = {
     action: ProposalAction;
 };
 
-export type FilledLocalFastOrder = {
+export type LocalFastOrderFilled = {
     seeds: FastFillSeeds;
     preparedBy: PublicKey;
     info: FastFillInfo;
@@ -257,7 +257,7 @@ export class MatchingEngineProgram {
 
     onFilledLocalFastOrder(
         callback: (
-            event: FilledLocalFastOrder,
+            event: LocalFastOrderFilled,
             eventSlot: number,
             signature: string,
             currentSlotInfo?: SlotInfo,
@@ -302,7 +302,7 @@ export class MatchingEngineProgram {
                             utils.bytes.base64.encode(data.subarray(8)),
                         );
 
-                        if (decoded !== null && decoded.name === "filledLocalFastOrder") {
+                        if (decoded !== null && decoded.name === "localFastOrderFilled") {
                             return callback(decoded.data, eventSlot, signature, slotInfo);
                         }
                     }

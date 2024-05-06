@@ -2727,16 +2727,16 @@ export type MatchingEngine = {
       ]
     },
     {
-      "name": "filledLocalFastOrder",
+      "name": "localFastOrderFilled",
       "discriminator": [
-        94,
-        47,
-        97,
-        73,
-        210,
+        131,
+        247,
+        217,
         194,
-        163,
-        85
+        154,
+        179,
+        238,
+        193
       ]
     },
     {
@@ -3884,7 +3884,23 @@ export type MatchingEngine = {
       }
     },
     {
-      "name": "filledLocalFastOrder",
+      "name": "initializeArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auctionParams",
+            "type": {
+              "defined": {
+                "name": "auctionParameters"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "localFastOrderFilled",
       "type": {
         "kind": "struct",
         "fields": [
@@ -3908,22 +3924,6 @@ export type MatchingEngine = {
             "name": "auction",
             "type": {
               "option": "pubkey"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "initializeArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "auctionParams",
-            "type": {
-              "defined": {
-                "name": "auctionParameters"
-              }
             }
           }
         ]

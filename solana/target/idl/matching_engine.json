@@ -2721,16 +2721,16 @@
       ]
     },
     {
-      "name": "FilledLocalFastOrder",
+      "name": "LocalFastOrderFilled",
       "discriminator": [
-        94,
-        47,
-        97,
-        73,
-        210,
+        131,
+        247,
+        217,
         194,
-        163,
-        85
+        154,
+        179,
+        238,
+        193
       ]
     },
     {
@@ -3878,7 +3878,23 @@
       }
     },
     {
-      "name": "FilledLocalFastOrder",
+      "name": "InitializeArgs",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction_params",
+            "type": {
+              "defined": {
+                "name": "AuctionParameters"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "LocalFastOrderFilled",
       "type": {
         "kind": "struct",
         "fields": [
@@ -3902,22 +3918,6 @@
             "name": "auction",
             "type": {
               "option": "pubkey"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "InitializeArgs",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "auction_params",
-            "type": {
-              "defined": {
-                "name": "AuctionParameters"
-              }
             }
           }
         ]
