@@ -3071,6 +3071,12 @@ describe("Matching Engine", function () {
                     initialOfferToken: bogusToken,
                 });
 
+                const { duration, gracePeriod } = await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
+                );
+
                 // Pass the wrong address for the best offer token account.
                 await expectIxErr(
                     connection,
