@@ -29,6 +29,14 @@ pub struct ExecuteFastOrderLocal<'info> {
             reserved_sequence.seeds.fast_vaa_hash.as_ref(),
         ],
         bump = reserved_sequence.seeds.bump,
+        constraint = {
+            require!(
+                reserved_sequence.seeds.fast_vaa_hash == execute_order.active_auction.vaa_hash,
+                MatchingEngineError::ReservedSequenceMismatch,
+            );
+
+            true
+        }
     )]
     reserved_sequence: Account<'info, ReservedFastFillSequence>,
 

@@ -79,6 +79,7 @@ pub enum MatchingEngineError {
     BestOfferTokenNotRequired = 0x431,
     FastFillAlreadyRedeemed = 0x434,
     FastFillNotRedeemed = 0x435,
+    ReservedSequenceMismatch = 0x438,
 
     CannotCloseAuctionYet = 0x500,
     AuctionHistoryNotFull = 0x502,

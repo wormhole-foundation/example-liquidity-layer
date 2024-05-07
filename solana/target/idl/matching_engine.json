@@ -3018,6 +3018,10 @@
       "name": "FastFillNotRedeemed"
     },
     {
+      "code": 7080,
+      "name": "ReservedSequenceMismatch"
+    },
+    {
       "code": 7280,
       "name": "CannotCloseAuctionYet"
     },

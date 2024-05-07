@@ -66,6 +66,15 @@ pub struct SettleAuctionNoneLocal<'info> {
             reserved_sequence.seeds.fast_vaa_hash.as_ref(),
         ],
         bump = reserved_sequence.seeds.bump,
+        constraint = {
+            require!(
+                reserved_sequence.seeds.fast_vaa_hash
+                    == prepared.order_response.seeds.fast_vaa_hash,
+                MatchingEngineError::ReservedSequenceMismatch,
+            );
+
+            true
+        }
     )]
     reserved_sequence: Account<'info, ReservedFastFillSequence>,
 

@@ -3024,6 +3024,10 @@ export type MatchingEngine = {
       "name": "fastFillNotRedeemed"
     },
     {
+      "code": 7080,
+      "name": "reservedSequenceMismatch"
+    },
+    {
       "code": 7280,
       "name": "cannotCloseAuctionYet"
     },
