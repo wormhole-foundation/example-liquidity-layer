@@ -52,7 +52,7 @@ pub struct SettleAuctionComplete<'info> {
         ],
         bump,
     )]
-    prepared_custody_token: UncheckedAccount<'info>,
+    prepared_custody_token: Account<'info, token::TokenAccount>,
 
     #[account(
         mut,
@@ -101,7 +101,7 @@ fn handle_settle_auction_complete(
     ];
 
     // We may deduct from this account if the winning participant was penalized.
-    let mut repayment = ctx.accounts.auction.info.as_ref().unwrap().amount_in;
+    let mut repayment = ctx.accounts.prepared_custody_token.amount;
 
     match execute_penalty {
         None => {
