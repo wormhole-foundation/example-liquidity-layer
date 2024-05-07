@@ -9,16 +9,16 @@ import {
 import { expect } from "chai";
 import { ethers } from "ethers";
 import {
-    ChainType,
     EvmTokenRouter,
     EvmMatchingEngine,
     errorDecoder,
-    parseLiquidityLayerEnvFile,
     OrderResponse,
     MessageDecoder,
 } from "../src";
 import { IERC20__factory } from "../src/types";
 import {
+    ChainType,
+    parseLiquidityLayerEnvFile,
     CircleAttester,
     GuardianNetwork,
     LOCALHOSTS,
@@ -54,7 +54,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
     // Matching Engine configuration.
     const engineProvider = new ethers.providers.StaticJsonRpcProvider(
-        LOCALHOSTS[MATCHING_ENGINE_NAME]
+        LOCALHOSTS[MATCHING_ENGINE_NAME],
     );
     const engineWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[2], engineProvider);
     const engineEnv = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
@@ -63,7 +63,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
             return new EvmMatchingEngine(
                 engineWallet,
                 tryHexToNativeAssetString(engineEnv.matchingEngineAddress, CHAIN_ID_AVAX),
-                engineEnv.tokenMessengerAddress
+                engineEnv.tokenMessengerAddress,
             );
         } else {
             throw new Error("Unsupported chain");
@@ -83,7 +83,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
         describe(`${fromChainName} <> ${toChainName}`, () => {
             // From setup.
             const fromProvider = new ethers.providers.StaticJsonRpcProvider(
-                LOCALHOSTS[fromChainName]
+                LOCALHOSTS[fromChainName],
             );
             const fromWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], fromProvider);
 
@@ -93,7 +93,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     return new EvmTokenRouter(
                         fromWallet,
                         fromEnv.tokenRouterAddress,
-                        fromEnv.tokenMessengerAddress
+                        fromEnv.tokenMessengerAddress,
                     );
                 } else {
                     throw new Error("Unsupported chain");
@@ -110,7 +110,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     return new EvmTokenRouter(
                         toWallet,
                         toEnv.tokenRouterAddress,
-                        fromEnv.tokenMessengerAddress
+                        fromEnv.tokenMessengerAddress,
                     );
                 } else {
                     throw new Error("Unsupported chain");
@@ -131,7 +131,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     await mintNativeUsdc(
                         IERC20__factory.connect(fromEnv.tokenAddress, fromProvider),
                         fromWallet.address,
-                        TEST_AMOUNT
+                        TEST_AMOUNT,
                     );
                 });
 
@@ -168,7 +168,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             FEE_AMOUNT,
                             deadline,
                             minAmountOut,
-                            fromWallet.address
+                            fromWallet.address,
                         )
                         .then((tx) => mineWait(fromProvider, tx))
                         .catch((err) => {
@@ -177,13 +177,13 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             throw err;
                         });
                     const transactionResult = await fromTokenRouter.getTransactionResults(
-                        receipt.transactionHash
+                        receipt.transactionHash,
                     );
                     expect(transactionResult.wormhole.emitterAddress).to.eql(
-                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName)
+                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName),
                     );
                     expect(transactionResult.wormhole.message.body).has.property(
-                        "slowOrderResponse"
+                        "slowOrderResponse",
                     );
                     expect(transactionResult.circleMessage).is.not.undefined;
                     expect(transactionResult.fastMessage).is.not.undefined;
@@ -191,7 +191,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const signedVaas = await guardianNetwork.observeManyEvm(
                         fromProvider,
                         fromChainName,
-                        receipt
+                        receipt,
                     );
                     expect(signedVaas.length).to.eql(2);
 
@@ -245,23 +245,23 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     const balanceAfter = await usdc.balanceOf(initialBidder.address);
                     expect(balanceBefore.sub(balanceAfter).toString()).to.eql(
-                        initialDeposit.toString()
+                        initialDeposit.toString(),
                     );
 
                     // Validate state changes.
                     const auctionData = await engine.liveAuctionInfo(
-                        localVariables.get("auctionId")
+                        localVariables.get("auctionId"),
                     );
 
                     expect(auctionData.status).to.eql(1);
                     expect(auctionData.startBlock.toString()).to.eql(
-                        receipt.blockNumber.toString()
+                        receipt.blockNumber.toString(),
                     );
                     expect(auctionData.highestBidder).to.eql(initialBidder.address);
                     expect(auctionData.initialBidder).to.eql(initialBidder.address);
                     expect(auctionData.amount.toString()).to.eql(fastOrder.amountIn.toString());
                     expect(auctionData.securityDeposit.toString()).to.eql(
-                        fastOrder.maxFee.toString()
+                        fastOrder.maxFee.toString(),
                     );
                     expect(auctionData.bidPrice.toString()).to.eql(fastOrder.maxFee.toString());
                 });
@@ -272,7 +272,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const auctionInfoBefore = await engine.liveAuctionInfo(auctionId);
                     const startingBid = ethers.BigNumber.from(auctionInfoBefore.bidPrice);
                     const initialDeposit = ethers.BigNumber.from(auctionInfoBefore.amount).add(
-                        ethers.BigNumber.from(auctionInfoBefore.securityDeposit)
+                        ethers.BigNumber.from(auctionInfoBefore.securityDeposit),
                     );
                     expect(startingBid.gt(0) && initialDeposit.gt(0)).is.true;
 
@@ -323,7 +323,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             expect(balanceAfter.sub(bids[i].balance).toString()).to.eql("0");
                         } else {
                             expect(balanceAfter.toString()).to.eql(
-                                bids[i].balance.add(initialDeposit).toString()
+                                bids[i].balance.add(initialDeposit).toString(),
                             );
                         }
                     }
@@ -333,15 +333,15 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     expect(auctionInfoAfter.status).to.eql(1);
                     expect(auctionInfoAfter.startBlock.toString()).to.eql(
-                        auctionInfoBefore.startBlock.toString()
+                        auctionInfoBefore.startBlock.toString(),
                     );
                     expect(auctionInfoAfter.highestBidder).to.eql(highestBidder.address);
                     expect(auctionInfoAfter.initialBidder).to.eql(auctionInfoBefore.initialBidder);
                     expect(auctionInfoAfter.amount.toString()).to.eql(
-                        auctionInfoBefore.amount.toString()
+                        auctionInfoBefore.amount.toString(),
                     );
                     expect(auctionInfoAfter.securityDeposit.toString()).to.eql(
-                        auctionInfoBefore.securityDeposit.toString()
+                        auctionInfoBefore.securityDeposit.toString(),
                     );
                     expect(auctionInfoAfter.bidPrice.toString()).to.eql(bids[2].bid.toString());
                 });
@@ -369,18 +369,18 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         });
 
                     const transactionResult = await engine.getTransactionResults(
-                        receipt.transactionHash
+                        receipt.transactionHash,
                     );
 
                     if (toChainName == MATCHING_ENGINE_NAME) {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fastFill");
                         expect(transactionResult.circleMessage).is.undefined;
                     } else {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fill");
                         expect(transactionResult.circleMessage).is.not.undefined;
@@ -396,7 +396,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
                         ethers.BigNumber.from(auctionInfo.bidPrice)
                             .add(ethers.BigNumber.from(auctionInfo.securityDeposit))
-                            .toString()
+                            .toString(),
                     );
                     expect(initialBidderAfter.sub(initialBidderBefore).eq(initAuctionFee)).is.true;
 
@@ -410,7 +410,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const signedVaa = await guardianNetwork.observeEvm(
                         engineProvider,
                         MATCHING_ENGINE_NAME,
-                        receipt
+                        receipt,
                     );
 
                     let orderResponse: OrderResponse;
@@ -463,7 +463,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const balanceAfter = await usdc.balanceOf(toWallet.address);
 
                     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                        amount.sub(bidPrice).sub(initAuctionFee).toString()
+                        amount.sub(bidPrice).sub(initAuctionFee).toString(),
                     );
                 });
 
@@ -493,7 +493,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     const balanceAfter = await usdc.balanceOf(highestBidder.address);
                     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                        expectedAmount.toString()
+                        expectedAmount.toString(),
                     );
                 });
             });
@@ -512,7 +512,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     await mintNativeUsdc(
                         IERC20__factory.connect(fromEnv.tokenAddress, fromProvider),
                         fromWallet.address,
-                        TEST_AMOUNT
+                        TEST_AMOUNT,
                     );
                 });
 
@@ -549,7 +549,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             FEE_AMOUNT,
                             deadline,
                             minAmountOut,
-                            fromWallet.address
+                            fromWallet.address,
                         )
                         .then((tx) => mineWait(fromProvider, tx))
                         .catch((err) => {
@@ -558,13 +558,13 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             throw err;
                         });
                     const transactionResult = await fromTokenRouter.getTransactionResults(
-                        receipt.transactionHash
+                        receipt.transactionHash,
                     );
                     expect(transactionResult.wormhole.emitterAddress).to.eql(
-                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName)
+                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName),
                     );
                     expect(transactionResult.wormhole.message.body).has.property(
-                        "slowOrderResponse"
+                        "slowOrderResponse",
                     );
                     expect(transactionResult.circleMessage).is.not.undefined;
                     expect(transactionResult.fastMessage).is.not.undefined;
@@ -572,7 +572,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const signedVaas = await guardianNetwork.observeManyEvm(
                         fromProvider,
                         fromChainName,
-                        receipt
+                        receipt,
                     );
                     expect(signedVaas.length).to.eql(2);
 
@@ -626,23 +626,23 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     const balanceAfter = await usdc.balanceOf(initialBidder.address);
                     expect(balanceBefore.sub(balanceAfter).toString()).to.eql(
-                        initialDeposit.toString()
+                        initialDeposit.toString(),
                     );
 
                     // Validate state changes.
                     const auctionData = await engine.liveAuctionInfo(
-                        localVariables.get("auctionId")
+                        localVariables.get("auctionId"),
                     );
 
                     expect(auctionData.status).to.eql(1);
                     expect(auctionData.startBlock.toString()).to.eql(
-                        receipt.blockNumber.toString()
+                        receipt.blockNumber.toString(),
                     );
                     expect(auctionData.highestBidder).to.eql(initialBidder.address);
                     expect(auctionData.initialBidder).to.eql(initialBidder.address);
                     expect(auctionData.amount.toString()).to.eql(fastOrder.amountIn.toString());
                     expect(auctionData.securityDeposit.toString()).to.eql(
-                        fastOrder.maxFee.toString()
+                        fastOrder.maxFee.toString(),
                     );
                     expect(auctionData.bidPrice.toString()).to.eql(fastOrder.maxFee.toString());
                 });
@@ -653,7 +653,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const auctionInfoBefore = await engine.liveAuctionInfo(auctionId);
                     const startingBid = ethers.BigNumber.from(auctionInfoBefore.bidPrice);
                     const initialDeposit = ethers.BigNumber.from(auctionInfoBefore.amount).add(
-                        ethers.BigNumber.from(auctionInfoBefore.securityDeposit)
+                        ethers.BigNumber.from(auctionInfoBefore.securityDeposit),
                     );
                     expect(startingBid.gt(0) && initialDeposit.gt(0)).is.true;
 
@@ -704,7 +704,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             expect(balanceAfter.sub(bids[i].balance).toString()).to.eql("0");
                         } else {
                             expect(balanceAfter.toString()).to.eql(
-                                bids[i].balance.add(initialDeposit).toString()
+                                bids[i].balance.add(initialDeposit).toString(),
                             );
                         }
                     }
@@ -714,15 +714,15 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     expect(auctionInfoAfter.status).to.eql(1);
                     expect(auctionInfoAfter.startBlock.toString()).to.eql(
-                        auctionInfoBefore.startBlock.toString()
+                        auctionInfoBefore.startBlock.toString(),
                     );
                     expect(auctionInfoAfter.highestBidder).to.eql(highestBidder.address);
                     expect(auctionInfoAfter.initialBidder).to.eql(auctionInfoBefore.initialBidder);
                     expect(auctionInfoAfter.amount.toString()).to.eql(
-                        auctionInfoBefore.amount.toString()
+                        auctionInfoBefore.amount.toString(),
                     );
                     expect(auctionInfoAfter.securityDeposit.toString()).to.eql(
-                        auctionInfoBefore.securityDeposit.toString()
+                        auctionInfoBefore.securityDeposit.toString(),
                     );
                     expect(auctionInfoAfter.bidPrice.toString()).to.eql(bids[2].bid.toString());
                 });
@@ -734,7 +734,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     await engine
                         .getPenaltyBlocks()
                         .then((blocks) =>
-                            mineToPenaltyPeriod(auctionId, engine, engineProvider, blocks / 2)
+                            mineToPenaltyPeriod(auctionId, engine, engineProvider, blocks / 2),
                         );
 
                     // Fetch the initial bidder so we can do a balance check.
@@ -758,18 +758,18 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const [penalty, reward] = await engine.calculateDynamicPenalty(auctionId);
 
                     const transactionResult = await engine.getTransactionResults(
-                        receipt.transactionHash
+                        receipt.transactionHash,
                     );
 
                     if (toChainName == MATCHING_ENGINE_NAME) {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fastFill");
                         expect(transactionResult.circleMessage).is.undefined;
                     } else {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fill");
                         expect(transactionResult.circleMessage).is.not.undefined;
@@ -787,10 +787,10 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         ethers.BigNumber.from(auctionInfo.bidPrice)
                             .add(ethers.BigNumber.from(auctionInfo.securityDeposit))
                             .sub(ethers.BigNumber.from(penalty).add(ethers.BigNumber.from(reward)))
-                            .toString()
+                            .toString(),
                     );
                     expect(balanceLiquidatorAfter.sub(balanceLiquidatorBefore).toString()).to.eql(
-                        penalty.toString()
+                        penalty.toString(),
                     );
                     expect(initialBidderAfter.sub(initialBidderBefore).eq(initAuctionFee)).is.true;
 
@@ -804,7 +804,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const signedVaa = await guardianNetwork.observeEvm(
                         engineProvider,
                         MATCHING_ENGINE_NAME,
-                        receipt
+                        receipt,
                     );
 
                     let orderResponse: OrderResponse;
@@ -862,7 +862,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // Add the reward, since the fast auction wasn't executed during
                     // the grace period.
                     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                        amount.sub(bidPrice).sub(initAuctionFee).add(reward).toString()
+                        amount.sub(bidPrice).sub(initAuctionFee).add(reward).toString(),
                     );
                 });
 
@@ -892,7 +892,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     const balanceAfter = await usdc.balanceOf(highestBidder.address);
                     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                        expectedAmount.toString()
+                        expectedAmount.toString(),
                     );
                 });
             });
@@ -911,7 +911,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     await mintNativeUsdc(
                         IERC20__factory.connect(fromEnv.tokenAddress, fromProvider),
                         fromWallet.address,
-                        TEST_AMOUNT
+                        TEST_AMOUNT,
                     );
                 });
 
@@ -948,7 +948,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             FEE_AMOUNT,
                             deadline,
                             minAmountOut,
-                            fromWallet.address
+                            fromWallet.address,
                         )
                         .then((tx) => mineWait(fromProvider, tx))
                         .catch((err) => {
@@ -957,13 +957,13 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             throw err;
                         });
                     const transactionResult = await fromTokenRouter.getTransactionResults(
-                        receipt.transactionHash
+                        receipt.transactionHash,
                     );
                     expect(transactionResult.wormhole.emitterAddress).to.eql(
-                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName)
+                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName),
                     );
                     expect(transactionResult.wormhole.message.body).has.property(
-                        "slowOrderResponse"
+                        "slowOrderResponse",
                     );
                     expect(transactionResult.circleMessage).is.not.undefined;
                     expect(transactionResult.fastMessage).is.not.undefined;
@@ -971,7 +971,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const signedVaas = await guardianNetwork.observeManyEvm(
                         fromProvider,
                         fromChainName,
-                        receipt
+                        receipt,
                     );
                     expect(signedVaas.length).to.eql(2);
 
@@ -1000,7 +1000,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     // Parse the slow VAA for the baseFee and amount
                     const baseFee = MessageDecoder.unsafeDecodeWormholeCctpPayload(
-                        parseVaa(params.encodedWormholeMessage).payload
+                        parseVaa(params.encodedWormholeMessage).payload,
                     ).body.slowOrderResponse!.baseFee;
 
                     // Use player one as the relayer.
@@ -1020,22 +1020,22 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // Balance check.
                     const feeRecipientAfter = await usdc.balanceOf(engineEnv.feeRecipient!);
                     expect(feeRecipientAfter.sub(feeRecipientBefore).toString()).to.eql(
-                        baseFee.toString()
+                        baseFee.toString(),
                     );
 
                     const transactionResult = await engine.getTransactionResults(
-                        receipt.transactionHash
+                        receipt.transactionHash,
                     );
 
                     if (toChainName == MATCHING_ENGINE_NAME) {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fastFill");
                         expect(transactionResult.circleMessage).is.undefined;
                     } else {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fill");
                         expect(transactionResult.circleMessage).is.not.undefined;
@@ -1047,7 +1047,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const signedVaa = await guardianNetwork.observeEvm(
                         engineProvider,
                         MATCHING_ENGINE_NAME,
-                        receipt
+                        receipt,
                     );
 
                     let orderResponse: OrderResponse;
@@ -1102,7 +1102,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const balanceAfter = await usdc.balanceOf(toWallet.address);
 
                     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                        TEST_AMOUNT.sub(baseFee).toString()
+                        TEST_AMOUNT.sub(baseFee).toString(),
                     );
                 });
             });
@@ -1121,7 +1121,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     await mintNativeUsdc(
                         IERC20__factory.connect(fromEnv.tokenAddress, fromProvider),
                         fromWallet.address,
-                        TEST_AMOUNT
+                        TEST_AMOUNT,
                     );
                 });
 
@@ -1162,7 +1162,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             FEE_AMOUNT,
                             deadline!,
                             minAmountOut,
-                            fromWallet.address
+                            fromWallet.address,
                         )
                         .then((tx) => mineWait(fromProvider, tx))
                         .catch((err) => {
@@ -1171,13 +1171,13 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             throw err;
                         });
                     const transactionResult = await fromTokenRouter.getTransactionResults(
-                        receipt.transactionHash
+                        receipt.transactionHash,
                     );
                     expect(transactionResult.wormhole.emitterAddress).to.eql(
-                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName)
+                        tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName),
                     );
                     expect(transactionResult.wormhole.message.body).has.property(
-                        "slowOrderResponse"
+                        "slowOrderResponse",
                     );
                     expect(transactionResult.circleMessage).is.not.undefined;
                     expect(transactionResult.fastMessage).is.not.undefined;
@@ -1185,7 +1185,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const signedVaas = await guardianNetwork.observeManyEvm(
                         fromProvider,
                         fromChainName,
-                        receipt
+                        receipt,
                     );
                     expect(signedVaas.length).to.eql(2);
 
@@ -1250,7 +1250,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     // Parse the slow VAA for the baseFee and amount
                     const baseFee = MessageDecoder.unsafeDecodeWormholeCctpPayload(
-                        parseVaa(params.encodedWormholeMessage).payload
+                        parseVaa(params.encodedWormholeMessage).payload,
                     ).body.slowOrderResponse!.baseFee;
 
                     // Use player one as the relayer.
@@ -1270,22 +1270,22 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // Balance check.
                     const feeRecipientAfter = await usdc.balanceOf(engineEnv.feeRecipient!);
                     expect(feeRecipientAfter.sub(feeRecipientBefore).toString()).to.eql(
-                        baseFee.toString()
+                        baseFee.toString(),
                     );
 
                     const transactionResult = await engine.getTransactionResults(
-                        receipt.transactionHash
+                        receipt.transactionHash,
                     );
 
                     if (toChainName == MATCHING_ENGINE_NAME) {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fastFill");
                         expect(transactionResult.circleMessage).is.undefined;
                     } else {
                         expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME)
+                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
                         );
                         expect(transactionResult.wormhole.message.body).has.property("fill");
                         expect(transactionResult.circleMessage).is.not.undefined;
@@ -1297,7 +1297,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const signedVaa = await guardianNetwork.observeEvm(
                         engineProvider,
                         MATCHING_ENGINE_NAME,
-                        receipt
+                        receipt,
                     );
 
                     let orderResponse: OrderResponse;
@@ -1352,7 +1352,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const balanceAfter = await usdc.balanceOf(toWallet.address);
 
                     expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                        TEST_AMOUNT.sub(baseFee).toString()
+                        TEST_AMOUNT.sub(baseFee).toString(),
                     );
                 });
             });

@@ -12,8 +12,8 @@ import {
     TransactionInstruction,
 } from "@solana/web3.js";
 import { Keccak } from "sha3";
-import IDL from "../../../target/idl/token_router.json";
-import { TokenRouter } from "../../../target/types/token_router";
+import IDL from "../idl/json/token_router.json";
+import { TokenRouter } from "../idl/ts/token_router";
 import {
     CctpTokenBurnMessage,
     MessageTransmitterProgram,

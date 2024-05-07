@@ -1,7 +1,6 @@
 import { expect } from "chai";
 import { execSync } from "child_process";
 import { ethers } from "ethers";
-import { parseLiquidityLayerEnvFile } from "../src";
 import {
     ICircleBridge__factory,
     IMessageTransmitter__factory,
@@ -9,6 +8,7 @@ import {
     IWormhole__factory,
 } from "../src/types";
 import {
+    parseLiquidityLayerEnvFile,
     GUARDIAN_PRIVATE_KEY,
     LOCALHOSTS,
     MATCHING_ENGINE_CHAIN,
@@ -73,7 +73,7 @@ describe("Environment", () => {
 
                     // get slot for Guardian Set at the current index
                     const guardianSetSlot = ethers.utils.keccak256(
-                        abiCoder.encode(["uint32", "uint256"], [guardianSetIndex, 2])
+                        abiCoder.encode(["uint32", "uint256"], [guardianSetIndex, 2]),
                     );
 
                     // Overwrite all but first guardian set to zero address. This isn't
@@ -89,9 +89,9 @@ describe("Environment", () => {
                                 ["uint256"],
                                 [
                                     ethers.BigNumber.from(
-                                        ethers.utils.keccak256(guardianSetSlot)
+                                        ethers.utils.keccak256(guardianSetSlot),
                                     ).add(i),
-                                ]
+                                ],
                             ),
                             ethers.utils.hexZeroPad("0x0", 32),
                         ]);
@@ -106,9 +106,9 @@ describe("Environment", () => {
                             ["uint256"],
                             [
                                 ethers.BigNumber.from(ethers.utils.keccak256(guardianSetSlot)).add(
-                                    0 // just explicit w/ index 0
+                                    0, // just explicit w/ index 0
                                 ),
-                            ]
+                            ],
                         ),
                         ethers.utils.hexZeroPad(devnetGuardian, 32),
                     ]);
@@ -122,7 +122,7 @@ describe("Environment", () => {
 
                     // Confirm guardian set override
                     const guardians = await coreBridge.getGuardianSet(guardianSetIndex).then(
-                        (guardianSet: any) => guardianSet[0] // first element is array of keys
+                        (guardianSet: any) => guardianSet[0], // first element is array of keys
                     );
                     expect(guardians.length).to.equal(1);
                     expect(guardians[0]).to.equal(devnetGuardian);
@@ -132,7 +132,7 @@ describe("Environment", () => {
             it("Modify Circle Contracts", async () => {
                 const circleBridge = ICircleBridge__factory.connect(
                     tokenMessengerAddress,
-                    provider
+                    provider,
                 );
 
                 // fetch attestation manager address
@@ -155,8 +155,8 @@ describe("Environment", () => {
                     .then((address) =>
                         IMessageTransmitter__factory.connect(
                             address,
-                            provider.getSigner(attesterManager)
-                        )
+                            provider.getSigner(attesterManager),
+                        ),
                     );
                 // const existingAttester = await messageTransmitter.getEnabledAttester(0);
 
@@ -182,8 +182,8 @@ describe("Environment", () => {
                     .then((address) => IMessageTransmitter__factory.connect(address, provider))
                     .then((messageTransmitter) =>
                         messageTransmitter.getEnabledAttester(
-                            numAttesters.sub(ethers.BigNumber.from("1"))
-                        )
+                            numAttesters.sub(ethers.BigNumber.from("1")),
+                        ),
                     );
                 expect(myAttester.address).to.equal(attester);
             });
@@ -192,7 +192,7 @@ describe("Environment", () => {
                 // fetch master minter address
                 const masterMinter = await IUSDC__factory.connect(
                     usdcAddress,
-                    provider
+                    provider,
                 ).masterMinter();
 
                 // start prank (impersonate the Circle masterMinter)
@@ -206,7 +206,7 @@ describe("Environment", () => {
                 {
                     const usdc = IUSDC__factory.connect(
                         usdcAddress,
-                        provider.getSigner(masterMinter)
+                        provider.getSigner(masterMinter),
                     );
 
                     await usdc

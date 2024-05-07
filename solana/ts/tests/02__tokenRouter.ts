@@ -28,7 +28,7 @@ import {
     expectIxErr,
     expectIxOk,
     postLiquidityLayerVaa,
-} from "./helpers";
+} from "../src/testing";
 import { VaaAccount } from "../src/wormhole";
 
 chaiUse(chaiAsPromised);

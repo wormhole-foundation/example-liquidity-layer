@@ -12,10 +12,11 @@ import {
     mineWait,
     ValidNetwork,
     MATCHING_ENGINE_NAME,
+    parseLiquidityLayerEnvFile,
+    ChainType,
+    LiquidityLayerEnv,
 } from "./helpers";
 import { expect } from "chai";
-
-import { parseLiquidityLayerEnvFile, ChainType, LiquidityLayerEnv } from "../src";
 
 const CHAIN_PATHWAYS: ValidNetwork[] = ["ethereum", "avalanche", "base"];
 
@@ -25,12 +26,12 @@ describe("Registration", () => {
     describe(`Register Token Routers on ${MATCHING_ENGINE_NAME} Matching Engine`, () => {
         const env = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
         const provider = new ethers.providers.StaticJsonRpcProvider(
-            LOCALHOSTS[MATCHING_ENGINE_NAME]
+            LOCALHOSTS[MATCHING_ENGINE_NAME],
         );
         const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
         const engine = IMatchingEngine__factory.connect(
             tryHexToNativeAssetString(env.matchingEngineAddress, CHAIN_ID_AVAX),
-            assistant
+            assistant,
         );
 
         for (const chainName of CHAIN_PATHWAYS) {
@@ -38,7 +39,7 @@ describe("Registration", () => {
                 const targetEnv = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
                 const [formattedAddress, mintRecipient] = fetchTokenRouterEndpoint(
                     targetEnv,
-                    chainName
+                    chainName,
                 );
                 const targetChainId = coalesceChainId(chainName);
                 await engine
@@ -48,13 +49,13 @@ describe("Registration", () => {
                             router: formattedAddress,
                             mintRecipient,
                         },
-                        targetEnv.domain
+                        targetEnv.domain,
                     )
                     .then((tx) => mineWait(provider, tx));
 
                 const registeredAddress = await engine.getRouter(targetChainId);
                 expect(registeredAddress.substring(2)).to.equal(
-                    Buffer.from(formattedAddress).toString("hex")
+                    Buffer.from(formattedAddress).toString("hex"),
                 );
             });
         }
@@ -76,20 +77,20 @@ describe("Registration", () => {
                     const targetEnv = parseLiquidityLayerEnvFile(`${envPath}/${targetChain}.env`);
                     const [formattedAddress, mintRecipient] = fetchTokenRouterEndpoint(
                         targetEnv,
-                        chainName
+                        chainName,
                     );
                     const targetChainId = coalesceChainId(targetChain);
                     await router
                         .addRouterEndpoint(
                             targetChainId,
                             { router: formattedAddress, mintRecipient },
-                            targetEnv.domain
+                            targetEnv.domain,
                         )
                         .then((tx) => mineWait(provider, tx));
 
                     const registeredAddress = await router.getRouter(targetChainId);
                     expect(registeredAddress.substring(2)).to.equal(
-                        Buffer.from(formattedAddress).toString("hex")
+                        Buffer.from(formattedAddress).toString("hex"),
                     );
                 });
             }
@@ -99,7 +100,7 @@ describe("Registration", () => {
 
 function fetchTokenRouterEndpoint(
     targetEnv: LiquidityLayerEnv,
-    chainName: ValidNetwork
+    chainName: ValidNetwork,
 ): [Uint8Array, Uint8Array] {
     const formattedAddress = tryNativeToUint8Array(targetEnv.tokenRouterAddress, chainName);
     let formattedMintRecipient;
@@ -111,7 +112,7 @@ function fetchTokenRouterEndpoint(
         } else {
             formattedMintRecipient = tryNativeToUint8Array(
                 targetEnv.tokenRouterMintRecipient,
-                chainName
+                chainName,
             );
         }
     }
