@@ -182,8 +182,8 @@ export class TokenRouterProgram {
         return this.program.account.preparedOrder.fetch(addr);
     }
 
-    preparedFillAddress(fillSourcet: PublicKey) {
-        return PreparedFill.address(this.ID, fillSourcet);
+    preparedFillAddress(fillSource: PublicKey) {
+        return PreparedFill.address(this.ID, fillSource);
     }
 
     // TODO: fix

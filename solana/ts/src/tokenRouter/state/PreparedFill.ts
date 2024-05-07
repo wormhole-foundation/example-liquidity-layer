@@ -32,9 +32,9 @@ export class PreparedFill {
         this.redeemerMessage = redeemerMessage;
     }
 
-    static address(programId: PublicKey, fillSourcet: PublicKey) {
+    static address(programId: PublicKey, fillSource: PublicKey) {
         return PublicKey.findProgramAddressSync(
-            [Buffer.from("fill"), fillSourcet.toBuffer()],
+            [Buffer.from("fill"), fillSource.toBuffer()],
             programId,
         )[0];
     }
