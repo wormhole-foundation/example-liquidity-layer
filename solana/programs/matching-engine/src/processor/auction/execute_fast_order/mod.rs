@@ -54,8 +54,19 @@ fn prepare_order_execution<'info>(
 
     let (user_amount, new_status, beneficiary) = {
         let auction_info = auction.info.as_ref().unwrap();
-
         let current_slot = Clock::get().unwrap().slot;
+
+        // We extend the grace period for locally executed orders. Reserving a sequence number for
+        // the fast fill will most likely require an additional transaction, so this buffer allows
+        // the best offer participant to perform his duty without the risk of getting slashed by
+        // another executor.
+        let additional_grace_period = match auction.target_protocol {
+            MessageProtocol::Local { .. } => {
+                crate::EXECUTE_FAST_ORDER_LOCAL_ADDITIONAL_GRACE_PERIOD.into()
+            }
+            _ => None,
+        };
+
         let DepositPenalty {
             penalty,
             user_reward,
@@ -63,12 +74,7 @@ fn prepare_order_execution<'info>(
             config,
             auction_info,
             current_slot,
-            match auction.target_protocol {
-                MessageProtocol::Local { .. } => {
-                    crate::EXECUTE_FAST_ORDER_LOCAL_ADDITIONAL_GRACE_PERIOD.into()
-                }
-                _ => None,
-            },
+            additional_grace_period,
         );
 
         let init_auction_fee = order.init_auction_fee();
