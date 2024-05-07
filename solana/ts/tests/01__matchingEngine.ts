@@ -59,7 +59,7 @@ import {
     postLiquidityLayerVaa,
     waitUntilSlot,
     waitUntilTimestamp,
-} from "./helpers";
+} from "../src/testing";
 
 chaiUse(chaiAsPromised);
 

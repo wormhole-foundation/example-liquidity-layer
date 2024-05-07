@@ -1,6 +1,6 @@
 import { Keypair, Connection, Signer } from "@solana/web3.js";
 import { MatchingEngineProgram } from "../src/matchingEngine";
-import { USDC_MINT_ADDRESS } from "../tests/helpers";
+import { USDC_MINT_ADDRESS } from "../src/testing";
 import {
     ChainId,
     getEmitterAddressEth,

@@ -7,11 +7,10 @@ import {
     ValidNetwork,
     DEFAULT_FAST_TRANSFER_PARAMS,
     MATCHING_ENGINE_NAME,
+    parseLiquidityLayerEnvFile,
 } from "./helpers";
 import { tryHexToNativeAssetString, CHAIN_ID_AVAX } from "@certusone/wormhole-sdk";
 import { expect } from "chai";
-
-import { parseLiquidityLayerEnvFile } from "../src";
 
 const CHAIN_PATHWAYS: ValidNetwork[] = ["ethereum", "avalanche", "base"];
 
@@ -33,13 +32,13 @@ describe("Configuration", () => {
                 const state = await router.getFastTransferParameters();
                 expect(state.enabled).to.equal(DEFAULT_FAST_TRANSFER_PARAMS.enabled);
                 expect(state.maxAmount.toString()).to.equal(
-                    DEFAULT_FAST_TRANSFER_PARAMS.maxAmount.toString()
+                    DEFAULT_FAST_TRANSFER_PARAMS.maxAmount.toString(),
                 );
                 expect(state.baseFee.toString()).to.equal(
-                    DEFAULT_FAST_TRANSFER_PARAMS.baseFee.toString()
+                    DEFAULT_FAST_TRANSFER_PARAMS.baseFee.toString(),
                 );
                 expect(state.initAuctionFee.toString()).to.equal(
-                    DEFAULT_FAST_TRANSFER_PARAMS.initAuctionFee.toString()
+                    DEFAULT_FAST_TRANSFER_PARAMS.initAuctionFee.toString(),
                 );
             });
 
@@ -55,12 +54,12 @@ describe("Configuration", () => {
         it("Set Infinite Approval For Matching Engine", async () => {
             const env = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
             const provider = new ethers.providers.StaticJsonRpcProvider(
-                LOCALHOSTS[MATCHING_ENGINE_NAME]
+                LOCALHOSTS[MATCHING_ENGINE_NAME],
             );
             const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
             const engine = IMatchingEngine__factory.connect(
                 tryHexToNativeAssetString(env.matchingEngineAddress, CHAIN_ID_AVAX),
-                assistant
+                assistant,
             );
 
             await engine

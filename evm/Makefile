@@ -23,7 +23,7 @@ forge-test: dependencies
 .PHONY: build
 build: dependencies
 	forge build --skip test
-	npm run build-types
+	npm run generate 
 
 .PHONY: dependencies
 dependencies: node_modules
@@ -31,7 +31,7 @@ dependencies: node_modules
 .PHONY: clean
 clean:
 	forge clean
-	rm -rf node_modules anvil.log ts/src/types
+	rm -rf anvil.log ts/src/types
 
 node_modules:
-	npm ci
+	cd .. && npm ci

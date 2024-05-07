@@ -2,7 +2,7 @@ import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
 import { Commitment, Connection, FetchFn, PublicKey, PublicKeyInitData } from "@solana/web3.js";
 import { ethers } from "ethers";
-import { USDC_MINT_ADDRESS } from "../../tests/helpers";
+import { USDC_MINT_ADDRESS } from "../../src/testing";
 import { defaultLogger } from "./logger";
 
 export const EVM_FAST_CONSISTENCY_LEVEL = 200;

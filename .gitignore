@@ -2,3 +2,5 @@
 .idea
 .private
 .vscode
+node_modules
+*.tgz

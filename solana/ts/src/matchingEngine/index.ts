@@ -17,8 +17,8 @@ import {
     TransactionInstruction,
 } from "@solana/web3.js";
 import { PreparedTransaction, PreparedTransactionOptions } from "..";
-import IDL from "../../../target/idl/matching_engine.json";
-import { MatchingEngine } from "../../../target/types/matching_engine";
+import IDL from "../idl/json/matching_engine.json";
+import { MatchingEngine } from "../idl/ts/matching_engine";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
 import {
     LiquidityLayerMessage,

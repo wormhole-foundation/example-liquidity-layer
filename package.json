@@ -1,0 +1,21 @@
+{
+  "name": "@wormhole-foundation/liquidity-layer",
+  "version": "0.0.1",
+  "author": "Wormhole Contributors",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "generate":"npm run generate --workspaces --if-present",
+    "pack":"npm run build && npm pack --workspaces"
+  },
+  "dependencies": {
+    "@wormhole-foundation/sdk":"0.6.7"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  },
+  "workspaces": [
+    "evm",
+    "solana"
+  ]
+}

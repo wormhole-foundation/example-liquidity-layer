@@ -1,13 +1,7 @@
 import { coalesceChainId, tryNativeToUint8Array } from "@certusone/wormhole-sdk";
 import { expect } from "chai";
 import { ethers } from "ethers";
-import {
-    ChainType,
-    EvmTokenRouter,
-    errorDecoder,
-    parseLiquidityLayerEnvFile,
-    OrderResponse,
-} from "../src";
+import { EvmTokenRouter, errorDecoder, OrderResponse } from "../src";
 import { IERC20__factory } from "../src/types";
 import {
     CircleAttester,
@@ -18,6 +12,8 @@ import {
     burnAllUsdc,
     mineWait,
     mintNativeUsdc,
+    ChainType,
+    parseLiquidityLayerEnvFile,
 } from "./helpers";
 
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
@@ -43,7 +39,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
         describe(`${fromChainName} <> ${toChainName}`, () => {
             // From setup.
             const fromProvider = new ethers.providers.StaticJsonRpcProvider(
-                LOCALHOSTS[fromChainName]
+                LOCALHOSTS[fromChainName],
             );
             const fromWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], fromProvider);
 
@@ -53,7 +49,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                     return new EvmTokenRouter(
                         fromWallet,
                         fromEnv.tokenRouterAddress,
-                        fromEnv.tokenMessengerAddress
+                        fromEnv.tokenMessengerAddress,
                     );
                 } else {
                     throw new Error("Unsupported chain");
@@ -70,7 +66,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                     return new EvmTokenRouter(
                         toWallet,
                         toEnv.tokenRouterAddress,
-                        toEnv.tokenMessengerAddress
+                        toEnv.tokenMessengerAddress,
                     );
                 } else {
                     throw new Error("Unsupported chain");
@@ -85,7 +81,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 await mintNativeUsdc(
                     IERC20__factory.connect(fromEnv.tokenAddress, fromProvider),
                     fromWallet.address,
-                    TEST_AMOUNT
+                    TEST_AMOUNT,
                 );
             });
 
@@ -119,7 +115,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                         Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
                         Buffer.from("All your base are belong to us."),
                         minAmountOut,
-                        fromWallet.address
+                        fromWallet.address,
                     )
                     .then((tx) => mineWait(fromProvider, tx))
                     .catch((err) => {
@@ -128,11 +124,11 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                         throw err;
                     });
                 const transactionResult = await fromTokenRouter.getTransactionResults(
-                    receipt.transactionHash
+                    receipt.transactionHash,
                 );
 
                 expect(transactionResult.wormhole.emitterAddress).to.eql(
-                    tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName)
+                    tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName),
                 );
                 expect(transactionResult.wormhole.message.body).has.property("fill");
                 expect(transactionResult.circleMessage).is.not.undefined;
@@ -140,7 +136,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const fillVaa = await guardianNetwork.observeEvm(
                     fromProvider,
                     fromChainName,
-                    receipt
+                    receipt,
                 );
 
                 const circleBridgeMessage = transactionResult.circleMessage!;
@@ -173,7 +169,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const balanceAfter = await usdc.balanceOf(toWallet.address);
 
                 expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                    localVariables.get("amountIn").toString()
+                    localVariables.get("amountIn").toString(),
                 );
                 expect(localVariables.delete("amountIn")).is.true;
             });
