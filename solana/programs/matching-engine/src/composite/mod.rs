@@ -534,7 +534,7 @@ pub struct ClosePreparedOrderResponse<'info> {
         ],
         bump,
     )]
-    pub custody_token: UncheckedAccount<'info>,
+    pub custody_token: Box<Account<'info, token::TokenAccount>>,
 }
 
 impl<'info> VaaDigest for ClosePreparedOrderResponse<'info> {
