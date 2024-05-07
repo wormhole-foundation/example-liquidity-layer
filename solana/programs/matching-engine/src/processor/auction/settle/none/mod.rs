@@ -15,7 +15,7 @@ use common::messages::Fill;
 
 struct SettleNoneAndPrepareFill<'ctx, 'info> {
     prepared_order_response: &'ctx mut Account<'info, PreparedOrderResponse>,
-    prepared_custody_token: &'ctx UncheckedAccount<'info>,
+    prepared_custody_token: &'ctx Account<'info, token::TokenAccount>,
     auction: &'ctx mut Account<'info, Auction>,
     fee_recipient_token: &'ctx Account<'info, token::TokenAccount>,
     custodian: &'ctx CheckedCustodian<'info>,
@@ -101,7 +101,7 @@ fn settle_none_and_prepare_fill(
     });
 
     Ok(SettledNone {
-        user_amount: prepared_order_response.amount_in.saturating_sub(fee),
+        user_amount: prepared_custody_token.amount.saturating_sub(fee),
         fill: Fill {
             source_chain: prepared_order_response.source_chain,
             order_sender: prepared_order_response.sender,
