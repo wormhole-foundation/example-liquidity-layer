@@ -408,6 +408,11 @@ export type MatchingEngine = {
         },
         {
           "name": "tokenRouterEmitter",
+          "docs": [
+            "Only the registered local Token Router program can call this instruction. It is allowed to",
+            "invoke this instruction by using its emitter (i.e. its Custodian account) as a signer. We",
+            "double-check that this signer is the same one registered for the local router endpoint."
+          ],
           "signer": true
         },
         {
