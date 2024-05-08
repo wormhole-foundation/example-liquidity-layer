@@ -32,6 +32,9 @@ pub struct CompleteFastFill<'info> {
     )]
     fast_fill: Account<'info, FastFill>,
 
+    /// Only the registered local Token Router program can call this instruction. It is allowed to
+    /// invoke this instruction by using its emitter (i.e. its Custodian account) as a signer. We
+    /// double-check that this signer is the same one registered for the local router endpoint.
     #[account(address = Pubkey::from(path.to_endpoint.address))]
     token_router_emitter: Signer<'info>,
 
