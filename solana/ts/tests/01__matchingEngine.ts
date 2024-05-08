@@ -48,6 +48,7 @@ import {
     OWNER_ASSISTANT_KEYPAIR,
     OWNER_KEYPAIR,
     PAYER_KEYPAIR,
+    PLAYER_ONE_KEYPAIR,
     REGISTERED_TOKEN_ROUTERS,
     USDC_MINT_ADDRESS,
     expectIxErr,
@@ -78,7 +79,7 @@ describe("Matching Engine", function () {
         feeRecipient,
     );
     const newFeeRecipient = Keypair.generate().publicKey;
-    const playerOne = Keypair.generate();
+    const playerOne = PLAYER_ONE_KEYPAIR;
     const playerTwo = Keypair.generate();
     const liquidator = Keypair.generate();
 
@@ -119,6 +120,102 @@ describe("Matching Engine", function () {
     describe("Admin", function () {
         describe("Initialize", function () {
             const localVariables = new Map<string, any>();
+
+            before("Transfer Lamports to Executors", async function () {
+                await expectIxOk(
+                    connection,
+                    [
+                        SystemProgram.transfer({
+                            fromPubkey: payer.publicKey,
+                            toPubkey: owner.publicKey,
+                            lamports: 10000000000,
+                        }),
+                        SystemProgram.transfer({
+                            fromPubkey: payer.publicKey,
+                            toPubkey: ownerAssistant.publicKey,
+                            lamports: 10000000000,
+                        }),
+                        SystemProgram.transfer({
+                            fromPubkey: payer.publicKey,
+                            toPubkey: playerOne.publicKey,
+                            lamports: 10000000000,
+                        }),
+                        SystemProgram.transfer({
+                            fromPubkey: payer.publicKey,
+                            toPubkey: playerTwo.publicKey,
+                            lamports: 10000000000,
+                        }),
+                        SystemProgram.transfer({
+                            fromPubkey: payer.publicKey,
+                            toPubkey: liquidator.publicKey,
+                            lamports: 10000000000,
+                        }),
+                    ],
+                    [payer],
+                );
+            });
+
+            before("Set up ATAs for Various Owners", async function () {
+                for (const tokenOwner of [
+                    PublicKey.default,
+                    feeRecipient,
+                    playerOne.publicKey,
+                    playerTwo.publicKey,
+                    liquidator.publicKey,
+                ]) {
+                    const destination = splToken.getAssociatedTokenAddressSync(
+                        USDC_MINT_ADDRESS,
+                        tokenOwner,
+                    );
+                    const createIx = splToken.createAssociatedTokenAccountInstruction(
+                        payer.publicKey,
+                        destination,
+                        tokenOwner,
+                        USDC_MINT_ADDRESS,
+                    );
+
+                    const mintAmount = 10_000_000n * 1_000_000n;
+                    const mintIx = splToken.createMintToInstruction(
+                        USDC_MINT_ADDRESS,
+                        destination,
+                        payer.publicKey,
+                        mintAmount,
+                    );
+                    await expectIxOk(connection, [createIx, mintIx], [payer]);
+
+                    const { amount } = await splToken.getAccount(connection, destination);
+                    expect(amount).equals(mintAmount);
+                }
+            });
+
+            after("Set Up Lookup Table", async function () {
+                // Create.
+                const [createIx, lookupTable] = await connection.getSlot("finalized").then((slot) =>
+                    AddressLookupTableProgram.createLookupTable({
+                        authority: payer.publicKey,
+                        payer: payer.publicKey,
+                        recentSlot: slot,
+                    }),
+                );
+
+                await expectIxOk(connection, [createIx], [payer]);
+
+                const usdcCommonAccounts = await engine.commonAccounts();
+
+                // Extend.
+                const extendIx = AddressLookupTableProgram.extendLookupTable({
+                    payer: payer.publicKey,
+                    authority: payer.publicKey,
+                    lookupTable,
+                    addresses: Object.values(usdcCommonAccounts).filter((key) => key !== undefined),
+                });
+
+                await expectIxOk(connection, [extendIx], [payer], {
+                    confirmOptions: { commitment: "finalized" },
+                });
+
+                lookupTableAddress = lookupTable;
+            });
 
             it("Cannot Initialize without USDC Mint", async function () {
                 const mint = await splToken.createMint(connection, payer, payer.publicKey, null, 6);
@@ -329,92 +426,6 @@ describe("Matching Engine", function () {
                     `Allocate: account Address { address: ${engine
                         .custodianAddress()
                         .toString()}, base: None } already in use`,
-                );
-            });
-
-            before("Set up Token Accounts", async function () {
-                await splToken.getOrCreateAssociatedTokenAccount(
-                    connection,
-                    payer,
-                    USDC_MINT_ADDRESS,
-                    feeRecipient,
-                );
-
-                await splToken.getOrCreateAssociatedTokenAccount(
-                    connection,
-                    payer,
-                    USDC_MINT_ADDRESS,
-                    PublicKey.default,
-                );
-
-                await splToken.getOrCreateAssociatedTokenAccount(
-                    connection,
-                    payer,
-                    USDC_MINT_ADDRESS,
-                    SystemProgram.programId,
-                );
-            });
-
-            after("Set Up Lookup Table", async function () {
-                // Create.
-                const [createIx, lookupTable] = await connection.getSlot("finalized").then((slot) =>
-                    AddressLookupTableProgram.createLookupTable({
-                        authority: payer.publicKey,
-                        payer: payer.publicKey,
-                        recentSlot: slot,
-                    }),
-                );
-
-                await expectIxOk(connection, [createIx], [payer]);
-
-                const usdcCommonAccounts = await engine.commonAccounts();
-
-                // Extend.
-                const extendIx = AddressLookupTableProgram.extendLookupTable({
-                    payer: payer.publicKey,
-                    authority: payer.publicKey,
-                    lookupTable,
-                    addresses: Object.values(usdcCommonAccounts).filter((key) => key !== undefined),
-                });
-
-                await expectIxOk(connection, [extendIx], [payer], {
-                    confirmOptions: { commitment: "finalized" },
-                });
-
-                lookupTableAddress = lookupTable;
-            });
-
-            after("Transfer Lamports to Owner and Owner Assistant", async function () {
-                await expectIxOk(
-                    connection,
-                    [
-                        SystemProgram.transfer({
-                            fromPubkey: payer.publicKey,
-                            toPubkey: owner.publicKey,
-                            lamports: 1000000000,
-                        }),
-                        SystemProgram.transfer({
-                            fromPubkey: payer.publicKey,
-                            toPubkey: ownerAssistant.publicKey,
-                            lamports: 1000000000,
-                        }),
-                        SystemProgram.transfer({
-                            fromPubkey: payer.publicKey,
-                            toPubkey: playerOne.publicKey,
-                            lamports: 1000000000,
-                        }),
-                        SystemProgram.transfer({
-                            fromPubkey: payer.publicKey,
-                            toPubkey: playerTwo.publicKey,
-                            lamports: 1000000000,
-                        }),
-                        SystemProgram.transfer({
-                            fromPubkey: payer.publicKey,
-                            toPubkey: liquidator.publicKey,
-                            lamports: 1000000000,
-                        }),
-                    ],
-                    [payer],
                 );
             });
         });
@@ -717,6 +728,21 @@ describe("Matching Engine", function () {
 
         describe("Router Endpoint (CCTP)", function () {
             const localVariables = new Map<string, any>();
+
+            after("Register To Router Endpoints", async function () {
+                const ix = await engine.addCctpRouterEndpointIx(
+                    {
+                        ownerOrAssistant: owner.publicKey,
+                    },
+                    {
+                        chain: wormholeSdk.coalesceChainId("arbitrum"),
+                        cctpDomain: CHAIN_TO_DOMAIN["arbitrum"]!,
+                        address: REGISTERED_TOKEN_ROUTERS["arbitrum"]!,
+                        mintRecipient: null,
+                    },
+                );
+                await expectIxOk(connection, [ix], [owner]);
+            });
 
             it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
                 const ix = await engine.addCctpRouterEndpointIx(
@@ -1559,15 +1585,25 @@ describe("Matching Engine", function () {
                     ethRouter,
                     wormholeSequence++,
                     new LiquidityLayerMessage({
-                        fastFill: {
-                            amount: 1000n,
-                            fill: {
-                                sourceChain: ethChain,
-                                orderSender: Array.from(baseFastOrder.sender),
-                                redeemer: Array.from(baseFastOrder.redeemer),
-                                redeemerMessage: baseFastOrder.redeemerMessage,
+                        deposit: new LiquidityLayerDeposit(
+                            {
+                                tokenAddress: new Array(32).fill(69),
+                                amount: 1000n,
+                                sourceCctpDomain: 69,
+                                destinationCctpDomain: 69,
+                                cctpNonce: 6969n,
+                                burnSource: new Array(32).fill(69),
+                                mintRecipient: new Array(32).fill(69),
                             },
-                        },
+                            {
+                                fill: {
+                                    sourceChain: ethChain,
+                                    orderSender: Array.from(baseFastOrder.sender),
+                                    redeemer: Array.from(baseFastOrder.redeemer),
+                                    redeemerMessage: baseFastOrder.redeemerMessage,
+                                },
+                            },
+                        ),
                     }),
                 );
 
@@ -1711,48 +1747,6 @@ describe("Matching Engine", function () {
                         errorMsg: `Allocate: account Address { address: ${result!.auction.toString()}, base: None } already in use`,
                     },
                 );
-            });
-
-            before("Register To Router Endpoints", async function () {
-                const ix = await engine.addCctpRouterEndpointIx(
-                    {
-                        ownerOrAssistant: owner.publicKey,
-                    },
-                    {
-                        chain: wormholeSdk.coalesceChainId("arbitrum"),
-                        cctpDomain: CHAIN_TO_DOMAIN["arbitrum"]!,
-                        address: REGISTERED_TOKEN_ROUTERS["arbitrum"]!,
-                        mintRecipient: null,
-                    },
-                );
-                await expectIxOk(connection, [ix], [owner]);
-            });
-
-            before("Create ATAs For Offer Authorities", async function () {
-                for (const wallet of [playerOne, playerTwo, liquidator]) {
-                    const destination = splToken.getAssociatedTokenAddressSync(
-                        USDC_MINT_ADDRESS,
-                        wallet.publicKey,
-                    );
-                    const createIx = splToken.createAssociatedTokenAccountInstruction(
-                        payer.publicKey,
-                        destination,
-                        wallet.publicKey,
-                        USDC_MINT_ADDRESS,
-                    );
-
-                    const mintAmount = 10_000_000n * 1_000_000n;
-                    const mintIx = splToken.createMintToInstruction(
-                        USDC_MINT_ADDRESS,
-                        destination,
-                        payer.publicKey,
-                        mintAmount,
-                    );
-                    await expectIxOk(connection, [createIx, mintIx], [payer]);
-
-                    const { amount } = await splToken.getAccount(connection, destination);
-                    expect(amount).equals(mintAmount);
-                }
             });
         });
 
@@ -2068,6 +2062,7 @@ describe("Matching Engine", function () {
                     offerPrice: prevOfferPrice,
                     destinationAssetInfo,
                     sourceChain,
+                    redeemerMessageLen,
                 } = info!;
                 expect(offerPrice).not.equals(BigInt(prevOfferPrice.toString()));
 
@@ -2084,6 +2079,7 @@ describe("Matching Engine", function () {
                         amountIn,
                         securityDeposit,
                         offerPrice: uint64ToBN(offerPrice),
+                        redeemerMessageLen,
                         destinationAssetInfo,
                     }),
                 );
@@ -3077,6 +3073,12 @@ describe("Matching Engine", function () {
                     initialOfferToken: bogusToken,
                 });
 
+                const { duration, gracePeriod } = await engine.fetchAuctionParameters();
+                await waitUntilSlot(
+                    connection,
+                    auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
+                );
+
                 // Pass the wrong address for the best offer token account.
                 await expectIxErr(
                     connection,
@@ -3147,29 +3149,6 @@ describe("Matching Engine", function () {
                     [ix],
                     [playerOne],
                     "Error Code: AuctionPeriodNotExpired",
-                );
-            });
-
-            it("Cannot Execute Fast Order Solana (Invalid Chain)", async function () {
-                const result = await placeInitialOfferCctpForTest(
-                    {
-                        payer: playerOne.publicKey,
-                    },
-                    { signers: [playerOne], finalized: false, fastMarketOrder: baseFastOrder },
-                );
-                const { fastVaa, auctionDataBefore } = result!;
-
-                await expectIxErr(
-                    connection,
-                    [
-                        await engine.executeFastOrderLocalIx({
-                            payer: playerOne.publicKey,
-                            fastVaa,
-                            toRouterEndpoint: engine.routerEndpointAddress(arbChain),
-                        }),
-                    ],
-                    [playerOne],
-                    "Error Code: InvalidEndpoint",
                 );
             });
 
@@ -4288,7 +4267,7 @@ describe("Matching Engine", function () {
                     {
                         const accInfo = await connection.getAccountInfo(accounts.history);
 
-                        let entrySize = 157;
+                        let entrySize = 161;
                         if (info!.destinationAssetInfo === null) {
                             entrySize -= 9;
                         }
@@ -4403,7 +4382,7 @@ describe("Matching Engine", function () {
 
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fast.vaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
-        const { amountIn, maxFee, targetChain } = fastMarketOrder!;
+        const { amountIn, maxFee, targetChain, redeemerMessage } = fastMarketOrder!;
 
         const auctionData = await engine.fetchAuction({ address: auction });
         const { bump, info } = auctionData;
@@ -4443,6 +4422,7 @@ describe("Matching Engine", function () {
                     amountIn: expectedAmountIn,
                     securityDeposit,
                     offerPrice: uint64ToBN(args.offerPrice),
+                    redeemerMessageLen: redeemerMessage.length,
                     destinationAssetInfo: null,
                 },
             ),
@@ -4692,7 +4672,7 @@ describe("Matching Engine", function () {
         const preparedOrderResponseData = await engine.fetchPreparedOrderResponse({
             address: preparedOrderResponse,
         });
-        const { bump } = preparedOrderResponseData;
+        const { seeds } = preparedOrderResponseData;
 
         const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
         const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
@@ -4705,9 +4685,11 @@ describe("Matching Engine", function () {
 
         expect(preparedOrderResponseData).to.eql(
             new PreparedOrderResponse(
-                bump,
                 {
                     fastVaaHash: Array.from(fastVaaAccount.digest()),
+                    bump: seeds.bump,
+                },
+                {
                     preparedBy: accounts.payer,
                     fastVaaTimestamp: fastVaaAccount.timestamp(),
                     sourceChain: fastVaaAccount.emitterInfo().chain,

@@ -7,8 +7,8 @@ pub(crate) use history::*;
 mod offer;
 pub use offer::*;
 
-mod prepare_settlement;
-pub use prepare_settlement::*;
+mod prepare_order_response;
+pub use prepare_order_response::*;
 
 mod settle;
 pub use settle::*;

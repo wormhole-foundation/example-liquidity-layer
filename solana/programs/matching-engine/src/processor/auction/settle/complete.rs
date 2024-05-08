@@ -37,9 +37,9 @@ pub struct SettleAuctionComplete<'info> {
         close = executor,
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
-            prepared_order_response.fast_vaa_hash.as_ref()
+            prepared_order_response.seeds.fast_vaa_hash.as_ref()
         ],
-        bump = prepared_order_response.bump,
+        bump = prepared_order_response.seeds.bump,
     )]
     prepared_order_response: Account<'info, PreparedOrderResponse>,
 
@@ -58,7 +58,7 @@ pub struct SettleAuctionComplete<'info> {
         mut,
         seeds = [
             Auction::SEED_PREFIX,
-            prepared_order_response.fast_vaa_hash.as_ref(),
+            prepared_order_response.seeds.fast_vaa_hash.as_ref(),
         ],
         bump = auction.bump,
     )]
@@ -96,8 +96,8 @@ fn handle_settle_auction_complete(
 
     let prepared_order_response_signer_seeds = &[
         PreparedOrderResponse::SEED_PREFIX,
-        prepared_order_response.fast_vaa_hash.as_ref(),
-        &[prepared_order_response.bump],
+        prepared_order_response.seeds.fast_vaa_hash.as_ref(),
+        &[prepared_order_response.seeds.bump],
     ];
 
     // We may deduct from this account if the winning participant was penalized.
@@ -168,8 +168,9 @@ fn handle_settle_auction_complete(
 
     emit!(crate::events::AuctionSettled {
         auction: ctx.accounts.auction.key(),
-        best_offer_token: Some(best_offer_token.key()),
+        best_offer_token: best_offer_token.key().into(),
         token_balance_after: best_offer_token.amount.saturating_add(repayment),
+        with_execute: Default::default(),
     });
 
     // Finally close the prepared custody token account.

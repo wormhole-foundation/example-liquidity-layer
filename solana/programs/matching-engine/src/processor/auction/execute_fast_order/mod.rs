@@ -7,7 +7,7 @@ pub use local::*;
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, AuctionStatus},
+    state::{Auction, AuctionStatus, MessageProtocol},
     utils::{self, auction::DepositPenalty},
 };
 use anchor_lang::prelude::*;
@@ -54,17 +54,28 @@ fn prepare_order_execution<'info>(
 
     let (user_amount, new_status, beneficiary) = {
         let auction_info = auction.info.as_ref().unwrap();
-
         let current_slot = Clock::get().unwrap().slot;
-        require!(
-            current_slot > auction_info.auction_end_slot(config),
-            MatchingEngineError::AuctionPeriodNotExpired
-        );
+
+        // We extend the grace period for locally executed orders. Reserving a sequence number for
+        // the fast fill will most likely require an additional transaction, so this buffer allows
+        // the best offer participant to perform his duty without the risk of getting slashed by
+        // another executor.
+        let additional_grace_period = match auction.target_protocol {
+            MessageProtocol::Local { .. } => {
+                crate::EXECUTE_FAST_ORDER_LOCAL_ADDITIONAL_GRACE_PERIOD.into()
+            }
+            _ => None,
+        };
 
         let DepositPenalty {
             penalty,
             user_reward,
-        } = utils::auction::compute_deposit_penalty(config, auction_info, current_slot);
+        } = utils::auction::compute_deposit_penalty(
+            config,
+            auction_info,
+            current_slot,
+            additional_grace_period,
+        );
 
         let init_auction_fee = order.init_auction_fee();
 
@@ -213,7 +224,7 @@ fn prepare_order_execution<'info>(
                 &[auction_signer_seeds],
             ),
             token::spl_token::instruction::AuthorityType::AccountOwner,
-            Some(custodian.key()),
+            custodian.key().into(),
         )?;
 
         // Emit the order executed event, which liquidators can listen to if this execution ended up
@@ -230,7 +241,7 @@ fn prepare_order_execution<'info>(
             user_amount,
             AuctionStatus::Completed {
                 slot: current_slot,
-                execute_penalty: if penalized { Some(penalty) } else { None },
+                execute_penalty: if penalized { penalty.into() } else { None },
             },
             beneficiary,
         )

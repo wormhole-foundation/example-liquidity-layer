@@ -23,6 +23,7 @@ import {
     OWNER_ASSISTANT_KEYPAIR,
     OWNER_KEYPAIR,
     PAYER_KEYPAIR,
+    REGISTERED_TOKEN_ROUTERS,
     USDC_MINT_ADDRESS,
     expectIxErr,
     expectIxOk,
@@ -42,9 +43,8 @@ describe("Token Router", function () {
 
     const foreignChain = wormholeSdk.CHAINS.ethereum;
     const invalidChain = (foreignChain + 1) as wormholeSdk.ChainId;
-    const foreignEndpointAddress = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+    const foreignEndpointAddress = REGISTERED_TOKEN_ROUTERS["ethereum"]!;
     const foreignCctpDomain = 0;
-    const unregisteredContractAddress = Buffer.alloc(32, "deafbeef", "hex");
     const tokenRouter = new TokenRouterProgram(connection, localnet(), USDC_MINT_ADDRESS);
 
     let lookupTableAddress: PublicKey;
@@ -1393,7 +1393,7 @@ describe("Token Router", function () {
                 );
             });
 
-            it("Cannot Redeem Fill with Invalid Payload ID", async function () {
+            it("Cannot Redeem Fill with Invalid Deposit Payload ID", async function () {
                 const cctpNonce = testCctpNonce++;
 
                 // Concoct a Circle message.
@@ -1448,9 +1448,15 @@ describe("Token Router", function () {
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                     lookupTableAddress,
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: InvalidPayloadId", {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
+                await expectIxErr(
+                    connection,
+                    [ix],
+                    [payer],
+                    "Error Code: InvalidDepositPayloadId",
+                    {
+                        addressLookupTableAccounts: [lookupTableAccount!],
+                    },
+                );
             });
 
             it("Disable Router Endpoint on Matching Engine", async function () {
@@ -1643,9 +1649,7 @@ describe("Token Router", function () {
 
                 const beneficiary = Keypair.generate().publicKey;
 
-                const vaaAccount = await VaaAccount.fetch(connection, vaa);
-                const preparedFill = tokenRouter.preparedFillAddress(vaaAccount.digest());
-
+                const preparedFill = tokenRouter.preparedFillAddress(vaa);
                 const expectedPreparedFillLamports = await connection
                     .getAccountInfo(preparedFill)
                     .then((info) => info!.lamports);

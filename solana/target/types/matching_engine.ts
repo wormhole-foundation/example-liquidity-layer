@@ -28,6 +28,7 @@ export type MatchingEngine = {
         "lamports by closing that account. And the protocol's fee recipient will be able to claim",
         "lamports by closing the empty `Auction` account it creates when he calls any of the",
         "`settle_auction_none_*` instructions.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `AddAuctionHistoryEntry` context."
@@ -86,8 +87,10 @@ export type MatchingEngine = {
     {
       "name": "addCctpRouterEndpoint",
       "docs": [
-        "This instruction is used to add a new Token Router endpoint from a foreign chain. The endpoint",
-        "must be CCTP compatible. This instruction can only be called by the `owner` or `owner_assistant`.",
+        "This instruction is used to add a new Token Router endpoint from a foreign chain. The",
+        "endpoint must be CCTP compatible. This instruction can only be called by the `owner` or",
+        "`owner_assistant`.",
+        "",
         "# Arguments",
         "",
         "* `ctx`  - `AddCctpRouterEndpoint` context.",
@@ -172,6 +175,7 @@ export type MatchingEngine = {
         "This instruction is used to add a new Local Router endpoint. Local means that the",
         "Token Router program exists on Solana. This instruction can only be called by the",
         "`owner` or `owner_assistant`.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `AddLocalRouterEndpoint` context."
@@ -239,8 +243,9 @@ export type MatchingEngine = {
     {
       "name": "cancelOwnershipTransferRequest",
       "docs": [
-        "This instruction cancels an ownership transfer request by resetting the `pending_owner` field",
-        "in the `Custodian` account. This instruction can only be called by the `owner`.",
+        "This instruction cancels an ownership transfer request by resetting the `pending_owner`",
+        "field in the `Custodian` account. This instruction can only be called by the `owner`.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `CancelOwnershipTransferRequest` context."
@@ -277,6 +282,7 @@ export type MatchingEngine = {
       "docs": [
         "This instruction is used to close an existing proposal by closing the proposal account. This",
         "instruction can only be called by the `owner` or `owner_assistant`.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `CloseProposal` context."
@@ -321,11 +327,50 @@ export type MatchingEngine = {
       "args": []
     },
     {
+      "name": "closeRedeemedFastFill",
+      "docs": [
+        "This instruction is used to return lamports to the creator of the `FastFill` account only",
+        "when this fill was redeemed via the Token Router program.",
+        "",
+        "# Arguments",
+        "",
+        "* `ctx` - `CloseRedeemedFastFill` context."
+      ],
+      "discriminator": [
+        44,
+        104,
+        207,
+        178,
+        224,
+        7,
+        28,
+        219
+      ],
+      "accounts": [
+        {
+          "name": "preparedBy",
+          "docs": [
+            "Instead of having the preparer sign for this instruction, we allow anyone to call this",
+            "instruction on behalf of the preparer.",
+            ""
+          ],
+          "writable": true
+        },
+        {
+          "name": "fastFill",
+          "writable": true
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "completeFastFill",
       "docs": [
-        "This instruction is used to complete the fast fill after the `fast_fill` VAA has been",
-        "emitted. The Token Router program on Solana will invoke this instruction to complete the",
-        "fast fill. Tokens will be deposited into the local endpoint's custody account.",
+        "This instruction is used to complete the fast fill after the `FastFill` account has been",
+        "created. The Token Router program on Solana will invoke this instruction to complete the",
+        "fast fill, marking it as redeemed. Tokens will be deposited into the local endpoint's",
+        "custody account.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `CompleteFastFill` context."
@@ -342,11 +387,6 @@ export type MatchingEngine = {
       ],
       "accounts": [
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
           "name": "custodian",
           "accounts": [
             {
@@ -355,19 +395,24 @@ export type MatchingEngine = {
           ]
         },
         {
-          "name": "fastFillVaa",
-          "accounts": [
-            {
-              "name": "vaa"
-            }
-          ]
-        },
-        {
-          "name": "redeemedFastFill",
+          "name": "fastFill",
+          "docs": [
+            "Fast fill account.",
+            "",
+            "NOTE: This account may have been closed if the fast fill was already redeemed, so this",
+            "deserialization will fail in this case.",
+            "",
+            "Seeds must be \\[\"fast-fill\", source_chain, order_sender, sequence\\]."
+          ],
           "writable": true
         },
         {
           "name": "tokenRouterEmitter",
+          "docs": [
+            "Only the registered local Token Router program can call this instruction. It is allowed to",
+            "invoke this instruction by using its emitter (i.e. its Custodian account) as a signer. We",
+            "double-check that this signer is the same one registered for the local router endpoint."
+          ],
           "signer": true
         },
         {
@@ -401,9 +446,6 @@ export type MatchingEngine = {
         },
         {
           "name": "tokenProgram"
-        },
-        {
-          "name": "systemProgram"
         }
       ],
       "args": []
@@ -414,6 +456,7 @@ export type MatchingEngine = {
         "This instruction confirms the ownership transfer request and sets the new `owner` in the",
         "`Custodian` account. This instruction can only be called by the `pending_owner`. The",
         "`pending_owner` must be the same as the `pending_owner` in the `Custodian` account.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `ConfirmOwnershipTransferRequest` context."
@@ -449,6 +492,7 @@ export type MatchingEngine = {
       "docs": [
         "This instruction is used to create the first `AuctionHistory` account, whose PDA is derived",
         "using ID == 0.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `CreateFirstAuctionHistory` context."
@@ -485,6 +529,7 @@ export type MatchingEngine = {
         "This instruction is used to create a new `AuctionHistory` account. The PDA is derived using",
         "its ID. A new history account can be created only when the current one is full (number of",
         "entries equals the hard-coded max entries).",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `CreateNewAuctionHistory` context."
@@ -522,8 +567,9 @@ export type MatchingEngine = {
       "name": "disableRouterEndpoint",
       "docs": [
         "This instruction is used to disable a router endpoint. This instruction does not close the",
-        "account, it only sets the `protocol` to `None` and clears the `address` and `mint_recipient`.",
-        "This instruction can only be called by the `owner`.",
+        "account, it only sets the `protocol` to `None` and clears the `address` and",
+        "`mint_recipient`. This instruction can only be called by the `owner`.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `DisableRouterEndpoint` context."
@@ -572,9 +618,10 @@ export type MatchingEngine = {
       "name": "executeFastOrderCctp",
       "docs": [
         "This instruction is used to execute the fast order after the auction period has ended.",
-        "It should be executed before the `grace_period` has ended, otherwise the `highest_bidder`",
-        "will incur a penalty. Once executed, a CCTP transfer will be sent to the recipient encoded",
-        "in the `FastMarketOrder` VAA on the target chain.",
+        "It should be executed before the `grace_period` has ended, otherwise the best offer will",
+        "incur a penalty. Once executed, a CCTP transfer will be sent to the recipient encoded in the",
+        "`FastMarketOrder` VAA on the target chain.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `ExecuteFastOrderCctp` context."
@@ -772,8 +819,9 @@ export type MatchingEngine = {
       "name": "executeFastOrderLocal",
       "docs": [
         "This instruction is used to execute the fast order after the auction period has ended.",
-        "It should be executed before the `grace_period` has ended, otherwise the `highest_bidder`",
-        "will incur a penalty. Once executed, a `fast_fill` VAA will be emitted.",
+        "It should be executed before the `grace_period` has ended, otherwise the best offer will",
+        "incur a penalty. Once executed, a `FastFill` account will be created.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `ExecuteFastOrderLocal` context."
@@ -793,10 +841,6 @@ export type MatchingEngine = {
           "name": "payer",
           "writable": true,
           "signer": true
-        },
-        {
-          "name": "coreMessage",
-          "writable": true
         },
         {
           "name": "custodian",
@@ -855,32 +899,28 @@ export type MatchingEngine = {
           ]
         },
         {
-          "name": "toRouterEndpoint",
-          "accounts": [
-            {
-              "name": "endpoint"
-            }
-          ]
+          "name": "reservedSequence",
+          "docs": [
+            "This account will be closed at the end of this instruction instead of using the close",
+            "account directive here.",
+            "",
+            "NOTE: We do not need to do a VAA hash check because that was already performed when the",
+            "reserved sequence was created."
+          ],
+          "writable": true
         },
         {
-          "name": "wormhole",
-          "accounts": [
-            {
-              "name": "config",
-              "writable": true
-            },
-            {
-              "name": "emitterSequence",
-              "writable": true
-            },
-            {
-              "name": "feeCollector",
-              "writable": true
-            },
-            {
-              "name": "coreBridgeProgram"
-            }
-          ]
+          "name": "bestOfferParticipant",
+          "docs": [
+            "When the reserved sequence account was created, the beneficiary was set to the best offer",
+            "token's owner. This account will receive the lamports from the reserved sequence account.",
+            ""
+          ],
+          "writable": true
+        },
+        {
+          "name": "fastFill",
+          "writable": true
         },
         {
           "name": "localCustodyToken",
@@ -910,6 +950,12 @@ export type MatchingEngine = {
               ]
             }
           ]
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -919,12 +965,14 @@ export type MatchingEngine = {
       "docs": [
         "This instruction is used to improve an existing auction offer. The `offer_price` must be",
         "greater than the current `offer_price` in the auction. This instruction will revert if the",
-        "`offer_price` is less than the current `offer_price`. This instruction can be called by anyone.",
+        "`offer_price` is less than the current `offer_price`. This instruction can be called by",
+        "anyone.",
+        "",
         "# Arguments",
         "",
-        "* `ctx`       - `ImproveOffer` context.",
-        "* `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast",
-        "order. This fee is paid in USDC."
+        "* `ctx`         - `ImproveOffer` context.",
+        "* `offer_price` - The fee that the caller is willing to accept in order for fufilling the",
+        "fast order. This fee is paid in USDC."
       ],
       "discriminator": [
         171,
@@ -982,12 +1030,14 @@ export type MatchingEngine = {
       "name": "initialize",
       "docs": [
         "This instruction is be used to generate the program's `custodian` and `auction_config`",
-        "configs. It also reates the `owner` and `fee_recipient` accounts. Finally, it sets the upgrade",
-        "authority to the `upgrade_manager_authority`. Upgrades are managed by the `upgrade_manager_program`.",
+        "configs. It also reates the `owner` and `fee_recipient` accounts. Finally, it sets the",
+        "upgrade authority to the `upgrade_manager_authority`. Upgrades are managed by the",
+        "`upgrade_manager_program`.",
+        "",
         "# Arguments",
         "",
-        "* `ctx`            - `Initialize` context.",
-        "* `auction_params` - The auction parameters, see `auction_config.rs`."
+        "* `ctx`  - `Initialize` context.",
+        "* `args` - Initialize args, which has the initial [AuctionParameters]."
       ],
       "discriminator": [
         175,
@@ -1087,6 +1137,7 @@ export type MatchingEngine = {
       "docs": [
         "This instruction is used for executing logic during an upgrade. This instruction can only be",
         "called by the `upgrade_manager_program`.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `Migrate` context."
@@ -1130,9 +1181,9 @@ export type MatchingEngine = {
         "an auction-specific token custody account. This instruction can be called by anyone.",
         "# Arguments",
         "",
-        "* `ctx`       - `PlaceInitialOfferCctp` context.",
-        "* `offer_price` - The fee that the caller is willing to accept in order for fufilling the fast",
-        "order. This fee is paid in USDC."
+        "* `ctx`         - `PlaceInitialOfferCctp` context.",
+        "* `offer_price` - The fee that the caller is willing to accept in order for fufilling the",
+        "fast order. This fee is paid in USDC."
       ],
       "discriminator": [
         157,
@@ -1243,9 +1294,11 @@ export type MatchingEngine = {
       "name": "prepareOrderResponseCctp",
       "docs": [
         "This instruction is used to prepare the order response for a CCTP transfer. This instruction",
-        "will redeem the finalized transfer associated with a particular auction, and deposit the funds",
-        "to the `prepared_custody_token` account that is created during execution. This instruction",
-        "will create a `PreparedOrderResponse` account that will be used to settle the auction.",
+        "will redeem the finalized transfer associated with a particular auction, and deposit the",
+        "funds to the `prepared_custody_token` account that is created during execution. This",
+        "instruction will create a `PreparedOrderResponse` account that will be used to settle the",
+        "auction.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `PrepareOrderResponseCctp` context."
@@ -1426,6 +1479,7 @@ export type MatchingEngine = {
         "This instruction is used to propose new auction parameters. A proposal cannot be enacted",
         "until one epoch has passed. This instruction can only be called by the `owner` or",
         "`owner_assistant`.",
+        "",
         "# Arguments",
         "",
         "* `ctx`    - `ProposeAuctionParameters` context.",
@@ -1487,10 +1541,242 @@ export type MatchingEngine = {
       ]
     },
     {
+      "name": "reserveFastFillSequenceActiveAuction",
+      "docs": [
+        "This instruction is used to reserve a sequence number for a fast fill. Fast fills are orders",
+        "that have been fulfilled and are destined for Solana and are seeded by source chain, order",
+        "sender and sequence number (similar to how Wormhole VAAs are identified by emitter chain,",
+        "emitter address and sequence number).",
+        "",
+        "Prior to executing `execute_fast_order_local` after the duration of an auction, the winning",
+        "auction participant should call this instruction to reserve the fast fill's sequence number.",
+        "This sequence number is warehoused in the `ReservedFastFillSequence` account and will be",
+        "closed when the order is executed.",
+        "",
+        "Auction participants can listen to the `FastFillSequenceReserved` event to track when he",
+        "(or associated payer) called this instruction so he can execute local orders easily.",
+        "",
+        "# Arguments",
+        "",
+        "* `ctx` - `ReserveFastFillSequenceActiveAuction` context."
+      ],
+      "discriminator": [
+        206,
+        255,
+        241,
+        68,
+        224,
+        129,
+        210,
+        187
+      ],
+      "accounts": [
+        {
+          "name": "reserveSequence",
+          "accounts": [
+            {
+              "name": "payer",
+              "writable": true,
+              "signer": true
+            },
+            {
+              "name": "fastOrderPath",
+              "accounts": [
+                {
+                  "name": "fastVaa",
+                  "accounts": [
+                    {
+                      "name": "vaa"
+                    }
+                  ]
+                },
+                {
+                  "name": "path",
+                  "accounts": [
+                    {
+                      "name": "fromEndpoint",
+                      "accounts": [
+                        {
+                          "name": "endpoint"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "toEndpoint",
+                      "accounts": [
+                        {
+                          "name": "endpoint"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "sequencer",
+              "docs": [
+                "This sequencer determines the next reserved sequence. If it does not exist for a given",
+                "source chain and sender, it will be created.",
+                "",
+                "Auction participants may want to consider pricing the creation of this account into their",
+                "offer prices by checking whether this sequencer already exists for those orders destined for",
+                "Solana."
+              ],
+              "writable": true
+            },
+            {
+              "name": "reserved",
+              "docs": [
+                "This account will be used to determine the sequence of the next fast fill. When a local",
+                "order is executed or an non-existent auction is settled, this account will be closed."
+              ],
+              "writable": true
+            },
+            {
+              "name": "systemProgram"
+            }
+          ]
+        },
+        {
+          "name": "auction",
+          "docs": [
+            "must have been created by this point. Otherwise the auction account must reflect a completed",
+            "auction."
+          ]
+        },
+        {
+          "name": "auctionConfig"
+        },
+        {
+          "name": "bestOfferToken",
+          "docs": [
+            "Best offer token account, whose owner will be the beneficiary of the reserved fast fill",
+            "sequence account when it is closed."
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "reserveFastFillSequenceNoAuction",
+      "docs": [
+        "This instruction is used to reserve a sequence number for a fast fill. Fast fills are orders",
+        "that have been fulfilled and are destined for Solana and are seeded by source chain, order",
+        "sender and sequence number (similar to how Wormhole VAAs are identified by emitter chain,",
+        "emitter address and sequence number).",
+        "",
+        "Prior to executing `settle_auction_none_local` if there is no auction, whomever prepared the",
+        "order response should call this instruction to reserve the fast fill's sequence number.",
+        "This sequence number is warehoused in the `ReservedFastFillSequence` account and will be",
+        "closed when the funds are finally settled.",
+        "",
+        "# Arguments",
+        "",
+        "* `ctx` - `ReserveFastFillSequenceNoAuction` context."
+      ],
+      "discriminator": [
+        61,
+        148,
+        140,
+        87,
+        186,
+        87,
+        212,
+        239
+      ],
+      "accounts": [
+        {
+          "name": "reserveSequence",
+          "accounts": [
+            {
+              "name": "payer",
+              "writable": true,
+              "signer": true
+            },
+            {
+              "name": "fastOrderPath",
+              "accounts": [
+                {
+                  "name": "fastVaa",
+                  "accounts": [
+                    {
+                      "name": "vaa"
+                    }
+                  ]
+                },
+                {
+                  "name": "path",
+                  "accounts": [
+                    {
+                      "name": "fromEndpoint",
+                      "accounts": [
+                        {
+                          "name": "endpoint"
+                        }
+                      ]
+                    },
+                    {
+                      "name": "toEndpoint",
+                      "accounts": [
+                        {
+                          "name": "endpoint"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "sequencer",
+              "docs": [
+                "This sequencer determines the next reserved sequence. If it does not exist for a given",
+                "source chain and sender, it will be created.",
+                "",
+                "Auction participants may want to consider pricing the creation of this account into their",
+                "offer prices by checking whether this sequencer already exists for those orders destined for",
+                "Solana."
+              ],
+              "writable": true
+            },
+            {
+              "name": "reserved",
+              "docs": [
+                "This account will be used to determine the sequence of the next fast fill. When a local",
+                "order is executed or an non-existent auction is settled, this account will be closed."
+              ],
+              "writable": true
+            },
+            {
+              "name": "systemProgram"
+            }
+          ]
+        },
+        {
+          "name": "preparedOrderResponse",
+          "docs": [
+            "The preparer will be the beneficiary of the reserved fast fill sequence account when it is",
+            "closed. This instruction will not allow this account to be provided if there is an existing",
+            "auction, which would enforce the order be executed when it is time to complete the auction."
+          ]
+        },
+        {
+          "name": "auction",
+          "docs": [
+            "must have been created by this point. Otherwise the auction account must reflect a completed",
+            "auction."
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "setPause",
       "docs": [
-        "This instruction is used to pause or unpause further processing of new auctions. Only the `owner`",
-        "or `owner_assistant` can pause the program.",
+        "This instruction is used to pause or unpause further processing of new auctions. Only the",
+        "`owner` or `owner_assistant` can pause the program.",
+        "",
         "# Arguments",
         "",
         "* `ctx`   - `SetPause` context.",
@@ -1531,10 +1817,11 @@ export type MatchingEngine = {
     {
       "name": "settleAuctionComplete",
       "docs": [
-        "This instruction is used to settle the acution after the `FastMarketOrder` has been executed,",
-        "and the `PreparedOrderResponse` has been created. This instruction will settle the auction",
-        "by transferring the funds from the `prepared_custody_token` account to the `highest_bidder`",
-        "account.",
+        "This instruction is used to settle the acution after the `FastMarketOrder` has been",
+        "executed, and the `PreparedOrderResponse` has been created. This instruction will settle the",
+        "auction by transferring the funds from the `prepared_custody_token` account to the best",
+        "offer account.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `SettleAuctionComplete` context."
@@ -1595,9 +1882,10 @@ export type MatchingEngine = {
       "name": "settleAuctionNoneCctp",
       "docs": [
         "This instruction is used to route funds to the `recipient` for a `FastMarketOrder` with",
-        "no corresponding auction on Solana. This instruction can be called by anyone, but the",
-        "`base_fee` associated with relaying a finalized VAA will be paid to the `fee_recipient`.",
-        "This instruction generates a `Fill` message.",
+        "no corresponding auction on Solana. This instruction can be called by anyone, but the sum of",
+        "`init_auction_fee` and `base_fee` associated with relaying a finalized VAA will be paid to",
+        "the `fee_recipient`. This instruction generates a `Fill` message.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `SettleAuctionNoneCctp` context."
@@ -1772,10 +2060,11 @@ export type MatchingEngine = {
     {
       "name": "settleAuctionNoneLocal",
       "docs": [
-        "This instruction is used to settle a `FastMarketOrder` with no corresponding auction. The funds",
-        "are routed to the `recipient` on the target chain by executing a CCTP transfer and sending a `Fill`",
-        "message. This instruction can be called by anyone, but the `base_fee` associated with relaying a",
-        "finalized VAA will be paid to the `fee_recipient`.",
+        "This instruction is used to settle a `FastMarketOrder` with no corresponding auction. This",
+        "instruction can be called by anyone, but the sum of `init_auction_fee` and `base_fee`",
+        "associated with relaying a finalized VAA will be paid to the `fee_recipient`. This",
+        "instruction creates a `FastFill` account.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `SettleAuctionNoneLocal` context."
@@ -1795,10 +2084,6 @@ export type MatchingEngine = {
           "name": "payer",
           "writable": true,
           "signer": true
-        },
-        {
-          "name": "coreMessage",
-          "writable": true
         },
         {
           "name": "custodian",
@@ -1843,24 +2128,21 @@ export type MatchingEngine = {
           "writable": true
         },
         {
-          "name": "wormhole",
-          "accounts": [
-            {
-              "name": "config",
-              "writable": true
-            },
-            {
-              "name": "emitterSequence",
-              "writable": true
-            },
-            {
-              "name": "feeCollector",
-              "writable": true
-            },
-            {
-              "name": "coreBridgeProgram"
-            }
-          ]
+          "name": "reservedSequence",
+          "docs": [
+            "This account will be closed at the end of this instruction instead of using the close",
+            "account directive here.",
+            "",
+            "If we could reference the beneficiary using `prepared.by`, this would be a different story.",
+            "",
+            "NOTE: We do not need to do a VAA hash check because that was already performed when the",
+            "reserved sequence was created."
+          ],
+          "writable": true
+        },
+        {
+          "name": "fastFill",
+          "writable": true
         },
         {
           "name": "localCustodyToken",
@@ -1890,6 +2172,12 @@ export type MatchingEngine = {
               ]
             }
           ]
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -1900,6 +2188,7 @@ export type MatchingEngine = {
         "This instruction sets the `pending_owner` field in the `Custodian` account. This instruction",
         "can only be called by the `owner`. The `pending_owner` address must be valid, meaning it",
         "cannot be the zero address or the current owner.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `SubmitOwnershipTransferRequest` context."
@@ -1944,6 +2233,7 @@ export type MatchingEngine = {
         "This instruction is used to enact an existing auction update proposal. It can only be",
         "executed after the `slot_enact_delay` has passed. This instruction can only be called by",
         "the `owner` of the proposal.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `UpdateAuctionParameters` context."
@@ -1997,6 +2287,7 @@ export type MatchingEngine = {
         "This instruction is used to update a CCTP router endpoint. It allows the caller to change",
         "the `address`, `mint_recipient`, and `domain`. This instruction can only be called by the",
         "`owner`.",
+        "",
         "# Arguments",
         "",
         "* `ctx`  - `UpdateCctpRouterEndpoint` context.",
@@ -2060,8 +2351,9 @@ export type MatchingEngine = {
     {
       "name": "updateFeeRecipient",
       "docs": [
-        "This instruction is used to update the `fee_recipient` field in the `Custodian` account. This",
-        "instruction can only be called by the `owner` or `owner_assistant`.",
+        "This instruction is used to update the `fee_recipient` field in the `Custodian` account.",
+        "This instruction can only be called by the `owner` or `owner_assistant`.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `UpdateFeeRecipient` context."
@@ -2108,6 +2400,7 @@ export type MatchingEngine = {
       "docs": [
         "This instruction is used to update a Local router endpoint. It allows the caller to change",
         "the `address` and `mint_recipient`. This instruction can only be called by the `owner`.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `UpdateLocalRouterEndpoint` context."
@@ -2172,8 +2465,9 @@ export type MatchingEngine = {
     {
       "name": "updateOwnerAssistant",
       "docs": [
-        "This instruction is used to update the `owner_assistant` field in the `Custodian` account. This",
-        "instruction can only be called by the `owner`.",
+        "This instruction is used to update the `owner_assistant` field in the `Custodian` account.",
+        "This instruction can only be called by the `owner`.",
+        "",
         "# Arguments",
         "",
         "* `ctx` - `UpdateOwnerAssistant` context."
@@ -2280,6 +2574,32 @@ export type MatchingEngine = {
       ]
     },
     {
+      "name": "fastFill",
+      "discriminator": [
+        89,
+        120,
+        166,
+        41,
+        106,
+        227,
+        218,
+        121
+      ]
+    },
+    {
+      "name": "fastFillSequencer",
+      "discriminator": [
+        70,
+        193,
+        18,
+        127,
+        227,
+        183,
+        46,
+        177
+      ]
+    },
+    {
       "name": "preparedOrderResponse",
       "discriminator": [
         20,
@@ -2306,19 +2626,6 @@ export type MatchingEngine = {
       ]
     },
     {
-      "name": "redeemedFastFill",
-      "discriminator": [
-        44,
-        188,
-        179,
-        117,
-        17,
-        246,
-        14,
-        11
-      ]
-    },
-    {
       "name": "remoteTokenMessenger",
       "discriminator": [
         105,
@@ -2329,6 +2636,19 @@ export type MatchingEngine = {
         233,
         138,
         252
+      ]
+    },
+    {
+      "name": "reservedFastFillSequence",
+      "discriminator": [
+        77,
+        151,
+        219,
+        66,
+        126,
+        238,
+        151,
+        179
       ]
     },
     {
@@ -2383,6 +2703,45 @@ export type MatchingEngine = {
         24,
         141,
         143
+      ]
+    },
+    {
+      "name": "fastFillRedeemed",
+      "discriminator": [
+        192,
+        96,
+        201,
+        180,
+        102,
+        112,
+        34,
+        102
+      ]
+    },
+    {
+      "name": "fastFillSequenceReserved",
+      "discriminator": [
+        6,
+        154,
+        159,
+        87,
+        13,
+        183,
+        211,
+        152
+      ]
+    },
+    {
+      "name": "localFastOrderFilled",
+      "discriminator": [
+        131,
+        247,
+        217,
+        194,
+        154,
+        179,
+        238,
+        193
       ]
     },
     {
@@ -2590,10 +2949,6 @@ export type MatchingEngine = {
       "name": "offerPriceTooHigh"
     },
     {
-      "code": 7030,
-      "name": "invalidEmitterForFastFill"
-    },
-    {
       "code": 7032,
       "name": "auctionNotActive"
     },
@@ -2628,6 +2983,54 @@ export type MatchingEngine = {
     {
       "code": 7060,
       "name": "invalidOfferToken"
+    },
+    {
+      "code": 7062,
+      "name": "fastFillTooLarge"
+    },
+    {
+      "code": 7064,
+      "name": "auctionExists"
+    },
+    {
+      "code": 7065,
+      "name": "accountNotAuction"
+    },
+    {
+      "code": 7066,
+      "name": "bestOfferTokenMismatch"
+    },
+    {
+      "code": 7068,
+      "name": "bestOfferTokenRequired"
+    },
+    {
+      "code": 7070,
+      "name": "preparedByMismatch"
+    },
+    {
+      "code": 7071,
+      "name": "preparedOrderResponseNotRequired"
+    },
+    {
+      "code": 7072,
+      "name": "auctionConfigNotRequired"
+    },
+    {
+      "code": 7073,
+      "name": "bestOfferTokenNotRequired"
+    },
+    {
+      "code": 7076,
+      "name": "fastFillAlreadyRedeemed"
+    },
+    {
+      "code": 7077,
+      "name": "fastFillNotRedeemed"
+    },
+    {
+      "code": 7080,
+      "name": "reservedSequenceMismatch"
     },
     {
       "code": 7280,
@@ -2959,6 +3362,13 @@ export type MatchingEngine = {
             "type": "u64"
           },
           {
+            "name": "redeemerMessageLen",
+            "docs": [
+              "Length of the redeemer message, which may impact the expense to execute the auction."
+            ],
+            "type": "u32"
+          },
+          {
             "name": "destinationAssetInfo",
             "docs": [
               "If the destination asset is not equal to the asset used for auctions, this will be some",
@@ -3058,6 +3468,19 @@ export type MatchingEngine = {
               "recipient token account."
             ],
             "type": "u64"
+          },
+          {
+            "name": "withExecute",
+            "docs": [
+              "This value will only be some if there was no active auction."
+            ],
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "messageProtocol"
+                }
+              }
+            }
           }
         ]
       }
@@ -3136,6 +3559,10 @@ export type MatchingEngine = {
                 "name": "messageProtocol"
               }
             }
+          },
+          {
+            "name": "redeemerMessageLen",
+            "type": "u32"
           },
           {
             "name": "endSlot",
@@ -3299,6 +3726,173 @@ export type MatchingEngine = {
       }
     },
     {
+      "name": "fastFill",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "fastFillSeeds"
+              }
+            }
+          },
+          {
+            "name": "preparedBy",
+            "type": "pubkey"
+          },
+          {
+            "name": "redeemed",
+            "type": "bool"
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": {
+                "name": "fastFillInfo"
+              }
+            }
+          },
+          {
+            "name": "redeemerMessage",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFillInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "redeemer",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFillRedeemed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "preparedBy",
+            "type": "pubkey"
+          },
+          {
+            "name": "fastFill",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFillSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sourceChain",
+            "type": "u16"
+          },
+          {
+            "name": "orderSender",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "sequence",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFillSequenceReserved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fastVaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "fastFillSeeds",
+            "type": {
+              "defined": {
+                "name": "fastFillSeeds"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFillSequencer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "fastFillSequencerSeeds"
+              }
+            }
+          },
+          {
+            "name": "nextSequence",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "fastFillSequencerSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sourceChain",
+            "type": "u16"
+          },
+          {
+            "name": "sender",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "initializeArgs",
       "type": {
         "kind": "struct",
@@ -3309,6 +3903,36 @@ export type MatchingEngine = {
               "defined": {
                 "name": "auctionParameters"
               }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "localFastOrderFilled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "fastFillSeeds"
+              }
+            }
+          },
+          {
+            "name": "info",
+            "type": {
+              "defined": {
+                "name": "fastFillInfo"
+              }
+            }
+          },
+          {
+            "name": "auction",
+            "type": {
+              "option": "pubkey"
             }
           }
         ]
@@ -3387,8 +4011,12 @@ export type MatchingEngine = {
         "kind": "struct",
         "fields": [
           {
-            "name": "bump",
-            "type": "u8"
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "preparedOrderResponseSeeds"
+              }
+            }
           },
           {
             "name": "info",
@@ -3418,15 +4046,6 @@ export type MatchingEngine = {
       "type": {
         "kind": "struct",
         "fields": [
-          {
-            "name": "fastVaaHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
           {
             "name": "preparedBy",
             "type": "pubkey"
@@ -3468,6 +4087,27 @@ export type MatchingEngine = {
           {
             "name": "amountIn",
             "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "preparedOrderResponseSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fastVaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }
@@ -3563,31 +4203,6 @@ export type MatchingEngine = {
       }
     },
     {
-      "name": "redeemedFastFill",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "bump",
-            "type": "u8"
-          },
-          {
-            "name": "vaaHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "sequence",
-            "type": "u64"
-          }
-        ]
-      }
-    },
-    {
       "name": "remoteTokenMessenger",
       "type": {
         "kind": "struct",
@@ -3604,6 +4219,55 @@ export type MatchingEngine = {
                 32
               ]
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "reservedFastFillSequence",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "seeds",
+            "type": {
+              "defined": {
+                "name": "reservedFastFillSequenceSeeds"
+              }
+            }
+          },
+          {
+            "name": "beneficiary",
+            "type": "pubkey"
+          },
+          {
+            "name": "fastFillSeeds",
+            "type": {
+              "defined": {
+                "name": "fastFillSeeds"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "reservedFastFillSequenceSeeds",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fastVaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
           }
         ]
       }

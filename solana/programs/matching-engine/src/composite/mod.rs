@@ -3,7 +3,8 @@ use std::ops::{Deref, DerefMut};
 use crate::{
     error::MatchingEngineError,
     state::{
-        Auction, AuctionStatus, Custodian, MessageProtocol, PreparedOrderResponse, RouterEndpoint,
+        Auction, AuctionStatus, Custodian, FastFillSequencer, MessageProtocol,
+        PreparedOrderResponse, ReservedFastFillSequence, RouterEndpoint,
     },
     utils::{self, VaaDigest},
 };
@@ -11,7 +12,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token;
 use common::{
     admin::utils::{assistant::only_authorized, ownable::only_owner},
-    messages::raw::{LiquidityLayerMessage, LiquidityLayerPayload},
+    messages::raw::LiquidityLayerMessage,
     wormhole_cctp_solana::{
         cctp::{message_transmitter_program, token_messenger_minter_program},
         wormhole::{core_bridge_program, VaaAccount},
@@ -66,7 +67,8 @@ pub struct LiquidityLayerVaa<'info> {
             let vaa = VaaAccount::load(&vaa)?;
 
             // Is it a legitimate LL message?
-            LiquidityLayerPayload::try_from(vaa.payload()).map_err(|_| MatchingEngineError::InvalidVaa)?;
+            LiquidityLayerMessage::try_from(vaa.payload())
+                .map_err(|_| MatchingEngineError::InvalidVaa)?;
 
             // Done.
             true
@@ -368,6 +370,18 @@ pub struct ExecuteOrder<'info> {
     )]
     pub fast_vaa: LiquidityLayerVaa<'info>,
 
+    #[account(
+        constraint = {
+            let info = active_auction.info.as_ref().unwrap();
+
+            require!(
+                !info.within_auction_duration(&active_auction.config),
+                MatchingEngineError::AuctionPeriodNotExpired
+            );
+
+            true
+        }
+    )]
     pub active_auction: ActiveAuction<'info>,
 
     /// CHECK: Must be a token account, whose mint is [common::USDC_MINT].
@@ -519,9 +533,9 @@ pub struct ClosePreparedOrderResponse<'info> {
         close = by,
         seeds = [
             PreparedOrderResponse::SEED_PREFIX,
-            order_response.fast_vaa_hash.as_ref()
+            order_response.seeds.fast_vaa_hash.as_ref()
         ],
-        bump = order_response.bump,
+        bump = order_response.seeds.bump,
     )]
     pub order_response: Box<Account<'info, PreparedOrderResponse>>,
 
@@ -539,8 +553,56 @@ pub struct ClosePreparedOrderResponse<'info> {
 
 impl<'info> VaaDigest for ClosePreparedOrderResponse<'info> {
     fn digest(&self) -> [u8; 32] {
-        self.order_response.fast_vaa_hash
+        self.order_response.seeds.fast_vaa_hash
     }
+}
+
+#[derive(Accounts)]
+pub struct ReserveFastFillSequence<'info> {
+    #[account(mut)]
+    payer: Signer<'info>,
+
+    pub fast_order_path: FastOrderPath<'info>,
+
+    /// This sequencer determines the next reserved sequence. If it does not exist for a given
+    /// source chain and sender, it will be created.
+    ///
+    /// Auction participants may want to consider pricing the creation of this account into their
+    /// offer prices by checking whether this sequencer already exists for those orders destined for
+    /// Solana.
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = 8 + FastFillSequencer::INIT_SPACE,
+        seeds = [
+            FastFillSequencer::SEED_PREFIX,
+            &fast_order_path.fast_vaa.load_unchecked().emitter_chain().to_be_bytes(),
+            &{
+                let vaa = fast_order_path.fast_vaa.load_unchecked();
+                LiquidityLayerMessage::try_from(vaa.payload())
+                    .unwrap()
+                    .to_fast_market_order_unchecked().sender()
+            },
+        ],
+        bump,
+    )]
+    pub sequencer: Box<Account<'info, FastFillSequencer>>,
+
+    /// This account will be used to determine the sequence of the next fast fill. When a local
+    /// order is executed or an non-existent auction is settled, this account will be closed.
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + ReservedFastFillSequence::INIT_SPACE,
+        seeds = [
+            ReservedFastFillSequence::SEED_PREFIX,
+            fast_order_path.fast_vaa.load_unchecked().digest().as_ref(),
+        ],
+        bump,
+    )]
+    pub reserved: Box<Account<'info, ReservedFastFillSequence>>,
+
+    system_program: Program<'info, System>,
 }
 
 /// NOTE: Keep this at the end in case Wormhole removes the need for these accounts.

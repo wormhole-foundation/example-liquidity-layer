@@ -101,7 +101,6 @@ export type RedeemFastFillAccounts = {
     preparedFill: PublicKey;
     cctpMintRecipient: PublicKey;
     matchingEngineCustodian: PublicKey;
-    matchingEngineRedeemedFastFill: PublicKey;
     matchingEngineFromEndpoint: PublicKey;
     matchingEngineToEndpoint: PublicKey;
     matchingEngineLocalCustodyToken: PublicKey;
@@ -183,8 +182,8 @@ export class TokenRouterProgram {
         return this.program.account.preparedOrder.fetch(addr);
     }
 
-    preparedFillAddress(vaaHash: Array<number> | Uint8Array | Buffer) {
-        return PreparedFill.address(this.ID, vaaHash);
+    preparedFillAddress(fillSource: PublicKey) {
+        return PreparedFill.address(this.ID, fillSource);
     }
 
     // TODO: fix
@@ -567,15 +566,15 @@ export class TokenRouterProgram {
     }
 
     async redeemCctpFillAccounts(
-        vaa: PublicKey,
+        fillVaa: PublicKey,
         cctpMessage: CctpTokenBurnMessage | Buffer,
     ): Promise<RedeemFillCctpAccounts> {
         const msg = CctpTokenBurnMessage.from(cctpMessage);
         const cctpMintRecipient = this.cctpMintRecipientAddress();
 
-        const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, vaa);
+        const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, fillVaa);
         const { chain } = vaaAccount.emitterInfo();
-        const preparedFill = this.preparedFillAddress(vaaAccount.digest());
+        const preparedFill = this.preparedFillAddress(fillVaa);
 
         const {
             authority: messageTransmitterAuthority,
@@ -628,14 +627,15 @@ export class TokenRouterProgram {
             cctpAttestation: Buffer;
         },
     ): Promise<TransactionInstruction> {
-        const { payer, vaa, routerEndpoint: inputRouterEndpoint } = accounts;
-
+        const { payer, vaa } = accounts;
         const { encodedCctpMessage } = args;
+
+        let { routerEndpoint } = accounts;
 
         const {
             preparedFill,
             cctpMintRecipient,
-            routerEndpoint,
+            routerEndpoint: derivedRouterEndpoint,
             messageTransmitterAuthority,
             messageTransmitterConfig,
             usedNonces,
@@ -650,17 +650,18 @@ export class TokenRouterProgram {
             messageTransmitterProgram,
             tokenMessengerMinterEventAuthority,
         } = await this.redeemCctpFillAccounts(vaa, encodedCctpMessage);
+        routerEndpoint ??= derivedRouterEndpoint;
 
         return this.program.methods
             .redeemCctpFill(args)
             .accounts({
+                payer,
                 custodian: this.checkedCustodianComposite(),
-                preparedFill: this.initIfNeededPreparedFillComposite({
-                    payer,
-                    vaa,
-                    preparedFill,
-                }),
-                routerEndpoint: inputRouterEndpoint ?? routerEndpoint,
+                fillVaa: this.liquidityLayerVaaComposite(vaa),
+                preparedFill,
+                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
+                usdc: this.usdcComposite(),
+                routerEndpoint,
                 cctp: {
                     mintRecipient: { mintRecipient: cctpMintRecipient },
                     messageTransmitterAuthority,
@@ -683,28 +684,20 @@ export class TokenRouterProgram {
             .instruction();
     }
 
-    async redeemFastFillAccounts(
-        vaa: PublicKey,
-        sourceChain?: wormholeSdk.ChainId,
-    ): Promise<RedeemFastFillAccounts> {
+    async redeemFastFillAccounts(fastFill: PublicKey): Promise<RedeemFastFillAccounts> {
         const {
-            vaaAccount,
-            accounts: {
-                custodian: matchingEngineCustodian,
-                redeemedFastFill: matchingEngineRedeemedFastFill,
-                fromRouterEndpoint: matchingEngineFromEndpoint,
-                toRouterEndpoint: matchingEngineToEndpoint,
-                localCustodyToken: matchingEngineLocalCustodyToken,
-                matchingEngineProgram,
-            },
-        } = await this.matchingEngineProgram().redeemFastFillAccounts(vaa, sourceChain);
+            custodian: matchingEngineCustodian,
+            fromRouterEndpoint: matchingEngineFromEndpoint,
+            toRouterEndpoint: matchingEngineToEndpoint,
+            localCustodyToken: matchingEngineLocalCustodyToken,
+            matchingEngineProgram,
+        } = await this.matchingEngineProgram().redeemFastFillAccounts(fastFill);
 
         return {
             custodian: this.custodianAddress(),
-            preparedFill: this.preparedFillAddress(vaaAccount.digest()),
+            preparedFill: this.preparedFillAddress(fastFill),
             cctpMintRecipient: this.cctpMintRecipientAddress(),
             matchingEngineCustodian,
-            matchingEngineRedeemedFastFill,
             matchingEngineFromEndpoint,
             matchingEngineToEndpoint,
             matchingEngineLocalCustodyToken,
@@ -713,30 +706,28 @@ export class TokenRouterProgram {
     }
     async redeemFastFillIx(accounts: {
         payer: PublicKey;
-        vaa: PublicKey;
+        fastFill: PublicKey;
     }): Promise<TransactionInstruction> {
-        const { payer, vaa } = accounts;
+        const { payer, fastFill } = accounts;
         const {
             preparedFill,
             matchingEngineCustodian,
-            matchingEngineRedeemedFastFill,
             matchingEngineFromEndpoint,
             matchingEngineToEndpoint,
             matchingEngineLocalCustodyToken,
             matchingEngineProgram,
-        } = await this.redeemFastFillAccounts(vaa);
+        } = await this.redeemFastFillAccounts(fastFill);
 
         return this.program.methods
             .redeemFastFill()
             .accounts({
+                payer,
                 custodian: this.checkedCustodianComposite(),
-                preparedFill: this.initIfNeededPreparedFillComposite({
-                    payer,
-                    vaa,
-                    preparedFill,
-                }),
+                fastFill,
+                preparedFill,
+                preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
+                usdc: this.usdcComposite(),
                 matchingEngineCustodian,
-                matchingEngineRedeemedFastFill,
                 matchingEngineFromEndpoint,
                 matchingEngineToEndpoint,
                 matchingEngineLocalCustodyToken,

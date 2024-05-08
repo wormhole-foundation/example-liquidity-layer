@@ -9,6 +9,7 @@ pub enum TokenRouterError {
 
     InvalidDepositMessage = 0x44,
     InvalidPayloadId = 0x46,
+    InvalidDepositPayloadId = 0x48,
     RedeemerMessageTooLarge = 0x4e,
 
     InvalidSourceRouter = 0x60,
@@ -31,4 +32,5 @@ pub enum TokenRouterError {
     InsufficientAmount = 0x400,
     MinAmountOutTooHigh = 0x402,
     InvalidRedeemer = 0x404,
+    PreparedFillTooLarge = 0x406,
 }

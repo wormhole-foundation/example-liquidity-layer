@@ -16,14 +16,15 @@ pub fn compute_deposit_penalty(
     params: &AuctionParameters,
     info: &AuctionInfo,
     current_slot: u64,
+    additional_grace_period: Option<u64>,
 ) -> DepositPenalty {
-    let grace_slot = info.grace_period_end_slot(params);
+    let grace_slot = info.grace_period_end_slot(params, additional_grace_period);
 
     if current_slot <= grace_slot {
         Default::default()
     } else {
         let deposit = info.security_deposit;
-        if current_slot >= info.penalty_period_end_slot(params)
+        if current_slot >= info.penalty_period_end_slot(params, additional_grace_period)
             || params.initial_penalty_bps == FEE_PRECISION_MAX
         {
             split_user_penalty_reward(params, deposit)
@@ -153,7 +154,7 @@ mod test {
         let DepositPenalty {
             penalty,
             user_reward,
-        } = compute_deposit_penalty(&params, &info, current_slot);
+        } = compute_deposit_penalty(&params, &info, current_slot, None);
 
         assert_eq!(penalty, 0);
         assert_eq!(user_reward, 0);
@@ -170,7 +171,7 @@ mod test {
         let DepositPenalty {
             penalty,
             user_reward,
-        } = compute_deposit_penalty(&params, &info, current_slot);
+        } = compute_deposit_penalty(&params, &info, current_slot, None);
 
         assert_eq!(penalty, 7500000);
         assert_eq!(user_reward, 2500000);
@@ -187,7 +188,7 @@ mod test {
         let DepositPenalty {
             penalty,
             user_reward,
-        } = compute_deposit_penalty(&params, &info, current_slot);
+        } = compute_deposit_penalty(&params, &info, current_slot, None);
 
         assert_eq!(penalty, 1087500);
         assert_eq!(user_reward, 362500);
@@ -204,7 +205,7 @@ mod test {
         let DepositPenalty {
             penalty,
             user_reward,
-        } = compute_deposit_penalty(&params, &info, current_slot);
+        } = compute_deposit_penalty(&params, &info, current_slot, None);
 
         assert_eq!(penalty, 4125000);
         assert_eq!(user_reward, 1375000);
@@ -221,7 +222,7 @@ mod test {
         let DepositPenalty {
             penalty,
             user_reward,
-        } = compute_deposit_penalty(&params, &info, current_slot);
+        } = compute_deposit_penalty(&params, &info, current_slot, None);
 
         assert_eq!(penalty, 7162500);
         assert_eq!(user_reward, 2387500);
@@ -241,7 +242,7 @@ mod test {
         let DepositPenalty {
             penalty,
             user_reward,
-        } = compute_deposit_penalty(&params, &info, current_slot);
+        } = compute_deposit_penalty(&params, &info, current_slot, None);
 
         assert_eq!(penalty, 3750000);
         assert_eq!(user_reward, 1250000);
@@ -262,7 +263,7 @@ mod test {
         let DepositPenalty {
             penalty,
             user_reward,
-        } = compute_deposit_penalty(&params, &info, current_slot);
+        } = compute_deposit_penalty(&params, &info, current_slot, None);
 
         assert_eq!(penalty, 5000000);
         assert_eq!(user_reward, 0);
@@ -283,7 +284,7 @@ mod test {
         let DepositPenalty {
             penalty,
             user_reward,
-        } = compute_deposit_penalty(&params, &info, current_slot);
+        } = compute_deposit_penalty(&params, &info, current_slot, None);
 
         assert_eq!(penalty, 5000000);
         assert_eq!(user_reward, 5000000);
@@ -304,7 +305,7 @@ mod test {
         let DepositPenalty {
             penalty,
             user_reward,
-        } = compute_deposit_penalty(&params, &info, current_slot);
+        } = compute_deposit_penalty(&params, &info, current_slot, None);
 
         assert_eq!(penalty, 0);
         assert_eq!(user_reward, 7500000);
@@ -326,7 +327,7 @@ mod test {
         let DepositPenalty {
             penalty,
             user_reward,
-        } = compute_deposit_penalty(&params, &info, current_slot);
+        } = compute_deposit_penalty(&params, &info, current_slot, None);
 
         assert_eq!(penalty, 5000000);
         assert_eq!(user_reward, 5000000);
@@ -385,6 +386,7 @@ mod test {
                 initial_offer_token: Default::default(),
                 amount_in: Default::default(),
                 offer_price,
+                redeemer_message_len: Default::default(),
                 destination_asset_info: Default::default(),
             },
             START + slots_elapsed.unwrap_or_default(),

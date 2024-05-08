@@ -3,9 +3,13 @@ import { PublicKey } from "@solana/web3.js";
 import { VaaHash } from "../../common";
 import { EndpointInfo } from "./RouterEndpoint";
 
+export type PreparedOrderResponseSeeds = {
+    fastVaaHash: Array<number>;
+    bump: number;
+};
+
 export type PreparedOrderResponseInfo = {
     preparedBy: PublicKey;
-    fastVaaHash: Array<number>;
     fastVaaTimestamp: number;
     sourceChain: number;
     baseFee: BN;
@@ -16,18 +20,18 @@ export type PreparedOrderResponseInfo = {
 };
 
 export class PreparedOrderResponse {
-    bump: number;
+    seeds: PreparedOrderResponseSeeds;
     info: PreparedOrderResponseInfo;
     toEndpoint: EndpointInfo;
     redeemerMessage: Buffer;
 
     constructor(
-        bump: number,
+        seeds: PreparedOrderResponseSeeds,
         info: PreparedOrderResponseInfo,
         toEndpoint: EndpointInfo,
         redeemerMessage: Buffer,
     ) {
-        this.bump = bump;
+        this.seeds = seeds;
         this.info = info;
         this.toEndpoint = toEndpoint;
         this.redeemerMessage = redeemerMessage;

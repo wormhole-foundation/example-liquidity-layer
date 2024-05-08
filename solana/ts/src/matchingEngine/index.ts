@@ -1,16 +1,18 @@
 export * from "./state";
 
 import * as wormholeSdk from "@certusone/wormhole-sdk";
-import { BN, Program } from "@coral-xyz/anchor";
+import { BN, Program, utils } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     ConfirmOptions,
     Connection,
+    Finality,
     PublicKey,
     SYSVAR_CLOCK_PUBKEY,
     SYSVAR_EPOCH_SCHEDULE_PUBKEY,
     SYSVAR_RENT_PUBKEY,
     Signer,
+    SlotInfo,
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
@@ -41,13 +43,18 @@ import {
     AuctionParameters,
     Custodian,
     EndpointInfo,
+    FastFill,
+    FastFillInfo,
+    FastFillSeeds,
+    FastFillSequencer,
     MessageProtocol,
     PreparedOrderResponse,
     Proposal,
     ProposalAction,
-    RedeemedFastFill,
+    ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
+import { Transaction } from "ethers";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -55,6 +62,8 @@ export const PROGRAM_IDS = [
 ] as const;
 
 export const FEE_PRECISION_MAX = 1_000_000n;
+
+export const CPI_EVENT_IX_SELECTOR = Uint8Array.from([228, 69, 165, 46, 81, 203, 154, 29]);
 
 export type ProgramId = (typeof PROGRAM_IDS)[number];
 
@@ -119,7 +128,6 @@ export type BurnAndPublishAccounts = {
 
 export type RedeemFastFillAccounts = {
     custodian: PublicKey;
-    redeemedFastFill: PublicKey;
     fromRouterEndpoint: PublicKey;
     toRouterEndpoint: PublicKey;
     localCustodyToken: PublicKey;
@@ -135,6 +143,7 @@ export type AuctionSettled = {
     auction: PublicKey;
     bestOfferToken: PublicKey | null;
     tokenBalanceAfter: BN;
+    withExecute: MessageProtocol | null;
 };
 
 export type AuctionUpdated = {
@@ -143,6 +152,7 @@ export type AuctionUpdated = {
     vaa: PublicKey | null;
     sourceChain: number;
     targetProtocol: MessageProtocol;
+    redeemerMessageLen: number;
     endSlot: BN;
     bestOfferToken: PublicKey;
     tokenBalanceBefore: BN;
@@ -163,6 +173,41 @@ export type Proposed = {
 
 export type Enacted = {
     action: ProposalAction;
+};
+
+export type LocalFastOrderFilled = {
+    seeds: FastFillSeeds;
+    preparedBy: PublicKey;
+    info: FastFillInfo;
+};
+
+export type FastFillSequenceReserved = {
+    fastVaaHash: Array<number>;
+    fastFillSeeds: FastFillSeeds;
+};
+
+export type FastFillRedeemed = {
+    preparedBy: PublicKey;
+    fastFill: PublicKey;
+};
+
+export type FastOrderPathComposite = {
+    fastVaa: {
+        vaa: PublicKey;
+    };
+    path: {
+        fromEndpoint: {
+            endpoint: PublicKey;
+        };
+        toEndpoint: { endpoint: PublicKey };
+    };
+};
+
+export type ReserveFastFillSequenceCompositeOpts = {
+    fastVaaHash?: VaaHash;
+    sourceChain?: wormholeSdk.ChainId;
+    orderSender?: Array<number>;
+    targetChain?: wormholeSdk.ChainId;
 };
 
 export class MatchingEngineProgram {
@@ -208,6 +253,96 @@ export class MatchingEngineProgram {
 
     onEnacted(callback: (event: Enacted, slot: number, signature: string) => void) {
         return this.program.addEventListener("enacted", callback);
+    }
+
+    onFilledLocalFastOrder(
+        callback: (
+            event: LocalFastOrderFilled,
+            eventSlot: number,
+            signature: string,
+            currentSlotInfo?: SlotInfo,
+        ) => void,
+        commitment: Finality = "confirmed",
+    ) {
+        const program = this.program;
+        const connection = program.provider.connection;
+
+        const signatureSlots: { signature: string; eventSlot: number }[] = [];
+
+        connection.onSlotChange(async (slotInfo) => {
+            // TODO: Make this more efficient by fetching multiple parsed transactions.
+            while (signatureSlots.length > 0) {
+                const { signature, eventSlot } = signatureSlots[0];
+
+                const parsedTx = await program.provider.connection.getParsedTransaction(signature, {
+                    commitment,
+                    maxSupportedTransactionVersion: 0,
+                });
+
+                if (parsedTx === null) {
+                    break;
+                }
+
+                // Finally dequeue.
+                signatureSlots.shift();
+
+                // Find the event.
+                for (const innerIx of parsedTx.meta?.innerInstructions!) {
+                    for (const ix of innerIx.instructions) {
+                        if (!ix.programId.equals(this.ID) || !("data" in ix)) {
+                            continue;
+                        }
+
+                        const data = utils.bytes.bs58.decode(ix.data);
+                        if (!data.subarray(0, 8).equals(CPI_EVENT_IX_SELECTOR)) {
+                            continue;
+                        }
+
+                        const decoded = program.coder.events.decode(
+                            utils.bytes.base64.encode(data.subarray(8)),
+                        );
+
+                        if (decoded !== null && decoded.name === "localFastOrderFilled") {
+                            return callback(decoded.data, eventSlot, signature, slotInfo);
+                        }
+                    }
+                }
+            }
+        });
+
+        this.onOrderExecuted(async (orderExecutedEvent, eventSlot, signature) => {
+            if (orderExecutedEvent.targetProtocol.local === undefined) {
+                return;
+            }
+
+            signatureSlots.push({ signature, eventSlot });
+        });
+
+        // No new listener IDs are created on subsequent addEventListener calls.
+        return this.onAuctionSettled(async (auctionSettledEvent, eventSlot, signature) => {
+            const withExecute = auctionSettledEvent.withExecute;
+            if (withExecute === null || withExecute.local === undefined) {
+                return;
+            }
+
+            signatureSlots.push({ signature, eventSlot });
+        });
+    }
+
+    onFastFillSequenceReserved(
+        callback: (event: FastFillSequenceReserved, slot: number, signature: string) => void,
+    ) {
+        return this.program.addEventListener("fastFillSequenceReserved", callback);
+    }
+
+    onFastFillRedeemed(
+        callback: (event: FastFillRedeemed, slot: number, signature: string) => void,
+    ) {
+        return this.program.addEventListener("fastFillRedeemed", callback);
+    }
+
+    eventAuthorityAddress(): PublicKey {
+        return PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], this.ID)[0];
     }
 
     custodianAddress(): PublicKey {
@@ -304,15 +439,6 @@ export class MatchingEngineProgram {
         return reclaimCctpMessageIx(this.messageTransmitterProgram(), accounts, cctpAttestation);
     }
 
-    redeemedFastFillAddress(vaaHash: VaaHash): PublicKey {
-        return RedeemedFastFill.address(this.ID, vaaHash);
-    }
-
-    fetchRedeemedFastFill(input: VaaHash | { address: PublicKey }): Promise<RedeemedFastFill> {
-        const addr = "address" in input ? input.address : this.redeemedFastFillAddress(input);
-        return this.program.account.redeemedFastFill.fetch(addr);
-    }
-
     preparedOrderResponseAddress(fastVaaHash: VaaHash): PublicKey {
         return PreparedOrderResponse.address(this.ID, fastVaaHash);
     }
@@ -345,7 +471,7 @@ export class MatchingEngineProgram {
             .catch((_) => 0n);
     }
 
-    localCustodyTokenAddress(sourceChain: number): PublicKey {
+    localCustodyTokenAddress(sourceChain: wormholeSdk.ChainId): PublicKey {
         const encodedSourceChain = Buffer.alloc(2);
         encodedSourceChain.writeUInt16BE(sourceChain);
 
@@ -355,7 +481,7 @@ export class MatchingEngineProgram {
         )[0];
     }
 
-    async fetchLocalCustodyTokenBalance(sourceChain: number): Promise<bigint> {
+    async fetchLocalCustodyTokenBalance(sourceChain: wormholeSdk.ChainId): Promise<bigint> {
         return splToken
             .getAccount(
                 this.program.provider.connection,
@@ -363,6 +489,44 @@ export class MatchingEngineProgram {
             )
             .then((token) => token.amount)
             .catch((_) => 0n);
+    }
+
+    fastFillAddress(
+        sourceChain: wormholeSdk.ChainId,
+        orderSender: Array<number>,
+        sequence: Uint64,
+    ): PublicKey {
+        return FastFill.address(this.ID, sourceChain, orderSender, sequence);
+    }
+
+    fetchFastFill(
+        input: [wormholeSdk.ChainId, Array<number>, Uint64] | { address: PublicKey },
+    ): Promise<FastFill> {
+        const addr = "address" in input ? input.address : this.fastFillAddress(...input);
+        return this.program.account.fastFill.fetch(addr);
+    }
+
+    fastFillSequencerAddress(sourceChain: wormholeSdk.ChainId, sender: Array<number>): PublicKey {
+        return FastFillSequencer.address(this.ID, sourceChain, sender);
+    }
+
+    fetchFastFillSequencer(
+        input: [wormholeSdk.ChainId, Array<number>] | { address: PublicKey },
+    ): Promise<FastFillSequencer> {
+        const addr = "address" in input ? input.address : this.fastFillSequencerAddress(...input);
+        return this.program.account.fastFillSequencer.fetch(addr);
+    }
+
+    reservedFastFillSequenceAddress(fastVaaHash: VaaHash): PublicKey {
+        return ReservedFastFillSequence.address(this.ID, fastVaaHash);
+    }
+
+    fetchReservedFastFillSequence(
+        input: VaaHash | { address: PublicKey },
+    ): Promise<ReservedFastFillSequence> {
+        const addr =
+            "address" in input ? input.address : this.reservedFastFillSequenceAddress(input);
+        return this.program.account.reservedFastFillSequence.fetch(addr);
     }
 
     transferAuthorityAddress(auction: PublicKey, offerPrice: Uint64): PublicKey {
@@ -620,17 +784,7 @@ export class MatchingEngineProgram {
         fastVaa: PublicKey;
         fromEndpoint: PublicKey;
         toEndpoint: PublicKey;
-    }): {
-        fastVaa: {
-            vaa: PublicKey;
-        };
-        path: {
-            fromEndpoint: {
-                endpoint: PublicKey;
-            };
-            toEndpoint: { endpoint: PublicKey };
-        };
-    } {
+    }): FastOrderPathComposite {
         const { fastVaa, fromEndpoint, toEndpoint } = accounts;
         return {
             fastVaa: { vaa: fastVaa },
@@ -1370,13 +1524,11 @@ export class MatchingEngineProgram {
         let { auction, bestOfferToken } = accounts;
 
         if (auction === undefined) {
-            const {
-                info: { fastVaaHash },
-            } = await this.fetchPreparedOrderResponse({
+            const { seeds } = await this.fetchPreparedOrderResponse({
                 address: preparedOrderResponse,
             });
 
-            auction = this.auctionAddress(fastVaaHash);
+            auction = this.auctionAddress(seeds.fastVaaHash);
         }
 
         if (bestOfferToken === undefined) {
@@ -1426,13 +1578,14 @@ export class MatchingEngineProgram {
         }
 
         // Fetch the prepared order response.
-        const preparedOrderResponse = this.preparedOrderResponseAddress(fastVaaAccount.digest());
+        const fastVaaHash = fastVaaAccount.digest();
+        const preparedOrderResponse = this.preparedOrderResponseAddress(fastVaaHash);
 
         const settleAuctionNoneIx = await (async () => {
             if (fastMarketOrder.targetChain === wormholeSdk.CHAIN_ID_SOLANA) {
                 return this.settleAuctionNoneLocalIx({
                     payer: executor,
-                    fastVaa,
+                    reservedSequence: this.reservedFastFillSequenceAddress(fastVaaHash),
                     preparedOrderResponse,
                     auction,
                 });
@@ -1465,39 +1618,44 @@ export class MatchingEngineProgram {
     async settleAuctionNoneLocalIx(
         accounts: {
             payer: PublicKey;
-            fastVaa: PublicKey;
+            reservedSequence: PublicKey;
             preparedOrderResponse?: PublicKey;
             auction?: PublicKey;
         },
         opts: {
             sourceChain?: wormholeSdk.ChainId;
+            orderSender?: Array<number>;
+            sequence?: Uint64;
         } = {},
     ) {
-        const { payer, fastVaa } = accounts;
+        const { payer, reservedSequence } = accounts;
 
         let { auction, preparedOrderResponse } = accounts;
-        let { sourceChain } = opts;
+        let { sourceChain, orderSender, sequence } = opts;
 
-        let fastVaaAccount: VaaAccount | undefined;
-        if (auction === undefined || preparedOrderResponse === undefined) {
-            fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
-            auction ??= this.auctionAddress(fastVaaAccount.digest());
-            preparedOrderResponse ??= this.preparedOrderResponseAddress(fastVaaAccount.digest());
+        if (
+            auction === undefined ||
+            preparedOrderResponse === undefined ||
+            sourceChain === undefined ||
+            orderSender === undefined ||
+            sequence === undefined
+        ) {
+            const {
+                seeds: { fastVaaHash },
+                fastFillSeeds,
+            } = await this.fetchReservedFastFillSequence({
+                address: reservedSequence,
+            });
+            auction ??= this.auctionAddress(fastVaaHash);
+            preparedOrderResponse ??= this.preparedOrderResponseAddress(fastVaaHash);
+
+            if (!wormholeSdk.isChain(fastFillSeeds.sourceChain)) {
+                throw new Error("Invalid source chain");
+            }
+            sourceChain ??= fastFillSeeds.sourceChain;
+            orderSender ??= fastFillSeeds.orderSender;
+            sequence ??= fastFillSeeds.sequence;
         }
-
-        if (sourceChain === undefined) {
-            fastVaaAccount ??= await VaaAccount.fetch(this.program.provider.connection, fastVaa);
-            sourceChain ??= fastVaaAccount.emitterInfo().chain;
-        }
-
-        const {
-            custodian,
-            coreMessage,
-            coreBridgeConfig,
-            coreEmitterSequence,
-            coreFeeCollector,
-            coreBridgeProgram,
-        } = await this.publishMessageAccounts(auction);
 
         const { feeRecipientToken } = await this.fetchCustodian();
 
@@ -1505,20 +1663,17 @@ export class MatchingEngineProgram {
             .settleAuctionNoneLocal()
             .accounts({
                 payer,
-                coreMessage,
-                custodian: this.checkedCustodianComposite(custodian),
+                custodian: this.checkedCustodianComposite(),
                 feeRecipientToken,
                 prepared: this.closePreparedOrderResponseComposite({
                     by: payer,
                     orderResponse: preparedOrderResponse,
                 }),
                 auction,
-                wormhole: {
-                    config: coreBridgeConfig,
-                    emitterSequence: coreEmitterSequence,
-                    feeCollector: coreFeeCollector,
-                    coreBridgeProgram,
-                },
+                reservedSequence,
+                fastFill: this.fastFillAddress(sourceChain, orderSender, sequence),
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
                 localCustodyToken: this.localCustodyTokenAddress(sourceChain),
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
@@ -1628,6 +1783,7 @@ export class MatchingEngineProgram {
             fastVaa: PublicKey;
             auction?: PublicKey;
             executorToken?: PublicKey;
+            reservedSequence?: PublicKey;
         },
         signers: Signer[],
         opts: PreparedTransactionOptions,
@@ -1635,13 +1791,16 @@ export class MatchingEngineProgram {
     ): Promise<PreparedTransaction> {
         const { payer, fastVaa, executorToken } = accounts;
 
-        let { auction } = accounts;
+        let { auction, reservedSequence } = accounts;
 
         let fastVaaAccount: VaaAccount | undefined;
         let targetChain: wormholeSdk.ChainId | undefined;
-        if (auction === undefined) {
+        if (auction === undefined || reservedSequence === undefined) {
             fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
-            auction = this.auctionAddress(fastVaaAccount.digest());
+            const fastVaaHash = fastVaaAccount.digest();
+            auction = this.auctionAddress(fastVaaHash);
+            reservedSequence = this.reservedFastFillSequenceAddress(fastVaaHash);
+
             const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
             if (fastMarketOrder === undefined) {
                 throw new Error("Message not FastMarketOrder");
@@ -1669,6 +1828,7 @@ export class MatchingEngineProgram {
                     fastVaa,
                     auction,
                     executorToken,
+                    reservedSequence,
                 });
             } else {
                 return this.executeFastOrderCctpIx(
@@ -1818,50 +1978,235 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
+    async reserveFastFillSequenceComposite(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            fromEndpoint?: PublicKey;
+            toEndpoint?: PublicKey;
+            sequencer?: PublicKey;
+            reserved?: PublicKey;
+        },
+        opts: ReserveFastFillSequenceCompositeOpts,
+    ): Promise<{
+        reserveSequence: {
+            payer: PublicKey;
+            fastOrderPath: FastOrderPathComposite;
+            sequencer: PublicKey;
+            reserved: PublicKey;
+            systemProgram: PublicKey;
+        };
+        definedOpts: {
+            fastVaaHash: VaaHash;
+            sourceChain: wormholeSdk.ChainId;
+            orderSender: Array<number>;
+            targetChain: wormholeSdk.ChainId;
+        };
+    }> {
+        const { payer, fastVaa } = accounts;
+
+        let { fromEndpoint, toEndpoint, sequencer, reserved } = accounts;
+        let { fastVaaHash, sourceChain, orderSender, targetChain } = opts;
+
+        if (
+            fastVaaHash === undefined ||
+            sourceChain === undefined ||
+            orderSender === undefined ||
+            targetChain === undefined
+        ) {
+            const fastVaaAccount = await VaaAccount.fetch(
+                this.program.provider.connection,
+                fastVaa,
+            );
+            fastVaaHash ??= fastVaaAccount.digest();
+            sourceChain ??= fastVaaAccount.emitterInfo().chain;
+
+            const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+            if (fastMarketOrder === undefined) {
+                throw new Error("Message not FastMarketOrder");
+            }
+            orderSender ??= fastMarketOrder.sender;
+            targetChain ??= fastMarketOrder.targetChain;
+        }
+
+        fromEndpoint ??= this.routerEndpointAddress(sourceChain);
+        toEndpoint ??= this.routerEndpointAddress(targetChain);
+        sequencer ??= this.fastFillSequencerAddress(sourceChain, orderSender);
+        reserved ??= this.reservedFastFillSequenceAddress(fastVaaHash);
+
+        return {
+            reserveSequence: {
+                payer,
+                fastOrderPath: this.fastOrderPathComposite({ fastVaa, fromEndpoint, toEndpoint }),
+                sequencer,
+                reserved,
+                systemProgram: SystemProgram.programId,
+            },
+            definedOpts: { fastVaaHash, sourceChain, orderSender, targetChain },
+        };
+    }
+
+    async reserveFastFillSequenceActiveAuctionIx(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            fromEndpoint?: PublicKey;
+            toEndpoint?: PublicKey;
+            fastFillSequencer?: PublicKey;
+            reservedSequence?: PublicKey;
+            auction?: PublicKey;
+            auctionConfig?: PublicKey;
+            bestOfferToken?: PublicKey;
+        },
+        opts: ReserveFastFillSequenceCompositeOpts = {},
+    ): Promise<TransactionInstruction> {
+        const { payer, fastVaa, fromEndpoint, toEndpoint, fastFillSequencer, reservedSequence } =
+            accounts;
+        const { reserveSequence, definedOpts } = await this.reserveFastFillSequenceComposite(
+            {
+                payer,
+                fastVaa,
+                fromEndpoint,
+                toEndpoint,
+                sequencer: fastFillSequencer,
+                reserved: reservedSequence,
+            },
+            opts,
+        );
+        const { fastVaaHash } = definedOpts;
+
+        let { auctionConfig, auction, bestOfferToken } = accounts;
+        auction ??= this.auctionAddress(fastVaaHash);
+
+        if (bestOfferToken === undefined || auctionConfig === undefined) {
+            const { info } = await this.fetchAuction({ address: auction });
+            if (info === null) {
+                throw new Error("no auction info found");
+            }
+            auctionConfig ??= this.auctionConfigAddress(info.configId);
+            bestOfferToken ??= info.bestOfferToken;
+        }
+
+        return this.program.methods
+            .reserveFastFillSequenceActiveAuction()
+            .accounts({
+                reserveSequence,
+                auction,
+                auctionConfig,
+                bestOfferToken,
+            })
+            .instruction();
+    }
+
+    async reserveFastFillSequenceNoAuctionIx(
+        accounts: {
+            payer: PublicKey;
+            fastVaa: PublicKey;
+            fromEndpoint?: PublicKey;
+            toEndpoint?: PublicKey;
+            fastFillSequencer?: PublicKey;
+            reservedSequence?: PublicKey;
+            auction?: PublicKey;
+            preparedOrderResponse?: PublicKey;
+        },
+        opts: ReserveFastFillSequenceCompositeOpts = {},
+    ): Promise<TransactionInstruction> {
+        const { payer, fastVaa, fromEndpoint, toEndpoint, fastFillSequencer, reservedSequence } =
+            accounts;
+        const { reserveSequence, definedOpts } = await this.reserveFastFillSequenceComposite(
+            {
+                payer,
+                fastVaa,
+                fromEndpoint,
+                toEndpoint,
+                sequencer: fastFillSequencer,
+                reserved: reservedSequence,
+            },
+            opts,
+        );
+        const { fastVaaHash } = definedOpts;
+
+        let { auction, preparedOrderResponse } = accounts;
+        auction ??= this.auctionAddress(fastVaaHash);
+        preparedOrderResponse ??= this.preparedOrderResponseAddress(fastVaaHash);
+
+        return this.program.methods
+            .reserveFastFillSequenceNoAuction()
+            .accounts({
+                reserveSequence,
+                auction,
+                preparedOrderResponse,
+            })
+            .instruction();
+    }
+
     async executeFastOrderLocalIx(
         accounts: {
             payer: PublicKey;
             fastVaa: PublicKey;
+            reservedSequence?: PublicKey;
             executorToken?: PublicKey;
             auction?: PublicKey;
             auctionConfig?: PublicKey;
             bestOfferToken?: PublicKey;
             initialOfferToken?: PublicKey;
             initialParticipant?: PublicKey;
-            toRouterEndpoint?: PublicKey;
+            bestOfferParticipant?: PublicKey;
         },
         opts: {
             sourceChain?: wormholeSdk.ChainId;
+            orderSender?: Array<number>;
+            sequence?: Uint64;
         } = {},
     ) {
         const connection = this.program.provider.connection;
 
         const { payer, fastVaa, auctionConfig, bestOfferToken } = accounts;
 
-        let { auction, executorToken, toRouterEndpoint, initialOfferToken, initialParticipant } =
-            accounts;
-        let { sourceChain } = opts;
+        let {
+            reservedSequence,
+            auction,
+            executorToken,
+            initialOfferToken,
+            initialParticipant,
+            bestOfferParticipant,
+        } = accounts;
+        let { sourceChain, orderSender, sequence } = opts;
         executorToken ??= splToken.getAssociatedTokenAddressSync(this.mint, payer);
-        toRouterEndpoint ??= this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA);
 
-        if (auction === undefined) {
-            const vaaAccount = await VaaAccount.fetch(connection, fastVaa);
-            auction = this.auctionAddress(vaaAccount.digest());
+        if (
+            auction === undefined ||
+            reservedSequence === undefined ||
+            sourceChain === undefined ||
+            orderSender === undefined
+        ) {
+            const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+            const fastVaaHash = fastVaaAccount.digest();
+            auction ??= this.auctionAddress(fastVaaHash);
+            reservedSequence ??= this.reservedFastFillSequenceAddress(fastVaaHash);
+            sourceChain ??= fastVaaAccount.emitterInfo().chain;
+
+            const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+            if (fastMarketOrder === undefined) {
+                throw new Error("Message not FastMarketOrder");
+            }
+            orderSender ??= fastMarketOrder.sender;
+        }
+
+        if (sequence === undefined) {
+            const { fastFillSeeds } = await this.fetchReservedFastFillSequence({
+                address: reservedSequence,
+            });
+            sequence = fastFillSeeds.sequence;
         }
 
         let auctionInfo: AuctionInfo | undefined;
-        if (initialOfferToken === undefined || sourceChain === undefined) {
+        if (initialOfferToken === undefined) {
             const { info } = await this.fetchAuction({ address: auction });
             if (info === null) {
                 throw new Error("no auction info found");
             }
             auctionInfo = info;
-
-            // Shouldn't be a problem.
-            if (!wormholeSdk.isChain(auctionInfo.sourceChain)) {
-                throw new Error("invalid source chain");
-            }
-            sourceChain ??= auctionInfo.sourceChain;
             initialOfferToken ??= auctionInfo.initialOfferToken;
         }
 
@@ -1870,42 +2215,37 @@ export class MatchingEngineProgram {
             initialParticipant = token.owner;
         }
 
-        const {
-            custodian,
-            coreMessage,
-            coreBridgeConfig,
-            coreEmitterSequence,
-            coreFeeCollector,
-            coreBridgeProgram,
-        } = await this.publishMessageAccounts(auction);
+        const activeAuction = await this.activeAuctionComposite(
+            {
+                auction,
+                config: auctionConfig,
+                bestOfferToken,
+            },
+            { auctionInfo },
+        );
+
+        if (bestOfferParticipant === undefined) {
+            const token = await splToken.getAccount(connection, activeAuction.bestOfferToken);
+            bestOfferParticipant = token.owner;
+        }
 
         return this.program.methods
             .executeFastOrderLocal()
             .accounts({
                 payer,
-                custodian: this.checkedCustodianComposite(custodian),
-                coreMessage,
+                custodian: this.checkedCustodianComposite(),
                 executeOrder: {
                     fastVaa: this.liquidityLayerVaaComposite(fastVaa),
-                    activeAuction: await this.activeAuctionComposite(
-                        {
-                            auction,
-                            config: auctionConfig,
-                            bestOfferToken,
-                        },
-                        { auctionInfo },
-                    ),
+                    activeAuction,
                     executorToken,
                     initialOfferToken,
                     initialParticipant,
                 },
-                toRouterEndpoint: this.routerEndpointComposite(toRouterEndpoint),
-                wormhole: {
-                    config: coreBridgeConfig,
-                    emitterSequence: coreEmitterSequence,
-                    feeCollector: coreFeeCollector,
-                    coreBridgeProgram,
-                },
+                reservedSequence,
+                bestOfferParticipant,
+                fastFill: this.fastFillAddress(sourceChain, orderSender, sequence),
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
                 localCustodyToken: this.localCustodyTokenAddress(sourceChain),
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
@@ -1914,33 +2254,21 @@ export class MatchingEngineProgram {
             .instruction();
     }
 
-    async redeemFastFillAccounts(
-        vaa: PublicKey,
-        sourceChain?: wormholeSdk.ChainId,
-    ): Promise<{ vaaAccount: VaaAccount; accounts: RedeemFastFillAccounts }> {
-        const vaaAccount = await VaaAccount.fetch(this.program.provider.connection, vaa);
+    async redeemFastFillAccounts(fastFill: PublicKey): Promise<RedeemFastFillAccounts> {
+        const {
+            seeds: { sourceChain },
+        } = await this.fetchFastFill({ address: fastFill });
 
-        if (sourceChain === undefined) {
-            const { fastFill } = LiquidityLayerMessage.decode(vaaAccount.payload());
-            if (fastFill === undefined) {
-                throw new Error("Message not FastFill");
-            }
-
-            sourceChain = fastFill.fill.sourceChain;
+        if (!wormholeSdk.isChain(sourceChain)) {
+            throw new Error("invalid source chain");
         }
 
-        const localCustodyToken = this.localCustodyTokenAddress(sourceChain);
-
         return {
-            vaaAccount,
-            accounts: {
-                custodian: this.custodianAddress(),
-                redeemedFastFill: this.redeemedFastFillAddress(vaaAccount.digest()),
-                fromRouterEndpoint: this.routerEndpointAddress(sourceChain),
-                toRouterEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
-                localCustodyToken,
-                matchingEngineProgram: this.ID,
-            },
+            custodian: this.custodianAddress(),
+            fromRouterEndpoint: this.routerEndpointAddress(sourceChain),
+            toRouterEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+            localCustodyToken: this.localCustodyTokenAddress(sourceChain),
+            matchingEngineProgram: this.ID,
         };
     }
 

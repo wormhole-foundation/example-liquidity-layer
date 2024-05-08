@@ -104,10 +104,10 @@ fn handle_add_auction_history_entry(
     // greater than the max.
     let auction = &ctx.accounts.auction;
     if auction.vaa_timestamp < history.min_timestamp.unwrap_or(u32::MAX) {
-        history.min_timestamp = Some(auction.vaa_timestamp);
+        history.min_timestamp = auction.vaa_timestamp.into();
     }
     if auction.vaa_timestamp > history.max_timestamp.unwrap_or_default() {
-        history.max_timestamp = Some(auction.vaa_timestamp);
+        history.max_timestamp = auction.vaa_timestamp.into();
     }
 
     let mut encoded_entry = Vec::with_capacity(AuctionEntry::INIT_SPACE);

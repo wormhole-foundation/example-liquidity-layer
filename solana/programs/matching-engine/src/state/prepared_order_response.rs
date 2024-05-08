@@ -3,9 +3,13 @@ use anchor_lang::prelude::*;
 use super::EndpointInfo;
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
-pub struct PreparedOrderResponseInfo {
+pub struct PreparedOrderResponseSeeds {
     pub fast_vaa_hash: [u8; 32],
+    pub bump: u8,
+}
 
+#[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
+pub struct PreparedOrderResponseInfo {
     pub prepared_by: Pubkey,
 
     pub fast_vaa_timestamp: u32,
@@ -20,7 +24,7 @@ pub struct PreparedOrderResponseInfo {
 #[account]
 #[derive(Debug)]
 pub struct PreparedOrderResponse {
-    pub bump: u8,
+    pub seeds: PreparedOrderResponseSeeds,
     pub info: PreparedOrderResponseInfo,
     pub to_endpoint: EndpointInfo,
     pub redeemer_message: Vec<u8>,
@@ -39,7 +43,7 @@ impl PreparedOrderResponse {
 
     pub fn compute_size(redeemer_message_len: usize) -> usize {
         const FIXED: usize = 8 // DISCRIMINATOR
-            + 1 // bump
+            + PreparedOrderResponseSeeds::INIT_SPACE
             + PreparedOrderResponseInfo::INIT_SPACE
             + EndpointInfo::INIT_SPACE
             + 4 // redeemer_message length

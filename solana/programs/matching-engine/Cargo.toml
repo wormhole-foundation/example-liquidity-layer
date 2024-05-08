@@ -31,7 +31,7 @@ idl-build = [
 common.workspace = true
 wormhole-solana-utils.workspace = true
 
-anchor-lang = { workspace = true, features = ["derive", "init-if-needed"] }
+anchor-lang = { workspace = true, features = ["event-cpi", "init-if-needed"] }
 anchor-spl.workspace = true
 solana-program.workspace = true
 
