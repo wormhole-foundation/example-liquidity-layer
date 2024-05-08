@@ -1,4 +1,4 @@
-import { ChainId, tryHexToNativeString } from "@certusone/wormhole-sdk";
+import { deserialize } from "@wormhole-foundation/sdk";
 import { VaaSpy } from "../src/wormhole/spy";
 
 async function main() {
@@ -20,16 +20,14 @@ async function main() {
     });
 
     spy.onObservation(({ raw, parsed, chain, nativeAddress }) => {
+        const vaa = deserialize("Uint8Array", raw);
         console.log(
             "observed",
-            parsed.emitterChain,
+            vaa.emitterChain,
             chain,
             nativeAddress,
-            tryHexToNativeString(
-                parsed.emitterAddress.toString("hex"),
-                parsed.emitterChain as ChainId,
-            ),
-            parsed.sequence,
+            vaa.emitterAddress.toNative(vaa.emitterChain).toString(),
+            vaa.sequence,
         );
     });
 }

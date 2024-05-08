@@ -1,11 +1,11 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import { PreparedTransaction } from "../../src";
 import { MatchingEngineProgram } from "../../src/matchingEngine";
 import { FastMarketOrder } from "../../src/common";
 import * as utils from "../utils";
 import * as winston from "winston";
+import { ChainId, VAA, deserialize, keccak256, toChainId } from "@wormhole-foundation/sdk";
+import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
 
 export interface PlaceInitialOfferAccounts {
     fastVaaAccount: PublicKey;
@@ -17,20 +17,18 @@ export interface PlaceInitialOfferAccounts {
 function getPlaceInitialOfferAccounts(
     matchingEngine: MatchingEngineProgram,
     fastVaaBytes: Uint8Array,
-    fromChain: wormholeSdk.ChainId | number,
-    toChain: wormholeSdk.ChainId | number,
+    fromChain: ChainId | number,
+    toChain: ChainId | number,
 ): PlaceInitialOfferAccounts {
-    const fastVaaAccount = derivePostedVaaKey(
-        matchingEngine.coreBridgeProgramId(),
-        wormholeSdk.parseVaa(fastVaaBytes).hash,
+    const vaa = deserialize("Uint8Array", fastVaaBytes);
+    const doubleHash = keccak256(vaa.hash);
+    const fastVaaAccount = coreUtils.derivePostedVaaKey(
+        vaa.hash,
+        matchingEngine.coreBridgeProgramId().toBuffer(),
     );
-    const auction = matchingEngine.auctionAddress(
-        wormholeSdk.keccak256(wormholeSdk.parseVaa(fastVaaBytes).hash),
-    );
-    const fromRouterEndpoint = matchingEngine.routerEndpointAddress(
-        fromChain as wormholeSdk.ChainId,
-    );
-    const toRouterEndpoint = matchingEngine.routerEndpointAddress(toChain as wormholeSdk.ChainId);
+    const auction = matchingEngine.auctionAddress(doubleHash);
+    const fromRouterEndpoint = matchingEngine.routerEndpointAddress(fromChain as ChainId);
+    const toRouterEndpoint = matchingEngine.routerEndpointAddress(toChain as ChainId);
 
     return {
         fastVaaAccount,
@@ -63,7 +61,7 @@ export async function handlePlaceInitialOffer(
     connection: Connection,
     cfg: utils.AppConfig,
     matchingEngine: MatchingEngineProgram,
-    fastVaa: wormholeSdk.ParsedVaa,
+    fastVaa: VAA,
     rawVaa: Uint8Array,
     order: FastMarketOrder,
     payer: Keypair,
@@ -78,7 +76,7 @@ export async function handlePlaceInitialOffer(
         getPlaceInitialOfferAccounts(
             matchingEngine,
             rawVaa,
-            fastVaa.emitterChain,
+            toChainId(fastVaa.emitterChain),
             order.targetChain,
         );
 
@@ -93,7 +91,7 @@ export async function handlePlaceInitialOffer(
     // See if the `maxFee` meets our minimum price threshold.
     const { shouldPlaceOffer, fvWithEdge } = isFeeHighEnough(
         order,
-        cfg.pricingParameters(fastVaa.emitterChain)!,
+        cfg.pricingParameters(toChainId(fastVaa.emitterChain))!,
     );
     if (!shouldPlaceOffer) {
         logicLogger.warn(

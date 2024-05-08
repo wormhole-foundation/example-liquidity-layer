@@ -30,7 +30,6 @@
     "build":"npm run build:esm && npm run build:cjs"
   },
   "dependencies": {
-    "@certusone/wormhole-sdk": "^0.10.10",
     "@certusone/wormhole-spydk": "^0.0.1",
     "@coral-xyz/anchor": "^0.30.0",
     "@solana/spl-token": "^0.4.6",

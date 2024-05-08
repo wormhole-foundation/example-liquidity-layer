@@ -1,4 +1,3 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -47,8 +46,11 @@ import {
     postLiquidityLayerVaa,
     waitUntilSlot,
 } from "../src/testing";
+import { Chain, ChainId, toChainId, toUniversal } from "@wormhole-foundation/sdk";
 
 chaiUse(chaiAsPromised);
+
+const SOLANA_CHAIN_ID = toChainId("Solana");
 
 describe("Matching Engine <> Token Router", function () {
     const connection = new Connection(LOCALHOST, "processed");
@@ -57,7 +59,7 @@ describe("Matching Engine <> Token Router", function () {
     const owner = OWNER_KEYPAIR;
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
 
-    const foreignChain = wormholeSdk.CHAINS.ethereum;
+    const foreignChain = toChainId("Ethereum");
     const matchingEngine = new matchingEngineSdk.MatchingEngineProgram(
         connection,
         matchingEngineSdk.localnet(),
@@ -147,12 +149,12 @@ describe("Matching Engine <> Token Router", function () {
                 await expectIxOk(connection, [ix], [ownerAssistant]);
 
                 const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
-                    wormholeSdk.CHAIN_ID_SOLANA,
+                    SOLANA_CHAIN_ID,
                 );
                 const { bump } = routerEndpointData;
                 expect(routerEndpointData).to.eql(
                     new matchingEngineSdk.RouterEndpoint(bump, {
-                        chain: wormholeSdk.CHAIN_ID_SOLANA,
+                        chain: SOLANA_CHAIN_ID,
                         address: Array.from(tokenRouter.custodianAddress().toBuffer()),
                         mintRecipient: Array.from(
                             tokenRouter.cctpMintRecipientAddress().toBuffer(),
@@ -169,9 +171,7 @@ describe("Matching Engine <> Token Router", function () {
                 const ix = localVariables.get("ix") as TransactionInstruction;
                 expect(localVariables.delete("ix")).is.true;
 
-                const routerEndpoint = matchingEngine.routerEndpointAddress(
-                    wormholeSdk.CHAIN_ID_SOLANA,
-                );
+                const routerEndpoint = matchingEngine.routerEndpointAddress(SOLANA_CHAIN_ID);
                 await expectIxErr(
                     connection,
                     [ix],
@@ -1501,7 +1501,7 @@ describe("Matching Engine <> Token Router", function () {
             owner: PublicKey;
         },
         opts: ForTestOpts & {
-            chain?: wormholeSdk.ChainId;
+            chain?: ChainId;
         } = {},
     ) {
         const [{ errorMsg, signers }, excludedForTestOpts] = setDefaultForTestOpts(opts, {
@@ -1509,7 +1509,7 @@ describe("Matching Engine <> Token Router", function () {
         });
 
         let { chain } = excludedForTestOpts;
-        chain ??= wormholeSdk.coalesceChainId("solana");
+        chain ??= SOLANA_CHAIN_ID;
 
         const ix = await matchingEngine.disableRouterEndpointIx(accounts, chain);
 
@@ -1519,9 +1519,7 @@ describe("Matching Engine <> Token Router", function () {
 
         await expectIxOk(connection, [ix], signers);
 
-        const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
-            wormholeSdk.CHAIN_ID_SOLANA,
-        );
+        const routerEndpointData = await matchingEngine.fetchRouterEndpoint(SOLANA_CHAIN_ID);
         const { bump } = routerEndpointData;
         expect(routerEndpointData).to.eql(
             new matchingEngineSdk.RouterEndpoint(bump, {
@@ -1557,13 +1555,11 @@ describe("Matching Engine <> Token Router", function () {
 
         await expectIxOk(connection, [ix], signers);
 
-        const routerEndpointData = await matchingEngine.fetchRouterEndpoint(
-            wormholeSdk.CHAIN_ID_SOLANA,
-        );
+        const routerEndpointData = await matchingEngine.fetchRouterEndpoint(SOLANA_CHAIN_ID);
         const { bump } = routerEndpointData;
         expect(routerEndpointData).to.eql(
             new matchingEngineSdk.RouterEndpoint(bump, {
-                chain: wormholeSdk.CHAIN_ID_SOLANA,
+                chain: SOLANA_CHAIN_ID,
                 address: Array.from(tokenRouter.custodianAddress().toBuffer()),
                 mintRecipient: Array.from(tokenRouter.cctpMintRecipientAddress().toBuffer()),
                 protocol: { local: { programId: tokenRouter.ID } },
@@ -1597,7 +1593,7 @@ describe("Matching Engine <> Token Router", function () {
             } = settleResult!;
 
             fastFill = matchingEngine.fastFillAddress(
-                sourceChain as wormholeSdk.ChainId, // Usually a no-no, but this is safe.
+                sourceChain as ChainId, // Usually a no-no, but this is safe.
                 orderSender,
                 sequence,
             );
@@ -1693,7 +1689,7 @@ describe("Matching Engine <> Token Router", function () {
             amountIn?: bigint;
             minAmountOut?: bigint;
             initAuctionFee?: bigint;
-            targetChain?: wormholeSdk.ChainName;
+            targetChain?: Chain;
             maxFee?: bigint;
             deadline?: number;
             redeemerMessage?: Buffer;
@@ -1712,7 +1708,7 @@ describe("Matching Engine <> Token Router", function () {
         return {
             amountIn: amountIn ?? 1_000_000_000n,
             minAmountOut: minAmountOut ?? 0n,
-            targetChain: wormholeSdk.coalesceChainId(targetChain ?? "solana"),
+            targetChain: toChainId(targetChain ?? "Solana"),
             redeemer: Array.from(fastFillRedeemer.publicKey.toBuffer()),
             sender: new Array(32).fill(2),
             refundAddress: new Array(32).fill(3),
@@ -1746,13 +1742,13 @@ describe("Matching Engine <> Token Router", function () {
     };
 
     type ObserveCctpOrderVaasOpts = {
-        sourceChain?: wormholeSdk.ChainName;
+        sourceChain?: Chain;
         emitter?: Array<number>;
         vaaTimestamp?: number;
         fastMarketOrder?: FastMarketOrder;
         finalized?: boolean;
         slowOrderResponse?: SlowOrderResponse;
-        finalizedSourceChain?: wormholeSdk.ChainName;
+        finalizedSourceChain?: Chain;
         finalizedEmitter?: Array<number>;
         finalizedSequence?: bigint;
         finalizedVaaTimestamp?: number;
@@ -1774,7 +1770,7 @@ describe("Matching Engine <> Token Router", function () {
             finalizedSequence,
             finalizedVaaTimestamp,
         } = opts;
-        sourceChain ??= "ethereum";
+        sourceChain ??= "Ethereum";
         emitter ??= REGISTERED_TOKEN_ROUTERS[sourceChain] ?? new Array(32).fill(0);
         vaaTimestamp ??= await getBlockTime(connection);
         fastMarketOrder ??= newFastMarketOrder();
@@ -1890,7 +1886,7 @@ describe("Matching Engine <> Token Router", function () {
                 targetCaller: Array.from(matchingEngine.custodianAddress().toBuffer()), // targetCaller
             },
             0,
-            Array.from(wormholeSdk.tryNativeToUint8Array(ETHEREUM_USDC_ADDRESS, "ethereum")), // sourceTokenAddress
+            Array.from(toUniversal("Ethereum", ETHEREUM_USDC_ADDRESS).toUint8Array()), // sourceTokenAddress
             Array.from(matchingEngine.cctpMintRecipientAddress().toBuffer()), // mint recipient
             amount,
             new Array(32).fill(0), // burnSource

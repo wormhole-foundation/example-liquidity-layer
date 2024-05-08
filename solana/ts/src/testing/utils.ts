@@ -1,5 +1,3 @@
-import { postVaaSolana, solana as wormSolana } from "@certusone/wormhole-sdk";
-import { BN } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableAccount,
@@ -16,6 +14,14 @@ import { expect } from "chai";
 import { execSync } from "child_process";
 import { Err, Ok } from "ts-results";
 import { CORE_BRIDGE_PID, USDC_MINT_ADDRESS } from "./consts";
+import { getSolanaSigner } from "@wormhole-foundation/sdk-solana";
+import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
+import {
+    SignAndSendSigner,
+    deserialize,
+    signAndSendWait,
+    signSendWait,
+} from "@wormhole-foundation/sdk";
 
 async function confirmLatest(connection: Connection, signature: string) {
     return connection.getLatestBlockhash().then(({ blockhash, lastValidBlockHeight }) =>
@@ -150,13 +156,18 @@ export async function postVaa(
     vaaBuf: Buffer,
     coreBridgeAddress?: PublicKey,
 ) {
-    await postVaaSolana(
+    const core = new SolanaWormholeCore("Devnet", "Solana", connection, {
+        coreBridge: (coreBridgeAddress ?? CORE_BRIDGE_PID).toString(),
+    });
+
+    const txs = core.postVaa(payer.publicKey, deserialize("Uint8Array", vaaBuf));
+
+    const signer = (await getSolanaSigner(
         connection,
-        new wormSolana.NodeWallet(payer).signTransaction,
-        coreBridgeAddress ?? CORE_BRIDGE_PID,
-        payer.publicKey,
-        vaaBuf,
-    );
+        payer.secretKey.toString(),
+    )) as SignAndSendSigner<"Devnet", "Solana">;
+
+    await signAndSendWait(txs, signer);
 }
 
 export function loadProgramBpf(artifactPath: string, keypath: string): PublicKey {

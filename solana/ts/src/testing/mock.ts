@@ -1,29 +1,30 @@
-import { ChainName, coalesceChainId, parseVaa } from "@certusone/wormhole-sdk";
-import { MockEmitter, MockGuardians } from "@certusone/wormhole-sdk/lib/cjs/mock";
-import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import { Connection, Keypair } from "@solana/web3.js";
 import { ethers } from "ethers";
 import { LiquidityLayerMessage } from "../common";
 import { CORE_BRIDGE_PID, GUARDIAN_KEY } from "./consts";
 import { postVaa, getBlockTime } from "./utils";
+import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
+import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
+import { Chain, serialize, toUniversal } from "@wormhole-foundation/sdk";
+
 // TODO: return VaaAccount, too
 export async function postLiquidityLayerVaa(
     connection: Connection,
     payer: Keypair,
-    guardians: MockGuardians,
+    guardians: mocks.MockGuardians,
     foreignEmitterAddress: Array<number>,
     sequence: bigint,
     message: LiquidityLayerMessage | Buffer,
-    args: { sourceChain?: ChainName; timestamp?: number } = {},
+    args: { sourceChain?: Chain; timestamp?: number } = {},
 ) {
     let { sourceChain, timestamp } = args;
-    sourceChain ??= "ethereum";
+    sourceChain ??= "Ethereum";
     timestamp ??= await getBlockTime(connection);
 
-    const foreignEmitter = new MockEmitter(
-        Buffer.from(foreignEmitterAddress).toString("hex"),
-        coalesceChainId(sourceChain ?? "ethereum"),
-        Number(sequence - 1n),
+    const foreignEmitter = new mocks.MockEmitter(
+        toUniversal(sourceChain, new Uint8Array(foreignEmitterAddress)),
+        sourceChain ?? "Ethereum",
+        sequence - 1n,
     );
 
     const published = foreignEmitter.publishMessage(
@@ -32,11 +33,11 @@ export async function postLiquidityLayerVaa(
         0, // consistencyLevel
         timestamp,
     );
-    const vaaBuf = guardians.addSignatures(published, [0]);
+    const vaa = guardians.addSignatures(published, [0]);
 
-    await postVaa(connection, payer, vaaBuf);
+    await postVaa(connection, payer, Buffer.from(serialize(vaa)));
 
-    return derivePostedVaaKey(CORE_BRIDGE_PID, parseVaa(vaaBuf).hash);
+    return coreUtils.derivePostedVaaKey(CORE_BRIDGE_PID, Buffer.from(vaa.hash));
 }
 
 export class CircleAttester {
