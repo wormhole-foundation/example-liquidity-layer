@@ -25,6 +25,7 @@ export type LiquidityLayerEnv = {
 
 export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
     if (!fs.existsSync(envPath)) {
+        console.log(envPath);
         throw new Error(`${envPath} non-existent`);
     }
 

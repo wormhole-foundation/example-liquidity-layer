@@ -19,13 +19,17 @@ describe("Registration", () => {
     const envPath = `${__dirname}/../../env/localnet`;
 
     describe(`Register Token Routers on ${MATCHING_ENGINE_NAME} Matching Engine`, () => {
-        const env = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
+        const env = parseLiquidityLayerEnvFile(
+            `${envPath}/${MATCHING_ENGINE_NAME.toLowerCase()}.env`,
+        );
         const provider = new ethers.providers.StaticJsonRpcProvider(
             LOCALHOSTS[MATCHING_ENGINE_NAME],
         );
         const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
 
-        const matchingEngineAddress = toNative("Avalanche", env.matchingEngineAddress);
+        const matchingEngineAddress = toUniversal("Avalanche", env.matchingEngineAddress).toNative(
+            "Avalanche",
+        );
         const engine = IMatchingEngine__factory.connect(
             matchingEngineAddress.toString(),
             assistant,
@@ -33,7 +37,9 @@ describe("Registration", () => {
 
         for (const chainName of CHAIN_PATHWAYS) {
             it(`Register ${chainName}`, async () => {
-                const targetEnv = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
+                const targetEnv = parseLiquidityLayerEnvFile(
+                    `${envPath}/${chainName.toLowerCase()}.env`,
+                );
                 const [formattedAddress, mintRecipient] = fetchTokenRouterEndpoint(
                     targetEnv,
                     chainName,
@@ -60,7 +66,7 @@ describe("Registration", () => {
 
     for (const chainName of CHAIN_PATHWAYS) {
         describe(`Register Token Routers on ${chainName}`, () => {
-            const env = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
+            const env = parseLiquidityLayerEnvFile(`${envPath}/${chainName.toLowerCase()}.env`);
             const provider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[chainName]);
             const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
             const router = ITokenRouter__factory.connect(env.tokenRouterAddress, assistant);
@@ -71,7 +77,9 @@ describe("Registration", () => {
                 }
 
                 it(`Register ${targetChain}`, async () => {
-                    const targetEnv = parseLiquidityLayerEnvFile(`${envPath}/${targetChain}.env`);
+                    const targetEnv = parseLiquidityLayerEnvFile(
+                        `${envPath}/${targetChain.toLowerCase()}.env`,
+                    );
                     const [formattedAddress, mintRecipient] = fetchTokenRouterEndpoint(
                         targetEnv,
                         chainName,
