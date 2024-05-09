@@ -70,15 +70,29 @@ Next, you'll need an RPC for each network that you wish to relay `FastMarketOrde
 RPC to the config for the corresponding chain name.
 
 Finally, you will need a funded USDC Associated Token Account (ATA), whose owner is your keypair.
+Ensure that your private key is securely stored in the `.env` file under the `SOLANA_PRIVATE_KEY`
+variable. This key is essential for signing transactions and interacting with the blockchain.
+Format the private key as a base64 string before adding it to the `.env` file.
 
 ### Vaa Auction Relayer
 
 The `vaaAuctionRelayer` listens for `FastMarketOrder` VAAs emitted by the Liquidity Layer's network
 of contracts. It determines if the `maxFee` encoded in the `FastMarketOrder` VAA is high enough to
 participate in an auction, if it is, it executes a `place_initial_offer` instruction on the Solana
-`MatchingEngine`. If any known token accounts are the highest bidder at the end of an auction, this
-process will settle the auction by executing the `settle_auction_complete` instruction and posting
-the finalized VAA associated with the auction's `FastMarketOrder` VAA.
+`MatchingEngine`.
+
+If any known token accounts are the highest bidder at the end of an auction, this process will settle
+the auction by executing the `settle_auction_complete` instruction and posting the finalized VAA
+associated with the auction's `FastMarketOrder` VAA. For the `vaaAuctionRelayer` to recognize executed
+fast transfers and execute the `settle_auction_complete` instruction, add the owner's public key to the
+`knownAtaOwners` array field in the configuration file.
+
+The `vaaAuctionRelayer` relies on the `VaaSpy` to listen for `FastMarketOrder` VAAs. To set up the
+`VaaSpy`, make sure Docker is running and execute the following command:
+
+```sh
+make wormhole-spy NETWORK=testnet
+```
 
 To run the `vaaAuctionRelayer` execute the following command:
 
