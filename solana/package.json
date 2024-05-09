@@ -1,5 +1,5 @@
 {
-  "name":"@wormhole-foundation/liquidity-layer-solana",
+  "name":"@wormhole-foundation/example-liquidity-layer-solana",
   "version": "0.0.1",
   "main": "dist/cjs/index.js",
   "types": "dist/cjs/index.d.ts",
@@ -21,10 +21,6 @@
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
-    "initialize": "npx ts-node ts/scripts/initialize.ts",
-    "register-contracts": "npx ts-node ts/scripts/register_foreign_contracts.ts",
-    "register-tokens": "npx ts-node ts/scripts/register_tokens.ts",
-    "set-relayer-fees": "npx ts-node ts/scripts/set_relayer_fees.ts",
     "build:esm":"npx tsc -p tsconfig.esm.json",
     "build:cjs":"npx tsc -p tsconfig.cjs.json",
     "build":"npm run build:esm && npm run build:cjs"

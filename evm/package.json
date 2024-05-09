@@ -1,5 +1,5 @@
 {
-  "name": "@wormhole-foundation/liquidity-layer-evm",
+  "name": "@wormhole-foundation/example-liquidity-layer-evm",
   "version": "0.0.1",
   "author": "Wormhole Contributors",
   "license": "Apache-2.0",
