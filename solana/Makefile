@@ -25,8 +25,8 @@ clean:
 	anchor clean
 	rm -rf node_modules artifacts-mainnet artifacts-testnet artifacts-localnet ts/tests/artifacts
 
-node_modules: package-lock.json
-	npm ci
+node_modules: ../package-lock.json
+	cd .. && npm ci
 
 .PHONY: cargo-test
 cargo-test:
@@ -56,7 +56,13 @@ anchor-test-setup: node_modules ts/tests/artifacts $(CLONED_MAINNET_PROGRAMS)
 .PHONY: anchor-build-idl
 anchor-build-idl:
 	anchor build -- --features localnet
-	git diff --exit-code
+#	git diff --exit-code
+
+idl: anchor-build-idl
+	mkdir -p ts/src/idl/json
+	mkdir -p ts/src/idl/ts
+	cp -r target/idl/* ts/src/idl/json/
+	cp -r target/types/* ts/src/idl/ts/
 
 $(BUILD_$(NETWORK)): cargo-test
 

@@ -159,10 +159,7 @@ export async function postVaa(
     );
 }
 
-export function loadProgramBpf(artifactPath: string): PublicKey {
-    // Write keypair to temporary file.
-    const keypath = `${__dirname}/../keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json`;
-
+export function loadProgramBpf(artifactPath: string, keypath: string): PublicKey {
     // Invoke BPF Loader Upgradeable `write-buffer` instruction.
     const buffer = (() => {
         const output = execSync(`solana -u l -k ${keypath} program write-buffer ${artifactPath}`);

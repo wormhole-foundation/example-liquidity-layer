@@ -46,7 +46,7 @@ import {
     getBlockTime,
     postLiquidityLayerVaa,
     waitUntilSlot,
-} from "./helpers";
+} from "../src/testing";
 
 chaiUse(chaiAsPromised);
 

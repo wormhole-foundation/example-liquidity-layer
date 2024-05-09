@@ -4,7 +4,7 @@ import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormh
 import * as splToken from "@solana/spl-token";
 import { PreparedTransaction } from "../../src";
 import { Auction, AuctionStatus, MatchingEngineProgram } from "../../src/matchingEngine";
-import { USDC_MINT_ADDRESS } from "../../tests/helpers";
+import { USDC_MINT_ADDRESS } from "../../src/testing";
 import * as utils from "../utils";
 import * as winston from "winston";
 

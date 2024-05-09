@@ -13,7 +13,7 @@ import {
     LOCALHOST,
     PAYER_KEYPAIR,
     USDC_MINT_ADDRESS,
-} from "./helpers";
+} from "../src/testing";
 
 // TODO: remove
 import "dotenv/config";
@@ -21,6 +21,7 @@ import { uint64ToBN } from "../src/common";
 
 chaiUse(chaiAsPromised);
 
+const KEYPATH = `${__dirname}/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json`;
 const MATCHING_ENGINE_ARTIFACT_PATH = `${__dirname}/artifacts/new_testnet_matching_engine.so`;
 const TOKEN_ROUTER_ARTIFACT_PATH = `${__dirname}/artifacts/new_testnet_token_router.so`;
 
@@ -141,7 +142,7 @@ describe("Upgrade Manager", function () {
             signers ??= [payer];
             errorMsg ??= null;
 
-            const matchingEngineBuffer = loadProgramBpf(artifactPath);
+            const matchingEngineBuffer = loadProgramBpf(artifactPath, KEYPATH);
 
             const ix = await upgradeManager.executeMatchingEngineUpgradeIx({
                 matchingEngineBuffer,
@@ -342,7 +343,7 @@ describe("Upgrade Manager", function () {
             signers ??= [payer];
             errorMsg ??= null;
 
-            const tokenRouterBuffer = loadProgramBpf(artifactPath);
+            const tokenRouterBuffer = loadProgramBpf(artifactPath, KEYPATH);
 
             const ix = await upgradeManager.executeTokenRouterUpgradeIx({
                 tokenRouterBuffer,

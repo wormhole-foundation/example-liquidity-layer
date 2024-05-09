@@ -9,8 +9,8 @@ import {
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
-import IDL from "../../../target/idl/upgrade_manager.json";
-import { UpgradeManager } from "../../../target/types/upgrade_manager";
+import IDL from "../idl/json/upgrade_manager.json";
+import { type UpgradeManager } from "../idl/ts/upgrade_manager";
 import * as matchingEngineSdk from "../matchingEngine";
 import * as tokenRouterSdk from "../tokenRouter";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
