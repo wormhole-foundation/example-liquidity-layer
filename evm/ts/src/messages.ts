@@ -166,8 +166,8 @@ export class Fill {
         const sourceChain = buf.readUInt16BE(0);
         const orderSender = buf.subarray(2, 34);
         const redeemer = buf.subarray(34, 66);
-        const redeemerMsgLen = buf.readUInt32BE(66);
-        const redeemerMessage = buf.subarray(70, 70 + redeemerMsgLen);
+        const redeemerMsgLen = buf.readUInt16BE(66);
+        const redeemerMessage = buf.subarray(68, 68 + redeemerMsgLen);
 
         return new Fill(sourceChain, orderSender, redeemer, redeemerMessage);
     }
@@ -205,9 +205,8 @@ export class FastFill {
         const sourceChain = buf.readUInt16BE(8);
         const orderSender = buf.subarray(10, 42);
         const redeemer = buf.subarray(42, 74);
-        const redeemerMsgLen = buf.readUInt32BE(74);
-        const endMessage = 70 + redeemerMsgLen;
-        const redeemerMessage = buf.subarray(78, endMessage);
+        const redeemerMsgLen = buf.readUInt16BE(74);
+        const redeemerMessage = buf.subarray(76, 76 + redeemerMsgLen);
 
         return new FastFill(sourceChain, orderSender, redeemer, redeemerMessage, fillAmount);
     }
@@ -265,8 +264,8 @@ export class FastMarketOrder {
         const maxFee = buf.readBigUInt64BE(114);
         const initAuctionFee = buf.readBigUInt64BE(122);
         const deadline = buf.readUInt32BE(130);
-        const redeemerMsgLen = buf.readUInt32BE(134);
-        const redeemerMessage = buf.subarray(134, 134 + redeemerMsgLen);
+        const redeemerMsgLen = buf.readUInt16BE(134);
+        const redeemerMessage = buf.subarray(136, 136 + redeemerMsgLen);
         return new FastMarketOrder(
             amountIn,
             minAmountOut,

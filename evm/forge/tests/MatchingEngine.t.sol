@@ -199,9 +199,7 @@ contract MatchingEngineTest is Test {
         MatchingEngine proxy =
             MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
-        vm.expectRevert(
-            abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 0, 40)
-        );
+        vm.expectRevert(abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 0, 40));
         proxy.initialize(new bytes(0));
     }
 
@@ -223,9 +221,7 @@ contract MatchingEngineTest is Test {
         MatchingEngine proxy =
             MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
-        vm.expectRevert(
-            abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 41, 40)
-        );
+        vm.expectRevert(abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 41, 40));
         proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), FEE_RECIPIENT, uint8(69)));
     }
 
@@ -247,9 +243,7 @@ contract MatchingEngineTest is Test {
         MatchingEngine proxy =
             MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
-        vm.expectRevert(
-            abi.encodeWithSignature("InvalidAddress()")
-        );
+        vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
         proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), address(0)));
     }
 
@@ -271,9 +265,7 @@ contract MatchingEngineTest is Test {
         MatchingEngine proxy =
             MatchingEngine(address(new ERC1967Proxy(address(implementation), "")));
 
-        vm.expectRevert(
-            abi.encodeWithSignature("InvalidAddress()")
-        );
+        vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
         proxy.initialize(abi.encodePacked(address(0), FEE_RECIPIENT));
     }
 
