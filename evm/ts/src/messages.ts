@@ -1,4 +1,3 @@
-import { parseVaa as _parseVaa } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
 
 export const CCTP_DEPOSIT_PAYLOAD = 1;
@@ -19,7 +18,7 @@ export class WormholeCctpDepositHeader {
         targetDomain: number,
         nonce: bigint,
         fromAddress: Uint8Array,
-        mintRecipient: Uint8Array
+        mintRecipient: Uint8Array,
     ) {
         this.token = token;
         this.amount = amount;
@@ -57,7 +56,7 @@ export class WormholeCctpDepositHeader {
                 targetDomain,
                 nonce,
                 fromAddress,
-                mintRecipient
+                mintRecipient,
             ),
             payload,
         ];
@@ -108,7 +107,7 @@ export class MessageDecoder {
 
     decodeCoreBridgeMessage(
         emitterAddress: Buffer | Uint8Array,
-        messagePayload: Buffer | Uint8Array
+        messagePayload: Buffer | Uint8Array,
     ) {
         const emitter = Buffer.from(emitterAddress);
         const payload = Buffer.from(messagePayload);
@@ -119,17 +118,8 @@ export class MessageDecoder {
         }
     }
 
-    parseVaa(encodedVaa: Buffer) {
-        const vaa = _parseVaa(encodedVaa);
-
-        return {
-            vaa,
-            decoded: this.decodeCoreBridgeMessage(vaa.emitterAddress, vaa.payload),
-        };
-    }
-
     static unsafeDecodeWormholeCctpPayload(
-        wormholeCctpMessage: Buffer
+        wormholeCctpMessage: Buffer,
     ): CoreBridgeLiquidityLayerMessage {
         const [wormholeCctp, payload] =
             WormholeCctpDepositHeader.decodeCoreBridgeMessage(wormholeCctpMessage);
@@ -158,7 +148,7 @@ export class Fill {
         sourceChain: number,
         orderSender: Buffer,
         redeemer: Buffer,
-        redeemerMessage: Buffer
+        redeemerMessage: Buffer,
     ) {
         this.sourceChain = sourceChain;
         this.orderSender = orderSender;
@@ -195,7 +185,7 @@ export class FastFill {
         orderSender: Buffer,
         redeemer: Buffer,
         redeemerMessage: Buffer,
-        fillAmount: bigint
+        fillAmount: bigint,
     ) {
         this.sourceChain = sourceChain;
         this.orderSender = orderSender;
@@ -245,7 +235,7 @@ export class FastMarketOrder {
         maxFee: bigint,
         initAuctionFee: bigint,
         deadline: number,
-        redeemerMessage: Buffer
+        redeemerMessage: Buffer,
     ) {
         this.amountIn = amountIn;
         this.minAmountOut = minAmountOut;
@@ -287,7 +277,7 @@ export class FastMarketOrder {
             maxFee,
             initAuctionFee,
             deadline,
-            redeemerMessage
+            redeemerMessage,
         );
     }
 }

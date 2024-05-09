@@ -1,5 +1,5 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { ID_DEPOSIT, LiquidityLayerDeposit } from "./deposit";
+import { ChainId, isChainId } from "@wormhole-foundation/sdk";
 
 export * from "./deposit";
 
@@ -10,7 +10,7 @@ export type FastMarketOrder = {
     amountIn: bigint;
     // u64
     minAmountOut: bigint;
-    targetChain: wormholeSdk.ChainId;
+    targetChain: ChainId;
     redeemer: Array<number>;
     sender: Array<number>;
     refundAddress: Array<number>;
@@ -51,7 +51,7 @@ export class LiquidityLayerMessage {
                 const minAmountOut = buf.readBigUInt64BE(offset);
                 offset += 8;
                 const targetChain = buf.readUInt16BE(offset);
-                if (!wormholeSdk.isChain(targetChain)) {
+                if (!isChainId(targetChain)) {
                     throw new Error("Invalid target chain");
                 }
                 offset += 2;

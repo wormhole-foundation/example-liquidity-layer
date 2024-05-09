@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import * as winston from "winston";
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import fetch from "node-fetch";
+import { VAA } from "@wormhole-foundation/sdk";
 
 const WORMHOLE_MESSAGE = new ethers.utils.Interface([
     "event LogMessagePublished(address indexed sender,uint64 sequence,uint32 nonce,bytes payload,uint8 consistencyLevel)",
@@ -14,7 +14,7 @@ export async function unsafeFindAssociatedCctpMessageAndAttestation(
     cctpAttestationEndpoint: string,
     coreBridgeAddress: string,
     txHash: string,
-    vaa: wormholeSdk.ParsedVaa,
+    vaa: VAA,
     logger: winston.Logger,
 ): Promise<{ encodedCctpMessage: Buffer; cctpAttestation: Buffer }> {
     const { logs } = await new ethers.providers.StaticJsonRpcProvider(rpc).getTransactionReceipt(
@@ -44,7 +44,7 @@ export async function unsafeFindAssociatedCctpMessageAndAttestation(
 function findWormholeMessageIndex(
     logs: ethers.providers.Log[],
     coreBridgeAddress: string,
-    vaa: wormholeSdk.ParsedVaa,
+    vaa: VAA,
     logger: winston.Logger,
 ): number | undefined {
     for (let i = 0; i < logs.length; ++i) {

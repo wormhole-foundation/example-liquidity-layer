@@ -1,11 +1,3 @@
-import {
-    coalesceChainId,
-    parseVaa,
-    keccak256,
-    tryNativeToUint8Array,
-    tryHexToNativeAssetString,
-    CHAIN_ID_AVAX,
-} from "@certusone/wormhole-sdk";
 import { expect } from "chai";
 import { ethers } from "ethers";
 import {
@@ -33,14 +25,16 @@ import {
     mintNativeUsdc,
     mineToGracePeriod,
     mineToPenaltyPeriod,
+    tryNativeToUint8Array,
 } from "./helpers";
+import { toChainId, toNative } from "@wormhole-foundation/sdk";
 
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
-    ["base", "ethereum"],
-    ["ethereum", "base"],
-    ["base", "avalanche"],
-    ["ethereum", "avalanche"],
+    ["Base", "Ethereum"],
+    ["Ethereum", "Base"],
+    ["Base", "Avalanche"],
+    ["Ethereum", "Avalanche"],
 ];
 
 const TEST_AMOUNT = ethers.utils.parseUnits("1000", 6);
@@ -62,7 +56,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
         if (engineEnv.chainType === ChainType.Evm) {
             return new EvmMatchingEngine(
                 engineWallet,
-                tryHexToNativeAssetString(engineEnv.matchingEngineAddress, CHAIN_ID_AVAX),
+                toNative("Avalanche", engineEnv.matchingEngineAddress).toString(),
                 engineEnv.tokenMessengerAddress,
             );
         } else {
@@ -156,7 +150,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     })();
                     localVariables.set("amountIn", amountIn);
 
-                    const targetChain = coalesceChainId(toChainName);
+                    const targetChain = toChainId(toChainName);
                     const minAmountOut = BigInt(0);
                     const deadline = 0;
                     const receipt = await fromTokenRouter

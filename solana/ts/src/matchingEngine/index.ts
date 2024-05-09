@@ -1,6 +1,5 @@
 export * from "./state";
 
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { BN, Program, utils } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
@@ -54,7 +53,7 @@ import {
     ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
-import { Transaction } from "ethers";
+import { ChainId, isChain, toChainId, isChainId } from "@wormhole-foundation/sdk";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -68,7 +67,7 @@ export const CPI_EVENT_IX_SELECTOR = Uint8Array.from([228, 69, 165, 46, 81, 203,
 export type ProgramId = (typeof PROGRAM_IDS)[number];
 
 export type AddCctpRouterEndpointArgs = {
-    chain: wormholeSdk.ChainId;
+    chain: ChainId;
     cctpDomain: number;
     address: Array<number>;
     mintRecipient: Array<number> | null;
@@ -205,9 +204,9 @@ export type FastOrderPathComposite = {
 
 export type ReserveFastFillSequenceCompositeOpts = {
     fastVaaHash?: VaaHash;
-    sourceChain?: wormholeSdk.ChainId;
+    sourceChain?: ChainId;
     orderSender?: Array<number>;
-    targetChain?: wormholeSdk.ChainId;
+    targetChain?: ChainId;
 };
 
 export class MatchingEngineProgram {
@@ -375,13 +374,11 @@ export class MatchingEngineProgram {
         return splToken.getAssociatedTokenAddressSync(this.mint, this.custodianAddress(), true);
     }
 
-    routerEndpointAddress(chain: wormholeSdk.ChainId): PublicKey {
+    routerEndpointAddress(chain: ChainId): PublicKey {
         return RouterEndpoint.address(this.ID, chain);
     }
 
-    async fetchRouterEndpoint(
-        input: wormholeSdk.ChainId | { address: PublicKey },
-    ): Promise<RouterEndpoint> {
+    async fetchRouterEndpoint(input: ChainId | { address: PublicKey }): Promise<RouterEndpoint> {
         const addr =
             typeof input == "object" && "address" in input
                 ? input.address
@@ -389,9 +386,7 @@ export class MatchingEngineProgram {
         return this.program.account.routerEndpoint.fetch(addr);
     }
 
-    async fetchRouterEndpointInfo(
-        input: wormholeSdk.ChainId | { address: PublicKey },
-    ): Promise<EndpointInfo> {
+    async fetchRouterEndpointInfo(input: ChainId | { address: PublicKey }): Promise<EndpointInfo> {
         const { info } = await this.fetchRouterEndpoint(input);
         return info;
     }
@@ -471,7 +466,7 @@ export class MatchingEngineProgram {
             .catch((_) => 0n);
     }
 
-    localCustodyTokenAddress(sourceChain: wormholeSdk.ChainId): PublicKey {
+    localCustodyTokenAddress(sourceChain: ChainId): PublicKey {
         const encodedSourceChain = Buffer.alloc(2);
         encodedSourceChain.writeUInt16BE(sourceChain);
 
@@ -481,7 +476,7 @@ export class MatchingEngineProgram {
         )[0];
     }
 
-    async fetchLocalCustodyTokenBalance(sourceChain: wormholeSdk.ChainId): Promise<bigint> {
+    async fetchLocalCustodyTokenBalance(sourceChain: ChainId): Promise<bigint> {
         return splToken
             .getAccount(
                 this.program.provider.connection,
@@ -491,27 +486,23 @@ export class MatchingEngineProgram {
             .catch((_) => 0n);
     }
 
-    fastFillAddress(
-        sourceChain: wormholeSdk.ChainId,
-        orderSender: Array<number>,
-        sequence: Uint64,
-    ): PublicKey {
+    fastFillAddress(sourceChain: ChainId, orderSender: Array<number>, sequence: Uint64): PublicKey {
         return FastFill.address(this.ID, sourceChain, orderSender, sequence);
     }
 
     fetchFastFill(
-        input: [wormholeSdk.ChainId, Array<number>, Uint64] | { address: PublicKey },
+        input: [ChainId, Array<number>, Uint64] | { address: PublicKey },
     ): Promise<FastFill> {
         const addr = "address" in input ? input.address : this.fastFillAddress(...input);
         return this.program.account.fastFill.fetch(addr);
     }
 
-    fastFillSequencerAddress(sourceChain: wormholeSdk.ChainId, sender: Array<number>): PublicKey {
+    fastFillSequencerAddress(sourceChain: ChainId, sender: Array<number>): PublicKey {
         return FastFillSequencer.address(this.ID, sourceChain, sender);
     }
 
     fetchFastFillSequencer(
-        input: [wormholeSdk.ChainId, Array<number>] | { address: PublicKey },
+        input: [ChainId, Array<number>] | { address: PublicKey },
     ): Promise<FastFillSequencer> {
         const addr = "address" in input ? input.address : this.fastFillSequencerAddress(...input);
         return this.program.account.fastFillSequencer.fetch(addr);
@@ -1081,7 +1072,7 @@ export class MatchingEngineProgram {
 
         let { payer, routerEndpoint } = accounts;
         payer ??= ownerOrAssistant;
-        routerEndpoint ??= this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA);
+        routerEndpoint ??= this.routerEndpointAddress(toChainId("Solana"));
 
         return this.program.methods
             .addLocalRouterEndpoint()
@@ -1104,7 +1095,7 @@ export class MatchingEngineProgram {
         const { owner, tokenRouterProgram, custodian } = accounts;
 
         let { routerEndpoint } = accounts;
-        routerEndpoint ??= this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA);
+        routerEndpoint ??= this.routerEndpointAddress(toChainId("Solana"));
 
         return this.program.methods
             .updateLocalRouterEndpoint()
@@ -1122,7 +1113,7 @@ export class MatchingEngineProgram {
             custodian?: PublicKey;
             routerEndpoint?: PublicKey;
         },
-        chain: wormholeSdk.ChainId,
+        chain: ChainId,
     ): Promise<TransactionInstruction> {
         const { owner, custodian } = accounts;
 
@@ -1582,7 +1573,7 @@ export class MatchingEngineProgram {
         const preparedOrderResponse = this.preparedOrderResponseAddress(fastVaaHash);
 
         const settleAuctionNoneIx = await (async () => {
-            if (fastMarketOrder.targetChain === wormholeSdk.CHAIN_ID_SOLANA) {
+            if (fastMarketOrder.targetChain === toChainId("Solana")) {
                 return this.settleAuctionNoneLocalIx({
                     payer: executor,
                     reservedSequence: this.reservedFastFillSequenceAddress(fastVaaHash),
@@ -1623,7 +1614,7 @@ export class MatchingEngineProgram {
             auction?: PublicKey;
         },
         opts: {
-            sourceChain?: wormholeSdk.ChainId;
+            sourceChain?: ChainId;
             orderSender?: Array<number>;
             sequence?: Uint64;
         } = {},
@@ -1649,7 +1640,7 @@ export class MatchingEngineProgram {
             auction ??= this.auctionAddress(fastVaaHash);
             preparedOrderResponse ??= this.preparedOrderResponseAddress(fastVaaHash);
 
-            if (!wormholeSdk.isChain(fastFillSeeds.sourceChain)) {
+            if (!isChainId(fastFillSeeds.sourceChain)) {
                 throw new Error("Invalid source chain");
             }
             sourceChain ??= fastFillSeeds.sourceChain;
@@ -1690,8 +1681,8 @@ export class MatchingEngineProgram {
             auction?: PublicKey;
         },
         opts: {
-            sourceChain?: wormholeSdk.ChainId;
-            targetChain?: wormholeSdk.ChainId;
+            sourceChain?: ChainId;
+            targetChain?: ChainId;
         } = {},
     ) {
         const { payer, fastVaa } = accounts;
@@ -1794,7 +1785,7 @@ export class MatchingEngineProgram {
         let { auction, reservedSequence } = accounts;
 
         let fastVaaAccount: VaaAccount | undefined;
-        let targetChain: wormholeSdk.ChainId | undefined;
+        let targetChain: ChainId | undefined;
         if (auction === undefined || reservedSequence === undefined) {
             fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
             const fastVaaHash = fastVaaAccount.digest();
@@ -1822,7 +1813,7 @@ export class MatchingEngineProgram {
         }
 
         const executeOrderIx = await (async () => {
-            if (targetChain === wormholeSdk.CHAIN_ID_SOLANA) {
+            if (targetChain === toChainId("Solana")) {
                 return this.executeFastOrderLocalIx({
                     payer,
                     fastVaa,
@@ -1867,7 +1858,7 @@ export class MatchingEngineProgram {
             initialParticipant?: PublicKey;
         },
         opts: {
-            targetChain?: wormholeSdk.ChainId;
+            targetChain?: ChainId;
         } = {},
     ) {
         const connection = this.program.provider.connection;
@@ -1998,9 +1989,9 @@ export class MatchingEngineProgram {
         };
         definedOpts: {
             fastVaaHash: VaaHash;
-            sourceChain: wormholeSdk.ChainId;
+            sourceChain: ChainId;
             orderSender: Array<number>;
-            targetChain: wormholeSdk.ChainId;
+            targetChain: ChainId;
         };
     }> {
         const { payer, fastVaa } = accounts;
@@ -2154,7 +2145,7 @@ export class MatchingEngineProgram {
             bestOfferParticipant?: PublicKey;
         },
         opts: {
-            sourceChain?: wormholeSdk.ChainId;
+            sourceChain?: ChainId;
             orderSender?: Array<number>;
             sequence?: Uint64;
         } = {},
@@ -2259,14 +2250,14 @@ export class MatchingEngineProgram {
             seeds: { sourceChain },
         } = await this.fetchFastFill({ address: fastFill });
 
-        if (!wormholeSdk.isChain(sourceChain)) {
+        if (!isChainId(sourceChain)) {
             throw new Error("invalid source chain");
         }
 
         return {
             custodian: this.custodianAddress(),
             fromRouterEndpoint: this.routerEndpointAddress(sourceChain),
-            toRouterEndpoint: this.routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA),
+            toRouterEndpoint: this.routerEndpointAddress(toChainId("Solana")),
             localCustodyToken: this.localCustodyTokenAddress(sourceChain),
             matchingEngineProgram: this.ID,
         };
@@ -2300,7 +2291,7 @@ export class MatchingEngineProgram {
     async burnAndPublishAccounts(
         auction: PublicKey,
         args: {
-            targetChain: wormholeSdk.ChainId;
+            targetChain: ChainId;
             destinationCctpDomain?: number;
         },
     ): Promise<BurnAndPublishAccounts> {

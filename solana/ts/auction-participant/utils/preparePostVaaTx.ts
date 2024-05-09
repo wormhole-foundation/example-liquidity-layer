@@ -1,8 +1,9 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { ConfirmOptions, Connection, Keypair, TransactionInstruction } from "@solana/web3.js";
 import { PreparedTransaction } from "../../src";
 import { MatchingEngineProgram } from "../../src/matchingEngine";
 import { AppConfig } from "./config";
+import * as solanaCore from "@wormhole-foundation/sdk-solana-core";
+import { VAA } from "@wormhole-foundation/sdk";
 
 function unsafeFixSigVerifyIx(sigVerifyIx: TransactionInstruction, sigVerifyIxIndex: number) {
     const { data } = sigVerifyIx;
@@ -22,23 +23,23 @@ export async function preparePostVaaTxs(
     cfg: AppConfig,
     matchingEngine: MatchingEngineProgram,
     payer: Keypair,
-    vaa: wormholeSdk.ParsedVaa,
+    vaa: VAA,
     confirmOptions?: ConfirmOptions,
 ): Promise<PreparedTransaction[]> {
     const vaaSignatureSet = Keypair.generate();
 
     // Check if Fast VAA has already been posted.
-    const vaaVerifySignaturesIxs =
-        await wormholeSdk.solana.createVerifySignaturesInstructionsSolana(
-            connection,
-            matchingEngine.coreBridgeProgramId(),
-            payer.publicKey,
-            vaa,
-            vaaSignatureSet.publicKey,
-        );
+    const vaaVerifySignaturesIxs = await solanaCore.utils.createVerifySignaturesInstructions(
+        connection,
+        matchingEngine.coreBridgeProgramId(),
+        payer.publicKey,
+        vaa,
+        vaaSignatureSet.publicKey,
+    );
     vaaVerifySignaturesIxs.reverse();
 
-    const vaaPostIx = wormholeSdk.solana.createPostVaaInstructionSolana(
+    const vaaPostIx = solanaCore.utils.createPostVaaInstruction(
+        connection,
         matchingEngine.coreBridgeProgramId(),
         payer.publicKey,
         vaa,

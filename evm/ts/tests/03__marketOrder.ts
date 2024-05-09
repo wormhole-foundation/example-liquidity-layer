@@ -1,4 +1,3 @@
-import { coalesceChainId, tryNativeToUint8Array } from "@certusone/wormhole-sdk";
 import { expect } from "chai";
 import { ethers } from "ethers";
 import { EvmTokenRouter, errorDecoder, OrderResponse } from "../src";
@@ -14,15 +13,17 @@ import {
     mintNativeUsdc,
     ChainType,
     parseLiquidityLayerEnvFile,
+    tryNativeToUint8Array,
 } from "./helpers";
+import { serialize, toChainId } from "@wormhole-foundation/sdk";
 
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
-    ["ethereum", "avalanche"],
-    ["avalanche", "ethereum"],
-    ["ethereum", "base"],
-    ["base", "ethereum"],
-    ["avalanche", "base"],
-    ["base", "avalanche"],
+    ["Ethereum", "Avalanche"],
+    ["Avalanche", "Ethereum"],
+    ["Ethereum", "Base"],
+    ["Base", "Ethereum"],
+    ["Avalanche", "Base"],
+    ["Base", "Avalanche"],
 ];
 
 const TEST_AMOUNT = ethers.utils.parseUnits("1000", 6);
@@ -106,7 +107,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 })();
                 localVariables.set("amountIn", amountIn);
 
-                const targetChain = coalesceChainId(toChainName);
+                const targetChain = toChainId(toChainName);
                 const minAmountOut = BigInt(0);
                 const receipt = await fromTokenRouter
                     .placeMarketOrder(
@@ -143,7 +144,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
                 const orderResponse: OrderResponse = {
-                    encodedWormholeMessage: fillVaa,
+                    encodedWormholeMessage: serialize(fillVaa),
                     circleBridgeMessage,
                     circleAttestation,
                 };

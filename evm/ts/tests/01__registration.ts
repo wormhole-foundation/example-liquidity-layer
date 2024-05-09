@@ -1,9 +1,3 @@
-import {
-    CHAIN_ID_AVAX,
-    coalesceChainId,
-    tryHexToNativeAssetString,
-    tryNativeToUint8Array,
-} from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
 import { ITokenRouter__factory, IMatchingEngine__factory } from "../src/types";
 import {
@@ -17,8 +11,9 @@ import {
     LiquidityLayerEnv,
 } from "./helpers";
 import { expect } from "chai";
+import { toChainId, toNative, toUniversal } from "@wormhole-foundation/sdk";
 
-const CHAIN_PATHWAYS: ValidNetwork[] = ["ethereum", "avalanche", "base"];
+const CHAIN_PATHWAYS: ValidNetwork[] = ["Ethereum", "Avalanche", "Base"];
 
 describe("Registration", () => {
     const envPath = `${__dirname}/../../env/localnet`;
@@ -29,8 +24,10 @@ describe("Registration", () => {
             LOCALHOSTS[MATCHING_ENGINE_NAME],
         );
         const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
+
+        const matchingEngineAddress = toNative("Avalanche", env.matchingEngineAddress);
         const engine = IMatchingEngine__factory.connect(
-            tryHexToNativeAssetString(env.matchingEngineAddress, CHAIN_ID_AVAX),
+            matchingEngineAddress.toString(),
             assistant,
         );
 
@@ -41,7 +38,7 @@ describe("Registration", () => {
                     targetEnv,
                     chainName,
                 );
-                const targetChainId = coalesceChainId(chainName);
+                const targetChainId = toChainId(chainName);
                 await engine
                     .addRouterEndpoint(
                         targetChainId,
@@ -79,7 +76,7 @@ describe("Registration", () => {
                         targetEnv,
                         chainName,
                     );
-                    const targetChainId = coalesceChainId(targetChain);
+                    const targetChainId = toChainId(targetChain);
                     await router
                         .addRouterEndpoint(
                             targetChainId,
@@ -102,7 +99,7 @@ function fetchTokenRouterEndpoint(
     targetEnv: LiquidityLayerEnv,
     chainName: ValidNetwork,
 ): [Uint8Array, Uint8Array] {
-    const formattedAddress = tryNativeToUint8Array(targetEnv.tokenRouterAddress, chainName);
+    const formattedAddress = toUniversal(chainName, targetEnv.tokenRouterAddress).toUint8Array();
     let formattedMintRecipient;
     if (targetEnv.chainType === ChainType.Evm) {
         formattedMintRecipient = formattedAddress;
@@ -110,10 +107,10 @@ function fetchTokenRouterEndpoint(
         if (targetEnv.tokenRouterMintRecipient === undefined) {
             throw new Error("no token router mint recipient specified");
         } else {
-            formattedMintRecipient = tryNativeToUint8Array(
-                targetEnv.tokenRouterMintRecipient,
+            formattedMintRecipient = toUniversal(
                 chainName,
-            );
+                targetEnv.tokenRouterMintRecipient,
+            ).toUint8Array();
         }
     }
     return [formattedAddress, formattedMintRecipient];

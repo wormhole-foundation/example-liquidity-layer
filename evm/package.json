@@ -13,12 +13,11 @@
     "generate": "typechain --target=ethers-v5 --out-dir=ts/src/types out/*/*.json"
   },
   "dependencies": {
-    "@certusone/wormhole-sdk": "^0.10.10",
+    "@wormhole-foundation/sdk":"^0.6.8-beta.0",
     "ethers": "^5.7.2"
   },
   "devDependencies": {
     "envfile": "^6.18.0",
-    "@certusone/wormhole-sdk": "^0.10.10",
     "@typechain/ethers-v5": "^10.2.0",
     "@types/chai": "^4.3.4",
     "@types/mocha": "^10.0.1",

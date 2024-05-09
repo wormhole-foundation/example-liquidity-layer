@@ -1,6 +1,12 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
-import { parseVaa } from "@certusone/wormhole-sdk";
 import { Connection, PublicKey } from "@solana/web3.js";
+import {
+    deserialize,
+    ChainId,
+    toChainId,
+    isChain,
+    isChainId,
+    keccak256,
+} from "@wormhole-foundation/sdk";
 import { ethers } from "ethers";
 
 export type EncodedVaa = {
@@ -17,13 +23,13 @@ export type PostedVaaV1 = {
     guardianSetIndex: number;
     nonce: number;
     sequence: bigint;
-    emitterChain: wormholeSdk.ChainId;
+    emitterChain: ChainId;
     emitterAddress: Array<number>;
     payload: Buffer;
 };
 
 export type EmitterInfo = {
-    chain: wormholeSdk.ChainId;
+    chain: ChainId;
     address: Array<number>;
     sequence: bigint;
 };
@@ -65,7 +71,7 @@ export class VaaAccount {
             const sequence = data.readBigUInt64LE(offset);
             offset += 8;
             const emitterChain = data.readUInt16LE(offset);
-            if (!wormholeSdk.isChain(emitterChain)) {
+            if (!isChainId(emitterChain)) {
                 throw new Error("invalid emitter chain");
             }
             offset += 2;
@@ -94,10 +100,10 @@ export class VaaAccount {
 
     emitterInfo(): EmitterInfo {
         if (this._encodedVaa !== undefined) {
-            const parsed = parseVaa(this._encodedVaa.buf);
+            const parsed = deserialize("Uint8Array", this._encodedVaa.buf);
             return {
-                chain: parsed.emitterChain as wormholeSdk.ChainId,
-                address: Array.from(parsed.emitterAddress),
+                chain: toChainId(parsed.emitterChain),
+                address: Array.from(parsed.emitterAddress.toUint8Array()),
                 sequence: parsed.sequence,
             };
         } else if (this._postedVaaV1 !== undefined) {
@@ -114,7 +120,7 @@ export class VaaAccount {
 
     timestamp(): number {
         if (this._encodedVaa !== undefined) {
-            return parseVaa(this._encodedVaa.buf).timestamp;
+            return deserialize("Uint8Array", this._encodedVaa.buf).timestamp;
         } else if (this._postedVaaV1 !== undefined) {
             return this._postedVaaV1.timestamp;
         } else {
@@ -124,7 +130,7 @@ export class VaaAccount {
 
     payload(): Buffer {
         if (this._encodedVaa !== undefined) {
-            return parseVaa(this._encodedVaa.buf).payload;
+            return Buffer.from(deserialize("Uint8Array", this._encodedVaa.buf).payload);
         } else if (this._postedVaaV1 !== undefined) {
             return this._postedVaaV1.payload;
         } else {
@@ -134,9 +140,7 @@ export class VaaAccount {
 
     digest(): Uint8Array {
         if (this._encodedVaa !== undefined) {
-            return ethers.utils.arrayify(
-                ethers.utils.keccak256(parseVaa(this._encodedVaa.buf).hash),
-            );
+            return keccak256(deserialize("Uint8Array", this._encodedVaa.buf).hash);
         } else if (this._postedVaaV1 !== undefined) {
             const {
                 consistencyLevel,

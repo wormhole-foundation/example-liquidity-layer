@@ -1,4 +1,4 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
+import { ChainId, isChainId } from "@wormhole-foundation/sdk";
 import { ethers } from "ethers";
 
 export const ID_DEPOSIT = 1;
@@ -17,7 +17,7 @@ export type DepositHeader = {
 };
 
 export type Fill = {
-    sourceChain: wormholeSdk.ChainId;
+    sourceChain: ChainId;
     orderSender: Array<number>;
     redeemer: Array<number>;
     redeemerMessage: Buffer;
@@ -74,7 +74,7 @@ export class LiquidityLayerDeposit {
             switch (depositPayloadId) {
                 case ID_DEPOSIT_FILL: {
                     const sourceChain = payload.readUInt16BE(offset);
-                    if (!wormholeSdk.isChain(sourceChain)) {
+                    if (!isChainId(sourceChain)) {
                         throw new Error("Invalid source chain");
                     }
                     offset += 2;

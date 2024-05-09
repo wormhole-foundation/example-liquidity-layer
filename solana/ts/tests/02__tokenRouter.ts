@@ -1,5 +1,3 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
-import { getPostedMessage } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -29,7 +27,10 @@ import {
     expectIxOk,
     postLiquidityLayerVaa,
 } from "../src/testing";
-import { VaaAccount } from "../src/wormhole";
+import { ChainId, toChainId, toUniversal } from "@wormhole-foundation/sdk";
+import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
+
+const SOLANA_CHAIN_ID = toChainId("Solana");
 
 chaiUse(chaiAsPromised);
 
@@ -41,9 +42,9 @@ describe("Token Router", function () {
     const owner = OWNER_KEYPAIR;
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
 
-    const foreignChain = wormholeSdk.CHAINS.ethereum;
-    const invalidChain = (foreignChain + 1) as wormholeSdk.ChainId;
-    const foreignEndpointAddress = REGISTERED_TOKEN_ROUTERS["ethereum"]!;
+    const foreignChain = toChainId("Ethereum");
+    const invalidChain = (foreignChain + 1) as ChainId;
+    const foreignEndpointAddress = REGISTERED_TOKEN_ROUTERS["Ethereum"]!;
     const foreignCctpDomain = 0;
     const tokenRouter = new TokenRouterProgram(connection, localnet(), USDC_MINT_ADDRESS);
 
@@ -844,7 +845,7 @@ describe("Token Router", function () {
 
                 const unregisteredEndpoint = tokenRouter
                     .matchingEngineProgram()
-                    .routerEndpointAddress(wormholeSdk.CHAIN_ID_SOLANA);
+                    .routerEndpointAddress(SOLANA_CHAIN_ID);
                 const ix = await tokenRouter.placeMarketOrderCctpIx(
                     {
                         payer: payer.publicKey,
@@ -1098,12 +1099,11 @@ describe("Token Router", function () {
             }) {
                 const { preparedOrder, amountIn, burnSource } = args;
 
-                const {
-                    message: { emitterAddress, payload },
-                } = await getPostedMessage(
-                    connection,
-                    tokenRouter.coreMessageAddress(preparedOrder),
-                );
+                const message = tokenRouter.coreMessageAddress(preparedOrder);
+                const { payload, emitterAddress } = await connection
+                    .getAccountInfo(new PublicKey(message))
+                    .then((info) => deserializePostMessage(info?.data!));
+
                 expect(emitterAddress).to.eql(tokenRouter.custodianAddress().toBuffer());
 
                 const { sourceCctpDomain, cctpNonce } = await (async () => {
@@ -1123,7 +1123,7 @@ describe("Token Router", function () {
                 expect(cctpProtocol).is.not.null;
                 const { domain: destinationCctpDomain } = cctpProtocol!;
 
-                const depositMessage = LiquidityLayerMessage.decode(payload);
+                const depositMessage = LiquidityLayerMessage.decode(Buffer.from(payload));
                 expect(depositMessage).to.eql(
                     new LiquidityLayerMessage({
                         deposit: new LiquidityLayerDeposit(
@@ -1138,7 +1138,7 @@ describe("Token Router", function () {
                             },
                             {
                                 fill: {
-                                    sourceChain: wormholeSdk.CHAIN_ID_SOLANA,
+                                    sourceChain: SOLANA_CHAIN_ID,
                                     orderSender: Array.from(payer.publicKey.toBuffer()),
                                     redeemer,
                                     redeemerMessage,
@@ -1212,7 +1212,7 @@ describe("Token Router", function () {
                     foreignEndpointAddress,
                     wormholeSequence++,
                     message,
-                    { sourceChain: "polygon" },
+                    { sourceChain: "Polygon" },
                 );
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
@@ -1750,7 +1750,7 @@ async function craftCctpTokenBurnMessage(
             targetCaller: Array.from(tokenRouter.custodianAddress().toBuffer()), // targetCaller
         },
         0,
-        Array.from(wormholeSdk.tryNativeToUint8Array(ETHEREUM_USDC_ADDRESS, "ethereum")), // sourceTokenAddress
+        Array.from(toUniversal("Ethereum", ETHEREUM_USDC_ADDRESS).toUint8Array()), // sourceTokenAddress
         encodedMintRecipient,
         amount,
         burnSource,

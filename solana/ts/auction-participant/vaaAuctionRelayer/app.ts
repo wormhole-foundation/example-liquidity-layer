@@ -81,7 +81,9 @@ async function main(argv: string[]) {
 
             // Start a new auction if this is a fast VAA.
             logicLogger.debug(`Attempting to parse FastMarketOrder, sequence=${parsed.sequence}`);
-            const fastOrder = utils.tryParseFastMarketOrder(parsed.payload);
+            const fastOrder = utils.tryParseFastMarketOrder(
+                Buffer.from(parsed.payload as Uint8Array),
+            );
             if (fastOrder !== undefined) {
                 const unprocessedTxns = await utils.handlePlaceInitialOffer(
                     connection,
@@ -100,7 +102,9 @@ async function main(argv: string[]) {
             }
         } else {
             logicLogger.debug(`Attempting to parse SlowOrderResponse, sequence=${parsed.sequence}`);
-            const slowOrderResponse = utils.tryParseSlowOrderResponse(parsed.payload);
+            const slowOrderResponse = utils.tryParseSlowOrderResponse(
+                Buffer.from(parsed.payload as Uint8Array),
+            );
             if (slowOrderResponse !== undefined) {
                 const unprocessedTxns = await utils.handleSettleAuction(
                     connection,
