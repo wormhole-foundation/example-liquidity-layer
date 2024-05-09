@@ -1,7 +1,7 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { Uint64, writeUint64BE } from "../../common";
+import { ChainId } from "@wormhole-foundation/sdk";
 
 export type FastFillInfo = {
     amount: BN;
@@ -38,7 +38,7 @@ export class FastFill {
 
     static address(
         programId: PublicKey,
-        sourceChain: wormholeSdk.ChainId,
+        sourceChain: ChainId,
         orderSender: Array<number>,
         sequence: Uint64,
     ) {

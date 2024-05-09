@@ -1,24 +1,29 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { Connection, Keypair, PublicKey, Signer } from "@solana/web3.js";
-import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
-import * as splToken from "@solana/spl-token";
 import { PreparedTransaction } from "../../src";
-import { Auction, AuctionStatus, MatchingEngineProgram } from "../../src/matchingEngine";
-import { USDC_MINT_ADDRESS } from "../../src/testing";
+import { Auction, MatchingEngineProgram } from "../../src/matchingEngine";
 import * as utils from "../utils";
 import * as winston from "winston";
+import {
+    Chain,
+    VAA,
+    chainToPlatform,
+    deserialize,
+    keccak256,
+    toChainId,
+} from "@wormhole-foundation/sdk";
+import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
 
 async function fetchCctpArgs(
     cfg: utils.AppConfig,
     logicLogger: winston.Logger,
-    finalizedVaa: wormholeSdk.ParsedVaa,
+    finalizedVaa: VAA,
     txHash: string,
-    fromChain: wormholeSdk.ChainName,
+    fromChain: Chain,
     rpc: string,
     coreBridgeAddress: string,
 ): Promise<{ encodedCctpMessage: Buffer; cctpAttestation: Buffer } | undefined> {
     const cctpArgs = await (async () => {
-        if (wormholeSdk.isEVMChain(fromChain)) {
+        if (chainToPlatform(fromChain) === "Evm") {
             return utils.evm.unsafeFindAssociatedCctpMessageAndAttestation(
                 rpc,
                 cfg.cctpAttestationEndpoint(),
@@ -46,16 +51,17 @@ function getSettleAuctionAccounts(
     finalizedVaaBytes: Uint8Array | Buffer,
     fastVaaBytes: Uint8Array | Buffer,
 ): SettleAuctionAccounts {
-    const auction = matchingEngine.auctionAddress(
-        wormholeSdk.keccak256(wormholeSdk.parseVaa(fastVaaBytes).hash),
-    );
-    const finalizedVaaAccount = derivePostedVaaKey(
+    const fastVaa = deserialize("Uint8Array", fastVaaBytes);
+    const auction = matchingEngine.auctionAddress(keccak256(fastVaa.hash));
+    const fastVaaAccount = coreUtils.derivePostedVaaKey(
         matchingEngine.coreBridgeProgramId(),
-        wormholeSdk.parseVaa(finalizedVaaBytes).hash,
+        Buffer.from(fastVaa.hash),
     );
-    const fastVaaAccount = derivePostedVaaKey(
+
+    const finalizedVaa = deserialize("Uint8Array", finalizedVaaBytes);
+    const finalizedVaaAccount = coreUtils.derivePostedVaaKey(
         matchingEngine.coreBridgeProgramId(),
-        wormholeSdk.parseVaa(fastVaaBytes).hash,
+        Buffer.from(finalizedVaa.hash),
     );
 
     return {
@@ -70,7 +76,7 @@ export async function handleSettleAuction(
     cfg: utils.AppConfig,
     matchingEngine: MatchingEngineProgram,
     logicLogger: winston.Logger,
-    parsed: wormholeSdk.ParsedVaa,
+    parsed: VAA,
     raw: Uint8Array,
     payer: Keypair,
 ): Promise<PreparedTransaction[]> {
@@ -80,7 +86,11 @@ export async function handleSettleAuction(
 
     const unproccessedTxns: PreparedTransaction[] = [];
 
-    const { chain: fromChain, rpc, coreBridgeAddress } = cfg.unsafeChainCfg(parsed.emitterChain);
+    const {
+        chain: fromChain,
+        rpc,
+        coreBridgeAddress,
+    } = cfg.unsafeChainCfg(toChainId(parsed.emitterChain));
 
     // Fetch the fast vaa and the source transaction hash from wormscan. We subtract one from the
     // slow vaa sequence to fetch the fast vaa bytes.
@@ -89,9 +99,9 @@ export async function handleSettleAuction(
     const vaaResponse = await utils.fetchVaaFromWormscan(
         cfg,
         {
-            chain: parsed.emitterChain,
+            chain: toChainId(parsed.emitterChain),
             sequence: fastVaaSequence,
-            emitter: parsed.emitterAddress.toString("hex"),
+            emitter: parsed.emitterAddress.toString(),
         },
         logicLogger,
     );
@@ -102,8 +112,8 @@ export async function handleSettleAuction(
     }
 
     logicLogger.debug(`Attempting to parse fast VAA, sequence=${fastVaaSequence}`);
-    const fastVaaParsed = wormholeSdk.parseVaa(vaaResponse.vaa);
-    const fastOrder = utils.tryParseFastMarketOrder(fastVaaParsed.payload);
+    const fastVaaParsed = deserialize("Uint8Array", vaaResponse.vaa);
+    const fastOrder = utils.tryParseFastMarketOrder(Buffer.from(fastVaaParsed.payload));
     if (fastOrder === undefined) {
         logicLogger.error(`Failed to parse FastMarketOrder, sequence=${fastVaaSequence}`);
         return [];

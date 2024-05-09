@@ -1,9 +1,19 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
 import { Commitment, Connection, FetchFn, PublicKey, PublicKeyInitData } from "@solana/web3.js";
 import { ethers } from "ethers";
 import { USDC_MINT_ADDRESS } from "../../src/testing";
 import { defaultLogger } from "./logger";
+import {
+    Chain,
+    VAA,
+    chain,
+    chainToPlatform,
+    chains,
+    contracts,
+    isChain,
+    toChainId,
+    toNative,
+} from "@wormhole-foundation/sdk";
 
 export const EVM_FAST_CONSISTENCY_LEVEL = 200;
 
@@ -13,13 +23,13 @@ export const WORMHOLESCAN_VAA_ENDPOINT_TESTNET = "https://api.testnet.wormholesc
 export const WORMHOLESCAN_VAA_ENDPOINT_MAINNET = "https://api.wormholescan.io/api/v1/vaas/";
 
 enum Environment {
-    MAINNET = "mainnet",
-    TESTNET = "testnet",
-    DEVNET = "devnet",
+    MAINNET = "Mainnet",
+    TESTNET = "Testnet",
+    DEVNET = "Devnet",
 }
 
 export type InputEndpointChainConfig = {
-    chain: wormholeSdk.ChainName;
+    chain: Chain;
     chainType: ChainType;
     rpc: string;
     endpoint: string;
@@ -53,7 +63,7 @@ export type ComputeUnitsConfig = {
 };
 
 export type PricingParameters = {
-    chain: wormholeSdk.ChainName;
+    chain: Chain;
     probability: number;
     edgePctOfFv: number;
 };
@@ -84,7 +94,7 @@ export class AppConfig {
     private _chainCfgs: Partial<{ [k: number]: ChainConfig }>;
 
     private _wormholeAddresses: {
-        [k in wormholeSdk.ChainName]: { core?: string; token_bridge?: string; nft_bridge?: string };
+        [k in Chain]?: { core?: string; token_bridge?: string; nft_bridge?: string };
     };
 
     constructor(input: any) {
@@ -93,16 +103,23 @@ export class AppConfig {
         this._chainCfgs = this._cfg.endpointConfig
             .map((cfg) => ({
                 ...cfg,
-                fastConsistencyLevel: wormholeSdk.isEVMChain(cfg.chain)
-                    ? EVM_FAST_CONSISTENCY_LEVEL
-                    : undefined,
+                fastConsistencyLevel:
+                    chainToPlatform(cfg.chain) === "Evm" ? EVM_FAST_CONSISTENCY_LEVEL : undefined,
             }))
-            .reduce((acc, cfg) => ({ ...acc, [wormholeSdk.coalesceChainId(cfg.chain)]: cfg }), {});
+            .reduce((acc, cfg) => ({ ...acc, [toChainId(cfg.chain)]: cfg }), {});
 
-        this._wormholeAddresses =
-            this._cfg.environment == Environment.MAINNET
-                ? wormholeSdk.utils.CONTRACTS.MAINNET
-                : wormholeSdk.utils.CONTRACTS.TESTNET;
+        this._wormholeAddresses = Object.fromEntries(
+            chains.map((chain) => {
+                return [
+                    chain,
+                    {
+                        core: contracts.coreBridge.get(this._cfg.environment, chain),
+                        token_bridge: contracts.tokenBridge.get(this._cfg.environment, chain),
+                        nft_bridge: contracts.nftBridge.get(this._cfg.environment, chain),
+                    },
+                ];
+            }) as [Chain, { core?: string; token_bridge?: string; nft_bridge?: string }][],
+        );
     }
 
     appLogLevel(): string {
@@ -197,9 +214,7 @@ export class AppConfig {
     }
 
     pricingParameters(chain: number): PricingParameters | null {
-        const pricing = this._cfg.pricing.find(
-            (p) => wormholeSdk.coalesceChainId(p.chain) == chain,
-        );
+        const pricing = this._cfg.pricing.find((p) => toChainId(p.chain) == chain);
 
         return pricing === undefined ? null : pricing;
     }
@@ -207,7 +222,7 @@ export class AppConfig {
     unsafeChainCfg(chain: number): { coreBridgeAddress: string } & ChainConfig {
         const chainCfg = this._chainCfgs[chain]!;
         return {
-            coreBridgeAddress: this._wormholeAddresses[chainCfg.chain].core!,
+            coreBridgeAddress: this._wormholeAddresses![chainCfg.chain]!.core!,
             ...chainCfg,
         };
     }
@@ -224,17 +239,17 @@ export class AppConfig {
             : WORMHOLESCAN_VAA_ENDPOINT_TESTNET;
     }
 
-    emitterFilterForSpy(): { chain: wormholeSdk.ChainName; nativeAddress: string }[] {
+    emitterFilterForSpy(): { chain: Chain; nativeAddress: string }[] {
         return this._cfg.endpointConfig.map((cfg) => ({
             chain: cfg.chain,
             nativeAddress: cfg.endpoint,
         }));
     }
 
-    isFastFinality(vaa: wormholeSdk.ParsedVaa): boolean {
+    isFastFinality(vaa: VAA): boolean {
         return (
             vaa.consistencyLevel ==
-            this._chainCfgs[vaa.emitterChain as wormholeSdk.ChainId]?.fastConsistencyLevel
+            this._chainCfgs[toChainId(vaa.emitterChain)]?.fastConsistencyLevel
         );
     }
 }
@@ -336,7 +351,7 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
     for (const { chain, probability, edgePctOfFv } of cfg.pricing) {
         if (chain === undefined) {
             throw new Error("pricingParameter.chain is required");
-        } else if (!(chain in wormholeSdk.CHAINS)) {
+        } else if (!isChain(chain)) {
             throw new Error(`invalid chain: ${chain}`);
         }
 
@@ -376,7 +391,7 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
         if (chain === undefined) {
             throw new Error("endpointConfig.chain is required");
         }
-        if (!(chain in wormholeSdk.CHAINS)) {
+        if (!isChain(chain)) {
             throw new Error(`invalid chain: ${chain}`);
         }
         if (chainType === undefined) {
@@ -398,7 +413,7 @@ function validateEnvironmentConfig(cfg: any): EnvironmentConfig {
             );
         }
         // This should succeed.
-        wormholeSdk.tryNativeToHexString(endpoint, chain);
+        toNative(chain, endpoint).toString();
     }
 
     return {

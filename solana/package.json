@@ -26,11 +26,13 @@
     "build":"npm run build:esm && npm run build:cjs"
   },
   "dependencies": {
-    "@certusone/wormhole-sdk": "^0.10.10",
     "@certusone/wormhole-spydk": "^0.0.1",
+    "@wormhole-foundation/sdk":"^0.6.8-beta.0",
     "@coral-xyz/anchor": "^0.30.0",
     "@solana/spl-token": "^0.4.6",
-    "@solana/web3.js": "^1.87.6",
+    "@solana/spl-token-group":"^0.0.4",
+    "@solana/spl-token-metadata":"^0.1.4",
+    "@solana/web3.js": "^1.91.7",
     "@types/node-fetch": "^2.6.11",
     "anchor-0.29.0": "npm:@coral-xyz/anchor@^0.29.0",
     "dotenv": "^16.4.1",

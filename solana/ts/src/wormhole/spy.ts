@@ -1,22 +1,15 @@
-import {
-    ChainId,
-    ChainName,
-    ParsedVaa,
-    coalesceChainId,
-    parseVaa,
-    tryNativeToUint8Array,
-} from "@certusone/wormhole-sdk";
 import { createSpyRPCServiceClient, subscribeSignedVAA } from "@certusone/wormhole-spydk";
+import { deserialize, Chain, VAA, toChain, toUniversal, encoding } from "@wormhole-foundation/sdk";
 
 export type VaaContext = {
     raw: Buffer;
-    parsed: ParsedVaa;
-    chain?: ChainName;
+    parsed: VAA;
+    chain?: Chain;
     nativeAddress?: string;
 };
 
 export type VaaFilter = {
-    chain: ChainName;
+    chain: Chain;
     nativeAddress: string;
 };
 
@@ -59,7 +52,7 @@ export class VaaSpy {
 
         const that = this;
         stream.on("data", ({ vaaBytes: raw }) => {
-            const ctx: VaaContext = { raw, parsed: parseVaa(raw) };
+            const ctx: VaaContext = { raw, parsed: deserialize("Uint8Array", raw) };
 
             if (vaaFilters === null) {
                 return that.processUniqueVaa(ctx, callback);
@@ -68,8 +61,11 @@ export class VaaSpy {
             // Filter out unwanted VAAs.
             for (const { chain, nativeAddress } of vaaFilters) {
                 if (
-                    ctx.parsed.emitterChain == coalesceChainId(chain) &&
-                    ctx.parsed.emitterAddress.equals(tryNativeToUint8Array(nativeAddress, chain))
+                    ctx.parsed.emitterChain == toChain(chain) &&
+                    encoding.bytes.equals(
+                        ctx.parsed.emitterAddress.toUint8Array(),
+                        toUniversal(chain, nativeAddress).toUint8Array(),
+                    )
                 ) {
                     return that.processUniqueVaa({ chain, nativeAddress, ...ctx }, callback);
                 }
@@ -79,7 +75,7 @@ export class VaaSpy {
 
     processUniqueVaa(ctx: VaaContext, callback: (ctx: VaaContext) => void): void {
         if (this._enableCleanup) {
-            const hash = ctx.parsed.hash.toString("base64");
+            const hash = encoding.b64.encode(ctx.parsed.hash);
             if (this._seenHashes.has(hash)) {
                 return;
             }

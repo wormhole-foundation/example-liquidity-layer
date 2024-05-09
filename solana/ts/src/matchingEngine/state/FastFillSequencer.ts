@@ -1,6 +1,6 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import { ChainId } from "@wormhole-foundation/sdk";
 
 export type FastFillSequencerSeeds = {
     sourceChain: number;
@@ -17,7 +17,7 @@ export class FastFillSequencer {
         this.nextSequence = nextSequence;
     }
 
-    static address(programId: PublicKey, sourceChain: wormholeSdk.ChainId, sender: Array<number>) {
+    static address(programId: PublicKey, sourceChain: ChainId, sender: Array<number>) {
         const encodedSourceChain = Buffer.alloc(2);
         encodedSourceChain.writeUInt16BE(sourceChain);
 

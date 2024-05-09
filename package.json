@@ -9,7 +9,7 @@
     "pack":"npm run build && npm pack --workspaces"
   },
   "dependencies": {
-    "@wormhole-foundation/sdk":"0.6.7"
+    "@wormhole-foundation/sdk":"0.6.8-beta.0"
   },
   "devDependencies": {
     "typescript": "^5.4.5"

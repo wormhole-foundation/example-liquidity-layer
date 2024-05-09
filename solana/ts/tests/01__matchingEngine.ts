@@ -1,6 +1,5 @@
-import * as wormholeSdk from "@certusone/wormhole-sdk";
-import { getPostedMessage } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import { BN } from "@coral-xyz/anchor";
+import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -60,6 +59,7 @@ import {
     waitUntilSlot,
     waitUntilTimestamp,
 } from "../src/testing";
+import { Chain, ChainId, toChain, toChainId, toUniversal } from "@wormhole-foundation/sdk";
 
 chaiUse(chaiAsPromised);
 
@@ -84,15 +84,15 @@ describe("Matching Engine", function () {
     const liquidator = Keypair.generate();
 
     // Foreign endpoints.
-    const ethChain = wormholeSdk.coalesceChainId("ethereum");
-    const ethRouter = REGISTERED_TOKEN_ROUTERS["ethereum"]!;
-    const ethDomain = CHAIN_TO_DOMAIN["ethereum"]!;
+    const ethChain = toChainId("Ethereum");
+    const ethRouter = REGISTERED_TOKEN_ROUTERS["Ethereum"]!;
+    const ethDomain = CHAIN_TO_DOMAIN["Ethereum"]!;
 
-    const arbChain = wormholeSdk.coalesceChainId("arbitrum");
-    const arbRouter = REGISTERED_TOKEN_ROUTERS["arbitrum"]!;
-    const arbDomain = CHAIN_TO_DOMAIN["arbitrum"]!;
+    const arbChain = toChainId("Arbitrum");
+    const arbRouter = REGISTERED_TOKEN_ROUTERS["Arbitrum"]!;
+    const arbDomain = CHAIN_TO_DOMAIN["Arbitrum"]!;
 
-    const solanaChain = wormholeSdk.coalesceChainId("solana");
+    const solanaChain = toChainId("Solana");
 
     // Matching Engine program.
     const engine = new MatchingEngineProgram(connection, localnet(), USDC_MINT_ADDRESS);
@@ -735,9 +735,9 @@ describe("Matching Engine", function () {
                         ownerOrAssistant: owner.publicKey,
                     },
                     {
-                        chain: wormholeSdk.coalesceChainId("arbitrum"),
-                        cctpDomain: CHAIN_TO_DOMAIN["arbitrum"]!,
-                        address: REGISTERED_TOKEN_ROUTERS["arbitrum"]!,
+                        chain: toChainId("Arbitrum"),
+                        cctpDomain: CHAIN_TO_DOMAIN["Arbitrum"]!,
+                        address: REGISTERED_TOKEN_ROUTERS["Arbitrum"]!,
                         mintRecipient: null,
                     },
                 );
@@ -758,13 +758,16 @@ describe("Matching Engine", function () {
                 await expectIxErr(connection, [ix], [payer], "OwnerOrAssistantOnly");
             });
 
-            [wormholeSdk.CHAINS.unset, solanaChain].forEach((chain) =>
+            [0, solanaChain].forEach((chain) =>
                 it(`Cannot Register Chain ID == ${chain}`, async function () {
-                    const chain = 0;
-
                     const ix = await engine.addCctpRouterEndpointIx(
                         { ownerOrAssistant: owner.publicKey },
-                        { chain, cctpDomain: ethDomain, address: ethRouter, mintRecipient: null },
+                        {
+                            chain: chain as ChainId,
+                            cctpDomain: ethDomain,
+                            address: ethRouter,
+                            mintRecipient: null,
+                        },
                     );
                     await expectIxErr(connection, [ix], [owner], "ChainNotAllowed");
                 }),
@@ -1386,7 +1389,7 @@ describe("Matching Engine", function () {
             }
 
             it("Place Initial Offer (Tx)", async function () {
-                const { fast } = await observeCctpOrderVaas({ sourceChain: "ethereum" });
+                const { fast } = await observeCctpOrderVaas({ sourceChain: "Ethereum" });
 
                 const auction = engine.auctionAddress(fast.vaaAccount.digest());
                 const { auctionConfigId } = await engine.fetchCustodian();
@@ -1676,8 +1679,8 @@ describe("Matching Engine", function () {
                         signers: [playerOne],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
-                        sourceChain: "polygon",
-                        emitter: REGISTERED_TOKEN_ROUTERS["ethereum"],
+                        sourceChain: "Polygon",
+                        emitter: REGISTERED_TOKEN_ROUTERS["Ethereum"],
                         errorMsg: "Error Code: InvalidSourceRouter",
                     },
                 );
@@ -1695,8 +1698,8 @@ describe("Matching Engine", function () {
                         signers: [playerOne],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
-                        sourceChain: "ethereum",
-                        emitter: REGISTERED_TOKEN_ROUTERS["arbitrum"],
+                        sourceChain: "Ethereum",
+                        emitter: REGISTERED_TOKEN_ROUTERS["Arbitrum"],
                         errorMsg: "Error Code: InvalidSourceRouter",
                     },
                 );
@@ -1716,7 +1719,7 @@ describe("Matching Engine", function () {
                         finalized: false,
                         fastMarketOrder: {
                             ...baseFastOrder,
-                            targetChain: wormholeSdk.coalesceChainId("acala"),
+                            targetChain: toChainId("Acala"),
                         },
                         errorMsg: "Error Code: InvalidTargetRouter",
                     },
@@ -2186,8 +2189,8 @@ describe("Matching Engine", function () {
                     },
                     playerOne.publicKey,
                     false, // hasPenalty
-                    "ethereum",
-                    "arbitrum",
+                    "Ethereum",
+                    "Arbitrum",
                 );
 
                 localVariables.set("auction", auction);
@@ -2347,8 +2350,8 @@ describe("Matching Engine", function () {
                     },
                     playerOne.publicKey,
                     true, // hasPenalty
-                    "ethereum",
-                    "arbitrum",
+                    "Ethereum",
+                    "Arbitrum",
                 );
             });
 
@@ -2435,8 +2438,8 @@ describe("Matching Engine", function () {
                     },
                     liquidator.publicKey,
                     true, // hasPenalty
-                    "ethereum",
-                    "arbitrum",
+                    "Ethereum",
+                    "Arbitrum",
                 );
             });
 
@@ -2569,8 +2572,8 @@ describe("Matching Engine", function () {
                     },
                     liquidator.publicKey,
                     true, // hasPenalty
-                    "ethereum",
-                    "arbitrum",
+                    "Ethereum",
+                    "Arbitrum",
                 );
             });
 
@@ -2705,8 +2708,8 @@ describe("Matching Engine", function () {
                     },
                     liquidator.publicKey,
                     true, // hasPenalty
-                    "ethereum",
-                    "arbitrum",
+                    "Ethereum",
+                    "Arbitrum",
                 );
             });
 
@@ -2849,8 +2852,8 @@ describe("Matching Engine", function () {
                     },
                     liquidator.publicKey,
                     true, // hasPenalty
-                    "ethereum",
-                    "arbitrum",
+                    "Ethereum",
+                    "Arbitrum",
                 );
             });
 
@@ -2937,8 +2940,8 @@ describe("Matching Engine", function () {
                     },
                     liquidator.publicKey,
                     true, // hasPenalty
-                    "ethereum",
-                    "arbitrum",
+                    "Ethereum",
+                    "Arbitrum",
                 );
             });
 
@@ -3164,8 +3167,8 @@ describe("Matching Engine", function () {
                 },
                 executor: PublicKey,
                 hasPenalty: boolean,
-                fromChainName: wormholeSdk.ChainName,
-                toChainName: wormholeSdk.ChainName,
+                fromChainName: Chain,
+                toChainName: Chain,
             ) {
                 const {
                     bestOfferToken: bestOfferTokenBefore,
@@ -3226,8 +3229,7 @@ describe("Matching Engine", function () {
                     custodyTokenBalance -= initAuctionFee;
                 }
 
-                const destinationDomain =
-                    CHAIN_TO_DOMAIN[wormholeSdk.coalesceChainName(targetChain)];
+                const destinationDomain = CHAIN_TO_DOMAIN[toChain(targetChain)];
                 expect(destinationDomain).is.not.undefined;
 
                 if (hasPenalty) {
@@ -3340,10 +3342,12 @@ describe("Matching Engine", function () {
 
                 // Validate the core message.
                 const message = engine.coreMessageAddress(auction);
-                const {
-                    message: { payload },
-                } = await getPostedMessage(connection, message);
-                const parsed = LiquidityLayerMessage.decode(payload);
+
+                const { payload } = await connection
+                    .getAccountInfo(new PublicKey(message))
+                    .then((info) => deserializePostMessage(info?.data!));
+
+                const parsed = LiquidityLayerMessage.decode(Buffer.from(payload));
                 expect(parsed.deposit?.message.fill).is.not.undefined;
 
                 const {
@@ -3361,9 +3365,9 @@ describe("Matching Engine", function () {
                 expect(actualAmount).equals(userAmount);
                 expect(destinationCctpDomain).equals(cctp!.domain);
 
-                const sourceChain = wormholeSdk.coalesceChainId(fromChainName);
+                const sourceChain = toChainId(fromChainName);
                 const { mintRecipient: expectedMintRecipient } =
-                    await engine.fetchRouterEndpointInfo(wormholeSdk.coalesceChainId(toChainName));
+                    await engine.fetchRouterEndpointInfo(toChainId(toChainName));
                 expect(mintRecipient).to.eql(expectedMintRecipient);
 
                 const expectedFill: Fill = {
@@ -3381,8 +3385,8 @@ describe("Matching Engine", function () {
 
             it("Cannot Prepare Order Response with Emitter Chain Mismatch", async function () {
                 const { fast, finalized } = await observeCctpOrderVaas({
-                    sourceChain: "ethereum",
-                    finalizedSourceChain: "arbitrum",
+                    sourceChain: "Ethereum",
+                    finalizedSourceChain: "Arbitrum",
                 });
                 const fastEmitterInfo = fast.vaaAccount.emitterInfo();
                 const finalizedEmitterInfo = finalized!.vaaAccount.emitterInfo();
@@ -3404,8 +3408,8 @@ describe("Matching Engine", function () {
 
             it("Cannot Prepare Order Response with Emitter Address Mismatch", async function () {
                 const { fast, finalized } = await observeCctpOrderVaas({
-                    emitter: REGISTERED_TOKEN_ROUTERS["ethereum"]!,
-                    finalizedEmitter: REGISTERED_TOKEN_ROUTERS["arbitrum"]!,
+                    emitter: REGISTERED_TOKEN_ROUTERS["Ethereum"]!,
+                    finalizedEmitter: REGISTERED_TOKEN_ROUTERS["Arbitrum"]!,
                 });
                 const fastEmitterInfo = fast.vaaAccount.emitterInfo();
                 const finalizedEmitterInfo = finalized!.vaaAccount.emitterInfo();
@@ -3671,7 +3675,7 @@ describe("Matching Engine", function () {
 
                 it("Settle Completed (Tx)", async function () {
                     const { fast, finalized } = await observeCctpOrderVaas({
-                        sourceChain: "ethereum",
+                        sourceChain: "Ethereum",
                     });
 
                     const result = await placeInitialOfferCctpForTest(
@@ -3744,7 +3748,7 @@ describe("Matching Engine", function () {
 
                 it("Settle (Tx)", async function () {
                     const { fast, finalized } = await observeCctpOrderVaas({
-                        sourceChain: "ethereum",
+                        sourceChain: "Ethereum",
                     });
 
                     const { value: lookupTableAccount } = await connection.getAddressLookupTable(
@@ -4400,7 +4404,7 @@ describe("Matching Engine", function () {
         expect(auctionCustodyBalanceAfter).equals(auctionCustodyBalanceBefore + balanceChange);
 
         // Confirm the auction data.
-        const destinationDomain = CHAIN_TO_DOMAIN[wormholeSdk.coalesceChainName(targetChain)];
+        const destinationDomain = CHAIN_TO_DOMAIN[toChain(targetChain)];
         expect(destinationDomain).is.not.undefined;
 
         const expectedAmountIn = uint64ToBN(amountIn);
@@ -4992,8 +4996,7 @@ describe("Matching Engine", function () {
             expect(accInfo).is.null;
         }
 
-        const destinationDomain =
-            CHAIN_TO_DOMAIN[wormholeSdk.coalesceChainName(fastMarketOrder!.targetChain)];
+        const destinationDomain = CHAIN_TO_DOMAIN[toChain(fastMarketOrder!.targetChain)];
         expect(destinationDomain).is.not.undefined;
 
         const fastVaaHash = fastVaaAccount.digest();
@@ -5026,7 +5029,7 @@ describe("Matching Engine", function () {
             amountIn?: bigint;
             minAmountOut?: bigint;
             initAuctionFee?: bigint;
-            targetChain?: wormholeSdk.ChainName;
+            targetChain?: Chain;
             maxFee?: bigint;
             deadline?: number;
             redeemerMessage?: Buffer;
@@ -5045,7 +5048,7 @@ describe("Matching Engine", function () {
         return {
             amountIn: amountIn ?? 1_000_000_000n,
             minAmountOut: minAmountOut ?? 0n,
-            targetChain: wormholeSdk.coalesceChainId(targetChain ?? "arbitrum"),
+            targetChain: toChainId(targetChain ?? "Arbitrum"),
             redeemer: new Array(32).fill(1),
             sender: new Array(32).fill(2),
             refundAddress: new Array(32).fill(3),
@@ -5079,13 +5082,13 @@ describe("Matching Engine", function () {
     };
 
     type ObserveCctpOrderVaasOpts = {
-        sourceChain?: wormholeSdk.ChainName;
+        sourceChain?: Chain;
         emitter?: Array<number>;
         vaaTimestamp?: number;
         fastMarketOrder?: FastMarketOrder;
         finalized?: boolean;
         slowOrderResponse?: SlowOrderResponse;
-        finalizedSourceChain?: wormholeSdk.ChainName;
+        finalizedSourceChain?: Chain;
         finalizedEmitter?: Array<number>;
         finalizedSequence?: bigint;
         finalizedVaaTimestamp?: number;
@@ -5107,7 +5110,7 @@ describe("Matching Engine", function () {
             finalizedSequence,
             finalizedVaaTimestamp,
         } = opts;
-        sourceChain ??= "ethereum";
+        sourceChain ??= "Ethereum";
         emitter ??= REGISTERED_TOKEN_ROUTERS[sourceChain] ?? new Array(32).fill(0);
         vaaTimestamp ??= await getBlockTime(connection);
         fastMarketOrder ??= newFastMarketOrder();
@@ -5221,7 +5224,7 @@ describe("Matching Engine", function () {
                 targetCaller: Array.from(engine.custodianAddress().toBuffer()), // targetCaller
             },
             0,
-            Array.from(wormholeSdk.tryNativeToUint8Array(ETHEREUM_USDC_ADDRESS, "ethereum")), // sourceTokenAddress
+            Array.from(toUniversal("Ethereum", ETHEREUM_USDC_ADDRESS).toUint8Array()), // sourceTokenAddress
             Array.from(engine.cctpMintRecipientAddress().toBuffer()), // mint recipient
             amount,
             new Array(32).fill(0), // burnSource

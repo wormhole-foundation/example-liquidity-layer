@@ -1,9 +1,9 @@
 import { getConfig, ZERO_BYTES32 } from "./helpers";
-import { coalesceChainId, tryHexToNativeString } from "@certusone/wormhole-sdk";
 import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__factory";
 import { ITokenRouter } from "../src/types/ITokenRouter";
 import { EndpointStruct } from "../src/types/ITokenRouter";
 import { ethers } from "ethers";
+import { toChain, toChainId, toNative } from "@wormhole-foundation/sdk";
 
 export function getArgs() {
     const argv = require("yargs")
@@ -28,7 +28,7 @@ async function addRouterInfo(
     chainId: string,
     tokenRouter: ITokenRouter,
     routerEndpoint: EndpointStruct,
-    domain: string
+    domain: string,
 ): Promise<void> {
     console.log(`Adding router endpoint for chain ${chainId}`);
     const tx = await tokenRouter.addRouterEndpoint(chainId, routerEndpoint, domain);
@@ -64,15 +64,12 @@ async function main() {
     const provider = new ethers.providers.StaticJsonRpcProvider(rpc);
     const wallet = new ethers.Wallet(key, provider);
 
-    const routerChainId = coalesceChainId(chain);
+    const routerChainId = toChainId(chain);
+    const routerChain = toChain(routerChainId);
+    const routerAddress = toNative(routerChain, routers[routerChainId].address);
 
     // Setup token router contract.
-    const tokenRouter = ITokenRouter__factory.connect(
-        ethers.utils.getAddress(
-            tryHexToNativeString(routers[routerChainId].address.substring(2), routerChainId)
-        ),
-        wallet
-    );
+    const tokenRouter = ITokenRouter__factory.connect(routerAddress.toString(), wallet);
 
     // Set CCTP allowance.
     await setCctpAllowance(tokenRouter);
@@ -91,7 +88,7 @@ async function main() {
             chainId,
             tokenRouter,
             { router: targetRouter.address, mintRecipient: targetRouter.mintRecipient },
-            targetRouter.domain
+            targetRouter.domain,
         );
     }
 }
