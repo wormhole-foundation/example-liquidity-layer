@@ -1,8 +1,8 @@
 import { getConfig, ZERO_BYTES32 } from "./helpers";
-import { ChainId, coalesceChainId, tryHexToNativeString } from "@certusone/wormhole-sdk";
 import { IMatchingEngine__factory, IMatchingEngine } from "../src/types/";
 import { RouterEndpointStruct } from "../src/types/IMatchingEngine";
 import { ethers } from "ethers";
+import { ChainId, toChain, toChainId, toNative } from "@wormhole-foundation/sdk";
 
 export function getArgs() {
     const argv = require("yargs")
@@ -27,7 +27,7 @@ async function addRouterInfo(
     chainId: string,
     engine: IMatchingEngine,
     routerEndpoint: RouterEndpointStruct,
-    domain: string
+    domain: string,
 ): Promise<void> {
     console.log(`Adding router endpoint for chain ${chainId}`);
     const tx = await engine.addRouterEndpoint(chainId, routerEndpoint, domain);
@@ -64,19 +64,16 @@ async function main() {
     const provider = new ethers.providers.StaticJsonRpcProvider(rpc);
     const wallet = new ethers.Wallet(key, provider);
 
-    const engineChainId = coalesceChainId(chain);
+    const engineChainId = toChainId(chain);
     if (engineChainId != (matchingEngineConfig.chain as ChainId)) {
         console.log(engineChainId, matchingEngineConfig.chainId);
         throw Error("Invalid chainId");
     }
 
+    const engineChain = toChain(engineChainId);
+    const engineAddress = toNative(engineChain, matchingEngineConfig["address"]);
     // Setup token router contract.
-    const engine = IMatchingEngine__factory.connect(
-        ethers.utils.getAddress(
-            tryHexToNativeString(matchingEngineConfig["address"].substring(2), engineChainId)
-        ),
-        wallet
-    );
+    const engine = IMatchingEngine__factory.connect(engineAddress.toString(), wallet);
 
     // Set CCTP allowance.
     await setCctpAllowance(engine);
@@ -92,7 +89,7 @@ async function main() {
             chainId,
             engine,
             { router: targetRouter.address, mintRecipient: targetRouter.mintRecipient },
-            targetRouter.domain
+            targetRouter.domain,
         );
     }
 }

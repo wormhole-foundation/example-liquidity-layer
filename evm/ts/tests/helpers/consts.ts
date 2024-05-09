@@ -1,24 +1,22 @@
 import { FastTransferParameters } from "../../src";
 
-export type ValidNetwork = "avalanche" | "ethereum" | "base";
+export type ValidNetwork = "Avalanche" | "Ethereum" | "Base";
 
 export type NetworkVars<T> = {
-    avalanche: T;
-    ethereum: T;
-    base: T;
+    [key in ValidNetwork]?: T;
 };
 
 // Avalanche Mainnet Fork
 export const LOCALHOSTS: NetworkVars<string> = {
-    avalanche: "http://localhost:8547",
-    ethereum: "http://localhost:8548",
-    base: "http://localhost:8549",
+    Avalanche: "http://localhost:8547",
+    Ethereum: "http://localhost:8548",
+    Base: "http://localhost:8549",
 };
 
 export const USDC_DECIMALS: NetworkVars<number> = {
-    avalanche: 6,
-    ethereum: 6,
-    base: 6,
+    Avalanche: 6,
+    Ethereum: 6,
+    Base: 6,
 };
 
 export const WORMHOLE_MESSAGE_FEE = 0;
@@ -43,7 +41,7 @@ export const OWNER_PRIVATE_KEY = WALLET_PRIVATE_KEYS[9];
 export const OWNER_ASSISTANT_PRIVATE_KEY = WALLET_PRIVATE_KEYS[8];
 
 export const MATCHING_ENGINE_CHAIN = 6;
-export const MATCHING_ENGINE_NAME = "avalanche";
+export const MATCHING_ENGINE_NAME = "Avalanche";
 
 export const DEFAULT_FAST_TRANSFER_PARAMS: FastTransferParameters = {
     enabled: true,

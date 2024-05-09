@@ -9,10 +9,10 @@ import {
     MATCHING_ENGINE_NAME,
     parseLiquidityLayerEnvFile,
 } from "./helpers";
-import { tryHexToNativeAssetString, CHAIN_ID_AVAX } from "@certusone/wormhole-sdk";
 import { expect } from "chai";
+import { toNative } from "@wormhole-foundation/sdk";
 
-const CHAIN_PATHWAYS: ValidNetwork[] = ["ethereum", "avalanche", "base"];
+const CHAIN_PATHWAYS: ValidNetwork[] = ["Ethereum", "Avalanche", "Base"];
 
 describe("Configuration", () => {
     const envPath = `${__dirname}/../../env/localnet`;
@@ -57,8 +57,10 @@ describe("Configuration", () => {
                 LOCALHOSTS[MATCHING_ENGINE_NAME],
             );
             const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
+
+            const matchingEngineAddress = toNative("Avalanche", env.matchingEngineAddress);
             const engine = IMatchingEngine__factory.connect(
-                tryHexToNativeAssetString(env.matchingEngineAddress, CHAIN_ID_AVAX),
+                matchingEngineAddress.toString(),
                 assistant,
             );
 

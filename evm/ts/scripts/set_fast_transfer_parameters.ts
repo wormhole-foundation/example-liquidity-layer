@@ -1,8 +1,8 @@
 import { getConfig } from "./helpers";
-import { coalesceChainId, tryHexToNativeString } from "@certusone/wormhole-sdk";
 import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__factory";
 import { ITokenRouter, FastTransferParametersStruct } from "../src/types/ITokenRouter";
 import { ethers } from "ethers";
+import { Chain, toChainId, toNative } from "@wormhole-foundation/sdk";
 
 export function getArgs() {
     const argv = require("yargs")
@@ -26,7 +26,7 @@ export function getArgs() {
 async function setFastTransferParams(
     chainId: string,
     tokenRouter: ITokenRouter,
-    params: FastTransferParametersStruct
+    params: FastTransferParametersStruct,
 ): Promise<void> {
     console.log(`Updating fast transfer parameters`);
     const tx = await tokenRouter.updateFastTransferParameters(params);
@@ -52,14 +52,12 @@ async function main() {
     const provider = new ethers.providers.StaticJsonRpcProvider(rpc);
     const wallet = new ethers.Wallet(key, provider);
 
-    const routerChainId = coalesceChainId(chain);
+    const routerChainId = toChainId(chain);
 
     // Setup token router contract.
     const tokenRouter = ITokenRouter__factory.connect(
-        ethers.utils.getAddress(
-            tryHexToNativeString(routers[routerChainId].address.substring(2), routerChainId)
-        ),
-        wallet
+        toNative(chain as Chain, routers[routerChainId].address).toString(),
+        wallet,
     );
 
     await setFastTransferParams(routerChainId.toString(), tokenRouter, fastTransferParams);
