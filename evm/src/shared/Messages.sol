@@ -18,9 +18,13 @@ library Messages {
     uint256 private constant SIG_COUNT_OFFSET = 5;
     uint256 private constant SIG_LENGTH = 66;
 
+    // Maximum redeemer payload size.
+    uint256 private constant MAX_REDEEMER_PAYLOAD_SIZE = 500;
+
     // Custom errors.
     error InvalidPayloadId(uint8 parsedPayloadId, uint8 expectedPayloadId);
     error InvalidPayloadLength(uint256 parsedLength, uint256 expectedLength);
+    error MaxPayloadSizeExceeded(uint256 actualSize, uint256 maxSize);
 
     struct Fill {
         uint16 sourceChain;
@@ -176,6 +180,9 @@ library Messages {
         pure
         returns (bytes memory encoded)
     {
+        if (payload.length > MAX_REDEEMER_PAYLOAD_SIZE) {
+            revert MaxPayloadSizeExceeded(payload.length, MAX_REDEEMER_PAYLOAD_SIZE);
+        }
         encoded = abi.encodePacked(uint16(payload.length), payload);
     }
 

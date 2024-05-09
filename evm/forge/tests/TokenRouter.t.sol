@@ -831,6 +831,26 @@ contract TokenRouterTest is Test {
         assertEq(decoded.redeemerMessage, fill.redeemerMessage);
     }
 
+    function testCannotEncodeFillMaxPayloadSizeExceeded() public {
+        bytes memory encoded;
+
+        for (uint256 i = 0; i < 501; i++) {
+            encoded = abi.encodePacked(encoded, hex"01");
+        }
+
+        Messages.Fill memory fill = Messages.Fill({
+            sourceChain: 1,
+            orderSender: bytes32(0),
+            redeemer: bytes32(0),
+            redeemerMessage: encoded
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSignature("MaxPayloadSizeExceeded(uint256,uint256)", encoded.length, 500)
+        );
+        fill.encode();
+    }
+
     function testEncodeAndDecodeFastMarketOrder(
         uint64 amountIn,
         uint64 minAmountOut,
@@ -870,6 +890,32 @@ contract TokenRouterTest is Test {
         assertEq(decoded.maxFee, order.maxFee);
         assertEq(decoded.initAuctionFee, order.initAuctionFee);
         assertEq(decoded.redeemerMessage, order.redeemerMessage);
+    }
+
+    function testCannotEncodeFastMarketOrderMaxPayloadSizeExceeded() public {
+        bytes memory encoded;
+
+        for (uint256 i = 0; i < 501; i++) {
+            encoded = abi.encodePacked(encoded, hex"01");
+        }
+
+        Messages.FastMarketOrder memory order = Messages.FastMarketOrder({
+            amountIn: 1,
+            minAmountOut: 1,
+            targetChain: 1,
+            redeemer: bytes32(0),
+            sender: bytes32(0),
+            refundAddress: bytes32(0),
+            maxFee: 1,
+            initAuctionFee: 1,
+            deadline: 1,
+            redeemerMessage: encoded
+        });
+
+        vm.expectRevert(
+            abi.encodeWithSignature("MaxPayloadSizeExceeded(uint256,uint256)", encoded.length, 500)
+        );
+        order.encode();
     }
 
     /**
