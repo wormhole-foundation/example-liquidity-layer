@@ -3,7 +3,9 @@ on:
   push:
     branches:
       - main
-  pull_request: null
+  pull_request: 
+    paths:
+      - 'solana/**'
 
 env:
   RUSTC_VERSION: 1.75.0
