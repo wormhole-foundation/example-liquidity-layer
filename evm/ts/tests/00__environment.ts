@@ -4,9 +4,10 @@ import { ethers } from "ethers";
 import {
     ICircleBridge__factory,
     IMessageTransmitter__factory,
-    IUSDC__factory,
     IWormhole__factory,
-} from "../src/types";
+} from "../src/types/factories";
+
+import { IUSDC__factory } from "../src/types/factories/IUSDC__factory";
 import {
     parseLiquidityLayerEnvFile,
     GUARDIAN_PRIVATE_KEY,
@@ -190,7 +191,6 @@ describe("Environment", () => {
 
             it("Mint CCTP USDC", async () => {
                 // fetch master minter address
-                console.log(IUSDC__factory);
                 const masterMinter = await IUSDC__factory.connect(
                     usdcAddress,
                     provider,
