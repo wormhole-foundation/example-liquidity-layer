@@ -1,0 +1,32 @@
+name: EVM CI
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+env:
+  FOUNDRY_PROFILE: ci
+jobs:
+  test:
+    strategy:
+      fail-fast: true
+    name: forge test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+      - name: Run Forge build
+        working-directory: evm
+        run: make build 
+      - name: Run unit tests
+        working-directory: evm
+        run: make unit-test
+      - name: Run Integration tests
+        working-directory: evm
+        run: make integration-test
