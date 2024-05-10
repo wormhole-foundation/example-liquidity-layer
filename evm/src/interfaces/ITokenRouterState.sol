@@ -114,4 +114,9 @@ interface ITokenRouterState {
      * is only paid in the a fast transfer auction does not occur.
      */
     function getBaseFee() external view returns (uint64);
+
+    /**
+     * @notice Returns the maximum payload size for the redeemer message.
+     */
+    function getMaxPayloadSize() external pure returns (uint256);
 }
