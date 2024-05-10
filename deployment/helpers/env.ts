@@ -1,9 +1,6 @@
 import fs from "fs";
 import { ChainId } from "@certusone/wormhole-sdk";
 
-/**
- * Types:
- */
 export type ChainInfo = {
   name: string;
   chainId: ChainId;
@@ -29,12 +26,13 @@ export type Ecosystem = {
 
 export type ContractsJson = Record<string, Deployment[]>;
 
-interface ChainConfig {
+export interface ChainConfig {
   chainId: ChainId;
 }
 
 export const env = getEnv("ENV");
 export const contracts = loadContracts();
+export const dependencies = loadDependencies();
 export const ecosystemChains = loadEcosystem();
 
 function loadJson<T>(filename: string): T {
@@ -43,6 +41,10 @@ function loadJson<T>(filename: string): T {
   );
   
   return JSON.parse(fileContent.toString()) as T;
+}
+
+function loadDependencies<T extends ContractsJson>() {
+  return loadJson<T>("dependencies");
 }
 
 function loadContracts<T extends ContractsJson>() {
@@ -83,12 +85,36 @@ export async function getContractAddress(contractName: string, chainId: ChainId)
   return contract;
 }
 
+export function getDependencyAddress(dependencyName: string, chainId: ChainId): string {
+  const dependency = dependencies[dependencyName]?.find((d) => d.chainId === chainId)?.address;
+
+  if (!dependency) {
+    throw new Error(`No dependency found for ${dependencyName}`);
+  }
+
+  return dependency;
+}
+
 export function writeDeployedContract(chain: ChainId, contractName: string, address: string) {
   const contracts = loadContracts();
   if (!contracts[contractName]) {
-    contracts[contractName] = [];
+    contracts[contractName] = [{ chainId: chain, address: process.env[contractName]! }];
   }
-  contracts[contractName].push({ chainId: chain, address: process.env[contractName]! });
+
+  else if (!contracts[contractName].find((c) => c.chainId === chain)) {
+    contracts[contractName].push({ chainId: chain, address });
+  }
+
+  else {
+    contracts[contractName] = contracts[contractName].map((c) => {
+      if (c.chainId === chain) {
+        return { chainId: chain, address };
+      }
+
+      return c;
+    });
+  }
+  
   fs.writeFileSync(
     `./config/${env}/contracts.json`,
     JSON.stringify(contracts),

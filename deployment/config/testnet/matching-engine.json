@@ -1,0 +1,10 @@
+{
+  "chainId": 1,
+  "ownerAssistant": "",
+  "feeRecipient": "",
+  "userPenaltyRewardBps": "",
+  "initialPenaltyBps": "",
+  "auctionDuration": "",
+  "auctionGracePeriod": "",
+  "auctionPenaltyBlocks": ""
+}
