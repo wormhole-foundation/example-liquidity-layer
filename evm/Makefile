@@ -9,8 +9,7 @@ unit-test: build
 	forge test --fork-url ${AVALANCHE_RPC} -vv
 
 .PHONY: integration-test
-integration-test: node_modules ts/tests/.env
-	npm run generate 
+integration-test: build ts/tests/.env
 	bash ts/tests/run_integration_test.sh
 
 .PHONY: test
@@ -27,8 +26,8 @@ forge-test: dependencies
 
 .PHONY: build
 build: dependencies
-	forge build --skip test
-	npm run generate 
+	forge build
+	npm run generate
 
 .PHONY: dependencies
 dependencies: node_modules
