@@ -74,6 +74,7 @@ pub struct PrepareOrderResponseCctp<'info> {
                 .fast_market_order()
                 .ok_or(MatchingEngineError::InvalidPayloadId)?;
 
+            // This is safe to unwrap because the length will not exceed u16.
             order.redeemer_message_len().into()
         }),
         seeds = [

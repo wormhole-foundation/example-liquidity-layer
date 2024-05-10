@@ -295,6 +295,7 @@ fn try_compute_prepared_fill_size(fill_vaa: &LiquidityLayerVaa) -> Result<usize>
         .fill()
         .ok_or(TokenRouterError::InvalidDepositPayloadId)?;
 
+    // It is safe to unwrap the redeemer message length because u16 -> usize is infallible.
     PreparedFill::checked_compute_size(fill.redeemer_message_len().into())
         .ok_or(error!(TokenRouterError::PreparedFillTooLarge))
 }
