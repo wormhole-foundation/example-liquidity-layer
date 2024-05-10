@@ -190,6 +190,7 @@ describe("Environment", () => {
 
             it("Mint CCTP USDC", async () => {
                 // fetch master minter address
+                console.log(IUSDC__factory);
                 const masterMinter = await IUSDC__factory.connect(
                     usdcAddress,
                     provider,

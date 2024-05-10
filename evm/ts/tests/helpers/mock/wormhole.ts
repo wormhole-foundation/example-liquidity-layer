@@ -2,11 +2,11 @@ import { ethers } from "ethers";
 import { EvmObserver } from ".";
 import { parseEvmEvents, parseEvmEvent } from "../../../src";
 import { GUARDIAN_PRIVATE_KEY, WORMHOLE_GUARDIAN_SET_INDEX } from "../consts";
-import { Chain, VAA, contracts, toUniversal } from "@wormhole-foundation/sdk";
+import { Chain, VAA, contracts, serialize, toUniversal } from "@wormhole-foundation/sdk";
 import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
 import { tryNativeToUint8Array } from "../utils";
 
-export class GuardianNetwork implements EvmObserver<VAA<"Uint8Array">> {
+export class GuardianNetwork implements EvmObserver<Uint8Array> {
     guardians: mocks.MockGuardians;
 
     constructor() {
@@ -54,7 +54,7 @@ export class GuardianNetwork implements EvmObserver<VAA<"Uint8Array">> {
 
         const body = await this.body(message, provider, chain, txReceipt);
         console.log(Buffer.from(body).toString("hex"));
-        return this.guardians.addSignatures(body, [0]);
+        return serialize(this.guardians.addSignatures(body, [0]));
     }
 
     async observeManyEvm(
@@ -76,6 +76,6 @@ export class GuardianNetwork implements EvmObserver<VAA<"Uint8Array">> {
             signedMessages.push(this.guardians.addSignatures(body, [0]));
         }
 
-        return signedMessages;
+        return signedMessages.map((vaa) => serialize(vaa));
     }
 }
