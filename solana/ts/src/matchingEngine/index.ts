@@ -36,6 +36,7 @@ import { VaaAccount } from "../wormhole";
 import {
     Auction,
     AuctionConfig,
+    AuctionEntry,
     AuctionHistory,
     AuctionHistoryHeader,
     AuctionInfo,
@@ -533,12 +534,96 @@ export class MatchingEngineProgram {
         return AuctionHistory.address(this.ID, id);
     }
 
+    // Anchor is having trouble deserializing the account data here. Manually deserializing
+    // the auction history is a workaround, and necessary after changing the redeemer message
+    // length from a u32 to a u16.
     async fetchAuctionHistory(input: Uint64 | { address: PublicKey }): Promise<AuctionHistory> {
         const addr =
             typeof input === "bigint" || typeof input === "number" || input instanceof BN
                 ? this.auctionHistoryAddress(input)
                 : input.address;
-        return this.program.account.auctionHistory.fetch(addr);
+
+        const accInfo = await this.program.provider.connection.getAccountInfo(addr);
+        if (accInfo === null) {
+            throw new Error("Auction history not found");
+        }
+
+        const { data } = accInfo;
+
+        let offset = 0;
+        const disc = data.subarray(offset, (offset += 8));
+        if (!disc.equals(Uint8Array.from([149, 208, 45, 154, 47, 248, 102, 245]))) {
+            throw new Error("Invalid account history discriminator");
+        }
+
+        const id = uint64ToBN(data.readBigUInt64LE(offset));
+        offset += 8;
+        const minTimestamp = data[offset++] === 1 ? data.readUInt32LE(offset) : null;
+        offset += 4;
+        const maxTimestamp = data[offset++] === 1 ? data.readUInt32LE(offset) : null;
+        offset += 4;
+        const numEntries = data.readUInt32LE(offset);
+        offset += 4;
+
+        const entries = [] as AuctionEntry[];
+        for (let i = 0; i < numEntries; ++i) {
+            const vaaHash = Array.from(data.subarray(offset, (offset += 32)));
+            const vaaTimestamp = data.readUInt32LE(offset);
+            offset += 4;
+
+            const configId = data.readUInt32LE(offset);
+            offset += 4;
+            const custodyTokenBump = data.readUInt8(offset);
+            offset += 1;
+            const vaaSequence = uint64ToBN(data.readBigUInt64LE(offset));
+            offset += 8;
+            const sourceChain = data.readUInt16LE(offset);
+            offset += 2;
+            const bestOfferToken = new PublicKey(data.subarray(offset, (offset += 32)));
+            const initialOfferToken = new PublicKey(data.subarray(offset, (offset += 32)));
+            const startSlot = uint64ToBN(data.readBigUInt64LE(offset));
+            offset += 8;
+            const amountIn = uint64ToBN(data.readBigUInt64LE(offset));
+            offset += 8;
+            const securityDeposit = uint64ToBN(data.readBigUInt64LE(offset));
+            offset += 8;
+            const offerPrice = uint64ToBN(data.readBigUInt64LE(offset));
+            offset += 8;
+            const redeemerMessageLen = data.readUInt16LE(offset);
+            offset += 2;
+            const destinationAssetInfo =
+                data[offset++] === 1
+                    ? {
+                          custodyTokenBump: data.readUInt8(offset),
+                          amountOut: uint64ToBN(data.readBigUInt64LE(offset)),
+                      }
+                    : null;
+
+            const entry = {
+                vaaHash,
+                vaaTimestamp,
+                info: {
+                    configId,
+                    custodyTokenBump,
+                    vaaSequence,
+                    sourceChain,
+                    bestOfferToken,
+                    initialOfferToken,
+                    startSlot,
+                    amountIn,
+                    securityDeposit,
+                    offerPrice,
+                    redeemerMessageLen,
+                    destinationAssetInfo,
+                },
+            } as AuctionEntry;
+            entries.push(entry);
+        }
+
+        return {
+            header: { id, minTimestamp, maxTimestamp },
+            data: entries,
+        };
     }
 
     async fetchAuctionHistoryHeader(

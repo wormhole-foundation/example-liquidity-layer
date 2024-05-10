@@ -80,8 +80,8 @@ export class LiquidityLayerDeposit {
                     offset += 2;
                     const orderSender = Array.from(payload.subarray(offset, (offset += 32)));
                     const redeemer = Array.from(payload.subarray(offset, (offset += 32)));
-                    const redeemerMessageLen = payload.readUInt32BE(offset);
-                    offset += 4;
+                    const redeemerMessageLen = payload.readUInt16BE(offset);
+                    offset += 2;
                     const redeemerMessage = payload.subarray(
                         offset,
                         (offset += redeemerMessageLen),
@@ -152,7 +152,7 @@ export class LiquidityLayerDeposit {
             if (fill !== undefined) {
                 const { sourceChain, orderSender, redeemer, redeemerMessage } = fill;
 
-                const messageBuf = Buffer.alloc(1 + 70 + redeemerMessage.length);
+                const messageBuf = Buffer.alloc(1 + 68 + redeemerMessage.length);
 
                 let offset = 0;
                 offset = messageBuf.writeUInt8(ID_DEPOSIT_FILL, offset);
@@ -161,7 +161,7 @@ export class LiquidityLayerDeposit {
                 offset += orderSender.length;
                 messageBuf.set(redeemer, offset);
                 offset += redeemer.length;
-                offset = messageBuf.writeUInt32BE(redeemerMessage.length, offset);
+                offset = messageBuf.writeUInt16BE(redeemerMessage.length, offset);
                 messageBuf.set(redeemerMessage, offset);
                 offset += redeemerMessage.length;
 

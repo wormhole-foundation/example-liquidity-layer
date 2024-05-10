@@ -62,8 +62,7 @@ pub struct ExecuteFastOrderLocal<'info> {
                 .unwrap()
                 .to_fast_market_order_unchecked();
 
-            // It is safe to convert u32 to usize here.
-            order.redeemer_message_len().try_into().unwrap()
+            order.redeemer_message_len().into()
         })
         .ok_or(MatchingEngineError::FastFillTooLarge)?,
         seeds = [
