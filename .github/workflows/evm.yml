@@ -2,6 +2,8 @@ name: EVM CI
 on:
   workflow_dispatch:
   pull_request:
+    paths:
+      - 'evm/**'
   push:
     branches:
       - main
