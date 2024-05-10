@@ -385,6 +385,37 @@ describe("Token Router", function () {
 
             const localVariables = new Map<string, any>();
 
+            it("Cannot Prepare Market Order with Large Redeemer Payload", async function () {
+                const preparedOrder = Keypair.generate();
+
+                const amountIn = 5000n;
+                const minAmountOut = 0n;
+                const targetChain = foreignChain;
+                const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+                const redeemerMessage = Buffer.alloc(501, "deadbeef", "hex");
+                const [approveIx, prepareIx] = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        senderToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut,
+                        targetChain,
+                        redeemer,
+                        redeemerMessage,
+                    },
+                );
+
+                await expectIxErr(
+                    connection,
+                    [approveIx!, prepareIx],
+                    [payer, preparedOrder],
+                    "Error Code: RedeemerMessageTooLarge",
+                );
+            });
+
             it("Cannot Prepare Market Order with Insufficient Amount", async function () {
                 const preparedOrder = Keypair.generate();
 

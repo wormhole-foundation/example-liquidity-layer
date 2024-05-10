@@ -13,7 +13,7 @@ pub struct FastMarketOrder {
     pub max_fee: u64,
     pub init_auction_fee: u64,
     pub deadline: u32,
-    pub redeemer_message: WriteableBytes<u32>,
+    pub redeemer_message: WriteableBytes<u16>,
 }
 
 impl Readable for FastMarketOrder {
@@ -70,7 +70,7 @@ impl TypePrefixedPayload<1> for FastMarketOrder {
             + 8 // max_fee
             + 8 // init_auction_fee
             + 4 // deadline
-            + 4 // redeemer_message length
+            + 2 // redeemer_message length
             ;
         // This will panic if the size is too large to fit in a usize. But better to panic than to
         // saturate to usize::MAX.

@@ -45,6 +45,13 @@ pub struct PrepareMarketOrder<'info> {
             // Cannot send to zero address.
             require!(args.redeemer != [0; 32], TokenRouterError::InvalidRedeemer);
 
+            // Max message size. This constraint is enforced on every token router due to Solana's
+            // inbound payload size restriction.
+            require!(
+                args.redeemer_message.len() <= crate::MAX_REDEEMER_MESSAGE_SIZE,
+                TokenRouterError::RedeemerMessageTooLarge
+            );
+
             // If provided, validate min amount out.
             if let Some(min_amount_out) = args.min_amount_out {
                 require!(
@@ -67,7 +74,7 @@ pub struct PrepareMarketOrder<'info> {
     /// NOTE: This token account must have delegated transfer authority to the custodian prior to
     /// invoking this instruction.
     #[account(mut)]
-    sender_token: Account<'info, token::TokenAccount>,
+    sender_token: Box<Account<'info, token::TokenAccount>>,
 
     // TODO: Do we add a restriction that the refund token account must be the same owner as the
     // sender token account?

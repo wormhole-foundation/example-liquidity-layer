@@ -28,6 +28,7 @@ cfg_if::cfg_if! {
 }
 
 const PREPARED_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"prepared-custody";
+const MAX_REDEEMER_MESSAGE_SIZE: usize = 500;
 
 #[program]
 pub mod token_router {

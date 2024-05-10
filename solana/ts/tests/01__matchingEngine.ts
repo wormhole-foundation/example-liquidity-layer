@@ -4271,7 +4271,7 @@ describe("Matching Engine", function () {
                     {
                         const accInfo = await connection.getAccountInfo(accounts.history);
 
-                        let entrySize = 161;
+                        let entrySize = 159;
                         if (info!.destinationAssetInfo === null) {
                             entrySize -= 9;
                         }
