@@ -116,6 +116,10 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
             revert ErrInsufficientAmount(0, 0);
         }
 
+        if (redeemerMessage.length > MAX_REDEEMER_PAYLOAD_SIZE) {
+            revert MaxPayloadSizeExceeded(redeemerMessage.length, MAX_REDEEMER_PAYLOAD_SIZE);
+        }
+
         Endpoint memory endpoint = _verifyTarget(targetChain, redeemer);
 
         SafeERC20.safeTransferFrom(_orderToken, msg.sender, address(this), amountIn);
@@ -151,6 +155,10 @@ abstract contract PlaceMarketOrder is IPlaceMarketOrder, Admin, State {
         // so we don't need to send a fast transfer message.
         if (_chainId == _matchingEngineChain) {
             revert ErrFastTransferNotSupported();
+        }
+
+        if (redeemerMessage.length > MAX_REDEEMER_PAYLOAD_SIZE) {
+            revert MaxPayloadSizeExceeded(redeemerMessage.length, MAX_REDEEMER_PAYLOAD_SIZE);
         }
 
         // Verify the `amountIn` and specified auction price.
