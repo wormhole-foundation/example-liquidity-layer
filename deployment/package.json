@@ -1,7 +1,8 @@
 {
   "name": "deployment",
   "scripts": {
-    "build-evm": "npx typechain --target=ethers-v5 --out-dir=./contract-bindings ../out/../evm/*/*.json"
+    "evm-deps": "forge build -C /home/solanoe/xlabs/projects/example-liquidity-layer/evm/lib/openzeppelin-contracts/contracts/proxy/ERC1967",
+    "build-evm": "npm run evm-deps && npx typechain --target=ethers-v5 --out-dir=./contract-bindings ../evm/out/*/*.json ../evm/lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol"
   },
   "author": "",
   "devDependencies": {
