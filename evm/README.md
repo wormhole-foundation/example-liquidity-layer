@@ -15,7 +15,7 @@ The testing environments can be found in the following locations:
 -   [Unit Tests](./forge/tests/)
 -   [Integration Tests](./ts/tests/)
 
-To run the unit tests, set the `AVAX_RPC` environment variable in `env/testing.env` and run `make unit-test`. To run the integration tests, create a `.env` file in the `ts/tests` directory with the following environment variables:
+To run the unit tests, set the `AVALANCHE_RPC` environment variable in `env/testing.env` and run `make unit-test`. To run the integration tests, create a `.env` file in the `ts/tests` directory with the following environment variables:
 
 ```
 # Mainnet RPCs

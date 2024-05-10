@@ -9,11 +9,11 @@ export abstract class EvmObserver<T> {
         provider: ethers.providers.Provider,
         chain: Chain,
         txReceipt: ethers.ContractReceipt,
-    ): T;
+    ): Promise<T>;
 
     abstract observeManyEvm(
         provider: ethers.providers.Provider,
         chain: Chain,
         txReceipt: ethers.ContractReceipt,
-    ): T[];
+    ): Promise<T[]>;
 }

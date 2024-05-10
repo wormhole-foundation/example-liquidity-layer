@@ -8,9 +8,9 @@ export type NetworkVars<T> = {
 
 // Avalanche Mainnet Fork
 export const LOCALHOSTS: NetworkVars<string> = {
-    Avalanche: "http://localhost:8547",
-    Ethereum: "http://localhost:8548",
-    Base: "http://localhost:8549",
+    Avalanche: "http://127.0.0.1:8547",
+    Ethereum: "http://127.0.0.1:8548",
+    Base: "http://127.0.0.1:8549",
 };
 
 export const USDC_DECIMALS: NetworkVars<number> = {

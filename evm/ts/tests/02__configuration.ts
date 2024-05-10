@@ -10,7 +10,7 @@ import {
     parseLiquidityLayerEnvFile,
 } from "./helpers";
 import { expect } from "chai";
-import { toNative } from "@wormhole-foundation/sdk";
+import { toNative, toUniversal } from "@wormhole-foundation/sdk";
 
 const CHAIN_PATHWAYS: ValidNetwork[] = ["Ethereum", "Avalanche", "Base"];
 
@@ -19,7 +19,7 @@ describe("Configuration", () => {
 
     describe("Token Router Configuration", () => {
         for (const chainName of CHAIN_PATHWAYS) {
-            const env = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
+            const env = parseLiquidityLayerEnvFile(`${envPath}/${chainName.toLowerCase()}.env`);
             const provider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[chainName]);
             const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
             const router = ITokenRouter__factory.connect(env.tokenRouterAddress, assistant);
@@ -52,13 +52,18 @@ describe("Configuration", () => {
 
     describe("Matching Engine Configuration", () => {
         it("Set Infinite Approval For Matching Engine", async () => {
-            const env = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
+            const env = parseLiquidityLayerEnvFile(
+                `${envPath}/${MATCHING_ENGINE_NAME.toLowerCase()}.env`,
+            );
             const provider = new ethers.providers.StaticJsonRpcProvider(
                 LOCALHOSTS[MATCHING_ENGINE_NAME],
             );
             const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
 
-            const matchingEngineAddress = toNative("Avalanche", env.matchingEngineAddress);
+            const matchingEngineAddress = toUniversal(
+                "Avalanche",
+                env.matchingEngineAddress,
+            ).toNative("Avalanche");
             const engine = IMatchingEngine__factory.connect(
                 matchingEngineAddress.toString(),
                 assistant,

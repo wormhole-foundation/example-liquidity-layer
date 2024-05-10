@@ -27,7 +27,7 @@ import {
     mineToPenaltyPeriod,
     tryNativeToUint8Array,
 } from "./helpers";
-import { toChainId, toNative } from "@wormhole-foundation/sdk";
+import { deserialize, keccak256, toChainId, toUniversal } from "@wormhole-foundation/sdk";
 
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
@@ -51,12 +51,16 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
         LOCALHOSTS[MATCHING_ENGINE_NAME],
     );
     const engineWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[2], engineProvider);
-    const engineEnv = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
+    const engineEnv = parseLiquidityLayerEnvFile(
+        `${envPath}/${MATCHING_ENGINE_NAME.toLowerCase()}.env`,
+    );
     const engine = (() => {
         if (engineEnv.chainType === ChainType.Evm) {
             return new EvmMatchingEngine(
                 engineWallet,
-                toNative("Avalanche", engineEnv.matchingEngineAddress).toString(),
+                toUniversal("Avalanche", engineEnv.matchingEngineAddress)
+                    .toNative("Avalanche")
+                    .toString(),
                 engineEnv.tokenMessengerAddress,
             );
         } else {
@@ -81,7 +85,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
             );
             const fromWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], fromProvider);
 
-            const fromEnv = parseLiquidityLayerEnvFile(`${envPath}/${fromChainName}.env`);
+            const fromEnv = parseLiquidityLayerEnvFile(
+                `${envPath}/${fromChainName.toLowerCase()}.env`,
+            );
             const fromTokenRouter = (() => {
                 if (fromEnv.chainType === ChainType.Evm) {
                     return new EvmTokenRouter(
@@ -98,7 +104,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
             const toProvider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[toChainName]);
             const toWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], toProvider);
 
-            const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName}.env`);
+            const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName.toLowerCase()}.env`);
             const toTokenRouter = (() => {
                 if (toEnv.chainType === ChainType.Evm) {
                     return new EvmTokenRouter(
@@ -208,10 +214,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const fastVaa = localVariables.get("fastVaa") as Uint8Array;
 
                     // Parse the vaa, we will need the hash for later.
-                    const parsedFastVaa = parseVaa(fastVaa);
+                    const parsedFastVaa = deserialize("Uint8Array", fastVaa);
                     localVariables.set("auctionId", keccak256(parsedFastVaa.hash));
-                    const fastOrder = MessageDecoder.unsafeDecodeFastPayload(parsedFastVaa.payload)
-                        .body.fastMarketOrder;
+                    const fastOrder = MessageDecoder.unsafeDecodeFastPayload(
+                        Buffer.from(parsedFastVaa.payload),
+                    ).body.fastMarketOrder;
 
                     if (fastOrder === undefined) {
                         throw new Error("Fast order undefined");
@@ -531,7 +538,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     })();
                     localVariables.set("amountIn", amountIn);
 
-                    const targetChain = coalesceChainId(toChainName);
+                    const targetChain = toChainId(toChainName);
                     const minAmountOut = BigInt(0);
                     const deadline = 0;
                     const receipt = await fromTokenRouter
@@ -589,10 +596,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const fastVaa = localVariables.get("fastVaa") as Uint8Array;
 
                     // Parse the vaa, we will need the hash for later.
-                    const parsedFastVaa = parseVaa(fastVaa);
+                    const parsedFastVaa = deserialize("Uint8Array", fastVaa);
                     localVariables.set("auctionId", keccak256(parsedFastVaa.hash));
-                    const fastOrder = MessageDecoder.unsafeDecodeFastPayload(parsedFastVaa.payload)
-                        .body.fastMarketOrder;
+                    const fastOrder = MessageDecoder.unsafeDecodeFastPayload(
+                        Buffer.from(parsedFastVaa.payload),
+                    ).body.fastMarketOrder;
 
                     if (fastOrder === undefined) {
                         throw new Error("Fast order undefined");
@@ -930,7 +938,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     })();
                     localVariables.set("amountIn", amountIn);
 
-                    const targetChain = coalesceChainId(toChainName);
+                    const targetChain = toChainId(toChainName);
                     const minAmountOut = BigInt(0);
                     const deadline = 0;
                     const receipt = await fromTokenRouter
@@ -994,7 +1002,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     // Parse the slow VAA for the baseFee and amount
                     const baseFee = MessageDecoder.unsafeDecodeWormholeCctpPayload(
-                        parseVaa(params.encodedWormholeMessage).payload,
+                        Buffer.from(
+                            deserialize("Uint8Array", params.encodedWormholeMessage).payload,
+                        ),
                     ).body.slowOrderResponse!.baseFee;
 
                     // Use player one as the relayer.
@@ -1064,7 +1074,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     }
 
                     // Confirm that the auction was market as complete.
-                    const auctionId = keccak256(parseVaa(fastVaa).hash);
+                    const auctionId = keccak256(deserialize("Uint8Array", fastVaa).hash);
                     const auctionStatus = await engine
                         .liveAuctionInfo(auctionId)
                         .then((info) => info.status);
@@ -1140,7 +1150,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     })();
                     localVariables.set("amountIn", amountIn);
 
-                    const targetChain = coalesceChainId(toChainName);
+                    const targetChain = toChainId(toChainName);
                     const minAmountOut = BigInt(0);
 
                     // Set the deadline to the current block timestamp.
@@ -1202,10 +1212,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const fastVaa = localVariables.get("fastVaa") as Uint8Array;
 
                     // Parse the vaa, we will need the hash for later.
-                    const parsedFastVaa = parseVaa(fastVaa);
+                    const parsedFastVaa = deserialize("Uint8Array", fastVaa);
                     localVariables.set("auctionId", keccak256(parsedFastVaa.hash));
-                    const fastOrder = MessageDecoder.unsafeDecodeFastPayload(parsedFastVaa.payload)
-                        .body.fastMarketOrder;
+                    const fastOrder = MessageDecoder.unsafeDecodeFastPayload(
+                        Buffer.from(parsedFastVaa.payload),
+                    ).body.fastMarketOrder;
 
                     if (fastOrder === undefined) {
                         throw new Error("Fast order undefined");
@@ -1244,7 +1255,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     // Parse the slow VAA for the baseFee and amount
                     const baseFee = MessageDecoder.unsafeDecodeWormholeCctpPayload(
-                        parseVaa(params.encodedWormholeMessage).payload,
+                        Buffer.from(
+                            deserialize("Uint8Array", params.encodedWormholeMessage).payload,
+                        ),
                     ).body.slowOrderResponse!.baseFee;
 
                     // Use player one as the relayer.
@@ -1314,7 +1327,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     }
 
                     // Confirm that the auction was market as complete.
-                    const auctionId = keccak256(parseVaa(fastVaa).hash);
+                    const auctionId = keccak256(deserialize("Uint8Array", fastVaa).hash);
                     const auctionStatus = await engine
                         .liveAuctionInfo(auctionId)
                         .then((info) => info.status);

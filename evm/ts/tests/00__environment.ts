@@ -4,9 +4,10 @@ import { ethers } from "ethers";
 import {
     ICircleBridge__factory,
     IMessageTransmitter__factory,
-    IUSDC__factory,
     IWormhole__factory,
-} from "../src/types";
+} from "../src/types/factories";
+
+import { IUSDC__factory } from "../src/types/factories/IUSDC__factory";
 import {
     parseLiquidityLayerEnvFile,
     GUARDIAN_PRIVATE_KEY,
@@ -21,7 +22,7 @@ import {
 } from "./helpers";
 
 describe("Environment", () => {
-    const chainNames: ValidNetwork[] = ["avalanche", "ethereum", "base"];
+    const chainNames: ValidNetwork[] = ["Avalanche", "Ethereum", "Base"];
 
     for (const chainName of chainNames) {
         if (!(chainName in LOCALHOSTS)) {
@@ -34,7 +35,7 @@ describe("Environment", () => {
             tokenAddress: usdcAddress,
             wormholeAddress,
             tokenMessengerAddress,
-        } = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
+        } = parseLiquidityLayerEnvFile(`${envPath}/${chainName.toLowerCase()}.env`);
 
         const localhost = LOCALHOSTS[chainName] as string;
 
@@ -242,7 +243,9 @@ describe("Environment", () => {
                     const scripts = `${__dirname}/../../sh`;
                     const cmd =
                         `bash ${scripts}/deploy_matching_engine.sh ` +
-                        `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey} ` +
+                        `-n localnet -c ${chainName.toLowerCase()} -u ${localhost} -k ${
+                            owner.privateKey
+                        } ` +
                         `> /dev/null 2>&1`;
                     const out = execSync(cmd, { encoding: "utf8" });
 
@@ -255,7 +258,9 @@ describe("Environment", () => {
                     const scripts = `${__dirname}/../../sh`;
                     const cmd =
                         `bash ${scripts}/upgrade_matching_engine.sh ` +
-                        `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}` +
+                        `-n localnet -c ${chainName.toLowerCase()} -u ${localhost} -k ${
+                            owner.privateKey
+                        }` +
                         `> /dev/null 2>&1`;
                     const out = execSync(cmd, { encoding: "utf8" });
                     await provider.send("evm_setAutomine", [false]);
@@ -268,7 +273,9 @@ describe("Environment", () => {
                 const scripts = `${__dirname}/../../sh`;
                 const cmd =
                     `bash ${scripts}/deploy_token_router.sh ` +
-                    `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey} ` +
+                    `-n localnet -c ${chainName.toLowerCase()} -u ${localhost} -k ${
+                        owner.privateKey
+                    } ` +
                     `> /dev/null 2>&1`;
                 const out = execSync(cmd, { encoding: "utf8" });
 
@@ -281,7 +288,9 @@ describe("Environment", () => {
                 const scripts = `${__dirname}/../../sh`;
                 const cmd =
                     `bash ${scripts}/upgrade_token_router.sh ` +
-                    `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}` +
+                    `-n localnet -c ${chainName.toLowerCase()} -u ${localhost} -k ${
+                        owner.privateKey
+                    }` +
                     `> /dev/null 2>&1`;
                 const out = execSync(cmd, { encoding: "utf8" });
                 await provider.send("evm_setAutomine", [false]);

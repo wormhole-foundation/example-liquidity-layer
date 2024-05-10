@@ -44,7 +44,9 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
             );
             const fromWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], fromProvider);
 
-            const fromEnv = parseLiquidityLayerEnvFile(`${envPath}/${fromChainName}.env`);
+            const fromEnv = parseLiquidityLayerEnvFile(
+                `${envPath}/${fromChainName.toLowerCase()}.env`,
+            );
             const fromTokenRouter = (() => {
                 if (fromEnv.chainType === ChainType.Evm) {
                     return new EvmTokenRouter(
@@ -61,7 +63,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
             const toProvider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[toChainName]);
             const toWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], toProvider);
 
-            const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName}.env`);
+            const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName.toLowerCase()}.env`);
             const toTokenRouter = (() => {
                 if (toEnv.chainType === ChainType.Evm) {
                     return new EvmTokenRouter(
@@ -144,7 +146,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
                 const orderResponse: OrderResponse = {
-                    encodedWormholeMessage: serialize(fillVaa),
+                    encodedWormholeMessage: fillVaa,
                     circleBridgeMessage,
                     circleAttestation,
                 };
