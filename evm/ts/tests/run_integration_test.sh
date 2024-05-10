@@ -41,7 +41,7 @@ if [ "$( pgrep anvil | wc -l )" -ne 3 ]; then
     exit 1
 fi
 
-npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json  $ROOT/[0-9]*.ts
+npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json --bail $ROOT/[0-9]*.ts
 
 # # Nuke.
 pkill anvil

@@ -1,3 +1,4 @@
+import { VAA } from "@wormhole-foundation/sdk";
 import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
 import { ethers } from "ethers";
 export * from "./evm";
@@ -29,7 +30,7 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
         redeemer: Buffer | Uint8Array,
         redeemerMessage: Buffer | Uint8Array,
         minAmountOut?: bigint,
-        refundAddress?: string
+        refundAddress?: string,
     ): Promise<PreparedTransactionType>;
 
     abstract placeFastMarketOrder(
@@ -40,7 +41,7 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
         maxFee: bigint,
         deadline: number,
         minAmountOut?: bigint,
-        refundAddress?: string
+        refundAddress?: string,
     ): Promise<PreparedTransactionType>;
 
     abstract redeemFill(response: OrderResponse): Promise<PreparedTransactionType>;
@@ -48,11 +49,11 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
     abstract addRouterEndpoint(
         chain: number,
         endpoint: Endpoint,
-        domain: number
+        domain: number,
     ): Promise<PreparedTransactionType>;
 
     abstract updateFastTransferParameters(
-        newParams: FastTransferParameters
+        newParams: FastTransferParameters,
     ): Promise<PreparedTransactionType>;
 
     abstract enableFastTransfer(enable: boolean): Promise<PreparedTransactionType>;

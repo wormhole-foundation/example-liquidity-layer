@@ -146,7 +146,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
                 const orderResponse: OrderResponse = {
-                    encodedWormholeMessage: serialize(fillVaa),
+                    encodedWormholeMessage: fillVaa,
                     circleBridgeMessage,
                     circleAttestation,
                 };
