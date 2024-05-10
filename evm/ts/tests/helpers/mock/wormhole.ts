@@ -53,7 +53,6 @@ export class GuardianNetwork implements EvmObserver<Uint8Array> {
         );
 
         const body = await this.body(message, provider, chain, txReceipt);
-        console.log(Buffer.from(body).toString("hex"));
         return serialize(this.guardians.addSignatures(body, [0]));
     }
 

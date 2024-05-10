@@ -27,7 +27,7 @@ import {
     mineToPenaltyPeriod,
     tryNativeToUint8Array,
 } from "./helpers";
-import { deserialize, keccak256, toChainId, toNative, toUniversal } from "@wormhole-foundation/sdk";
+import { deserialize, keccak256, toChainId, toUniversal } from "@wormhole-foundation/sdk";
 
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
@@ -58,7 +58,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
         if (engineEnv.chainType === ChainType.Evm) {
             return new EvmMatchingEngine(
                 engineWallet,
-                toUniversal("Avalanche", engineEnv.matchingEngineAddress).toString(),
+                toUniversal("Avalanche", engineEnv.matchingEngineAddress)
+                    .toNative("Avalanche")
+                    .toString(),
                 engineEnv.tokenMessengerAddress,
             );
         } else {
