@@ -1,0 +1,29 @@
+version: "3.7"
+services:
+  nats:
+    container_name: solana-nats-1
+    image: nats:latest
+    command: --jetstream
+    ports:
+      - "4222:4222"
+
+  beacon:
+    container_name: solana-beacon-1
+    image: public.ecr.aws/pyth-network/beacon:v1.1.3
+    platform: linux/amd64
+    environment:
+      WORMHOLE_NETWORK_ID: ${WORMHOLE_NETWORK_ID}
+      WORMHOLE_BOOTSTRAP: ${WORMHOLE_BOOTSTRAP}
+      WORMHOLE_LISTEN_PORT: "8999"
+      NATS_URL: "solana-nats-1:4222"
+      NATS_STREAM: ${NATS_STREAM}
+      SERVER_URL: "0.0.0.0:7073"
+      LOG_LEVEL: "info"
+      WRITER_BATCH_SIZE: "1000"
+    ports:
+      - "7073:7073"
+    # required to let the container to increase UDP buffer size
+    # without giving it full root priviledges
+    cap_add:
+      - "NET_ADMIN"
+      
