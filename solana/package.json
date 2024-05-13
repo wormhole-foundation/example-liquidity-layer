@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@certusone/wormhole-spydk": "^0.0.1",
+    "@wormhole-foundation/example-liquidity-layer-definitions": "0.0.1",
     "@wormhole-foundation/sdk":"^0.6.8",
     "@coral-xyz/anchor": "^0.30.0",
     "@solana/spl-token": "^0.4.6",

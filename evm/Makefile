@@ -38,4 +38,4 @@ clean:
 	rm -rf anvil.log ts/src/types
 
 node_modules: ../package-lock.json
-	cd .. && npm ci
+	cd .. && npm ci && npm run build:universal
