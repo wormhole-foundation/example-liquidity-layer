@@ -5,7 +5,7 @@ import {
     fillLayout,
     slowOrderResponseLayout,
     wormholeCctpDepositHeaderLayout,
-} from "./layouts";
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 export const CCTP_DEPOSIT_PAYLOAD = 1;
 

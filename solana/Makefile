@@ -26,7 +26,7 @@ clean:
 	rm -rf node_modules artifacts-mainnet artifacts-testnet artifacts-localnet ts/tests/artifacts
 
 node_modules: ../package-lock.json
-	cd .. && npm ci
+	cd .. && npm ci && npm run build:universal
 
 .PHONY: cargo-test
 cargo-test:
