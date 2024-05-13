@@ -1,7 +1,5 @@
 import { Layout, layoutItems } from "@wormhole-foundation/sdk";
 
-export const CCTP_DEPOSIT_PAYLOAD = 1;
-
 export const wormholeCctpDepositHeaderLayout = [
     { name: "token", ...layoutItems.universalAddressItem },
     { name: "amount", ...layoutItems.amountItem },
@@ -28,7 +26,7 @@ export const fillLayout = [
 
 export const fastFillLayout = [
     layoutItems.payloadIdItem(12),
-    { name: "fillAmount", binary: "uint", size: 16 },
+    { name: "fillAmount", binary: "uint", size: 8 },
     ...basefillLayout,
 ] as const satisfies Layout;
 
@@ -42,11 +40,11 @@ export const fastMarketOrderLayout = [
     { name: "refundAddress", ...layoutItems.universalAddressItem },
     { name: "maxFee", binary: "uint", size: 8 },
     { name: "initAuctionFee", binary: "uint", size: 8 },
-    { name: "deadline", binary: "uint", size: 32 },
+    { name: "deadline", binary: "uint", size: 4 },
     { name: "redeemerMessage", binary: "bytes", lengthSize: 2 },
 ] as const satisfies Layout;
 
 export const slowOrderResponseLayout = [
     layoutItems.payloadIdItem(2),
-    { name: "baseFee", binary: "uint", size: 16 },
+    { name: "baseFee", binary: "uint", size: 8 },
 ] as const satisfies Layout;

@@ -85,6 +85,8 @@ export class MessageDecoder {
     }
 
     static decode(payload: Buffer): LiquidityLayerMessageBody {
+        const raw = payload.toString("hex");
+
         const payloadId = payload.readUInt8(0);
         switch (payloadId) {
             case Fill.ID: {
