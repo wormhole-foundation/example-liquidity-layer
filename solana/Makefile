@@ -80,18 +80,21 @@ lint:
 	NETWORK=localnet $(MAKE) clippy
 	NETWORK=testnet $(MAKE) clippy
 
-.PHONY: run-spy
-wormhole-spy:
+.PHONY: wormhole-spy-up
+wormhole-spy-up:
 ifdef SPY_NETWORK_$(NETWORK)
-	docker run \
-		--platform=linux/amd64 \
-		-p 7073:7073 \
-		--entrypoint /guardiand ghcr.io/wormhole-foundation/guardiand:latest spy \
-		--nodeKey /node.key \
-		--spyRPC "[::]:7073" \
-		--network $(SPY_NETWORK_$(NETWORK)) \
-		--bootstrap $(SPY_BOOTSTRAP_$(NETWORK))
+	WORMHOLE_NETWORK_ID=$(SPY_NETWORK_$(NETWORK)) \
+	WORMHOLE_BOOTSTRAP=$(SPY_BOOTSTRAP_$(NETWORK)) \
+	NATS_STREAM="${NETWORK}-vaas" \
+	docker-compose -f docker-compose.yml up -d
 endif
+
+.PHONY: wormhole-spy-down
+wormhole-spy-down:
+	docker-compose -f docker-compose.yml down
+
+.PHONY: wormhole-spy-restart
+wormhole-spy-restart: wormhole-spy-down wormhole-spy-up
 
 ts/tests/artifacts:
 	mkdir ts/tests/artifacts

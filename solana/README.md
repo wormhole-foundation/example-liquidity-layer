@@ -87,11 +87,28 @@ associated with the auction's `FastMarketOrder` VAA. For the `vaaAuctionRelayer`
 fast transfers and execute the `settle_auction_complete` instruction, add the owner's public key to the
 `knownAtaOwners` array field in the configuration file.
 
-The `vaaAuctionRelayer` relies on the `VaaSpy` to listen for `FastMarketOrder` VAAs. To set up the
-`VaaSpy`, make sure Docker is running and execute the following command:
+The `vaaAuctionRelayer` relies on the [Beacon](https://github.com/pyth-network/beacon) as the `VaaSpy` to listen for `FastMarketOrder` VAAs. To set up the
+Beacon, increase the UDP buffer size for the OS:
 
 ```sh
-make wormhole-spy NETWORK=testnet
+# for linux
+sudo sysctl -w net.core.rmem_max=2097152
+sudo sysctl -w net.core.rmem_default=2097152
+# for macos
+sudo sysctl -w net.inet.udp.recvspace=2097152
+```
+
+Then, make sure Docker is running and execute the following command to run Beacon in a detached mode:
+
+```sh
+make wormhole-spy-up NETWORK=testnet
+```
+
+To stop or restart the beacon
+
+```sh
+make wormhole-spy-down
+make wormhole-spy-restart NETWORK=testnet
 ```
 
 To run the `vaaAuctionRelayer` execute the following command:
