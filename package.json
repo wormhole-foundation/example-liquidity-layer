@@ -15,6 +15,7 @@
     "typescript": "^5.4.5"
   },
   "workspaces": [
+    "universal/ts",
     "evm",
     "solana"
   ]
