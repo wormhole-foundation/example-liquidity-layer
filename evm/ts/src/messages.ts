@@ -41,7 +41,7 @@ export class WormholeCctpDepositHeader {
             throw new Error("Invalid Wormhole CCTP deposit message");
         }
 
-        return WormholeCctpDepositHeader.decode(buf.subarray(1));
+        return WormholeCctpDepositHeader.decode(buf);
     }
 
     static decode(buf: Buffer): [WormholeCctpDepositHeader, Buffer] {
