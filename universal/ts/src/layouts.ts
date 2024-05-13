@@ -1,6 +1,7 @@
 import { Layout, layoutItems } from "@wormhole-foundation/sdk";
 
 export const wormholeCctpDepositHeaderLayout = [
+    layoutItems.payloadIdItem(1),
     { name: "token", ...layoutItems.universalAddressItem },
     { name: "amount", ...layoutItems.amountItem },
     { name: "sourceDomain", ...layoutItems.circleDomainItem },
