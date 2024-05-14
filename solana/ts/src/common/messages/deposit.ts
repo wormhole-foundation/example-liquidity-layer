@@ -1,43 +1,18 @@
 import {
+    CctpDeposit,
+    Fill,
+    SlowOrderResponse,
+    cctpDepositLayout,
     fillLayout,
+    payloadIds,
     slowOrderResponseLayout,
-    wormholeCctpDepositHeaderLayout,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import {
-    ChainId,
-    UniversalAddress,
-    deserializeLayout,
-    serializeLayout,
-    toChain,
-    toChainId,
-} from "@wormhole-foundation/sdk";
+import { deserializeLayout, serializeLayout } from "@wormhole-foundation/sdk";
 
-export const ID_DEPOSIT = 1;
+export const ID_DEPOSIT = payloadIds.CCTP_DEPOSIT;
 
-export const ID_DEPOSIT_FILL = 1;
-export const ID_DEPOSIT_SLOW_ORDER_RESPONSE = 2;
-
-export type DepositHeader = {
-    tokenAddress: Array<number>;
-    amount: bigint;
-    sourceCctpDomain: number;
-    destinationCctpDomain: number;
-    cctpNonce: bigint;
-    burnSource: Array<number>;
-    mintRecipient: Array<number>;
-};
-
-export type Fill = {
-    sourceChain: ChainId;
-    orderSender: Array<number>;
-    redeemer: Array<number>;
-    redeemerMessage: Buffer;
-};
-
-export type SlowOrderResponse = {
-    // u64
-    baseFee: bigint;
-};
+export const ID_DEPOSIT_FILL = payloadIds.FILL;
+export const ID_DEPOSIT_SLOW_ORDER_RESPONSE = payloadIds.SLOW_ORDER_RESPONSE;
 
 export type LiquidityLayerDepositMessage = {
     fill?: Fill;
@@ -45,43 +20,30 @@ export type LiquidityLayerDepositMessage = {
 };
 
 export class LiquidityLayerDeposit {
-    header: DepositHeader;
+    header: CctpDeposit;
     message: LiquidityLayerDepositMessage;
 
-    constructor(header: DepositHeader, message: LiquidityLayerDepositMessage) {
+    constructor(header: CctpDeposit, message: LiquidityLayerDepositMessage) {
         this.header = header;
         this.message = message;
     }
 
     static decode(buf: Buffer): LiquidityLayerDeposit {
-        const {
-            token,
-            amount,
-            sourceDomain,
-            targetDomain,
-            nonce,
-            fromAddress,
-            mintRecipient,
-            payload,
-        } = deserializeLayout(wormholeCctpDepositHeaderLayout, new Uint8Array(buf));
+        const header = deserializeLayout(cctpDepositLayout, new Uint8Array(buf));
 
         const message = (() => {
-            const depositPayloadId = payload.at(0);
+            const depositPayloadId = header.payload.at(0);
             switch (depositPayloadId) {
                 case ID_DEPOSIT_FILL: {
-                    const { sourceChain, orderSender, redeemer, redeemerMessage } =
-                        deserializeLayout(fillLayout, payload);
-                    const fill: Fill = {
-                        sourceChain: toChainId(sourceChain),
-                        orderSender: Array.from(orderSender.toUint8Array()),
-                        redeemer: Array.from(redeemer.toUint8Array()),
-                        redeemerMessage: Buffer.from(redeemerMessage),
-                    };
-                    return { fill };
+                    return { fill: deserializeLayout(fillLayout, header.payload) };
                 }
                 case ID_DEPOSIT_SLOW_ORDER_RESPONSE: {
-                    const { baseFee } = deserializeLayout(slowOrderResponseLayout, payload);
-                    return { slowOrderResponse: { baseFee } };
+                    return {
+                        slowOrderResponse: deserializeLayout(
+                            slowOrderResponseLayout,
+                            header.payload,
+                        ),
+                    };
                 }
                 default: {
                     throw new Error("Invalid Liquidity Layer deposit message");
@@ -89,64 +51,25 @@ export class LiquidityLayerDeposit {
             }
         })();
 
-        return new LiquidityLayerDeposit(
-            {
-                tokenAddress: Array.from(token.toUint8Array()),
-                amount,
-                sourceCctpDomain: sourceDomain,
-                destinationCctpDomain: targetDomain,
-                cctpNonce: nonce,
-                burnSource: Array.from(fromAddress.toUint8Array()),
-                mintRecipient: Array.from(mintRecipient.toUint8Array()),
-            },
-            message,
-        );
+        return new LiquidityLayerDeposit(header, message);
     }
 
     encode(): Buffer {
         const {
-            header: {
-                tokenAddress,
-                amount,
-                sourceCctpDomain,
-                destinationCctpDomain,
-                cctpNonce,
-                burnSource,
-                mintRecipient,
-            },
+            header,
             message: { fill, slowOrderResponse },
         } = this;
 
         const payload = (() => {
             if (fill !== undefined) {
-                const { sourceChain, orderSender, redeemer, redeemerMessage } = fill;
-                return serializeLayout(fillLayout, {
-                    sourceChain: toChain(sourceChain),
-                    orderSender: new UniversalAddress(new Uint8Array(orderSender)),
-                    redeemer: new UniversalAddress(new Uint8Array(redeemer)),
-                    redeemerMessage: new Uint8Array(redeemerMessage),
-                });
+                return serializeLayout(fillLayout, fill);
             } else if (slowOrderResponse !== undefined) {
-                const { baseFee } = slowOrderResponse;
-                return serializeLayout(slowOrderResponseLayout, {
-                    baseFee,
-                });
+                return serializeLayout(slowOrderResponseLayout, slowOrderResponse);
             } else {
                 throw new Error("Invalid Liquidity Layer deposit message");
             }
         })();
 
-        return Buffer.from(
-            serializeLayout(wormholeCctpDepositHeaderLayout, {
-                token: new UniversalAddress(new Uint8Array(tokenAddress)),
-                amount: amount,
-                sourceDomain: sourceCctpDomain,
-                targetDomain: destinationCctpDomain,
-                nonce: cctpNonce,
-                fromAddress: new UniversalAddress(new Uint8Array(burnSource)),
-                mintRecipient: new UniversalAddress(new Uint8Array(mintRecipient)),
-                payload,
-            }),
-        );
+        return Buffer.from(serializeLayout(cctpDepositLayout, header));
     }
 }

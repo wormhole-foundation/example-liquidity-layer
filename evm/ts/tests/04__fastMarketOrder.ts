@@ -373,19 +373,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         receipt.transactionHash,
                     );
 
-                    if (toChainName == MATCHING_ENGINE_NAME) {
-                        expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
-                        );
-                        expect(transactionResult.wormhole.message.body).has.property("fastFill");
-                        expect(transactionResult.circleMessage).is.undefined;
-                    } else {
-                        expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
-                        );
-                        expect(transactionResult.wormhole.message.body).has.property("fill");
-                        expect(transactionResult.circleMessage).is.not.undefined;
-                    }
+                    expect(transactionResult.wormhole.emitterAddress).to.eql(
+                        tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
+                    );
+                    expect(transactionResult.wormhole.message.body).has.property("fill");
+                    expect(transactionResult.circleMessage).is.not.undefined;
 
                     expect(transactionResult.fastMessage).is.undefined;
 
@@ -763,19 +755,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         receipt.transactionHash,
                     );
 
-                    if (toChainName == MATCHING_ENGINE_NAME) {
-                        expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
-                        );
-                        expect(transactionResult.wormhole.message.body).has.property("fastFill");
-                        expect(transactionResult.circleMessage).is.undefined;
-                    } else {
-                        expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
-                        );
-                        expect(transactionResult.wormhole.message.body).has.property("fill");
-                        expect(transactionResult.circleMessage).is.not.undefined;
-                    }
+                    expect(transactionResult.wormhole.emitterAddress).to.eql(
+                        tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
+                    );
+                    expect(transactionResult.wormhole.message.body).has.property("fill");
+                    expect(transactionResult.circleMessage).is.not.undefined;
 
                     expect(transactionResult.fastMessage).is.undefined;
 
@@ -1031,19 +1015,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         receipt.transactionHash,
                     );
 
-                    if (toChainName == MATCHING_ENGINE_NAME) {
-                        expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
-                        );
-                        expect(transactionResult.wormhole.message.body).has.property("fastFill");
-                        expect(transactionResult.circleMessage).is.undefined;
-                    } else {
-                        expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
-                        );
-                        expect(transactionResult.wormhole.message.body).has.property("fill");
-                        expect(transactionResult.circleMessage).is.not.undefined;
-                    }
+                    expect(transactionResult.wormhole.emitterAddress).to.eql(
+                        tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
+                    );
+                    expect(transactionResult.wormhole.message.body).has.property("fill");
+                    expect(transactionResult.circleMessage).is.not.undefined;
 
                     expect(transactionResult.fastMessage).is.undefined;
 
@@ -1284,19 +1260,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         receipt.transactionHash,
                     );
 
-                    if (toChainName == MATCHING_ENGINE_NAME) {
-                        expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
-                        );
-                        expect(transactionResult.wormhole.message.body).has.property("fastFill");
-                        expect(transactionResult.circleMessage).is.undefined;
-                    } else {
-                        expect(transactionResult.wormhole.emitterAddress).to.eql(
-                            tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
-                        );
-                        expect(transactionResult.wormhole.message.body).has.property("fill");
-                        expect(transactionResult.circleMessage).is.not.undefined;
-                    }
+                    expect(transactionResult.wormhole.emitterAddress).to.eql(
+                        tryNativeToUint8Array(engine.address, MATCHING_ENGINE_NAME),
+                    );
+                    expect(transactionResult.wormhole.message.body).has.property("fill");
+                    expect(transactionResult.circleMessage).is.not.undefined;
 
                     expect(transactionResult.fastMessage).is.undefined;
 
