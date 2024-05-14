@@ -9,7 +9,7 @@ pub struct AuctionUpdated {
     pub vaa: Option<Pubkey>,
     pub source_chain: u16,
     pub target_protocol: MessageProtocol,
-    pub redeemer_message_len: u32,
+    pub redeemer_message_len: u16,
 
     pub end_slot: u64,
     pub best_offer_token: Pubkey,

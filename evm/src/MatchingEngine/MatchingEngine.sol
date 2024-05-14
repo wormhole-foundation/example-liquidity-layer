@@ -69,7 +69,11 @@ contract MatchingEngine is MatchingEngineFastOrders, MatchingEngineAdmin {
 
     function _migrate() internal override {}
 
-    function _parseInitData(bytes memory initData) internal pure returns (address ownerAssistant, address feeRecipient) {
+    function _parseInitData(bytes memory initData)
+        internal
+        pure
+        returns (address ownerAssistant, address feeRecipient)
+    {
         uint256 offset = 0;
 
         (ownerAssistant, offset) = initData.asAddressUnchecked(offset);

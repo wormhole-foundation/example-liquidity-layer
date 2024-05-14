@@ -45,3 +45,5 @@ error ErrInvalidMaxFee(uint64 maxFee, uint64 minimumReuiredFee);
 error ErrCallerNotDeployer(address deployer, address caller);
 
 error InvalidInitDataLength(uint256 actual, uint256 expected);
+
+error MaxPayloadSizeExceeded(uint256 actualSize, uint256 maxSize);

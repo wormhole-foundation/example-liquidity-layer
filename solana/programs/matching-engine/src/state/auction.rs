@@ -82,7 +82,7 @@ pub struct AuctionInfo {
     pub offer_price: u64,
 
     /// Length of the redeemer message, which may impact the expense to execute the auction.
-    pub redeemer_message_len: u32,
+    pub redeemer_message_len: u16,
 
     /// If the destination asset is not equal to the asset used for auctions, this will be some
     /// value specifying its custody token bump and amount out.

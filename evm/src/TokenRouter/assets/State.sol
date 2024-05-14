@@ -34,6 +34,9 @@ abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
     uint24 constant MAX_BPS_FEE = 1000000; // 10,000.00 bps (100%)
     uint64 constant MIN_FAST_TRANSFER_AMOUNT = 100000000; // $100
 
+    // Maximum redeemer payload size.
+    uint256 constant MAX_REDEEMER_PAYLOAD_SIZE = 500;
+
     constructor(
         address token_,
         address wormhole_,
@@ -154,5 +157,10 @@ abstract contract State is ITokenRouterState, WormholeCctpTokenMessenger {
     /// @inheritdoc ITokenRouterState
     function getMaxFastTransferAmount() external view returns (uint64) {
         return getFastTransferParametersState().maxAmount;
+    }
+
+    /// @inheritdoc ITokenRouterState
+    function getMaxPayloadSize() external pure returns (uint256) {
+        return MAX_REDEEMER_PAYLOAD_SIZE;
     }
 }

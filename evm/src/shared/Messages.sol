@@ -57,7 +57,7 @@ library Messages {
             fill.sourceChain,
             fill.orderSender,
             fill.redeemer,
-            _encodeBytes(fill.redeemerMessage)
+            _encodeRedeemerMessage(fill.redeemerMessage)
         );
     }
 
@@ -67,7 +67,7 @@ library Messages {
         (fill.sourceChain, offset) = encoded.asUint16Unchecked(offset);
         (fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
         (fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
-        (fill.redeemerMessage, offset) = _decodeBytes(encoded, offset);
+        (fill.redeemerMessage, offset) = _decodeRedeemerMessage(encoded, offset);
 
         _checkLength(encoded, offset);
     }
@@ -84,7 +84,7 @@ library Messages {
             order.maxFee,
             order.initAuctionFee,
             order.deadline,
-            _encodeBytes(order.redeemerMessage)
+            _encodeRedeemerMessage(order.redeemerMessage)
         );
     }
 
@@ -105,7 +105,7 @@ library Messages {
         (order.maxFee, offset) = encoded.asUint64Unchecked(offset);
         (order.initAuctionFee, offset) = encoded.asUint64Unchecked(offset);
         (order.deadline, offset) = encoded.asUint32Unchecked(offset);
-        (order.redeemerMessage, offset) = _decodeBytes(encoded, offset);
+        (order.redeemerMessage, offset) = _decodeRedeemerMessage(encoded, offset);
 
         _checkLength(encoded, offset);
     }
@@ -117,7 +117,7 @@ library Messages {
             fastFill.fill.sourceChain,
             fastFill.fill.orderSender,
             fastFill.fill.redeemer,
-            _encodeBytes(fastFill.fill.redeemerMessage)
+            _encodeRedeemerMessage(fastFill.fill.redeemerMessage)
         );
     }
 
@@ -133,7 +133,7 @@ library Messages {
         (fastFill.fill.sourceChain, offset) = encoded.asUint16Unchecked(offset);
         (fastFill.fill.orderSender, offset) = encoded.asBytes32Unchecked(offset);
         (fastFill.fill.redeemer, offset) = encoded.asBytes32Unchecked(offset);
-        (fastFill.fill.redeemerMessage, offset) = _decodeBytes(encoded, offset);
+        (fastFill.fill.redeemerMessage, offset) = _decodeRedeemerMessage(encoded, offset);
 
         _checkLength(encoded, offset);
     }
@@ -161,20 +161,22 @@ library Messages {
 
     // ---------------------------------------- private -------------------------------------------
 
-    function _decodeBytes(bytes memory encoded, uint256 startOffset)
+    function _decodeRedeemerMessage(bytes memory encoded, uint256 startOffset)
         private
         pure
         returns (bytes memory payload, uint256 offset)
     {
-        uint32 payloadLength;
-        (payloadLength, offset) = encoded.asUint32Unchecked(startOffset);
+        uint16 payloadLength;
+        (payloadLength, offset) = encoded.asUint16Unchecked(startOffset);
         (payload, offset) = encoded.sliceUnchecked(offset, payloadLength);
     }
 
-    function _encodeBytes(bytes memory payload) private pure returns (bytes memory encoded) {
-        // Casting payload.length to uint32 is safe because you'll be hard-pressed
-        // to allocate 4 GB of EVM memory in a single transaction.
-        encoded = abi.encodePacked(uint32(payload.length), payload);
+    function _encodeRedeemerMessage(bytes memory payload)
+        private
+        pure
+        returns (bytes memory encoded)
+    {
+        encoded = abi.encodePacked(uint16(payload.length), payload);
     }
 
     function _checkLength(bytes memory encoded, uint256 expected) private pure {

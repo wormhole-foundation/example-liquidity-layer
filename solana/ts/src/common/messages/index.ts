@@ -64,8 +64,8 @@ export class LiquidityLayerMessage {
                 offset += 8;
                 const deadline = buf.readUInt32BE(offset);
                 offset += 4;
-                const redeemerMessageLen = buf.readUInt32BE(offset);
-                offset += 4;
+                const redeemerMessageLen = buf.readUInt16BE(offset);
+                offset += 2;
                 const redeemerMessage = buf.subarray(offset, (offset += redeemerMessageLen));
 
                 fastMarketOrder = {
@@ -110,7 +110,7 @@ export class LiquidityLayerMessage {
                     redeemerMessage,
                 } = fastMarketOrder;
 
-                const messageBuf = Buffer.alloc(1 + 138 + redeemerMessage.length);
+                const messageBuf = Buffer.alloc(1 + 136 + redeemerMessage.length);
 
                 let offset = 0;
                 offset = messageBuf.writeUInt8(ID_FAST_MARKET_ORDER, offset);
@@ -126,7 +126,7 @@ export class LiquidityLayerMessage {
                 offset = messageBuf.writeBigUInt64BE(maxFee, offset);
                 offset = messageBuf.writeBigUInt64BE(initAuctionFee, offset);
                 offset = messageBuf.writeUInt32BE(deadline, offset);
-                offset = messageBuf.writeUInt32BE(redeemerMessage.length, offset);
+                offset = messageBuf.writeUInt16BE(redeemerMessage.length, offset);
                 messageBuf.set(redeemerMessage, offset);
                 offset += redeemerMessage.length;
 

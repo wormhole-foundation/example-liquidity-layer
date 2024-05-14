@@ -172,9 +172,7 @@ contract TokenRouterTest is Test {
         );
         TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
-        vm.expectRevert(
-            abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 0, 20)
-        );
+        vm.expectRevert(abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 0, 20));
         proxy.initialize(new bytes(0));
     }
 
@@ -193,9 +191,7 @@ contract TokenRouterTest is Test {
         );
         TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
-        vm.expectRevert(
-            abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 40, 20)
-        );
+        vm.expectRevert(abi.encodeWithSignature("LengthMismatch(uint256,uint256)", 40, 20));
         proxy.initialize(abi.encodePacked(makeAddr("ownerAssistant"), makeAddr("hole")));
     }
 
@@ -214,9 +210,7 @@ contract TokenRouterTest is Test {
         );
         TokenRouter proxy = TokenRouter(address(new ERC1967Proxy(address(implementation), "")));
 
-        vm.expectRevert(
-            abi.encodeWithSignature("InvalidAddress()")
-        );
+        vm.expectRevert(abi.encodeWithSignature("InvalidAddress()"));
         proxy.initialize(abi.encodePacked(address(0)));
     }
 
@@ -917,6 +911,30 @@ contract TokenRouterTest is Test {
         );
     }
 
+    function testCannotPlaceMarketOrderPayloadTooLarge() public {
+        bytes memory encoded;
+
+        for (uint256 i = 0; i < 501; i++) {
+            encoded = abi.encodePacked(encoded, hex"01");
+        }
+
+        vm.expectRevert(
+            abi.encodeWithSignature(
+                "MaxPayloadSizeExceeded(uint256,uint256)",
+                encoded.length,
+                router.getMaxPayloadSize()
+            )
+        );
+        router.placeMarketOrder(
+            10, // amountIn.
+            0, // minAmountOut
+            2, // targetChain
+            TEST_REDEEMER,
+            encoded, // redeemerMessage
+            address(this) // refundAddress
+        );
+    } 
+
     function testCannotPlaceMarketOrderErrUnsupportedChain() public {
         uint64 amountIn = 69;
         uint16 targetChain = 2;
@@ -1133,6 +1151,35 @@ contract TokenRouterTest is Test {
             address(this), // refundAddress.
             maxFee,
             0 // deadline
+        );
+    }
+
+    function testCannotPlaceFastMarketOrderPayloadTooLarge() public {
+        bytes memory encoded;
+
+        for (uint256 i = 0; i < 501; i++) {
+            encoded = abi.encodePacked(encoded, hex"01");
+        }
+
+        bytes memory encodedSignature = abi.encodeWithSignature(
+            "placeFastMarketOrder(uint64,uint64,uint16,bytes32,bytes,address,uint64,uint32)",
+            6900000, // amountIn.
+            0, // minAmountOut
+            ARB_CHAIN, // targetChain
+            TEST_REDEEMER,
+            encoded,
+            address(this), // refundAddress.
+            router.getMinFee() + 1,
+            0 // deadline
+        );
+        expectRevert(
+            address(router),
+            encodedSignature,
+            abi.encodeWithSignature(
+                "MaxPayloadSizeExceeded(uint256,uint256)",
+                encoded.length,
+                router.getMaxPayloadSize()
+            )
         );
     }
 

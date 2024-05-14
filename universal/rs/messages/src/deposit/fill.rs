@@ -7,7 +7,7 @@ pub struct Fill {
     pub source_chain: u16,
     pub order_sender: [u8; 32],
     pub redeemer: [u8; 32],
-    pub redeemer_message: WriteableBytes<u32>,
+    pub redeemer_message: WriteableBytes<u16>,
 }
 
 impl Readable for Fill {
@@ -46,7 +46,7 @@ impl TypePrefixedPayload<1> for Fill {
         const FIXED: usize = 2 // source_chain
             + 32 // order_sender
             + 32 // redeemer
-            + 4 // redeemer_message length
+            + 2 // redeemer_message length
             ;
         self.redeemer_message.len().checked_add(FIXED).unwrap()
     }

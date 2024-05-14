@@ -123,24 +123,24 @@ impl<'a> FastMarketOrder<'a> {
         u32::from_be_bytes(self.0[130..134].try_into().unwrap())
     }
 
-    pub fn redeemer_message_len(&self) -> u32 {
-        u32::from_be_bytes(self.0[134..138].try_into().unwrap())
+    pub fn redeemer_message_len(&self) -> u16 {
+        u16::from_be_bytes(self.0[134..136].try_into().unwrap())
     }
 
     pub fn redeemer_message(&'a self) -> Payload<'a> {
-        Payload::parse(&self.0[138..])
+        Payload::parse(&self.0[136..])
     }
 
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
-        if span.len() < 138 {
-            return Err("FastMarketOrder span too short. Need at least 138 bytes");
+        if span.len() < 136 {
+            return Err("FastMarketOrder span too short. Need at least 136 bytes");
         }
 
         let fast_market_order = Self(span);
 
         // Check payload length vs actual payload.
         if fast_market_order.redeemer_message().len()
-            != usize::try_from(fast_market_order.redeemer_message_len()).unwrap()
+            != usize::from(fast_market_order.redeemer_message_len())
         {
             return Err("FastMarketOrder payload length mismatch");
         }

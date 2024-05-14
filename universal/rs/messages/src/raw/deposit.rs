@@ -98,23 +98,23 @@ impl<'a> Fill<'a> {
         self.0[34..66].try_into().unwrap()
     }
 
-    pub fn redeemer_message_len(&self) -> u32 {
-        u32::from_be_bytes(self.0[66..70].try_into().unwrap())
+    pub fn redeemer_message_len(&self) -> u16 {
+        u16::from_be_bytes(self.0[66..68].try_into().unwrap())
     }
 
     pub fn redeemer_message(&'a self) -> Payload<'a> {
-        Payload::parse(&self.0[70..])
+        Payload::parse(&self.0[68..])
     }
 
     pub fn parse(span: &'a [u8]) -> Result<Self, &'static str> {
-        if span.len() < 70 {
-            return Err("Fill span too short. Need at least 70 bytes");
+        if span.len() < 68 {
+            return Err("Fill span too short. Need at least 68 bytes");
         }
 
         let fill = Self(span);
 
         // Check payload length vs actual payload.
-        if fill.redeemer_message().len() != usize::try_from(fill.redeemer_message_len()).unwrap() {
+        if fill.redeemer_message().len() != usize::from(fill.redeemer_message_len()) {
             return Err("Fill payload length mismatch");
         }
 
