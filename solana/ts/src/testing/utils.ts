@@ -18,10 +18,15 @@ import { SolanaSendSigner } from "@wormhole-foundation/sdk-solana";
 import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
 import {
     SignAndSendSigner,
+    UniversalAddress,
     deserialize,
     encoding,
     signAndSendWait,
 } from "@wormhole-foundation/sdk";
+
+export function toUniversalAddress(address: number[] | Buffer | Array<number>): UniversalAddress {
+    return new UniversalAddress(new Uint8Array(address));
+}
 
 async function confirmLatest(connection: Connection, signature: string) {
     return connection.getLatestBlockhash().then(({ blockhash, lastValidBlockHeight }) =>

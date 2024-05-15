@@ -1322,7 +1322,7 @@ export class MatchingEngineProgram {
             if (fastMarketOrder === undefined) {
                 throw new Error("Message not FastMarketOrder");
             }
-            toRouterEndpoint ??= this.routerEndpointAddress(fastMarketOrder.targetChain);
+            toRouterEndpoint ??= this.routerEndpointAddress(toChainId(fastMarketOrder.targetChain));
 
             const custodianData = await this.fetchCustodian();
             fetchedConfigId = custodianData.auctionConfigId;
@@ -1479,7 +1479,7 @@ export class MatchingEngineProgram {
         if (fastMarketOrder === undefined) {
             throw new Error("Message not FastMarketOrder");
         }
-        const toEndpoint = this.routerEndpointAddress(fastMarketOrder.targetChain);
+        const toEndpoint = this.routerEndpointAddress(toChainId(fastMarketOrder.targetChain));
 
         const { encodedCctpMessage } = args;
         const {
@@ -1658,7 +1658,7 @@ export class MatchingEngineProgram {
         const preparedOrderResponse = this.preparedOrderResponseAddress(fastVaaHash);
 
         const settleAuctionNoneIx = await (async () => {
-            if (fastMarketOrder.targetChain === toChainId("Solana")) {
+            if (fastMarketOrder.targetChain === "Solana") {
                 return this.settleAuctionNoneLocalIx({
                     payer: executor,
                     reservedSequence: this.reservedFastFillSequenceAddress(fastVaaHash),
@@ -1672,7 +1672,7 @@ export class MatchingEngineProgram {
                         fastVaa,
                         preparedOrderResponse,
                     },
-                    { targetChain: fastMarketOrder.targetChain },
+                    { targetChain: toChainId(fastMarketOrder.targetChain) },
                 );
             }
         })();
@@ -1791,7 +1791,7 @@ export class MatchingEngineProgram {
                 throw new Error("Message not FastMarketOrder");
             }
 
-            targetChain ??= message.fastMarketOrder.targetChain;
+            targetChain ??= toChainId(message.fastMarketOrder.targetChain);
         }
         const {
             custodian,
@@ -1882,7 +1882,7 @@ export class MatchingEngineProgram {
                 throw new Error("Message not FastMarketOrder");
             }
 
-            targetChain = fastMarketOrder.targetChain;
+            targetChain = toChainId(fastMarketOrder.targetChain);
         }
 
         // TODO: Make this smarter. Consider adding a target chain argument.
@@ -1894,7 +1894,7 @@ export class MatchingEngineProgram {
                 throw new Error("Message not FastMarketOrder");
             }
 
-            targetChain = fastMarketOrder.targetChain;
+            targetChain = toChainId(fastMarketOrder.targetChain);
         }
 
         const executeOrderIx = await (async () => {
@@ -1968,7 +1968,7 @@ export class MatchingEngineProgram {
             if (fastMarketOrder === undefined) {
                 throw new Error("Message not FastMarketOrder");
             }
-            targetChain ??= fastMarketOrder.targetChain;
+            targetChain ??= toChainId(fastMarketOrder.targetChain);
         }
 
         let auctionInfo: AuctionInfo | undefined;
@@ -2101,8 +2101,8 @@ export class MatchingEngineProgram {
             if (fastMarketOrder === undefined) {
                 throw new Error("Message not FastMarketOrder");
             }
-            orderSender ??= fastMarketOrder.sender;
-            targetChain ??= fastMarketOrder.targetChain;
+            orderSender ??= Array.from(fastMarketOrder.sender.toUint8Array());
+            targetChain ??= toChainId(fastMarketOrder.targetChain);
         }
 
         fromEndpoint ??= this.routerEndpointAddress(sourceChain);
@@ -2266,7 +2266,7 @@ export class MatchingEngineProgram {
             if (fastMarketOrder === undefined) {
                 throw new Error("Message not FastMarketOrder");
             }
-            orderSender ??= fastMarketOrder.sender;
+            orderSender ??= Array.from(fastMarketOrder.sender.toUint8Array());
         }
 
         if (sequence === undefined) {
