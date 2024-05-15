@@ -9,7 +9,7 @@ bash $(dirname $0)/run_test_validator.sh
 sleep 10
 
 ### Run the tests.
-anchor run test-local
+anchor run test-upgrade-fork
 
 EXIT_CODE=$?
 
