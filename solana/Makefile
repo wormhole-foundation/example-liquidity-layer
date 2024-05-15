@@ -26,6 +26,8 @@ clean:
 	rm -rf node_modules artifacts-mainnet artifacts-testnet artifacts-localnet ts/tests/artifacts
 
 node_modules: ../node_modules
+
+../node_modules:
 	cd .. && npm ci
 
 .PHONY: cargo-test
