@@ -1,21 +1,24 @@
 {
-  "name": "@wormhole-foundation/example-liquidity-layer-evm",
+  "name": "@wormhole-foundation/example-liquidity-layer-definitions",
   "version": "0.0.1",
   "author": "Wormhole Contributors",
   "license": "Apache-2.0",
   "main": "./dist/cjs/index.js",
   "types":"./dist/cjs/index.d.ts",
   "module": "./dist/esm/index.js",
+  "files": [
+    "./dist/cjs",
+    "./dist/esm"
+  ],
   "scripts": {
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build": "npm run build:esm && npm run build:cjs",
-    "generate": "typechain --target=ethers-v5 --out-dir=ts/src/types out/*/*.json"
+    "test:layouts":"npx ts-mocha  -p ./tsconfig.json tests/layouts.ts",
+    "test":"npm run test:layouts"
   },
   "dependencies": {
-    "@wormhole-foundation/sdk":"^0.6.8",
-    "@wormhole-foundation/example-liquidity-layer-definitions":"0.0.1",
-    "ethers": "^5.7.2"
+    "@wormhole-foundation/sdk":"^0.6.8"
   },
   "devDependencies": {
     "envfile": "^6.18.0",

@@ -16,10 +16,8 @@ import chaiAsPromised from "chai-as-promised";
 import { afterEach } from "mocha";
 import { CctpTokenBurnMessage } from "../src/cctp";
 import {
-    FastMarketOrder,
     LiquidityLayerDeposit,
     LiquidityLayerMessage,
-    SlowOrderResponse,
     uint64ToBN,
     uint64ToBigInt,
     writeUint64BE,
@@ -44,10 +42,15 @@ import {
     expectIxOkDetails,
     getBlockTime,
     postLiquidityLayerVaa,
+    toUniversalAddress,
     waitUntilSlot,
 } from "../src/testing";
 import { Chain, ChainId, toChainId, toUniversal } from "@wormhole-foundation/sdk";
 import { BN } from "@coral-xyz/anchor";
+import {
+    FastMarketOrder,
+    SlowOrderResponse,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 chaiUse(chaiAsPromised);
 
@@ -77,7 +80,7 @@ describe("Matching Engine <> Token Router", function () {
     const fastFillRedeemer = Keypair.generate();
 
     let lookupTableAddress: PublicKey;
-    const ethRouter = REGISTERED_TOKEN_ROUTERS["ethereum"]!;
+    const ethRouter = REGISTERED_TOKEN_ROUTERS["Ethereum"]!;
 
     let testCctpNonce = 2n ** 64n - 1n;
 
@@ -967,7 +970,7 @@ describe("Matching Engine <> Token Router", function () {
         expect(fastMarketOrder).is.not.undefined;
 
         const toEndpoint = await matchingEngine.fetchRouterEndpointInfo(
-            fastMarketOrder!.targetChain,
+            toChainId(fastMarketOrder!.targetChain),
         );
 
         expect(preparedOrderResponseData).to.eql(
@@ -982,12 +985,12 @@ describe("Matching Engine <> Token Router", function () {
                     sourceChain: fastVaaAccount.emitterInfo().chain,
                     baseFee: uint64ToBN(deposit!.message.slowOrderResponse!.baseFee),
                     initAuctionFee: uint64ToBN(fastMarketOrder!.initAuctionFee),
-                    sender: fastMarketOrder!.sender,
-                    redeemer: fastMarketOrder!.redeemer,
+                    sender: Array.from(fastMarketOrder!.sender.toUint8Array()),
+                    redeemer: Array.from(fastMarketOrder!.redeemer.toUint8Array()),
                     amountIn: uint64ToBN(fastMarketOrder!.amountIn),
                 },
                 toEndpoint,
-                fastMarketOrder!.redeemerMessage,
+                Buffer.from(fastMarketOrder!.redeemerMessage),
             ),
         );
         if (preparedOrderResponseBefore) {
@@ -1201,7 +1204,8 @@ describe("Matching Engine <> Token Router", function () {
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
 
-        const { sender } = fastMarketOrder!;
+        const { sender: senderAddress } = fastMarketOrder!;
+        const sender = Array.from(senderAddress.toUint8Array());
 
         const fastFillSequencer = matchingEngine.fastFillSequencerAddress(sourceChain, sender);
         const expectedSequence = await matchingEngine
@@ -1292,7 +1296,14 @@ describe("Matching Engine <> Token Router", function () {
 
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
-        const { amountIn, initAuctionFee, redeemer, sender, redeemerMessage } = fastMarketOrder!;
+        const {
+            amountIn,
+            initAuctionFee,
+            redeemer,
+            sender: senderAddress,
+            redeemerMessage,
+        } = fastMarketOrder!;
+        const sender = Array.from(senderAddress.toUint8Array());
 
         const message = LiquidityLayerMessage.decode(finalizedVaaAccount!.payload());
         const { slowOrderResponse } = message.deposit!.message;
@@ -1323,10 +1334,10 @@ describe("Matching Engine <> Token Router", function () {
                 {
                     preparedBy: payer.publicKey,
                     amount: uint64ToBN(amountIn - baseFee - initAuctionFee),
-                    redeemer: new PublicKey(redeemer),
+                    redeemer: new PublicKey(redeemer.toUint8Array()),
                     timestamp: new BN(txDetails!.blockTime!, 10, "be"),
                 },
-                redeemerMessage,
+                Buffer.from(redeemerMessage),
             ),
         );
 
@@ -1426,13 +1437,14 @@ describe("Matching Engine <> Token Router", function () {
             amountIn,
             maxFee: offerPrice,
             initAuctionFee,
-            sender,
+            sender: senderAddress,
             redeemer,
             redeemerMessage,
         } = fastMarketOrder!;
         const userAmount = amountIn - offerPrice - initAuctionFee;
         expect(localCustodyTokenBalanceAfter).equals(localCustodyTokenBalanceBefore + userAmount);
 
+        const sender = Array.from(senderAddress.toUint8Array());
         const sourceChain = fastVaaAccount.emitterInfo().chain;
         const { nextSequence } = await matchingEngine.fetchFastFillSequencer([
             fastVaaAccount.emitterInfo().chain,
@@ -1457,10 +1469,10 @@ describe("Matching Engine <> Token Router", function () {
                 {
                     preparedBy: payer.publicKey,
                     amount: uint64ToBN(userAmount),
-                    redeemer: new PublicKey(redeemer),
+                    redeemer: new PublicKey(redeemer.toUint8Array()),
                     timestamp: new BN(txDetails!.blockTime!, 10, "be"),
                 },
-                redeemerMessage,
+                Buffer.from(redeemerMessage),
             ),
         );
 
@@ -1712,10 +1724,10 @@ describe("Matching Engine <> Token Router", function () {
         return {
             amountIn: amountIn ?? 1_000_000_000n,
             minAmountOut: minAmountOut ?? 0n,
-            targetChain: toChainId(targetChain ?? "Solana"),
-            redeemer: Array.from(fastFillRedeemer.publicKey.toBuffer()),
-            sender: new Array(32).fill(2),
-            refundAddress: new Array(32).fill(3),
+            targetChain: targetChain ?? "Solana",
+            redeemer: toUniversalAddress(fastFillRedeemer.publicKey.toBuffer()),
+            sender: toUniversalAddress(new Array(32).fill(2)),
+            refundAddress: toUniversalAddress(new Array(32).fill(3)),
             maxFee: maxFee ?? 42069n,
             initAuctionFee: initAuctionFee ?? 1_250_000n,
             deadline: deadline ?? 0,
@@ -1815,15 +1827,16 @@ describe("Matching Engine <> Token Router", function () {
             const finalizedMessage = new LiquidityLayerMessage({
                 deposit: new LiquidityLayerDeposit(
                     {
-                        tokenAddress: burnMessage.burnTokenAddress,
+                        tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
                         amount,
                         sourceCctpDomain,
                         destinationCctpDomain,
                         cctpNonce,
-                        burnSource: Array.from(Buffer.alloc(32, "beefdead", "hex")),
-                        mintRecipient: Array.from(
+                        burnSource: toUniversalAddress(Buffer.alloc(32, "beefdead", "hex")),
+                        mintRecipient: toUniversalAddress(
                             matchingEngine.cctpMintRecipientAddress().toBuffer(),
                         ),
+                        payload: new Uint8Array(),
                     },
                     {
                         slowOrderResponse,

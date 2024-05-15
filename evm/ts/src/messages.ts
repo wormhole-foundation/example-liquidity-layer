@@ -1,4 +1,11 @@
-import { ethers } from "ethers";
+import { deserializeLayout, toChainId } from "@wormhole-foundation/sdk";
+import {
+    fastMarketOrderLayout,
+    fillLayout,
+    slowOrderResponseLayout,
+    cctpDepositLayout,
+    fastFillLayout,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 export const CCTP_DEPOSIT_PAYLOAD = 1;
 
@@ -34,31 +41,32 @@ export class WormholeCctpDepositHeader {
             throw new Error("Invalid Wormhole CCTP deposit message");
         }
 
-        return WormholeCctpDepositHeader.decode(buf.subarray(1));
+        return WormholeCctpDepositHeader.decode(buf);
     }
 
     static decode(buf: Buffer): [WormholeCctpDepositHeader, Buffer] {
-        const token = Uint8Array.from(buf.subarray(0, 32));
-        const amount = BigInt(ethers.BigNumber.from(buf.subarray(32, 64)).toString());
-        const sourceDomain = buf.readUInt32BE(64);
-        const targetDomain = buf.readUInt32BE(68);
-        const nonce = buf.readBigUint64BE(72);
-        const fromAddress = Uint8Array.from(buf.subarray(80, 112));
-        const mintRecipient = Uint8Array.from(buf.subarray(112, 144));
-        const payloadLen = buf.readUInt16BE(144);
-        const payload = buf.subarray(146, 146 + payloadLen);
+        const {
+            tokenAddress,
+            amount,
+            sourceCctpDomain,
+            destinationCctpDomain,
+            cctpNonce,
+            burnSource,
+            mintRecipient,
+            payload,
+        } = deserializeLayout(cctpDepositLayout, new Uint8Array(buf));
 
         return [
             new WormholeCctpDepositHeader(
-                token,
+                tokenAddress.toUint8Array(),
                 amount,
-                sourceDomain,
-                targetDomain,
-                nonce,
-                fromAddress,
-                mintRecipient,
+                sourceCctpDomain,
+                destinationCctpDomain,
+                cctpNonce,
+                burnSource.toUint8Array(),
+                mintRecipient.toUint8Array(),
             ),
-            payload,
+            Buffer.from(payload),
         ];
     }
 }
@@ -130,10 +138,9 @@ export class MessageDecoder {
     }
 
     static unsafeDecodeFastPayload(vaa: Buffer): CoreBridgeLiquidityLayerMessage {
-        const payload = Buffer.from(vaa);
         return {
             header: {},
-            body: this.decode(payload),
+            body: this.decode(vaa),
         };
     }
 }
@@ -161,15 +168,16 @@ export class Fill {
     }
 
     static decode(payload: Buffer): Fill {
-        const buf = takePayloadId(payload, this.ID);
-
-        const sourceChain = buf.readUInt16BE(0);
-        const orderSender = buf.subarray(2, 34);
-        const redeemer = buf.subarray(34, 66);
-        const redeemerMsgLen = buf.readUInt16BE(66);
-        const redeemerMessage = buf.subarray(68, 68 + redeemerMsgLen);
-
-        return new Fill(sourceChain, orderSender, redeemer, redeemerMessage);
+        const { sourceChain, orderSender, redeemer, redeemerMessage } = deserializeLayout(
+            fillLayout,
+            new Uint8Array(payload),
+        );
+        return new Fill(
+            toChainId(sourceChain),
+            Buffer.from(orderSender.toUint8Array()),
+            Buffer.from(redeemer.toUint8Array()),
+            Buffer.from(redeemerMessage),
+        );
     }
 }
 
@@ -199,16 +207,16 @@ export class FastFill {
     }
 
     static decode(payload: Buffer): FastFill {
-        const buf = takePayloadId(payload, this.ID);
+        const { sourceChain, orderSender, redeemer, redeemerMessage, fillAmount } =
+            deserializeLayout(fastFillLayout, new Uint8Array(payload));
 
-        const fillAmount = buf.readBigUInt64BE(0);
-        const sourceChain = buf.readUInt16BE(8);
-        const orderSender = buf.subarray(10, 42);
-        const redeemer = buf.subarray(42, 74);
-        const redeemerMsgLen = buf.readUInt16BE(74);
-        const redeemerMessage = buf.subarray(76, 76 + redeemerMsgLen);
-
-        return new FastFill(sourceChain, orderSender, redeemer, redeemerMessage, fillAmount);
+        return new FastFill(
+            toChainId(sourceChain),
+            Buffer.from(orderSender.toUint8Array()),
+            Buffer.from(redeemer.toUint8Array()),
+            Buffer.from(redeemerMessage),
+            fillAmount,
+        );
     }
 }
 
@@ -253,20 +261,7 @@ export class FastMarketOrder {
     }
 
     static decode(payload: Buffer): FastMarketOrder {
-        const buf = takePayloadId(payload, this.ID);
-
-        const amountIn = buf.readBigUInt64BE(0);
-        const minAmountOut = buf.readBigUInt64BE(8);
-        const targetChain = buf.readUInt16BE(16);
-        const redeemer = buf.subarray(18, 50);
-        const sender = buf.subarray(50, 82);
-        const refundAddress = buf.subarray(82, 114);
-        const maxFee = buf.readBigUInt64BE(114);
-        const initAuctionFee = buf.readBigUInt64BE(122);
-        const deadline = buf.readUInt32BE(130);
-        const redeemerMsgLen = buf.readUInt16BE(134);
-        const redeemerMessage = buf.subarray(136, 136 + redeemerMsgLen);
-        return new FastMarketOrder(
+        const {
             amountIn,
             minAmountOut,
             targetChain,
@@ -277,6 +272,19 @@ export class FastMarketOrder {
             initAuctionFee,
             deadline,
             redeemerMessage,
+        } = deserializeLayout(fastMarketOrderLayout, new Uint8Array(payload));
+
+        return new FastMarketOrder(
+            amountIn,
+            minAmountOut,
+            toChainId(targetChain),
+            Buffer.from(redeemer.toUint8Array()),
+            Buffer.from(sender.toUint8Array()),
+            Buffer.from(refundAddress.toUint8Array()),
+            maxFee,
+            initAuctionFee,
+            deadline,
+            Buffer.from(redeemerMessage),
         );
     }
 }
@@ -293,18 +301,7 @@ export class SlowOrderResponse {
     }
 
     static decode(payload: Buffer): SlowOrderResponse {
-        const buf = takePayloadId(payload, this.ID);
-
-        const baseFee = BigInt(ethers.BigNumber.from(buf.subarray(0, 16)).toString());
-
-        return new SlowOrderResponse(baseFee);
+        const deser = deserializeLayout(slowOrderResponseLayout, new Uint8Array(payload));
+        return new SlowOrderResponse(deser.baseFee);
     }
-}
-
-function takePayloadId(buf: Buffer, expectedId: number): Buffer {
-    if (buf.readUInt8(0) != expectedId) {
-        throw new Error("Invalid payload ID");
-    }
-
-    return buf.subarray(1);
 }

@@ -1,12 +1,13 @@
 {
-  "name": "@wormhole-foundation/liquidity-layer",
+  "name": "@wormhole-foundation/example-liquidity-layer",
   "version": "0.0.1",
   "author": "Wormhole Contributors",
   "license": "Apache-2.0",
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "generate":"npm run generate --workspaces --if-present",
-    "pack":"npm run build && npm pack --workspaces"
+    "pack":"npm run build && npm pack --workspaces",
+    "build:universal":"npm run build --workspace universal/ts"
   },
   "dependencies": {
     "@wormhole-foundation/sdk":"0.6.8"
@@ -15,6 +16,7 @@
     "typescript": "^5.4.5"
   },
   "workspaces": [
+    "universal/ts",
     "evm",
     "solana"
   ]
