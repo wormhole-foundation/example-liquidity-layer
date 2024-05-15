@@ -1,12 +1,6 @@
-import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { FastFillSeeds } from "./FastFill";
 import { VaaHash } from "../../common";
-
-export type FastFillInfo = {
-    amount: BN;
-    redeemer: PublicKey;
-};
+import { FastFillSeeds } from "./FastFill";
 
 export type ReservedFastFillSequenceSeeds = {
     fastVaaHash: Array<number>;

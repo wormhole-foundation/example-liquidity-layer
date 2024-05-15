@@ -4,8 +4,10 @@ import { Uint64, writeUint64BE } from "../../common";
 import { ChainId } from "@wormhole-foundation/sdk";
 
 export type FastFillInfo = {
+    preparedBy: PublicKey;
     amount: BN;
     redeemer: PublicKey;
+    timestamp: BN;
 };
 
 export type FastFillSeeds = {
@@ -17,20 +19,17 @@ export type FastFillSeeds = {
 
 export class FastFill {
     seeds: FastFillSeeds;
-    preparedBy: PublicKey;
     redeemed: boolean;
     info: FastFillInfo;
     redeemerMessage: Buffer;
 
     constructor(
         seeds: FastFillSeeds,
-        preparedBy: PublicKey,
         redeemed: boolean,
         info: FastFillInfo,
         redeemerMessage: Buffer,
     ) {
         this.seeds = seeds;
-        this.preparedBy = preparedBy;
         this.redeemed = redeemed;
         this.info = info;
         this.redeemerMessage = redeemerMessage;

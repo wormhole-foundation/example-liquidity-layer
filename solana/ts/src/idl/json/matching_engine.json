@@ -3360,7 +3360,7 @@
             "docs": [
               "Length of the redeemer message, which may impact the expense to execute the auction."
             ],
-            "type": "u32"
+            "type": "u16"
           },
           {
             "name": "destination_asset_info",
@@ -3556,7 +3556,7 @@
           },
           {
             "name": "redeemer_message_len",
-            "type": "u32"
+            "type": "u16"
           },
           {
             "name": "end_slot",
@@ -3733,10 +3733,6 @@
             }
           },
           {
-            "name": "prepared_by",
-            "type": "pubkey"
-          },
-          {
             "name": "redeemed",
             "type": "bool"
           },
@@ -3761,12 +3757,20 @@
         "kind": "struct",
         "fields": [
           {
+            "name": "prepared_by",
+            "type": "pubkey"
+          },
+          {
             "name": "amount",
             "type": "u64"
           },
           {
             "name": "redeemer",
             "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }

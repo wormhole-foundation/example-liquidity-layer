@@ -3366,7 +3366,7 @@ export type MatchingEngine = {
             "docs": [
               "Length of the redeemer message, which may impact the expense to execute the auction."
             ],
-            "type": "u32"
+            "type": "u16"
           },
           {
             "name": "destinationAssetInfo",
@@ -3562,7 +3562,7 @@ export type MatchingEngine = {
           },
           {
             "name": "redeemerMessageLen",
-            "type": "u32"
+            "type": "u16"
           },
           {
             "name": "endSlot",
@@ -3739,10 +3739,6 @@ export type MatchingEngine = {
             }
           },
           {
-            "name": "preparedBy",
-            "type": "pubkey"
-          },
-          {
             "name": "redeemed",
             "type": "bool"
           },
@@ -3767,12 +3763,20 @@ export type MatchingEngine = {
         "kind": "struct",
         "fields": [
           {
+            "name": "preparedBy",
+            "type": "pubkey"
+          },
+          {
             "name": "amount",
             "type": "u64"
           },
           {
             "name": "redeemer",
             "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }

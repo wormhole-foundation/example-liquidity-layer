@@ -47,6 +47,7 @@ import {
     waitUntilSlot,
 } from "../src/testing";
 import { Chain, ChainId, toChainId, toUniversal } from "@wormhole-foundation/sdk";
+import { BN } from "@coral-xyz/anchor";
 
 chaiUse(chaiAsPromised);
 
@@ -1309,6 +1310,7 @@ describe("Matching Engine <> Token Router", function () {
         const fastFill = matchingEngine.fastFillAddress(sourceChain, sender, sequence);
         const fastFillData = await matchingEngine.fetchFastFill({ address: fastFill });
         const { seeds } = fastFillData;
+
         expect(fastFillData).to.eql(
             new matchingEngineSdk.FastFill(
                 {
@@ -1322,6 +1324,7 @@ describe("Matching Engine <> Token Router", function () {
                 {
                     amount: uint64ToBN(amountIn - baseFee - initAuctionFee),
                     redeemer: new PublicKey(redeemer),
+                    timestamp: new BN(txDetails!.blockTime!, 10, "be"),
                 },
                 redeemerMessage,
             ),
@@ -1441,6 +1444,7 @@ describe("Matching Engine <> Token Router", function () {
         const fastFill = matchingEngine.fastFillAddress(sourceChain, sender, sequence);
         const fastFillData = await matchingEngine.fetchFastFill({ address: fastFill });
         const { seeds } = fastFillData;
+
         expect(fastFillData).to.eql(
             new matchingEngineSdk.FastFill(
                 {
@@ -1454,6 +1458,7 @@ describe("Matching Engine <> Token Router", function () {
                 {
                     amount: uint64ToBN(userAmount),
                     redeemer: new PublicKey(redeemer),
+                    timestamp: new BN(txDetails!.blockTime!, 10, "be"),
                 },
                 redeemerMessage,
             ),

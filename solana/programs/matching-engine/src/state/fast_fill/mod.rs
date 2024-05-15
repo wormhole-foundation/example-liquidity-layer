@@ -9,8 +9,10 @@ use common::messages::Fill;
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace)]
 pub struct FastFillInfo {
+    pub prepared_by: Pubkey,
     pub amount: u64,
     pub redeemer: Pubkey,
+    pub timestamp: i64,
 }
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, Copy, InitSpace)]
@@ -25,7 +27,6 @@ pub struct FastFillSeeds {
 #[derive(Debug)]
 pub struct FastFill {
     pub seeds: FastFillSeeds,
-    pub prepared_by: Pubkey,
     pub redeemed: bool,
     pub info: FastFillInfo,
     pub redeemer_message: Vec<u8>,
@@ -37,7 +38,6 @@ impl FastFill {
     pub(crate) fn checked_compute_size(redeemer_message_len: usize) -> Option<usize> {
         const FIXED: usize = 8 // DISCRIMINATOR
         + FastFillSeeds::INIT_SPACE
-        + 32 // prepared_by
         + 1 // redeemed
         + FastFillInfo::INIT_SPACE
         + 4 // redeemer_message len
@@ -62,11 +62,12 @@ impl FastFill {
                 sequence,
                 bump,
             },
-            prepared_by,
             redeemed: Default::default(),
             info: FastFillInfo {
+                prepared_by,
                 amount,
                 redeemer: Pubkey::from(redeemer),
+                timestamp: Clock::get().unwrap().unix_timestamp,
             },
             redeemer_message: redeemer_message.into(),
         }

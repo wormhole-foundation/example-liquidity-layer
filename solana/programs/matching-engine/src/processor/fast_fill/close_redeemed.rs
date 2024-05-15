@@ -9,7 +9,7 @@ pub struct CloseRedeemedFastFill<'info> {
     /// CHECK: Must equal the `prepared_by` field of the `fast_fill` account.
     #[account(
         mut,
-        address = fast_fill.prepared_by,
+        address = fast_fill.info.prepared_by,
     )]
     prepared_by: UncheckedAccount<'info>,
 

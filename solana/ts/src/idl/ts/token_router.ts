@@ -1319,6 +1319,10 @@ export type TokenRouter = {
           {
             "name": "redeemer",
             "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }
