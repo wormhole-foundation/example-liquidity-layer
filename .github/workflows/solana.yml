@@ -75,3 +75,19 @@ jobs:
       - name: make anchor-test
         run: make anchor-test
         working-directory: ./solana
+  make-anchor-test-upgrade:
+    name: make anchor-test-upgrade
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: metadaoproject/setup-anchor@v2
+        with:
+          node-version: "20.11.0"
+          solana-cli-version: "1.18.11"
+          anchor-version: "0.30.0"
+      - name: Set default Rust toolchain
+        run: rustup default stable
+        working-directory: ./solana
+      - name: make anchor-test-upgrade
+        run: make anchor-test-upgrade
+        working-directory: ./solana

@@ -31,7 +31,8 @@ cluster = "Localnet"
 wallet = "ts/tests/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json"
 
 [scripts]
-test = "npx ts-mocha -p ./tsconfig.anchor.json -t 1000000 --bail --exit ts/tests/[0-9]*.ts"
+test-local = "npx ts-mocha -p ./tsconfig.anchor.json -t 1000000 --bail --exit ts/tests/0[0-9]*.ts"
+test-upgrade-fork = "npx ts-mocha -p ./tsconfig.anchor.json -t 1000000 --bail --exit ts/tests/1[0-9]*.ts"
 
 [test]
 startup_wait = 20000

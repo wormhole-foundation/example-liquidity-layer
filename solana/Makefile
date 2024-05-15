@@ -25,10 +25,8 @@ clean:
 	anchor clean
 	rm -rf node_modules artifacts-mainnet artifacts-testnet artifacts-localnet ts/tests/artifacts
 
-node_modules: ../node_modules
-
-../node_modules:
-	cd .. && npm ci && npm run build:universal
+node_modules:
+	cd .. && $(MAKE) clean-install && $(MAKE) build
 
 .PHONY: cargo-test
 cargo-test:
@@ -49,10 +47,6 @@ endif
 
 .PHONY: anchor-test-setup
 anchor-test-setup: node_modules ts/tests/artifacts $(CLONED_MAINNET_PROGRAMS)
-	anchor build --no-idl -- --features testnet
-	cp target/deploy/matching_engine.so ts/tests/artifacts/new_testnet_matching_engine.so
-	cp target/deploy/token_router.so ts/tests/artifacts/new_testnet_token_router.so
-	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
 	anchor build -- --features integration-test
 
 .PHONY: idl
@@ -68,7 +62,16 @@ $(BUILD_$(NETWORK)): cargo-test
 
 .PHONY: anchor-test
 anchor-test: anchor-test-setup
+	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
 	bash sh/run_anchor_test.sh
+
+.PHONY: anchor-test-upgrade
+anchor-test-upgrade: node_modules ts/tests/artifacts $(CLONED_MAINNET_PROGRAMS)
+	anchor build -- --features testnet
+	cp target/deploy/matching_engine.so ts/tests/artifacts/new_testnet_matching_engine.so
+	cp target/deploy/token_router.so ts/tests/artifacts/new_testnet_token_router.so
+	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
+	bash sh/run_anchor_test_upgrade.sh
 
 .PHONY: clippy
 clippy:
