@@ -1279,10 +1279,6 @@
             }
           },
           {
-            "name": "prepared_by",
-            "type": "pubkey"
-          },
-          {
             "name": "redeemed",
             "type": "bool"
           },
@@ -1306,6 +1302,10 @@
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "prepared_by",
+            "type": "pubkey"
+          },
           {
             "name": "amount",
             "type": "u64"
@@ -1541,6 +1541,10 @@
           {
             "name": "redeemer",
             "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }

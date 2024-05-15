@@ -1285,10 +1285,6 @@ export type TokenRouter = {
             }
           },
           {
-            "name": "preparedBy",
-            "type": "pubkey"
-          },
-          {
             "name": "redeemed",
             "type": "bool"
           },
@@ -1312,6 +1308,10 @@ export type TokenRouter = {
       "type": {
         "kind": "struct",
         "fields": [
+          {
+            "name": "preparedBy",
+            "type": "pubkey"
+          },
           {
             "name": "amount",
             "type": "u64"
@@ -1547,6 +1547,10 @@ export type TokenRouter = {
           {
             "name": "redeemer",
             "type": "pubkey"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
           }
         ]
       }

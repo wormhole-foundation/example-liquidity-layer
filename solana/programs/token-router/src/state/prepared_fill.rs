@@ -24,6 +24,7 @@ pub struct PreparedFillInfo {
     pub source_chain: u16,
     pub order_sender: [u8; 32],
     pub redeemer: Pubkey,
+    pub timestamp: i64,
 }
 
 #[account]
@@ -40,12 +41,7 @@ impl PreparedFill {
     pub fn checked_compute_size(payload_len: usize) -> Option<usize> {
         const FIXED: usize = 8 // DISCRIMINATOR
             + PreparedFillSeeds::INIT_SPACE
-            + 1 // prepared_custody_token_bump
-            + 32 // prepared_by
-            + FillType::INIT_SPACE
-            + 2 // source_chain
-            + 32 // order_sender
-            + 32 // redeemer
+            + PreparedFillInfo::INIT_SPACE
             + 4 // payload len
         ;
 

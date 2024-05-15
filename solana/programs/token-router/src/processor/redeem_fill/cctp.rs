@@ -262,6 +262,7 @@ fn handle_redeem_fill_cctp(ctx: Context<RedeemCctpFill>, args: CctpMessageArgs) 
             fill_type: FillType::WormholeCctpDeposit,
             source_chain: fill.source_chain(),
             order_sender: fill.order_sender(),
+            timestamp: vaa.timestamp().into(),
         },
         redeemer_message: fill.message_to_vec(),
     });
