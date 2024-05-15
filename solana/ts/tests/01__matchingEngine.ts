@@ -16,11 +16,8 @@ import { use as chaiUse, expect } from "chai";
 import chaiAsPromised from "chai-as-promised";
 import { CctpTokenBurnMessage } from "../src/cctp";
 import {
-    FastMarketOrder,
-    Fill,
     LiquidityLayerDeposit,
     LiquidityLayerMessage,
-    SlowOrderResponse,
     uint64ToBN,
     uint64ToBigInt,
 } from "../src/common";
@@ -56,10 +53,23 @@ import {
     getBlockTime,
     getUsdcAtaBalance,
     postLiquidityLayerVaa,
+    toUniversalAddress,
     waitUntilSlot,
     waitUntilTimestamp,
 } from "../src/testing";
-import { Chain, ChainId, toChain, toChainId, toUniversal } from "@wormhole-foundation/sdk";
+import {
+    SlowOrderResponse,
+    Fill,
+    FastMarketOrder,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
+import {
+    Chain,
+    ChainId,
+    UniversalAddress,
+    toChain,
+    toChainId,
+    toUniversal,
+} from "@wormhole-foundation/sdk";
 
 chaiUse(chaiAsPromised);
 
@@ -1359,10 +1369,10 @@ describe("Matching Engine", function () {
         const baseFastOrder: FastMarketOrder = {
             amountIn: 50000000000n,
             minAmountOut: 0n,
-            targetChain: arbChain,
-            redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
-            sender: Array.from(Buffer.alloc(32, "beefdead", "hex")),
-            refundAddress: Array.from(Buffer.alloc(32, "beef", "hex")),
+            targetChain: toChain(arbChain),
+            redeemer: toUniversalAddress(Buffer.alloc(32, "deadbeef", "hex")),
+            sender: toUniversalAddress(Buffer.alloc(32, "beefdead", "hex")),
+            refundAddress: toUniversalAddress(Buffer.alloc(32, "beef", "hex")),
             maxFee: 1000000n,
             initAuctionFee: 100n,
             deadline: 0,
@@ -1407,7 +1417,9 @@ describe("Matching Engine", function () {
                         payer: playerOne.publicKey,
                         fastVaa,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
-                        toRouterEndpoint: engine.routerEndpointAddress(fastMarketOrder.targetChain),
+                        toRouterEndpoint: engine.routerEndpointAddress(
+                            toChainId(fastMarketOrder.targetChain),
+                        ),
                         auction,
                     },
                     { offerPrice: fast.fastMarketOrder.maxFee, totalDeposit },
@@ -1590,19 +1602,20 @@ describe("Matching Engine", function () {
                     new LiquidityLayerMessage({
                         deposit: new LiquidityLayerDeposit(
                             {
-                                tokenAddress: new Array(32).fill(69),
+                                tokenAddress: toUniversalAddress(Array(32).fill(69)),
                                 amount: 1000n,
                                 sourceCctpDomain: 69,
                                 destinationCctpDomain: 69,
                                 cctpNonce: 6969n,
-                                burnSource: new Array(32).fill(69),
-                                mintRecipient: new Array(32).fill(69),
+                                burnSource: toUniversalAddress(new Array(32).fill(69)),
+                                mintRecipient: toUniversalAddress(Array(32).fill(69)),
+                                payload: new Uint8Array(),
                             },
                             {
                                 fill: {
-                                    sourceChain: ethChain,
-                                    orderSender: Array.from(baseFastOrder.sender),
-                                    redeemer: Array.from(baseFastOrder.redeemer),
+                                    sourceChain: toChain(ethChain),
+                                    orderSender: baseFastOrder.sender,
+                                    redeemer: baseFastOrder.redeemer,
                                     redeemerMessage: baseFastOrder.redeemerMessage,
                                 },
                             },
@@ -1719,7 +1732,7 @@ describe("Matching Engine", function () {
                         finalized: false,
                         fastMarketOrder: {
                             ...baseFastOrder,
-                            targetChain: toChainId("Acala"),
+                            targetChain: "Acala",
                         },
                         errorMsg: "Error Code: InvalidTargetRouter",
                     },
@@ -3352,7 +3365,7 @@ describe("Matching Engine", function () {
 
                 const {
                     protocol: { cctp },
-                } = await engine.fetchRouterEndpointInfo(targetChain);
+                } = await engine.fetchRouterEndpointInfo(toChainId(targetChain));
                 expect(cctp).is.not.undefined;
 
                 const {
@@ -3365,10 +3378,10 @@ describe("Matching Engine", function () {
                 expect(actualAmount).equals(userAmount);
                 expect(destinationCctpDomain).equals(cctp!.domain);
 
-                const sourceChain = toChainId(fromChainName);
+                const sourceChain = fromChainName;
                 const { mintRecipient: expectedMintRecipient } =
                     await engine.fetchRouterEndpointInfo(toChainId(toChainName));
-                expect(mintRecipient).to.eql(expectedMintRecipient);
+                expect(Array.from(mintRecipient.toUint8Array())).to.eql(expectedMintRecipient);
 
                 const expectedFill: Fill = {
                     sourceChain,
@@ -4685,7 +4698,9 @@ describe("Matching Engine", function () {
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
 
-        const toEndpoint = await engine.fetchRouterEndpointInfo(fastMarketOrder!.targetChain);
+        const toEndpoint = await engine.fetchRouterEndpointInfo(
+            toChainId(fastMarketOrder!.targetChain),
+        );
 
         expect(preparedOrderResponseData).to.eql(
             new PreparedOrderResponse(
@@ -4699,12 +4714,12 @@ describe("Matching Engine", function () {
                     sourceChain: fastVaaAccount.emitterInfo().chain,
                     baseFee: uint64ToBN(deposit!.message.slowOrderResponse!.baseFee),
                     initAuctionFee: uint64ToBN(fastMarketOrder!.initAuctionFee),
-                    sender: fastMarketOrder!.sender,
-                    redeemer: fastMarketOrder!.redeemer,
+                    sender: Array.from(fastMarketOrder!.sender.toUint8Array()),
+                    redeemer: Array.from(fastMarketOrder!.redeemer.toUint8Array()),
                     amountIn: uint64ToBN(fastMarketOrder!.amountIn),
                 },
                 toEndpoint,
-                fastMarketOrder!.redeemerMessage,
+                Buffer.from(fastMarketOrder!.redeemerMessage),
             ),
         );
         if (preparedOrderResponseBefore) {
@@ -5048,10 +5063,10 @@ describe("Matching Engine", function () {
         return {
             amountIn: amountIn ?? 1_000_000_000n,
             minAmountOut: minAmountOut ?? 0n,
-            targetChain: toChainId(targetChain ?? "Arbitrum"),
-            redeemer: new Array(32).fill(1),
-            sender: new Array(32).fill(2),
-            refundAddress: new Array(32).fill(3),
+            targetChain: targetChain ?? "Arbitrum",
+            redeemer: toUniversalAddress(new Array(32).fill(1)),
+            sender: toUniversalAddress(new Array(32).fill(2)),
+            refundAddress: toUniversalAddress(new Array(32).fill(3)),
             maxFee: maxFee ?? 42069n,
             initAuctionFee: initAuctionFee ?? 1_250_000n,
             deadline: deadline ?? 0,
@@ -5151,13 +5166,16 @@ describe("Matching Engine", function () {
             const finalizedMessage = new LiquidityLayerMessage({
                 deposit: new LiquidityLayerDeposit(
                     {
-                        tokenAddress: burnMessage.burnTokenAddress,
+                        tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
                         amount,
                         sourceCctpDomain,
                         destinationCctpDomain,
                         cctpNonce,
-                        burnSource: Array.from(Buffer.alloc(32, "beefdead", "hex")),
-                        mintRecipient: Array.from(engine.cctpMintRecipientAddress().toBuffer()),
+                        burnSource: toUniversalAddress(Buffer.alloc(32, "beefdead", "hex")),
+                        mintRecipient: toUniversalAddress(
+                            engine.cctpMintRecipientAddress().toBuffer(),
+                        ),
+                        payload: new Uint8Array(),
                     },
                     {
                         slowOrderResponse,

@@ -26,8 +26,15 @@ import {
     expectIxErr,
     expectIxOk,
     postLiquidityLayerVaa,
+    toUniversalAddress,
 } from "../src/testing";
-import { ChainId, toChainId, toUniversal } from "@wormhole-foundation/sdk";
+import {
+    ChainId,
+    UniversalAddress,
+    toChain,
+    toChainId,
+    toUniversal,
+} from "@wormhole-foundation/sdk";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 
 const SOLANA_CHAIN_ID = toChainId("Solana");
@@ -1159,19 +1166,20 @@ describe("Token Router", function () {
                     new LiquidityLayerMessage({
                         deposit: new LiquidityLayerDeposit(
                             {
-                                tokenAddress: Array.from(USDC_MINT_ADDRESS.toBuffer()),
+                                tokenAddress: toUniversalAddress(USDC_MINT_ADDRESS.toBuffer()),
                                 amount: amountIn,
                                 sourceCctpDomain,
                                 destinationCctpDomain,
                                 cctpNonce,
-                                burnSource: Array.from(burnSource.toBuffer()),
-                                mintRecipient: foreignEndpointAddress,
+                                burnSource: toUniversalAddress(burnSource.toBuffer()),
+                                mintRecipient: toUniversalAddress(foreignEndpointAddress),
+                                payload: new Uint8Array(),
                             },
                             {
                                 fill: {
-                                    sourceChain: SOLANA_CHAIN_ID,
-                                    orderSender: Array.from(payer.publicKey.toBuffer()),
-                                    redeemer,
+                                    sourceChain: toChain(SOLANA_CHAIN_ID),
+                                    orderSender: toUniversalAddress(payer.publicKey.toBuffer()),
+                                    redeemer: toUniversalAddress(redeemer),
                                     redeemerMessage,
                                 },
                             },
@@ -1217,19 +1225,20 @@ describe("Token Router", function () {
                 const message = new LiquidityLayerMessage({
                     deposit: new LiquidityLayerDeposit(
                         {
-                            tokenAddress: burnMessage.burnTokenAddress,
+                            tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
                             amount,
                             sourceCctpDomain,
                             destinationCctpDomain,
                             cctpNonce,
-                            burnSource,
-                            mintRecipient: encodedMintRecipient,
+                            burnSource: toUniversalAddress(burnSource),
+                            mintRecipient: toUniversalAddress(encodedMintRecipient),
+                            payload: new Uint8Array(),
                         },
                         {
                             fill: {
-                                sourceChain: foreignChain,
-                                orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
-                                redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                                sourceChain: toChain(foreignChain),
+                                orderSender: toUniversalAddress(Buffer.alloc(32, "d00d", "hex")),
+                                redeemer: toUniversalAddress(redeemer.publicKey.toBuffer()),
                                 redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                             },
                         },
@@ -1294,19 +1303,20 @@ describe("Token Router", function () {
                 const message = new LiquidityLayerMessage({
                     deposit: new LiquidityLayerDeposit(
                         {
-                            tokenAddress: burnMessage.burnTokenAddress,
+                            tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
                             amount,
                             sourceCctpDomain,
                             destinationCctpDomain,
                             cctpNonce,
-                            burnSource,
-                            mintRecipient: encodedMintRecipient,
+                            burnSource: toUniversalAddress(burnSource),
+                            mintRecipient: toUniversalAddress(encodedMintRecipient),
+                            payload: new Uint8Array(),
                         },
                         {
                             fill: {
-                                sourceChain: foreignChain,
-                                orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
-                                redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                                sourceChain: toChain(foreignChain),
+                                orderSender: toUniversalAddress(Buffer.alloc(32, "d00d", "hex")),
+                                redeemer: toUniversalAddress(redeemer.publicKey.toBuffer()),
                                 redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                             },
                         },
@@ -1367,13 +1377,14 @@ describe("Token Router", function () {
                 const message = new LiquidityLayerMessage({
                     deposit: new LiquidityLayerDeposit(
                         {
-                            tokenAddress: burnMessage.burnTokenAddress,
+                            tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
                             amount,
                             sourceCctpDomain,
                             destinationCctpDomain,
                             cctpNonce,
-                            burnSource,
-                            mintRecipient: encodedMintRecipient,
+                            burnSource: toUniversalAddress(burnSource),
+                            mintRecipient: toUniversalAddress(encodedMintRecipient),
+                            payload: new Uint8Array(),
                         },
                         {
                             slowOrderResponse: {
@@ -1441,13 +1452,14 @@ describe("Token Router", function () {
                 const message = new LiquidityLayerMessage({
                     deposit: new LiquidityLayerDeposit(
                         {
-                            tokenAddress: burnMessage.burnTokenAddress,
+                            tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
                             amount,
                             sourceCctpDomain,
                             destinationCctpDomain,
                             cctpNonce,
-                            burnSource,
-                            mintRecipient: encodedMintRecipient,
+                            burnSource: toUniversalAddress(burnSource),
+                            mintRecipient: toUniversalAddress(encodedMintRecipient),
+                            payload: new Uint8Array(),
                         },
                         {
                             slowOrderResponse: {
@@ -1518,19 +1530,20 @@ describe("Token Router", function () {
                 const message = new LiquidityLayerMessage({
                     deposit: new LiquidityLayerDeposit(
                         {
-                            tokenAddress: burnMessage.burnTokenAddress,
+                            tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
                             amount,
                             sourceCctpDomain,
                             destinationCctpDomain,
                             cctpNonce,
-                            burnSource,
-                            mintRecipient: encodedMintRecipient,
+                            burnSource: toUniversalAddress(burnSource),
+                            mintRecipient: toUniversalAddress(encodedMintRecipient),
+                            payload: new Uint8Array(),
                         },
                         {
                             fill: {
-                                sourceChain: foreignChain,
-                                orderSender: Array.from(Buffer.alloc(32, "d00d", "hex")),
-                                redeemer: Array.from(redeemer.publicKey.toBuffer()),
+                                sourceChain: toChain(foreignChain),
+                                orderSender: toUniversalAddress(Buffer.alloc(32, "d00d", "hex")),
+                                redeemer: toUniversalAddress(redeemer.publicKey.toBuffer()),
                                 redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                             },
                         },

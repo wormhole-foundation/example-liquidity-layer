@@ -60,7 +60,8 @@ export class LiquidityLayerDeposit {
             message: { fill, slowOrderResponse },
         } = this;
 
-        const payload = (() => {
+        // @ts-ignore -- payload is readonly
+        header.payload = (() => {
             if (fill !== undefined) {
                 return serializeLayout(fillLayout, fill);
             } else if (slowOrderResponse !== undefined) {

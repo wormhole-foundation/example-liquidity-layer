@@ -39,12 +39,12 @@ export const slowOrderResponseLayout = [
 
 export const cctpDepositLayout = [
     payloadId("CCTP_DEPOSIT"),
-    { name: "token", ...layoutItems.universalAddressItem },
+    { name: "tokenAddress", ...layoutItems.universalAddressItem },
     { name: "amount", ...layoutItems.amountItem },
-    { name: "sourceDomain", ...layoutItems.circleDomainItem },
-    { name: "targetDomain", ...layoutItems.circleDomainItem },
-    { name: "nonce", ...layoutItems.circleNonceItem },
-    { name: "fromAddress", ...layoutItems.universalAddressItem },
+    { name: "sourceCctpDomain", ...layoutItems.circleDomainItem },
+    { name: "destinationCctpDomain", ...layoutItems.circleDomainItem },
+    { name: "cctpNonce", ...layoutItems.circleNonceItem },
+    { name: "burnSource", ...layoutItems.universalAddressItem },
     { name: "mintRecipient", ...layoutItems.universalAddressItem },
     { name: "payload", binary: "bytes", lengthSize: 2 },
 ] as const satisfies Layout;

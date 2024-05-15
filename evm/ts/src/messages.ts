@@ -46,24 +46,24 @@ export class WormholeCctpDepositHeader {
 
     static decode(buf: Buffer): [WormholeCctpDepositHeader, Buffer] {
         const {
-            token,
+            tokenAddress,
             amount,
-            sourceDomain,
-            targetDomain,
-            nonce,
-            fromAddress,
+            sourceCctpDomain,
+            destinationCctpDomain,
+            cctpNonce,
+            burnSource,
             mintRecipient,
             payload,
         } = deserializeLayout(cctpDepositLayout, new Uint8Array(buf));
 
         return [
             new WormholeCctpDepositHeader(
-                token.toUint8Array(),
+                tokenAddress.toUint8Array(),
                 amount,
-                sourceDomain,
-                targetDomain,
-                nonce,
-                fromAddress.toUint8Array(),
+                sourceCctpDomain,
+                destinationCctpDomain,
+                cctpNonce,
+                burnSource.toUint8Array(),
                 mintRecipient.toUint8Array(),
             ),
             Buffer.from(payload),
