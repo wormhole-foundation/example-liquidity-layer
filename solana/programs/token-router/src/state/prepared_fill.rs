@@ -15,15 +15,30 @@ pub struct PreparedFillSeeds {
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub struct PreparedFillInfo {
+    /// Bump seed for the custody token account associated with [PreparedFill].
     pub prepared_custody_token_bump: u8,
 
+    /// Who paid the lamports to create the [PreparedFill] account.
     pub prepared_by: Pubkey,
 
+    /// NOTE: If [FillType::Unset], the [PreparedFill] account is invalid.
     pub fill_type: FillType,
 
+    /// Wormhole chain ID reflecting where the order was created.
     pub source_chain: u16,
+
+    /// Universal address of the order sender.
     pub order_sender: [u8; 32],
+
+    /// Authority allowed to redeem [PreparedFill].
     pub redeemer: Pubkey,
+
+    /// Timestamp at the time a fill was issued. This time will either be a VAA time for a direct
+    /// fill from another Token Router or timestamp from [matching_engine::state::FastFill] as a
+    /// result of a market order.
+    ///
+    /// NOTE: This timestamp is not used by the Token Router. It only provides more information for
+    /// an integrator so he can perform special handling based on when the fill happened.
     pub timestamp: i64,
 }
 
