@@ -3,7 +3,7 @@
 ### I really hope this is just a temporary script. We cannot specify clone-upgradable-programs in
 ### Anchor.toml, so we need to clone the upgradeable programs manually.
 
-bash $(dirname $0)/run_test_validator.sh
+bash $(dirname $0)/run_test_validator.sh 16
 
 ### Start up wait.
 sleep 10

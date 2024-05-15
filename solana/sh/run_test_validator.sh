@@ -98,7 +98,7 @@ solana-test-validator \
     --rpc-port \
     8899 \
     --ticks-per-slot \
-    16 \
+    $1 \
     --url \
     https://api.devnet.solana.com > /dev/null 2>&1 &
 
