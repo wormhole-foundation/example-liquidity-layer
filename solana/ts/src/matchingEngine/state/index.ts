@@ -8,4 +8,3 @@ export * from "./PreparedOrderResponse";
 export * from "./Proposal";
 export * from "./ReservedFastFillSequence";
 export * from "./RouterEndpoint";
-export { FastFillInfo } from "./ReservedFastFillSequence";
