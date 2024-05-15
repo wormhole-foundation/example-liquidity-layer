@@ -77,7 +77,7 @@ describe("Matching Engine <> Token Router", function () {
     const fastFillRedeemer = Keypair.generate();
 
     let lookupTableAddress: PublicKey;
-    const ethRouter = REGISTERED_TOKEN_ROUTERS["ethereum"]!;
+    const ethRouter = REGISTERED_TOKEN_ROUTERS["Ethereum"]!;
 
     let testCctpNonce = 2n ** 64n - 1n;
 

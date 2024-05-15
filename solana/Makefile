@@ -28,7 +28,7 @@ clean:
 node_modules: ../node_modules
 
 ../node_modules:
-	cd .. && npm ci
+	cd .. && npm ci && npm run build:universal
 
 .PHONY: cargo-test
 cargo-test:
