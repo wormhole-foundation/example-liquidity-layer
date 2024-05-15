@@ -5,6 +5,7 @@ export const payloadIds = {
     CCTP_DEPOSIT: 1,
     // 2-10 are reserved for future use
     FAST_MARKET_ORDER: 11,
+    FAST_FILL: 12,
 
     // Payloads contained within the deposit payload
     FILL: 1,
@@ -16,6 +17,15 @@ const payloadId = (p: Payload) => layoutItems.payloadIdItem(payloadIds[p]);
 
 export const fillLayout = [
     payloadId("FILL"),
+    { name: "sourceChain", ...layoutItems.chainItem() },
+    { name: "orderSender", ...layoutItems.universalAddressItem },
+    { name: "redeemer", ...layoutItems.universalAddressItem },
+    { name: "redeemerMessage", binary: "bytes", lengthSize: 2 },
+] as const satisfies Layout;
+
+export const fastFillLayout = [
+    payloadId("FAST_FILL"),
+    { name: "fillAmount", binary: "uint", size: 8 },
     { name: "sourceChain", ...layoutItems.chainItem() },
     { name: "orderSender", ...layoutItems.universalAddressItem },
     { name: "redeemer", ...layoutItems.universalAddressItem },

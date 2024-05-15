@@ -132,7 +132,7 @@ export class LiquidityLayerTransactionResult {
                             "MessageSent(bytes message)",
                         ).message,
                     );
-                } else if (evmEmitterAddress == contractAddress) {
+                } else {
                     // Handles FastFills and FastMarketOrders.
                     const message = {
                         emitterAddress,

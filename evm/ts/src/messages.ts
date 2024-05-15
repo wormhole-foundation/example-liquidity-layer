@@ -4,6 +4,7 @@ import {
     fillLayout,
     slowOrderResponseLayout,
     cctpDepositLayout,
+    fastFillLayout,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 export const CCTP_DEPOSIT_PAYLOAD = 1;
@@ -72,6 +73,7 @@ export class WormholeCctpDepositHeader {
 
 export type LiquidityLayerMessageBody = {
     fill?: Fill;
+    fastFill?: FastFill;
     slowOrderResponse?: SlowOrderResponse;
     fastMarketOrder?: FastMarketOrder;
 };
@@ -101,6 +103,9 @@ export class MessageDecoder {
             }
             case SlowOrderResponse.ID: {
                 return { slowOrderResponse: SlowOrderResponse.decode(payload) };
+            }
+            case FastFill.ID: {
+                return { fastFill: FastFill.decode(payload) };
             }
             default: {
                 throw new Error(`Invalid payload ID: ${payloadId}`);
@@ -133,10 +138,9 @@ export class MessageDecoder {
     }
 
     static unsafeDecodeFastPayload(vaa: Buffer): CoreBridgeLiquidityLayerMessage {
-        const payload = Buffer.from(vaa);
         return {
             header: {},
-            body: this.decode(payload),
+            body: this.decode(vaa),
         };
     }
 }
@@ -173,6 +177,45 @@ export class Fill {
             Buffer.from(orderSender.toUint8Array()),
             Buffer.from(redeemer.toUint8Array()),
             Buffer.from(redeemerMessage),
+        );
+    }
+}
+
+export class FastFill {
+    sourceChain: number;
+    orderSender: Buffer;
+    redeemer: Buffer;
+    redeemerMessage: Buffer;
+    fillAmount: bigint;
+
+    constructor(
+        sourceChain: number,
+        orderSender: Buffer,
+        redeemer: Buffer,
+        redeemerMessage: Buffer,
+        fillAmount: bigint,
+    ) {
+        this.sourceChain = sourceChain;
+        this.orderSender = orderSender;
+        this.redeemer = redeemer;
+        this.redeemerMessage = redeemerMessage;
+        this.fillAmount = fillAmount;
+    }
+
+    static get ID(): number {
+        return 12;
+    }
+
+    static decode(payload: Buffer): FastFill {
+        const { sourceChain, orderSender, redeemer, redeemerMessage, fillAmount } =
+            deserializeLayout(fastFillLayout, new Uint8Array(payload));
+
+        return new FastFill(
+            toChainId(sourceChain),
+            Buffer.from(orderSender.toUint8Array()),
+            Buffer.from(redeemer.toUint8Array()),
+            Buffer.from(redeemerMessage),
+            fillAmount,
         );
     }
 }
