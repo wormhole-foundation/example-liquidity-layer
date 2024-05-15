@@ -14,7 +14,8 @@
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build": "npm run build:esm && npm run build:cjs",
-    "test:layouts":"npx ts-mocha  -p ./tsconfig.json tests/layouts.ts"
+    "test:layouts":"npx ts-mocha  -p ./tsconfig.json tests/layouts.ts",
+    "test":"npm run test:layouts"
   },
   "dependencies": {
     "@wormhole-foundation/sdk":"^0.6.8"
