@@ -82,7 +82,7 @@ pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
 
     // Emit event that the fast fill is redeemed. Listeners can close this account.
     emit!(crate::events::FastFillRedeemed {
-        prepared_by: ctx.accounts.fast_fill.prepared_by,
+        prepared_by: ctx.accounts.fast_fill.info.prepared_by,
         fast_fill: ctx.accounts.fast_fill.key(),
     });
 

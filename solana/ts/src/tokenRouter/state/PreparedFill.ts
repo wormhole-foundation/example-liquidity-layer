@@ -19,6 +19,7 @@ export type PreparedFillInfo = {
     sourceChain: number;
     orderSender: Array<number>;
     redeemer: PublicKey;
+    timestamp: BN;
 };
 
 export class PreparedFill {

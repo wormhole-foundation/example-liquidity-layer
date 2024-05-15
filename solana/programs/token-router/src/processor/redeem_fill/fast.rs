@@ -134,6 +134,7 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
             fill_type: FillType::FastFill,
             source_chain: fast_fill.seeds.source_chain,
             order_sender: fast_fill.seeds.order_sender,
+            timestamp: fast_fill.info.timestamp,
         },
         redeemer_message,
     });
