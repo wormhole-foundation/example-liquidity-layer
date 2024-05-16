@@ -26,8 +26,8 @@ pub enum TokenRouterError {
     AlreadyOwner = 0x204,
     NoTransferOwnershipRequest = 0x206,
     NotPendingOwner = 0x208,
-    MissingAuthority = 0x20a,
-    TooManyAuthorities = 0x20b,
+    EitherSenderOrProgramTransferAuthority = 0x20a,
+    DelegatedAmountMismatch = 0x20c,
 
     InsufficientAmount = 0x400,
     MinAmountOutTooHigh = 0x402,

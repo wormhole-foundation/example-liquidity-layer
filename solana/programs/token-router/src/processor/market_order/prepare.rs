@@ -18,7 +18,7 @@ pub struct PrepareMarketOrder<'info> {
     custodian: CheckedCustodian<'info>,
 
     /// The auction participant needs to set approval to this PDA if the sender (signer) is not
-    /// provided.
+    /// provided. The delegated amount must equal the amount in or this instruction will revert.
     ///
     /// CHECK: Seeds must be \["transfer-authority", prepared_order.key(), args.hash()\].
     #[account(
@@ -28,6 +28,15 @@ pub struct PrepareMarketOrder<'info> {
             &args.hash().0,
         ],
         bump,
+        constraint = {
+            require_eq!(
+                sender_token.delegated_amount,
+                args.amount_in,
+                TokenRouterError::DelegatedAmountMismatch,
+            );
+
+            true
+        }
     )]
     program_transfer_authority: Option<UncheckedAccount<'info>>,
 
@@ -210,7 +219,6 @@ pub fn prepare_market_order(
             ),
             amount_in,
         ),
-        (None, None) => err!(TokenRouterError::MissingAuthority),
-        (Some(_), Some(_)) => err!(TokenRouterError::TooManyAuthorities),
+        _ => err!(TokenRouterError::EitherSenderOrProgramTransferAuthority),
     }
 }
