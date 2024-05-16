@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 import { runOnEvms, ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract } from "../../helpers";
 import { MatchingEngineConfiguration } from "../../config/config-types";
 
-import { MatchingEngine__factory, ERC1967Upgrade__factory } from "../../contract-bindings";
+import { MatchingEngine__factory } from "../../contract-bindings";
 import { ERC1967Proxy__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 
 runOnEvms("deploy-matching-engine", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {

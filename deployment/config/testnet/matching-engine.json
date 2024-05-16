@@ -1,10 +1,62 @@
-{
-  "chainId": 1,
-  "ownerAssistant": "",
-  "feeRecipient": "",
-  "userPenaltyRewardBps": "",
-  "initialPenaltyBps": "",
-  "auctionDuration": "",
-  "auctionGracePeriod": "",
-  "auctionPenaltyBlocks": ""
-}
+[
+  {
+    "chainId": 2,
+    "ownerAssistant": "",
+    "feeRecipient": "",
+    "userPenaltyRewardBps": "",
+    "initialPenaltyBps": "",
+    "auctionDuration": "",
+    "auctionGracePeriod": "",
+    "auctionPenaltyBlocks": ""
+  },
+  {
+    "chainId": 5,
+    "ownerAssistant": "",
+    "feeRecipient": "",
+    "userPenaltyRewardBps": "",
+    "initialPenaltyBps": "",
+    "auctionDuration": "",
+    "auctionGracePeriod": "",
+    "auctionPenaltyBlocks": ""
+  },
+  {
+    "chainId": 6,
+    "ownerAssistant": "",
+    "feeRecipient": "",
+    "userPenaltyRewardBps": "",
+    "initialPenaltyBps": "",
+    "auctionDuration": "",
+    "auctionGracePeriod": "",
+    "auctionPenaltyBlocks": ""
+  },
+  {
+    "chainId": 23,
+    "ownerAssistant": "",
+    "feeRecipient": "",
+    "userPenaltyRewardBps": "",
+    "initialPenaltyBps": "",
+    "auctionDuration": "",
+    "auctionGracePeriod": "",
+    "auctionPenaltyBlocks": ""
+  },
+  {
+    "chainId": 24,
+    "ownerAssistant": "",
+    "feeRecipient": "",
+    "userPenaltyRewardBps": "",
+    "initialPenaltyBps": "",
+    "auctionDuration": "",
+    "auctionGracePeriod": "",
+    "auctionPenaltyBlocks": ""
+  },
+  {
+    "chainId": 30,
+    "ownerAssistant": "",
+    "feeRecipient": "",
+    "userPenaltyRewardBps": "",
+    "initialPenaltyBps": "",
+    "auctionDuration": "",
+    "auctionGracePeriod": "",
+    "auctionPenaltyBlocks": ""
+  }
+]

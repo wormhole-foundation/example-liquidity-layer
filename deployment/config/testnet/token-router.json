@@ -1,6 +1,41 @@
 [
   {
-    "chainId": "",
+    "chainId": 2,
+    "ownerAssistant": "",
+    "matchingEngineMintRecipient": "",
+    "matchingEngineChain": "",
+    "matchingEngineDomain": ""
+  },
+  {
+    "chainId": 5,
+    "ownerAssistant": "",
+    "matchingEngineMintRecipient": "",
+    "matchingEngineChain": "",
+    "matchingEngineDomain": ""
+  },
+  {
+    "chainId": 6,
+    "ownerAssistant": "",
+    "matchingEngineMintRecipient": "",
+    "matchingEngineChain": "",
+    "matchingEngineDomain": ""
+  },
+  {
+    "chainId": 23,
+    "ownerAssistant": "",
+    "matchingEngineMintRecipient": "",
+    "matchingEngineChain": "",
+    "matchingEngineDomain": ""
+  },
+  {
+    "chainId": 24,
+    "ownerAssistant": "",
+    "matchingEngineMintRecipient": "",
+    "matchingEngineChain": "",
+    "matchingEngineDomain": ""
+  },
+  {
+    "chainId": 30,
     "ownerAssistant": "",
     "matchingEngineMintRecipient": "",
     "matchingEngineChain": "",
