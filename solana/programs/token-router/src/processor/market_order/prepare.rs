@@ -20,6 +20,9 @@ pub struct PrepareMarketOrder<'info> {
     /// The auction participant needs to set approval to this PDA if the sender (signer) is not
     /// provided. The delegated amount must equal the amount in or this instruction will revert.
     ///
+    /// NOTE: If this account is provided, the sender token's owner will be encoded as the order
+    /// sender.
+    ///
     /// CHECK: Seeds must be \["transfer-authority", prepared_order.key(), args.hash()\].
     #[account(
         seeds = [
@@ -42,6 +45,8 @@ pub struct PrepareMarketOrder<'info> {
 
     /// Sender, who has the authority to transfer assets from the sender token account. If this
     /// account is not provided, the program transfer authority account must be some account.
+    ///
+    /// NOTE: If this account is provided, this pubkey will be encoded as the order sender.
     sender: Option<Signer<'info>>,
 
     #[account(
@@ -170,10 +175,57 @@ pub fn prepare_market_order(
         redeemer_message,
     } = args;
 
+    // Finally transfer amount to custody token account. We perform exclusive or because we do not
+    // want to allow specifying more than one authority.
+    let order_sender = match (
+        ctx.accounts.sender.as_ref(),
+        ctx.accounts.program_transfer_authority.as_ref(),
+    ) {
+        (Some(sender), None) => {
+            token::transfer(
+                CpiContext::new(
+                    ctx.accounts.token_program.to_account_info(),
+                    token::Transfer {
+                        from: ctx.accounts.sender_token.to_account_info(),
+                        to: ctx.accounts.prepared_custody_token.to_account_info(),
+                        authority: sender.to_account_info(),
+                    },
+                ),
+                amount_in,
+            )?;
+
+            sender.key()
+        }
+        (None, Some(program_transfer_authority)) => {
+            let sender_token = &ctx.accounts.sender_token;
+
+            token::transfer(
+                CpiContext::new_with_signer(
+                    ctx.accounts.token_program.to_account_info(),
+                    token::Transfer {
+                        from: sender_token.to_account_info(),
+                        to: ctx.accounts.prepared_custody_token.to_account_info(),
+                        authority: program_transfer_authority.to_account_info(),
+                    },
+                    &[&[
+                        TRANSFER_AUTHORITY_SEED_PREFIX,
+                        ctx.accounts.prepared_order.key().as_ref(),
+                        &hashed_args.0,
+                        &[ctx.bumps.program_transfer_authority.unwrap()],
+                    ]],
+                ),
+                amount_in,
+            )?;
+
+            sender_token.owner
+        }
+        _ => return err!(TokenRouterError::EitherSenderOrProgramTransferAuthority),
+    };
+
     // Set the values in prepared order account.
     ctx.accounts.prepared_order.set_inner(PreparedOrder {
         info: PreparedOrderInfo {
-            order_sender: ctx.accounts.sender_token.owner,
+            order_sender,
             prepared_by: ctx.accounts.payer.key(),
             order_type: OrderType::Market { min_amount_out },
             src_token: ctx.accounts.sender_token.key(),
@@ -185,40 +237,6 @@ pub fn prepare_market_order(
         redeemer_message,
     });
 
-    // Finally transfer amount to custody token account. We perform exclusive or because we do not
-    // want to allow specifying more than one authority.
-    match (
-        ctx.accounts.sender.as_ref(),
-        ctx.accounts.program_transfer_authority.as_ref(),
-    ) {
-        (Some(sender), None) => token::transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                token::Transfer {
-                    from: ctx.accounts.sender_token.to_account_info(),
-                    to: ctx.accounts.prepared_custody_token.to_account_info(),
-                    authority: sender.to_account_info(),
-                },
-            ),
-            amount_in,
-        ),
-        (None, Some(program_transfer_authority)) => token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                token::Transfer {
-                    from: ctx.accounts.sender_token.to_account_info(),
-                    to: ctx.accounts.prepared_custody_token.to_account_info(),
-                    authority: program_transfer_authority.to_account_info(),
-                },
-                &[&[
-                    TRANSFER_AUTHORITY_SEED_PREFIX,
-                    ctx.accounts.prepared_order.key().as_ref(),
-                    &hashed_args.0,
-                    &[ctx.bumps.program_transfer_authority.unwrap()],
-                ]],
-            ),
-            amount_in,
-        ),
-        _ => err!(TokenRouterError::EitherSenderOrProgramTransferAuthority),
-    }
+    // Done.
+    Ok(())
 }
