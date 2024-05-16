@@ -10,6 +10,18 @@
         "rpc": "https://eth.llamarpc.com"
       },
       {
+        "description": "Polygon (amoy)",
+        "externalId": 80002,
+        "chainId": 5,
+        "rpc": "https://polygon-amoy-bor-rpc.publicnode.com"
+      },
+      {
+        "description": "Avalanche",
+        "externalId": 43113,
+        "chainId": 6,
+        "rpc": "https://rpc.ankr.com/avalanche_fuji"
+      },
+      {
         "description": "Arbitrum",
         "externalId": 42161,
         "chainId": 23,
