@@ -58,16 +58,20 @@ const messageLayouts = [
 
 export const messages = constMap(messageLayouts);
 export const messageNames = column(messageLayouts, 0);
+export const messageIds = <N extends MessageName>(name: N): ReturnType<typeof messages<N>>["id"] =>
+    messages(name).id;
 export const messageDiscriminator = layoutDiscriminator(messageNames.map((m) => messageLayout(m)));
 
-export type MessageName = Parameters<typeof messages>[0];
+type PayloadIdItem<N extends MessageName> = ReturnType<
+    typeof layoutItems.payloadIdItem<MessageId<N>>
+>;
 
-type PayloadIdItem<ID extends number> = ReturnType<typeof layoutItems.payloadIdItem<ID>>;
+export type MessageName = Parameters<typeof messages>[0];
+export type MessageId<N extends MessageName> = ReturnType<typeof messageIds<N>>;
 export type MessageLayout<N extends MessageName> = [
-    PayloadIdItem<ReturnType<typeof messages<N>>["id"]>,
+    PayloadIdItem<N>,
     ...ReturnType<typeof messages<N>>["layout"],
 ];
-
 export type MessageType<N extends MessageName> = LayoutToType<MessageLayout<N>>;
 
 export function messageLayout<N extends MessageName>(name: N): MessageLayout<N> {

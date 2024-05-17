@@ -40,24 +40,26 @@ export const payloadNames = column(payloadLayouts, 0);
 export const payloadDiscriminator = layoutDiscriminator(
     column(payloadLayouts, 1).map((p) => p.layout),
 );
+export const payloadIds = <N extends PayloadName>(name: N): ReturnType<typeof payloads<N>>["id"] =>
+    payloads(name).id;
 
-type PayloadIdItem<ID extends number> = ReturnType<typeof layoutItems.payloadIdItem<ID>>;
+type PayloadIdItem<N extends PayloadName> = ReturnType<
+    typeof layoutItems.payloadIdItem<PayloadId<N>>
+>;
 
 export type PayloadName = Parameters<typeof payloads>[0];
+export type PayloadId<N extends PayloadName> = ReturnType<typeof payloadIds<N>>;
 export function payloadLayout<N extends PayloadName>(name: N): PayloadLayout<N> {
     const { id, layout } = payloads(name);
     return [layoutItems.payloadIdItem(id), ...layout] as Layout as PayloadLayout<N>;
 }
 
 type RawPayloadLayout<N extends PayloadName> = ReturnType<typeof payloads<N>>["layout"];
-export type PayloadLayout<N extends PayloadName> = [
-    PayloadIdItem<ReturnType<typeof payloads<N>>["id"]>,
-    ...RawPayloadLayout<N>,
-];
+export type PayloadLayout<N extends PayloadName> = [PayloadIdItem<N>, ...RawPayloadLayout<N>];
 export type PayloadType<N extends PayloadName> = LayoutToType<PayloadLayout<N>>;
 
 const switchCase = <P extends PayloadName>(p: P) =>
-    Object.values(payloads(p)) as [number, RawPayloadLayout<P>];
+    Object.values(payloads(p)) as [PayloadId<P>, RawPayloadLayout<P>];
 
 // prettier-ignore
 export const payloadLayoutSwitch = {
