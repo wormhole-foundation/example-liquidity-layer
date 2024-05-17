@@ -216,9 +216,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // Parse the vaa, we will need the hash for later.
                     const parsedFastVaa = deserialize("Uint8Array", fastVaa);
                     localVariables.set("auctionId", keccak256(parsedFastVaa.hash));
-                    const fastOrder = MessageDecoder.unsafeDecodeFastPayload(
-                        Buffer.from(parsedFastVaa.payload),
-                    ).body.fastMarketOrder;
+                    const fastOrder = MessageDecoder.decode(parsedFastVaa.payload).body
+                        .fastMarketOrder;
 
                     if (fastOrder === undefined) {
                         throw new Error("Fast order undefined");
@@ -598,9 +597,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // Parse the vaa, we will need the hash for later.
                     const parsedFastVaa = deserialize("Uint8Array", fastVaa);
                     localVariables.set("auctionId", keccak256(parsedFastVaa.hash));
-                    const fastOrder = MessageDecoder.unsafeDecodeFastPayload(
-                        Buffer.from(parsedFastVaa.payload),
-                    ).body.fastMarketOrder;
+                    const fastOrder = MessageDecoder.decode(parsedFastVaa.payload).body
+                        .fastMarketOrder;
 
                     if (fastOrder === undefined) {
                         throw new Error("Fast order undefined");
@@ -1001,10 +999,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // NOTE: Imagine that several minutes have passed, and no auction has been started :).
 
                     // Parse the slow VAA for the baseFee and amount
-                    const baseFee = MessageDecoder.unsafeDecodeWormholeCctpPayload(
-                        Buffer.from(
-                            deserialize("Uint8Array", params.encodedWormholeMessage).payload,
-                        ),
+                    const baseFee = MessageDecoder.decode(
+                        deserialize("Uint8Array", params.encodedWormholeMessage).payload,
                     ).body.slowOrderResponse!.baseFee;
 
                     // Use player one as the relayer.
@@ -1214,9 +1210,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // Parse the vaa, we will need the hash for later.
                     const parsedFastVaa = deserialize("Uint8Array", fastVaa);
                     localVariables.set("auctionId", keccak256(parsedFastVaa.hash));
-                    const fastOrder = MessageDecoder.unsafeDecodeFastPayload(
-                        Buffer.from(parsedFastVaa.payload),
-                    ).body.fastMarketOrder;
+                    const fastOrder = MessageDecoder.decode(parsedFastVaa.payload).body
+                        .fastMarketOrder;
 
                     if (fastOrder === undefined) {
                         throw new Error("Fast order undefined");
@@ -1254,10 +1249,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // NOTE: Imagine that several minutes have passed, and no auction has been started :).
 
                     // Parse the slow VAA for the baseFee and amount
-                    const baseFee = MessageDecoder.unsafeDecodeWormholeCctpPayload(
-                        Buffer.from(
-                            deserialize("Uint8Array", params.encodedWormholeMessage).payload,
-                        ),
+                    const baseFee = MessageDecoder.decode(
+                        deserialize("Uint8Array", params.encodedWormholeMessage).payload,
                     ).body.slowOrderResponse!.baseFee;
 
                     // Use player one as the relayer.
