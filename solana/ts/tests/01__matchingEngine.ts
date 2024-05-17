@@ -66,6 +66,7 @@ import {
     Chain,
     ChainId,
     UniversalAddress,
+    encoding,
     toChain,
     toChainId,
     toUniversal,
@@ -1376,7 +1377,7 @@ describe("Matching Engine", function () {
             maxFee: 1000000n,
             initAuctionFee: 100n,
             deadline: 0,
-            redeemerMessage: Buffer.from("All your base are belong to us."),
+            redeemerMessage: encoding.bytes.encode("All your base are belong to us."),
         };
 
         describe("Place Initial CCTP Offer", function () {
@@ -1600,26 +1601,22 @@ describe("Matching Engine", function () {
                     ethRouter,
                     wormholeSequence++,
                     new LiquidityLayerMessage({
-                        deposit: new LiquidityLayerDeposit(
-                            {
-                                tokenAddress: toUniversalAddress(Array(32).fill(69)),
-                                amount: 1000n,
-                                sourceCctpDomain: 69,
-                                destinationCctpDomain: 69,
-                                cctpNonce: 6969n,
-                                burnSource: toUniversalAddress(new Array(32).fill(69)),
-                                mintRecipient: toUniversalAddress(Array(32).fill(69)),
-                                payload: new Uint8Array(),
+                        deposit: new LiquidityLayerDeposit({
+                            tokenAddress: toUniversalAddress(Array(32).fill(69)),
+                            amount: 1000n,
+                            sourceCctpDomain: 69,
+                            destinationCctpDomain: 69,
+                            cctpNonce: 6969n,
+                            burnSource: toUniversalAddress(new Array(32).fill(69)),
+                            mintRecipient: toUniversalAddress(Array(32).fill(69)),
+                            payload: {
+                                id: 1, // TODO: no like this
+                                sourceChain: toChain(ethChain),
+                                orderSender: baseFastOrder.sender,
+                                redeemer: baseFastOrder.redeemer,
+                                redeemerMessage: baseFastOrder.redeemerMessage,
                             },
-                            {
-                                fill: {
-                                    sourceChain: toChain(ethChain),
-                                    orderSender: baseFastOrder.sender,
-                                    redeemer: baseFastOrder.redeemer,
-                                    redeemerMessage: baseFastOrder.redeemerMessage,
-                                },
-                            },
-                        ),
+                        }),
                     }),
                 );
 
@@ -3361,7 +3358,7 @@ describe("Matching Engine", function () {
                     .then((info) => deserializePostMessage(info?.data!));
 
                 const parsed = LiquidityLayerMessage.decode(Buffer.from(payload));
-                expect(parsed.deposit?.message.fill).is.not.undefined;
+                expect(parsed.deposit?.message.payload).is.not.undefined;
 
                 const {
                     protocol: { cctp },
@@ -3369,8 +3366,12 @@ describe("Matching Engine", function () {
                 expect(cctp).is.not.undefined;
 
                 const {
-                    header: { amount: actualAmount, destinationCctpDomain, mintRecipient },
-                    message: { fill },
+                    message: {
+                        amount: actualAmount,
+                        destinationCctpDomain,
+                        mintRecipient,
+                        payload: fill,
+                    },
                 } = parsed.deposit!;
 
                 const userAmount =
@@ -3384,6 +3385,8 @@ describe("Matching Engine", function () {
                 expect(Array.from(mintRecipient.toUint8Array())).to.eql(expectedMintRecipient);
 
                 const expectedFill: Fill = {
+                    // @ts-ignore
+                    id: 1,
                     sourceChain,
                     orderSender,
                     redeemer,
@@ -4702,6 +4705,7 @@ describe("Matching Engine", function () {
             toChainId(fastMarketOrder!.targetChain),
         );
 
+        const { baseFee } = deposit!.message.payload! as SlowOrderResponse;
         expect(preparedOrderResponseData).to.eql(
             new PreparedOrderResponse(
                 {
@@ -4712,7 +4716,7 @@ describe("Matching Engine", function () {
                     preparedBy: accounts.payer,
                     fastVaaTimestamp: fastVaaAccount.timestamp(),
                     sourceChain: fastVaaAccount.emitterInfo().chain,
-                    baseFee: uint64ToBN(deposit!.message.slowOrderResponse!.baseFee),
+                    baseFee: uint64ToBN(baseFee),
                     initAuctionFee: uint64ToBN(fastMarketOrder!.initAuctionFee),
                     sender: Array.from(fastMarketOrder!.sender.toUint8Array()),
                     redeemer: Array.from(fastMarketOrder!.redeemer.toUint8Array()),
@@ -4870,7 +4874,7 @@ describe("Matching Engine", function () {
         );
         const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
         const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
-        const baseFee = deposit!.message.slowOrderResponse!.baseFee;
+        const { baseFee } = deposit!.message.payload! as SlowOrderResponse;
 
         if (executorTokenBalanceBefore == null) {
             expect(bestOfferTokenBalanceAfter).equals(
@@ -4993,11 +4997,12 @@ describe("Matching Engine", function () {
 
         const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
         const {
-            message: { slowOrderResponse },
+            message: { payload: slowOrderResponse },
         } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload()).deposit!;
         expect(slowOrderResponse).is.not.undefined;
 
-        const fee = slowOrderResponse!.baseFee + fastMarketOrder!.initAuctionFee;
+        const fee =
+            (slowOrderResponse! as SlowOrderResponse).baseFee + fastMarketOrder!.initAuctionFee;
 
         const { amount: feeBalanceAfter } = await splToken.getAccount(
             connection,
@@ -5070,7 +5075,8 @@ describe("Matching Engine", function () {
             maxFee: maxFee ?? 42069n,
             initAuctionFee: initAuctionFee ?? 1_250_000n,
             deadline: deadline ?? 0,
-            redeemerMessage: redeemerMessage ?? Buffer.from("Somebody set up us the bomb"),
+            redeemerMessage:
+                redeemerMessage ?? encoding.bytes.encode("Somebody set up us the bomb"),
         };
     }
 
@@ -5164,23 +5170,16 @@ describe("Matching Engine", function () {
                 await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amount);
 
             const finalizedMessage = new LiquidityLayerMessage({
-                deposit: new LiquidityLayerDeposit(
-                    {
-                        tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
-                        amount,
-                        sourceCctpDomain,
-                        destinationCctpDomain,
-                        cctpNonce,
-                        burnSource: toUniversalAddress(Buffer.alloc(32, "beefdead", "hex")),
-                        mintRecipient: toUniversalAddress(
-                            engine.cctpMintRecipientAddress().toBuffer(),
-                        ),
-                        payload: new Uint8Array(),
-                    },
-                    {
-                        slowOrderResponse,
-                    },
-                ),
+                deposit: new LiquidityLayerDeposit({
+                    tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
+                    amount,
+                    sourceCctpDomain,
+                    destinationCctpDomain,
+                    cctpNonce,
+                    burnSource: toUniversalAddress(Buffer.alloc(32, "beefdead", "hex")),
+                    mintRecipient: toUniversalAddress(engine.cctpMintRecipientAddress().toBuffer()),
+                    payload: { id: 2, ...slowOrderResponse },
+                }),
             });
 
             const finalizedVaa = await postLiquidityLayerVaa(

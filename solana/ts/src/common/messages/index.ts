@@ -1,14 +1,14 @@
 import {
     FastMarketOrder,
-    fastMarketOrderLayout,
-    payloadIds,
+    Message,
+    messages,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { deserializeLayout, isChain, serializeLayout } from "@wormhole-foundation/sdk";
+import { isChain } from "@wormhole-foundation/sdk";
 import { ID_DEPOSIT, LiquidityLayerDeposit } from "./deposit";
 
 export * from "./deposit";
 
-export const ID_FAST_MARKET_ORDER = payloadIds.FAST_MARKET_ORDER;
+export const ID_FAST_MARKET_ORDER = messages("FastMarketOrder").id;
 
 export class LiquidityLayerMessage {
     deposit?: LiquidityLayerDeposit;
@@ -32,7 +32,7 @@ export class LiquidityLayerMessage {
                 break;
             }
             case ID_FAST_MARKET_ORDER: {
-                fastMarketOrder = deserializeLayout(fastMarketOrderLayout, new Uint8Array(buf));
+                fastMarketOrder = Message.deserialize(new Uint8Array(buf)) as FastMarketOrder;
                 if (!isChain(fastMarketOrder.targetChain)) throw new Error("Invalid target chain");
                 break;
             }
@@ -47,16 +47,12 @@ export class LiquidityLayerMessage {
     encode(): Buffer {
         const { deposit, fastMarketOrder } = this;
 
-        const buf = (() => {
-            if (deposit !== undefined) {
-                return deposit.encode();
-            } else if (fastMarketOrder !== undefined) {
-                return Buffer.from(serializeLayout(fastMarketOrderLayout, fastMarketOrder));
-            } else {
-                throw new Error("Invalid Liquidity Layer message");
-            }
-        })();
+        if (deposit !== undefined) {
+            return deposit.encode();
+        } else if (fastMarketOrder !== undefined) {
+            return Buffer.from(Message.serialize(fastMarketOrder));
+        }
 
-        return buf;
+        throw new Error("Invalid Liquidity Layer message");
     }
 }

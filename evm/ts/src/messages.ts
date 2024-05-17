@@ -1,13 +1,14 @@
 import { deserializeLayout, toChainId } from "@wormhole-foundation/sdk";
 import {
-    fastMarketOrderLayout,
-    fillLayout,
-    slowOrderResponseLayout,
-    cctpDepositLayout,
-    fastFillLayout,
+    CctpDeposit,
+    Message,
+    Payload,
+    messageLayout,
+    messages,
+    payloadLayout,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
-export const CCTP_DEPOSIT_PAYLOAD = 1;
+export const CCTP_DEPOSIT_PAYLOAD = messages("CctpDeposit").id;
 
 export class WormholeCctpDepositHeader {
     token: Uint8Array;
@@ -36,14 +37,6 @@ export class WormholeCctpDepositHeader {
         this.mintRecipient = mintRecipient;
     }
 
-    static decodeCoreBridgeMessage(buf: Buffer): [WormholeCctpDepositHeader, Buffer] {
-        if (buf.readUInt8(0) != 1) {
-            throw new Error("Invalid Wormhole CCTP deposit message");
-        }
-
-        return WormholeCctpDepositHeader.decode(buf);
-    }
-
     static decode(buf: Buffer): [WormholeCctpDepositHeader, Buffer] {
         const {
             tokenAddress,
@@ -54,7 +47,7 @@ export class WormholeCctpDepositHeader {
             burnSource,
             mintRecipient,
             payload,
-        } = deserializeLayout(cctpDepositLayout, new Uint8Array(buf));
+        } = Message.deserialize(new Uint8Array(buf)) as CctpDeposit;
 
         return [
             new WormholeCctpDepositHeader(
@@ -66,7 +59,7 @@ export class WormholeCctpDepositHeader {
                 burnSource.toUint8Array(),
                 mintRecipient.toUint8Array(),
             ),
-            Buffer.from(payload),
+            Buffer.from(Payload.serialize(payload)),
         ];
     }
 }
@@ -129,8 +122,7 @@ export class MessageDecoder {
     static unsafeDecodeWormholeCctpPayload(
         wormholeCctpMessage: Buffer,
     ): CoreBridgeLiquidityLayerMessage {
-        const [wormholeCctp, payload] =
-            WormholeCctpDepositHeader.decodeCoreBridgeMessage(wormholeCctpMessage);
+        const [wormholeCctp, payload] = WormholeCctpDepositHeader.decode(wormholeCctpMessage);
         return {
             header: { wormholeCctp },
             body: this.decode(payload),
@@ -169,7 +161,7 @@ export class Fill {
 
     static decode(payload: Buffer): Fill {
         const { sourceChain, orderSender, redeemer, redeemerMessage } = deserializeLayout(
-            fillLayout,
+            payloadLayout("Fill"),
             new Uint8Array(payload),
         );
         return new Fill(
@@ -208,7 +200,7 @@ export class FastFill {
 
     static decode(payload: Buffer): FastFill {
         const { sourceChain, orderSender, redeemer, redeemerMessage, fillAmount } =
-            deserializeLayout(fastFillLayout, new Uint8Array(payload));
+            deserializeLayout(messageLayout("FastFill"), new Uint8Array(payload));
 
         return new FastFill(
             toChainId(sourceChain),
@@ -272,7 +264,7 @@ export class FastMarketOrder {
             initAuctionFee,
             deadline,
             redeemerMessage,
-        } = deserializeLayout(fastMarketOrderLayout, new Uint8Array(payload));
+        } = deserializeLayout(messageLayout("FastMarketOrder"), new Uint8Array(payload));
 
         return new FastMarketOrder(
             amountIn,
@@ -301,7 +293,10 @@ export class SlowOrderResponse {
     }
 
     static decode(payload: Buffer): SlowOrderResponse {
-        const deser = deserializeLayout(slowOrderResponseLayout, new Uint8Array(payload));
+        const deser = deserializeLayout(
+            payloadLayout("SlowOrderResponse"),
+            new Uint8Array(payload),
+        );
         return new SlowOrderResponse(deser.baseFee);
     }
 }

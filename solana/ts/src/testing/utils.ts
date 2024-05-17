@@ -165,7 +165,7 @@ export async function postVaa(
         coreBridge: (coreBridgeAddress ?? CORE_BRIDGE_PID).toString(),
     });
     const txs = core.postVaa(payer.publicKey, deserialize("Uint8Array", vaaBuf));
-    const signer = new SolanaSendSigner(connection, "Solana", payer);
+    const signer = new SolanaSendSigner(connection, "Solana", payer, false, {});
     await signAndSendWait(txs, signer);
 }
 
