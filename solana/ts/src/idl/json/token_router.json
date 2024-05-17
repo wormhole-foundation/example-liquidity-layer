@@ -525,7 +525,10 @@
           "name": "program_transfer_authority",
           "docs": [
             "The auction participant needs to set approval to this PDA if the sender (signer) is not",
-            "provided.",
+            "provided. The delegated amount must equal the amount in or this instruction will revert.",
+            "",
+            "NOTE: If this account is provided, the sender token's owner will be encoded as the order",
+            "sender.",
             ""
           ],
           "optional": true
@@ -534,7 +537,9 @@
           "name": "sender",
           "docs": [
             "Sender, who has the authority to transfer assets from the sender token account. If this",
-            "account is not provided, the program transfer authority account must be some account."
+            "account is not provided, the program transfer authority account must be some account.",
+            "",
+            "NOTE: If this account is provided, this pubkey will be encoded as the order sender."
           ],
           "signer": true,
           "optional": true
@@ -1122,11 +1127,11 @@
     },
     {
       "code": 6522,
-      "name": "MissingAuthority"
+      "name": "EitherSenderOrProgramTransferAuthority"
     },
     {
-      "code": 6523,
-      "name": "TooManyAuthorities"
+      "code": 6524,
+      "name": "DelegatedAmountMismatch"
     },
     {
       "code": 7024,
