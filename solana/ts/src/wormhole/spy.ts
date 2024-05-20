@@ -3,7 +3,7 @@ import { deserialize, Chain, VAA, toChain, toUniversal, encoding } from "@wormho
 
 export type VaaContext = {
     raw: Buffer;
-    parsed: VAA;
+    parsed: VAA<"Uint8Array">;
     chain?: Chain;
     nativeAddress?: string;
 };
