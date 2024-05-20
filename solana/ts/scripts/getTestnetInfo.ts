@@ -1,29 +1,17 @@
-import {
-    ChainName,
-    coalesceChainId,
-    tryNativeToUint8Array,
-    tryUint8ArrayToNative,
-} from "@certusone/wormhole-sdk";
-import * as splToken from "@solana/spl-token";
-import {
-    Connection,
-    Keypair,
-    PublicKey,
-    Transaction,
-    sendAndConfirmTransaction,
-} from "@solana/web3.js";
+import { Connection, PublicKey } from "@solana/web3.js";
+import { Chain, toChainId, toNative, toUniversal } from "@wormhole-foundation/sdk";
 import * as matchingEngineSdk from "../src/matchingEngine";
 import * as tokenRouterSdk from "../src/tokenRouter";
 
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 
-const CHAINS: ChainName[] = [
-    "sepolia",
-    "avalanche",
-    "optimism_sepolia",
-    "arbitrum_sepolia",
-    "base_sepolia",
-    "polygon",
+const CHAINS: Chain[] = [
+    "Sepolia",
+    "Avalanche",
+    "OptimismSepolia",
+    "ArbitrumSepolia",
+    "BaseSepolia",
+    "PolygonSepolia",
 ];
 
 // Here we go.
@@ -70,7 +58,7 @@ async function main() {
 
         for (const chainName of CHAINS) {
             await matchingEngine
-                .fetchRouterEndpoint(coalesceChainId(chainName))
+                .fetchRouterEndpointInfo(toChainId(chainName))
                 .then((endpointData) => {
                     console.log(
                         `Registered Endpoint (${chainName}): ${stringifyEndpoint(
@@ -79,7 +67,7 @@ async function main() {
                         )}`,
                     );
                 })
-                .catch((_) => {
+                .catch((err) => {
                     console.log(`Not Registered: ${chainName}`);
                 });
             console.log();
@@ -108,10 +96,12 @@ async function main() {
     }
 }
 
-function stringifyEndpoint(chainName: ChainName, endpoint: matchingEngineSdk.RouterEndpoint) {
+function stringifyEndpoint(chain: Chain, endpoint: matchingEngineSdk.EndpointInfo) {
     const out = {
-        address: tryUint8ArrayToNative(Uint8Array.from(endpoint.address), chainName),
-        mintRecipient: tryUint8ArrayToNative(Uint8Array.from(endpoint.mintRecipient), chainName),
+        address: toUniversal(chain, Uint8Array.from(endpoint.address)).toNative(chain).toString(),
+        mintRecipient: toUniversal(chain, Uint8Array.from(endpoint.mintRecipient))
+            .toNative(chain)
+            .toString(),
         protocol: endpoint.protocol,
     };
     return JSON.stringify(out, null, 2);
