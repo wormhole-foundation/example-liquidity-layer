@@ -9,7 +9,7 @@ import {
 } from "@certusone/wormhole-sdk";
 import { LiquidityLayerMessage } from "../src/common";
 import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
-import * as utils from "../auction-participant/utils";
+import * as utils from "../../../solver/auction-participant/utils";
 import yargs from "yargs";
 import * as fs from "fs";
 

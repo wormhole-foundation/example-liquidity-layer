@@ -9,7 +9,7 @@ import {
     BlockhashWithExpiryBlockHeight,
 } from "@solana/web3.js";
 import * as winston from "winston";
-import { PreparedTransaction } from "../../src";
+import { PreparedTransaction } from "@wormhole-foundation/example-liquidity-layer-solana";
 
 export async function getNonceAccountData(
     connection: Connection,

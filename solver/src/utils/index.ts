@@ -9,7 +9,12 @@ export * from "./placeInitialOffer";
 
 import { Connection, PublicKey } from "@solana/web3.js";
 import * as splToken from "@solana/spl-token";
-import { FastMarketOrder, LiquidityLayerMessage, SlowOrderResponse } from "../../src/common";
+import { LiquidityLayerMessage } from "@wormhole-foundation/example-liquidity-layer-solana/common";
+import {
+    FastMarketOrder,
+    SlowOrderResponse,
+    payloads,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 
@@ -45,10 +50,13 @@ export function tryParseFastMarketOrder(payload: Buffer): FastMarketOrder | unde
 export function tryParseSlowOrderResponse(payload: Buffer): SlowOrderResponse | undefined {
     try {
         const { deposit } = LiquidityLayerMessage.decode(payload);
-        if (deposit === undefined || deposit.message.slowOrderResponse === undefined) {
+        if (
+            deposit === undefined ||
+            deposit.message.payload.id !== payloads("SlowOrderResponse").id
+        ) {
             return undefined;
         } else {
-            return deposit.message.slowOrderResponse;
+            return deposit.message.payload;
         }
     } catch (err: any) {
         return undefined;

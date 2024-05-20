@@ -1,7 +1,7 @@
 import * as splToken from "@solana/spl-token";
 import { Commitment, Connection, FetchFn, PublicKey, PublicKeyInitData } from "@solana/web3.js";
 import { ethers } from "ethers";
-import { USDC_MINT_ADDRESS } from "../../src/testing";
+import { USDC_MINT_ADDRESS } from "@wormhole-foundation/example-liquidity-layer-solana/testing";
 import { defaultLogger } from "./logger";
 import {
     Chain,
