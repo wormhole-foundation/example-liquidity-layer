@@ -23,7 +23,6 @@ export namespace Message {
     // Type guard for message types
     export function is<N extends MessageName>(message: any, name: N): message is MessageType<N> {
         // Check that all items in the layout are represented in the message
-        // besides payloadId which does not
         return messages(name).layout.filter((item) => !(item.name in message)).length === 0;
     }
 

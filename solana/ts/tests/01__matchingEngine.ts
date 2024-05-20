@@ -1610,7 +1610,7 @@ describe("Matching Engine", function () {
                             burnSource: toUniversalAddress(new Array(32).fill(69)),
                             mintRecipient: toUniversalAddress(Array(32).fill(69)),
                             payload: {
-                                id: 1, // TODO: no like this
+                                id: 1,
                                 sourceChain: toChain(ethChain),
                                 orderSender: baseFastOrder.sender,
                                 redeemer: baseFastOrder.redeemer,

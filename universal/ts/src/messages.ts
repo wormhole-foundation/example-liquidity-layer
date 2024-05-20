@@ -24,7 +24,6 @@ const cctpDepositLayout = [
         layout: payloadLayoutSwitch,
     },
 ] as const satisfies Layout;
-export type CctpDeposit = LayoutToType<typeof cctpDepositLayout>;
 
 const fastMarketOrderLayout = [
     { name: "amountIn", binary: "uint", size: 8 },
@@ -38,7 +37,6 @@ const fastMarketOrderLayout = [
     { name: "deadline", binary: "uint", size: 4 },
     { name: "redeemerMessage", binary: "bytes", lengthSize: 2 },
 ] as const satisfies Layout;
-export type FastMarketOrder = LayoutToType<typeof fastMarketOrderLayout>;
 
 const fastFillLayout = [
     { name: "fillAmount", binary: "uint", size: 8 },
@@ -47,7 +45,6 @@ const fastFillLayout = [
     { name: "redeemer", ...layoutItems.universalAddressItem },
     { name: "redeemerMessage", binary: "bytes", lengthSize: 2 },
 ] as const satisfies Layout;
-export type FastFill = LayoutToType<typeof fastFillLayout>;
 
 // prettier-ignore
 const messageLayouts = [
@@ -78,3 +75,7 @@ export function messageLayout<N extends MessageName>(name: N): MessageLayout<N> 
     const { id, layout } = messages(name);
     return [layoutItems.payloadIdItem(id), ...layout] as Layout as MessageLayout<N>;
 }
+
+export type CctpDeposit = MessageType<"CctpDeposit">;
+export type FastMarketOrder = MessageType<"FastMarketOrder">;
+export type FastFill = MessageType<"FastFill">;

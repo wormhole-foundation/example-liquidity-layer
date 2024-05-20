@@ -20,12 +20,10 @@ const fillLayout = [
     { name: "redeemer", ...layoutItems.universalAddressItem },
     { name: "redeemerMessage", binary: "bytes", lengthSize: 2 },
 ] as const satisfies Layout;
-export type Fill = LayoutToType<typeof fillLayout>;
 
 const slowOrderResponseLayout = [
     { name: "baseFee", binary: "uint", size: 8 },
 ] as const satisfies Layout;
-export type SlowOrderResponse = LayoutToType<typeof slowOrderResponseLayout>;
 
 // prettier-ignore
 // Note: the value here is an object becuase constmap seems to have a bug
@@ -71,3 +69,6 @@ export const payloadLayoutSwitch = {
         switchCase("SlowOrderResponse")
     ],
 } as const satisfies NamedLayoutItem;
+
+export type Fill = PayloadType<"Fill">;
+export type SlowOrderResponse = PayloadType<"SlowOrderResponse">;
