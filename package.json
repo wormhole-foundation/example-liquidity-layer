@@ -18,6 +18,7 @@
   "workspaces": [
     "universal/ts",
     "evm",
-    "solana"
+    "solana",
+    "solver"
   ]
 }

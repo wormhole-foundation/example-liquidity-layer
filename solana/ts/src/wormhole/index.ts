@@ -8,6 +8,7 @@ import {
     keccak256,
 } from "@wormhole-foundation/sdk";
 import { ethers } from "ethers";
+export * from "./spy";
 
 export type EncodedVaa = {
     status: number;
