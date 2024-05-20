@@ -10,7 +10,7 @@
     "build:universal":"npm run build --workspace universal/ts"
   },
   "dependencies": {
-    "@wormhole-foundation/sdk":"0.6.8"
+    "@wormhole-foundation/sdk":"0.7.0-beta.3"
   },
   "devDependencies": {
     "typescript": "^5.4.5"

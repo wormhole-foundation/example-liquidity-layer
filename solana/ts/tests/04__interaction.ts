@@ -973,6 +973,7 @@ describe("Matching Engine <> Token Router", function () {
             toChainId(fastMarketOrder!.targetChain),
         );
 
+        const { baseFee } = deposit!.message.payload! as SlowOrderResponse;
         expect(preparedOrderResponseData).to.eql(
             new matchingEngineSdk.PreparedOrderResponse(
                 {
@@ -983,7 +984,7 @@ describe("Matching Engine <> Token Router", function () {
                     preparedBy: accounts.payer,
                     fastVaaTimestamp: fastVaaAccount.timestamp(),
                     sourceChain: fastVaaAccount.emitterInfo().chain,
-                    baseFee: uint64ToBN(deposit!.message.slowOrderResponse!.baseFee),
+                    baseFee: uint64ToBN(baseFee),
                     initAuctionFee: uint64ToBN(fastMarketOrder!.initAuctionFee),
                     sender: Array.from(fastMarketOrder!.sender.toUint8Array()),
                     redeemer: Array.from(fastMarketOrder!.redeemer.toUint8Array()),
@@ -1306,7 +1307,7 @@ describe("Matching Engine <> Token Router", function () {
         const sender = Array.from(senderAddress.toUint8Array());
 
         const message = LiquidityLayerMessage.decode(finalizedVaaAccount!.payload());
-        const { slowOrderResponse } = message.deposit!.message;
+        const slowOrderResponse = message.deposit!.message.payload as SlowOrderResponse;
         expect(slowOrderResponse).is.not.undefined;
         const { baseFee } = slowOrderResponse!;
 
@@ -1825,23 +1826,18 @@ describe("Matching Engine <> Token Router", function () {
                 await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amount);
 
             const finalizedMessage = new LiquidityLayerMessage({
-                deposit: new LiquidityLayerDeposit(
-                    {
-                        tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
-                        amount,
-                        sourceCctpDomain,
-                        destinationCctpDomain,
-                        cctpNonce,
-                        burnSource: toUniversalAddress(Buffer.alloc(32, "beefdead", "hex")),
-                        mintRecipient: toUniversalAddress(
-                            matchingEngine.cctpMintRecipientAddress().toBuffer(),
-                        ),
-                        payload: new Uint8Array(),
-                    },
-                    {
-                        slowOrderResponse,
-                    },
-                ),
+                deposit: new LiquidityLayerDeposit({
+                    tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
+                    amount,
+                    sourceCctpDomain,
+                    destinationCctpDomain,
+                    cctpNonce,
+                    burnSource: toUniversalAddress(Buffer.alloc(32, "beefdead", "hex")),
+                    mintRecipient: toUniversalAddress(
+                        matchingEngine.cctpMintRecipientAddress().toBuffer(),
+                    ),
+                    payload: { id: 2, ...slowOrderResponse },
+                }),
             });
 
             const finalizedVaa = await postLiquidityLayerVaa(

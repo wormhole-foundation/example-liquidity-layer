@@ -1,6 +1,7 @@
-import { ethers } from "ethers";
-import { CCTP_DEPOSIT_PAYLOAD, CoreBridgeLiquidityLayerMessage, MessageDecoder } from "./messages";
+import { Message } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { ChainId, toChain, toUniversal } from "@wormhole-foundation/sdk";
+import { ethers } from "ethers";
+import { CoreBridgeLiquidityLayerMessage, MessageDecoder } from "./messages";
 
 export function parseEvmEvents(
     txReceipt: ethers.ContractReceipt,
@@ -10,7 +11,6 @@ export function parseEvmEvents(
     let wormholeLogs: ethers.utils.Result[] = [];
     for (const txLog of txReceipt.logs) {
         if (txLog.address === contractAddress) {
-            const iface = new ethers.utils.Interface([`event ${eventInterface}`]);
             try {
                 const iface = new ethers.utils.Interface([`event ${eventInterface}`]);
                 const event = iface.parseLog(txLog).args;
@@ -96,61 +96,49 @@ export class LiquidityLayerTransactionResult {
         let fastMessage: LiquidityLayerObservation | undefined;
         let wormhole: LiquidityLayerObservation | undefined;
 
-        for (const message of publishedMessages) {
+        for (const pm of publishedMessages) {
             let {
                 sender: evmEmitterAddress,
                 sequence: ethersSequence,
                 nonce,
                 payload: payloadByteslike,
                 consistencyLevel,
-            } = message;
+            } = pm;
 
             const emitterAddress = toUniversal(chain, evmEmitterAddress).toUint8Array();
             const sequence = BigInt(ethersSequence.toString());
             const encodedMessage = bufferfy(payloadByteslike);
 
-            const payloadId = encodedMessage.readUInt8(0);
-
             // Make sure the address is checksummed.
             evmEmitterAddress = ethers.utils.getAddress(evmEmitterAddress);
             contractAddress = ethers.utils.getAddress(contractAddress);
 
-            if (evmEmitterAddress == contractAddress) {
-                if (payloadId == CCTP_DEPOSIT_PAYLOAD) {
-                    wormhole = {
-                        emitterAddress,
-                        sequence,
-                        nonce,
-                        consistencyLevel,
-                        message: MessageDecoder.unsafeDecodeWormholeCctpPayload(encodedMessage),
-                    };
-
-                    circleMessage = bufferfy(
-                        parseEvmEvent(
-                            txReceipt,
-                            circleTransmitterAddress,
-                            "MessageSent(bytes message)",
-                        ).message,
-                    );
-                } else {
-                    // Handles FastFills and FastMarketOrders.
-                    const message = {
-                        emitterAddress,
-                        sequence,
-                        nonce,
-                        consistencyLevel,
-                        message: MessageDecoder.unsafeDecodeFastPayload(encodedMessage),
-                    };
-
-                    // Override `wormhole` if it's a FastFill.
-                    if (message.message.body.fastMarketOrder !== undefined) {
-                        fastMessage = message;
-                    } else {
-                        wormhole = message;
-                    }
-                }
-            } else {
+            if (evmEmitterAddress !== contractAddress) {
                 throw new Error("Unrecognized emitter address.");
+            }
+
+            const message = {
+                emitterAddress,
+                sequence,
+                nonce,
+                consistencyLevel,
+                message: MessageDecoder.decode(new Uint8Array(encodedMessage)),
+            };
+
+            if (message.message.header.wormholeCctp) {
+                wormhole = message;
+                circleMessage = bufferfy(
+                    parseEvmEvent(txReceipt, circleTransmitterAddress, "MessageSent(bytes message)")
+                        .message,
+                );
+            } else {
+                // Handles FastFills and FastMarketOrders.
+                if (message.message.body.fastMarketOrder !== undefined) {
+                    fastMessage = message;
+                } else {
+                    // Override `wormhole` if it's a FastFill.
+                    wormhole = message;
+                }
             }
         }
 

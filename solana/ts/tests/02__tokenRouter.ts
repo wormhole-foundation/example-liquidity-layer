@@ -1164,26 +1164,22 @@ describe("Token Router", function () {
                 const depositMessage = LiquidityLayerMessage.decode(Buffer.from(payload));
                 expect(depositMessage).to.eql(
                     new LiquidityLayerMessage({
-                        deposit: new LiquidityLayerDeposit(
-                            {
-                                tokenAddress: toUniversalAddress(USDC_MINT_ADDRESS.toBuffer()),
-                                amount: amountIn,
-                                sourceCctpDomain,
-                                destinationCctpDomain,
-                                cctpNonce,
-                                burnSource: toUniversalAddress(burnSource.toBuffer()),
-                                mintRecipient: toUniversalAddress(foreignEndpointAddress),
-                                payload: new Uint8Array(),
+                        deposit: new LiquidityLayerDeposit({
+                            tokenAddress: toUniversalAddress(USDC_MINT_ADDRESS.toBuffer()),
+                            amount: amountIn,
+                            sourceCctpDomain,
+                            destinationCctpDomain,
+                            cctpNonce,
+                            burnSource: toUniversalAddress(burnSource.toBuffer()),
+                            mintRecipient: toUniversalAddress(foreignEndpointAddress),
+                            payload: {
+                                id: 1,
+                                sourceChain: toChain(SOLANA_CHAIN_ID),
+                                orderSender: toUniversalAddress(payer.publicKey.toBuffer()),
+                                redeemer: toUniversalAddress(redeemer),
+                                redeemerMessage,
                             },
-                            {
-                                fill: {
-                                    sourceChain: toChain(SOLANA_CHAIN_ID),
-                                    orderSender: toUniversalAddress(payer.publicKey.toBuffer()),
-                                    redeemer: toUniversalAddress(redeemer),
-                                    redeemerMessage,
-                                },
-                            },
-                        ),
+                        }),
                     }),
                 );
 
@@ -1223,26 +1219,22 @@ describe("Token Router", function () {
                     );
 
                 const message = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
-                            amount,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource: toUniversalAddress(burnSource),
-                            mintRecipient: toUniversalAddress(encodedMintRecipient),
-                            payload: new Uint8Array(),
+                    deposit: new LiquidityLayerDeposit({
+                        tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
+                        amount,
+                        sourceCctpDomain,
+                        destinationCctpDomain,
+                        cctpNonce,
+                        burnSource: toUniversalAddress(burnSource),
+                        mintRecipient: toUniversalAddress(encodedMintRecipient),
+                        payload: {
+                            id: 1,
+                            sourceChain: toChain(foreignChain),
+                            orderSender: toUniversalAddress(Buffer.alloc(32, "d00d", "hex")),
+                            redeemer: toUniversalAddress(redeemer.publicKey.toBuffer()),
+                            redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                         },
-                        {
-                            fill: {
-                                sourceChain: toChain(foreignChain),
-                                orderSender: toUniversalAddress(Buffer.alloc(32, "d00d", "hex")),
-                                redeemer: toUniversalAddress(redeemer.publicKey.toBuffer()),
-                                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                            },
-                        },
-                    ),
+                    }),
                 });
 
                 const vaa = await postLiquidityLayerVaa(
@@ -1301,26 +1293,22 @@ describe("Token Router", function () {
                     );
 
                 const message = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
-                            amount,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource: toUniversalAddress(burnSource),
-                            mintRecipient: toUniversalAddress(encodedMintRecipient),
-                            payload: new Uint8Array(),
+                    deposit: new LiquidityLayerDeposit({
+                        tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
+                        amount,
+                        sourceCctpDomain,
+                        destinationCctpDomain,
+                        cctpNonce,
+                        burnSource: toUniversalAddress(burnSource),
+                        mintRecipient: toUniversalAddress(encodedMintRecipient),
+                        payload: {
+                            id: 1,
+                            sourceChain: toChain(foreignChain),
+                            orderSender: toUniversalAddress(Buffer.alloc(32, "d00d", "hex")),
+                            redeemer: toUniversalAddress(redeemer.publicKey.toBuffer()),
+                            redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                         },
-                        {
-                            fill: {
-                                sourceChain: toChain(foreignChain),
-                                orderSender: toUniversalAddress(Buffer.alloc(32, "d00d", "hex")),
-                                redeemer: toUniversalAddress(redeemer.publicKey.toBuffer()),
-                                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                            },
-                        },
-                    ),
+                    }),
                 });
 
                 const vaa = await postLiquidityLayerVaa(
@@ -1375,23 +1363,19 @@ describe("Token Router", function () {
                     );
 
                 const message = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
-                            amount,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource: toUniversalAddress(burnSource),
-                            mintRecipient: toUniversalAddress(encodedMintRecipient),
-                            payload: new Uint8Array(),
+                    deposit: new LiquidityLayerDeposit({
+                        tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
+                        amount,
+                        sourceCctpDomain,
+                        destinationCctpDomain,
+                        cctpNonce,
+                        burnSource: toUniversalAddress(burnSource),
+                        mintRecipient: toUniversalAddress(encodedMintRecipient),
+                        payload: {
+                            id: 2,
+                            baseFee: 69n,
                         },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 69n,
-                            },
-                        },
-                    ),
+                    }),
                 });
 
                 // Override the payload ID in the deposit message.
@@ -1450,23 +1434,19 @@ describe("Token Router", function () {
                     );
 
                 const message = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
-                            amount,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource: toUniversalAddress(burnSource),
-                            mintRecipient: toUniversalAddress(encodedMintRecipient),
-                            payload: new Uint8Array(),
+                    deposit: new LiquidityLayerDeposit({
+                        tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
+                        amount,
+                        sourceCctpDomain,
+                        destinationCctpDomain,
+                        cctpNonce,
+                        burnSource: toUniversalAddress(burnSource),
+                        mintRecipient: toUniversalAddress(encodedMintRecipient),
+                        payload: {
+                            id: 2,
+                            baseFee: 69n,
                         },
-                        {
-                            slowOrderResponse: {
-                                baseFee: 69n,
-                            },
-                        },
-                    ),
+                    }),
                 });
 
                 const vaa = await postLiquidityLayerVaa(
@@ -1528,26 +1508,22 @@ describe("Token Router", function () {
                     );
 
                 const message = new LiquidityLayerMessage({
-                    deposit: new LiquidityLayerDeposit(
-                        {
-                            tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
-                            amount,
-                            sourceCctpDomain,
-                            destinationCctpDomain,
-                            cctpNonce,
-                            burnSource: toUniversalAddress(burnSource),
-                            mintRecipient: toUniversalAddress(encodedMintRecipient),
-                            payload: new Uint8Array(),
+                    deposit: new LiquidityLayerDeposit({
+                        tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
+                        amount,
+                        sourceCctpDomain,
+                        destinationCctpDomain,
+                        cctpNonce,
+                        burnSource: toUniversalAddress(burnSource),
+                        mintRecipient: toUniversalAddress(encodedMintRecipient),
+                        payload: {
+                            id: 1,
+                            sourceChain: toChain(foreignChain),
+                            orderSender: toUniversalAddress(Buffer.alloc(32, "d00d", "hex")),
+                            redeemer: toUniversalAddress(redeemer.publicKey.toBuffer()),
+                            redeemerMessage: Buffer.from("Somebody set up us the bomb"),
                         },
-                        {
-                            fill: {
-                                sourceChain: toChain(foreignChain),
-                                orderSender: toUniversalAddress(Buffer.alloc(32, "d00d", "hex")),
-                                redeemer: toUniversalAddress(redeemer.publicKey.toBuffer()),
-                                redeemerMessage: Buffer.from("Somebody set up us the bomb"),
-                            },
-                        },
-                    ),
+                    }),
                 });
 
                 const vaa = await postLiquidityLayerVaa(
