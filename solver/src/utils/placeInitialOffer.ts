@@ -1,8 +1,8 @@
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
-import { PreparedTransaction } from "../../src";
-import { MatchingEngineProgram } from "../../src/matchingEngine";
-import { FastMarketOrder } from "../../src/common";
-import * as utils from "../utils";
+import { PreparedTransaction } from "@wormhole-foundation/example-liquidity-layer-solana";
+import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
+import { FastMarketOrder } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import * as utils from ".";
 import * as winston from "winston";
 import { ChainId, VAA, deserialize, keccak256, toChainId } from "@wormhole-foundation/sdk";
 import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
@@ -77,7 +77,7 @@ export async function handlePlaceInitialOffer(
             matchingEngine,
             rawVaa,
             toChainId(fastVaa.emitterChain),
-            order.targetChain,
+            toChainId(order.targetChain),
         );
 
     // Bail if the auction is already started.

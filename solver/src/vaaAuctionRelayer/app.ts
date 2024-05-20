@@ -1,11 +1,11 @@
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import "dotenv/config";
 import * as fs from "fs";
-import { MatchingEngineProgram } from "../../src/matchingEngine";
-import { PreparedTransaction } from "../../src";
+import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
+import { PreparedTransaction } from "@wormhole-foundation/example-liquidity-layer-solana";
 import * as utils from "../utils";
 import * as winston from "winston";
-import { VaaSpy } from "../../src/wormhole/spy";
+import { VaaSpy } from "@wormhole-foundation/example-liquidity-layer-solana/wormhole";
 import { CachedBlockhash } from "../containers";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";

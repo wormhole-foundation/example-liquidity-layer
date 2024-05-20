@@ -2,8 +2,11 @@ import { Keypair, PublicKey } from "@solana/web3.js";
 import "dotenv/config";
 import * as fs from "fs";
 import winston from "winston";
-import { Uint64, uint64ToBigInt } from "../../src/common";
-import { AuctionUpdated, MatchingEngineProgram } from "../../src/matchingEngine";
+import { Uint64, uint64ToBigInt } from "@wormhole-foundation/example-liquidity-layer-solana/common";
+import {
+    AuctionUpdated,
+    MatchingEngineProgram,
+} from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
 import { CachedBlockhash, OfferToken } from "../containers";
 import * as utils from "../utils";
 

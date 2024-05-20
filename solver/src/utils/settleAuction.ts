@@ -1,7 +1,10 @@
 import { Connection, Keypair, PublicKey, Signer } from "@solana/web3.js";
-import { PreparedTransaction } from "../../src";
-import { Auction, MatchingEngineProgram } from "../../src/matchingEngine";
-import * as utils from "../utils";
+import { PreparedTransaction } from "@wormhole-foundation/example-liquidity-layer-solana";
+import {
+    Auction,
+    MatchingEngineProgram,
+} from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
+import * as utils from ".";
 import * as winston from "winston";
 import {
     Chain,

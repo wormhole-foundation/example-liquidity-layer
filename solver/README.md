@@ -15,7 +15,6 @@ npm install /path/to/example-liquidity-layer/wormhole-foundation-example-liquidi
 
 Once installed, it can be used like any other package:
 
-
 ```ts
 
 // ...
