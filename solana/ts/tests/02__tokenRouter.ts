@@ -543,7 +543,41 @@ describe("Token Router", function () {
                     connection,
                     [ix],
                     [payer, preparedOrder],
-                    "Error: owner does not match",
+                    "Error Code: DelegatedAmountMismatch",
+                );
+            });
+
+            it("Cannot Prepare Market Order Delegating Too Much to Program Transfer Authority", async function () {
+                const preparedOrder = Keypair.generate();
+
+                const amountIn = 69n;
+                const minAmountOut = 0n;
+                const targetChain = foreignChain;
+                const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+                const redeemerMessage = Buffer.from("All your base are belong to us");
+                const [approveIx, ix] = await tokenRouter.prepareMarketOrderIx(
+                    {
+                        payer: payer.publicKey,
+                        preparedOrder: preparedOrder.publicKey,
+                        senderToken: payerToken,
+                    },
+                    {
+                        amountIn,
+                        minAmountOut,
+                        targetChain,
+                        redeemer,
+                        redeemerMessage,
+                    },
+                );
+
+                // Approve for more.
+                approveIx!.data.writeBigUInt64LE(amountIn + 1n, 1);
+
+                await expectIxErr(
+                    connection,
+                    [approveIx!, ix],
+                    [payer, preparedOrder],
+                    "Error Code: DelegatedAmountMismatch",
                 );
             });
 
@@ -575,9 +609,9 @@ describe("Token Router", function () {
 
                 await expectIxErr(
                     connection,
-                    [ix],
+                    [approveIx!, ix],
                     [payer, preparedOrder],
-                    "Error Code: TooManyAuthorities",
+                    "Error Code: EitherSenderOrProgramTransferAuthority",
                 );
             });
 
@@ -610,7 +644,7 @@ describe("Token Router", function () {
                     connection,
                     [ix],
                     [payer, preparedOrder],
-                    "Error Code: MissingAuthority",
+                    "Error Code: EitherSenderOrProgramTransferAuthority",
                 );
             });
 

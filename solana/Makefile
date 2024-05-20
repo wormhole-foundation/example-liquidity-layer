@@ -56,6 +56,9 @@ idl:
 	mkdir -p ts/src/idl/ts
 	cp -r target/idl/* ts/src/idl/json/
 	cp -r target/types/* ts/src/idl/ts/
+
+.PHONY: check-idl
+check-idl: idl
 	git diff --exit-code
 
 $(BUILD_$(NETWORK)): cargo-test

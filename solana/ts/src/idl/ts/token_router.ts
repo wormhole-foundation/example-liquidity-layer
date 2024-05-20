@@ -531,7 +531,10 @@ export type TokenRouter = {
           "name": "programTransferAuthority",
           "docs": [
             "The auction participant needs to set approval to this PDA if the sender (signer) is not",
-            "provided.",
+            "provided. The delegated amount must equal the amount in or this instruction will revert.",
+            "",
+            "NOTE: If this account is provided, the sender token's owner will be encoded as the order",
+            "sender.",
             ""
           ],
           "optional": true
@@ -540,7 +543,9 @@ export type TokenRouter = {
           "name": "sender",
           "docs": [
             "Sender, who has the authority to transfer assets from the sender token account. If this",
-            "account is not provided, the program transfer authority account must be some account."
+            "account is not provided, the program transfer authority account must be some account.",
+            "",
+            "NOTE: If this account is provided, this pubkey will be encoded as the order sender."
           ],
           "signer": true,
           "optional": true
@@ -1128,11 +1133,11 @@ export type TokenRouter = {
     },
     {
       "code": 6522,
-      "name": "missingAuthority"
+      "name": "eitherSenderOrProgramTransferAuthority"
     },
     {
-      "code": 6523,
-      "name": "tooManyAuthorities"
+      "code": 6524,
+      "name": "delegatedAmountMismatch"
     },
     {
       "code": 7024,

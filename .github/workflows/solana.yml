@@ -43,8 +43,8 @@ jobs:
       - name: make lint
         run: make lint
         working-directory: ./solana
-  make-anchor-build-idl:
-    name: make idl
+  make-check-idl:
+    name: make check-idl
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,8 +56,8 @@ jobs:
       - name: Set default Rust toolchain
         run: rustup default stable
         working-directory: ./solana
-      - name: make idl
-        run: make idl
+      - name: make check-idl
+        run: make check-idl
         working-directory: ./solana
   make-anchor-test:
     name: make anchor-test
