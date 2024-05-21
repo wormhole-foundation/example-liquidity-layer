@@ -1,11 +1,11 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "rootDir": "ts",
+    "rootDir": "ts/src",
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "module": "ESNext",
     "moduleResolution": "Bundler"
   },
-  "include": ["ts/src", "ts/src/**/*.json"]
+  "include": ["ts/src/**/*.ts", "ts/src/**/*.json"]
 }
