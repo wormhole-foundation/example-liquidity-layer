@@ -7,7 +7,8 @@
     "build": "npm run build --workspaces --if-present",
     "generate":"npm run generate --workspaces --if-present",
     "pack":"npm run build && npm pack --workspaces",
-    "build:universal":"npm run build --workspace universal/ts"
+    "build:universal":"npm run build --workspace universal/ts",
+    "clean":"npm run clean --workspaces --if-present"
   },
   "devDependencies": {
     "typescript": "^5.4.5"

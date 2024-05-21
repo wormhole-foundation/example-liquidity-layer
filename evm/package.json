@@ -10,7 +10,8 @@
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build": "npm run build:esm && npm run build:cjs",
-    "generate": "typechain --target=ethers-v5 --out-dir=ts/src/types out/*/*.json"
+    "generate": "typechain --target=ethers-v5 --out-dir=ts/src/types out/*/*.json",
+    "clean":"rm -rf dist && rm -rf node_modules"
   },
   "dependencies": {
     "@wormhole-foundation/sdk-base":"^0.7.0-beta.3",

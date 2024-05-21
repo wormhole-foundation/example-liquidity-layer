@@ -25,7 +25,8 @@
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "build:esm":"npx tsc -p tsconfig.esm.json",
     "build:cjs":"npx tsc -p tsconfig.cjs.json",
-    "build":"npm run build:esm && npm run build:cjs"
+    "build":"npm run build:esm && npm run build:cjs",
+    "clean":"rm -rf dist && rm -rf node_modules"
   },
   "dependencies": {
     "@certusone/wormhole-spydk": "^0.0.1",

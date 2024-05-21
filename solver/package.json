@@ -9,7 +9,8 @@
     "scripts": {
       "execute":"tsx src/executeOrder/app.ts",
       "improve":"tsx src/improveOffer/app.ts",
-      "relayer":"tsx src/vaaAuctionRelayer/app/ts"
+      "relayer":"tsx src/vaaAuctionRelayer/app/ts",
+      "clean":"rm -rf node_modules"
     },
     "dependencies": {
       "@wormhole-foundation/sdk-base":"^0.7.0-beta.3",
