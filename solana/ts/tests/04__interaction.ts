@@ -45,7 +45,8 @@ import {
     toUniversalAddress,
     waitUntilSlot,
 } from "../src/testing";
-import { Chain, ChainId, toChainId, toUniversal } from "@wormhole-foundation/sdk";
+import { Chain, ChainId, toChainId } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { BN } from "@coral-xyz/anchor";
 import {
     FastMarketOrder,

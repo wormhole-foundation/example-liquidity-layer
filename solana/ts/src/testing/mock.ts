@@ -5,7 +5,8 @@ import { CORE_BRIDGE_PID, GUARDIAN_KEY } from "./consts";
 import { postVaa, getBlockTime } from "./utils";
 import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
 import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
-import { Chain, serialize, toUniversal } from "@wormhole-foundation/sdk";
+import { Chain } from "@wormhole-foundation/sdk-base";
+import { serialize, toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 // TODO: return VaaAccount, too
 export async function postLiquidityLayerVaa(

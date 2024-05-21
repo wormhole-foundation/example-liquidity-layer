@@ -2,7 +2,8 @@ import { getConfig } from "./helpers";
 import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__factory";
 import { ITokenRouter, FastTransferParametersStruct } from "../src/types/ITokenRouter";
 import { ethers } from "ethers";
-import { Chain, toChainId, toNative } from "@wormhole-foundation/sdk";
+import { toChainId } from "@wormhole-foundation/sdk-base";
+import { EvmAddress } from "@wormhole-foundation/sdk-evm";
 
 export function getArgs() {
     const argv = require("yargs")
@@ -55,10 +56,9 @@ async function main() {
     const routerChainId = toChainId(chain);
 
     // Setup token router contract.
-    const tokenRouter = ITokenRouter__factory.connect(
-        toNative(chain as Chain, routers[routerChainId].address).toString(),
-        wallet,
-    );
+
+    const address = new EvmAddress(routers[routerChainId].address).toString();
+    const tokenRouter = ITokenRouter__factory.connect(address, wallet);
 
     await setFastTransferParams(routerChainId.toString(), tokenRouter, fastTransferParams);
 }

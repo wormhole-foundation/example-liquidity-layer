@@ -54,7 +54,7 @@ import {
     ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
-import { ChainId, isChain, toChainId, isChainId } from "@wormhole-foundation/sdk";
+import { ChainId, toChainId, isChainId } from "@wormhole-foundation/sdk-base";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",

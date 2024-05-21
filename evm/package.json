@@ -13,7 +13,9 @@
     "generate": "typechain --target=ethers-v5 --out-dir=ts/src/types out/*/*.json"
   },
   "dependencies": {
-    "@wormhole-foundation/sdk":"^0.7.0-beta.3",
+    "@wormhole-foundation/sdk-base":"^0.7.0-beta.3",
+    "@wormhole-foundation/sdk-definitions":"^0.7.0-beta.3",
+    "@wormhole-foundation/sdk-evm":"^0.7.0-beta.3",
     "@wormhole-foundation/example-liquidity-layer-definitions":"0.0.1",
     "ethers": "^5.7.2"
   },

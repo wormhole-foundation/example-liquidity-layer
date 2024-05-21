@@ -6,14 +6,8 @@ import {
 } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
 import * as utils from ".";
 import * as winston from "winston";
-import {
-    Chain,
-    VAA,
-    chainToPlatform,
-    deserialize,
-    keccak256,
-    toChainId,
-} from "@wormhole-foundation/sdk";
+import { Chain, chainToPlatform, toChainId } from "@wormhole-foundation/sdk-base";
+import { VAA, deserialize, keccak256 } from "@wormhole-foundation/sdk-definitions";
 import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
 
 async function fetchCctpArgs(

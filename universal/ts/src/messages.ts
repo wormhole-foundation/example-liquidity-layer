@@ -5,8 +5,8 @@ import {
     column,
     constMap,
     layoutDiscriminator,
-    layoutItems,
-} from "@wormhole-foundation/sdk";
+} from "@wormhole-foundation/sdk-base";
+import { layoutItems } from "@wormhole-foundation/sdk-definitions";
 import { payloadLayoutSwitch } from "./payloads";
 
 const cctpDepositLayout = [

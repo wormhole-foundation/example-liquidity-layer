@@ -5,15 +5,13 @@ import { USDC_MINT_ADDRESS } from "@wormhole-foundation/example-liquidity-layer-
 import { defaultLogger } from "./logger";
 import {
     Chain,
-    VAA,
-    chain,
     chainToPlatform,
     chains,
     contracts,
     isChain,
     toChainId,
-    toNative,
-} from "@wormhole-foundation/sdk";
+} from "@wormhole-foundation/sdk-base";
+import { VAA, toNative } from "@wormhole-foundation/sdk-definitions";
 
 export const EVM_FAST_CONSISTENCY_LEVEL = 200;
 

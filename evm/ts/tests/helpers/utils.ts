@@ -3,7 +3,8 @@ import { IERC20 } from "../../src/types";
 import { IUSDC__factory } from "../../src/types/factories/IUSDC__factory";
 import { WALLET_PRIVATE_KEYS } from "./consts";
 import { EvmMatchingEngine } from "../../src";
-import { Chain, toUniversal } from "@wormhole-foundation/sdk";
+import { Chain } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 export interface ScoreKeeper {
     player: ethers.Wallet;

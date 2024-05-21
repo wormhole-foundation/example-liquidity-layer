@@ -1,4 +1,4 @@
-import { ChainId } from "@wormhole-foundation/sdk";
+import { ChainId } from "@wormhole-foundation/sdk-base";
 import { ethers } from "ethers";
 import { Endpoint, OrderResponse, TokenRouter, FastTransferParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
