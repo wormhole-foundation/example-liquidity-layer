@@ -2,7 +2,6 @@ import { ethers } from "ethers";
 
 export * from "./MatchingEngine";
 export * from "./TokenRouter";
-export * from "./consts";
 export * from "./error";
 export * from "./messages";
 export * from "./utils";

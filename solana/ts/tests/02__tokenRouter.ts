@@ -28,13 +28,8 @@ import {
     postLiquidityLayerVaa,
     toUniversalAddress,
 } from "../src/testing";
-import {
-    ChainId,
-    UniversalAddress,
-    toChain,
-    toChainId,
-    toUniversal,
-} from "@wormhole-foundation/sdk";
+import { ChainId, toChain, toChainId } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 
 const SOLANA_CHAIN_ID = toChainId("Solana");

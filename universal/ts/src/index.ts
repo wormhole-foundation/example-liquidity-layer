@@ -1,4 +1,4 @@
-import { deserializeLayout, serializeLayout } from "@wormhole-foundation/sdk";
+import { deserializeLayout, serializeLayout } from "@wormhole-foundation/sdk-base";
 import {
     MessageName,
     MessageType,

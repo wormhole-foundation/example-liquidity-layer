@@ -2,7 +2,8 @@ import { getConfig } from "./helpers";
 import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__factory";
 import { ITokenRouter, FastTransferParametersStruct } from "../src/types/ITokenRouter";
 import { ethers } from "ethers";
-import { Chain, toChainId, toNative, toUniversal, toChain } from "@wormhole-foundation/sdk";
+import { toChain, toChainId } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 export function getArgs() {
     const argv = require("yargs")

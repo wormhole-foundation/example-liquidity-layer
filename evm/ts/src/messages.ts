@@ -7,7 +7,7 @@ import {
     messages,
     payloads,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { toChainId } from "@wormhole-foundation/sdk";
+import { toChainId } from "@wormhole-foundation/sdk-base";
 
 export type LiquidityLayerMessageBody = {
     fill?: Fill;

@@ -1,12 +1,6 @@
 import { Connection, PublicKey } from "@solana/web3.js";
-import {
-    deserialize,
-    ChainId,
-    toChainId,
-    isChain,
-    isChainId,
-    keccak256,
-} from "@wormhole-foundation/sdk";
+import { ChainId, toChainId, isChainId } from "@wormhole-foundation/sdk-base";
+import { deserialize, keccak256 } from "@wormhole-foundation/sdk-definitions";
 import { ethers } from "ethers";
 export * from "./spy";
 

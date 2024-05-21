@@ -28,7 +28,7 @@ import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import { Custodian, PreparedFill, PreparedOrder } from "./state";
-import { ChainId, isChainId } from "@wormhole-foundation/sdk";
+import { ChainId, isChainId } from "@wormhole-foundation/sdk-base";
 
 export const PROGRAM_IDS = [
     "TokenRouter11111111111111111111111111111111",

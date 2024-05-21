@@ -3,7 +3,7 @@ import { PreparedTransaction } from "@wormhole-foundation/example-liquidity-laye
 import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
 import { AppConfig } from "./config";
 import * as solanaCore from "@wormhole-foundation/sdk-solana-core";
-import { VAA } from "@wormhole-foundation/sdk";
+import { VAA } from "@wormhole-foundation/sdk-definitions";
 
 function unsafeFixSigVerifyIx(sigVerifyIx: TransactionInstruction, sigVerifyIxIndex: number) {
     const { data } = sigVerifyIx;

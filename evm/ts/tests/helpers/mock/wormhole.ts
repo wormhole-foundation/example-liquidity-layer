@@ -2,9 +2,9 @@ import { ethers } from "ethers";
 import { EvmObserver } from ".";
 import { parseEvmEvents, parseEvmEvent } from "../../../src";
 import { GUARDIAN_PRIVATE_KEY, WORMHOLE_GUARDIAN_SET_INDEX } from "../consts";
-import { Chain, VAA, contracts, serialize, toUniversal } from "@wormhole-foundation/sdk";
+import { Chain, contracts } from "@wormhole-foundation/sdk-base";
+import { serialize, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
-import { tryNativeToUint8Array } from "../utils";
 
 export class GuardianNetwork implements EvmObserver<Uint8Array> {
     guardians: mocks.MockGuardians;
