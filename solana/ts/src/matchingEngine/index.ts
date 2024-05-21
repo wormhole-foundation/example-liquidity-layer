@@ -1,6 +1,7 @@
 export * from "./state";
 
-import { BN, Program, utils } from "@coral-xyz/anchor";
+import { Program, utils } from "@coral-xyz/anchor";
+import * as anchor from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     ConfirmOptions,
@@ -142,7 +143,7 @@ export type CctpMessageArgs = {
 export type AuctionSettled = {
     auction: PublicKey;
     bestOfferToken: PublicKey | null;
-    tokenBalanceAfter: BN;
+    tokenBalanceAfter: anchor.BN;
     withExecute: MessageProtocol | null;
 };
 
@@ -153,12 +154,12 @@ export type AuctionUpdated = {
     sourceChain: number;
     targetProtocol: MessageProtocol;
     redeemerMessageLen: number;
-    endSlot: BN;
+    endSlot: anchor.BN;
     bestOfferToken: PublicKey;
-    tokenBalanceBefore: BN;
-    amountIn: BN;
-    totalDeposit: BN;
-    maxOfferPriceAllowed: BN;
+    tokenBalanceBefore: anchor.BN;
+    amountIn: anchor.BN;
+    totalDeposit: anchor.BN;
+    maxOfferPriceAllowed: anchor.BN;
 };
 
 export type OrderExecuted = {
@@ -539,7 +540,7 @@ export class MatchingEngineProgram {
     // length from a u32 to a u16.
     async fetchAuctionHistory(input: Uint64 | { address: PublicKey }): Promise<AuctionHistory> {
         const addr =
-            typeof input === "bigint" || typeof input === "number" || input instanceof BN
+            typeof input === "bigint" || typeof input === "number" || input instanceof anchor.BN
                 ? this.auctionHistoryAddress(input)
                 : input.address;
 
@@ -630,7 +631,7 @@ export class MatchingEngineProgram {
         input: Uint64 | { address: PublicKey },
     ): Promise<[AuctionHistoryHeader, number]> {
         const addr =
-            typeof input === "bigint" || typeof input === "number" || input instanceof BN
+            typeof input === "bigint" || typeof input === "number" || input instanceof anchor.BN
                 ? this.auctionHistoryAddress(input)
                 : input.address;
         const accInfo = await this.program.provider.connection.getAccountInfo(addr, {

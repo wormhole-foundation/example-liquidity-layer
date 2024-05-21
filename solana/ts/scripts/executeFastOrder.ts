@@ -10,45 +10,29 @@ import {
 import { LiquidityLayerMessage } from "../src/common";
 import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import * as utils from "../auction-participant/utils";
-import yargs, {Argv} from "yargs";
+import yargs, { Argv } from "yargs";
+import { Command } from 'commander';
 import * as fs from "fs";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 
 export function getArgs() {
-    const argv = ((yargs() as unknown) as Argv<{}>).options({
-        keyPair: {
-            alias: "k",
-            describe: "Signer Keypair",
-            require: true,
-            string: true,
-        },
-        cfg: {
-            alias: "c",
-            describe: "config",
-            require: true,
-            string: true,
-        },
-        fromChain: {
-            alias: "f",
-            describe: "fromChain",
-            require: true,
-            string: true,
-        },
-        sequence: {
-            alias: "s",
-            describe: "sequence",
-            require: true,
-            string: true,
-        },
-    }).argv;
+    const program = new Command();
 
-    if ("keyPair" in argv && "cfg" in argv && "fromChain" in argv && "sequence" in argv) {
+    program
+        .requiredOption('-k, --keyPair <keyPair>', 'Signer Keypair')
+        .requiredOption('-c, --cfg <cfg>', 'config')
+        .requiredOption('-f, --fromChain <fromChain>', 'fromChain')
+        .requiredOption('-s, --sequence <sequence>', 'sequence');
+
+    const options = program.opts();
+
+    if ("keyPair" in options && "cfg" in options && "fromChain" in options && "sequence" in options) {
         return {
-            keyPair: JSON.parse(fs.readFileSync(argv.keyPair, "utf8")),
-            cfgJson: JSON.parse(fs.readFileSync(argv.cfg, "utf-8")),
-            fromChain: argv.fromChain,
-            sequence: argv.sequence,
+            keyPair: JSON.parse(fs.readFileSync(options.keyPair, "utf8")),
+            cfgJson: JSON.parse(fs.readFileSync(options.cfg, "utf-8")),
+            fromChain: options.fromChain,
+            sequence: options.sequence,
         };
     } else {
         throw Error("Invalid arguments");
