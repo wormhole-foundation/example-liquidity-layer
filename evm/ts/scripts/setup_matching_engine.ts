@@ -2,7 +2,8 @@ import { getConfig, ZERO_BYTES32 } from "./helpers";
 import { IMatchingEngine__factory, IMatchingEngine } from "../src/types/";
 import { RouterEndpointStruct } from "../src/types/IMatchingEngine";
 import { ethers } from "ethers";
-import { ChainId, toChain, toChainId, toNative, toUniversal } from "@wormhole-foundation/sdk";
+import { ChainId, toChain, toChainId } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 export function getArgs() {
     const argv = require("yargs")

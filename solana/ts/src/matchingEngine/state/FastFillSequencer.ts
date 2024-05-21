@@ -1,6 +1,6 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { ChainId } from "@wormhole-foundation/sdk";
+import { ChainId } from "@wormhole-foundation/sdk-base";
 
 export type FastFillSequencerSeeds = {
     sourceChain: number;

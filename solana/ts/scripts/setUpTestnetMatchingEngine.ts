@@ -10,7 +10,8 @@ import "dotenv/config";
 import { uint64ToBN } from "../src/common";
 import { AuctionParameters, MatchingEngineProgram } from "../src/matchingEngine";
 import { TokenRouterProgram } from "../src/tokenRouter";
-import { Chain, toChainId, toUniversal } from "@wormhole-foundation/sdk";
+import { Chain, toChainId } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 const MATCHING_ENGINE_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 const TOKEN_ROUTER_ID = "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md";

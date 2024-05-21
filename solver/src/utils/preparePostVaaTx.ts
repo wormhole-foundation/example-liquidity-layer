@@ -1,9 +1,9 @@
 import { ConfirmOptions, Connection, Keypair, TransactionInstruction } from "@solana/web3.js";
-import { PreparedTransaction } from "../../src";
-import { MatchingEngineProgram } from "../../src/matchingEngine";
+import { PreparedTransaction } from "@wormhole-foundation/example-liquidity-layer-solana";
+import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
 import { AppConfig } from "./config";
 import * as solanaCore from "@wormhole-foundation/sdk-solana-core";
-import { VAA } from "@wormhole-foundation/sdk";
+import { VAA } from "@wormhole-foundation/sdk-definitions";
 
 function unsafeFixSigVerifyIx(sigVerifyIx: TransactionInstruction, sigVerifyIxIndex: number) {
     const { data } = sigVerifyIx;

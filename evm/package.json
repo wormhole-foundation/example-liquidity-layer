@@ -10,10 +10,13 @@
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build": "npm run build:esm && npm run build:cjs",
-    "generate": "typechain --target=ethers-v5 --out-dir=ts/src/types out/*/*.json"
+    "generate": "typechain --target=ethers-v5 --out-dir=ts/src/types out/*/*.json",
+    "clean":"rm -rf dist && rm -rf node_modules"
   },
   "dependencies": {
-    "@wormhole-foundation/sdk":"^0.7.0-beta.3",
+    "@wormhole-foundation/sdk-base":"^0.7.0-beta.4",
+    "@wormhole-foundation/sdk-definitions":"^0.7.0-beta.4",
+    "@wormhole-foundation/sdk-evm":"^0.7.0-beta.4",
     "@wormhole-foundation/example-liquidity-layer-definitions":"0.0.1",
     "ethers": "^5.7.2"
   },

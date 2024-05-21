@@ -1,4 +1,4 @@
-import { deserialize } from "@wormhole-foundation/sdk";
+import { deserialize } from "@wormhole-foundation/sdk-definitions";
 import { VaaSpy } from "../src/wormhole/spy";
 
 async function main() {
@@ -8,7 +8,7 @@ async function main() {
         spyHost: "localhost:7073",
         vaaFilters: [
             {
-                chain: "pythnet",
+                chain: "Pythnet",
                 // nativeAddress: "BwDNn2qvZc6drt8Q4zRE2HHys64ZyPXhWxt51ADtWuc1",
                 nativeAddress: "G9LV2mp9ua1znRAfYwZz5cPiJMAbo1T6mbjdQsDZuMJg",
             },

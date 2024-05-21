@@ -62,15 +62,8 @@ import {
     Fill,
     FastMarketOrder,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import {
-    Chain,
-    ChainId,
-    UniversalAddress,
-    encoding,
-    toChain,
-    toChainId,
-    toUniversal,
-} from "@wormhole-foundation/sdk";
+import { Chain, ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 chaiUse(chaiAsPromised);
 

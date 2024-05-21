@@ -11,11 +11,13 @@
   "exports":{
     ".":{
       "import":"./dist/esm/index.js",
-      "require":"./dist/cjs/index.js"
+      "require":"./dist/cjs/index.js",
+      "types":"./dist/cjs/index.d.ts"
     },
     "./*":{
       "import":"./dist/esm/*/index.js",
-      "require":"./dist/cjs/*/index.js"
+      "require":"./dist/cjs/*/index.js",
+      "types":"./dist/cjs/*/index.d.ts"
     }
   },
   "scripts": {
@@ -23,12 +25,16 @@
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
     "build:esm":"npx tsc -p tsconfig.esm.json",
     "build:cjs":"npx tsc -p tsconfig.cjs.json",
-    "build":"npm run build:esm && npm run build:cjs"
+    "build":"npm run build:esm && npm run build:cjs",
+    "clean":"rm -rf dist && rm -f ./*.tsbuildinfo && rm -rf node_modules"
   },
   "dependencies": {
     "@certusone/wormhole-spydk": "^0.0.1",
     "@wormhole-foundation/example-liquidity-layer-definitions": "0.0.1",
-    "@wormhole-foundation/sdk":"^0.7.0-beta.3",
+    "@wormhole-foundation/sdk-base":"^0.7.0-beta.4",
+    "@wormhole-foundation/sdk-definitions":"^0.7.0-beta.4",
+    "@wormhole-foundation/sdk-solana":"^0.7.0-beta.4",
+    "@wormhole-foundation/sdk-solana-core":"^0.7.0-beta.4",
     "@coral-xyz/anchor": "^0.30.0",
     "@solana/spl-token": "^0.4.6",
     "@solana/spl-token-group":"^0.0.4",

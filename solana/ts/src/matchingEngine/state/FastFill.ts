@@ -1,7 +1,7 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
 import { Uint64, writeUint64BE } from "../../common";
-import { ChainId } from "@wormhole-foundation/sdk";
+import { ChainId } from "@wormhole-foundation/sdk-base";
 
 export type FastFillInfo = {
     preparedBy: PublicKey;

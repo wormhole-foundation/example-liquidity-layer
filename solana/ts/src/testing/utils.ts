@@ -16,13 +16,8 @@ import { Err, Ok } from "ts-results";
 import { CORE_BRIDGE_PID, USDC_MINT_ADDRESS } from "./consts";
 import { SolanaSendSigner } from "@wormhole-foundation/sdk-solana";
 import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
-import {
-    SignAndSendSigner,
-    UniversalAddress,
-    deserialize,
-    encoding,
-    signAndSendWait,
-} from "@wormhole-foundation/sdk";
+import { signAndSendWait } from "@wormhole-foundation/sdk-connect";
+import { UniversalAddress, deserialize } from "@wormhole-foundation/sdk-definitions";
 
 export function toUniversalAddress(address: number[] | Buffer | Array<number>): UniversalAddress {
     return new UniversalAddress(new Uint8Array(address));

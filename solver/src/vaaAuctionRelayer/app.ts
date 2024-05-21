@@ -1,11 +1,11 @@
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import "dotenv/config";
 import * as fs from "fs";
-import { MatchingEngineProgram } from "../../src/matchingEngine";
-import { PreparedTransaction } from "../../src";
+import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
+import { PreparedTransaction } from "@wormhole-foundation/example-liquidity-layer-solana";
 import * as utils from "../utils";
 import * as winston from "winston";
-import { VaaSpy } from "../../src/wormhole/spy";
+import { VaaSpy } from "@wormhole-foundation/example-liquidity-layer-solana/wormhole";
 import { CachedBlockhash } from "../containers";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
@@ -81,9 +81,7 @@ async function main(argv: string[]) {
 
             // Start a new auction if this is a fast VAA.
             logicLogger.debug(`Attempting to parse FastMarketOrder, sequence=${parsed.sequence}`);
-            const fastOrder = utils.tryParseFastMarketOrder(
-                Buffer.from(parsed.payload as Uint8Array),
-            );
+            const fastOrder = utils.tryParseFastMarketOrder(Buffer.from(parsed.payload));
             if (fastOrder !== undefined) {
                 const unprocessedTxns = await utils.handlePlaceInitialOffer(
                     connection,
@@ -102,9 +100,7 @@ async function main(argv: string[]) {
             }
         } else {
             logicLogger.debug(`Attempting to parse SlowOrderResponse, sequence=${parsed.sequence}`);
-            const slowOrderResponse = utils.tryParseSlowOrderResponse(
-                Buffer.from(parsed.payload as Uint8Array),
-            );
+            const slowOrderResponse = utils.tryParseSlowOrderResponse(Buffer.from(parsed.payload));
             if (slowOrderResponse !== undefined) {
                 const unprocessedTxns = await utils.handleSettleAuction(
                     connection,

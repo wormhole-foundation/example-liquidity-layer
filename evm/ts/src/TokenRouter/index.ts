@@ -1,4 +1,3 @@
-import { VAA } from "@wormhole-foundation/sdk";
 import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
 import { ethers } from "ethers";
 export * from "./evm";

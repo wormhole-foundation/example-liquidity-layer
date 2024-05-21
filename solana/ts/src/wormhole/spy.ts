@@ -1,9 +1,10 @@
 import { createSpyRPCServiceClient, subscribeSignedVAA } from "@certusone/wormhole-spydk";
-import { deserialize, Chain, VAA, toChain, toUniversal, encoding } from "@wormhole-foundation/sdk";
+import { Chain, toChain, encoding } from "@wormhole-foundation/sdk-base";
+import { deserialize, VAA, toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 export type VaaContext = {
     raw: Buffer;
-    parsed: VAA;
+    parsed: VAA<"Uint8Array">;
     chain?: Chain;
     nativeAddress?: string;
 };

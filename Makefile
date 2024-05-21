@@ -2,6 +2,7 @@
 .PHONY: clean
 clean:
 	rm -rf node_modules
+	npm run clean
 	cd solana && $(MAKE) clean
 
 .PHONY: clean-install

@@ -1,19 +1,17 @@
 import * as splToken from "@solana/spl-token";
 import { Commitment, Connection, FetchFn, PublicKey, PublicKeyInitData } from "@solana/web3.js";
 import { ethers } from "ethers";
-import { USDC_MINT_ADDRESS } from "../../src/testing";
+import { USDC_MINT_ADDRESS } from "@wormhole-foundation/example-liquidity-layer-solana/testing";
 import { defaultLogger } from "./logger";
 import {
     Chain,
-    VAA,
-    chain,
     chainToPlatform,
     chains,
     contracts,
     isChain,
     toChainId,
-    toNative,
-} from "@wormhole-foundation/sdk";
+} from "@wormhole-foundation/sdk-base";
+import { VAA, toNative } from "@wormhole-foundation/sdk-definitions";
 
 export const EVM_FAST_CONSISTENCY_LEVEL = 200;
 
