@@ -10,7 +10,7 @@ import {
     parseLiquidityLayerEnvFile,
 } from "./helpers";
 import { expect } from "chai";
-import { toNative, toUniversal } from "@wormhole-foundation/sdk";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 const CHAIN_PATHWAYS: ValidNetwork[] = ["Ethereum", "Avalanche", "Base"];
 

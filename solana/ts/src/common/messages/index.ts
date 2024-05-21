@@ -3,7 +3,7 @@ import {
     Message,
     messages,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { isChain } from "@wormhole-foundation/sdk";
+import { isChain } from "@wormhole-foundation/sdk-base";
 import { ID_DEPOSIT, LiquidityLayerDeposit } from "./deposit";
 
 export * from "./deposit";

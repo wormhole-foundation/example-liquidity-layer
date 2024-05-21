@@ -1,4 +1,4 @@
-import { Chain } from "@wormhole-foundation/sdk";
+import { Chain } from "@wormhole-foundation/sdk-base";
 import { ethers } from "ethers";
 
 export * from "./circleAttester";

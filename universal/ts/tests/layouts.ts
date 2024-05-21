@@ -1,5 +1,5 @@
-import { encoding } from "@wormhole-foundation/sdk";
-import { Message, MessageType, Payload, PayloadType } from "../src/index";
+import { encoding } from "@wormhole-foundation/sdk-base";
+import { Message, MessageName, MessageType, Payload, PayloadName, PayloadType } from "../src/index";
 import { expect } from "chai";
 
 const msgs = [
@@ -27,11 +27,11 @@ describe("Message Serde", () => {
         it(`Can decode a ${expectMessage} + ${expectPayload}`, () => {
             const bytes = encoding.hex.decode(data);
             const decoded = Message.deserialize(bytes);
-            expect(Message.is(decoded, expectMessage as MessageType)).to.be.true;
+            expect(Message.is(decoded, expectMessage as MessageName)).to.be.true;
 
             if (Message.is(decoded, "CctpDeposit") && expectPayload) {
                 const payload = decoded.payload;
-                expect(Payload.is(payload, expectPayload as PayloadType)).to.be.true;
+                expect(Payload.is(payload, expectPayload as PayloadName)).to.be.true;
             }
         });
     });

@@ -1,5 +1,5 @@
-import { Message } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { ChainId, toChain, toUniversal } from "@wormhole-foundation/sdk";
+import { ChainId, toChain } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { ethers } from "ethers";
 import { CoreBridgeLiquidityLayerMessage, MessageDecoder } from "./messages";
 

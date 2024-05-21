@@ -1,5 +1,5 @@
 import { PublicKey, Keypair } from "@solana/web3.js";
-import { Chain, contracts } from "@wormhole-foundation/sdk";
+import { Chain, contracts } from "@wormhole-foundation/sdk-base";
 import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
 
 export const CORE_BRIDGE_PID = new PublicKey(contracts.coreBridge.get("Mainnet", "Solana")!);

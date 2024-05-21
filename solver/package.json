@@ -12,7 +12,9 @@
       "relayer":"tsx src/vaaAuctionRelayer/app/ts"
     },
     "dependencies": {
-      "@wormhole-foundation/sdk":"^0.7.0-beta.3",
+      "@wormhole-foundation/sdk-base":"^0.7.0-beta.3",
+      "@wormhole-foundation/sdk-definitions":"^0.7.0-beta.3",
+      "@wormhole-foundation/sdk-solana":"^0.7.0-beta.3",
       "@wormhole-foundation/example-liquidity-layer-solana":"0.0.1",
       "@wormhole-foundation/example-liquidity-layer-evm":"0.0.1",
       "@solana/spl-token": "^0.4.6"

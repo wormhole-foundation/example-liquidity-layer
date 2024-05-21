@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import * as winston from "winston";
 import fetch from "node-fetch";
-import { VAA } from "@wormhole-foundation/sdk";
+import { VAA } from "@wormhole-foundation/sdk-definitions";
 
 const WORMHOLE_MESSAGE = new ethers.utils.Interface([
     "event LogMessagePublished(address indexed sender,uint64 sequence,uint32 nonce,bytes payload,uint8 consistencyLevel)",

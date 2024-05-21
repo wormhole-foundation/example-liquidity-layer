@@ -2,13 +2,12 @@ import {
     Layout,
     LayoutToType,
     NamedLayoutItem,
-    ProperLayout,
     RoArray,
     column,
     constMap,
     layoutDiscriminator,
-    layoutItems,
-} from "@wormhole-foundation/sdk";
+} from "@wormhole-foundation/sdk-base";
+import { layoutItems } from "@wormhole-foundation/sdk-definitions";
 
 // Payloads contained within LL messages
 

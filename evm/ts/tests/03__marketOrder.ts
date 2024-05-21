@@ -15,7 +15,7 @@ import {
     parseLiquidityLayerEnvFile,
     tryNativeToUint8Array,
 } from "./helpers";
-import { serialize, toChainId } from "@wormhole-foundation/sdk";
+import { toChainId } from "@wormhole-foundation/sdk-base";
 
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
     ["Ethereum", "Avalanche"],

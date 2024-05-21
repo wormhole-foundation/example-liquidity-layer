@@ -27,7 +27,9 @@ import {
     mineToPenaltyPeriod,
     tryNativeToUint8Array,
 } from "./helpers";
-import { deserialize, keccak256, toChainId, toUniversal } from "@wormhole-foundation/sdk";
+
+import { toChainId } from "@wormhole-foundation/sdk-base";
+import { deserialize, keccak256, toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [

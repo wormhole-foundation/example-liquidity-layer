@@ -3,7 +3,7 @@ import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__fact
 import { ITokenRouter } from "../src/types/ITokenRouter";
 import { EndpointStruct } from "../src/types/ITokenRouter";
 import { ethers } from "ethers";
-import { toChain, toChainId, toNative } from "@wormhole-foundation/sdk";
+import { toChain, toChainId, toNative } from "@wormhole-foundation/sdk-connect";
 
 export function getArgs() {
     const argv = require("yargs")
