@@ -2,7 +2,7 @@ import { getConfig, ZERO_BYTES32 } from "./helpers";
 import { IMatchingEngine__factory, IMatchingEngine } from "../src/types/";
 import { RouterEndpointStruct } from "../src/types/IMatchingEngine";
 import { ethers } from "ethers";
-import { ChainId, toChain, toChainId, toNative } from "@wormhole-foundation/sdk";
+import { ChainId, toChain, toChainId, toNative, toUniversal } from "@wormhole-foundation/sdk";
 
 export function getArgs() {
     const argv = require("yargs")
@@ -71,7 +71,10 @@ async function main() {
     }
 
     const engineChain = toChain(engineChainId);
-    const engineAddress = toNative(engineChain, matchingEngineConfig["address"]);
+    const engineAddress = toUniversal(engineChain, matchingEngineConfig["address"])
+        .toNative(engineChain)
+        .toString();
+
     // Setup token router contract.
     const engine = IMatchingEngine__factory.connect(engineAddress.toString(), wallet);
 

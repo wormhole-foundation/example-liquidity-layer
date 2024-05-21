@@ -19,9 +19,7 @@ describe("Registration", () => {
     const envPath = `${__dirname}/../../env/localnet`;
 
     describe(`Register Token Routers on ${MATCHING_ENGINE_NAME} Matching Engine`, () => {
-        const env = parseLiquidityLayerEnvFile(
-            `${envPath}/${MATCHING_ENGINE_NAME.toLowerCase()}.env`,
-        );
+        const env = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
         const provider = new ethers.providers.StaticJsonRpcProvider(
             LOCALHOSTS[MATCHING_ENGINE_NAME],
         );
@@ -37,9 +35,7 @@ describe("Registration", () => {
 
         for (const chainName of CHAIN_PATHWAYS) {
             it(`Register ${chainName}`, async () => {
-                const targetEnv = parseLiquidityLayerEnvFile(
-                    `${envPath}/${chainName.toLowerCase()}.env`,
-                );
+                const targetEnv = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
                 const [formattedAddress, mintRecipient] = fetchTokenRouterEndpoint(
                     targetEnv,
                     chainName,
@@ -66,7 +62,7 @@ describe("Registration", () => {
 
     for (const chainName of CHAIN_PATHWAYS) {
         describe(`Register Token Routers on ${chainName}`, () => {
-            const env = parseLiquidityLayerEnvFile(`${envPath}/${chainName.toLowerCase()}.env`);
+            const env = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
             const provider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[chainName]);
             const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
             const router = ITokenRouter__factory.connect(env.tokenRouterAddress, assistant);
@@ -77,9 +73,7 @@ describe("Registration", () => {
                 }
 
                 it(`Register ${targetChain}`, async () => {
-                    const targetEnv = parseLiquidityLayerEnvFile(
-                        `${envPath}/${targetChain.toLowerCase()}.env`,
-                    );
+                    const targetEnv = parseLiquidityLayerEnvFile(`${envPath}/${targetChain}.env`);
                     const [formattedAddress, mintRecipient] = fetchTokenRouterEndpoint(
                         targetEnv,
                         chainName,

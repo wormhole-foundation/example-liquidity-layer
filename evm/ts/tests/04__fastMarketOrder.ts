@@ -51,9 +51,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
         LOCALHOSTS[MATCHING_ENGINE_NAME],
     );
     const engineWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[2], engineProvider);
-    const engineEnv = parseLiquidityLayerEnvFile(
-        `${envPath}/${MATCHING_ENGINE_NAME.toLowerCase()}.env`,
-    );
+    const engineEnv = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
     const engine = (() => {
         if (engineEnv.chainType === ChainType.Evm) {
             return new EvmMatchingEngine(
@@ -85,9 +83,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
             );
             const fromWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], fromProvider);
 
-            const fromEnv = parseLiquidityLayerEnvFile(
-                `${envPath}/${fromChainName.toLowerCase()}.env`,
-            );
+            const fromEnv = parseLiquidityLayerEnvFile(`${envPath}/${fromChainName}.env`);
             const fromTokenRouter = (() => {
                 if (fromEnv.chainType === ChainType.Evm) {
                     return new EvmTokenRouter(
@@ -104,7 +100,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
             const toProvider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[toChainName]);
             const toWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], toProvider);
 
-            const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName.toLowerCase()}.env`);
+            const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName}.env`);
             const toTokenRouter = (() => {
                 if (toEnv.chainType === ChainType.Evm) {
                     return new EvmTokenRouter(

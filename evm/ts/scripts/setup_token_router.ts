@@ -3,7 +3,7 @@ import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__fact
 import { ITokenRouter } from "../src/types/ITokenRouter";
 import { EndpointStruct } from "../src/types/ITokenRouter";
 import { ethers } from "ethers";
-import { toChain, toChainId, toNative } from "@wormhole-foundation/sdk";
+import { toChain, toChainId, toNative, toUniversal } from "@wormhole-foundation/sdk";
 
 export function getArgs() {
     const argv = require("yargs")
@@ -66,7 +66,9 @@ async function main() {
 
     const routerChainId = toChainId(chain);
     const routerChain = toChain(routerChainId);
-    const routerAddress = toNative(routerChain, routers[routerChainId].address);
+    const routerAddress = toUniversal(routerChain, routers[routerChainId].address)
+        .toNative(routerChain)
+        .toString();
 
     // Setup token router contract.
     const tokenRouter = ITokenRouter__factory.connect(routerAddress.toString(), wallet);

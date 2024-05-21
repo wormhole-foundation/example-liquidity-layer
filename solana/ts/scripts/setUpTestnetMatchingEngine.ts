@@ -1,4 +1,3 @@
-import { ChainName, coalesceChainId, tryNativeToUint8Array } from "@certusone/wormhole-sdk";
 import * as splToken from "@solana/spl-token";
 import {
     Connection,
@@ -8,9 +7,10 @@ import {
     sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import "dotenv/config";
-import { AuctionParameters, MatchingEngineProgram } from "../src/matchingEngine";
 import { uint64ToBN } from "../src/common";
+import { AuctionParameters, MatchingEngineProgram } from "../src/matchingEngine";
 import { TokenRouterProgram } from "../src/tokenRouter";
+import { Chain, toChainId, toUniversal } from "@wormhole-foundation/sdk";
 
 const MATCHING_ENGINE_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 const TOKEN_ROUTER_ID = "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md";
@@ -53,9 +53,9 @@ async function main() {
         await addLocalRouterEndpoint(matchingEngine, payer, tokenRouter);
     }
     {
-        // https://sepolia.etherscan.io/address/0x603541d1Cf7178C407aA7369b67CB7e0274952e2
-        const foreignChain = "sepolia";
-        const foreignEmitter = "0x603541d1Cf7178C407aA7369b67CB7e0274952e2";
+        // https://sepolia.etherscan.io/address/0xE57D917bf955FedE2888AAbD056202a6497F1882
+        const foreignChain = "Sepolia";
+        const foreignEmitter = "0xE57D917bf955FedE2888AAbD056202a6497F1882";
         const cctpDomain = 0;
 
         await addCctpRouterEndpoint(
@@ -68,9 +68,9 @@ async function main() {
         );
     }
     {
-        // https://testnet.snowtrace.io/address/0x7353B29FDc79435dcC7ECc9Ac9F9b61d83B4E0F4
-        const foreignChain = "avalanche";
-        const foreignEmitter = "0x7353B29FDc79435dcC7ECc9Ac9F9b61d83B4E0F4";
+        // https://testnet.snowtrace.io/address/0x8Cd7D7C980cd72eBD16737dC3fa04469dcFcf07A
+        const foreignChain = "Avalanche";
+        const foreignEmitter = "0x8Cd7D7C980cd72eBD16737dC3fa04469dcFcf07A";
         const cctpDomain = 1;
 
         await addCctpRouterEndpoint(
@@ -83,9 +83,9 @@ async function main() {
         );
     }
     {
-        // https://sepolia-optimism.etherscan.io/address/0xc1Cf3501ef0b26c8A47759F738832563C7cB014A
-        const foreignChain = "optimism_sepolia";
-        const foreignEmitter = "0xc1Cf3501ef0b26c8A47759F738832563C7cB014A";
+        // https://sepolia-optimism.etherscan.io/address/0x6BAa7397c18abe6221b4f6C3Ac91C88a9faE00D8
+        const foreignChain = "OptimismSepolia";
+        const foreignEmitter = "0x6BAa7397c18abe6221b4f6C3Ac91C88a9faE00D8";
         const cctpDomain = 2;
 
         await addCctpRouterEndpoint(
@@ -98,9 +98,9 @@ async function main() {
         );
     }
     {
-        // https://sepolia.arbiscan.io/address/0xc1cf3501ef0b26c8a47759f738832563c7cb014a
-        const foreignChain = "arbitrum_sepolia";
-        const foreignEmitter = "0xc1Cf3501ef0b26c8A47759F738832563C7cB014A";
+        // https://sepolia.arbiscan.io/address/0xe0418C44F06B0b0D7D1706E01706316DBB0B210E
+        const foreignChain = "ArbitrumSepolia";
+        const foreignEmitter = "0xe0418C44F06B0b0D7D1706E01706316DBB0B210E";
         const cctpDomain = 3;
 
         await addCctpRouterEndpoint(
@@ -113,9 +113,9 @@ async function main() {
         );
     }
     {
-        // https://sepolia.basescan.org/address/0x4452b708c01d6ad7058a7541a3a82f0ad0a1abb1
-        const foreignChain = "base_sepolia";
-        const foreignEmitter = "0x4452B708C01d6aD7058a7541A3A82f0aD0A1abB1";
+        // https://sepolia.basescan.org/address/0x824Ea687CD1CC2f2446235D33Ae764CbCd08e18C
+        const foreignChain = "BaseSepolia";
+        const foreignEmitter = "0x824Ea687CD1CC2f2446235D33Ae764CbCd08e18C";
         const cctpDomain = 6;
 
         await addCctpRouterEndpoint(
@@ -128,9 +128,9 @@ async function main() {
         );
     }
     {
-        // https://mumbai.polygonscan.com/address/0x3Ce8a3aC230Eb4bCE3688f2A1ab21d986a0A0B06
-        const foreignChain = "polygon";
-        const foreignEmitter = "0x3Ce8a3aC230Eb4bCE3688f2A1ab21d986a0A0B06";
+        // https://mumbai.polygonscan.com/address/0xa098368AaaDc0FdF3e309cda710D7A5f8BDEeCD9
+        const foreignChain = "PolygonSepolia";
+        const foreignEmitter = "0xa098368AaaDc0FdF3e309cda710D7A5f8BDEeCD9";
         const cctpDomain = 7;
 
         await addCctpRouterEndpoint(
@@ -180,7 +180,7 @@ async function intialize(matchingEngine: MatchingEngineProgram, payer: Keypair) 
 async function addCctpRouterEndpoint(
     matchingEngine: MatchingEngineProgram,
     payer: Keypair,
-    foreignChain: ChainName,
+    foreignChain: Chain,
     cctpDomain: number,
     foreignEmitter: string,
     foreignMintRecipient: string | null,
@@ -191,60 +191,83 @@ async function addCctpRouterEndpoint(
 
     const connection = matchingEngine.program.provider.connection;
 
-    const chain = coalesceChainId(foreignChain);
+    const chain = toChainId(foreignChain);
     const endpoint = matchingEngine.routerEndpointAddress(chain);
     const exists = await connection.getAccountInfo(endpoint).then((acct) => acct != null);
 
-    const endpointAddress = Array.from(tryNativeToUint8Array(foreignEmitter, foreignChain));
+    const endpointAddress = Array.from(toUniversal(foreignChain, foreignEmitter).unwrap());
     const endpointMintRecipient =
         foreignMintRecipient === null
             ? null
-            : Array.from(tryNativeToUint8Array(foreignMintRecipient, foreignChain));
+            : Array.from(toUniversal(foreignChain, foreignMintRecipient).unwrap());
 
-    if (exists) {
-        const { address, mintRecipient } = await matchingEngine.fetchRouterEndpoint(chain);
-        if (
-            Buffer.from(address).equals(Buffer.from(endpointAddress)) &&
-            Buffer.from(mintRecipient).equals(Buffer.from(endpointMintRecipient ?? endpointAddress))
-        ) {
-            console.log(
-                "endpoint already exists",
-                foreignChain,
-                "addr",
-                foreignEmitter,
-                "domain",
-                cctpDomain,
-                "mintRecipient",
-                foreignMintRecipient,
+    const [ix, action] = await (async () => {
+        if (exists) {
+            const { address, mintRecipient } = await matchingEngine.fetchRouterEndpointInfo(chain);
+            if (
+                Buffer.from(address).equals(Buffer.from(endpointAddress)) &&
+                Buffer.from(mintRecipient).equals(
+                    Buffer.from(endpointMintRecipient ?? endpointAddress),
+                )
+            ) {
+                return [null, null];
+            } else {
+                const ix = await matchingEngine.updateCctpRouterEndpointIx(
+                    { owner: payer.publicKey },
+                    {
+                        chain,
+                        address: endpointAddress,
+                        mintRecipient: endpointMintRecipient,
+                        cctpDomain,
+                    },
+                );
+                return [ix, "updated"];
+            }
+        } else {
+            const ix = await matchingEngine.addCctpRouterEndpointIx(
+                {
+                    ownerOrAssistant: payer.publicKey,
+                },
+                {
+                    chain,
+                    address: endpointAddress,
+                    mintRecipient: endpointMintRecipient,
+                    cctpDomain,
+                },
             );
-            return;
+            return [ix, "added"];
         }
-    }
+    })();
 
-    const ix = await matchingEngine.addCctpRouterEndpointIx(
-        {
-            ownerOrAssistant: payer.publicKey,
-        },
-        {
-            chain,
-            address: endpointAddress,
-            mintRecipient: endpointMintRecipient,
+    if (action === null) {
+        console.log(
+            "endpoint already exists",
+            foreignChain,
+            "addr",
+            foreignEmitter,
+            "domain",
             cctpDomain,
-        },
-    );
-    const txSig = await sendAndConfirmTransaction(connection, new Transaction().add(ix), [payer]);
-    console.log(
-        "added endpoint",
-        txSig,
-        "chain",
-        foreignChain,
-        "addr",
-        foreignEmitter,
-        "domain",
-        cctpDomain,
-        "mintRecipient",
-        foreignMintRecipient,
-    );
+            "mintRecipient",
+            foreignMintRecipient,
+        );
+    } else {
+        const txSig = await sendAndConfirmTransaction(connection, new Transaction().add(ix), [
+            payer,
+        ]);
+        console.log(
+            action,
+            "endpoint",
+            txSig,
+            "chain",
+            foreignChain,
+            "addr",
+            foreignEmitter,
+            "domain",
+            cctpDomain,
+            "mintRecipient",
+            foreignMintRecipient,
+        );
+    }
 }
 
 async function addLocalRouterEndpoint(
@@ -258,19 +281,19 @@ async function addLocalRouterEndpoint(
 
     const connection = matchingEngine.program.provider.connection;
 
-    const chain = coalesceChainId("solana");
+    const chain = toChainId("Solana");
     const endpoint = matchingEngine.routerEndpointAddress(chain);
     const exists = await connection.getAccountInfo(endpoint).then((acct) => acct != null);
 
     const endpointAddress = Array.from(
-        tryNativeToUint8Array(tokenRouter.custodianAddress().toString(), chain),
+        toUniversal("Solana", tokenRouter.custodianAddress().toString()).unwrap(),
     );
     const endpointMintRecipient = Array.from(
-        tryNativeToUint8Array(tokenRouter.cctpMintRecipientAddress().toString(), chain),
+        toUniversal("Solana", tokenRouter.cctpMintRecipientAddress().toString()).unwrap(),
     );
 
     if (exists) {
-        const { address, mintRecipient } = await matchingEngine.fetchRouterEndpoint(chain);
+        const { address, mintRecipient } = await matchingEngine.fetchRouterEndpointInfo(chain);
         if (
             Buffer.from(address).equals(Buffer.from(endpointAddress)) &&
             Buffer.from(mintRecipient).equals(Buffer.from(endpointMintRecipient ?? endpointAddress))

@@ -19,7 +19,7 @@ describe("Configuration", () => {
 
     describe("Token Router Configuration", () => {
         for (const chainName of CHAIN_PATHWAYS) {
-            const env = parseLiquidityLayerEnvFile(`${envPath}/${chainName.toLowerCase()}.env`);
+            const env = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
             const provider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[chainName]);
             const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
             const router = ITokenRouter__factory.connect(env.tokenRouterAddress, assistant);
@@ -52,9 +52,7 @@ describe("Configuration", () => {
 
     describe("Matching Engine Configuration", () => {
         it("Set Infinite Approval For Matching Engine", async () => {
-            const env = parseLiquidityLayerEnvFile(
-                `${envPath}/${MATCHING_ENGINE_NAME.toLowerCase()}.env`,
-            );
+            const env = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
             const provider = new ethers.providers.StaticJsonRpcProvider(
                 LOCALHOSTS[MATCHING_ENGINE_NAME],
             );

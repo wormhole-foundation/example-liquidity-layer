@@ -27,37 +27,37 @@
     {
       "chain": "sepolia",
       "rpc": "",
-      "endpoint": "0x603541d1Cf7178C407aA7369b67CB7e0274952e2",
+      "endpoint": "0xE57D917bf955FedE2888AAbD056202a6497F1882",
       "chainType": 0
     },
     {
       "chain": "avalanche",
       "rpc": "",
-      "endpoint": "0x7353B29FDc79435dcC7ECc9Ac9F9b61d83B4E0F4",
+      "endpoint": "0x8Cd7D7C980cd72eBD16737dC3fa04469dcFcf07A",
       "chainType": 0
     },
     {
       "chain": "optimism_sepolia",
       "rpc": "",
-      "endpoint": "0xc1Cf3501ef0b26c8A47759F738832563C7cB014A",
+      "endpoint": "0x6BAa7397c18abe6221b4f6C3Ac91C88a9faE00D8",
       "chainType": 0
     },
     {
       "chain": "arbitrum_sepolia",
       "rpc": "",
-      "endpoint": "0xc1Cf3501ef0b26c8A47759F738832563C7cB014A",
+      "endpoint": "0xe0418C44F06B0b0D7D1706E01706316DBB0B210E",
       "chainType": 0
     },
     {
       "chain": "base_sepolia",
       "rpc": "https://sepolia.base.org",
-      "endpoint": "0x4452B708C01d6aD7058a7541A3A82f0aD0A1abB1",
+      "endpoint": "0x824Ea687CD1CC2f2446235D33Ae764CbCd08e18C",
       "chainType": 0
     },
     {
       "chain": "polygon",
       "rpc": "",
-      "endpoint": "0x3Ce8a3aC230Eb4bCE3688f2A1ab21d986a0A0B06",
+      "endpoint": "0xa098368AaaDc0FdF3e309cda710D7A5f8BDEeCD9",
       "chainType": 0
     }
   ],
