@@ -1,5 +1,6 @@
 import { Connection, PublicKey } from "@solana/web3.js";
-import { Chain, toChainId, toNative, toUniversal } from "@wormhole-foundation/sdk";
+import { Chain, toChainId } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import * as matchingEngineSdk from "../src/matchingEngine";
 import * as tokenRouterSdk from "../src/tokenRouter";
 
