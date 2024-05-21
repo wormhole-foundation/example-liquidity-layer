@@ -11,6 +11,7 @@ import {
 } from "./helpers";
 import { expect } from "chai";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import "@wormhole-foundation/sdk-evm";
 
 const CHAIN_PATHWAYS: ValidNetwork[] = ["Ethereum", "Avalanche", "Base"];
 

@@ -30,6 +30,7 @@ import {
 
 import { toChainId } from "@wormhole-foundation/sdk-base";
 import { deserialize, keccak256, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import "@wormhole-foundation/sdk-evm";
 
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
