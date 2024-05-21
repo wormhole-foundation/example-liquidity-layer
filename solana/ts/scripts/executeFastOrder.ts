@@ -10,13 +10,13 @@ import {
 import { LiquidityLayerMessage } from "../src/common";
 import { derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import * as utils from "../auction-participant/utils";
-import yargs from "yargs";
+import yargs, {Argv} from "yargs";
 import * as fs from "fs";
 
 const MATCHING_ENGINE_PROGRAM_ID = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
 
 export function getArgs() {
-    const argv = yargs.options({
+    const argv = ((yargs() as unknown) as Argv<{}>).options({
         keyPair: {
             alias: "k",
             describe: "Signer Keypair",
