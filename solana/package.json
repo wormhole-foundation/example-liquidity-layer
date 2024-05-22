@@ -1,47 +1,48 @@
 {
-  "name":"@wormhole-foundation/example-liquidity-layer-solana",
+  "name": "@wormhole-foundation/example-liquidity-layer-solana",
   "version": "0.0.1",
   "main": "dist/cjs/index.js",
   "types": "dist/cjs/index.d.ts",
   "module": "dist/esm/index.js",
-  "files":[
+  "files": [
     "dist/cjs",
     "dist/esm"
   ],
-  "exports":{
-    ".":{
-      "import":"./dist/esm/index.js",
-      "require":"./dist/cjs/index.js",
-      "types":"./dist/cjs/index.d.ts"
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/cjs/index.d.ts"
     },
-    "./*":{
-      "import":"./dist/esm/*/index.js",
-      "require":"./dist/cjs/*/index.js",
-      "types":"./dist/cjs/*/index.d.ts"
+    "./*": {
+      "import": "./dist/esm/*/index.js",
+      "require": "./dist/cjs/*/index.js",
+      "types": "./dist/cjs/*/index.d.ts"
     }
   },
   "scripts": {
     "lint:fix": "prettier */*.js \"*/**/*{.js,.ts}\" -w",
     "lint": "prettier */*.js \"*/**/*{.js,.ts}\" --check",
-    "build:esm":"npx tsc -p tsconfig.esm.json",
-    "build:cjs":"npx tsc -p tsconfig.cjs.json",
-    "build":"npm run build:esm && npm run build:cjs",
-    "clean":"rm -rf dist && rm -f ./*.tsbuildinfo && rm -rf node_modules"
+    "build:esm": "npx tsc -p tsconfig.esm.json",
+    "build:cjs": "npx tsc -p tsconfig.cjs.json",
+    "build": "npm run build:esm && npm run build:cjs",
+    "clean": "rm -rf dist && rm -f ./*.tsbuildinfo && rm -rf node_modules"
   },
   "dependencies": {
     "@certusone/wormhole-spydk": "^0.0.1",
     "@wormhole-foundation/example-liquidity-layer-definitions": "0.0.1",
-    "@wormhole-foundation/sdk-base":"^0.7.0-beta.4",
-    "@wormhole-foundation/sdk-definitions":"^0.7.0-beta.4",
-    "@wormhole-foundation/sdk-solana":"^0.7.0-beta.4",
-    "@wormhole-foundation/sdk-solana-core":"^0.7.0-beta.4",
+    "@wormhole-foundation/sdk-base": "^0.7.0-beta.4",
+    "@wormhole-foundation/sdk-definitions": "^0.7.0-beta.4",
+    "@wormhole-foundation/sdk-solana": "^0.7.0-beta.4",
+    "@wormhole-foundation/sdk-solana-core": "^0.7.0-beta.4",
     "@coral-xyz/anchor": "^0.30.0",
     "@solana/spl-token": "^0.4.6",
-    "@solana/spl-token-group":"^0.0.4",
-    "@solana/spl-token-metadata":"^0.1.4",
+    "@solana/spl-token-group": "^0.0.4",
+    "@solana/spl-token-metadata": "^0.1.4",
     "@solana/web3.js": "^1.91.7",
     "@types/node-fetch": "^2.6.11",
     "anchor-0.29.0": "npm:@coral-xyz/anchor@^0.29.0",
+    "bn.js": "^5.2.1",
     "dotenv": "^16.4.1",
     "ethers": "^5.7.2",
     "sha3": "^2.1.4",
