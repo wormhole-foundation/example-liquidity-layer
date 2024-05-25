@@ -11,7 +11,14 @@ import {
     isChain,
     toChainId,
 } from "@wormhole-foundation/sdk-base";
-import { VAA, toNative } from "@wormhole-foundation/sdk-definitions";
+import {
+    VAA,
+    nativeIsRegistered,
+    toNative,
+    toUniversal,
+} from "@wormhole-foundation/sdk-definitions";
+// This import ensures that all addresses are registered.
+import "@wormhole-foundation/sdk/addresses";
 
 export const EVM_FAST_CONSISTENCY_LEVEL = 200;
 
