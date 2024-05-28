@@ -1,3 +1,7 @@
+// required for `toNative` to register the addresses
+import "@wormhole-foundation/sdk-evm/address";
+import "@wormhole-foundation/sdk-solana/address";
+
 import * as splToken from "@solana/spl-token";
 import { Commitment, Connection, FetchFn, PublicKey, PublicKeyInitData } from "@solana/web3.js";
 import { ethers } from "ethers";
