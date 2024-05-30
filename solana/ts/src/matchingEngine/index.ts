@@ -1594,10 +1594,12 @@ export class MatchingEngineProgram {
         preparedOrderResponse: PublicKey;
         auction?: PublicKey;
         bestOfferToken?: PublicKey;
+        executorToken?: PublicKey;
     }) {
         const { executor, preparedOrderResponse } = accounts;
 
-        let { auction, bestOfferToken } = accounts;
+        let { auction, bestOfferToken, executorToken } = accounts;
+        executorToken ??= splToken.getAssociatedTokenAddressSync(this.mint, executor);
 
         if (auction === undefined) {
             const { seeds } = await this.fetchPreparedOrderResponse({
@@ -1620,7 +1622,7 @@ export class MatchingEngineProgram {
             .settleAuctionComplete()
             .accounts({
                 executor,
-                executorToken: splToken.getAssociatedTokenAddressSync(this.mint, executor),
+                executorToken,
                 preparedOrderResponse,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
                 auction,
