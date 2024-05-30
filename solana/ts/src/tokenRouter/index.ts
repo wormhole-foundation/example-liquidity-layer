@@ -190,7 +190,11 @@ export class TokenRouterProgram {
         return this.program.account.preparedFill.fetch(addr);
     }
 
-    transferAuthorityAddress(preparedOrder: PublicKey, args: PrepareMarketOrderArgs): PublicKey {
+    transferAuthorityAddress(
+        preparedOrder: PublicKey,
+        args: PrepareMarketOrderArgs,
+        refundToken: PublicKey,
+    ): PublicKey {
         const { amountIn, minAmountOut, targetChain, redeemer, redeemerMessage } = args;
         const hasher = new Keccak(256);
         hasher.update(uint64ToBN(amountIn).toBuffer("be", 8));
@@ -208,7 +212,12 @@ export class TokenRouterProgram {
         hasher.update(redeemerMessage);
 
         return PublicKey.findProgramAddressSync(
-            [Buffer.from("transfer-authority"), preparedOrder.toBuffer(), hasher.digest()],
+            [
+                Buffer.from("transfer-authority"),
+                preparedOrder.toBuffer(),
+                hasher.digest(),
+                refundToken.toBuffer(),
+            ],
             this.ID,
         )[0];
     }
@@ -322,11 +331,12 @@ export class TokenRouterProgram {
         accounts: {
             preparedOrder: PublicKey;
             senderToken: PublicKey;
+            refundToken: PublicKey;
             senderTokenAuthority?: PublicKey;
         },
         args: PrepareMarketOrderArgs,
     ): Promise<{ transferAuthority: PublicKey; ix: TransactionInstruction }> {
-        const { preparedOrder, senderToken } = accounts;
+        const { preparedOrder, senderToken, refundToken } = accounts;
         const { amountIn } = args;
 
         let { senderTokenAuthority } = accounts;
@@ -338,7 +348,7 @@ export class TokenRouterProgram {
             return tokenAccount.owner;
         })();
 
-        const transferAuthority = this.transferAuthorityAddress(preparedOrder, args);
+        const transferAuthority = this.transferAuthorityAddress(preparedOrder, args, refundToken);
 
         return {
             transferAuthority,
@@ -380,7 +390,7 @@ export class TokenRouterProgram {
         if (programTransferAuthority === undefined) {
             if (useTransferAuthority) {
                 const approveResult = await this.approveTransferAuthorityIx(
-                    { preparedOrder, senderToken, senderTokenAuthority },
+                    { preparedOrder, senderToken, refundToken, senderTokenAuthority },
                     args,
                 );
                 programTransferAuthority = approveResult.transferAuthority;
