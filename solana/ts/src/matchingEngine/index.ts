@@ -2239,7 +2239,7 @@ export class MatchingEngineProgram {
             bestOfferToken?: PublicKey;
             initialOfferToken?: PublicKey;
             initialParticipant?: PublicKey;
-            bestOfferParticipant?: PublicKey;
+            reserveBeneficiary?: PublicKey;
         },
         opts: {
             sourceChain?: ChainId;
@@ -2257,7 +2257,7 @@ export class MatchingEngineProgram {
             executorToken,
             initialOfferToken,
             initialParticipant,
-            bestOfferParticipant,
+            reserveBeneficiary,
         } = accounts;
         let { sourceChain, orderSender, sequence } = opts;
         executorToken ??= splToken.getAssociatedTokenAddressSync(this.mint, payer);
@@ -2281,11 +2281,12 @@ export class MatchingEngineProgram {
             orderSender ??= Array.from(fastMarketOrder.sender.toUint8Array());
         }
 
-        if (sequence === undefined) {
-            const { fastFillSeeds } = await this.fetchReservedFastFillSequence({
+        if (sequence === undefined || reserveBeneficiary == undefined) {
+            const reservedData = await this.fetchReservedFastFillSequence({
                 address: reservedSequence,
             });
-            sequence = fastFillSeeds.sequence;
+            sequence ??= reservedData.fastFillSeeds.sequence;
+            reserveBeneficiary ??= reservedData.beneficiary;
         }
 
         let auctionInfo: AuctionInfo | undefined;
@@ -2312,11 +2313,6 @@ export class MatchingEngineProgram {
             { auctionInfo },
         );
 
-        if (bestOfferParticipant === undefined) {
-            const token = await splToken.getAccount(connection, activeAuction.bestOfferToken);
-            bestOfferParticipant = token.owner;
-        }
-
         return this.program.methods
             .executeFastOrderLocal()
             .accounts({
@@ -2330,7 +2326,7 @@ export class MatchingEngineProgram {
                     initialParticipant,
                 },
                 reservedSequence,
-                bestOfferParticipant,
+                reserveBeneficiary,
                 fastFill: this.fastFillAddress(sourceChain, orderSender, sequence),
                 eventAuthority: this.eventAuthorityAddress(),
                 program: this.ID,

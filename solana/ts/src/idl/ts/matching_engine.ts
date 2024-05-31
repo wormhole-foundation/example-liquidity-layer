@@ -910,10 +910,11 @@ export type MatchingEngine = {
           "writable": true
         },
         {
-          "name": "bestOfferParticipant",
+          "name": "reserveBeneficiary",
           "docs": [
             "When the reserved sequence account was created, the beneficiary was set to the best offer",
-            "token's owner. This account will receive the lamports from the reserved sequence account.",
+            "token's owner if it existed (and if not, to whomever executed the reserve fast fill sequence",
+            "instruction). This account will receive the lamports from the reserved sequence account.",
             ""
           ],
           "writable": true
