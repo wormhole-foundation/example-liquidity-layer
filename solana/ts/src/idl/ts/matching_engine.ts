@@ -1866,7 +1866,8 @@ export type MatchingEngine = {
             "Destination token account, which the redeemer may not own. But because the redeemer is a",
             "signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent",
             "to any account he chooses (this one).",
-            ""
+            "",
+            "of the tokens to the executor token account."
           ],
           "writable": true
         },
