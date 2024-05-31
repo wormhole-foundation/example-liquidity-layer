@@ -158,7 +158,7 @@ export type AuctionUpdated = {
     tokenBalanceBefore: BN;
     amountIn: BN;
     totalDeposit: BN;
-    maxOfferPriceAllowed: BN;
+    maxOfferPriceAllowed: BN | null;
 };
 
 export type OrderExecuted = {
