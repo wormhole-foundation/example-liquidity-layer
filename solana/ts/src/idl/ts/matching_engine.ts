@@ -1652,7 +1652,16 @@ export type MatchingEngine = {
           "name": "bestOfferToken",
           "docs": [
             "Best offer token account, whose owner will be the beneficiary of the reserved fast fill",
-            "sequence account when it is closed."
+            "sequence account when it is closed.",
+            "",
+            "in the auction account."
+          ]
+        },
+        {
+          "name": "executor",
+          "docs": [
+            "of the reserved fast fill sequence account when it is closed. Otherwise, this account must",
+            "equal the best offer token account's owner."
           ]
         }
       ],

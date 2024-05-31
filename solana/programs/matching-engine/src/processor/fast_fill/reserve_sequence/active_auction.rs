@@ -63,6 +63,9 @@ pub struct ReserveFastFillSequenceActiveAuction<'info> {
 
     /// Best offer token account, whose owner will be the beneficiary of the reserved fast fill
     /// sequence account when it is closed.
+    ///
+    /// CHECK: This account may not exist. If it does, it should equal the best offer token pubkey
+    /// in the auction account.
     #[account(
         constraint = {
             // We know from the auction constraint that the auction is active, so the auction info
@@ -81,16 +84,36 @@ pub struct ReserveFastFillSequenceActiveAuction<'info> {
             true
         }
     )]
-    best_offer_token: Account<'info, token::TokenAccount>,
+    best_offer_token: UncheckedAccount<'info>,
+
+    /// CHECK: If the best offer token does not exist anymore, this executor will be the beneficiary
+    /// of the reserved fast fill sequence account when it is closed. Otherwise, this account must
+    /// equal the best offer token account's owner.
+    executor: UncheckedAccount<'info>,
 }
 
 pub fn reserve_fast_fill_sequence_active_auction(
     ctx: Context<ReserveFastFillSequenceActiveAuction>,
 ) -> Result<()> {
+    let best_offer_token = &ctx.accounts.best_offer_token;
+    let beneficiary = ctx.accounts.executor.key();
+
+    // If the token account does exist, we will constrain that the executor is the best offer token.
+    if let Ok(token) =
+        token::TokenAccount::try_deserialize(&mut &best_offer_token.data.borrow()[..])
+    {
+        require_keys_eq!(
+            *best_offer_token.owner,
+            token::ID,
+            ErrorCode::ConstraintTokenTokenProgram
+        );
+        require_keys_eq!(token.owner, beneficiary, ErrorCode::ConstraintTokenOwner);
+    }
+
     super::set_reserved_sequence_data(
         &mut ctx.accounts.reserve_sequence,
         &ctx.bumps.reserve_sequence,
         ctx.accounts.auction.vaa_hash,
-        ctx.accounts.best_offer_token.owner,
+        beneficiary,
     )
 }

@@ -2133,6 +2133,7 @@ export class MatchingEngineProgram {
             auction?: PublicKey;
             auctionConfig?: PublicKey;
             bestOfferToken?: PublicKey;
+            executor?: PublicKey;
         },
         opts: ReserveFastFillSequenceCompositeOpts = {},
     ): Promise<TransactionInstruction> {
@@ -2151,7 +2152,7 @@ export class MatchingEngineProgram {
         );
         const { fastVaaHash } = definedOpts;
 
-        let { auctionConfig, auction, bestOfferToken } = accounts;
+        let { auctionConfig, auction, bestOfferToken, executor } = accounts;
         auction ??= this.auctionAddress(fastVaaHash);
 
         if (bestOfferToken === undefined || auctionConfig === undefined) {
@@ -2163,6 +2164,16 @@ export class MatchingEngineProgram {
             bestOfferToken ??= info.bestOfferToken;
         }
 
+        if (executor === undefined) {
+            const token = await splToken
+                .getAccount(this.program.provider.connection, bestOfferToken)
+                .catch((_) => null);
+            if (token === null) {
+                throw new Error("Executor must be provided because best offer token is not found");
+            }
+            executor = token.owner;
+        }
+
         return this.program.methods
             .reserveFastFillSequenceActiveAuction()
             .accounts({
@@ -2170,6 +2181,7 @@ export class MatchingEngineProgram {
                 auction,
                 auctionConfig,
                 bestOfferToken,
+                executor,
             })
             .instruction();
     }
