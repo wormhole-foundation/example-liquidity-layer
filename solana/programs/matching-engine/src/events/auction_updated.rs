@@ -16,5 +16,5 @@ pub struct AuctionUpdated {
     pub token_balance_before: u64,
     pub amount_in: u64,
     pub total_deposit: u64,
-    pub max_offer_price_allowed: u64,
+    pub max_offer_price_allowed: Option<u64>,
 }
