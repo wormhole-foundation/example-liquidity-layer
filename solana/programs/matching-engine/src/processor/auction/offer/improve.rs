@@ -31,7 +31,7 @@ pub struct ImproveOffer<'info> {
 
             require!(
                 offer_price
-                    <= utils::auction::compute_min_allowed_offer(&active_auction.config, info),
+                    < utils::auction::compute_min_allowed_offer(&active_auction.config, info),
                 MatchingEngineError::CarpingNotAllowed
             );
 
