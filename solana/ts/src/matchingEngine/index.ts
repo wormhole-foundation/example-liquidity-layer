@@ -1787,7 +1787,7 @@ export class MatchingEngineProgram {
             sourceChain ??= fastVaaAccount.emitterInfo().chain;
 
             const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());
-            if (message.fastMarketOrder == undefined) {
+            if (message.fastMarketOrder === undefined) {
                 throw new Error("Message not FastMarketOrder");
             }
 
@@ -2281,7 +2281,7 @@ export class MatchingEngineProgram {
             orderSender ??= Array.from(fastMarketOrder.sender.toUint8Array());
         }
 
-        if (sequence === undefined || reserveBeneficiary == undefined) {
+        if (sequence === undefined || reserveBeneficiary === undefined) {
             const reservedData = await this.fetchReservedFastFillSequence({
                 address: reservedSequence,
             });
