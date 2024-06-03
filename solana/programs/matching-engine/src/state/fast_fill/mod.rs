@@ -56,10 +56,10 @@ impl FastFill {
 
     pub(crate) fn checked_compute_size(redeemer_message_len: usize) -> Option<usize> {
         const FIXED: usize = 8 // DISCRIMINATOR
-        + FastFillSeeds::INIT_SPACE
-        + 1 // redeemed
-        + FastFillInfo::INIT_SPACE
-        + 4 // redeemer_message len
+            + FastFillSeeds::INIT_SPACE
+            + 1 // redeemed
+            + FastFillInfo::INIT_SPACE
+            + 4 // redeemer_message len
         ;
 
         redeemer_message_len
