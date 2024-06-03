@@ -3041,6 +3041,10 @@
       "name": "ReservedSequenceMismatch"
     },
     {
+      "code": 7082,
+      "name": "AuctionAlreadySettled"
+    },
+    {
       "code": 7280,
       "name": "CannotCloseAuctionYet"
     },

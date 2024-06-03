@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use super::{Auction, AuctionStatus, EndpointInfo};
+use super::{Auction, EndpointInfo};
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub struct PreparedOrderResponseSeeds {
@@ -45,20 +45,14 @@ impl PreparedOrderResponse {
     /// starting an auction with the fast transfer VAA, even though the slow
     /// relayer already delivered the slow VAA. Not setting this could lead to
     /// trapped funds (which would require an upgrade to fix).
-    pub(crate) fn new_settled_auction(&self, bump: u8, fee: Option<u64>) -> Auction {
+    pub(crate) fn new_auction_placeholder(&self, bump: u8) -> Auction {
         Auction {
             bump,
             vaa_hash: self.seeds.fast_vaa_hash,
             vaa_timestamp: self.fast_vaa_timestamp,
             target_protocol: self.to_endpoint.protocol,
-            status: match fee {
-                Some(fee) => AuctionStatus::Settled {
-                    fee,
-                    total_penalty: None,
-                },
-                None => Default::default(),
-            },
-            info: None,
+            status: Default::default(),
+            info: Default::default(),
         }
     }
 

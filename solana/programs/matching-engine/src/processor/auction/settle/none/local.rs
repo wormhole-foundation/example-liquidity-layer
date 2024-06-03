@@ -1,7 +1,7 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, Custodian, FastFill, ReservedFastFillSequence},
+    state::{Auction, AuctionStatus, Custodian, FastFill, ReservedFastFillSequence},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
@@ -48,7 +48,17 @@ pub struct SettleAuctionNoneLocal<'info> {
             prepared.order_response.seeds.fast_vaa_hash.as_ref(),
         ],
         bump,
-        constraint = auction.info.is_none() @ MatchingEngineError::AuctionExists,
+        constraint = {
+            require!(auction.info.is_none(), MatchingEngineError::AuctionExists);
+
+            // Block this instruction if the auction has already been settled.
+            require!(
+                !matches!(&auction.status, AuctionStatus::Settled { .. }),
+                MatchingEngineError::AuctionAlreadySettled
+            );
+
+            true
+        }
     )]
     auction: Box<Account<'info, Auction>>,
 
@@ -117,17 +127,14 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
     let super::SettledNone {
         user_amount: amount,
         fill,
-    } = super::settle_none_and_prepare_fill(
-        super::SettleNoneAndPrepareFill {
-            prepared_order_response: &mut ctx.accounts.prepared.order_response,
-            prepared_custody_token,
-            auction: &mut ctx.accounts.auction,
-            fee_recipient_token: &ctx.accounts.fee_recipient_token,
-            custodian,
-            token_program,
-        },
-        ctx.bumps.auction,
-    )?;
+    } = super::settle_none_and_prepare_fill(super::SettleNoneAndPrepareFill {
+        prepared_order_response: &mut ctx.accounts.prepared.order_response,
+        prepared_custody_token,
+        auction: &mut ctx.accounts.auction,
+        fee_recipient_token: &ctx.accounts.fee_recipient_token,
+        custodian,
+        token_program,
+    })?;
 
     let fast_fill = FastFill::new(
         fill,

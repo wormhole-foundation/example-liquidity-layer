@@ -32,8 +32,7 @@ pub fn reserve_fast_fill_sequence_no_auction(
     let prepared_order_response = &ctx.accounts.prepared_order_response;
 
     ctx.accounts.reserve_sequence.auction.set_inner(
-        prepared_order_response
-            .new_settled_auction(ctx.bumps.reserve_sequence.auction, Default::default()),
+        prepared_order_response.new_auction_placeholder(ctx.bumps.reserve_sequence.auction),
     );
 
     super::set_reserved_sequence_data(

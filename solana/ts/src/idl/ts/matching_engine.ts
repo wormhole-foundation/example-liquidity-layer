@@ -3047,6 +3047,10 @@ export type MatchingEngine = {
       "name": "reservedSequenceMismatch"
     },
     {
+      "code": 7082,
+      "name": "auctionAlreadySettled"
+    },
+    {
       "code": 7280,
       "name": "cannotCloseAuctionYet"
     },

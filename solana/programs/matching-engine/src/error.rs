@@ -80,6 +80,7 @@ pub enum MatchingEngineError {
     FastFillAlreadyRedeemed = 0x434,
     FastFillNotRedeemed = 0x435,
     ReservedSequenceMismatch = 0x438,
+    AuctionAlreadySettled = 0x43a,
 
     CannotCloseAuctionYet = 0x500,
     AuctionHistoryNotFull = 0x502,

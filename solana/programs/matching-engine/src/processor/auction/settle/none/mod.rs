@@ -26,10 +26,7 @@ struct SettledNone {
     fill: Fill,
 }
 
-fn settle_none_and_prepare_fill(
-    accounts: SettleNoneAndPrepareFill<'_, '_>,
-    auction_bump_seed: u8,
-) -> Result<SettledNone> {
+fn settle_none_and_prepare_fill(accounts: SettleNoneAndPrepareFill<'_, '_>) -> Result<SettledNone> {
     let SettleNoneAndPrepareFill {
         prepared_order_response,
         prepared_custody_token,
@@ -78,17 +75,11 @@ fn settle_none_and_prepare_fill(
         custodian.key().into(),
     )?;
 
-    let status = AuctionStatus::Settled {
+    // Indicate that the auction has been settled.
+    auction.status = AuctionStatus::Settled {
         fee,
         total_penalty: None,
     };
-
-    if auction.vaa_hash != prepared_order_response.seeds.fast_vaa_hash {
-        auction
-            .set_inner(prepared_order_response.new_settled_auction(auction_bump_seed, fee.into()))
-    } else {
-        auction.status = status;
-    }
 
     emit!(crate::events::AuctionSettled {
         auction: auction.key(),
