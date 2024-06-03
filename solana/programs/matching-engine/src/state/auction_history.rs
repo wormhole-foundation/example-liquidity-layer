@@ -51,7 +51,10 @@ impl AuctionHistoryHeader {
 impl AuctionHistory {
     pub const SEED_PREFIX: &'static [u8] = b"auction-history";
 
-    pub const START: usize = 8 + AuctionHistoryHeader::INIT_SPACE + 4;
+    pub const START: usize = 8 // DISCRIMINATOR
+        + AuctionHistoryHeader::INIT_SPACE
+        + 4 // data len
+    ;
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "integration-test")] {

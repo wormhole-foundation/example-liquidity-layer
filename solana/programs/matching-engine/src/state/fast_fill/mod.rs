@@ -59,7 +59,7 @@ impl FastFill {
             + FastFillSeeds::INIT_SPACE
             + 1 // redeemed
             + FastFillInfo::INIT_SPACE
-            + 4 // redeemer_message len
+            + 4 // redeemer_message_len
         ;
 
         redeemer_message_len.saturating_add(FIXED)

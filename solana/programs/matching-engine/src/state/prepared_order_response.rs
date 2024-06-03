@@ -61,8 +61,8 @@ impl PreparedOrderResponse {
             + PreparedOrderResponseSeeds::INIT_SPACE
             + PreparedOrderResponseInfo::INIT_SPACE
             + EndpointInfo::INIT_SPACE
-            + 4 // redeemer_message length
-            ;
+            + 4 // redeemer_message_len
+        ;
 
         redeemer_message_len.saturating_add(FIXED)
     }
