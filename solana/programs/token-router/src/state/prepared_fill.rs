@@ -53,14 +53,14 @@ pub struct PreparedFill {
 impl PreparedFill {
     pub const SEED_PREFIX: &'static [u8] = b"fill";
 
-    pub fn checked_compute_size(payload_len: usize) -> Option<usize> {
+    pub fn compute_size(payload_len: usize) -> usize {
         const FIXED: usize = 8 // DISCRIMINATOR
             + PreparedFillSeeds::INIT_SPACE
             + PreparedFillInfo::INIT_SPACE
             + 4 // payload len
         ;
 
-        payload_len.checked_add(FIXED)
+        payload_len.saturating_add(FIXED)
     }
 }
 
