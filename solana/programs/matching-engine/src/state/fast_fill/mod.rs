@@ -54,7 +54,7 @@ pub struct FastFill {
 impl FastFill {
     pub const SEED_PREFIX: &'static [u8] = b"fast-fill";
 
-    pub(crate) fn checked_compute_size(redeemer_message_len: usize) -> Option<usize> {
+    pub(crate) fn compute_size(redeemer_message_len: usize) -> usize {
         const FIXED: usize = 8 // DISCRIMINATOR
             + FastFillSeeds::INIT_SPACE
             + 1 // redeemed
@@ -62,9 +62,7 @@ impl FastFill {
             + 4 // redeemer_message len
         ;
 
-        redeemer_message_len
-            .checked_add(FIXED)
-            .filter(|&size| size <= super::MAX_CPI_ALLOCATE_SIZE)
+        redeemer_message_len.saturating_add(FIXED)
     }
 
     pub fn new(fill: Fill, sequence: u64, bump: u8, prepared_by: Pubkey, amount: u64) -> Self {

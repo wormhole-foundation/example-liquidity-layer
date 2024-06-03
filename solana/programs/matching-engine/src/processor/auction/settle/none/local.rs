@@ -91,10 +91,7 @@ pub struct SettleAuctionNoneLocal<'info> {
     #[account(
         init,
         payer = payer,
-        space = FastFill::checked_compute_size(
-            prepared.order_response.redeemer_message.len()
-        )
-        .ok_or(MatchingEngineError::FastFillTooLarge)?,
+        space = FastFill::compute_size(prepared.order_response.redeemer_message.len()),
         seeds = [
             FastFill::SEED_PREFIX,
             &reserved_sequence.fast_fill_seeds.source_chain.to_be_bytes(),
