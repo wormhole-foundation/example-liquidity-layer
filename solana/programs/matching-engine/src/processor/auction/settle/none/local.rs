@@ -39,16 +39,16 @@ pub struct SettleAuctionNoneLocal<'info> {
     )]
     prepared: ClosePreparedOrderResponse<'info>,
 
-    /// There should be no account data here because an auction was never created.
+    /// This account will have been created using the reserve fast fill sequence (no auction)
+    /// instruction. We need to make sure that this account has not been used in an auction.
     #[account(
-        init,
-        payer = payer,
-        space = 8 + Auction::INIT_SPACE_NO_AUCTION,
+        mut,
         seeds = [
             Auction::SEED_PREFIX,
             prepared.order_response.seeds.fast_vaa_hash.as_ref(),
         ],
         bump,
+        constraint = auction.info.is_none() @ MatchingEngineError::AuctionExists,
     )]
     auction: Box<Account<'info, Auction>>,
 

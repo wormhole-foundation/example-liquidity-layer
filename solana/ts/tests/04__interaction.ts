@@ -316,7 +316,7 @@ describe("Matching Engine <> Token Router", function () {
                         },
                         {
                             placeInitialOffer: false,
-                            errorMsg: "auction. Error Code: AccountNotInitialized",
+                            errorMsg: "Error Code: NoAuction",
                         },
                     );
                 });
@@ -334,7 +334,7 @@ describe("Matching Engine <> Token Router", function () {
                         },
                         {
                             placeInitialOffer: false,
-                            errorMsg: "auction. Error Code: AccountDiscriminatorMismatch",
+                            errorMsg: "auction. Error Code: ConstraintSeeds",
                         },
                     );
                 });

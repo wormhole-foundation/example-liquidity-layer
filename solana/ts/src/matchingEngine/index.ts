@@ -2069,6 +2069,7 @@ export class MatchingEngineProgram {
             toEndpoint?: PublicKey;
             sequencer?: PublicKey;
             reserved?: PublicKey;
+            auction?: PublicKey;
         },
         opts: ReserveFastFillSequenceCompositeOpts,
     ): Promise<{
@@ -2077,6 +2078,7 @@ export class MatchingEngineProgram {
             fastOrderPath: FastOrderPathComposite;
             sequencer: PublicKey;
             reserved: PublicKey;
+            auction: PublicKey;
             systemProgram: PublicKey;
         };
         definedOpts: {
@@ -2088,7 +2090,7 @@ export class MatchingEngineProgram {
     }> {
         const { payer, fastVaa } = accounts;
 
-        let { fromEndpoint, toEndpoint, sequencer, reserved } = accounts;
+        let { fromEndpoint, toEndpoint, sequencer, reserved, auction } = accounts;
         let { fastVaaHash, sourceChain, orderSender, targetChain } = opts;
 
         if (
@@ -2116,6 +2118,7 @@ export class MatchingEngineProgram {
         toEndpoint ??= this.routerEndpointAddress(targetChain);
         sequencer ??= this.fastFillSequencerAddress(sourceChain, orderSender);
         reserved ??= this.reservedFastFillSequenceAddress(fastVaaHash);
+        auction ??= this.auctionAddress(fastVaaHash);
 
         return {
             reserveSequence: {
@@ -2123,6 +2126,7 @@ export class MatchingEngineProgram {
                 fastOrderPath: this.fastOrderPathComposite({ fastVaa, fromEndpoint, toEndpoint }),
                 sequencer,
                 reserved,
+                auction,
                 systemProgram: SystemProgram.programId,
             },
             definedOpts: { fastVaaHash, sourceChain, orderSender, targetChain },
@@ -2144,9 +2148,16 @@ export class MatchingEngineProgram {
         },
         opts: ReserveFastFillSequenceCompositeOpts = {},
     ): Promise<TransactionInstruction> {
-        const { payer, fastVaa, fromEndpoint, toEndpoint, fastFillSequencer, reservedSequence } =
-            accounts;
-        const { reserveSequence, definedOpts } = await this.reserveFastFillSequenceComposite(
+        const {
+            payer,
+            fastVaa,
+            fromEndpoint,
+            toEndpoint,
+            fastFillSequencer,
+            reservedSequence,
+            auction,
+        } = accounts;
+        const { reserveSequence } = await this.reserveFastFillSequenceComposite(
             {
                 payer,
                 fastVaa,
@@ -2154,16 +2165,15 @@ export class MatchingEngineProgram {
                 toEndpoint,
                 sequencer: fastFillSequencer,
                 reserved: reservedSequence,
+                auction,
             },
             opts,
         );
-        const { fastVaaHash } = definedOpts;
 
-        let { auctionConfig, auction, bestOfferToken, executor } = accounts;
-        auction ??= this.auctionAddress(fastVaaHash);
+        let { auctionConfig, bestOfferToken, executor } = accounts;
 
         if (bestOfferToken === undefined || auctionConfig === undefined) {
-            const { info } = await this.fetchAuction({ address: auction });
+            const { info } = await this.fetchAuction({ address: reserveSequence.auction });
             if (info === null) {
                 throw new Error("no auction info found");
             }
@@ -2185,7 +2195,6 @@ export class MatchingEngineProgram {
             .reserveFastFillSequenceActiveAuction()
             .accounts({
                 reserveSequence,
-                auction,
                 auctionConfig,
                 bestOfferToken,
                 executor,
@@ -2229,7 +2238,6 @@ export class MatchingEngineProgram {
             .reserveFastFillSequenceNoAuction()
             .accounts({
                 reserveSequence,
-                auction,
                 preparedOrderResponse,
             })
             .instruction();

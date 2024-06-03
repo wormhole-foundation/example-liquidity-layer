@@ -78,20 +78,17 @@ fn settle_none_and_prepare_fill(
         custodian.key().into(),
     )?;
 
-    // This is a necessary security check. This will prevent a relayer from starting an auction with
-    // the fast transfer VAA, even though the slow relayer already delivered the slow VAA. Not
-    // setting this could lead to trapped funds (which would require an upgrade to fix).
-    auction.set_inner(Auction {
-        bump: auction_bump_seed,
-        vaa_hash: prepared_order_response.seeds.fast_vaa_hash,
-        vaa_timestamp: prepared_order_response.fast_vaa_timestamp,
-        target_protocol: prepared_order_response.to_endpoint.protocol,
-        status: AuctionStatus::Settled {
-            fee,
-            total_penalty: None,
-        },
-        info: None,
-    });
+    let status = AuctionStatus::Settled {
+        fee,
+        total_penalty: None,
+    };
+
+    if auction.vaa_hash != prepared_order_response.seeds.fast_vaa_hash {
+        auction
+            .set_inner(prepared_order_response.new_settled_auction(auction_bump_seed, fee.into()))
+    } else {
+        auction.status = status;
+    }
 
     emit!(crate::events::AuctionSettled {
         auction: auction.key(),

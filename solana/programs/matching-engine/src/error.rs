@@ -70,7 +70,7 @@ pub enum MatchingEngineError {
     InvalidOfferToken = 0x424,
     FastFillTooLarge = 0x426,
     AuctionExists = 0x428,
-    AccountNotAuction = 0x429,
+    NoAuction = 0x429,
     BestOfferTokenMismatch = 0x42a,
     BestOfferTokenRequired = 0x42c,
     PreparedByMismatch = 0x42e,

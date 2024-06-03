@@ -1635,15 +1635,16 @@ export type MatchingEngine = {
               "writable": true
             },
             {
+              "name": "auction",
+              "docs": [
+                "must have been created by this point. Otherwise the auction account must reflect a completed",
+                "auction."
+              ],
+              "writable": true
+            },
+            {
               "name": "systemProgram"
             }
-          ]
-        },
-        {
-          "name": "auction",
-          "docs": [
-            "must have been created by this point. Otherwise the auction account must reflect a completed",
-            "auction."
           ]
         },
         {
@@ -1759,6 +1760,14 @@ export type MatchingEngine = {
               "writable": true
             },
             {
+              "name": "auction",
+              "docs": [
+                "must have been created by this point. Otherwise the auction account must reflect a completed",
+                "auction."
+              ],
+              "writable": true
+            },
+            {
               "name": "systemProgram"
             }
           ]
@@ -1769,13 +1778,6 @@ export type MatchingEngine = {
             "The preparer will be the beneficiary of the reserved fast fill sequence account when it is",
             "closed. This instruction will not allow this account to be provided if there is an existing",
             "auction, which would enforce the order be executed when it is time to complete the auction."
-          ]
-        },
-        {
-          "name": "auction",
-          "docs": [
-            "must have been created by this point. Otherwise the auction account must reflect a completed",
-            "auction."
           ]
         }
       ],
@@ -2134,7 +2136,8 @@ export type MatchingEngine = {
         {
           "name": "auction",
           "docs": [
-            "There should be no account data here because an auction was never created."
+            "This account will have been created using the reserve fast fill sequence (no auction)",
+            "instruction. We need to make sure that this account has not been used in an auction."
           ],
           "writable": true
         },
@@ -3005,7 +3008,7 @@ export type MatchingEngine = {
     },
     {
       "code": 7065,
-      "name": "accountNotAuction"
+      "name": "noAuction"
     },
     {
       "code": 7066,
