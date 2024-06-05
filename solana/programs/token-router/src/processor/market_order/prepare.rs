@@ -117,6 +117,19 @@ pub struct PrepareMarketOrder<'info> {
 
     usdc: Usdc<'info>,
 
+    #[account(
+        constraint = {
+            require_eq!(
+                target_router_endpoint.chain,
+                args.target_chain,
+                TokenRouterError::InvalidTargetRouter,
+            );
+
+            true
+        }
+    )]
+    target_router_endpoint: RegisteredEndpoint<'info>,
+
     token_program: Program<'info, token::Token>,
     system_program: Program<'info, System>,
 }
