@@ -406,13 +406,11 @@ export type TokenRouter = {
           "writable": true
         },
         {
-          "name": "routerEndpoint",
-          "docs": [
-            "Registered router endpoint representing a foreign Token Router. This account may have a",
-            "CCTP domain encoded if this route is CCTP-enabled. For this instruction, it is required that",
-            "[RouterEndpoint::cctp_domain] is `Some(value)`.",
-            "",
-            "Seeds must be \\[\"registered_emitter\", target_chain.to_be_bytes()\\]."
+          "name": "targetRouterEndpoint",
+          "accounts": [
+            {
+              "name": "endpoint"
+            }
           ]
         },
         {
@@ -589,6 +587,14 @@ export type TokenRouter = {
           ]
         },
         {
+          "name": "targetRouterEndpoint",
+          "accounts": [
+            {
+              "name": "endpoint"
+            }
+          ]
+        },
+        {
           "name": "tokenProgram"
         },
         {
@@ -673,11 +679,11 @@ export type TokenRouter = {
           ]
         },
         {
-          "name": "routerEndpoint",
-          "docs": [
-            "Registered emitter account representing a Circle Integration on another network.",
-            "",
-            "Seeds must be \\[\"registered_emitter\", target_chain.to_be_bytes()\\]."
+          "name": "sourceRouterEndpoint",
+          "accounts": [
+            {
+              "name": "endpoint"
+            }
           ]
         },
         {
