@@ -1,5 +1,4 @@
 import { BN } from "@coral-xyz/anchor";
-import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -12,8 +11,15 @@ import {
     TransactionInstruction,
     VersionedTransactionResponse,
 } from "@solana/web3.js";
-import { use as chaiUse, expect } from "chai";
-import chaiAsPromised from "chai-as-promised";
+import {
+    FastMarketOrder,
+    Fill,
+    SlowOrderResponse,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { Chain, ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
+import { expect } from "chai";
 import { CctpTokenBurnMessage } from "../src/cctp";
 import {
     LiquidityLayerDeposit,
@@ -34,7 +40,6 @@ import {
     RouterEndpoint,
     localnet,
 } from "../src/matchingEngine";
-import { VaaAccount } from "../src/wormhole";
 import {
     CHAIN_TO_DOMAIN,
     CircleAttester,
@@ -57,15 +62,7 @@ import {
     waitUntilSlot,
     waitUntilTimestamp,
 } from "../src/testing";
-import {
-    SlowOrderResponse,
-    Fill,
-    FastMarketOrder,
-} from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { Chain, ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
-
-chaiUse(chaiAsPromised);
+import { VaaAccount } from "../src/wormhole";
 
 const SLOTS_PER_EPOCH = 8;
 

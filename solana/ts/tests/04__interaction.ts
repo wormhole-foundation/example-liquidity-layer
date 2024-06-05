@@ -1,3 +1,4 @@
+import { BN } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -11,8 +12,13 @@ import {
     TransactionInstruction,
     VersionedTransactionResponse,
 } from "@solana/web3.js";
-import { use as chaiUse, expect } from "chai";
-import chaiAsPromised from "chai-as-promised";
+import {
+    FastMarketOrder,
+    SlowOrderResponse,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { Chain, ChainId, toChainId } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { expect } from "chai";
 import { afterEach } from "mocha";
 import { CctpTokenBurnMessage } from "../src/cctp";
 import {
@@ -23,8 +29,6 @@ import {
     writeUint64BE,
 } from "../src/common";
 import * as matchingEngineSdk from "../src/matchingEngine";
-import * as tokenRouterSdk from "../src/tokenRouter";
-import { VaaAccount } from "../src/wormhole";
 import {
     CHAIN_TO_DOMAIN,
     CircleAttester,
@@ -45,15 +49,8 @@ import {
     toUniversalAddress,
     waitUntilSlot,
 } from "../src/testing";
-import { Chain, ChainId, toChainId } from "@wormhole-foundation/sdk-base";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
-import { BN } from "@coral-xyz/anchor";
-import {
-    FastMarketOrder,
-    SlowOrderResponse,
-} from "@wormhole-foundation/example-liquidity-layer-definitions";
-
-chaiUse(chaiAsPromised);
+import * as tokenRouterSdk from "../src/tokenRouter";
+import { VaaAccount } from "../src/wormhole";
 
 const SOLANA_CHAIN_ID = toChainId("Solana");
 
