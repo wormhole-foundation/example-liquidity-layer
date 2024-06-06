@@ -9,7 +9,7 @@ import {
     parseLiquidityLayerEnvFile,
     ChainType,
     LiquidityLayerEnv,
-} from "./helpers";
+} from "../src/helpers";
 import { expect } from "chai";
 import { toChainId } from "@wormhole-foundation/sdk-base";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";

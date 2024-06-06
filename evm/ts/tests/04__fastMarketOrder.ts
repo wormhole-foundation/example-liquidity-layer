@@ -26,7 +26,7 @@ import {
     mineToGracePeriod,
     mineToPenaltyPeriod,
     tryNativeToUint8Array,
-} from "./helpers";
+} from "../src/helpers";
 
 import { toChainId } from "@wormhole-foundation/sdk-base";
 import { deserialize, keccak256, toUniversal } from "@wormhole-foundation/sdk-definitions";

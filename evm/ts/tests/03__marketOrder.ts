@@ -14,7 +14,7 @@ import {
     ChainType,
     parseLiquidityLayerEnvFile,
     tryNativeToUint8Array,
-} from "./helpers";
+} from "../src/helpers";
 import { toChainId } from "@wormhole-foundation/sdk-base";
 
 const CHAIN_PATHWAYS: ValidNetwork[][] = [

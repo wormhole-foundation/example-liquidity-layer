@@ -19,7 +19,7 @@ import {
     WORMHOLE_GUARDIAN_SET_INDEX,
     WORMHOLE_MESSAGE_FEE,
     mineWait,
-} from "./helpers";
+} from "../src/helpers";
 
 describe("Environment", () => {
     const chainNames: ValidNetwork[] = ["Avalanche", "Ethereum", "Base"];

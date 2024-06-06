@@ -1,4 +1,4 @@
-import { FastTransferParameters } from "../../src";
+import { FastTransferParameters } from "..";
 
 export type ValidNetwork = "Avalanche" | "Ethereum" | "Base";
 
