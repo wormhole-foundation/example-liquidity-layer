@@ -8,7 +8,7 @@ import {
     DEFAULT_FAST_TRANSFER_PARAMS,
     MATCHING_ENGINE_NAME,
     parseLiquidityLayerEnvFile,
-} from "../src/helpers";
+} from "../src/testing";
 import { expect } from "chai";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import "@wormhole-foundation/sdk-evm";
