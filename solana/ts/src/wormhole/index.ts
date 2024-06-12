@@ -1,5 +1,5 @@
 import { Connection, PublicKey } from "@solana/web3.js";
-import { ChainId, toChainId, isChainId } from "@wormhole-foundation/sdk-base";
+import { ChainId, isChainId, toChainId } from "@wormhole-foundation/sdk-base";
 import { deserialize, keccak256 } from "@wormhole-foundation/sdk-definitions";
 import { ethers } from "ethers";
 export * from "./spy";
@@ -133,9 +133,9 @@ export class VaaAccount {
         }
     }
 
-    digest(): Uint8Array {
+    hash(): Uint8Array {
         if (this._encodedVaa !== undefined) {
-            return keccak256(deserialize("Uint8Array", this._encodedVaa.buf).hash);
+            return deserialize("Uint8Array", this._encodedVaa.buf).hash;
         } else if (this._postedVaaV1 !== undefined) {
             const {
                 consistencyLevel,
@@ -158,10 +158,14 @@ export class VaaAccount {
             offset = buf.writeUInt8(consistencyLevel, offset);
             buf.set(payload, offset);
 
-            return ethers.utils.arrayify(ethers.utils.keccak256(ethers.utils.keccak256(buf)));
+            return ethers.utils.arrayify(ethers.utils.keccak256(buf));
         } else {
-            throw new Error("impossible: digest() failed");
+            throw new Error("impossible: hash() failed");
         }
+    }
+
+    digest(): Uint8Array {
+        return keccak256(this.hash());
     }
 
     get encodedVaa(): EncodedVaa {
