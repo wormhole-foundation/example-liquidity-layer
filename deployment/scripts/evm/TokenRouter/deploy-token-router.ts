@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { ERC1967Proxy__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
-import { runOnEvms, ChainInfo, LoggerFn, writeDeployedContract } from "../../../helpers";
+import { runOnEvms, ChainInfo, LoggerFn, writeDeployedContract, zeroValues } from "../../../helpers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { deployImplementation, getTokenRouterConfiguration } from "./utils";
 
@@ -12,10 +12,15 @@ runOnEvms("deploy-token-router", async (chain: ChainInfo, signer: ethers.Signer,
 
 async function deployProxy(signer: ethers.Signer, config: TokenRouterConfiguration, implementation: ethers.Contract, log: LoggerFn) {
   const factory = new ERC1967Proxy__factory(signer);
-
   const abi = ["function initialize(bytes)"];
   const iface = new ethers.utils.Interface(abi);
-  const encodedData = ethers.utils.solidityPack(["address"], [config.ownerAssistant]);
+  const data = config.ownerAssistant;
+
+  // Validate if the address are valid and not zero 
+  if (!ethers.utils.isAddress(data) || zeroValues.includes(data)) 
+    throw new Error(`Invalid value: ${data}`);
+
+  const encodedData = ethers.utils.solidityPack(["address"], [data]);
   const encodedCall = iface.encodeFunctionData("initialize", [encodedData]);
 
   const deployment = await factory.deploy(
