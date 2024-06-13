@@ -49,12 +49,11 @@ pub struct SettleAuctionNoneLocal<'info> {
         ],
         bump,
         constraint = {
-            require!(auction.info.is_none(), MatchingEngineError::AuctionExists);
-
-            // Block this instruction if the auction has already been settled.
-            require!(
-                !matches!(&auction.status, AuctionStatus::Settled { .. }),
-                MatchingEngineError::AuctionAlreadySettled
+            // Block this instruction if the auction status already has a meaningful value.
+            require_eq!(
+                &auction.status,
+                &AuctionStatus::NotStarted,
+                MatchingEngineError::AuctionExists
             );
 
             true
