@@ -1,34 +1,11 @@
 import fs from "fs";
 import { ChainId } from "@certusone/wormhole-sdk";
-
-export type ChainInfo = {
-  name: string;
-  chainId: ChainId;
-  rpc: string;
-  externalId?: string;
-};
-
-export type Deployment = {
-  chainId: ChainId;
-  address: string;
-};
-
-export type Ecosystem = {
-  guardianSetIndex: number;
-  evm: {
-    operatingChains?: number[];
-    networks: ChainInfo[];
-  },
-  solana: {
-    networks: ChainInfo[];
-  }
-};
-
-export type ContractsJson = Record<string, Deployment[]>;
-
-export interface ChainConfig {
-  chainId: ChainId;
-}
+import { ethers, utils } from "ethers";
+import { validateSolAddress } from "./solana";
+import { ChainConfig, ChainInfo, ContractsJson, DependenciesJson, Ecosystem } from "./interfaces";
+import { getSigner } from "./evm";
+// TODO: support different env files
+import 'dotenv/config';
 
 export const env = getEnv("ENV");
 export const contracts = loadContracts();
@@ -43,8 +20,8 @@ function loadJson<T>(filename: string): T {
   return JSON.parse(fileContent.toString()) as T;
 }
 
-function loadDependencies<T extends ContractsJson>() {
-  return loadJson<T>("dependencies");
+function loadDependencies(): DependenciesJson {
+  return loadJson<DependenciesJson>("dependencies");
 }
 
 function loadContracts<T extends ContractsJson>() {
@@ -82,23 +59,42 @@ export async function getContractAddress(contractName: string, chainId: ChainId)
     throw new Error(`No ${contractName} contract found for chain ${chainId}`);
   }
 
+  if (!utils.isAddress(contract) && !validateSolAddress(contract)){
+    throw new Error(`Invalid address for ${contractName} contract found for chain ${chainId}`);
+  }
+
   return contract;
 }
 
 export function getDependencyAddress(dependencyName: string, chainId: ChainId): string {
-  const dependency = dependencies[dependencyName]?.find((d) => d.chainId === chainId)?.address;
+  // @ts-ignore
+  const dependency = dependencies.find((d) => d.chainId === chainId)[dependencyName];
 
   if (!dependency) {
     throw new Error(`No dependency found for ${dependencyName}`);
   }
 
+  if (!utils.isAddress(dependency) && !validateSolAddress(dependency)){
+    throw new Error(`Invalid address for ${dependencyName} dependency found for chain ${chainId}`);
+  }
+
   return dependency;
+}
+
+export async function getContractInstance(
+  contractName: string,
+  contractAddress: string,
+  chain: ChainInfo,
+): Promise<ethers.BaseContract> {
+  const factory = require("../contract-bindings")[`${contractName}__factory`];
+  const signer = await getSigner(chain);
+  return factory.connect(contractAddress, signer);
 }
 
 export function writeDeployedContract(chain: ChainId, contractName: string, address: string) {
   const contracts = loadContracts();
   if (!contracts[contractName]) {
-    contracts[contractName] = [{ chainId: chain, address: process.env[contractName]! }];
+    contracts[contractName] = [{ chainId: chain, address }];
   }
 
   else if (!contracts[contractName].find((c) => c.chainId === chain)) {

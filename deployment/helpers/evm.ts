@@ -1,8 +1,16 @@
 import { LedgerSigner }  from "@xlabs-xyz/ledger-signer";
 import { ethers } from "ethers";
-import { ChainInfo, ecosystemChains, getEnv, LoggerFn } from "./index";
+import { ChainInfo, ecosystemChains, EvmScriptCb, getEnv } from "./index";
 
-export type EvmScriptCb = (chain: ChainInfo, signer: ethers.Signer, logFn: LoggerFn) => Promise<void>;
+export const ETHEREUM_ADDRESS_LENGTH = 40;
+export const zeroValues = [
+  0, 
+  "0x0000000000000000000000000000000000000000", 
+  "", 
+  false, 
+  "0x0000000000000000000000000000000000000000000000000000000000000000", 
+  "0.0"
+]; 
 
 export async function runOnEvms(scriptName: string, cb: EvmScriptCb) {
   const chains = evmOperatingChains();
@@ -20,6 +28,7 @@ export async function runOnEvms(scriptName: string, cb: EvmScriptCb) {
     } catch (error) {
       log("Error: ", error);
     }
+    console.log();
   });
 
   await Promise.all(result);

@@ -1,15 +1,18 @@
 {
   "name": "deployment",
   "scripts": {
-    "evm-deps": "forge build -C /home/solanoe/xlabs/projects/example-liquidity-layer/evm/lib/openzeppelin-contracts/contracts/proxy/ERC1967",
-    "build-evm": "npm run evm-deps && npx typechain --target=ethers-v5 --out-dir=./contract-bindings ../evm/out/*/*.json ../evm/lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol"
+    "evm-deps": "forge build -C $(dirname $(pwd))/evm/lib/openzeppelin-contracts/contracts",
+    "build-evm": "npm run evm-deps && npx typechain --target=ethers-v5 --out-dir=./contract-bindings ../evm/out/*/*.json ../out/*/*.json"
   },
   "author": "",
   "devDependencies": {
     "@certusone/wormhole-sdk": "^0.10.11",
+    "@solana/web3.js": "^1.92.2",
     "@typechain/ethers-v5": "^11.1.2",
     "@types/node": "^20.11.22",
     "@xlabs-xyz/ledger-signer": "^0.0.4",
+    "bs58": "^5.0.0",
+    "chalk": "^4.1.2",
     "dotenv": "^16.4.5",
     "ethers": "^5.7.2",
     "tsx": "^4.7.2",
