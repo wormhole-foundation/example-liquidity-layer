@@ -7,6 +7,7 @@ import "./IPlaceMarketOrder.sol";
 import "./IRedeemFill.sol";
 import "./ITokenRouterState.sol";
 import "./ITokenRouterAdmin.sol";
+import "./ITokenRouterEvents.sol";
 import "./IAdmin.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -16,5 +17,6 @@ interface ITokenRouter is
     IRedeemFill,
     ITokenRouterState,
     ITokenRouterAdmin,
+    ITokenRouterEvents,
     IAdmin
 {}
