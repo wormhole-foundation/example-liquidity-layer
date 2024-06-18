@@ -98,7 +98,7 @@ fn settle_none_and_prepare_fill(
         best_offer_token: Default::default(),
         executor_token: crate::events::SettledTokenAccountInfo {
             key: fee_recipient_token.key(),
-            balance_after: fee_recipient_token.amount.saturating_add(fee).into()
+            balance_after: fee_recipient_token.amount.saturating_add(fee)
         }
         .into(),
         with_execute: auction.target_protocol.into(),
