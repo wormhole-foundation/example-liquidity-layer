@@ -3,7 +3,10 @@ use crate::{
     state::{Auction, AuctionStatus, PreparedOrderResponse},
 };
 use anchor_lang::prelude::*;
-use anchor_spl::{associated_token::get_associated_token_address, token};
+use anchor_spl::{
+    associated_token::get_associated_token_address,
+    token::{self, TokenAccount},
+};
 
 #[derive(Accounts)]
 pub struct SettleAuctionComplete<'info> {
@@ -19,7 +22,7 @@ pub struct SettleAuctionComplete<'info> {
         token::mint = common::USDC_MINT,
         token::authority = executor,
     )]
-    executor_token: Account<'info, token::TokenAccount>,
+    executor_token: Account<'info, TokenAccount>,
 
     /// Destination token account, which the redeemer may not own. But because the redeemer is a
     /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
@@ -53,7 +56,7 @@ pub struct SettleAuctionComplete<'info> {
         ],
         bump,
     )]
-    prepared_custody_token: Account<'info, token::TokenAccount>,
+    prepared_custody_token: Account<'info, TokenAccount>,
 
     #[account(
         mut,
@@ -125,11 +128,11 @@ fn handle_settle_auction_complete(
             );
 
             // If the token account happens to not exist anymore, we will revert.
-            match token::TokenAccount::try_deserialize(&mut &best_offer_token.data.borrow()[..]) {
-                Ok(token) => (
+            match TokenAccount::try_deserialize(&mut &best_offer_token.data.borrow()[..]) {
+                Ok(best_offer) => (
                     None,
                     BestOfferResult {
-                        balance_before: token.amount,
+                        balance_before: best_offer.amount,
                         amount: repayment,
                     }
                     .into(),
@@ -151,13 +154,13 @@ fn handle_settle_auction_complete(
 
             // If the token account happens to not exist anymore, we will give everything to the
             // executor.
-            match token::TokenAccount::try_deserialize(&mut &best_offer_token.data.borrow()[..]) {
-                Ok(token) => {
+            match TokenAccount::try_deserialize(&mut &best_offer_token.data.borrow()[..]) {
+                Ok(best_offer) => {
                     if executor_token.key() == best_offer_token.key() {
                         (
                             None,
                             BestOfferResult {
-                                balance_before: token.amount,
+                                balance_before: best_offer.amount,
                                 amount: repayment,
                             }
                             .into(),
@@ -181,7 +184,7 @@ fn handle_settle_auction_complete(
                         (
                             base_fee.into(),
                             BestOfferResult {
-                                balance_before: token.amount,
+                                balance_before: best_offer.amount,
                                 amount: repayment.saturating_sub(base_fee),
                             }
                             .into(),
@@ -194,7 +197,7 @@ fn handle_settle_auction_complete(
     };
 
     // Transfer executor his bounty if there are any.
-    if let Some(amount) = executor_amount {
+    if let Some(executor_amount) = executor_amount {
         token::transfer(
             CpiContext::new_with_signer(
                 token_program.to_account_info(),
@@ -205,7 +208,7 @@ fn handle_settle_auction_complete(
                 },
                 &[prepared_order_response_signer_seeds],
             ),
-            amount,
+            executor_amount,
         )?;
     }
 
