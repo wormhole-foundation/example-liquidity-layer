@@ -139,10 +139,15 @@ export type CctpMessageArgs = {
     cctpAttestation: Buffer;
 };
 
+export type SettledTokenAccountInfo = {
+    key: PublicKey;
+    balanceAfter: BN;
+};
+
 export type AuctionSettled = {
     auction: PublicKey;
-    bestOfferToken: PublicKey | null;
-    tokenBalanceAfter: BN;
+    bestOfferToken: SettledTokenAccountInfo | null;
+    executorToken: SettledTokenAccountInfo | null;
     withExecute: MessageProtocol | null;
 };
 
