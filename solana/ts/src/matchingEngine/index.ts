@@ -1789,7 +1789,7 @@ export class MatchingEngineProgram {
             sourceChain ??= fastVaaAccount.emitterInfo().chain;
 
             const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());
-            if (message.fastMarketOrder == undefined) {
+            if (message.fastMarketOrder === undefined) {
                 throw new Error("Message not FastMarketOrder");
             }
 
@@ -2135,6 +2135,7 @@ export class MatchingEngineProgram {
             auction?: PublicKey;
             auctionConfig?: PublicKey;
             bestOfferToken?: PublicKey;
+            executor?: PublicKey;
         },
         opts: ReserveFastFillSequenceCompositeOpts = {},
     ): Promise<TransactionInstruction> {
@@ -2153,7 +2154,7 @@ export class MatchingEngineProgram {
         );
         const { fastVaaHash } = definedOpts;
 
-        let { auctionConfig, auction, bestOfferToken } = accounts;
+        let { auctionConfig, auction, bestOfferToken, executor } = accounts;
         auction ??= this.auctionAddress(fastVaaHash);
 
         if (bestOfferToken === undefined || auctionConfig === undefined) {
@@ -2165,6 +2166,16 @@ export class MatchingEngineProgram {
             bestOfferToken ??= info.bestOfferToken;
         }
 
+        if (executor === undefined) {
+            const token = await splToken
+                .getAccount(this.program.provider.connection, bestOfferToken)
+                .catch((_) => null);
+            if (token === null) {
+                throw new Error("Executor must be provided because best offer token is not found");
+            }
+            executor = token.owner;
+        }
+
         return this.program.methods
             .reserveFastFillSequenceActiveAuction()
             .accounts({
@@ -2172,6 +2183,7 @@ export class MatchingEngineProgram {
                 auction,
                 auctionConfig,
                 bestOfferToken,
+                executor,
             })
             .instruction();
     }
@@ -2229,7 +2241,7 @@ export class MatchingEngineProgram {
             bestOfferToken?: PublicKey;
             initialOfferToken?: PublicKey;
             initialParticipant?: PublicKey;
-            bestOfferParticipant?: PublicKey;
+            reserveBeneficiary?: PublicKey;
         },
         opts: {
             sourceChain?: ChainId;
@@ -2247,7 +2259,7 @@ export class MatchingEngineProgram {
             executorToken,
             initialOfferToken,
             initialParticipant,
-            bestOfferParticipant,
+            reserveBeneficiary,
         } = accounts;
         let { sourceChain, orderSender, sequence } = opts;
         executorToken ??= splToken.getAssociatedTokenAddressSync(this.mint, payer);
@@ -2271,11 +2283,12 @@ export class MatchingEngineProgram {
             orderSender ??= Array.from(fastMarketOrder.sender.toUint8Array());
         }
 
-        if (sequence === undefined) {
-            const { fastFillSeeds } = await this.fetchReservedFastFillSequence({
+        if (sequence === undefined || reserveBeneficiary === undefined) {
+            const reservedData = await this.fetchReservedFastFillSequence({
                 address: reservedSequence,
             });
-            sequence = fastFillSeeds.sequence;
+            sequence ??= reservedData.fastFillSeeds.sequence;
+            reserveBeneficiary ??= reservedData.beneficiary;
         }
 
         let auctionInfo: AuctionInfo | undefined;
@@ -2302,11 +2315,6 @@ export class MatchingEngineProgram {
             { auctionInfo },
         );
 
-        if (bestOfferParticipant === undefined) {
-            const token = await splToken.getAccount(connection, activeAuction.bestOfferToken);
-            bestOfferParticipant = token.owner;
-        }
-
         return this.program.methods
             .executeFastOrderLocal()
             .accounts({
@@ -2320,7 +2328,7 @@ export class MatchingEngineProgram {
                     initialParticipant,
                 },
                 reservedSequence,
-                bestOfferParticipant,
+                reserveBeneficiary,
                 fastFill: this.fastFillAddress(sourceChain, orderSender, sequence),
                 eventAuthority: this.eventAuthorityAddress(),
                 program: this.ID,

@@ -910,10 +910,11 @@ export type MatchingEngine = {
           "writable": true
         },
         {
-          "name": "bestOfferParticipant",
+          "name": "reserveBeneficiary",
           "docs": [
             "When the reserved sequence account was created, the beneficiary was set to the best offer",
-            "token's owner. This account will receive the lamports from the reserved sequence account.",
+            "token's owner if it existed (and if not, to whomever executed the reserve fast fill sequence",
+            "instruction). This account will receive the lamports from the reserved sequence account.",
             ""
           ],
           "writable": true
@@ -1652,7 +1653,16 @@ export type MatchingEngine = {
           "name": "bestOfferToken",
           "docs": [
             "Best offer token account, whose owner will be the beneficiary of the reserved fast fill",
-            "sequence account when it is closed."
+            "sequence account when it is closed.",
+            "",
+            "in the auction account."
+          ]
+        },
+        {
+          "name": "executor",
+          "docs": [
+            "of the reserved fast fill sequence account when it is closed. Otherwise, this account must",
+            "equal the best offer token account's owner."
           ]
         }
       ],
