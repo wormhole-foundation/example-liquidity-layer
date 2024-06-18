@@ -54,7 +54,8 @@ import {
     ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
-import { ChainId, toChainId, isChainId } from "@wormhole-foundation/sdk-base";
+import { ChainId, toChainId, isChainId, Chain } from "@wormhole-foundation/sdk-base";
+import { programDerivedAddresses } from "./pdas";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -218,12 +219,16 @@ export type ReserveFastFillSequenceCompositeOpts = {
 export class MatchingEngineProgram {
     private _programId: ProgramId;
     private _mint: PublicKey;
+    private _custodian?: Custodian;
+
+    pdas: ReturnType<typeof programDerivedAddresses>;
 
     program: Program<MatchingEngine>;
 
     constructor(connection: Connection, programId: ProgramId, mint: PublicKey) {
         this._programId = programId;
         this._mint = mint;
+        this.pdas = programDerivedAddresses(new PublicKey(programId), mint);
         this.program = new Program(
             { ...(IDL as any), address: this._programId },
             {
@@ -346,21 +351,16 @@ export class MatchingEngineProgram {
         return this.program.addEventListener("fastFillRedeemed", callback);
     }
 
-    eventAuthorityAddress(): PublicKey {
-        return PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], this.ID)[0];
+    /** Get the cached Custodian if it exists, otherwise fetch the latest and cache it */
+    async getCustodian(skipCache?: boolean): Promise<Custodian> {
+        if (this._custodian === undefined || skipCache)
+            this._custodian = await this.fetchCustodian();
+        return this._custodian!;
     }
 
-    custodianAddress(): PublicKey {
-        return Custodian.address(this.ID);
-    }
-
-    async fetchCustodian(input?: { address: PublicKey }): Promise<Custodian> {
-        const addr = input === undefined ? this.custodianAddress() : input.address;
-        return this.program.account.custodian.fetch(addr);
-    }
-
-    auctionConfigAddress(id: number): PublicKey {
-        return AuctionConfig.address(this.ID, id);
+    /** Fetch the latest custodian data */
+    async fetchCustodian(): Promise<Custodian> {
+        return this.program.account.custodian.fetch(this.custodianAddress());
     }
 
     async fetchAuctionConfig(input: number | { address: PublicKey }): Promise<AuctionConfig> {
@@ -370,18 +370,10 @@ export class MatchingEngineProgram {
 
     async fetchAuctionParameters(id?: number): Promise<AuctionParameters> {
         if (id === undefined) {
-            const { auctionConfigId } = await this.fetchCustodian();
+            const { auctionConfigId } = await this.getCustodian();
             id = auctionConfigId;
         }
         return this.fetchAuctionConfig(id).then((config) => config.parameters);
-    }
-
-    cctpMintRecipientAddress(): PublicKey {
-        return splToken.getAssociatedTokenAddressSync(this.mint, this.custodianAddress(), true);
-    }
-
-    routerEndpointAddress(chain: ChainId): PublicKey {
-        return RouterEndpoint.address(this.ID, chain);
     }
 
     async fetchRouterEndpoint(input: ChainId | { address: PublicKey }): Promise<RouterEndpoint> {
@@ -397,37 +389,16 @@ export class MatchingEngineProgram {
         return info;
     }
 
-    auctionAddress(vaaHash: VaaHash): PublicKey {
-        return Auction.address(this.ID, vaaHash);
-    }
-
     async fetchAuction(input: VaaHash | { address: PublicKey }): Promise<Auction> {
         const addr = "address" in input ? input.address : this.auctionAddress(input);
         // @ts-ignore This is BS. This is correct.
         return this.program.account.auction.fetch(addr);
     }
 
-    async proposalAddress(proposalId?: Uint64): Promise<PublicKey> {
-        if (proposalId === undefined) {
-            const { nextProposalId } = await this.fetchCustodian();
-            proposalId = nextProposalId;
-        }
-
-        return Proposal.address(this.ID, proposalId);
-    }
-
     async fetchProposal(input?: { address: PublicKey }): Promise<Proposal> {
         const addr = input === undefined ? await this.proposalAddress() : input.address;
         // @ts-ignore This is BS. This is correct.
         return this.program.account.proposal.fetch(addr);
-    }
-
-    coreMessageAddress(auction: PublicKey): PublicKey {
-        return coreMessageAddress(this.ID, auction);
-    }
-
-    cctpMessageAddress(auction: PublicKey): PublicKey {
-        return cctpMessageAddress(this.ID, auction);
     }
 
     async reclaimCctpMessageIx(
@@ -440,10 +411,6 @@ export class MatchingEngineProgram {
         return reclaimCctpMessageIx(this.messageTransmitterProgram(), accounts, cctpAttestation);
     }
 
-    preparedOrderResponseAddress(fastVaaHash: VaaHash): PublicKey {
-        return PreparedOrderResponse.address(this.ID, fastVaaHash);
-    }
-
     async fetchPreparedOrderResponse(
         input: VaaHash | { address: PublicKey },
     ): Promise<PreparedOrderResponse> {
@@ -451,35 +418,11 @@ export class MatchingEngineProgram {
         return this.program.account.preparedOrderResponse.fetch(addr);
     }
 
-    preparedCustodyTokenAddress(preparedOrderResponse: PublicKey): PublicKey {
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("prepared-custody"), preparedOrderResponse.toBuffer()],
-            this.ID,
-        )[0];
-    }
-
-    auctionCustodyTokenAddress(auction: PublicKey): PublicKey {
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("auction-custody"), auction.toBuffer()],
-            this.ID,
-        )[0];
-    }
-
     async fetchAuctionCustodyTokenBalance(auction: PublicKey): Promise<bigint> {
         return splToken
             .getAccount(this.program.provider.connection, this.auctionCustodyTokenAddress(auction))
             .then((token) => token.amount)
             .catch((_) => 0n);
-    }
-
-    localCustodyTokenAddress(sourceChain: ChainId): PublicKey {
-        const encodedSourceChain = Buffer.alloc(2);
-        encodedSourceChain.writeUInt16BE(sourceChain);
-
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("local-custody"), encodedSourceChain],
-            this.ID,
-        )[0];
     }
 
     async fetchLocalCustodyTokenBalance(sourceChain: ChainId): Promise<bigint> {
@@ -492,19 +435,11 @@ export class MatchingEngineProgram {
             .catch((_) => 0n);
     }
 
-    fastFillAddress(sourceChain: ChainId, orderSender: Array<number>, sequence: Uint64): PublicKey {
-        return FastFill.address(this.ID, sourceChain, orderSender, sequence);
-    }
-
     fetchFastFill(
         input: [ChainId, Array<number>, Uint64] | { address: PublicKey },
     ): Promise<FastFill> {
         const addr = "address" in input ? input.address : this.fastFillAddress(...input);
         return this.program.account.fastFill.fetch(addr);
-    }
-
-    fastFillSequencerAddress(sourceChain: ChainId, sender: Array<number>): PublicKey {
-        return FastFillSequencer.address(this.ID, sourceChain, sender);
     }
 
     fetchFastFillSequencer(
@@ -514,29 +449,12 @@ export class MatchingEngineProgram {
         return this.program.account.fastFillSequencer.fetch(addr);
     }
 
-    reservedFastFillSequenceAddress(fastVaaHash: VaaHash): PublicKey {
-        return ReservedFastFillSequence.address(this.ID, fastVaaHash);
-    }
-
     fetchReservedFastFillSequence(
         input: VaaHash | { address: PublicKey },
     ): Promise<ReservedFastFillSequence> {
         const addr =
             "address" in input ? input.address : this.reservedFastFillSequenceAddress(input);
         return this.program.account.reservedFastFillSequence.fetch(addr);
-    }
-
-    transferAuthorityAddress(auction: PublicKey, offerPrice: Uint64): PublicKey {
-        const encodedOfferPrice = Buffer.alloc(8);
-        writeUint64BE(encodedOfferPrice, offerPrice);
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("transfer-authority"), auction.toBuffer(), encodedOfferPrice],
-            this.ID,
-        )[0];
-    }
-
-    auctionHistoryAddress(id: Uint64): PublicKey {
-        return AuctionHistory.address(this.ID, id);
     }
 
     // Anchor is having trouble deserializing the account data here. Manually deserializing
@@ -1134,7 +1052,7 @@ export class MatchingEngineProgram {
         proposal ??= await this.proposalAddress(opts.proposalId);
 
         if (auctionConfig === undefined) {
-            const { auctionConfigId } = await this.fetchCustodian();
+            const { auctionConfigId } = await this.getCustodian(true);
             // Add 1 to the current auction config ID to get the next one.
             auctionConfig = this.auctionConfigAddress(auctionConfigId + 1);
         }
@@ -1290,8 +1208,8 @@ export class MatchingEngineProgram {
     async placeInitialOfferCctpIx(
         accounts: {
             payer: PublicKey;
-            feePayer?: PublicKey;
             fastVaa: PublicKey;
+            feePayer?: PublicKey;
             offerToken?: PublicKey;
             auction?: PublicKey;
             auctionConfig?: PublicKey;
@@ -1306,10 +1224,9 @@ export class MatchingEngineProgram {
         [approveIx: TransactionInstruction, placeInitialOfferCctpIx: TransactionInstruction]
     > {
         const { payer, feePayer, fastVaa } = accounts;
+        let { auction, auctionConfig, offerToken, fromRouterEndpoint, toRouterEndpoint } = accounts;
 
         const { offerPrice } = args;
-
-        let { auction, auctionConfig, offerToken, fromRouterEndpoint, toRouterEndpoint } = accounts;
         let { totalDeposit } = args;
 
         offerToken ??= await splToken.getAssociatedTokenAddress(this.mint, payer);
@@ -1329,7 +1246,7 @@ export class MatchingEngineProgram {
             }
             toRouterEndpoint ??= this.routerEndpointAddress(toChainId(fastMarketOrder.targetChain));
 
-            const custodianData = await this.fetchCustodian();
+            const custodianData = await this.getCustodian();
             fetchedConfigId = custodianData.auctionConfigId;
 
             const notionalDeposit = await this.computeNotionalSecurityDeposit(
@@ -1342,7 +1259,7 @@ export class MatchingEngineProgram {
 
         if (auctionConfig === undefined) {
             if (fetchedConfigId === null) {
-                const custodianData = await this.fetchCustodian();
+                const custodianData = await this.getCustodian();
                 fetchedConfigId = custodianData.auctionConfigId;
             }
             auctionConfig = this.auctionConfigAddress(fetchedConfigId);
@@ -1740,7 +1657,7 @@ export class MatchingEngineProgram {
             sequence ??= fastFillSeeds.sequence;
         }
 
-        const { feeRecipientToken } = await this.fetchCustodian();
+        const { feeRecipientToken } = await this.getCustodian();
 
         return this.program.methods
             .settleAuctionNoneLocal()
@@ -1820,7 +1737,7 @@ export class MatchingEngineProgram {
             tokenMessengerMinterProgram,
         } = await this.burnAndPublishAccounts(auction, { targetChain });
 
-        const { feeRecipientToken } = await this.fetchCustodian();
+        const { feeRecipientToken } = await this.getCustodian();
 
         return this.program.methods
             .settleAuctionNoneCctp()
@@ -2558,6 +2475,46 @@ export class MatchingEngineProgram {
             (uint64ToBigInt(amountIn) * BigInt(securityDepositBps)) / FEE_PRECISION_MAX
         );
     }
+
+    async proposalAddress(proposalId?: Uint64): Promise<PublicKey> {
+        if (proposalId === undefined) {
+            // Intentionally skip cache to get a fresh proposal ID.
+            ({ nextProposalId: proposalId } = await this.getCustodian(true));
+        }
+
+        return this.pdas.proposal(proposalId);
+    }
+
+    // TODO: we should be able to eliminate these fns, replacing with the call to `.pdas` directly
+    auctionConfigAddress = (id: number): PublicKey => this.pdas.auctionConfig(id);
+    cctpMintRecipientAddress = (): PublicKey =>
+        this.pdas.cctpMintRecipient(this.custodianAddress());
+    routerEndpointAddress = (chain: ChainId): PublicKey => this.pdas.routerEndpoint(chain);
+    eventAuthorityAddress = (): PublicKey => this.pdas.eventAuthority();
+    auctionAddress = (vaaHash: VaaHash): PublicKey => this.pdas.auction(vaaHash);
+    custodianAddress = (): PublicKey => this.pdas.custodian();
+    fastFillAddress = (
+        sourceChain: ChainId,
+        orderSender: Array<number>,
+        sequence: Uint64,
+    ): PublicKey => this.pdas.fastFill(sourceChain, orderSender, sequence);
+    coreMessageAddress = (auction: PublicKey): PublicKey => this.pdas.coreMessage(auction);
+    cctpMessageAddress = (auction: PublicKey): PublicKey => this.pdas.cctpMessage(auction);
+    preparedOrderResponseAddress = (fastVaaHash: VaaHash): PublicKey =>
+        this.pdas.preparedOrderResponse(fastVaaHash);
+    preparedCustodyTokenAddress = (preparedOrderResponse: PublicKey): PublicKey =>
+        this.pdas.preparedCustodyToken(preparedOrderResponse);
+    auctionCustodyTokenAddress = (auction: PublicKey): PublicKey =>
+        this.pdas.auctionCustodyToken(auction);
+    localCustodyTokenAddress = (sourceChain: ChainId): PublicKey =>
+        this.pdas.localCustodyToken(sourceChain);
+    fastFillSequencerAddress = (sourceChain: ChainId, sender: Array<number>): PublicKey =>
+        this.pdas.fastFillSequencer(sourceChain, sender);
+    reservedFastFillSequenceAddress = (fastVaaHash: VaaHash): PublicKey =>
+        this.pdas.reservedFastFillSequenceAddress(fastVaaHash);
+    transferAuthorityAddress = (auction: PublicKey, offerPrice: Uint64): PublicKey =>
+        this.pdas.transferAuthority(auction, offerPrice);
+    auctionHistoryAddress = (id: Uint64): PublicKey => this.pdas.auctionHistory(id);
 }
 
 export function testnet(): ProgramId {

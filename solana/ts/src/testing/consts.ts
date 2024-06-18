@@ -1,5 +1,6 @@
 import { PublicKey, Keypair } from "@solana/web3.js";
 import { Chain, contracts } from "@wormhole-foundation/sdk-base";
+import { UniversalAddress } from "@wormhole-foundation/sdk-definitions";
 import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
 
 export const CORE_BRIDGE_PID = new PublicKey(contracts.coreBridge.get("Mainnet", "Solana")!);
@@ -65,3 +66,10 @@ export const REGISTERED_TOKEN_ROUTERS: { [k in Chain]?: Array<number> } = {
     Base: Array.from(Buffer.alloc(32, "f6", "hex")),
     Polygon: Array.from(Buffer.alloc(32, "f7", "hex")),
 };
+
+export const REGISTERED_TOKEN_ROUTERS_V2: { [k in Chain]?: UniversalAddress } = Object.fromEntries(
+    Object.entries(REGISTERED_TOKEN_ROUTERS).map(([k, v]) => [
+        k,
+        new UniversalAddress(new Uint8Array(v)),
+    ]),
+);
