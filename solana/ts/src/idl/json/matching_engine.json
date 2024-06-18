@@ -3580,7 +3580,9 @@
           },
           {
             "name": "max_offer_price_allowed",
-            "type": "u64"
+            "type": {
+              "option": "u64"
+            }
           }
         ]
       }

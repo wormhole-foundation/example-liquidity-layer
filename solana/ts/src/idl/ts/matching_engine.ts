@@ -3586,7 +3586,9 @@ export type MatchingEngine = {
           },
           {
             "name": "maxOfferPriceAllowed",
-            "type": "u64"
+            "type": {
+              "option": "u64"
+            }
           }
         ]
       }

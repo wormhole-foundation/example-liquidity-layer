@@ -177,7 +177,8 @@ pub fn place_initial_offer_cctp(
         token_balance_before: ctx.accounts.offer_token.amount,
         amount_in,
         total_deposit: info.total_deposit(),
-        max_offer_price_allowed: utils::auction::compute_min_allowed_offer(config, info),
+        max_offer_price_allowed: utils::auction::compute_min_allowed_offer(config, info)
+            .checked_sub(1),
     });
 
     // Finally transfer tokens from the offer authority's token account to the

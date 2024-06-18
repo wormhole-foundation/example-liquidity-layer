@@ -158,7 +158,7 @@ export type AuctionUpdated = {
     tokenBalanceBefore: BN;
     amountIn: BN;
     totalDeposit: BN;
-    maxOfferPriceAllowed: BN;
+    maxOfferPriceAllowed: BN | null;
 };
 
 export type OrderExecuted = {
@@ -2525,7 +2525,7 @@ export class MatchingEngineProgram {
 
     async computeMinOfferDelta(offerPrice: Uint64): Promise<bigint> {
         const { minOfferDeltaBps } = await this.fetchAuctionParameters();
-        return (uint64ToBigInt(offerPrice) * BigInt(minOfferDeltaBps)) / FEE_PRECISION_MAX;
+        return (uint64ToBigInt(offerPrice) * BigInt(minOfferDeltaBps)) / FEE_PRECISION_MAX + 1n;
     }
 
     async computeNotionalSecurityDeposit(amountIn: Uint64, configId?: number) {
