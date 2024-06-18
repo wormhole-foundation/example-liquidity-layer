@@ -2231,8 +2231,8 @@ export type MatchingEngine = {
       "name": "updateAuctionParameters",
       "docs": [
         "This instruction is used to enact an existing auction update proposal. It can only be",
-        "executed after the `slot_enact_delay` has passed. This instruction can only be called by",
-        "the `owner` of the proposal.",
+        "executed after the `slot_enact_delay` has passed. This instruction can only be called by the",
+        "`owner`.",
         "",
         "# Arguments",
         "",
