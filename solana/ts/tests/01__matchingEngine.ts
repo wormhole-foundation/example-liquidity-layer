@@ -1,4 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
+// @ts-ignore
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -17,7 +18,8 @@ import {
     SlowOrderResponse,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { deserialize, serialize, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { SolanaAddress, SolanaSendSigner } from "@wormhole-foundation/sdk-solana";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
 import { CctpTokenBurnMessage } from "../src/cctp";
@@ -34,12 +36,12 @@ import {
     AuctionParameters,
     CctpMessageArgs,
     Custodian,
-    MatchingEngineProgram,
     PreparedOrderResponse,
     Proposal,
     RouterEndpoint,
     localnet,
 } from "../src/matchingEngine";
+import { SolanaMatchingEngine } from "../src/protocol/matchingEngine";
 import {
     CHAIN_TO_DOMAIN,
     CircleAttester,
@@ -51,10 +53,14 @@ import {
     PAYER_KEYPAIR,
     PLAYER_ONE_KEYPAIR,
     REGISTERED_TOKEN_ROUTERS,
+    REGISTERED_TOKEN_ROUTERS_V2,
     USDC_MINT_ADDRESS,
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,
+    expectTxsErr,
+    expectTxsOk,
+    expectTxsOkDetails,
     getBlockTime,
     getUsdcAtaBalance,
     postLiquidityLayerVaa,
@@ -66,23 +72,60 @@ import { VaaAccount } from "../src/wormhole";
 
 const SLOTS_PER_EPOCH = 8;
 
+const SIGNER_DEBUG = false;
+
+type SDKSigner = SolanaSendSigner<"Devnet", "Solana">;
+
+function getSdkStuff(
+    connection: Connection,
+    key: Keypair,
+): { signer: SDKSigner; address: SolanaAddress } {
+    const signer = new SolanaSendSigner(connection, "Solana", key, SIGNER_DEBUG, {});
+    const address = new SolanaAddress(key.publicKey);
+    return { signer, address };
+}
+
 describe("Matching Engine", function () {
     const connection = new Connection(LOCALHOST, "processed");
 
     // owner is also the recipient in all tests
     const payer = PAYER_KEYPAIR;
+    const { signer: payerSigner, address: payerAddress } = getSdkStuff(connection, payer);
+
     const owner = OWNER_KEYPAIR;
+    const { signer: ownerSigner, address: ownerAddress } = getSdkStuff(connection, owner);
+
     const relayer = Keypair.generate();
+    const { signer: relayerSigner, address: relayerAddress } = getSdkStuff(connection, relayer);
+
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
+    const { signer: ownerAssistantSigner, address: ownerAssistantAddress } = getSdkStuff(
+        connection,
+        ownerAssistant,
+    );
+
     const feeRecipient = Keypair.generate().publicKey;
+    const feeRecipientAddress = new SolanaAddress(feeRecipient);
     const feeRecipientToken = splToken.getAssociatedTokenAddressSync(
         USDC_MINT_ADDRESS,
         feeRecipient,
     );
     const newFeeRecipient = Keypair.generate().publicKey;
     const playerOne = PLAYER_ONE_KEYPAIR;
+    const { signer: playerOneSigner, address: playerOneAddress } = getSdkStuff(
+        connection,
+        playerOne,
+    );
     const playerTwo = Keypair.generate();
+    const { signer: playerTwoSigner, address: playerTwoAddress } = getSdkStuff(
+        connection,
+        playerTwo,
+    );
     const liquidator = Keypair.generate();
+    const { signer: liquidatorSigner, address: liquidatorAddress } = getSdkStuff(
+        connection,
+        liquidator,
+    );
 
     // Foreign endpoints.
     const ethChain = toChainId("Ethereum");
@@ -96,7 +139,10 @@ describe("Matching Engine", function () {
     const solanaChain = toChainId("Solana");
 
     // Matching Engine program.
-    const engine = new MatchingEngineProgram(connection, localnet(), USDC_MINT_ADDRESS);
+    const engine = new SolanaMatchingEngine("Devnet", "Solana", connection, {
+        matchingEngine: localnet(),
+        usdcMint: USDC_MINT_ADDRESS.toBase58(),
+    });
 
     let lookupTableAddress: PublicKey;
 
@@ -120,8 +166,6 @@ describe("Matching Engine", function () {
 
     describe("Admin", function () {
         describe("Initialize", function () {
-            const localVariables = new Map<string, any>();
-
             before("Transfer Lamports to Executors", async function () {
                 await expectIxOk(
                     connection,
@@ -220,178 +264,133 @@ describe("Matching Engine", function () {
 
             it("Cannot Initialize without USDC Mint", async function () {
                 const mint = await splToken.createMint(connection, payer, payer.publicKey, null, 6);
-
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    feeRecipientAddress,
                     auctionParams,
+                    new SolanaAddress(mint),
                 );
-                await expectIxErr(connection, [ix], [payer], "mint. Error Code: ConstraintAddress");
+                await expectTxsErr(payerSigner, txs, "mint. Error Code: ConstraintAddress");
             });
 
             it("Cannot Initialize with Default Owner Assistant", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: PublicKey.default,
-                        feeRecipient,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    new SolanaAddress(PublicKey.default),
+                    feeRecipientAddress,
                     auctionParams,
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: AssistantZeroPubkey");
+                await expectTxsErr(payerSigner, txs, "Error Code: AssistantZeroPubkey");
             });
 
             it("Cannot Initialize with Default Fee Recipient", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient: PublicKey.default,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    new SolanaAddress(PublicKey.default),
                     auctionParams,
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: FeeRecipientZeroPubkey");
+                await expectTxsErr(payerSigner, txs, "Error Code: FeeRecipientZeroPubkey");
             });
 
             it("Cannot Initialize with Zero Auction Duration", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    feeRecipientAddress,
                     { ...auctionParams, duration: 0 },
+                    new SolanaAddress(USDC_MINT_ADDRESS),
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroDuration");
+                await expectTxsErr(payerSigner, txs, "Error Code: ZeroDuration");
             });
 
             it("Cannot Initialize with Zero Auction Grace Period", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    feeRecipientAddress,
                     { ...auctionParams, gracePeriod: 0 },
+                    new SolanaAddress(USDC_MINT_ADDRESS),
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroGracePeriod");
+                await expectTxsErr(payerSigner, txs, "Error Code: ZeroGracePeriod");
             });
 
             it("Cannot Initialize with Zero Auction Penalty Period", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    feeRecipientAddress,
                     { ...auctionParams, penaltyPeriod: 0 },
+                    new SolanaAddress(USDC_MINT_ADDRESS),
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroPenaltyPeriod");
+                await expectTxsErr(payerSigner, txs, "Error Code: ZeroPenaltyPeriod");
             });
 
             it("Cannot Initialize with Invalid User Penalty Bps", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    feeRecipientAddress,
                     { ...auctionParams, userPenaltyRewardBps: 1_000_001 },
+                    new SolanaAddress(USDC_MINT_ADDRESS),
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
-                    "Error Code: UserPenaltyRewardBpsTooLarge",
-                );
+                await expectTxsErr(payerSigner, txs, "Error Code: UserPenaltyRewardBpsTooLarge");
             });
 
             it("Cannot Initialize with Invalid Initial Penalty Bps", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    feeRecipientAddress,
                     { ...auctionParams, initialPenaltyBps: 1_000_001 },
+                    new SolanaAddress(USDC_MINT_ADDRESS),
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
-                    "Error Code: InitialPenaltyBpsTooLarge",
-                );
+                await expectTxsErr(payerSigner, txs, "Error Code: InitialPenaltyBpsTooLarge");
             });
 
             it("Cannot Initialize with Invalid Min Offer Delta Bps", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    feeRecipientAddress,
                     { ...auctionParams, minOfferDeltaBps: 1_000_001 },
+                    new SolanaAddress(USDC_MINT_ADDRESS),
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
-                    "Error Code: MinOfferDeltaBpsTooLarge",
-                );
+                await expectTxsErr(payerSigner, txs, "Error Code: MinOfferDeltaBpsTooLarge");
             });
 
             it("Cannot Initialize with Invalid Security Deposit Base", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    feeRecipientAddress,
                     { ...auctionParams, securityDepositBase: uint64ToBN(0) },
+                    new SolanaAddress(USDC_MINT_ADDRESS),
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroSecurityDepositBase");
+                await expectTxsErr(payerSigner, txs, "Error Code: ZeroSecurityDepositBase");
             });
 
             it("Cannot Initialize with Invalid Security Deposit Bps", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    feeRecipientAddress,
                     { ...auctionParams, securityDepositBps: 1_000_001 },
+                    new SolanaAddress(USDC_MINT_ADDRESS),
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
-                    "Error Code: SecurityDepositBpsTooLarge",
-                );
+                await expectTxsErr(payerSigner, txs, "Error Code: SecurityDepositBpsTooLarge");
             });
 
             it("Finally Initialize Program", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    feeRecipientAddress,
                     auctionParams,
+                    new SolanaAddress(USDC_MINT_ADDRESS),
                 );
-                await expectIxOk(connection, [ix], [payer]);
+                await expectTxsOk(payerSigner, txs);
 
                 const expectedAuctionConfigId = 0;
                 const custodianData = await engine.fetchCustodian();
@@ -412,18 +411,19 @@ describe("Matching Engine", function () {
                 expect(auctionConfigData).to.eql(
                     new AuctionConfig(expectedAuctionConfigId, auctionParams),
                 );
-
-                localVariables.set("ix", ix);
             });
 
             it("Cannot Call Instruction Again: initialize", async function () {
-                const ix = localVariables.get("ix") as TransactionInstruction;
-                expect(localVariables.delete("ix")).is.true;
-
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
+                const txs = engine.initialize(
+                    payerAddress,
+                    ownerAssistantAddress,
+                    feeRecipientAddress,
+                    auctionParams,
+                    new SolanaAddress(USDC_MINT_ADDRESS),
+                );
+                await expectTxsErr(
+                    payerSigner,
+                    txs,
                     `Allocate: account Address { address: ${engine
                         .custodianAddress()
                         .toString()}, base: None } already in use`,
@@ -684,26 +684,14 @@ describe("Matching Engine", function () {
 
         describe("Set Pause", async function () {
             it("Cannot Set Pause for Transfers as Non-Owner", async function () {
-                const ix = await engine.setPauseIx(
-                    {
-                        ownerOrAssistant: payer.publicKey,
-                    },
-                    true, // paused
-                );
-
-                await expectIxErr(connection, [ix], [payer], "Error Code: OwnerOrAssistantOnly");
+                const txs = engine.setPause(payerAddress, true);
+                await expectTxsErr(payerSigner, txs, "Error Code: OwnerOrAssistantOnly");
             });
 
             it("Set Paused == true as Owner Assistant", async function () {
                 const paused = true;
-                const ix = await engine.setPauseIx(
-                    {
-                        ownerOrAssistant: ownerAssistant.publicKey,
-                    },
-                    paused,
-                );
-
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                const txs = engine.setPause(ownerAssistantAddress, paused);
+                await expectTxsOk(ownerAssistantSigner, txs);
 
                 const { paused: actualPaused, pausedSetBy } = await engine.fetchCustodian();
                 expect(actualPaused).equals(paused);
@@ -712,15 +700,8 @@ describe("Matching Engine", function () {
 
             it("Set Paused == false as Owner", async function () {
                 const paused = false;
-                const ix = await engine.setPauseIx(
-                    {
-                        ownerOrAssistant: owner.publicKey,
-                    },
-                    paused,
-                );
-
-                await expectIxOk(connection, [ix], [owner]);
-
+                const txs = engine.setPause(ownerAddress, paused);
+                await expectTxsOk(ownerSigner, txs);
                 const { paused: actualPaused, pausedSetBy } = await engine.fetchCustodian();
                 expect(actualPaused).equals(paused);
                 expect(pausedSetBy).eql(owner.publicKey);
@@ -731,32 +712,26 @@ describe("Matching Engine", function () {
             const localVariables = new Map<string, any>();
 
             after("Register To Router Endpoints", async function () {
-                const ix = await engine.addCctpRouterEndpointIx(
-                    {
-                        ownerOrAssistant: owner.publicKey,
-                    },
-                    {
-                        chain: toChainId("Arbitrum"),
-                        cctpDomain: CHAIN_TO_DOMAIN["Arbitrum"]!,
-                        address: REGISTERED_TOKEN_ROUTERS["Arbitrum"]!,
-                        mintRecipient: null,
-                    },
+                const endpointChain = "Arbitrum";
+                const txs = engine.registerRouter(
+                    new SolanaAddress(owner.publicKey),
+                    endpointChain,
+                    CHAIN_TO_DOMAIN[endpointChain]!,
+                    REGISTERED_TOKEN_ROUTERS_V2[endpointChain]!,
                 );
-                await expectIxOk(connection, [ix], [owner]);
+
+                await expectTxsOk(ownerSigner, txs);
             });
 
             it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
-                const ix = await engine.addCctpRouterEndpointIx(
-                    { ownerOrAssistant: payer.publicKey },
-                    {
-                        chain: ethChain,
-                        cctpDomain: ethDomain,
-                        address: ethRouter,
-                        mintRecipient: null,
-                    },
+                const endpointChain = "Ethereum";
+                const txs = engine.registerRouter(
+                    new SolanaAddress(payerSigner.address()),
+                    endpointChain,
+                    CHAIN_TO_DOMAIN[endpointChain]!,
+                    REGISTERED_TOKEN_ROUTERS_V2[endpointChain]!,
                 );
-
-                await expectIxErr(connection, [ix], [payer], "OwnerOrAssistantOnly");
+                await expectTxsErr(payerSigner, txs, "OwnerOrAssistantOnly");
             });
 
             [0, solanaChain].forEach((chain) =>
@@ -1373,7 +1348,7 @@ describe("Matching Engine", function () {
         describe("Place Initial CCTP Offer", function () {
             for (const offerPrice of [0n, baseFastOrder.maxFee / 2n, baseFastOrder.maxFee]) {
                 it(`Place Initial Offer (Price == ${offerPrice})`, async function () {
-                    await placeInitialOfferCctpForTest(
+                    await placeInitialOfferCctpForTestv2(
                         {
                             payer: playerOne.publicKey,
                         },
@@ -1381,7 +1356,7 @@ describe("Matching Engine", function () {
                             args: {
                                 offerPrice,
                             },
-                            signers: [playerOne],
+                            signers: [playerOneSigner],
                             finalized: false,
                             fastMarketOrder: baseFastOrder,
                         },
@@ -4334,6 +4309,178 @@ describe("Matching Engine", function () {
         });
     });
 
+    interface TestOptions {
+        signers?: SDKSigner[];
+        errorMsg?: string | null;
+    }
+
+    function setDefaultForTestOptsv2<T extends TestOptions>(
+        opts: T,
+    ): [{ signers: SDKSigner[]; errorMsg: string | null }, Omit<T, keyof TestOptions>] {
+        let { signers, errorMsg } = opts;
+        signers ??= [payerSigner];
+        delete opts.signers;
+
+        errorMsg ??= null;
+        delete opts.errorMsg;
+
+        return [{ signers, errorMsg }, { ...opts }];
+    }
+
+    async function placeInitialOfferCctpForTestv2(
+        accounts: {
+            payer: PublicKey;
+            fastVaa?: PublicKey;
+            offerToken?: PublicKey;
+            auction?: PublicKey;
+            auctionConfig?: PublicKey;
+            fromRouterEndpoint?: PublicKey;
+            toRouterEndpoint?: PublicKey;
+        },
+        opts: TestOptions &
+            ObserveCctpOrderVaasOpts & {
+                args?: {
+                    offerPrice?: bigint;
+                    totalDeposit?: bigint | undefined;
+                };
+            } = {},
+    ): Promise<void | {
+        fastVaa: PublicKey;
+        fastVaaAccount: VaaAccount;
+        txDetails: VersionedTransactionResponse;
+        auction: PublicKey;
+        auctionDataBefore: Auction;
+    }> {
+        const [{ errorMsg, signers }, excludedForTestOpts] = setDefaultForTestOptsv2(opts);
+        let { args } = excludedForTestOpts;
+        args ??= {};
+
+        const { fast } = await (async () => {
+            return accounts.fastVaa !== undefined
+                ? {
+                      fast: {
+                          vaa: accounts.fastVaa,
+                          vaaAccount: await VaaAccount.fetch(connection, accounts.fastVaa),
+                      },
+                  }
+                : observeCctpOrderVaas(excludedForTestOpts);
+        })();
+
+        try {
+            const { fastMarketOrder } = LiquidityLayerMessage.decode(fast.vaaAccount.payload());
+            if (fastMarketOrder !== undefined) {
+                args.offerPrice ??= fastMarketOrder!.maxFee;
+            }
+            console.log(fastMarketOrder);
+        } catch (e) {
+            // Ignore if parsing failed.
+        }
+
+        if (args.offerPrice === undefined) {
+            throw new Error("offerPrice must be defined");
+        }
+
+        // Place the initial offer.
+        const txs = engine.placeInitialOffer(
+            new SolanaAddress(accounts.payer),
+            deserialize("FastTransfer:FastMarketOrder", serialize(fast.vaaAccount.vaa())),
+            args.offerPrice,
+            args.totalDeposit,
+        );
+
+        if (errorMsg !== null) {
+            return expectTxsErr(signers[0], txs, errorMsg);
+        }
+
+        const offerToken =
+            accounts.offerToken ??
+            splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, accounts.payer);
+
+        const { owner: participant } = await splToken.getAccount(connection, offerToken);
+        expect(offerToken).to.eql(
+            splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, participant),
+        );
+
+        const { amount: offerTokenBalanceBefore } = await splToken.getAccount(
+            connection,
+            offerToken,
+        );
+
+        const vaaHash = fast.vaaAccount.digest();
+        const auction = engine.auctionAddress(vaaHash);
+        const auctionCustodyBalanceBefore = await engine.fetchAuctionCustodyTokenBalance(auction);
+
+        const txDetails = await expectTxsOkDetails(signers[0], txs, connection);
+        if (txDetails === null) {
+            throw new Error("Transaction details are null");
+        }
+        const auctionDataBefore = await engine.fetchAuction({ address: auction });
+
+        // Validate balance changes.
+        const { amount: offerTokenBalanceAfter } = await splToken.getAccount(
+            connection,
+            offerToken,
+        );
+
+        const auctionCustodyBalanceAfter = await engine.fetchAuctionCustodyTokenBalance(auction);
+
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fast.vaaAccount.payload());
+        expect(fastMarketOrder).is.not.undefined;
+        const { amountIn, maxFee, targetChain, redeemerMessage } = fastMarketOrder!;
+
+        const auctionData = await engine.fetchAuction({ address: auction });
+        const { bump, info } = auctionData;
+        const { custodyTokenBump, securityDeposit } = info!;
+
+        const { auctionConfigId } = await engine.fetchCustodian();
+        const notionalDeposit = await engine.computeNotionalSecurityDeposit(
+            amountIn,
+            auctionConfigId,
+        );
+        expect(uint64ToBigInt(securityDeposit)).equals(maxFee + notionalDeposit);
+
+        const balanceChange = amountIn + uint64ToBigInt(securityDeposit);
+        expect(offerTokenBalanceAfter).equals(offerTokenBalanceBefore - balanceChange);
+        expect(auctionCustodyBalanceAfter).equals(auctionCustodyBalanceBefore + balanceChange);
+
+        // Confirm the auction data.
+        const destinationDomain = CHAIN_TO_DOMAIN[toChain(targetChain)];
+        expect(destinationDomain).is.not.undefined;
+
+        const expectedAmountIn = uint64ToBN(amountIn);
+        expect(auctionData).to.eql(
+            new Auction(
+                bump,
+                Array.from(vaaHash),
+                fast.vaaAccount.timestamp(),
+                { cctp: { domain: destinationDomain! } },
+                { active: {} },
+                {
+                    configId: auctionConfigId,
+                    custodyTokenBump,
+                    vaaSequence: uint64ToBN(fast.vaaAccount.emitterInfo().sequence),
+                    sourceChain: ethChain,
+                    bestOfferToken: offerToken,
+                    initialOfferToken: offerToken,
+                    startSlot: uint64ToBN(txDetails.slot),
+                    amountIn: expectedAmountIn,
+                    securityDeposit,
+                    offerPrice: uint64ToBN(args.offerPrice),
+                    redeemerMessageLen: redeemerMessage.length,
+                    destinationAssetInfo: null,
+                },
+            ),
+        );
+
+        return {
+            fastVaa: fast.vaa,
+            fastVaaAccount: fast.vaaAccount,
+            txDetails,
+            auction,
+            auctionDataBefore,
+        };
+    }
+
     async function placeInitialOfferCctpForTest(
         accounts: {
             payer: PublicKey;
@@ -4400,6 +4547,7 @@ describe("Matching Engine", function () {
         const offerToken =
             accounts.offerToken ??
             splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, accounts.payer);
+
         const { owner: participant } = await splToken.getAccount(connection, offerToken);
         expect(offerToken).to.eql(
             splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, participant),

@@ -5,6 +5,7 @@ import {
     Connection,
     Keypair,
     PublicKey,
+    SendTransactionError,
     Signer,
     TransactionInstruction,
     TransactionMessage,
@@ -14,10 +15,11 @@ import { expect } from "chai";
 import { execSync } from "child_process";
 import { Err, Ok } from "ts-results";
 import { CORE_BRIDGE_PID, USDC_MINT_ADDRESS } from "./consts";
-import { SolanaSendSigner } from "@wormhole-foundation/sdk-solana";
+import { SolanaSendSigner, SolanaUnsignedTransaction } from "@wormhole-foundation/sdk-solana";
 import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
-import { signAndSendWait } from "@wormhole-foundation/sdk-connect";
+import { SignAndSendSigner as SdkSigner, signAndSendWait } from "@wormhole-foundation/sdk-connect";
 import { UniversalAddress, deserialize } from "@wormhole-foundation/sdk-definitions";
+import { Chain, Network } from "@wormhole-foundation/sdk-base";
 
 export function toUniversalAddress(address: number[] | Buffer | Array<number>): UniversalAddress {
     return new UniversalAddress(new Uint8Array(address));
@@ -34,6 +36,49 @@ async function confirmLatest(connection: Connection, signature: string) {
             "confirmed",
         ),
     );
+}
+
+export async function expectTxsOk<N extends Network, C extends "Solana" = "Solana">(
+    signer: SdkSigner<N, C>,
+    txs: AsyncGenerator<SolanaUnsignedTransaction<N, C>>,
+) {
+    try {
+        return await signAndSendWait(txs, signer);
+    } catch (e) {
+        console.error(e);
+        throw e;
+    }
+}
+
+export async function expectTxsOkDetails<N extends Network, C extends "Solana" = "Solana">(
+    signer: SdkSigner<N, C>,
+    txs: AsyncGenerator<SolanaUnsignedTransaction<N, C>>,
+    connection: Connection,
+) {
+    const [txSig] = await expectTxsOk(signer, txs);
+    await confirmLatest(connection, txSig.txid);
+    return connection.getTransaction(txSig.txid, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+    });
+}
+
+export async function expectTxsErr<N extends Network, C extends "Solana" = "Solana">(
+    signer: SdkSigner<N, C>,
+    txs: AsyncGenerator<SolanaUnsignedTransaction<N, C>>,
+    expectedError: string,
+) {
+    try {
+        await signAndSendWait(txs, signer);
+    } catch (e) {
+        const errorMsg =
+            e instanceof SendTransactionError && e.logs
+                ? e.logs!.join("\n")
+                : (e as Error).toString();
+        expect(errorMsg).includes(expectedError);
+        return;
+    }
+    throw new Error("Expected transaction to fail");
 }
 
 export async function expectIxOk(
