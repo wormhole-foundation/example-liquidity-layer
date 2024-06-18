@@ -3466,19 +3466,30 @@ export type MatchingEngine = {
           {
             "name": "bestOfferToken",
             "docs": [
-              "If there was an active auction, this pubkey is the best offer token that was paid back."
+              "If there was an active auction, this field will have the pubkey of the best offer token that",
+              "was paid back and its balance after repayment."
             ],
             "type": {
-              "option": "pubkey"
+              "option": {
+                "defined": {
+                  "name": "settledTokenAccountInfo"
+                }
+              }
             }
           },
           {
-            "name": "tokenBalanceAfter",
+            "name": "executorToken",
             "docs": [
-              "Token account's new balance. If there was no auction, this balance will be of the fee",
-              "recipient token account."
+              "Depending on whether there was an active auction, this field will have the pubkey of the",
+              "executor token (if there was an auction) or fee recipient token (if there was no auction)."
             ],
-            "type": "u64"
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "settledTokenAccountInfo"
+                }
+              }
+            }
           },
           {
             "name": "withExecute",
@@ -4337,6 +4348,22 @@ export type MatchingEngine = {
                 "name": "endpointInfo"
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "settledTokenAccountInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "key",
+            "type": "pubkey"
+          },
+          {
+            "name": "balanceAfter",
+            "type": "u64"
           }
         ]
       }

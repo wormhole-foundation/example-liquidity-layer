@@ -1,5 +1,6 @@
 use crate::{
     error::MatchingEngineError,
+    events::SettledTokenAccountInfo,
     state::{Auction, AuctionStatus, PreparedOrderResponse},
 };
 use anchor_lang::prelude::*;
@@ -107,12 +108,12 @@ fn handle_settle_auction_complete(
 
     let repayment = ctx.accounts.prepared_custody_token.amount;
 
-    struct BestOfferResult {
+    struct TokenAccountResult {
         balance_before: u64,
         amount: u64,
     }
 
-    let (executor_amount, best_offer_result) = match execute_penalty {
+    let (executor_result, best_offer_result) = match execute_penalty {
         None => {
             // If there is no penalty, we require that the executor token and best offer token be
             // equal. The winning offer should not be penalized for calling this instruction when he
@@ -130,8 +131,8 @@ fn handle_settle_auction_complete(
             // If the token account happens to not exist anymore, we will revert.
             match TokenAccount::try_deserialize(&mut &best_offer_token.data.borrow()[..]) {
                 Ok(best_offer) => (
-                    None,
-                    BestOfferResult {
+                    None, // executor_result
+                    TokenAccountResult {
                         balance_before: best_offer.amount,
                         amount: repayment,
                     }
@@ -158,8 +159,8 @@ fn handle_settle_auction_complete(
                 Ok(best_offer) => {
                     if executor_token.key() == best_offer_token.key() {
                         (
-                            None,
-                            BestOfferResult {
+                            None, // executor_result
+                            TokenAccountResult {
                                 balance_before: best_offer.amount,
                                 amount: repayment,
                             }
@@ -182,8 +183,12 @@ fn handle_settle_auction_complete(
                         );
 
                         (
-                            base_fee.into(),
-                            BestOfferResult {
+                            TokenAccountResult {
+                                balance_before: executor_token.amount,
+                                amount: base_fee,
+                            }
+                            .into(),
+                            TokenAccountResult {
                                 balance_before: best_offer.amount,
                                 amount: repayment.saturating_sub(base_fee),
                             }
@@ -191,53 +196,80 @@ fn handle_settle_auction_complete(
                         )
                     }
                 }
-                Err(_) => (repayment.into(), None),
+                Err(_) => (
+                    TokenAccountResult {
+                        balance_before: executor_token.amount,
+                        amount: repayment,
+                    }
+                    .into(),
+                    None, // best_offer_result
+                ),
             }
         }
     };
 
     // Transfer executor his bounty if there are any.
-    if let Some(executor_amount) = executor_amount {
-        token::transfer(
-            CpiContext::new_with_signer(
-                token_program.to_account_info(),
-                token::Transfer {
-                    from: prepared_custody_token.to_account_info(),
-                    to: executor_token.to_account_info(),
-                    authority: prepared_order_response.to_account_info(),
-                },
-                &[prepared_order_response_signer_seeds],
-            ),
-            executor_amount,
-        )?;
-    }
+    let settled_executor_result = match executor_result {
+        Some(TokenAccountResult {
+            balance_before,
+            amount,
+        }) => {
+            token::transfer(
+                CpiContext::new_with_signer(
+                    token_program.to_account_info(),
+                    token::Transfer {
+                        from: prepared_custody_token.to_account_info(),
+                        to: executor_token.to_account_info(),
+                        authority: prepared_order_response.to_account_info(),
+                    },
+                    &[prepared_order_response_signer_seeds],
+                ),
+                amount,
+            )?;
+
+            SettledTokenAccountInfo {
+                key: executor_token.key(),
+                balance_after: balance_before.saturating_add(amount),
+            }
+            .into()
+        }
+        None => None,
+    };
 
     // Transfer the funds back to the highest bidder if there are any.
-    if let Some(BestOfferResult {
-        balance_before,
-        amount,
-    }) = best_offer_result
-    {
-        token::transfer(
-            CpiContext::new_with_signer(
-                token_program.to_account_info(),
-                token::Transfer {
-                    from: prepared_custody_token.to_account_info(),
-                    to: best_offer_token.to_account_info(),
-                    authority: prepared_order_response.to_account_info(),
-                },
-                &[prepared_order_response_signer_seeds],
-            ),
+    let settled_best_offer_result = match best_offer_result {
+        Some(TokenAccountResult {
+            balance_before,
             amount,
-        )?;
+        }) => {
+            token::transfer(
+                CpiContext::new_with_signer(
+                    token_program.to_account_info(),
+                    token::Transfer {
+                        from: prepared_custody_token.to_account_info(),
+                        to: best_offer_token.to_account_info(),
+                        authority: prepared_order_response.to_account_info(),
+                    },
+                    &[prepared_order_response_signer_seeds],
+                ),
+                amount,
+            )?;
 
-        emit!(crate::events::AuctionSettled {
-            auction: ctx.accounts.auction.key(),
-            best_offer_token: best_offer_token.key().into(),
-            token_balance_after: balance_before.saturating_add(amount),
-            with_execute: Default::default(),
-        });
-    }
+            SettledTokenAccountInfo {
+                key: best_offer_token.key(),
+                balance_after: balance_before.saturating_add(amount),
+            }
+            .into()
+        }
+        None => None,
+    };
+
+    emit!(crate::events::AuctionSettled {
+        auction: ctx.accounts.auction.key(),
+        best_offer_token: settled_best_offer_result,
+        executor_token: settled_executor_result,
+        with_execute: Default::default(),
+    });
 
     // Finally close the prepared custody token account.
     token::close_account(CpiContext::new_with_signer(
