@@ -8,6 +8,7 @@ use common::{
     messages::raw::LiquidityLayerMessage,
     wormhole_cctp_solana::wormhole::VaaAccount,
 };
+use matching_engine::state::RouterEndpoint;
 
 #[derive(Accounts)]
 pub struct Usdc<'info> {
@@ -161,4 +162,38 @@ pub struct AdminMut<'info> {
         bump = Custodian::BUMP,
     )]
     pub custodian: Account<'info, Custodian>,
+}
+
+/// Registered router endpoint representing a foreign Token Router. This account may have a CCTP
+/// domain encoded if this route is CCTP-enabled. For this instruction, it is required that
+/// [RouterEndpoint::cctp_domain] is `Some(value)`.
+///
+/// Seeds must be \["registered_emitter", chain.to_be_bytes()\].
+#[derive(Accounts)]
+pub struct RegisteredEndpoint<'info> {
+    #[account(
+        seeds = [
+            RouterEndpoint::SEED_PREFIX,
+            endpoint.chain.to_be_bytes().as_ref(),
+        ],
+        bump = endpoint.bump,
+        seeds::program = matching_engine::id(),
+        constraint = {
+            require!(
+                endpoint.protocol != matching_engine::state::MessageProtocol::None,
+                TokenRouterError::EndpointDisabled
+            );
+
+            true
+        }
+    )]
+    endpoint: Box<Account<'info, RouterEndpoint>>,
+}
+
+impl<'info> Deref for RegisteredEndpoint<'info> {
+    type Target = Account<'info, RouterEndpoint>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.endpoint
+    }
 }
