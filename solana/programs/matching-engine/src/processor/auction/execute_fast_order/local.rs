@@ -54,7 +54,7 @@ pub struct ExecuteFastOrderLocal<'info> {
     #[account(
         init,
         payer = payer,
-        space = FastFill::checked_compute_size({
+        space = FastFill::compute_size({
             let vaa = execute_order.fast_vaa.load_unchecked();
 
             // We can unwrap and convert to FastMarketOrder unchecked because we validate the VAA
@@ -64,8 +64,7 @@ pub struct ExecuteFastOrderLocal<'info> {
                 .to_fast_market_order_unchecked();
 
             order.redeemer_message_len().into()
-        })
-        .ok_or(MatchingEngineError::FastFillTooLarge)?,
+        }),
         seeds = [
             FastFill::SEED_PREFIX,
             &reserved_sequence.fast_fill_seeds.source_chain.to_be_bytes(),

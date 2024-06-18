@@ -28,12 +28,13 @@ pub struct PreparedOrder {
 }
 
 impl PreparedOrder {
-    pub(crate) fn compute_size(message_len: usize) -> usize {
-        // We should not expect `message_len` to cause this operation to overflow.
-        #[allow(clippy::arithmetic_side_effects)]
-        let out = 8 + PreparedOrderInfo::INIT_SPACE + 4 + message_len;
+    pub(crate) fn compute_size(redeemer_message_len: usize) -> usize {
+        const FIXED: usize = 8 // DISCRIMINATOR
+            + PreparedOrderInfo::INIT_SPACE
+            + 4 // redeemer_message_len
+        ;
 
-        out
+        redeemer_message_len.saturating_add(FIXED)
     }
 }
 

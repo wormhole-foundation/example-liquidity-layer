@@ -1,8 +1,4 @@
-use crate::{
-    composite::*,
-    error::MatchingEngineError,
-    state::{Auction, AuctionConfig, AuctionStatus, MessageProtocol},
-};
+use crate::{composite::*, error::MatchingEngineError, state::AuctionConfig};
 use anchor_lang::prelude::*;
 use anchor_spl::token;
 
@@ -10,53 +6,24 @@ use anchor_spl::token;
 pub struct ReserveFastFillSequenceActiveAuction<'info> {
     reserve_sequence: ReserveFastFillSequence<'info>,
 
-    /// CHECK: This auction account may not exist. If it does not exist, the prepared order response
-    /// must have been created by this point. Otherwise the auction account must reflect a completed
-    /// auction.
     #[account(
-        seeds = [
-            Auction::SEED_PREFIX,
-            reserve_sequence.fast_order_path.fast_vaa.load_unchecked().digest().as_ref(),
-        ],
-        bump = auction.bump,
-        constraint = {
-            // Verify that the auction is active.
-            require_eq!(
-                &auction.status,
-                &AuctionStatus::Active,
-                MatchingEngineError::AuctionNotActive
-            );
+        constraint = match &reserve_sequence.auction.info {
+            Some(info) => {
+                // Verify that the auction period has expired.
+                require_eq!(
+                    info.config_id,
+                    auction_config.id,
+                    MatchingEngineError::AuctionConfigMismatch
+                );
+                require!(
+                    !info.within_auction_duration(&auction_config),
+                    MatchingEngineError::AuctionPeriodNotExpired
+                );
 
-            // Out of paranoia, check that the auction is for a local fill.
-            require!(
-                matches!(auction.target_protocol, MessageProtocol::Local { .. }),
-                MatchingEngineError::InvalidTargetRouter
-            );
+                true
 
-            true
-        }
-    )]
-    auction: Account<'info, Auction>,
-
-    #[account(
-        constraint = {
-            // We know from the auction constraint that the auction is active, so the auction info
-            // is safe to unwrap.
-            let info = auction.info.as_ref().unwrap();
-
-            // Verify that the auction period has expired.
-            require_eq!(
-                info.config_id,
-                auction_config.id,
-                MatchingEngineError::AuctionConfigMismatch
-            );
-            require!(
-                !info.within_auction_duration(&auction_config),
-                MatchingEngineError::AuctionPeriodNotExpired
-            );
-
-            true
-
+            },
+            _ => return err!(MatchingEngineError::NoAuction),
         }
     )]
     auction_config: Account<'info, AuctionConfig>,
@@ -70,7 +37,7 @@ pub struct ReserveFastFillSequenceActiveAuction<'info> {
         constraint = {
             // We know from the auction constraint that the auction is active, so the auction info
             // is safe to unwrap.
-            let info = auction.info.as_ref().unwrap();
+            let info = reserve_sequence.auction.info.as_ref().unwrap();
 
             // Best offer token must equal the one in the auction account.
             //
@@ -110,10 +77,12 @@ pub fn reserve_fast_fill_sequence_active_auction(
         require_keys_eq!(token.owner, beneficiary, ErrorCode::ConstraintTokenOwner);
     }
 
+    let fast_vaa_hash = ctx.accounts.reserve_sequence.auction.vaa_hash;
+
     super::set_reserved_sequence_data(
         &mut ctx.accounts.reserve_sequence,
         &ctx.bumps.reserve_sequence,
-        ctx.accounts.auction.vaa_hash,
+        fast_vaa_hash,
         beneficiary,
     )
 }

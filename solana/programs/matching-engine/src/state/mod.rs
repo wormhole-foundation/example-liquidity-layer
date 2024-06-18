@@ -21,5 +21,3 @@ pub use proposal::*;
 
 pub(crate) mod router_endpoint;
 pub use router_endpoint::*;
-
-const MAX_CPI_ALLOCATE_SIZE: usize = 10 * 1_024;

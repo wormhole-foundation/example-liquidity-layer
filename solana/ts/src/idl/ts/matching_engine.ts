@@ -1635,15 +1635,16 @@ export type MatchingEngine = {
               "writable": true
             },
             {
+              "name": "auction",
+              "docs": [
+                "must have been created by this point. Otherwise the auction account must reflect a completed",
+                "auction."
+              ],
+              "writable": true
+            },
+            {
               "name": "systemProgram"
             }
-          ]
-        },
-        {
-          "name": "auction",
-          "docs": [
-            "must have been created by this point. Otherwise the auction account must reflect a completed",
-            "auction."
           ]
         },
         {
@@ -1680,6 +1681,15 @@ export type MatchingEngine = {
         "order response should call this instruction to reserve the fast fill's sequence number.",
         "This sequence number is warehoused in the `ReservedFastFillSequence` account and will be",
         "closed when the funds are finally settled.",
+        "",
+        "NOTE: This instruction is expected to be in the same transaction as the one that executes",
+        "the prepare order response instruction. If it is not, there is a risk that after preparing",
+        "the order response that someone starts an auction. This scenario risks the preparer's rent",
+        "that he paid because the winning auction participant can take his lamports when he calls",
+        "settle auction complete. Although this is an unlikely scenario, it is possible if there is",
+        "no deadline specified to start the auction and no participants use the fast VAA to start an",
+        "auction until the finalized VAA exists (which guarantees that the funds have finalized on",
+        "the source network).",
         "",
         "# Arguments",
         "",
@@ -1759,6 +1769,14 @@ export type MatchingEngine = {
               "writable": true
             },
             {
+              "name": "auction",
+              "docs": [
+                "must have been created by this point. Otherwise the auction account must reflect a completed",
+                "auction."
+              ],
+              "writable": true
+            },
+            {
               "name": "systemProgram"
             }
           ]
@@ -1769,13 +1787,6 @@ export type MatchingEngine = {
             "The preparer will be the beneficiary of the reserved fast fill sequence account when it is",
             "closed. This instruction will not allow this account to be provided if there is an existing",
             "auction, which would enforce the order be executed when it is time to complete the auction."
-          ]
-        },
-        {
-          "name": "auction",
-          "docs": [
-            "must have been created by this point. Otherwise the auction account must reflect a completed",
-            "auction."
           ]
         }
       ],
@@ -2134,7 +2145,8 @@ export type MatchingEngine = {
         {
           "name": "auction",
           "docs": [
-            "There should be no account data here because an auction was never created."
+            "This account will have been created using the reserve fast fill sequence (no auction)",
+            "instruction. We need to make sure that this account has not been used in an auction."
           ],
           "writable": true
         },
@@ -3005,7 +3017,7 @@ export type MatchingEngine = {
     },
     {
       "code": 7065,
-      "name": "accountNotAuction"
+      "name": "noAuction"
     },
     {
       "code": 7066,
@@ -3042,6 +3054,10 @@ export type MatchingEngine = {
     {
       "code": 7080,
       "name": "reservedSequenceMismatch"
+    },
+    {
+      "code": 7082,
+      "name": "auctionAlreadySettled"
     },
     {
       "code": 7280,

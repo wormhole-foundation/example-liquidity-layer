@@ -602,6 +602,53 @@ pub struct ReserveFastFillSequence<'info> {
     )]
     pub reserved: Box<Account<'info, ReservedFastFillSequence>>,
 
+    /// CHECK: This auction account may not exist. If it does not exist, the prepared order response
+    /// must have been created by this point. Otherwise the auction account must reflect a completed
+    /// auction.
+    #[account(
+        init_if_needed,
+        payer = payer,
+        space = if auction.data_is_empty() {
+            8 + Auction::INIT_SPACE_NO_AUCTION
+        } else {
+            auction.data_len()
+        },
+        seeds = [
+            Auction::SEED_PREFIX,
+            fast_order_path.fast_vaa.load_unchecked().digest().as_ref(),
+        ],
+        bump,
+        constraint = match &auction.info {
+            Some(info) => {
+                // Verify that the auction is active.
+                require_eq!(
+                    &auction.status,
+                    &AuctionStatus::Active,
+                    MatchingEngineError::AuctionNotActive
+                );
+
+                // Out of paranoia, check that the auction is for a local fill.
+                require!(
+                    matches!(auction.target_protocol, MessageProtocol::Local { .. }),
+                    MatchingEngineError::InvalidTargetRouter
+                );
+
+                true
+            },
+            None => {
+                // This check makes sure that the auction account did not exist before this
+                // instruction was called.
+                require!(
+                    auction.vaa_hash == [0; 32],
+                    MatchingEngineError::AuctionExists,
+                );
+
+                true
+            }
+        },
+    )]
+    pub auction: Account<'info, Auction>,
+
     system_program: Program<'info, System>,
 }
 
