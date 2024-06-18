@@ -3670,6 +3670,44 @@ describe("Matching Engine", function () {
                     );
                 });
 
+                it("Cannot Settle Completed with Penalty (Executor is not ATA)", async function () {
+                    const executorTokenSigner = Keypair.generate();
+                    const executorToken = executorTokenSigner.publicKey;
+
+                    await expectIxOk(
+                        connection,
+                        [
+                            SystemProgram.createAccount({
+                                fromPubkey: payer.publicKey,
+                                newAccountPubkey: executorToken,
+                                lamports: await connection.getMinimumBalanceForRentExemption(
+                                    splToken.ACCOUNT_SIZE,
+                                ),
+                                space: splToken.ACCOUNT_SIZE,
+                                programId: splToken.TOKEN_PROGRAM_ID,
+                            }),
+                            splToken.createInitializeAccount3Instruction(
+                                executorToken,
+                                engine.mint,
+                                playerTwo.publicKey,
+                            ),
+                        ],
+                        [payer, executorTokenSigner],
+                    );
+
+                    await settleAuctionCompleteForTest(
+                        {
+                            executor: playerTwo.publicKey,
+                            executorToken,
+                        },
+                        {
+                            prepareSigners: [playerTwo],
+                            executeWithinGracePeriod: false,
+                            errorMsg: "Error Code: AccountNotAssociatedTokenAccount",
+                        },
+                    );
+                });
+
                 it("Settle Completed with Penalty (Executor != Best Offer)", async function () {
                     await settleAuctionCompleteForTest(
                         {
@@ -4744,6 +4782,7 @@ describe("Matching Engine", function () {
     async function settleAuctionCompleteForTest(
         accounts: {
             executor?: PublicKey;
+            executorToken?: PublicKey;
             preparedOrderResponse?: PublicKey;
             auction?: PublicKey;
             bestOfferToken?: PublicKey;

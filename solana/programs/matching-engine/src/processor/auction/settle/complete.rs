@@ -3,7 +3,7 @@ use crate::{
     state::{Auction, AuctionStatus, PreparedOrderResponse},
 };
 use anchor_lang::prelude::*;
-use anchor_spl::token;
+use anchor_spl::{associated_token::get_associated_token_address, token};
 
 #[derive(Accounts)]
 pub struct SettleAuctionComplete<'info> {
@@ -16,8 +16,8 @@ pub struct SettleAuctionComplete<'info> {
 
     #[account(
         mut,
-        associated_token::mint = best_offer_token.mint,
-        associated_token::authority = executor,
+        token::mint = best_offer_token.mint,
+        token::authority = executor,
     )]
     executor_token: Account<'info, token::TokenAccount>,
 
@@ -89,16 +89,17 @@ fn handle_settle_auction_complete(
         total_penalty: execute_penalty.map(|v| v.saturating_add(base_fee)),
     };
 
-    let executor_token = &ctx.accounts.executor_token;
-    let best_offer_token = &ctx.accounts.best_offer_token;
-    let prepared_custody_token = &ctx.accounts.prepared_custody_token;
-    let token_program = &ctx.accounts.token_program;
-
     let prepared_order_response_signer_seeds = &[
         PreparedOrderResponse::SEED_PREFIX,
         prepared_order_response.seeds.fast_vaa_hash.as_ref(),
         &[prepared_order_response.seeds.bump],
     ];
+
+    let executor = &ctx.accounts.executor;
+    let executor_token = &ctx.accounts.executor_token;
+    let best_offer_token = &ctx.accounts.best_offer_token;
+    let token_program = &ctx.accounts.token_program;
+    let prepared_custody_token = &ctx.accounts.prepared_custody_token;
 
     // We may deduct from this account if the winning participant was penalized.
     let mut repayment = ctx.accounts.prepared_custody_token.amount;
@@ -116,7 +117,7 @@ fn handle_settle_auction_complete(
                 executor_token.key(),
                 best_offer_token.key(),
                 MatchingEngineError::ExecutorTokenMismatch
-            )
+            );
         }
         _ => {
             // If there is a penalty, we want to return the lamports back to the person who paid to
@@ -125,7 +126,7 @@ fn handle_settle_auction_complete(
             // The executor's intention here would be to collect the base fee to cover the cost to
             // post the finalized VAA.
             require_keys_eq!(
-                executor_token.owner,
+                executor.key(),
                 prepared_order_response.prepared_by,
                 MatchingEngineError::ExecutorNotPreparedBy
             );
@@ -134,6 +135,15 @@ fn handle_settle_auction_complete(
                 // Because the auction participant was penalized for executing the order late, he
                 // will be deducted the base fee. This base fee will be sent to the executor token
                 // account if it is not the same as the best offer token account.
+
+                // We require that the executor token account be an ATA.
+                require_keys_eq!(
+                    executor_token.key(),
+                    get_associated_token_address(&executor_token.owner, &executor_token.mint),
+                    ErrorCode::AccountNotAssociatedTokenAccount
+                );
+
+                // Transfer base fee to the executor.
                 token::transfer(
                     CpiContext::new_with_signer(
                         token_program.to_account_info(),
@@ -178,7 +188,7 @@ fn handle_settle_auction_complete(
         token_program.to_account_info(),
         token::CloseAccount {
             account: prepared_custody_token.to_account_info(),
-            destination: ctx.accounts.executor.to_account_info(),
+            destination: executor.to_account_info(),
             authority: prepared_order_response.to_account_info(),
         },
         &[prepared_order_response_signer_seeds],
