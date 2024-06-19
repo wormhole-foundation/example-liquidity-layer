@@ -8,11 +8,13 @@ import {
     toChainId,
 } from "@wormhole-foundation/sdk-base";
 import {
+    PayloadLiteral,
     VAA,
     createVAA,
     deserialize,
     keccak256,
     layoutItems,
+    serialize,
 } from "@wormhole-foundation/sdk-definitions";
 export * from "./spy";
 
@@ -85,10 +87,17 @@ export class VaaAccount {
         }
     }
 
-    vaa(): VAA<"Uint8Array"> {
-        if (this._encodedVaa !== undefined) return this._encodedVaa.vaa;
-        if (this._postedVaaV1 !== undefined) return this._postedVaaV1;
-        throw new Error("impossible: vaa() failed");
+    vaa<P extends PayloadLiteral = "Uint8Array">(payload?: P): VAA<P> {
+        const vaa =
+            this._encodedVaa !== undefined
+                ? this._encodedVaa.vaa
+                : this._postedVaaV1 !== undefined
+                ? this._postedVaaV1
+                : undefined;
+
+        if (!vaa) throw new Error("impossible: vaa() failed");
+
+        return (payload ? deserialize(payload, serialize(vaa)) : vaa) as VAA<P>;
     }
 
     emitterInfo(): EmitterInfo {

@@ -42,7 +42,6 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
     getAuctionDuration(): Promise<number>;
     getPenaltyBlocks(): Promise<number>;
     getInitialPenaltyBps(): Promise<number>;
-    getInitialPenaltyBps(): Promise<number>;
 
     // Admin methods
     registerRouter<RC extends Chain>(
@@ -70,10 +69,17 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
 
     // improves the offer TODO: alias for bid id?
-    improveOffer(id: Uint8Array, bid: bigint): AsyncGenerator<UnsignedTransaction<N, C>>;
+    improveOffer(
+        sender: AccountAddress<C>,
+        vaa: FastTransfer.VAA,
+        offer: bigint,
+    ): AsyncGenerator<UnsignedTransaction<N, C>>;
 
     //this basically fulfills the fast order like sending the cctp message to dst chain
-    executeFastOrder(vaa: FastTransfer.VAA): AsyncGenerator<UnsignedTransaction<N, C>>;
+    executeFastOrder(
+        sender: AccountAddress<C>,
+        vaa: FastTransfer.VAA,
+    ): AsyncGenerator<UnsignedTransaction<N, C>>;
 
     // cleans up a fast order by transferring funds/closing account/executing penalty
     settleAuctionComplete(): AsyncGenerator<UnsignedTransaction<N, C>>;

@@ -1,20 +1,14 @@
 import { Connection, Keypair } from "@solana/web3.js";
+import { Chain, Network } from "@wormhole-foundation/sdk-base";
+import { SignAndSendSigner, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
+import { SolanaAddress, SolanaSendSigner } from "@wormhole-foundation/sdk-solana";
+import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
 import { ethers } from "ethers";
 import { LiquidityLayerMessage } from "../common";
-import { CORE_BRIDGE_PID, GUARDIAN_KEY, MOCK_GUARDIANS } from "./consts";
-import { postVaa, getBlockTime } from "./utils";
-import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
-import { signAndSendWait } from "@wormhole-foundation/sdk-connect";
-import { SolanaWormholeCore, utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
-import { Chain, Network, contracts } from "@wormhole-foundation/sdk-base";
-import {
-    SignAndSendSigner,
-    buildConfig,
-    serialize,
-    toUniversal,
-} from "@wormhole-foundation/sdk-definitions";
-import { SolanaAddress, SolanaSendSigner } from "@wormhole-foundation/sdk-solana";
 import { VaaAccount } from "../wormhole";
+import { CORE_BRIDGE_PID, GUARDIAN_KEY, MOCK_GUARDIANS } from "./consts";
+import { getBlockTime, postVaa } from "./utils";
 
 export type SDKSigner<N extends Network> = SolanaSendSigner<N, "Solana">;
 
@@ -56,15 +50,14 @@ export async function postLiquidityLayerVaav2(
 
     const vaa = MOCK_GUARDIANS.addSignatures(published, [0]);
 
-    await postVaa(connection, payer, Buffer.from(serialize(vaa)));
-
-    const address = coreUtils.derivePostedVaaKey(CORE_BRIDGE_PID, Buffer.from(vaa.hash));
+    const { address } = await postVaa(connection, payer, vaa);
     const account = await VaaAccount.fetch(connection, address);
 
     return { address, account };
 }
 
-// TODO: return VaaAccount, too
+// TODO: Replace any invocations of this function with postLiquidityLayerVaav2
+// then rename back to postLiquidityLayerVaa
 export async function postLiquidityLayerVaa(
     connection: Connection,
     payer: Keypair,
@@ -92,7 +85,7 @@ export async function postLiquidityLayerVaa(
     );
     const vaa = guardians.addSignatures(published, [0]);
 
-    await postVaa(connection, payer, Buffer.from(serialize(vaa)));
+    await postVaa(connection, payer, vaa);
 
     return coreUtils.derivePostedVaaKey(CORE_BRIDGE_PID, Buffer.from(vaa.hash));
 }

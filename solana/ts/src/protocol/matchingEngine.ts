@@ -1,4 +1,5 @@
 import {
+    ComputeBudgetProgram,
     Connection,
     PublicKey,
     TransactionInstruction,
@@ -17,8 +18,10 @@ import {
     Contracts,
     UnsignedTransaction,
     VAA,
+    keccak256,
 } from "@wormhole-foundation/sdk-definitions";
 import {
+    AnySolanaAddress,
     SolanaAddress,
     SolanaChains,
     SolanaPlatform,
@@ -67,11 +70,11 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     }
 
     async *initialize(
-        owner: AccountAddress<C>,
-        ownerAssistant: AccountAddress<C>,
-        feeRecipient: AccountAddress<C>,
+        owner: AnySolanaAddress,
+        ownerAssistant: AnySolanaAddress,
+        feeRecipient: AnySolanaAddress,
         params: AuctionParameters,
-        mint?: AccountAddress<C>,
+        mint?: AnySolanaAddress,
     ) {
         const ix = await this.initializeIx(
             {
@@ -86,7 +89,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.initialize");
     }
 
-    async *setPause(sender: AccountAddress<C>, pause: boolean) {
+    async *setPause(sender: AnySolanaAddress, pause: boolean) {
         const payer = new SolanaAddress(sender).unwrap();
         const ix = await this.setPauseIx({ ownerOrAssistant: payer }, pause);
         const transaction = await this.createTx(payer, [ix]);
@@ -94,14 +97,16 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     }
 
     async *registerRouter<RC extends Chain>(
-        sender: AccountAddress<C>,
+        sender: AnySolanaAddress,
         chain: RC,
         cctpDomain: number,
         router: AccountAddress<RC>,
-        tokenAccount?: AccountAddress<C>,
+        tokenAccount?: AnySolanaAddress,
     ) {
         const ownerOrAssistant = new SolanaAddress(sender).unwrap();
-        const mintRecipient = tokenAccount?.toUniversalAddress().toUint8Array() ?? null;
+        const mintRecipient = tokenAccount
+            ? new SolanaAddress(tokenAccount).toUniversalAddress().toUint8Array()
+            : null;
         const ix = await this.addCctpRouterEndpointIx(
             { ownerOrAssistant },
             {
@@ -116,6 +121,40 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.registerRouter");
     }
 
+    async *updateRouter<RC extends Chain>(
+        sender: AnySolanaAddress,
+        chain: RC,
+        cctpDomain: number,
+        router: AccountAddress<RC>,
+        tokenAccount?: AnySolanaAddress,
+    ) {
+        const owner = new SolanaAddress(sender).unwrap();
+        const mintRecipient = tokenAccount
+            ? new SolanaAddress(tokenAccount).toUniversalAddress().toUint8Array()
+            : null;
+
+        const ix = await this.updateCctpRouterEndpointIx(
+            { owner },
+            {
+                chain: toChainId(chain),
+                cctpDomain: cctpDomain,
+                address: Array.from(router.toUniversalAddress().toUint8Array()),
+                mintRecipient: mintRecipient ? Array.from(mintRecipient) : null,
+            },
+        );
+
+        const transaction = await this.createTx(owner, [ix]);
+        yield this.createUnsignedTx({ transaction }, "MatchingEngine.updateRouter");
+    }
+
+    async *disableRouter<RC extends Chain>(sender: AnySolanaAddress, chain: RC) {
+        const owner = new SolanaAddress(sender).unwrap();
+        const ix = await this.disableRouterEndpointIx({ owner }, toChainId(chain));
+
+        const transaction = await this.createTx(owner, [ix]);
+        yield this.createUnsignedTx({ transaction }, "MatchingEngine.disableRouter");
+    }
+
     async *setConfiguration(config: {
         enabled: boolean;
         maxAmount: bigint;
@@ -126,7 +165,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     }
 
     async *placeInitialOffer(
-        sender: AccountAddress<C>,
+        sender: AnySolanaAddress,
         vaa: FastTransfer.VAA,
         offerPrice: bigint,
         totalDeposit?: bigint,
@@ -144,26 +183,48 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         );
 
         const transaction = await this.createTx(payer, ixs);
-        yield this.createUnsignedTx(
-            { transaction: transaction },
-            "MatchingEngine.placeInitialOffer",
-        );
+        yield this.createUnsignedTx({ transaction }, "MatchingEngine.placeInitialOffer");
     }
 
-    improveOffer(
-        id: Uint8Array,
-        bid: bigint,
-    ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
+    async *improveOffer(sender: AnySolanaAddress, vaa: FastTransfer.VAA, offer: bigint) {
+        const participant = new SolanaAddress(sender).unwrap();
+        const auction = this.auctionAddress(keccak256(vaa.hash));
+
+        const ixs = await this.improveOfferIx({ participant, auction }, { offerPrice: offer });
+
+        const transaction = await this.createTx(participant, ixs);
+        yield this.createUnsignedTx({ transaction }, "MatchingEngine.improveOffer");
+    }
+
+    async *executeFastOrder(sender: AnySolanaAddress, vaa: FastTransfer.VAA) {
+        const payer = new SolanaAddress(sender).unwrap();
+
+        const fastVaa = coreUtils.derivePostedVaaKey(
+            this.coreBridgeProgramId(),
+            Buffer.from(vaa.hash),
+        );
+
+        const ix = await this.executeFastOrderCctpIx({
+            payer,
+            fastVaa,
+        });
+
+        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+            units: 300_000,
+        });
+
+        const transaction = await this.createTx(payer, [ix, computeIx]);
+        yield this.createUnsignedTx({ transaction }, "MatchingEngine.improveOffer");
+    }
+
+    async *settleAuctionComplete() {
         throw new Error("Method not implemented.");
     }
-    executeFastOrder(
-        vaa: FastTransfer.VAA,
-    ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
+
+    settleAuction(): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
         throw new Error("Method not implemented.");
     }
-    settleAuctionComplete(): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
-        throw new Error("Method not implemented.");
-    }
+
     getAuctionGracePeriod(): Promise<number> {
         throw new Error("Method not implemented.");
     }
