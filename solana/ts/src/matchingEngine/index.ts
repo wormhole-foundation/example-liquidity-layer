@@ -15,24 +15,23 @@ import {
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
+import { ChainId, isChainId, toChainId } from "@wormhole-foundation/sdk-base";
 import { PreparedTransaction, PreparedTransactionOptions } from "..";
-import IDL from "../idl/json/matching_engine.json";
-import { MatchingEngine } from "../idl/ts/matching_engine";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
 import {
     LiquidityLayerMessage,
     Uint64,
     VaaHash,
-    cctpMessageAddress,
-    coreMessageAddress,
     reclaimCctpMessageIx,
     uint64ToBN,
     uint64ToBigInt,
-    writeUint64BE,
 } from "../common";
+import IDL from "../idl/json/matching_engine.json";
+import { MatchingEngine } from "../idl/ts/matching_engine";
 import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
+import { programDerivedAddresses } from "./pdas";
 import {
     Auction,
     AuctionConfig,
@@ -54,9 +53,6 @@ import {
     ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
-import { ChainId, toChainId, isChainId, Chain } from "@wormhole-foundation/sdk-base";
-import { programDerivedAddresses } from "./pdas";
-import { FastTransfer } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -1860,9 +1856,7 @@ export class MatchingEngineProgram {
             initialOfferToken?: PublicKey;
             initialParticipant?: PublicKey;
         },
-        opts: {
-            targetChain?: ChainId;
-        } = {},
+        opts: { targetChain?: ChainId } = {},
     ) {
         const connection = this.program.provider.connection;
 
@@ -1882,10 +1876,8 @@ export class MatchingEngineProgram {
         if (targetChain === undefined) {
             fastVaaAccount ??= await VaaAccount.fetch(connection, fastVaa);
 
-            const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
-            if (fastMarketOrder === undefined) {
-                throw new Error("Message not FastMarketOrder");
-            }
+            const { payload: fastMarketOrder } = fastVaaAccount.vaa("FastTransfer:FastMarketOrder");
+
             targetChain ??= toChainId(fastMarketOrder.targetChain);
         }
 
