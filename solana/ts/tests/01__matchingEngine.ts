@@ -68,6 +68,9 @@ import {
     toUniversalAddress,
     waitUntilSlot,
     waitUntilTimestamp,
+    getSdkSigner,
+    SDKSigner,
+    postLiquidityLayerVaav2,
 } from "../src/testing";
 import { VaaAccount } from "../src/wormhole";
 
@@ -78,32 +81,21 @@ chai.config.truncateThreshold = 0;
 // Set to true to add debug logs for Signer
 const SIGNER_DEBUG = false;
 
-type SDKSigner = SolanaSendSigner<"Devnet", "Solana">;
-
-function getSdkStuff(
-    connection: Connection,
-    key: Keypair,
-): { signer: SDKSigner; address: SolanaAddress } {
-    const signer = new SolanaSendSigner(connection, "Solana", key, SIGNER_DEBUG, {});
-    const address = new SolanaAddress(key.publicKey);
-    return { signer, address };
-}
-
 describe("Matching Engine", function () {
     const connection = new Connection(LOCALHOST, "processed");
 
     // owner is also the recipient in all tests
     const payer = PAYER_KEYPAIR;
-    const { signer: payerSigner, address: payerAddress } = getSdkStuff(connection, payer);
+    const { signer: payerSigner, address: payerAddress } = getSdkSigner(connection, payer);
 
     const owner = OWNER_KEYPAIR;
-    const { signer: ownerSigner, address: ownerAddress } = getSdkStuff(connection, owner);
+    const { signer: ownerSigner, address: ownerAddress } = getSdkSigner(connection, owner);
 
     const relayer = Keypair.generate();
-    const { signer: relayerSigner, address: relayerAddress } = getSdkStuff(connection, relayer);
+    const { signer: relayerSigner, address: relayerAddress } = getSdkSigner(connection, relayer);
 
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
-    const { signer: ownerAssistantSigner, address: ownerAssistantAddress } = getSdkStuff(
+    const { signer: ownerAssistantSigner, address: ownerAssistantAddress } = getSdkSigner(
         connection,
         ownerAssistant,
     );
@@ -116,17 +108,17 @@ describe("Matching Engine", function () {
     );
     const newFeeRecipient = Keypair.generate().publicKey;
     const playerOne = PLAYER_ONE_KEYPAIR;
-    const { signer: playerOneSigner, address: playerOneAddress } = getSdkStuff(
+    const { signer: playerOneSigner, address: playerOneAddress } = getSdkSigner(
         connection,
         playerOne,
     );
     const playerTwo = Keypair.generate();
-    const { signer: playerTwoSigner, address: playerTwoAddress } = getSdkStuff(
+    const { signer: playerTwoSigner, address: playerTwoAddress } = getSdkSigner(
         connection,
         playerTwo,
     );
     const liquidator = Keypair.generate();
-    const { signer: liquidatorSigner, address: liquidatorAddress } = getSdkStuff(
+    const { signer: liquidatorSigner, address: liquidatorAddress } = getSdkSigner(
         connection,
         liquidator,
     );
@@ -1447,18 +1439,15 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer (Invalid VAA)", async function () {
-                const fastVaa = await postLiquidityLayerVaa(
+                const { address: fastVaa, account: account } = await postLiquidityLayerVaav2(
                     connection,
-                    playerOne,
-                    MOCK_GUARDIANS,
+                    playerOneSigner,
                     ethRouter,
                     wormholeSequence++,
                     Buffer.from("deadbeef", "hex"),
                 );
 
-                const auction = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
-                    engine.auctionAddress(vaa.digest()),
-                );
+                const auction = engine.auctionAddress(account.digest());
                 await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
@@ -1559,10 +1548,9 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer (Invalid Payload)", async function () {
-                const fastVaa = await postLiquidityLayerVaa(
+                const { address: fastVaa, account } = await postLiquidityLayerVaav2(
                     connection,
-                    playerOne,
-                    MOCK_GUARDIANS,
+                    playerOneSigner,
                     ethRouter,
                     wormholeSequence++,
                     new LiquidityLayerMessage({
@@ -1585,9 +1573,7 @@ describe("Matching Engine", function () {
                     }),
                 );
 
-                const auction = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
-                    engine.auctionAddress(vaa.digest()),
-                );
+                const auction = engine.auctionAddress(account.digest());
                 await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
@@ -2438,7 +2424,7 @@ describe("Matching Engine", function () {
 
             it("Execute Fast Order After Grace Period with Liquidator (Initial Offer Token is Closed)", async function () {
                 const tmpOwner = Keypair.generate();
-                const { signer: tmpOwnerSiner } = getSdkStuff(connection, tmpOwner);
+                const { signer: tmpOwnerSiner } = getSdkSigner(connection, tmpOwner);
                 const transferLamportsToTmpOwnerIx = SystemProgram.transfer({
                     fromPubkey: payer.publicKey,
                     toPubkey: tmpOwner.publicKey,
@@ -4369,13 +4355,13 @@ describe("Matching Engine", function () {
     });
 
     interface TestOptions {
-        signers?: SDKSigner[];
+        signers?: SDKSigner<"Devnet">[];
         errorMsg?: string | null;
     }
 
     function addDefaultOptions<T extends TestOptions>(
         opts: T,
-    ): [{ signers: SDKSigner[]; errorMsg: string | null }, Omit<T, keyof TestOptions>] {
+    ): [{ signers: SDKSigner<"Devnet">[]; errorMsg: string | null }, Omit<T, keyof TestOptions>] {
         let { signers, errorMsg } = opts;
         signers ??= [payerSigner];
         delete opts.signers;
@@ -4445,6 +4431,7 @@ describe("Matching Engine", function () {
         // Place the initial offer.
         const txs = engine.placeInitialOffer(
             new SolanaAddress(accounts.payer),
+            // @ts-expect-error may be Uint8Array typed for payload
             fastMarketOrderVAA,
             args.offerPrice,
             args.totalDeposit,
@@ -4453,6 +4440,10 @@ describe("Matching Engine", function () {
         if (errorMsg !== null) {
             return expectTxsErr(signers[0], txs, errorMsg);
         }
+
+        // If we still have a Uint8Array, we failed to deserialize it earlier but it was accepted
+        // and not caught by the above error check. Why?
+        if (fastMarketOrderVAA.payloadLiteral === "Uint8Array") throw "Invalid VAA";
 
         const offerToken =
             accounts.offerToken ??
@@ -4486,7 +4477,7 @@ describe("Matching Engine", function () {
 
         const auctionCustodyBalanceAfter = await engine.fetchAuctionCustodyTokenBalance(auction);
 
-        const { fastMarketOrder } = LiquidityLayerMessage.decode(fast.vaaAccount.payload());
+        const fastMarketOrder = fastMarketOrderVAA.payload;
         expect(fastMarketOrder).is.not.undefined;
         const { amountIn, maxFee, targetChain, redeemerMessage } = fastMarketOrder!;
 
@@ -5172,20 +5163,6 @@ describe("Matching Engine", function () {
         };
     }
 
-    type VaaResult = {
-        vaa: PublicKey;
-        vaaAccount: VaaAccount;
-    };
-
-    type FastObservedResult = VaaResult & {
-        fastMarketOrder: FastMarketOrder;
-    };
-
-    type FinalizedObservedResult = VaaResult & {
-        slowOrderResponse: SlowOrderResponse;
-        cctp: CctpMessageArgs;
-    };
-
     type ObserveCctpOrderVaasOpts = {
         sourceChain?: Chain;
         emitter?: Array<number>;
@@ -5199,10 +5176,7 @@ describe("Matching Engine", function () {
         finalizedVaaTimestamp?: number;
     };
 
-    async function observeCctpOrderVaas(opts: ObserveCctpOrderVaasOpts = {}): Promise<{
-        fast: FastObservedResult;
-        finalized?: FinalizedObservedResult;
-    }> {
+    async function observeCctpOrderVaas(opts: ObserveCctpOrderVaasOpts = {}) {
         let {
             sourceChain,
             emitter,
@@ -5231,18 +5205,14 @@ describe("Matching Engine", function () {
             throw new Error(`Invalid source chain: ${sourceChain}`);
         }
 
-        const fastVaa = await postLiquidityLayerVaa(
+        const { address: fastVaa, account: fastVaaAccount } = await postLiquidityLayerVaav2(
             connection,
-            payer,
-            MOCK_GUARDIANS,
+            payerSigner,
             emitter,
             wormholeSequence++,
-            new LiquidityLayerMessage({
-                fastMarketOrder,
-            }),
+            new LiquidityLayerMessage({ fastMarketOrder }),
             { sourceChain, timestamp: vaaTimestamp },
         );
-        const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
         const fast = { fastMarketOrder, vaa: fastVaa, vaaAccount: fastVaaAccount };
 
         if (finalized) {
@@ -5266,16 +5236,15 @@ describe("Matching Engine", function () {
                 }),
             });
 
-            const finalizedVaa = await postLiquidityLayerVaa(
-                connection,
-                payer,
-                MOCK_GUARDIANS,
-                finalizedEmitter,
-                finalizedSequence,
-                finalizedMessage,
-                { sourceChain: finalizedSourceChain, timestamp: finalizedVaaTimestamp },
-            );
-            const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
+            const { address: finalizedVaa, account: finalizedVaaAccount } =
+                await postLiquidityLayerVaav2(
+                    connection,
+                    payerSigner,
+                    finalizedEmitter,
+                    finalizedSequence,
+                    finalizedMessage,
+                    { sourceChain: finalizedSourceChain, timestamp: finalizedVaaTimestamp },
+                );
             return {
                 fast,
                 finalized: {

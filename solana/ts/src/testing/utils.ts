@@ -197,16 +197,22 @@ async function debugSendAndConfirmTransaction(
 
 export async function postVaa(
     connection: Connection,
-    payer: Keypair,
+    payer: Keypair | SdkSigner<Network, "Solana">,
     vaaBuf: Buffer,
     coreBridgeAddress?: PublicKey,
 ) {
     const core = new SolanaWormholeCore("Devnet", "Solana", connection, {
         coreBridge: (coreBridgeAddress ?? CORE_BRIDGE_PID).toString(),
     });
-    const txs = core.postVaa(payer.publicKey, deserialize("Uint8Array", vaaBuf));
-    const signer = new SolanaSendSigner(connection, "Solana", payer, false, {});
-    await signAndSendWait(txs, signer);
+
+    const signer =
+        payer instanceof Keypair
+            ? new SolanaSendSigner(connection, "Solana", payer, false, {})
+            : payer;
+
+    const txs = core.postVaa(signer.address(), deserialize("Uint8Array", vaaBuf));
+
+    return await signAndSendWait(txs, signer);
 }
 
 export function loadProgramBpf(artifactPath: string, keypath: string): PublicKey {
