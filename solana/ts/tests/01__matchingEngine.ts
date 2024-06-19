@@ -14,12 +14,11 @@ import {
 } from "@solana/web3.js";
 import {
     FastMarketOrder,
-    FastTransfer,
     Fill,
     SlowOrderResponse,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { VAA, deserialize, serialize, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { SolanaAddress } from "@wormhole-foundation/sdk-solana";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
@@ -72,6 +71,9 @@ import {
 } from "../src/testing";
 import { VaaAccount } from "../src/wormhole";
 
+import chai from "chai";
+chai.config.truncateThreshold = 0;
+
 const SLOTS_PER_EPOCH = 8;
 
 // Set to true to add debug logs for Signer
@@ -82,35 +84,18 @@ describe("Matching Engine", function () {
 
     // owner is also the recipient in all tests
     const payer = PAYER_KEYPAIR;
-    const { signer: payerSigner, address: payerAddress } = getSdkSigner(
-        connection,
-        payer,
-        SIGNER_DEBUG,
-    );
+    const { signer: payerSigner } = getSdkSigner(connection, payer, SIGNER_DEBUG);
 
     const owner = OWNER_KEYPAIR;
-    const { signer: ownerSigner, address: ownerAddress } = getSdkSigner(
-        connection,
-        owner,
-        SIGNER_DEBUG,
-    );
+    const { signer: ownerSigner } = getSdkSigner(connection, owner, SIGNER_DEBUG);
 
     const relayer = Keypair.generate();
-    const { signer: relayerSigner, address: relayerAddress } = getSdkSigner(
-        connection,
-        relayer,
-        SIGNER_DEBUG,
-    );
+    const { signer: relayerSigner } = getSdkSigner(connection, relayer, SIGNER_DEBUG);
 
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
-    const { signer: ownerAssistantSigner, address: ownerAssistantAddress } = getSdkSigner(
-        connection,
-        ownerAssistant,
-        SIGNER_DEBUG,
-    );
+    const { signer: ownerAssistantSigner } = getSdkSigner(connection, ownerAssistant, SIGNER_DEBUG);
 
     const feeRecipient = Keypair.generate().publicKey;
-    const feeRecipientAddress = new SolanaAddress(feeRecipient);
     const feeRecipientToken = splToken.getAssociatedTokenAddressSync(
         USDC_MINT_ADDRESS,
         feeRecipient,
@@ -118,11 +103,7 @@ describe("Matching Engine", function () {
     );
     const newFeeRecipient = Keypair.generate().publicKey;
     const playerOne = PLAYER_ONE_KEYPAIR;
-    const { signer: playerOneSigner, address: playerOneAddress } = getSdkSigner(
-        connection,
-        playerOne,
-        SIGNER_DEBUG,
-    );
+    const { signer: playerOneSigner } = getSdkSigner(connection, playerOne, SIGNER_DEBUG);
     const playerTwo = Keypair.generate();
     const { signer: playerTwoSigner, address: playerTwoAddress } = getSdkSigner(
         connection,
@@ -275,10 +256,10 @@ describe("Matching Engine", function () {
                 const mint = await splToken.createMint(connection, payer, payer.publicKey, null, 6);
                 const txs = engine.initialize(
                     payer.publicKey,
-                    ownerAssistantAddress,
-                    feeRecipientAddress,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     auctionParams,
-                    new SolanaAddress(mint),
+                    mint,
                 );
                 await expectTxsErr(payerSigner, txs, "mint. Error Code: ConstraintAddress");
             });
@@ -286,8 +267,8 @@ describe("Matching Engine", function () {
             it("Cannot Initialize with Default Owner Assistant", async function () {
                 const txs = engine.initialize(
                     payer.publicKey,
-                    new SolanaAddress(PublicKey.default),
-                    feeRecipientAddress,
+                    PublicKey.default,
+                    feeRecipient,
                     auctionParams,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: AssistantZeroPubkey");
@@ -296,8 +277,8 @@ describe("Matching Engine", function () {
             it("Cannot Initialize with Default Fee Recipient", async function () {
                 const txs = engine.initialize(
                     payer.publicKey,
-                    ownerAssistantAddress,
-                    new SolanaAddress(PublicKey.default),
+                    ownerAssistant.publicKey,
+                    PublicKey.default,
                     auctionParams,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: FeeRecipientZeroPubkey");
@@ -306,8 +287,8 @@ describe("Matching Engine", function () {
             it("Cannot Initialize with Zero Auction Duration", async function () {
                 const txs = engine.initialize(
                     payer.publicKey,
-                    ownerAssistantAddress,
-                    feeRecipientAddress,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, duration: 0 },
                     new SolanaAddress(USDC_MINT_ADDRESS),
                 );
@@ -317,8 +298,8 @@ describe("Matching Engine", function () {
             it("Cannot Initialize with Zero Auction Grace Period", async function () {
                 const txs = engine.initialize(
                     payer.publicKey,
-                    ownerAssistantAddress,
-                    feeRecipientAddress,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, gracePeriod: 0 },
                     new SolanaAddress(USDC_MINT_ADDRESS),
                 );
@@ -328,8 +309,8 @@ describe("Matching Engine", function () {
             it("Cannot Initialize with Zero Auction Penalty Period", async function () {
                 const txs = engine.initialize(
                     payer.publicKey,
-                    ownerAssistantAddress,
-                    feeRecipientAddress,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, penaltyPeriod: 0 },
                     new SolanaAddress(USDC_MINT_ADDRESS),
                 );
@@ -339,8 +320,8 @@ describe("Matching Engine", function () {
             it("Cannot Initialize with Invalid User Penalty Bps", async function () {
                 const txs = engine.initialize(
                     payer.publicKey,
-                    ownerAssistantAddress,
-                    feeRecipientAddress,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, userPenaltyRewardBps: 1_000_001 },
                     new SolanaAddress(USDC_MINT_ADDRESS),
                 );
@@ -350,8 +331,8 @@ describe("Matching Engine", function () {
             it("Cannot Initialize with Invalid Initial Penalty Bps", async function () {
                 const txs = engine.initialize(
                     payer.publicKey,
-                    ownerAssistantAddress,
-                    feeRecipientAddress,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, initialPenaltyBps: 1_000_001 },
                     new SolanaAddress(USDC_MINT_ADDRESS),
                 );
@@ -360,9 +341,9 @@ describe("Matching Engine", function () {
 
             it("Cannot Initialize with Invalid Min Offer Delta Bps", async function () {
                 const txs = engine.initialize(
-                    payerAddress,
-                    ownerAssistantAddress,
-                    feeRecipientAddress,
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, minOfferDeltaBps: 1_000_001 },
                     new SolanaAddress(USDC_MINT_ADDRESS),
                 );
@@ -371,9 +352,9 @@ describe("Matching Engine", function () {
 
             it("Cannot Initialize with Invalid Security Deposit Base", async function () {
                 const txs = engine.initialize(
-                    payerAddress,
-                    ownerAssistantAddress,
-                    feeRecipientAddress,
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, securityDepositBase: uint64ToBN(0) },
                     new SolanaAddress(USDC_MINT_ADDRESS),
                 );
@@ -382,9 +363,9 @@ describe("Matching Engine", function () {
 
             it("Cannot Initialize with Invalid Security Deposit Bps", async function () {
                 const txs = engine.initialize(
-                    payerAddress,
-                    ownerAssistantAddress,
-                    feeRecipientAddress,
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, securityDepositBps: 1_000_001 },
                     new SolanaAddress(USDC_MINT_ADDRESS),
                 );
@@ -393,9 +374,9 @@ describe("Matching Engine", function () {
 
             it("Finally Initialize Program", async function () {
                 const txs = engine.initialize(
-                    payerAddress,
-                    ownerAssistantAddress,
-                    feeRecipientAddress,
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     auctionParams,
                     new SolanaAddress(USDC_MINT_ADDRESS),
                 );
@@ -424,9 +405,9 @@ describe("Matching Engine", function () {
 
             it("Cannot Call Instruction Again: initialize", async function () {
                 const txs = engine.initialize(
-                    payerAddress,
-                    ownerAssistantAddress,
-                    feeRecipientAddress,
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     auctionParams,
                     new SolanaAddress(USDC_MINT_ADDRESS),
                 );
@@ -693,13 +674,13 @@ describe("Matching Engine", function () {
 
         describe("Set Pause", async function () {
             it("Cannot Set Pause for Transfers as Non-Owner", async function () {
-                const txs = engine.setPause(payerAddress, true);
+                const txs = engine.setPause(payer.publicKey, true);
                 await expectTxsErr(payerSigner, txs, "Error Code: OwnerOrAssistantOnly");
             });
 
             it("Set Paused == true as Owner Assistant", async function () {
                 const paused = true;
-                const txs = engine.setPause(ownerAssistantAddress, paused);
+                const txs = engine.setPause(ownerAssistant.publicKey, paused);
                 await expectTxsOk(ownerAssistantSigner, txs);
 
                 const { paused: actualPaused, pausedSetBy } = await engine.fetchCustodian();
@@ -709,7 +690,7 @@ describe("Matching Engine", function () {
 
             it("Set Paused == false as Owner", async function () {
                 const paused = false;
-                const txs = engine.setPause(ownerAddress, paused);
+                const txs = engine.setPause(owner.publicKey, paused);
                 await expectTxsOk(ownerSigner, txs);
                 const { paused: actualPaused, pausedSetBy } = await engine.fetchCustodian();
                 expect(actualPaused).equals(paused);
@@ -718,18 +699,19 @@ describe("Matching Engine", function () {
         });
 
         describe("Router Endpoint (CCTP)", function () {
-            const localVariables = new Map<string, any>();
-
             after("Register To Router Endpoints", async function () {
-                const endpointChain = "Arbitrum";
-                const txs = engine.registerRouter(
-                    new SolanaAddress(owner.publicKey),
-                    endpointChain,
-                    CHAIN_TO_DOMAIN[endpointChain]!,
-                    REGISTERED_TOKEN_ROUTERS_V2[endpointChain]!,
-                );
+                const endpointChains: Chain[] = ["Arbitrum", "Base"];
 
-                await expectTxsOk(ownerSigner, txs);
+                for (const endpointChain of endpointChains) {
+                    const txs = engine.registerRouter(
+                        new SolanaAddress(owner.publicKey),
+                        endpointChain,
+                        CHAIN_TO_DOMAIN[endpointChain]!,
+                        REGISTERED_TOKEN_ROUTERS_V2[endpointChain]!,
+                    );
+
+                    await expectTxsOk(ownerSigner, txs);
+                }
             });
 
             it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
@@ -762,7 +744,7 @@ describe("Matching Engine", function () {
 
             it("Cannot Register Zero Address", async function () {
                 const txs = engine.registerRouter(
-                    ownerAddress,
+                    owner.publicKey,
                     "Ethereum",
                     ethDomain,
                     toUniversalAddress(new Array(32).fill(0)),
@@ -774,7 +756,7 @@ describe("Matching Engine", function () {
                 const contractAddress = Array.from(Buffer.alloc(32, "fbadc0de", "hex"));
                 const mintRecipient = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
                 const txs = engine.registerRouter(
-                    ownerAssistantAddress,
+                    ownerAssistant.publicKey,
                     "Ethereum",
                     ethDomain,
                     toUniversalAddress(contractAddress),
@@ -801,7 +783,7 @@ describe("Matching Engine", function () {
                 const contractAddress = Array.from(Buffer.alloc(32, "fbadc0de", "hex"));
                 const mintRecipient = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
                 const txs = engine.registerRouter(
-                    ownerAssistantAddress,
+                    ownerAssistant.publicKey,
                     "Ethereum",
                     ethDomain,
                     toUniversalAddress(contractAddress),
@@ -815,12 +797,12 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Disable Router Endpoint as Owner Assistant", async function () {
-                const txs = engine.disableRouter(ownerAssistantAddress, "Ethereum");
+                const txs = engine.disableRouter(ownerAssistant.publicKey, "Ethereum");
                 await expectTxsErr(ownerAssistantSigner, txs, "Error Code: OwnerOnly");
             });
 
             it("Disable Router Endpoint as Owner", async function () {
-                const txs = engine.disableRouter(ownerAddress, "Ethereum");
+                const txs = engine.disableRouter(owner.publicKey, "Ethereum");
                 await expectTxsOk(ownerSigner, txs);
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(ethChain);
@@ -837,7 +819,7 @@ describe("Matching Engine", function () {
 
             it("Cannot Update Router Endpoint as Owner Assistant", async function () {
                 const txs = engine.updateRouter(
-                    ownerAssistantAddress,
+                    ownerAssistant.publicKey,
                     "Ethereum",
                     ethDomain,
                     REGISTERED_TOKEN_ROUTERS_V2["Ethereum"]!,
@@ -847,7 +829,7 @@ describe("Matching Engine", function () {
 
             it("Update Router Endpoint as Owner", async function () {
                 const txs = engine.updateRouter(
-                    ownerAddress,
+                    owner.publicKey,
                     "Ethereum",
                     ethDomain,
                     REGISTERED_TOKEN_ROUTERS_V2["Ethereum"]!,
@@ -1451,7 +1433,6 @@ describe("Matching Engine", function () {
                         fastVaa,
                         auction,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
-                        toRouterEndpoint: engine.routerEndpointAddress(arbChain),
                     },
                     {
                         args: {
@@ -1577,7 +1558,6 @@ describe("Matching Engine", function () {
                         fastVaa,
                         auction,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
-                        toRouterEndpoint: engine.routerEndpointAddress(arbChain),
                     },
                     {
                         args: {
@@ -1627,23 +1607,22 @@ describe("Matching Engine", function () {
                 );
             });
 
-            // TODO: Ben
-            // it("Cannot Place Initial Offer (Invalid Emitter Chain)", async function () {
-            //     await placeInitialOfferCctpForTest(
-            //         {
-            //             payer: playerOne.publicKey,
-            //             fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
-            //         },
-            //         {
-            //             signers: [playerOneSigner],
-            //             finalized: false,
-            //             fastMarketOrder: baseFastOrder,
-            //             sourceChain: "Polygon",
-            //             emitter: REGISTERED_TOKEN_ROUTERS["Ethereum"],
-            //             errorMsg: "Error Code: InvalidSourceRouter",
-            //         },
-            //     );
-            // });
+            it("Cannot Place Initial Offer (Invalid Emitter Chain)", async function () {
+                await placeInitialOfferCctpForTest(
+                    {
+                        payer: playerOne.publicKey,
+                        fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
+                    },
+                    {
+                        signers: [playerOneSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
+                        sourceChain: "Base",
+                        emitter: REGISTERED_TOKEN_ROUTERS["Ethereum"],
+                        errorMsg: "Error Code: InvalidSourceRouter",
+                    },
+                );
+            });
 
             it("Cannot Place Initial Offer (Invalid Emitter Address)", async function () {
                 await placeInitialOfferCctpForTest(
@@ -1664,27 +1643,25 @@ describe("Matching Engine", function () {
                 );
             });
 
-            // TODO: Ben -- Fails on not initialized emitter account
-            // it("Cannot Place Initial Offer (Invalid Target Router Chain)", async function () {
-            //     await placeInitialOfferCctpForTest(
-            //         {
-            //             payer: playerOne.publicKey,
-            //             toRouterEndpoint: engine.routerEndpointAddress(arbChain),
-            //         },
-            //         {
-            //             args: {
-            //                 offerPrice: baseFastOrder.maxFee + 1n,
-            //             },
-            //             signers: [playerOneSigner],
-            //             finalized: false,
-            //             fastMarketOrder: {
-            //                 ...baseFastOrder,
-            //                 targetChain: "Acala",
-            //             },
-            //             errorMsg: "Error Code: InvalidTargetRouter",
-            //         },
-            //     );
-            // });
+            //  TODO: Ben -- the following test is failing because we no longer pass the accounts in during
+            //  the initial offer fn call.
+            //  it("Cannot Place Initial Offer (Invalid Target Router Chain)", async function () {
+            //      await placeInitialOfferCctpForTest(
+            //          { payer: playerOne.publicKey, toRouterEndpoint: engine.routerEndpointAddress(ethChain) },
+            //          {
+            //              args: {
+            //                  offerPrice: baseFastOrder.maxFee - 1n,
+            //              },
+            //              signers: [playerOneSigner],
+            //              finalized: false,
+            //              fastMarketOrder: {
+            //                  ...baseFastOrder,
+            //                  targetChain: "Base",
+            //              },
+            //              errorMsg: "Error Code: InvalidTargetRouter",
+            //          },
+            //      );
+            //  });
 
             it("Cannot Place Initial Offer Again", async function () {
                 const result = await placeInitialOfferCctpForTest(
@@ -2195,21 +2172,14 @@ describe("Matching Engine", function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
                 const result = await placeInitialOfferCctpForTest(
-                    {
-                        payer: playerTwo.publicKey,
-                    },
+                    { payer: playerTwo.publicKey },
                     {
                         signers: [playerTwoSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                     },
                 );
-                const {
-                    fastVaa,
-                    fastVaaAccount,
-                    auction,
-                    auctionDataBefore: initialData,
-                } = result!;
+                const { fastVaaAccount, auction, auctionDataBefore: initialData } = result!;
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -2270,21 +2240,14 @@ describe("Matching Engine", function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
                 const result = await placeInitialOfferCctpForTest(
-                    {
-                        payer: playerTwo.publicKey,
-                    },
+                    { payer: playerTwo.publicKey },
                     {
                         signers: [playerTwoSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                     },
                 );
-                const {
-                    fastVaa,
-                    fastVaaAccount,
-                    auction,
-                    auctionDataBefore: initialData,
-                } = result!;
+                const { fastVaaAccount, auction, auctionDataBefore: initialData } = result!;
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -2829,9 +2792,7 @@ describe("Matching Engine", function () {
 
             it("Cannot Execute Fast Order (Endpoint Disabled)", async function () {
                 const result = await placeInitialOfferCctpForTest(
-                    {
-                        payer: playerOne.publicKey,
-                    },
+                    { payer: playerOne.publicKey },
                     {
                         signers: [playerOneSigner],
                         finalized: false,
@@ -3451,13 +3412,12 @@ describe("Matching Engine", function () {
                         { payer: payer.publicKey },
                         { placeInitialOffer: false },
                     );
-                    const fastVaaAccount = await VaaAccount.fetch(connection, result!.fastVaa);
 
                     await settleAuctionCompleteForTest(
                         {
                             executor: payer.publicKey,
                             preparedOrderResponse: result!.preparedOrderResponse,
-                            auction: engine.auctionAddress(fastVaaAccount.digest()),
+                            auction: engine.auctionAddress(result!.fastVaaAccount.digest()),
                             bestOfferToken: splToken.getAssociatedTokenAddressSync(
                                 USDC_MINT_ADDRESS,
                                 payer.publicKey,
@@ -4190,7 +4150,6 @@ describe("Matching Engine", function () {
             auction?: PublicKey;
             auctionConfig?: PublicKey;
             fromRouterEndpoint?: PublicKey;
-            toRouterEndpoint?: PublicKey;
         },
         opts: TestOptions &
             ObserveCctpOrderVaasOpts & {
@@ -4210,16 +4169,15 @@ describe("Matching Engine", function () {
         let { args } = excludedForTestOpts;
         args ??= {};
 
-        const { fast } = await (async () => {
-            return accounts.fastVaa !== undefined
+        const { fast } =
+            accounts.fastVaa !== undefined
                 ? {
                       fast: {
                           vaa: accounts.fastVaa,
                           vaaAccount: await VaaAccount.fetch(connection, accounts.fastVaa),
                       },
                   }
-                : observeCctpOrderVaas(excludedForTestOpts);
-        })();
+                : await observeCctpOrderVaas(excludedForTestOpts);
 
         let fastMarketOrderVAA;
         try {
@@ -4400,7 +4358,9 @@ describe("Matching Engine", function () {
         opts: ForTestOpts & ObserveCctpOrderVaasOpts & PrepareOrderResponseForTestOptionalOpts = {},
     ): Promise<void | {
         fastVaa: PublicKey;
+        fastVaaAccount: VaaAccount;
         finalizedVaa: PublicKey;
+        finalizedVaaAccount: VaaAccount;
         args: CctpMessageArgs;
         preparedOrderResponse: PublicKey;
         prepareOrderResponseInstruction?: TransactionInstruction;
@@ -4424,15 +4384,17 @@ describe("Matching Engine", function () {
         instructionOnly ??= false;
         alreadyPrepared ??= false;
 
-        const { fastVaa, fastVaaAccount, finalizedVaa } = await (async () => {
+        const { fastVaa, fastVaaAccount, finalizedVaa, finalizedVaaAccount } = await (async () => {
             const { fastVaa, finalizedVaa } = accounts;
 
             if (fastVaa !== undefined && finalizedVaa !== undefined && args !== undefined) {
                 const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+                const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
                 return {
                     fastVaa,
                     fastVaaAccount,
                     finalizedVaa,
+                    finalizedVaaAccount,
                 };
             } else if (fastVaa === undefined && finalizedVaa === undefined) {
                 const { fast, finalized } = await observeCctpOrderVaas(excludedForTestOpts);
@@ -4442,6 +4404,7 @@ describe("Matching Engine", function () {
                     fastVaa: fast.vaa,
                     fastVaaAccount: fast.vaaAccount,
                     finalizedVaa: finalized!.vaa,
+                    finalizedVaaAccount: finalized!.vaaAccount,
                 };
             } else {
                 throw new Error(
@@ -4538,7 +4501,9 @@ describe("Matching Engine", function () {
         if (instructionOnly) {
             return {
                 fastVaa,
+                fastVaaAccount,
                 finalizedVaa,
+                finalizedVaaAccount,
                 args: args!,
                 preparedOrderResponse,
                 prepareOrderResponseInstruction: ix,
@@ -4567,12 +4532,11 @@ describe("Matching Engine", function () {
         });
         const { seeds } = preparedOrderResponseData;
 
-        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
-        const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
-        expect(deposit).is.not.undefined;
-
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
+
+        const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
+        expect(deposit).is.not.undefined;
 
         const toEndpoint = await engine.fetchRouterEndpointInfo(
             toChainId(fastMarketOrder!.targetChain),
@@ -4615,7 +4579,9 @@ describe("Matching Engine", function () {
 
         return {
             fastVaa,
+            fastVaaAccount,
             finalizedVaa,
+            finalizedVaaAccount,
             args: args!,
             preparedOrderResponse,
         };

@@ -28,7 +28,12 @@ import {
     SolanaTransaction,
     SolanaUnsignedTransaction,
 } from "@wormhole-foundation/sdk-solana";
-import { AuctionParameters, MatchingEngineProgram, ProgramId } from "../matchingEngine";
+import {
+    AuctionInfo,
+    AuctionParameters,
+    MatchingEngineProgram,
+    ProgramId,
+} from "../matchingEngine";
 
 export interface SolanaMatchingEngineContracts {
     matchingEngine: string;
