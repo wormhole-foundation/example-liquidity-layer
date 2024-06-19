@@ -16,9 +16,9 @@ import { execSync } from "child_process";
 import { Err, Ok } from "ts-results";
 import { CORE_BRIDGE_PID, USDC_MINT_ADDRESS } from "./consts";
 import { SolanaSendSigner, SolanaUnsignedTransaction } from "@wormhole-foundation/sdk-solana";
-import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
+import { SolanaWormholeCore, utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
 import { SignAndSendSigner as SdkSigner, signAndSendWait } from "@wormhole-foundation/sdk-connect";
-import { UniversalAddress, deserialize } from "@wormhole-foundation/sdk-definitions";
+import { UniversalAddress, VAA, deserialize } from "@wormhole-foundation/sdk-definitions";
 import { Chain, Network } from "@wormhole-foundation/sdk-base";
 
 export function toUniversalAddress(address: number[] | Buffer | Array<number>): UniversalAddress {
@@ -198,11 +198,13 @@ async function debugSendAndConfirmTransaction(
 export async function postVaa(
     connection: Connection,
     payer: Keypair | SdkSigner<Network, "Solana">,
-    vaaBuf: Buffer,
+    vaa: VAA,
     coreBridgeAddress?: PublicKey,
 ) {
+    coreBridgeAddress ??= CORE_BRIDGE_PID;
+
     const core = new SolanaWormholeCore("Devnet", "Solana", connection, {
-        coreBridge: (coreBridgeAddress ?? CORE_BRIDGE_PID).toString(),
+        coreBridge: coreBridgeAddress.toString(),
     });
 
     const signer =
@@ -210,9 +212,11 @@ export async function postVaa(
             ? new SolanaSendSigner(connection, "Solana", payer, false, {})
             : payer;
 
-    const txs = core.postVaa(signer.address(), deserialize("Uint8Array", vaaBuf));
+    const txs = core.postVaa(signer.address(), vaa);
+    const address = coreUtils.derivePostedVaaKey(coreBridgeAddress, Buffer.from(vaa.hash));
+    const txids = await signAndSendWait(txs, signer);
 
-    return await signAndSendWait(txs, signer);
+    return { txids, address };
 }
 
 export function loadProgramBpf(artifactPath: string, keypath: string): PublicKey {

@@ -56,6 +56,7 @@ import {
 } from "./state";
 import { ChainId, toChainId, isChainId, Chain } from "@wormhole-foundation/sdk-base";
 import { programDerivedAddresses } from "./pdas";
+import { FastTransfer } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -682,21 +683,15 @@ export class MatchingEngineProgram {
     }
 
     routerEndpointComposite(addr: PublicKey): { endpoint: PublicKey } {
-        return {
-            endpoint: addr,
-        };
+        return { endpoint: addr };
     }
 
     liquidityLayerVaaComposite(vaa: PublicKey): { vaa: PublicKey } {
-        return {
-            vaa,
-        };
+        return { vaa };
     }
 
     usdcComposite(mint?: PublicKey): { mint: PublicKey } {
-        return {
-            mint: mint ?? this.mint,
-        };
+        return { mint: mint ?? this.mint };
     }
 
     localTokenRouterComposite(tokenRouterProgram: PublicKey): {
@@ -1719,7 +1714,6 @@ export class MatchingEngineProgram {
         }
         const {
             custodian,
-            routerEndpoint: toRouterEndpoint,
             coreMessage,
             cctpMessage,
             coreBridgeConfig,
