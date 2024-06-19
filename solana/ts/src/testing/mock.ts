@@ -22,7 +22,6 @@ export function getSdkSigner<N extends Network>(
     return { signer, address };
 }
 
-// TODO: return VaaAccount, too
 export async function postLiquidityLayerVaav2(
     connection: Connection,
     payer: Keypair | SignAndSendSigner<Network, "Solana">,

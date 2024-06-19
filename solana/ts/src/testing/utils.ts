@@ -11,15 +11,15 @@ import {
     TransactionMessage,
     VersionedTransaction,
 } from "@solana/web3.js";
+import { Network } from "@wormhole-foundation/sdk-base";
+import { SignAndSendSigner as SdkSigner, signAndSendWait } from "@wormhole-foundation/sdk-connect";
+import { UniversalAddress, VAA } from "@wormhole-foundation/sdk-definitions";
+import { SolanaSendSigner, SolanaUnsignedTransaction } from "@wormhole-foundation/sdk-solana";
+import { SolanaWormholeCore, utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
 import { execSync } from "child_process";
 import { Err, Ok } from "ts-results";
 import { CORE_BRIDGE_PID, USDC_MINT_ADDRESS } from "./consts";
-import { SolanaSendSigner, SolanaUnsignedTransaction } from "@wormhole-foundation/sdk-solana";
-import { SolanaWormholeCore, utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
-import { SignAndSendSigner as SdkSigner, signAndSendWait } from "@wormhole-foundation/sdk-connect";
-import { UniversalAddress, VAA, deserialize } from "@wormhole-foundation/sdk-definitions";
-import { Chain, Network } from "@wormhole-foundation/sdk-base";
 
 export function toUniversalAddress(address: number[] | Buffer | Array<number>): UniversalAddress {
     return new UniversalAddress(new Uint8Array(address));

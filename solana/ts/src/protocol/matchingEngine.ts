@@ -196,18 +196,48 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.improveOffer");
     }
 
-    async *executeFastOrder(sender: AnySolanaAddress, vaa: FastTransfer.VAA) {
+    async *executeFastOrder(
+        sender: AnySolanaAddress,
+        vaa: FastTransfer.VAA,
+        participant?: AnySolanaAddress,
+    ) {
+        if (vaa.payloadLiteral !== "FastTransfer:FastMarketOrder") throw new Error("Invalid VAA");
+
         const payer = new SolanaAddress(sender).unwrap();
+
+        const initialParticipant = participant
+            ? new SolanaAddress(participant).unwrap()
+            : undefined;
 
         const fastVaa = coreUtils.derivePostedVaaKey(
             this.coreBridgeProgramId(),
             Buffer.from(vaa.hash),
         );
 
-        const ix = await this.executeFastOrderCctpIx({
-            payer,
-            fastVaa,
-        });
+        const digest = keccak256(vaa.hash);
+        const auction = this.auctionAddress(digest);
+        const reservedSequence = this.reservedFastFillSequenceAddress(digest);
+
+        const { targetChain } = vaa.payload;
+
+        const ix =
+            targetChain === "Solana"
+                ? await this.executeFastOrderLocalIx({
+                      payer,
+                      fastVaa,
+                      auction,
+                      reservedSequence,
+                      initialParticipant,
+                  })
+                : await this.executeFastOrderCctpIx(
+                      {
+                          payer,
+                          fastVaa,
+                          auction,
+                          initialParticipant,
+                      },
+                      { targetChain: toChainId(targetChain) },
+                  );
 
         const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
             units: 300_000,
@@ -218,7 +248,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     }
 
     async *settleAuctionComplete() {
-        throw new Error("Method not implemented.");
+        throw "Not implemented";
     }
 
     settleAuction(): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
@@ -234,8 +264,6 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     getPenaltyBlocks(): Promise<number> {
         throw new Error("Method not implemented.");
     }
-    getInitialPenaltyBps(): Promise<number>;
-    getInitialPenaltyBps(): Promise<number>;
     getInitialPenaltyBps(): Promise<number> {
         throw new Error("Method not implemented.");
     }
