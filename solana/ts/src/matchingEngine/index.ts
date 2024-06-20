@@ -842,9 +842,7 @@ export class MatchingEngineProgram {
         const { ownerOrAssistant, custodian } = accounts;
         return this.program.methods
             .setPause(paused)
-            .accounts({
-                admin: this.adminMutComposite(ownerOrAssistant, custodian),
-            })
+            .accounts({ admin: this.adminMutComposite(ownerOrAssistant, custodian) })
             .instruction();
     }
 

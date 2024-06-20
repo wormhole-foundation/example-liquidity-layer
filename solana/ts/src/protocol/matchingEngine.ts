@@ -108,16 +108,13 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     ) {
         const ownerOrAssistant = new SolanaAddress(sender).unwrap();
         const mintRecipient = tokenAccount
-            ? new SolanaAddress(tokenAccount).toUniversalAddress().toUint8Array()
+            ? Array.from(new SolanaAddress(tokenAccount).toUniversalAddress().toUint8Array())
             : null;
+        const address = Array.from(router.toUniversalAddress().toUint8Array());
+
         const ix = await this.addCctpRouterEndpointIx(
             { ownerOrAssistant },
-            {
-                chain: toChainId(chain),
-                cctpDomain: cctpDomain,
-                address: Array.from(router.toUniversalAddress().toUint8Array()),
-                mintRecipient: mintRecipient ? Array.from(mintRecipient) : null,
-            },
+            { chain: toChainId(chain), cctpDomain, address, mintRecipient },
         );
 
         const transaction = await this.createTx(ownerOrAssistant, [ix]);
@@ -133,17 +130,12 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     ) {
         const owner = new SolanaAddress(sender).unwrap();
         const mintRecipient = tokenAccount
-            ? new SolanaAddress(tokenAccount).toUniversalAddress().toUint8Array()
+            ? Array.from(new SolanaAddress(tokenAccount).toUniversalAddress().toUint8Array())
             : null;
-
+        const address = Array.from(router.toUniversalAddress().toUint8Array());
         const ix = await this.updateCctpRouterEndpointIx(
             { owner },
-            {
-                chain: toChainId(chain),
-                cctpDomain: cctpDomain,
-                address: Array.from(router.toUniversalAddress().toUint8Array()),
-                mintRecipient: mintRecipient ? Array.from(mintRecipient) : null,
-            },
+            { chain: toChainId(chain), cctpDomain, address, mintRecipient },
         );
 
         const transaction = await this.createTx(owner, [ix]);
@@ -152,6 +144,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
     async *disableRouter<RC extends Chain>(sender: AnySolanaAddress, chain: RC) {
         const owner = new SolanaAddress(sender).unwrap();
+
         const ix = await this.disableRouterEndpointIx({ owner }, toChainId(chain));
 
         const transaction = await this.createTx(owner, [ix]);
@@ -329,8 +322,20 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         // If the finalized VAA and CCTP message/attestation are passed
         // we may try to prepare the order response
         // this yields its own transaction
-        if (finalized && cctp)
-            yield* this.prepareOrderResponse(sender, fast, finalized, cctp, lookupTables);
+        const ixs = [];
+        if (finalized && cctp) {
+            // TODO: how do we decide?
+            const combine = true;
+            // try to include the prepare order instruction in the same transaction
+            if (combine) {
+                const ix = await this._prepareOrderResponseIx(sender, fast, finalized, cctp);
+                if (ix !== undefined) {
+                    ixs.push(ix, ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }));
+                }
+            } else {
+                yield* this.prepareOrderResponse(sender, fast, finalized, cctp, lookupTables);
+            }
+        }
 
         const digest = keccak256(fast.hash);
         const preparedOrderResponse = this.preparedOrderResponseAddress(digest);
@@ -364,11 +369,14 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
                 return await this.settleAuctionCompleteIx({
                     executor: payer,
                     preparedOrderResponse,
+                    auction,
                 });
             }
         })();
 
-        const transaction = await this.createTx(payer, [settleIx], undefined, lookupTables);
+        ixs.push(settleIx);
+
+        const transaction = await this.createTx(payer, ixs, undefined, lookupTables);
 
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.settleAuctionComplete");
     }
