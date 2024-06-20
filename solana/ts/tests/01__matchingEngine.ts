@@ -290,7 +290,7 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, duration: 0 },
-                    new SolanaAddress(USDC_MINT_ADDRESS),
+                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: ZeroDuration");
             });
@@ -301,7 +301,7 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, gracePeriod: 0 },
-                    new SolanaAddress(USDC_MINT_ADDRESS),
+                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: ZeroGracePeriod");
             });
@@ -312,7 +312,7 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, penaltyPeriod: 0 },
-                    new SolanaAddress(USDC_MINT_ADDRESS),
+                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: ZeroPenaltyPeriod");
             });
@@ -323,7 +323,7 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, userPenaltyRewardBps: 1_000_001 },
-                    new SolanaAddress(USDC_MINT_ADDRESS),
+                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: UserPenaltyRewardBpsTooLarge");
             });
@@ -334,7 +334,7 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, initialPenaltyBps: 1_000_001 },
-                    new SolanaAddress(USDC_MINT_ADDRESS),
+                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: InitialPenaltyBpsTooLarge");
             });
@@ -345,7 +345,7 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, minOfferDeltaBps: 1_000_001 },
-                    new SolanaAddress(USDC_MINT_ADDRESS),
+                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: MinOfferDeltaBpsTooLarge");
             });
@@ -356,7 +356,7 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, securityDepositBase: uint64ToBN(0) },
-                    new SolanaAddress(USDC_MINT_ADDRESS),
+                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: ZeroSecurityDepositBase");
             });
@@ -367,7 +367,7 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, securityDepositBps: 1_000_001 },
-                    new SolanaAddress(USDC_MINT_ADDRESS),
+                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: SecurityDepositBpsTooLarge");
             });
@@ -378,7 +378,7 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     auctionParams,
-                    new SolanaAddress(USDC_MINT_ADDRESS),
+                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsOk(payerSigner, txs);
 
@@ -409,7 +409,7 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     auctionParams,
-                    new SolanaAddress(USDC_MINT_ADDRESS),
+                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(
                     payerSigner,
@@ -704,7 +704,7 @@ describe("Matching Engine", function () {
 
                 for (const endpointChain of endpointChains) {
                     const txs = engine.registerRouter(
-                        new SolanaAddress(owner.publicKey),
+                        owner.publicKey,
                         endpointChain,
                         CHAIN_TO_DOMAIN[endpointChain]!,
                         REGISTERED_TOKEN_ROUTERS_V2[endpointChain]!,
@@ -717,7 +717,7 @@ describe("Matching Engine", function () {
             it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
                 const endpointChain = "Ethereum";
                 const txs = engine.registerRouter(
-                    new SolanaAddress(payerSigner.address()),
+                    payer.publicKey,
                     endpointChain,
                     CHAIN_TO_DOMAIN[endpointChain]!,
                     REGISTERED_TOKEN_ROUTERS_V2[endpointChain]!,
@@ -4187,7 +4187,7 @@ describe("Matching Engine", function () {
 
         // Place the initial offer.
         const txs = engine.placeInitialOffer(
-            new SolanaAddress(accounts.payer),
+            accounts.payer,
             // @ts-ignore -- may still be a Uint8array payload for testing invalid VAA
             fastMarketOrderVAA,
             args.offerPrice,
