@@ -7,7 +7,6 @@ import {
     Connection,
     Keypair,
     PublicKey,
-    Signer,
     SystemProgram,
     TransactionInstruction,
     VersionedTransactionResponse,
@@ -18,7 +17,7 @@ import {
     SlowOrderResponse,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { CircleBridge, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { SolanaAddress } from "@wormhole-foundation/sdk-solana";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
@@ -66,6 +65,7 @@ import {
     getUsdcAtaBalance,
     postLiquidityLayerVaav2,
     toUniversalAddress,
+    unwrapSigners,
     waitUntilSlot,
     waitUntilTimestamp,
 } from "../src/testing";
@@ -3344,9 +3344,7 @@ describe("Matching Engine", function () {
 
             it("Prepare Order Response", async function () {
                 const result = await prepareOrderResponseCctpForTest(
-                    {
-                        payer: payer.publicKey,
-                    },
+                    { payer: payer.publicKey },
                     {
                         placeInitialOffer: false,
                     },
@@ -3434,7 +3432,7 @@ describe("Matching Engine", function () {
                     await settleAuctionCompleteForTest(
                         { executor: payer.publicKey },
                         {
-                            prepareSigners: [payer],
+                            prepareSigners: [payerSigner],
                             executeOrder: false,
                             errorMsg: "Error Code: AuctionNotCompleted",
                         },
@@ -3445,7 +3443,7 @@ describe("Matching Engine", function () {
                     await settleAuctionCompleteForTest(
                         { executor: payer.publicKey },
                         {
-                            prepareSigners: [payer],
+                            prepareSigners: [payerSigner],
                             executeWithinGracePeriod: true,
                             errorMsg: "Error Code: ExecutorTokenMismatch",
                         },
@@ -3456,7 +3454,7 @@ describe("Matching Engine", function () {
                     await settleAuctionCompleteForTest(
                         { executor: playerOne.publicKey },
                         {
-                            prepareSigners: [playerOne],
+                            prepareSigners: [playerOneSigner],
                             executeWithinGracePeriod: true,
                         },
                     );
@@ -3466,7 +3464,7 @@ describe("Matching Engine", function () {
                     await settleAuctionCompleteForTest(
                         { executor: playerOne.publicKey },
                         {
-                            prepareSigners: [playerOne],
+                            prepareSigners: [playerOneSigner],
                             executeWithinGracePeriod: true,
                             prepareAfterExecuteOrder: false,
                         },
@@ -3488,7 +3486,7 @@ describe("Matching Engine", function () {
                     await settleAuctionCompleteForTest(
                         { executor: playerOne.publicKey },
                         {
-                            prepareSigners: [playerOne],
+                            prepareSigners: [playerOneSigner],
                             executeWithinGracePeriod: false,
                         },
                     );
@@ -3520,12 +3518,9 @@ describe("Matching Engine", function () {
                     );
 
                     await settleAuctionCompleteForTest(
+                        { executor: playerTwo.publicKey, executorToken },
                         {
-                            executor: playerTwo.publicKey,
-                            executorToken,
-                        },
-                        {
-                            prepareSigners: [playerTwo],
+                            prepareSigners: [playerTwoSigner],
                             executeWithinGracePeriod: false,
                             errorMsg: "Error Code: AccountNotAssociatedTokenAccount",
                         },
@@ -3534,11 +3529,9 @@ describe("Matching Engine", function () {
 
                 it("Settle Completed with Penalty (Executor != Best Offer)", async function () {
                     await settleAuctionCompleteForTest(
+                        { executor: playerTwo.publicKey },
                         {
-                            executor: playerTwo.publicKey,
-                        },
-                        {
-                            prepareSigners: [playerTwo],
+                            prepareSigners: [playerTwoSigner],
                             executeWithinGracePeriod: false,
                         },
                     );
@@ -3830,9 +3823,9 @@ describe("Matching Engine", function () {
 
             async function createFirstAuctionHistoryForTest(
                 accounts: { payer: PublicKey; firstHistory?: PublicKey },
-                opts: ForTestOpts = {},
+                opts: TestOptions = {},
             ) {
-                let [{ signers, errorMsg }] = setDefaultForTestOpts(opts);
+                let [{ signers, errorMsg }] = addDefaultOptions(opts);
 
                 const ix = await engine.program.methods
                     .createFirstAuctionHistory()
@@ -3840,7 +3833,7 @@ describe("Matching Engine", function () {
                     .instruction();
 
                 if (errorMsg !== null) {
-                    return expectIxErr(connection, [ix], signers, errorMsg);
+                    return expectIxErr(connection, [ix], unwrapSigners(signers), errorMsg);
                 }
 
                 const auctionHistory = engine.auctionHistoryAddress(0);
@@ -3849,7 +3842,7 @@ describe("Matching Engine", function () {
                     expect(accInfo).is.null;
                 }
 
-                await expectIxOk(connection, [ix], signers);
+                await expectIxOk(connection, [ix], unwrapSigners(signers));
 
                 const firstHistoryData = await engine.fetchAuctionHistory({
                     address: auctionHistory,
@@ -3885,9 +3878,9 @@ describe("Matching Engine", function () {
 
             async function createNewAuctionHistoryForTest(
                 accounts: { payer: PublicKey; currentHistory: PublicKey; newHistory?: PublicKey },
-                opts: ForTestOpts = {},
+                opts: TestOptions = {},
             ) {
-                let [{ signers, errorMsg }] = setDefaultForTestOpts(opts);
+                let [{ signers, errorMsg }] = addDefaultOptions(opts);
 
                 const definedAccounts = await createNewAuctionHistoryAccounts(accounts);
 
@@ -3897,7 +3890,7 @@ describe("Matching Engine", function () {
                     .instruction();
 
                 if (errorMsg !== null) {
-                    return expectIxErr(connection, [ix], signers, errorMsg);
+                    return expectIxErr(connection, [ix], unwrapSigners(signers), errorMsg);
                 }
 
                 const { newHistory } = definedAccounts;
@@ -3906,7 +3899,7 @@ describe("Matching Engine", function () {
                     expect(accInfo).is.null;
                 }
 
-                await expectIxOk(connection, [ix], signers);
+                await expectIxOk(connection, [ix], unwrapSigners(signers));
 
                 const [{ id }, numEntries] = await engine.fetchAuctionHistoryHeader({
                     address: definedAccounts.currentHistory,
@@ -3964,14 +3957,14 @@ describe("Matching Engine", function () {
                     beneficiary?: PublicKey;
                     beneficiaryToken?: PublicKey;
                 },
-                opts: ForTestOpts &
+                opts: TestOptions &
                     ObserveCctpOrderVaasOpts &
                     PrepareOrderResponseForTestOptionalOpts & {
                         settlementType?: "complete" | "none" | null;
                         waitToExpiration?: boolean;
                     } = {},
             ) {
-                let [{ signers, errorMsg }, excludedForTestOpts] = setDefaultForTestOpts(opts);
+                let [{ signers, errorMsg }, excludedForTestOpts] = addDefaultOptions(opts);
                 let { settlementType, waitToExpiration } = excludedForTestOpts;
                 settlementType ??= null;
                 // Set timestamps to 2 seconds before auction expiration so we don't have to wait
@@ -3990,7 +3983,7 @@ describe("Matching Engine", function () {
                         if (settlementType == "complete") {
                             const result = await settleAuctionCompleteForTest(
                                 { executor: playerOne.publicKey },
-                                { vaaTimestamp, prepareSigners: [playerOne] },
+                                { vaaTimestamp, prepareSigners: [playerOneSigner] },
                             );
                             return result!.auction;
                         } else if (settlementType == "none") {
@@ -4057,7 +4050,7 @@ describe("Matching Engine", function () {
                     .instruction();
 
                 if (errorMsg !== null) {
-                    return expectIxErr(connection, [ix], signers, errorMsg);
+                    return expectIxErr(connection, [ix], unwrapSigners(signers), errorMsg);
                 }
 
                 const beneficiaryBalanceBefore = await connection.getBalance(beneficiary);
@@ -4083,7 +4076,7 @@ describe("Matching Engine", function () {
                     .getAccountInfo(accounts.history)
                     .then((info) => info!.data.length);
 
-                await expectIxOk(connection, [ix], signers);
+                await expectIxOk(connection, [ix], unwrapSigners(signers));
 
                 const historyData = await engine.fetchAuctionHistory({
                     address: accounts.history,
@@ -4320,24 +4313,6 @@ describe("Matching Engine", function () {
         return { auctionDataBefore };
     }
 
-    type ForTestOpts = {
-        signers?: Signer[];
-        errorMsg?: string | null;
-    };
-
-    function setDefaultForTestOpts<T extends ForTestOpts>(
-        opts: T,
-    ): [{ signers: Signer[]; errorMsg: string | null }, Omit<T, keyof ForTestOpts>] {
-        let { signers, errorMsg } = opts;
-        signers ??= [payer];
-        delete opts.signers;
-
-        errorMsg ??= null;
-        delete opts.errorMsg;
-
-        return [{ signers, errorMsg }, { ...opts }];
-    }
-
     type PrepareOrderResponseForTestOptionalOpts = {
         args?: CctpMessageArgs;
         placeInitialOffer?: boolean;
@@ -4345,7 +4320,6 @@ describe("Matching Engine", function () {
         executeOrder?: boolean;
         executeWithinGracePeriod?: boolean;
         prepareAfterExecuteOrder?: boolean;
-        instructionOnly?: boolean;
         alreadyPrepared?: boolean;
     };
 
@@ -4355,7 +4329,7 @@ describe("Matching Engine", function () {
             fastVaa?: PublicKey;
             finalizedVaa?: PublicKey;
         },
-        opts: ForTestOpts & ObserveCctpOrderVaasOpts & PrepareOrderResponseForTestOptionalOpts = {},
+        opts: TestOptions & ObserveCctpOrderVaasOpts & PrepareOrderResponseForTestOptionalOpts = {},
     ): Promise<void | {
         fastVaa: PublicKey;
         fastVaaAccount: VaaAccount;
@@ -4363,9 +4337,8 @@ describe("Matching Engine", function () {
         finalizedVaaAccount: VaaAccount;
         args: CctpMessageArgs;
         preparedOrderResponse: PublicKey;
-        prepareOrderResponseInstruction?: TransactionInstruction;
     }> {
-        let [{ signers, errorMsg }, excludedForTestOpts] = setDefaultForTestOpts(opts);
+        let [{ signers, errorMsg }, excludedForTestOpts] = addDefaultOptions(opts);
         let {
             args,
             placeInitialOffer,
@@ -4373,7 +4346,6 @@ describe("Matching Engine", function () {
             executeOrder,
             executeWithinGracePeriod,
             prepareAfterExecuteOrder,
-            instructionOnly,
             alreadyPrepared,
         } = excludedForTestOpts;
         placeInitialOffer ??= true;
@@ -4381,7 +4353,6 @@ describe("Matching Engine", function () {
         executeOrder ??= placeInitialOffer;
         executeWithinGracePeriod ??= true;
         prepareAfterExecuteOrder ??= true;
-        instructionOnly ??= false;
         alreadyPrepared ??= false;
 
         const { fastVaa, fastVaaAccount, finalizedVaa, finalizedVaaAccount } = await (async () => {
@@ -4431,8 +4402,7 @@ describe("Matching Engine", function () {
                     if (info === null) {
                         throw new Error("No auction info found");
                     }
-                    const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
-                    const auctionConfig = engine.auctionConfigAddress(configId);
+                    const { configId, startSlot } = info;
                     const { duration, gracePeriod, penaltyPeriod } =
                         await engine.fetchAuctionParameters(configId);
 
@@ -4448,21 +4418,12 @@ describe("Matching Engine", function () {
 
                     await waitUntilSlot(connection, endSlot);
 
-                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                        units: 300_000,
-                    });
+                    const txs = engine.executeFastOrder(
+                        payer.publicKey,
+                        fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                    );
 
-                    const ix = await engine.executeFastOrderCctpIx({
-                        payer: payer.publicKey,
-                        fastVaa,
-                        auction,
-                        auctionConfig,
-                        bestOfferToken,
-                        initialOfferToken,
-                    });
-                    await expectIxOk(connection, [computeIx, ix], [payer], {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    });
+                    await expectTxsOk(payerSigner, txs);
                 }
             }
         };
@@ -4471,20 +4432,18 @@ describe("Matching Engine", function () {
             await placeAndExecute();
         }
 
-        const ix = await engine.prepareOrderResponseCctpIx(
-            {
-                payer: accounts.payer,
-                fastVaa,
-                finalizedVaa,
-            },
-            args!,
+        const [cctpMessage] = CircleBridge.deserialize(new Uint8Array(args!.encodedCctpMessage!));
+        const cctpAttestation = encoding.hex.encode(new Uint8Array(args!.cctpAttestation!));
+        const txs = engine.prepareOrderResponse(
+            accounts.payer,
+            fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+            finalizedVaaAccount.vaa("FastTransfer:CctpDeposit"),
+            { message: cctpMessage, attestation: cctpAttestation },
+            [lookupTableAccount!],
         );
 
         if (errorMsg !== null) {
-            expect(instructionOnly).is.false;
-            return expectIxErr(connection, [ix], signers, errorMsg, {
-                addressLookupTableAccounts: [lookupTableAccount!],
-            });
+            return expectTxsErr(signers[0], txs, errorMsg);
         }
 
         const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaAccount.digest());
@@ -4498,30 +4457,13 @@ describe("Matching Engine", function () {
             }
         })();
 
-        if (instructionOnly) {
-            return {
-                fastVaa,
-                fastVaaAccount,
-                finalizedVaa,
-                finalizedVaaAccount,
-                args: args!,
-                preparedOrderResponse,
-                prepareOrderResponseInstruction: ix,
-            };
-        }
-
         const preparedCustodyToken = engine.preparedCustodyTokenAddress(preparedOrderResponse);
         {
             const accInfo = await connection.getAccountInfo(preparedCustodyToken);
             expect(accInfo !== null).equals(alreadyPrepared);
         }
 
-        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-            units: 280_000,
-        });
-        await expectIxOk(connection, [computeIx, ix], signers, {
-            addressLookupTableAccounts: [lookupTableAccount!],
-        });
+        await expectTxsOk(signers[0], txs);
 
         if (!prepareAfterExecuteOrder) {
             await placeAndExecute();
@@ -4595,20 +4537,21 @@ describe("Matching Engine", function () {
             auction?: PublicKey;
             bestOfferToken?: PublicKey;
         },
-        opts: ForTestOpts &
+        opts: TestOptions &
             ObserveCctpOrderVaasOpts &
             PrepareOrderResponseForTestOptionalOpts & {
                 executorIsPreparer?: boolean;
-                prepareSigners?: Signer[];
+                prepareSigners?: SDKSigner<"Devnet">[];
                 preparedInSameTransaction?: boolean;
             } = {},
     ): Promise<void | { auction: PublicKey }> {
-        let [{ signers, errorMsg }, excludedForTestOpts] = setDefaultForTestOpts(opts);
+        let [{ signers, errorMsg }, excludedForTestOpts] = addDefaultOptions(opts);
         let { executorIsPreparer, prepareSigners, preparedInSameTransaction } = excludedForTestOpts;
         executorIsPreparer ??= true;
-        prepareSigners ??= [playerOne];
-        preparedInSameTransaction ??= false; // TODO: do something with this
+        prepareSigners ??= [playerOneSigner];
 
+        //
+        preparedInSameTransaction ??= false; // TODO: do something with this (like what?)
         if (preparedInSameTransaction) {
             throw new Error("preparedInSameTransaction not implemented");
         }
@@ -4628,7 +4571,7 @@ describe("Matching Engine", function () {
                             : payer.publicKey,
                     },
                     {
-                        signers: executorIsPreparer ? prepareSigners : [payer],
+                        signers: executorIsPreparer ? prepareSigners : [payerSigner],
                         ...excludedForTestOpts,
                     },
                 );
@@ -4646,7 +4589,7 @@ describe("Matching Engine", function () {
         });
 
         if (errorMsg !== null) {
-            return expectIxErr(connection, [ix], signers, errorMsg);
+            return expectIxErr(connection, [ix], unwrapSigners(signers), errorMsg);
         }
 
         // If we are at this point, we require that prepareOrderResponseForTest be called. So these
@@ -4762,13 +4705,13 @@ describe("Matching Engine", function () {
             preparedOrderResponse?: PublicKey;
             toRouterEndpoint?: PublicKey;
         },
-        opts: ForTestOpts &
+        opts: TestOptions &
             ObserveCctpOrderVaasOpts &
             PrepareOrderResponseForTestOptionalOpts & {
                 preparedInSameTransaction?: boolean;
             } = {},
     ): Promise<void | { auction: PublicKey }> {
-        let [{ signers, errorMsg }, excludedForTestOpts] = setDefaultForTestOpts(opts);
+        let [{ signers, errorMsg }, excludedForTestOpts] = addDefaultOptions(opts);
         let { preparedInSameTransaction } = excludedForTestOpts;
         preparedInSameTransaction ??= false; // TODO: do something with this
         if (preparedInSameTransaction) {
@@ -4784,9 +4727,7 @@ describe("Matching Engine", function () {
                 };
             } else {
                 const result = await prepareOrderResponseCctpForTest(
-                    {
-                        payer: payer.publicKey,
-                    },
+                    { payer: payer.publicKey },
                     {
                         ...excludedForTestOpts,
                         placeInitialOffer: false,
@@ -4813,7 +4754,7 @@ describe("Matching Engine", function () {
         });
 
         if (errorMsg !== null) {
-            return expectIxErr(connection, [computeIx, ix], signers, errorMsg);
+            return expectIxErr(connection, [computeIx, ix], unwrapSigners(signers), errorMsg);
         }
 
         // If we are at this point, we require that prepareOrderResponseForTest be called. So the
@@ -4829,7 +4770,7 @@ describe("Matching Engine", function () {
             feeRecipientToken,
         );
 
-        await expectIxOk(connection, [computeIx, ix], signers);
+        await expectIxOk(connection, [computeIx, ix], unwrapSigners(signers));
 
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());

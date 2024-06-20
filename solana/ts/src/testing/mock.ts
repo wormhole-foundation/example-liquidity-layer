@@ -10,16 +10,25 @@ import { VaaAccount } from "../wormhole";
 import { CORE_BRIDGE_PID, GUARDIAN_KEY, MOCK_GUARDIANS } from "./consts";
 import { getBlockTime, postVaa } from "./utils";
 
-export type SDKSigner<N extends Network> = SolanaSendSigner<N, "Solana">;
+export class SDKSigner<N extends Network> extends SolanaSendSigner<N, "Solana"> {
+    unwrap(): Keypair {
+        // @ts-ignore
+        return this._keypair;
+    }
+}
 
 export function getSdkSigner<N extends Network>(
     connection: Connection,
     key: Keypair,
     debug: boolean = false,
 ): { signer: SDKSigner<N>; address: SolanaAddress } {
-    const signer = new SolanaSendSigner(connection, "Solana", key, debug, {});
+    const signer = new SDKSigner(connection, "Solana", key, debug, {});
     const address = new SolanaAddress(key.publicKey);
     return { signer, address };
+}
+
+export function unwrapSigners(signers: SDKSigner<Network>[]): Keypair[] {
+    return signers.map((signer) => signer.unwrap());
 }
 
 export async function postLiquidityLayerVaav2(

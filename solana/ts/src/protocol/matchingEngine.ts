@@ -1,4 +1,5 @@
 import {
+    AddressLookupTableAccount,
     ComputeBudgetProgram,
     Connection,
     PublicKey,
@@ -10,11 +11,12 @@ import {
     FastTransfer,
     MatchingEngine,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
 import { Chain, Network, Platform, toChainId } from "@wormhole-foundation/sdk-base";
 import {
     AccountAddress,
     ChainsConfig,
+    CircleAttestation,
+    CircleBridge,
     Contracts,
     UnsignedTransaction,
     VAA,
@@ -28,12 +30,8 @@ import {
     SolanaTransaction,
     SolanaUnsignedTransaction,
 } from "@wormhole-foundation/sdk-solana";
-import {
-    AuctionInfo,
-    AuctionParameters,
-    MatchingEngineProgram,
-    ProgramId,
-} from "../matchingEngine";
+import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
+import { AuctionParameters, MatchingEngineProgram, ProgramId } from "../matchingEngine";
 
 export interface SolanaMatchingEngineContracts {
     matchingEngine: string;
@@ -249,11 +247,97 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         });
 
         const transaction = await this.createTx(payer, [ix, computeIx]);
-        yield this.createUnsignedTx({ transaction }, "MatchingEngine.improveOffer");
+        yield this.createUnsignedTx({ transaction }, "MatchingEngine.executeFastOrder");
     }
 
-    async *settleAuctionComplete() {
-        throw "Not implemented";
+    async *prepareOrderResponse(
+        sender: AnySolanaAddress,
+        fast: VAA<"FastTransfer:FastMarketOrder">,
+        finalized: VAA<"FastTransfer:CctpDeposit">,
+        cctp: {
+            message: CircleBridge.Message;
+            attestation: CircleAttestation;
+        },
+        lookupTables?: AddressLookupTableAccount[],
+    ) {
+        const payer = new SolanaAddress(sender).unwrap();
+
+        const fastVaa = coreUtils.derivePostedVaaKey(
+            this.coreBridgeProgramId(),
+            Buffer.from(fast.hash),
+        );
+
+        const finalizedVaa = coreUtils.derivePostedVaaKey(
+            this.coreBridgeProgramId(),
+            Buffer.from(finalized.hash),
+        );
+
+        const ix = await this.prepareOrderResponseCctpIx(
+            { payer, fastVaa, finalizedVaa },
+            {
+                encodedCctpMessage: Buffer.from(CircleBridge.serialize(cctp.message)),
+                cctpAttestation: Buffer.from(cctp.attestation, "hex"),
+            },
+        );
+
+        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+            units: 300_000,
+        });
+
+        const transaction = await this.createTx(payer, [ix, computeIx], undefined, lookupTables);
+        yield this.createUnsignedTx({ transaction }, "MatchingEngine.prepareOrderResponse");
+    }
+
+    async *settleAuctionComplete(
+        sender: AnySolanaAddress,
+        fast: VAA<"FastTransfer:FastMarketOrder">,
+        finalized: VAA<"FastTransfer:CctpDeposit">,
+        cctp: {
+            message: CircleBridge.Message;
+            attestation: CircleAttestation;
+        },
+        lookupTables?: AddressLookupTableAccount[],
+    ) {
+        const payer = new SolanaAddress(sender).unwrap();
+
+        const fastVaa = coreUtils.derivePostedVaaKey(
+            this.coreBridgeProgramId(),
+            Buffer.from(fast.hash),
+        );
+
+        const finalizedVaa = coreUtils.derivePostedVaaKey(
+            this.coreBridgeProgramId(),
+            Buffer.from(finalized.hash),
+        );
+
+        const prepareIx = await this.prepareOrderResponseCctpIx(
+            { payer, fastVaa, finalizedVaa },
+            {
+                encodedCctpMessage: Buffer.from(CircleBridge.serialize(cctp.message)),
+                cctpAttestation: Buffer.from(cctp.attestation, "hex"),
+            },
+        );
+
+        const preparedAddress = this.preparedOrderResponseAddress(keccak256(fast.hash));
+
+        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+            units: 300_000,
+        });
+
+        const executor = new SolanaAddress(sender).unwrap();
+        const settleIx = await this.settleAuctionCompleteIx({
+            executor,
+            preparedOrderResponse: preparedAddress,
+        });
+
+        const transaction = await this.createTx(
+            executor,
+            [prepareIx, settleIx, computeIx],
+            undefined,
+            lookupTables,
+        );
+
+        yield this.createUnsignedTx({ transaction }, "MatchingEngine.settleAuctionComplete");
     }
 
     settleAuction(): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
@@ -277,6 +361,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         payerKey: PublicKey,
         instructions: TransactionInstruction[],
         recentBlockhash?: string,
+        lookupTables?: AddressLookupTableAccount[],
     ): Promise<VersionedTransaction> {
         if (!recentBlockhash)
             ({ blockhash: recentBlockhash } = await this._connection.getLatestBlockhash());
@@ -285,7 +370,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             payerKey,
             recentBlockhash,
             instructions,
-        }).compileToV0Message();
+        }).compileToV0Message(lookupTables);
         return new VersionedTransaction(messageV0);
     }
 
