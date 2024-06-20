@@ -169,7 +169,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
     async *placeInitialOffer(
         sender: AnySolanaAddress,
-        vaa: FastTransfer.VAA,
+        vaa: VAA<"FastTransfer:FastMarketOrder">,
         offerPrice: bigint,
         totalDeposit?: bigint,
     ) {
@@ -189,7 +189,11 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.placeInitialOffer");
     }
 
-    async *improveOffer(sender: AnySolanaAddress, vaa: FastTransfer.VAA, offer: bigint) {
+    async *improveOffer(
+        sender: AnySolanaAddress,
+        vaa: VAA<"FastTransfer:FastMarketOrder">,
+        offer: bigint,
+    ) {
         const participant = new SolanaAddress(sender).unwrap();
         const auction = this.auctionAddress(keccak256(vaa.hash));
 
@@ -201,11 +205,9 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
     async *executeFastOrder(
         sender: AnySolanaAddress,
-        vaa: FastTransfer.VAA,
+        vaa: VAA<"FastTransfer:FastMarketOrder">,
         participant?: AnySolanaAddress,
     ) {
-        if (vaa.payloadLiteral !== "FastTransfer:FastMarketOrder") throw new Error("Invalid VAA");
-
         const payer = new SolanaAddress(sender).unwrap();
 
         const initialParticipant = participant
@@ -219,6 +221,8 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
         const digest = keccak256(vaa.hash);
         const auction = this.auctionAddress(digest);
+
+        // TODO: make sure this has already been done, or do it here
         const reservedSequence = this.reservedFastFillSequenceAddress(digest);
 
         const { targetChain } = vaa.payload;
@@ -272,6 +276,14 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             Buffer.from(finalized.hash),
         );
 
+        const preparedAddress = this.preparedOrderResponseAddress(keccak256(fast.hash));
+
+        try {
+            // Check if its already been prepared
+            await this.fetchPreparedOrderResponse({ address: preparedAddress });
+            return;
+        } catch {}
+
         const ix = await this.prepareOrderResponseCctpIx(
             { payer, fastVaa, finalizedVaa },
             {
@@ -288,73 +300,32 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.prepareOrderResponse");
     }
 
-    async *settleAuctionComplete(
+    async *settleOrder(
         sender: AnySolanaAddress,
         fast: VAA<"FastTransfer:FastMarketOrder">,
-        finalized: VAA<"FastTransfer:CctpDeposit">,
-        cctp: {
+        finalized?: VAA<"FastTransfer:CctpDeposit">,
+        cctp?: {
             message: CircleBridge.Message;
             attestation: CircleAttestation;
         },
         lookupTables?: AddressLookupTableAccount[],
     ) {
-        const payer = new SolanaAddress(sender).unwrap();
-
-        const fastVaa = coreUtils.derivePostedVaaKey(
-            this.coreBridgeProgramId(),
-            Buffer.from(fast.hash),
-        );
-
-        const finalizedVaa = coreUtils.derivePostedVaaKey(
-            this.coreBridgeProgramId(),
-            Buffer.from(finalized.hash),
-        );
-
-        const prepareIx = await this.prepareOrderResponseCctpIx(
-            { payer, fastVaa, finalizedVaa },
-            {
-                encodedCctpMessage: Buffer.from(CircleBridge.serialize(cctp.message)),
-                cctpAttestation: Buffer.from(cctp.attestation, "hex"),
-            },
-        );
-
-        const preparedAddress = this.preparedOrderResponseAddress(keccak256(fast.hash));
-
-        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-            units: 300_000,
-        });
+        // If the finalized VAA and CCTP message/attestation are passed
+        // we may try to prepare the order response
+        if (finalized && cctp)
+            yield* this.prepareOrderResponse(sender, fast, finalized, cctp, lookupTables);
 
         const executor = new SolanaAddress(sender).unwrap();
+        const preparedAddress = this.preparedOrderResponseAddress(keccak256(fast.hash));
+
         const settleIx = await this.settleAuctionCompleteIx({
             executor,
             preparedOrderResponse: preparedAddress,
         });
 
-        const transaction = await this.createTx(
-            executor,
-            [prepareIx, settleIx, computeIx],
-            undefined,
-            lookupTables,
-        );
+        const transaction = await this.createTx(executor, [settleIx], undefined, lookupTables);
 
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.settleAuctionComplete");
-    }
-
-    settleAuction(): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
-        throw new Error("Method not implemented.");
-    }
-
-    getAuctionGracePeriod(): Promise<number> {
-        throw new Error("Method not implemented.");
-    }
-    getAuctionDuration(): Promise<number> {
-        throw new Error("Method not implemented.");
-    }
-    getPenaltyBlocks(): Promise<number> {
-        throw new Error("Method not implemented.");
-    }
-    getInitialPenaltyBps(): Promise<number> {
-        throw new Error("Method not implemented.");
     }
 
     private async createTx(
