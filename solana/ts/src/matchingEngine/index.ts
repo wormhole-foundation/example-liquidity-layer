@@ -183,6 +183,7 @@ export type Enacted = {
 export type LocalFastOrderFilled = {
     seeds: FastFillSeeds;
     info: FastFillInfo;
+    auction: PublicKey | null;
 };
 
 export type FastFillSequenceReserved = {
