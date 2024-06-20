@@ -297,6 +297,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         });
 
         const transaction = await this.createTx(payer, [ix, computeIx], undefined, lookupTables);
+
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.prepareOrderResponse");
     }
 

@@ -17,7 +17,7 @@ import {
     SlowOrderResponse,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { CircleBridge, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { CircleBridge, VAA, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { SolanaAddress } from "@wormhole-foundation/sdk-solana";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
@@ -290,7 +290,6 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, duration: 0 },
-                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: ZeroDuration");
             });
@@ -301,7 +300,6 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, gracePeriod: 0 },
-                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: ZeroGracePeriod");
             });
@@ -312,7 +310,6 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, penaltyPeriod: 0 },
-                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: ZeroPenaltyPeriod");
             });
@@ -323,7 +320,6 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, userPenaltyRewardBps: 1_000_001 },
-                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: UserPenaltyRewardBpsTooLarge");
             });
@@ -334,7 +330,6 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, initialPenaltyBps: 1_000_001 },
-                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: InitialPenaltyBpsTooLarge");
             });
@@ -345,7 +340,6 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, minOfferDeltaBps: 1_000_001 },
-                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: MinOfferDeltaBpsTooLarge");
             });
@@ -356,7 +350,6 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, securityDepositBase: uint64ToBN(0) },
-                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: ZeroSecurityDepositBase");
             });
@@ -367,7 +360,6 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     { ...auctionParams, securityDepositBps: 1_000_001 },
-                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(payerSigner, txs, "Error Code: SecurityDepositBpsTooLarge");
             });
@@ -378,7 +370,6 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     auctionParams,
-                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsOk(payerSigner, txs);
 
@@ -409,7 +400,6 @@ describe("Matching Engine", function () {
                     ownerAssistant.publicKey,
                     feeRecipient,
                     auctionParams,
-                    USDC_MINT_ADDRESS,
                 );
                 await expectTxsErr(
                     payerSigner,
@@ -3543,17 +3533,14 @@ describe("Matching Engine", function () {
                     });
 
                     const result = await placeInitialOfferCctpForTest(
-                        {
-                            payer: playerTwo.publicKey,
-                            fastVaa: fast.vaa,
-                        },
+                        { payer: playerTwo.publicKey, fastVaa: fast.vaa },
                         {
                             signers: [playerTwoSigner],
                             finalized: false,
                             fastMarketOrder: baseFastOrder,
                         },
                     );
-                    const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+                    const { auctionDataBefore: initialData } = result!;
 
                     const { duration, gracePeriod } = await engine.fetchAuctionParameters();
                     await waitUntilSlot(
@@ -3561,49 +3548,31 @@ describe("Matching Engine", function () {
                         initialData.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
                     );
 
+                    const txs = engine.executeFastOrder(
+                        playerTwo.publicKey,
+                        fast.vaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                    );
+
+                    await expectTxsOkDetails(playerTwoSigner, txs, connection);
+
+                    const { encodedCctpMessage, cctpAttestation } = finalized!.cctp;
+                    const [cctpMessage] = CircleBridge.deserialize(encodedCctpMessage);
+
                     const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                         lookupTableAddress,
                     );
-
-                    const tx = await engine.executeFastOrderTx(
-                        { payer: playerTwo.publicKey, fastVaa, auction },
-                        [playerTwo],
+                    const tx2 = engine.settleOrder(
+                        playerTwo.publicKey,
+                        fast.vaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                        finalized!.vaaAccount.vaa("FastTransfer:CctpDeposit"),
                         {
-                            feeMicroLamports: 10,
-                            computeUnits: 300_000,
-                            addressLookupTableAccounts: [lookupTableAccount!],
+                            message: cctpMessage,
+                            attestation: cctpAttestation.toString("hex"),
                         },
-                        { commitment: "confirmed" },
+                        [lookupTableAccount!],
                     );
 
-                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                        units: 300_000,
-                    });
-
-                    await expectIxOkDetails(connection, [computeIx, ...tx.ixs], [playerTwo], {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    });
-
-                    const tx2 = await engine.settleAuctionCompleteTx(
-                        {
-                            executor: playerTwo.publicKey,
-                            auction,
-                            fastVaa,
-                            finalizedVaa: finalized!.vaa,
-                            bestOfferToken: initialData.info!.bestOfferToken,
-                        },
-                        finalized!.cctp,
-                        [playerTwo],
-                        {
-                            feeMicroLamports: 10,
-                            computeUnits: 300_000,
-                            addressLookupTableAccounts: [lookupTableAccount!],
-                        },
-                        { commitment: "confirmed" },
-                    );
-                    await expectIxOkDetails(connection, [computeIx, ...tx2.ixs], [playerTwo], {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    });
+                    await expectTxsOkDetails(playerTwoSigner, tx2, connection);
                 });
             });
 
@@ -4172,13 +4141,13 @@ describe("Matching Engine", function () {
                   }
                 : await observeCctpOrderVaas(excludedForTestOpts);
 
-        let fastMarketOrderVAA;
+        let fastMarketOrderVAA: VAA<"Uint8Array"> | VAA<"FastTransfer:FastMarketOrder">;
         try {
             fastMarketOrderVAA = fast.vaaAccount.vaa("FastTransfer:FastMarketOrder");
             args.offerPrice ??= fastMarketOrderVAA.payload.maxFee;
         } catch (e) {
             // Ignore if parsing failed, this will be a VAA<"Uint8Array">
-            fastMarketOrderVAA = fast.vaaAccount.vaa();
+            fastMarketOrderVAA = fast.vaaAccount.vaa("Uint8Array");
         }
 
         if (args.offerPrice === undefined) {
@@ -4188,7 +4157,7 @@ describe("Matching Engine", function () {
         // Place the initial offer.
         const txs = engine.placeInitialOffer(
             accounts.payer,
-            // @ts-ignore -- may still be a Uint8array payload for testing invalid VAA
+            // @ts-expect-error -- may still be a Uint8array payload for testing invalid VAA
             fastMarketOrderVAA,
             args.offerPrice,
             args.totalDeposit,
