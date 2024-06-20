@@ -14,6 +14,7 @@ import {
     ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
+import { VAA } from "@wormhole-foundation/sdk-definitions";
 
 export function programDerivedAddresses(ID: PublicKey, mint: PublicKey) {
     return {

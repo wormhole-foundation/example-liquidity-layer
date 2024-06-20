@@ -1,15 +1,16 @@
-import { Chain, Network, lazyInstantiate } from "@wormhole-foundation/sdk-base";
+import { Chain, Network } from "@wormhole-foundation/sdk-base";
 import {
     AccountAddress,
     ChainAddress,
     CircleAttestation,
+    CircleBridge,
     CircleTransferMessage,
     EmptyPlatformMap,
     ProtocolVAA,
     UnsignedTransaction,
-    payloadDiscriminator,
+    VAA,
 } from "@wormhole-foundation/sdk-definitions";
-import { MessageName, messageNames } from "./messages";
+import { MessageName } from "./messages";
 
 export namespace FastTransfer {
     // Add vaas and util methods
@@ -63,7 +64,7 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
     // the first offer for the fast transfer and inits an auction
     placeInitialOffer(
         sender: AccountAddress<C>,
-        vaa: FastTransfer.VAA,
+        vaa: VAA<"FastTransfer:FastMarketOrder">,
         offerPrice: bigint,
         totalDeposit?: bigint,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
@@ -71,18 +72,26 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
     // improves the offer TODO: alias for bid id?
     improveOffer(
         sender: AccountAddress<C>,
-        vaa: FastTransfer.VAA,
+        vaa: VAA<"FastTransfer:FastMarketOrder">,
         offer: bigint,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
 
     //this basically fulfills the fast order like sending the cctp message to dst chain
     executeFastOrder(
         sender: AccountAddress<C>,
-        vaa: FastTransfer.VAA,
+        vaa: VAA<"FastTransfer:FastMarketOrder">,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
 
     // cleans up a fast order by transferring funds/closing account/executing penalty
-    settleAuctionComplete(): AsyncGenerator<UnsignedTransaction<N, C>>;
+    settleAuctionComplete(
+        sender: AccountAddress<C>,
+        fast: VAA<"FastTransfer:FastMarketOrder">,
+        finalized: VAA<"FastTransfer:CctpDeposit">,
+        cctp: {
+            message: CircleBridge.Message;
+            attestation: CircleAttestation;
+        },
+    ): AsyncGenerator<UnsignedTransaction<N, C>>;
 }
 
 export interface TokenRouter<N extends Network = Network, C extends Chain = Chain> {
