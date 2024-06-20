@@ -182,7 +182,6 @@ export type Enacted = {
 
 export type LocalFastOrderFilled = {
     seeds: FastFillSeeds;
-    preparedBy: PublicKey;
     info: FastFillInfo;
 };
 
