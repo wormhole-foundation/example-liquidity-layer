@@ -17,6 +17,7 @@
     "universal/ts",
     "evm",
     "solana",
+    "sdk",
     "solver"
   ]
 }
