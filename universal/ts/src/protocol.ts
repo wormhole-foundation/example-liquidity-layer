@@ -38,12 +38,6 @@ export interface FastTransfer<N extends Network, C extends Chain> {
 
 // matching engine: this is only on solana and where the auctions happen
 export interface MatchingEngine<N extends Network, C extends Chain> {
-    // Read methods
-    getAuctionGracePeriod(): Promise<number>;
-    getAuctionDuration(): Promise<number>;
-    getPenaltyBlocks(): Promise<number>;
-    getInitialPenaltyBps(): Promise<number>;
-
     // Admin methods
     registerRouter<RC extends Chain>(
         sender: AccountAddress<C>,
@@ -52,6 +46,19 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
         router: AccountAddress<RC>,
         tokenAccount?: AccountAddress<C>,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
+    updateRouter<RC extends Chain>(
+        sender: AccountAddress<C>,
+        chain: RC,
+        cctpDomain: number, // TODO: should be typed?
+        router: AccountAddress<RC>,
+        tokenAccount?: AccountAddress<C>,
+    ): AsyncGenerator<UnsignedTransaction<N, C>>;
+    disableRouter<RC extends Chain>(
+        sender: AccountAddress<C>,
+        chain: RC,
+    ): AsyncGenerator<UnsignedTransaction<N, C>>;
+
+    setPause(sender: AccountAddress<C>, pause: boolean): AsyncGenerator<UnsignedTransaction<N, C>>;
     setConfiguration(config: {
         enabled: boolean;
         maxAmount: bigint;
@@ -68,29 +75,26 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
         offerPrice: bigint,
         totalDeposit?: bigint,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
-
-    // improves the offer TODO: alias for bid id?
     improveOffer(
         sender: AccountAddress<C>,
         vaa: VAA<"FastTransfer:FastMarketOrder">,
         offer: bigint,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
-
-    //this basically fulfills the fast order like sending the cctp message to dst chain
     executeFastOrder(
         sender: AccountAddress<C>,
         vaa: VAA<"FastTransfer:FastMarketOrder">,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
-
-    // cleans up a fast order by transferring funds/closing account/executing penalty
-    settleAuctionComplete(
+    prepareOrderResponse(
+        sender: AccountAddress<C>,
+        vaa: VAA<"FastTransfer:FastMarketOrder">,
+        deposit: VAA<"FastTransfer:CctpDeposit">,
+        cctp: CircleBridge.Attestation,
+    ): AsyncGenerator<UnsignedTransaction<N, C>>;
+    settleOrder(
         sender: AccountAddress<C>,
         fast: VAA<"FastTransfer:FastMarketOrder">,
-        finalized: VAA<"FastTransfer:CctpDeposit">,
-        cctp: {
-            message: CircleBridge.Message;
-            attestation: CircleAttestation;
-        },
+        deposit?: VAA<"FastTransfer:CctpDeposit">,
+        cctp?: CircleBridge.Attestation,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
 }
 
@@ -118,8 +122,7 @@ export interface TokenRouter<N extends Network = Network, C extends Chain = Chai
 
     redeemFill(
         vaa: FastTransfer.VAA,
-        circleBridgeMessage: CircleTransferMessage,
-        circleAttestation: CircleAttestation,
+        cctp: CircleBridge.Attestation,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
 }
 

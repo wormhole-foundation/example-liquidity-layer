@@ -4304,7 +4304,7 @@ describe("Matching Engine", function () {
         );
 
         // Improve the bid with offer one.
-        const { signer } = getSdkSigner<"Devnet">(connection, participant);
+        const { signer } = getSdkSigner(connection, participant);
         await expectTxsOk(signer, txs);
 
         const auctionDataBefore = await engine.fetchAuction({ address: auction });
@@ -4549,9 +4549,8 @@ describe("Matching Engine", function () {
         let { executorIsPreparer, prepareSigners, preparedInSameTransaction } = excludedForTestOpts;
         executorIsPreparer ??= true;
         prepareSigners ??= [playerOneSigner];
+        preparedInSameTransaction ??= false; // TODO: do something with this
 
-        //
-        preparedInSameTransaction ??= false; // TODO: do something with this (like what?)
         if (preparedInSameTransaction) {
             throw new Error("preparedInSameTransaction not implemented");
         }
@@ -4599,7 +4598,6 @@ describe("Matching Engine", function () {
         }
 
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
-
         const auction = accounts.auction ?? engine.auctionAddress(fastVaaAccount.digest());
         const { info, status: statusBefore } = await engine.fetchAuction({
             address: auction,
@@ -4640,7 +4638,13 @@ describe("Matching Engine", function () {
             .getAccountInfo(preparedCustodyToken)
             .then((info) => info!.lamports);
 
-        await expectIxOk(connection, [ix], [payer]);
+        const txs = engine.settleOrder(
+            executor,
+            fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+        );
+
+        const signer = executorIsPreparer ? prepareSigners[0] : payerSigner;
+        await expectTxsOk(signer, txs);
 
         {
             const accInfo = await connection.getAccountInfo(preparedCustodyToken);
@@ -4655,6 +4659,7 @@ describe("Matching Engine", function () {
             connection,
             bestOfferToken,
         );
+
         const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
         const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
         const { baseFee } = deposit!.message.payload! as SlowOrderResponse;
@@ -4677,7 +4682,7 @@ describe("Matching Engine", function () {
 
         const authorityLamportsAfter = await connection.getBalance(executor);
         expect(authorityLamportsAfter).equals(
-            authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
+            authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports - 5000,
         );
 
         const { status: statusAfter } = await engine.fetchAuction({
