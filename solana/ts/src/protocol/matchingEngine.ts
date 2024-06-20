@@ -254,7 +254,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.executeFastOrder");
     }
 
-    async *prepareOrderResponse(
+    private async _prepareOrderResponseIx(
         sender: AnySolanaAddress,
         fast: VAA<"FastTransfer:FastMarketOrder">,
         finalized: VAA<"FastTransfer:CctpDeposit">,
@@ -262,7 +262,6 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             message: CircleBridge.Message;
             attestation: CircleAttestation;
         },
-        lookupTables?: AddressLookupTableAccount[],
     ) {
         const payer = new SolanaAddress(sender).unwrap();
 
@@ -292,12 +291,26 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             },
         );
 
-        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-            units: 300_000,
-        });
+        return ix;
+    }
+
+    async *prepareOrderResponse(
+        sender: AnySolanaAddress,
+        fast: VAA<"FastTransfer:FastMarketOrder">,
+        finalized: VAA<"FastTransfer:CctpDeposit">,
+        cctp: {
+            message: CircleBridge.Message;
+            attestation: CircleAttestation;
+        },
+        lookupTables?: AddressLookupTableAccount[],
+    ) {
+        const payer = new SolanaAddress(sender).unwrap();
+        const ix = await this._prepareOrderResponseIx(sender, fast, finalized, cctp);
+        if (ix === undefined) return;
+
+        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 });
 
         const transaction = await this.createTx(payer, [ix, computeIx], undefined, lookupTables);
-
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.prepareOrderResponse");
     }
 
@@ -311,20 +324,51 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         },
         lookupTables?: AddressLookupTableAccount[],
     ) {
+        const payer = new SolanaAddress(sender).unwrap();
+
         // If the finalized VAA and CCTP message/attestation are passed
         // we may try to prepare the order response
+        // this yields its own transaction
         if (finalized && cctp)
             yield* this.prepareOrderResponse(sender, fast, finalized, cctp, lookupTables);
 
-        const executor = new SolanaAddress(sender).unwrap();
-        const preparedAddress = this.preparedOrderResponseAddress(keccak256(fast.hash));
+        const digest = keccak256(fast.hash);
+        const preparedOrderResponse = this.preparedOrderResponseAddress(digest);
+        const auction = this.auctionAddress(digest);
+        const fastVaa = coreUtils.derivePostedVaaKey(
+            this.coreBridgeProgramId(),
+            Buffer.from(fast.hash),
+        );
 
-        const settleIx = await this.settleAuctionCompleteIx({
-            executor,
-            preparedOrderResponse: preparedAddress,
-        });
+        const settleIx = await (async () => {
+            if (finalized && !cctp) {
+                if (fast.payload.targetChain === "Solana") {
+                    const reservedSequence = this.reservedFastFillSequenceAddress(digest);
+                    return await this.settleAuctionNoneLocalIx({
+                        payer,
+                        reservedSequence,
+                        preparedOrderResponse,
+                        auction,
+                    });
+                } else {
+                    return this.settleAuctionNoneCctpIx(
+                        {
+                            payer,
+                            fastVaa,
+                            preparedOrderResponse,
+                        },
+                        { targetChain: toChainId(fast.payload.targetChain) },
+                    );
+                }
+            } else {
+                return await this.settleAuctionCompleteIx({
+                    executor: payer,
+                    preparedOrderResponse,
+                });
+            }
+        })();
 
-        const transaction = await this.createTx(executor, [settleIx], undefined, lookupTables);
+        const transaction = await this.createTx(payer, [settleIx], undefined, lookupTables);
 
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.settleAuctionComplete");
     }

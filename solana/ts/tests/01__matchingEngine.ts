@@ -4717,18 +4717,22 @@ describe("Matching Engine", function () {
             }
         })();
 
-        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-            units: 300_000,
-        });
+        const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+        expect(fastMarketOrder).is.not.undefined;
 
-        const ix = await engine.settleAuctionNoneCctpIx({
-            ...accounts,
-            fastVaa,
-            preparedOrderResponse,
-        });
+        let finalizedVaaAccount = finalizedVaa
+            ? await VaaAccount.fetch(connection, finalizedVaa)
+            : undefined;
+
+        const txs = engine.settleOrder(
+            accounts.payer,
+            fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+            finalizedVaaAccount?.vaa("FastTransfer:CctpDeposit"),
+        );
 
         if (errorMsg !== null) {
-            return expectIxErr(connection, [computeIx, ix], unwrapSigners(signers), errorMsg);
+            return expectTxsErr(signers[0], txs, errorMsg);
         }
 
         // If we are at this point, we require that prepareOrderResponseForTest be called. So the
@@ -4744,16 +4748,11 @@ describe("Matching Engine", function () {
             feeRecipientToken,
         );
 
-        await expectIxOk(connection, [computeIx, ix], unwrapSigners(signers));
+        await expectTxsOk(signers[0], txs);
 
-        const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
-        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
-        expect(fastMarketOrder).is.not.undefined;
-
-        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
         const {
             message: { payload: slowOrderResponse },
-        } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload()).deposit!;
+        } = LiquidityLayerMessage.decode(finalizedVaaAccount!.payload()).deposit!;
         expect(slowOrderResponse).is.not.undefined;
 
         const fee =
