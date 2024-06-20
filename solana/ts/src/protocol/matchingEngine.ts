@@ -303,7 +303,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
         const computeIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 });
 
-        const transaction = await this.createTx(payer, [ix, computeIx], undefined, lookupTables);
+        const transaction = await this.createTx(payer, [ix, computeIx], lookupTables);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.prepareOrderResponse");
     }
 
@@ -356,12 +356,8 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
                         auction,
                     });
                 } else {
-                    return this.settleAuctionNoneCctpIx(
-                        {
-                            payer,
-                            fastVaa,
-                            preparedOrderResponse,
-                        },
+                    return await this.settleAuctionNoneCctpIx(
+                        { payer, fastVaa, preparedOrderResponse },
                         { targetChain: toChainId(fast.payload.targetChain) },
                     );
                 }
@@ -376,7 +372,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
         ixs.push(settleIx);
 
-        const transaction = await this.createTx(payer, ixs, undefined, lookupTables);
+        const transaction = await this.createTx(payer, ixs, lookupTables);
 
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.settleAuctionComplete");
     }
@@ -384,15 +380,11 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     private async createTx(
         payerKey: PublicKey,
         instructions: TransactionInstruction[],
-        recentBlockhash?: string,
         lookupTables?: AddressLookupTableAccount[],
     ): Promise<VersionedTransaction> {
-        if (!recentBlockhash)
-            ({ blockhash: recentBlockhash } = await this._connection.getLatestBlockhash());
-
         const messageV0 = new TransactionMessage({
             payerKey,
-            recentBlockhash,
+            recentBlockhash: "",
             instructions,
         }).compileToV0Message(lookupTables);
         return new VersionedTransaction(messageV0);
