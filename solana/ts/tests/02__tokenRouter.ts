@@ -30,6 +30,7 @@ import {
     toUniversalAddress,
 } from "../src/testing";
 import { Custodian, PreparedOrder, TokenRouterProgram, localnet } from "../src/tokenRouter";
+import { SolanaTokenRouter } from "../src/protocol";
 
 const SOLANA_CHAIN_ID = toChainId("Solana");
 
@@ -45,7 +46,11 @@ describe("Token Router", function () {
     const invalidChain = (foreignChain + 1) as ChainId;
     const foreignEndpointAddress = REGISTERED_TOKEN_ROUTERS["Ethereum"]!;
     const foreignCctpDomain = 0;
-    const tokenRouter = new TokenRouterProgram(connection, localnet(), USDC_MINT_ADDRESS);
+    //const tokenRouter = new TokenRouterProgram(connection, localnet(), USDC_MINT_ADDRESS);
+    const tokenRouter = new SolanaTokenRouter("Devnet", "Solana", connection, {
+        tokenRouter: localnet(),
+        usdcMint: USDC_MINT_ADDRESS.toBase58(),
+    });
 
     let lookupTableAddress: PublicKey;
 

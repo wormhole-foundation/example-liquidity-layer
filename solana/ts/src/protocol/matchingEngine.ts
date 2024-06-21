@@ -94,14 +94,14 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             },
             params,
         );
-        const transaction = await this.createTx(new SolanaAddress(owner).unwrap(), [ix]);
+        const transaction = this.createTx(new SolanaAddress(owner).unwrap(), [ix]);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.initialize");
     }
 
     async *setPause(sender: AnySolanaAddress, pause: boolean) {
         const payer = new SolanaAddress(sender).unwrap();
         const ix = await this.setPauseIx({ ownerOrAssistant: payer }, pause);
-        const transaction = await this.createTx(payer, [ix]);
+        const transaction = this.createTx(payer, [ix]);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.setPause");
     }
 
@@ -123,7 +123,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             { chain: toChainId(chain), cctpDomain, address, mintRecipient },
         );
 
-        const transaction = await this.createTx(ownerOrAssistant, [ix]);
+        const transaction = this.createTx(ownerOrAssistant, [ix]);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.registerRouter");
     }
 
@@ -144,7 +144,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             { chain: toChainId(chain), cctpDomain, address, mintRecipient },
         );
 
-        const transaction = await this.createTx(owner, [ix]);
+        const transaction = this.createTx(owner, [ix]);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.updateRouter");
     }
 
@@ -153,7 +153,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
         const ix = await this.disableRouterEndpointIx({ owner }, toChainId(chain));
 
-        const transaction = await this.createTx(owner, [ix]);
+        const transaction = this.createTx(owner, [ix]);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.disableRouter");
     }
 
@@ -187,7 +187,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             { offerPrice, totalDeposit },
         );
 
-        const transaction = await this.createTx(payer, ixs);
+        const transaction = this.createTx(payer, ixs);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.placeInitialOffer");
     }
 
@@ -203,7 +203,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
         const ixs = await this.improveOfferIx({ participant, auction }, { offerPrice: offer });
 
-        const transaction = await this.createTx(participant, ixs);
+        const transaction = this.createTx(participant, ixs);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.improveOffer");
     }
 
@@ -256,7 +256,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             units: 300_000,
         });
 
-        const transaction = await this.createTx(payer, [ix, computeIx]);
+        const transaction = this.createTx(payer, [ix, computeIx]);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.executeFastOrder");
     }
 
@@ -310,7 +310,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
         const computeIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 });
 
-        const transaction = await this.createTx(payer, [ix, computeIx], lookupTables);
+        const transaction = this.createTx(payer, [ix, computeIx], lookupTables);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.prepareOrderResponse");
     }
 
@@ -377,16 +377,15 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
         ixs.push(settleIx);
 
-        const transaction = await this.createTx(payer, ixs, lookupTables);
-
+        const transaction = this.createTx(payer, ixs, lookupTables);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.settleAuctionComplete");
     }
 
-    private async createTx(
+    private createTx(
         payerKey: PublicKey,
         instructions: TransactionInstruction[],
         lookupTables?: AddressLookupTableAccount[],
-    ): Promise<VersionedTransaction> {
+    ): VersionedTransaction {
         const messageV0 = new TransactionMessage({
             payerKey,
             recentBlockhash: "",

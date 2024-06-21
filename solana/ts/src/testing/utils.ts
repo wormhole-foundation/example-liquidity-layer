@@ -19,6 +19,7 @@ import { SolanaWormholeCore, utils as coreUtils } from "@wormhole-foundation/sdk
 import { expect } from "chai";
 import { Err, Ok } from "ts-results";
 import { CORE_BRIDGE_PID, USDC_MINT_ADDRESS } from "./consts";
+import { execSync } from "child_process";
 
 export function toUniversalAddress(address: number[] | Buffer | Array<number>): UniversalAddress {
     return new UniversalAddress(new Uint8Array(address));
@@ -216,6 +217,17 @@ export async function postVaa(
     const txids = await signAndSendWait(txs, signer);
 
     return { txids, address };
+}
+
+export function loadProgramBpf(artifactPath: string, keypath: string): PublicKey {
+    // Invoke BPF Loader Upgradeable `write-buffer` instruction.
+    const buffer = (() => {
+        const output = execSync(`solana -u l -k ${keypath} program write-buffer ${artifactPath}`);
+        return new PublicKey(output.toString().match(/^Buffer: ([A-Za-z0-9]+)/)![1]);
+    })();
+
+    // Return the pubkey for the buffer (our new program implementation).
+    return buffer;
 }
 
 export async function waitUntilSlot(connection: Connection, targetSlot: number) {
