@@ -1,6 +1,7 @@
 import * as splToken from "@solana/spl-token";
 import { PublicKey } from "@solana/web3.js";
 import { ChainId } from "@wormhole-foundation/sdk-base";
+import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
 import { Uint64, VaaHash, cctpMessageAddress, coreMessageAddress, writeUint64BE } from "../common";
 import {
     Auction,
@@ -14,9 +15,9 @@ import {
     ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
-import { VAA } from "@wormhole-foundation/sdk-definitions";
+import { VAA, keccak256 } from "@wormhole-foundation/sdk-definitions";
 
-export function programDerivedAddresses(ID: PublicKey, mint: PublicKey) {
+export function programDerivedAddresses(ID: PublicKey, mint: PublicKey, coreId: PublicKey) {
     return {
         auctionConfig: (id: number) => AuctionConfig.address(ID, id),
         auction: (vaaHash: VaaHash) => Auction.address(ID, vaaHash),
@@ -54,7 +55,7 @@ export function programDerivedAddresses(ID: PublicKey, mint: PublicKey) {
             FastFill.address(ID, sourceChain, orderSender, sequence),
         fastFillSequencer: (sourceChain: ChainId, sender: Array<number>) =>
             FastFillSequencer.address(ID, sourceChain, sender),
-        reservedFastFillSequenceAddress: (fastVaaHash: VaaHash) =>
+        reservedFastFillSequence: (fastVaaHash: VaaHash) =>
             ReservedFastFillSequence.address(ID, fastVaaHash),
         transferAuthority: (auction: PublicKey, offerPrice: Uint64) => {
             const encodedOfferPrice = Buffer.alloc(8);
@@ -65,5 +66,8 @@ export function programDerivedAddresses(ID: PublicKey, mint: PublicKey) {
             )[0];
         },
         auctionHistory: (id: Uint64) => AuctionHistory.address(ID, id),
+
+        //
+        postedVaa: (vaa: VAA<any>) => coreUtils.derivePostedVaaKey(coreId, Buffer.from(vaa.hash)),
     };
 }

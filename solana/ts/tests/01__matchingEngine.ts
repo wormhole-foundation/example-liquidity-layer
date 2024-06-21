@@ -17,7 +17,7 @@ import {
     SlowOrderResponse,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { CircleBridge, VAA, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { CircleBridge, VAA, create, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { SolanaAddress } from "@wormhole-foundation/sdk-solana";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
@@ -54,6 +54,7 @@ import {
     REGISTERED_TOKEN_ROUTERS_V2,
     SDKSigner,
     USDC_MINT_ADDRESS,
+    createLiquidityLayerVaa,
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,
@@ -1408,12 +1409,17 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer (Invalid VAA)", async function () {
-                const { address: fastVaa, account: account } = await postLiquidityLayerVaav2(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    playerOneSigner,
                     ethRouter,
                     wormholeSequence++,
                     Buffer.from("deadbeef", "hex"),
+                );
+
+                const { address: fastVaa, account: account } = await postLiquidityLayerVaav2(
+                    playerOneSigner,
+                    engine,
+                    mockInvalidVaa,
                 );
 
                 const auction = engine.auctionAddress(account.digest());
@@ -1516,29 +1522,36 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer (Invalid Payload)", async function () {
-                const { address: fastVaa, account } = await postLiquidityLayerVaav2(
+                const msg = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit({
+                        tokenAddress: toUniversalAddress(Array(32).fill(69)),
+                        amount: 1000n,
+                        sourceCctpDomain: 69,
+                        destinationCctpDomain: 69,
+                        cctpNonce: 6969n,
+                        burnSource: toUniversalAddress(new Array(32).fill(69)),
+                        mintRecipient: toUniversalAddress(Array(32).fill(69)),
+                        payload: {
+                            id: 1,
+                            sourceChain: toChain(ethChain),
+                            orderSender: baseFastOrder.sender,
+                            redeemer: baseFastOrder.redeemer,
+                            redeemerMessage: baseFastOrder.redeemerMessage,
+                        },
+                    }),
+                });
+
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    playerOneSigner,
                     ethRouter,
                     wormholeSequence++,
-                    new LiquidityLayerMessage({
-                        deposit: new LiquidityLayerDeposit({
-                            tokenAddress: toUniversalAddress(Array(32).fill(69)),
-                            amount: 1000n,
-                            sourceCctpDomain: 69,
-                            destinationCctpDomain: 69,
-                            cctpNonce: 6969n,
-                            burnSource: toUniversalAddress(new Array(32).fill(69)),
-                            mintRecipient: toUniversalAddress(Array(32).fill(69)),
-                            payload: {
-                                id: 1,
-                                sourceChain: toChain(ethChain),
-                                orderSender: baseFastOrder.sender,
-                                redeemer: baseFastOrder.redeemer,
-                                redeemerMessage: baseFastOrder.redeemerMessage,
-                            },
-                        }),
-                    }),
+                    msg,
+                );
+
+                const { address: fastVaa, account } = await postLiquidityLayerVaav2(
+                    playerOneSigner,
+                    engine,
+                    mockInvalidVaa,
                 );
 
                 const auction = engine.auctionAddress(account.digest());
@@ -3242,6 +3255,7 @@ describe("Matching Engine", function () {
                 });
                 const fastEmitterInfo = fast.vaaAccount.emitterInfo();
                 const finalizedEmitterInfo = finalized!.vaaAccount.emitterInfo();
+
                 expect(fastEmitterInfo.chain).not.equals(finalizedEmitterInfo.chain);
 
                 await prepareOrderResponseCctpForTest(
@@ -4870,61 +4884,64 @@ describe("Matching Engine", function () {
             throw new Error(`Invalid source chain: ${sourceChain}`);
         }
 
-        const { address: fastVaa, account: fastVaaAccount } = await postLiquidityLayerVaav2(
+        const mockFastVaa = await createLiquidityLayerVaa(
             connection,
-            payerSigner,
             emitter,
             wormholeSequence++,
             new LiquidityLayerMessage({ fastMarketOrder }),
             { sourceChain, timestamp: vaaTimestamp },
         );
+
+        const { address: fastVaa, account: fastVaaAccount } = await postLiquidityLayerVaav2(
+            payerSigner,
+            engine,
+            mockFastVaa,
+        );
+
         const fast = { fastMarketOrder, vaa: fastVaa, vaaAccount: fastVaaAccount };
 
-        if (finalized) {
-            const { amountIn: amount } = fastMarketOrder;
-            const cctpNonce = testCctpNonce++;
+        if (!finalized) return { fast };
 
-            // Concoct a Circle message.
-            const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amount);
+        const { amountIn: amount } = fastMarketOrder;
+        const cctpNonce = testCctpNonce++;
 
-            const finalizedMessage = new LiquidityLayerMessage({
-                deposit: new LiquidityLayerDeposit({
-                    tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
-                    amount,
-                    sourceCctpDomain,
-                    destinationCctpDomain,
-                    cctpNonce,
-                    burnSource: toUniversalAddress(Buffer.alloc(32, "beefdead", "hex")),
-                    mintRecipient: toUniversalAddress(engine.cctpMintRecipientAddress().toBuffer()),
-                    payload: { id: 2, ...slowOrderResponse },
-                }),
-            });
+        // Concoct a Circle message.
+        const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+            await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amount);
 
-            const { address: finalizedVaa, account: finalizedVaaAccount } =
-                await postLiquidityLayerVaav2(
-                    connection,
-                    payerSigner,
-                    finalizedEmitter,
-                    finalizedSequence,
-                    finalizedMessage,
-                    { sourceChain: finalizedSourceChain, timestamp: finalizedVaaTimestamp },
-                );
-            return {
-                fast,
-                finalized: {
-                    slowOrderResponse,
-                    vaa: finalizedVaa,
-                    vaaAccount: finalizedVaaAccount,
-                    cctp: {
-                        encodedCctpMessage,
-                        cctpAttestation,
-                    },
-                },
-            };
-        } else {
-            return { fast };
-        }
+        const finalizedMessage = new LiquidityLayerMessage({
+            deposit: new LiquidityLayerDeposit({
+                tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
+                amount,
+                sourceCctpDomain,
+                destinationCctpDomain,
+                cctpNonce,
+                burnSource: toUniversalAddress(Buffer.alloc(32, "beefdead", "hex")),
+                mintRecipient: toUniversalAddress(engine.cctpMintRecipientAddress().toBuffer()),
+                payload: { id: 2, ...slowOrderResponse },
+            }),
+        });
+
+        const mockFinalizedVaa = await createLiquidityLayerVaa(
+            connection,
+            finalizedEmitter,
+            finalizedSequence,
+            finalizedMessage,
+            { sourceChain: finalizedSourceChain, timestamp: finalizedVaaTimestamp },
+        );
+
+        const { address: finalizedVaa, account: finalizedVaaAccount } =
+            await postLiquidityLayerVaav2(payerSigner, engine, mockFinalizedVaa);
+
+        return {
+            fast,
+            finalized: {
+                slowOrderResponse,
+                vaa: finalizedVaa,
+                vaaAccount: finalizedVaaAccount,
+                cctp: { encodedCctpMessage, cctpAttestation },
+            },
+        };
     }
 
     async function craftCctpTokenBurnMessage(

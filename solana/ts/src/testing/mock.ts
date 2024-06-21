@@ -1,6 +1,7 @@
 import { Connection, Keypair } from "@solana/web3.js";
 import { Chain, Network } from "@wormhole-foundation/sdk-base";
-import { SignAndSendSigner, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { signAndSendWait } from "@wormhole-foundation/sdk-connect";
 import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
 import { SolanaAddress, SolanaSendSigner } from "@wormhole-foundation/sdk-solana";
 import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
@@ -9,11 +10,17 @@ import { LiquidityLayerMessage } from "../common";
 import { VaaAccount } from "../wormhole";
 import { CORE_BRIDGE_PID, GUARDIAN_KEY, MOCK_GUARDIANS } from "./consts";
 import { getBlockTime, postVaa } from "./utils";
+import { FastTransfer } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { SolanaMatchingEngine } from "../protocol";
 
 export class SDKSigner<N extends Network> extends SolanaSendSigner<N, "Solana"> {
     unwrap(): Keypair {
         // @ts-ignore
         return this._keypair;
+    }
+    connection(): Connection {
+        // @ts-ignore
+        return this._rpc;
     }
 }
 
@@ -31,21 +38,20 @@ export function unwrapSigners(signers: SDKSigner<Network>[]): Keypair[] {
     return signers.map((signer) => signer.unwrap());
 }
 
-export async function postLiquidityLayerVaav2(
+export async function createLiquidityLayerVaa(
     connection: Connection,
-    payer: Keypair | SignAndSendSigner<Network, "Solana">,
     foreignEmitterAddress: Array<number>,
     sequence: bigint,
     message: LiquidityLayerMessage | Buffer,
     args: { sourceChain?: Chain; timestamp?: number } = {},
-) {
+): Promise<FastTransfer.VAA> {
     let { sourceChain, timestamp } = args;
     sourceChain ??= "Ethereum";
     timestamp ??= await getBlockTime(connection);
 
     const foreignEmitter = new mocks.MockEmitter(
         toUniversal(sourceChain, new Uint8Array(foreignEmitterAddress)),
-        sourceChain ?? "Ethereum",
+        sourceChain,
         sequence - 1n,
     );
 
@@ -58,8 +64,20 @@ export async function postLiquidityLayerVaav2(
 
     const vaa = MOCK_GUARDIANS.addSignatures(published, [0]);
 
-    const { address } = await postVaa(connection, payer, vaa);
-    const account = await VaaAccount.fetch(connection, address);
+    // @ts-ignore -- lie
+    return vaa;
+}
+
+export async function postLiquidityLayerVaav2<N extends Network>(
+    signer: SDKSigner<N>,
+    engine: SolanaMatchingEngine<N, "Solana">,
+    vaa: FastTransfer.VAA,
+) {
+    const txs = engine.postVaa(signer.address(), vaa);
+    await signAndSendWait(txs, signer);
+
+    const address = engine.pdas.postedVaa(vaa);
+    const account = await VaaAccount.fetch(signer.connection(), address);
 
     return { address, account };
 }

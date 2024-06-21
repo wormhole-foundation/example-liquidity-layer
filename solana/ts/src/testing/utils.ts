@@ -17,7 +17,6 @@ import { UniversalAddress, VAA } from "@wormhole-foundation/sdk-definitions";
 import { SolanaSendSigner, SolanaUnsignedTransaction } from "@wormhole-foundation/sdk-solana";
 import { SolanaWormholeCore, utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
-import { execSync } from "child_process";
 import { Err, Ok } from "ts-results";
 import { CORE_BRIDGE_PID, USDC_MINT_ADDRESS } from "./consts";
 
@@ -217,22 +216,6 @@ export async function postVaa(
     const txids = await signAndSendWait(txs, signer);
 
     return { txids, address };
-}
-
-export function loadProgramBpf(artifactPath: string, keypath: string): PublicKey {
-    // Invoke BPF Loader Upgradeable `write-buffer` instruction.
-    const buffer = (() => {
-        const output = execSync(`solana -u l -k ${keypath} program write-buffer ${artifactPath}`);
-        return new PublicKey(output.toString().match(/^Buffer: ([A-Za-z0-9]+)/)![1]);
-    })();
-
-    // Return the pubkey for the buffer (our new program implementation).
-    return buffer;
-}
-
-export async function waitBySlots(connection: Connection, numSlots: number) {
-    const targetSlot = await connection.getSlot().then((slot) => slot + numSlots);
-    return waitUntilSlot(connection, targetSlot);
 }
 
 export async function waitUntilSlot(connection: Connection, targetSlot: number) {

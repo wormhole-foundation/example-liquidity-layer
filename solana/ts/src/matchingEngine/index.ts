@@ -53,6 +53,7 @@ import {
     ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
+import { VAA, keccak256 } from "@wormhole-foundation/sdk-definitions";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -225,7 +226,11 @@ export class MatchingEngineProgram {
     constructor(connection: Connection, programId: ProgramId, mint: PublicKey) {
         this._programId = programId;
         this._mint = mint;
-        this.pdas = programDerivedAddresses(new PublicKey(programId), mint);
+        this.pdas = programDerivedAddresses(
+            new PublicKey(programId),
+            mint,
+            this.coreBridgeProgramId(),
+        );
         this.program = new Program(
             { ...(IDL as any), address: this._programId },
             {
@@ -388,13 +393,11 @@ export class MatchingEngineProgram {
 
     async fetchAuction(input: VaaHash | { address: PublicKey }): Promise<Auction> {
         const addr = "address" in input ? input.address : this.auctionAddress(input);
-        // @ts-ignore This is BS. This is correct.
         return this.program.account.auction.fetch(addr);
     }
 
     async fetchProposal(input?: { address: PublicKey }): Promise<Proposal> {
         const addr = input === undefined ? await this.proposalAddress() : input.address;
-        // @ts-ignore This is BS. This is correct.
         return this.program.account.proposal.fetch(addr);
     }
 
@@ -2495,7 +2498,7 @@ export class MatchingEngineProgram {
     fastFillSequencerAddress = (sourceChain: ChainId, sender: Array<number>): PublicKey =>
         this.pdas.fastFillSequencer(sourceChain, sender);
     reservedFastFillSequenceAddress = (fastVaaHash: VaaHash): PublicKey =>
-        this.pdas.reservedFastFillSequenceAddress(fastVaaHash);
+        this.pdas.reservedFastFillSequence(fastVaaHash);
     transferAuthorityAddress = (auction: PublicKey, offerPrice: Uint64): PublicKey =>
         this.pdas.transferAuthority(auction, offerPrice);
     auctionHistoryAddress = (id: Uint64): PublicKey => this.pdas.auctionHistory(id);

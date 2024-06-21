@@ -18,7 +18,6 @@ import {
     CircleAttestation,
     CircleBridge,
     Contracts,
-    UnsignedTransaction,
     VAA,
     keccak256,
 } from "@wormhole-foundation/sdk-definitions";
@@ -30,8 +29,9 @@ import {
     SolanaTransaction,
     SolanaUnsignedTransaction,
 } from "@wormhole-foundation/sdk-solana";
-import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
+import { vaaHash } from "../common";
 import { AuctionParameters, MatchingEngineProgram, ProgramId } from "../matchingEngine";
+import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
 
 export interface SolanaMatchingEngineContracts {
     matchingEngine: string;
@@ -42,6 +42,8 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     extends MatchingEngineProgram
     implements MatchingEngine<N, C>
 {
+    coreBridge: SolanaWormholeCore<N, C>;
+
     constructor(
         readonly _network: N,
         readonly _chain: C,
@@ -54,6 +56,11 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             _contracts.matchingEngine as ProgramId,
             new PublicKey(_contracts.usdcMint),
         );
+
+        this.coreBridge = new SolanaWormholeCore(_network, _chain, _connection, {
+            coreBridge: this.coreBridgeProgramId().toBase58(),
+            ...this._contracts,
+        });
     }
 
     static async fromRpc<N extends Network>(
@@ -160,6 +167,10 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         throw new Error("Method not implemented.");
     }
 
+    async *postVaa(sender: AnySolanaAddress, vaa: FastTransfer.VAA) {
+        yield* this.coreBridge.postVaa(sender, vaa);
+    }
+
     async *placeInitialOffer(
         sender: AnySolanaAddress,
         vaa: VAA<"FastTransfer:FastMarketOrder">,
@@ -168,10 +179,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     ) {
         const payer = new SolanaAddress(sender).unwrap();
 
-        const vaaAddress = coreUtils.derivePostedVaaKey(
-            this.coreBridgeProgramId(),
-            Buffer.from(vaa.hash),
-        );
+        const vaaAddress = this.pdas.postedVaa(vaa);
 
         const ixs = await this.placeInitialOfferCctpIx(
             { payer, fastVaa: vaaAddress },
@@ -196,6 +204,10 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.improveOffer");
     }
 
+    async *reserveFastFillSequence() {
+        throw new Error("Method not implemented.");
+    }
+
     async *executeFastOrder(
         sender: AnySolanaAddress,
         vaa: VAA<"FastTransfer:FastMarketOrder">,
@@ -207,16 +219,15 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             ? new SolanaAddress(participant).unwrap()
             : undefined;
 
-        const fastVaa = coreUtils.derivePostedVaaKey(
-            this.coreBridgeProgramId(),
-            Buffer.from(vaa.hash),
-        );
+        const fastVaa = this.pdas.postedVaa(vaa);
 
-        const digest = keccak256(vaa.hash);
-        const auction = this.auctionAddress(digest);
+        const digest = vaaHash(vaa);
+        const auction = this.pdas.auction(digest);
+
+        const reservedSequence = this.pdas.reservedFastFillSequence(digest);
 
         // TODO: make sure this has already been done, or do it here
-        const reservedSequence = this.reservedFastFillSequenceAddress(digest);
+        // yield* this.reserveFastFillSequence();
 
         const { targetChain } = vaa.payload;
 
@@ -258,15 +269,8 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     ) {
         const payer = new SolanaAddress(sender).unwrap();
 
-        const fastVaa = coreUtils.derivePostedVaaKey(
-            this.coreBridgeProgramId(),
-            Buffer.from(fast.hash),
-        );
-
-        const finalizedVaa = coreUtils.derivePostedVaaKey(
-            this.coreBridgeProgramId(),
-            Buffer.from(finalized.hash),
-        );
+        const fastVaa = this.pdas.postedVaa(fast);
+        const finalizedVaa = this.pdas.postedVaa(finalized);
 
         const preparedAddress = this.preparedOrderResponseAddress(keccak256(fast.hash));
 
@@ -340,10 +344,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         const digest = keccak256(fast.hash);
         const preparedOrderResponse = this.preparedOrderResponseAddress(digest);
         const auction = this.auctionAddress(digest);
-        const fastVaa = coreUtils.derivePostedVaaKey(
-            this.coreBridgeProgramId(),
-            Buffer.from(fast.hash),
-        );
+        const fastVaa = this.pdas.postedVaa(fast);
 
         const settleIx = await (async () => {
             if (finalized && !cctp) {

@@ -1,19 +1,12 @@
 import { PublicKey, TransactionInstruction } from "@solana/web3.js";
 import { MessageTransmitterProgram } from "../cctp";
 import { BN } from "@coral-xyz/anchor";
+import { VAA, keccak256 } from "@wormhole-foundation/sdk-definitions";
 
 export * from "./messages";
 export * from "./state";
 
 export type Uint64 = bigint | BN | number;
-
-export function isUint64(value: Uint64): boolean {
-    return (
-        typeof value === "bigint" ||
-        (typeof value === "object" && value instanceof BN) ||
-        typeof value === "number"
-    );
-}
 
 export function uint64ToBigInt(value: Uint64): bigint {
     if (typeof value === "bigint") {
@@ -38,32 +31,7 @@ export function uint64ToBN(value: Uint64): BN {
 }
 
 export type VaaHash = Array<number> | Buffer | Uint8Array;
-
-export function vaaHashToUint8Array(vaaHash: VaaHash): Uint8Array {
-    if (Array.isArray(vaaHash)) {
-        return Uint8Array.from(vaaHash);
-    } else if (Buffer.isBuffer(vaaHash)) {
-        return Uint8Array.from(vaaHash);
-    } else {
-        return vaaHash;
-    }
-}
-
-export function vaaHashToBuffer(vaaHash: VaaHash): Buffer {
-    if (Buffer.isBuffer(vaaHash)) {
-        return vaaHash;
-    } else {
-        return Buffer.from(vaaHashToUint8Array(vaaHash));
-    }
-}
-
-export function vaaHashToArray(vaaHash: VaaHash): Array<number> {
-    if (Array.isArray(vaaHash)) {
-        return vaaHash;
-    } else {
-        return Array.from(vaaHashToUint8Array(vaaHash));
-    }
-}
+export const vaaHash = (vaa: VAA<any>): VaaHash => keccak256(vaa.hash);
 
 export async function reclaimCctpMessageIx(
     messageTransmitter: MessageTransmitterProgram,

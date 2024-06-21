@@ -102,11 +102,7 @@ export class VaaAccount {
 
     emitterInfo(): EmitterInfo {
         const { emitterChain: chain, emitterAddress: address, sequence } = this.vaa();
-        return {
-            chain: toChainId(chain),
-            address: Array.from(address.toUint8Array()),
-            sequence,
-        };
+        return { chain: toChainId(chain), address: Array.from(address.toUint8Array()), sequence };
     }
 
     timestamp(): number {
