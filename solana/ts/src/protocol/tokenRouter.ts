@@ -1,6 +1,8 @@
+import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableAccount,
     Connection,
+    Keypair,
     PublicKey,
     TransactionInstruction,
     TransactionMessage,
@@ -10,7 +12,7 @@ import {
     FastTransfer,
     TokenRouter,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { Chain, Network, Platform } from "@wormhole-foundation/sdk-base";
+import { Chain, Network, Platform, toChainId } from "@wormhole-foundation/sdk-base";
 import {
     AccountAddress,
     ChainAddress,
@@ -18,7 +20,6 @@ import {
     CircleBridge,
     Contracts,
     UnsignedTransaction,
-    VAA,
 } from "@wormhole-foundation/sdk-definitions";
 import {
     AnySolanaAddress,
@@ -88,8 +89,60 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         yield this.createUnsignedTx({ transaction }, "TokenRouter.Initialize");
     }
 
-    getInitialAuctionFee(): Promise<bigint> {
-        throw new Error("Method not implemented.");
+    async *prepareMarketOrder(
+        sender: AnySolanaAddress,
+        amount: bigint,
+        redeemer: ChainAddress<Chain>,
+        minAmountOut?: bigint,
+        redeemerMessage?: Uint8Array,
+        preparedOrder?: Keypair,
+    ) {
+        const payer = new SolanaAddress(sender).unwrap();
+
+        // assume sender token is the usdc mint address
+        const senderToken = splToken.getAssociatedTokenAddressSync(this.mint, payer);
+
+        // Where we'll write the prepared order
+        preparedOrder = preparedOrder ?? Keypair.generate();
+
+        const [approveIx, prepareIx] = await this.prepareMarketOrderIx(
+            {
+                payer,
+                senderToken,
+                preparedOrder: preparedOrder.publicKey,
+            },
+            {
+                amountIn: amount,
+                minAmountOut: minAmountOut !== undefined ? minAmountOut : null,
+                targetChain: toChainId(redeemer.chain),
+                redeemer: Array.from(redeemer.address.toUniversalAddress().toUint8Array()),
+                redeemerMessage: redeemerMessage ? Buffer.from(redeemerMessage) : Buffer.from(""),
+            },
+        );
+
+        // TODO: fix prepareMarketOrderIx to not return null at all
+        const ixs = [];
+        if (approveIx) ixs.push(approveIx);
+        ixs.push(prepareIx);
+
+        const transaction = this.createTx(payer, ixs);
+        yield this.createUnsignedTx(
+            { transaction, signers: [preparedOrder] },
+            "TokenRouter.PrepareMarketOrder",
+        );
+    }
+
+    async *closePreparedOrder(sender: AnySolanaAddress, order: AnySolanaAddress) {
+        const payer = new SolanaAddress(sender).unwrap();
+        const preparedOrder = new SolanaAddress(order).unwrap();
+
+        const ix = await this.closePreparedOrderIx({
+            preparedOrder,
+            preparedBy: payer,
+        });
+
+        const transaction = this.createTx(payer, [ix]);
+        yield this.createUnsignedTx({ transaction }, "TokenRouter.ClosePreparedOrder");
     }
 
     placeMarketOrder(
@@ -101,6 +154,7 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
     ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
         throw new Error("Method not implemented.");
     }
+
     placeFastMarketOrder<RC extends Chain>(
         amount: bigint,
         chain: RC,
@@ -113,6 +167,7 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
     ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
         throw new Error("Method not implemented.");
     }
+
     redeemFill(
         vaa: FastTransfer.VAA,
         cctp: CircleBridge.Attestation,

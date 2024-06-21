@@ -2,9 +2,7 @@ import { Chain, Network } from "@wormhole-foundation/sdk-base";
 import {
     AccountAddress,
     ChainAddress,
-    CircleAttestation,
     CircleBridge,
-    CircleTransferMessage,
     EmptyPlatformMap,
     ProtocolVAA,
     UnsignedTransaction,
@@ -99,8 +97,6 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
 }
 
 export interface TokenRouter<N extends Network = Network, C extends Chain = Chain> {
-    getInitialAuctionFee(): Promise<bigint>;
-
     placeMarketOrder(
         amount: bigint,
         redeemer: ChainAddress<Chain>,

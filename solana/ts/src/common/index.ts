@@ -44,10 +44,7 @@ export async function reclaimCctpMessageIx(
     const { payer, cctpMessage: messageSentEventData } = accounts;
 
     return messageTransmitter.reclaimEventAccountIx(
-        {
-            payee: payer,
-            messageSentEventData,
-        },
+        { payee: payer, messageSentEventData },
         cctpAttestation,
     );
 }
