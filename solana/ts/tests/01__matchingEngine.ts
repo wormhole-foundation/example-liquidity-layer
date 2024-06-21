@@ -18,7 +18,6 @@ import {
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
 import { CircleBridge, VAA, create, toUniversal } from "@wormhole-foundation/sdk-definitions";
-import { SolanaAddress } from "@wormhole-foundation/sdk-solana";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
 import { CctpTokenBurnMessage } from "../src/cctp";
@@ -2450,12 +2449,7 @@ describe("Matching Engine", function () {
                         fastMarketOrder: baseFastOrder,
                     },
                 );
-                const {
-                    fastVaa,
-                    fastVaaAccount,
-                    auction,
-                    auctionDataBefore: initialData,
-                } = result!;
+                const { fastVaaAccount, auction, auctionDataBefore: initialData } = result!;
 
                 const tmpOwner = Keypair.generate();
                 const transferLamportsToTmpOwnerIx = SystemProgram.transfer({
@@ -2581,12 +2575,7 @@ describe("Matching Engine", function () {
                         fastMarketOrder: baseFastOrder,
                     },
                 );
-                const {
-                    fastVaa,
-                    auction,
-                    fastVaaAccount,
-                    auctionDataBefore: initialData,
-                } = result!;
+                const { auction, fastVaaAccount, auctionDataBefore: initialData } = result!;
 
                 const tmpOwner = Keypair.generate();
                 const transferLamportsToTmpOwnerIx = SystemProgram.transfer({
@@ -2721,12 +2710,7 @@ describe("Matching Engine", function () {
                         fastMarketOrder: baseFastOrder,
                     },
                 );
-                const {
-                    fastVaa,
-                    fastVaaAccount,
-                    auction,
-                    auctionDataBefore: initialData,
-                } = result!;
+                const { fastVaaAccount, auction, auctionDataBefore: initialData } = result!;
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(

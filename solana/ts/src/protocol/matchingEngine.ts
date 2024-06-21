@@ -19,7 +19,6 @@ import {
     CircleBridge,
     Contracts,
     VAA,
-    keccak256,
 } from "@wormhole-foundation/sdk-definitions";
 import {
     AnySolanaAddress,
@@ -177,8 +176,10 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         offerPrice: bigint,
         totalDeposit?: bigint,
     ) {
-        const payer = new SolanaAddress(sender).unwrap();
+        // If the VAA has not yet been posted, do so now
+        yield* this.postVaa(sender, vaa);
 
+        const payer = new SolanaAddress(sender).unwrap();
         const vaaAddress = this.pdas.postedVaa(vaa);
 
         const ixs = await this.placeInitialOfferCctpIx(
@@ -196,7 +197,9 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         offer: bigint,
     ) {
         const participant = new SolanaAddress(sender).unwrap();
-        const auction = this.auctionAddress(keccak256(vaa.hash));
+
+        const digest = vaaHash(vaa);
+        const auction = this.pdas.auction(digest);
 
         const ixs = await this.improveOfferIx({ participant, auction }, { offerPrice: offer });
 
@@ -223,7 +226,6 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
         const digest = vaaHash(vaa);
         const auction = this.pdas.auction(digest);
-
         const reservedSequence = this.pdas.reservedFastFillSequence(digest);
 
         // TODO: make sure this has already been done, or do it here
@@ -272,7 +274,8 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         const fastVaa = this.pdas.postedVaa(fast);
         const finalizedVaa = this.pdas.postedVaa(finalized);
 
-        const preparedAddress = this.preparedOrderResponseAddress(keccak256(fast.hash));
+        const digest = vaaHash(fast);
+        const preparedAddress = this.pdas.preparedOrderResponse(digest);
 
         try {
             // Check if its already been prepared
@@ -341,15 +344,16 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             }
         }
 
-        const digest = keccak256(fast.hash);
-        const preparedOrderResponse = this.preparedOrderResponseAddress(digest);
-        const auction = this.auctionAddress(digest);
         const fastVaa = this.pdas.postedVaa(fast);
+
+        const digest = vaaHash(fast);
+        const preparedOrderResponse = this.pdas.preparedOrderResponse(digest);
+        const auction = this.pdas.auction(digest);
 
         const settleIx = await (async () => {
             if (finalized && !cctp) {
                 if (fast.payload.targetChain === "Solana") {
-                    const reservedSequence = this.reservedFastFillSequenceAddress(digest);
+                    const reservedSequence = this.pdas.reservedFastFillSequence(digest);
                     return await this.settleAuctionNoneLocalIx({
                         payer,
                         reservedSequence,
