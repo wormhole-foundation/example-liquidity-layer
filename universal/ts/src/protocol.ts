@@ -8,7 +8,7 @@ import {
     UnsignedTransaction,
     VAA,
 } from "@wormhole-foundation/sdk-definitions";
-import { MessageName } from "./messages";
+import { FastMarketOrder, MessageName } from "./messages";
 
 export namespace FastTransfer {
     // Add vaas and util methods
@@ -96,24 +96,38 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
 }
 
+type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
+
+export namespace TokenRouter {
+    /** A partially optional copy of FastMarketOrder, to be placed */
+    export type OrderRequest = Optional<
+        FastMarketOrder,
+        | "sender"
+        | "deadline"
+        | "refundAddress"
+        | "minAmountOut"
+        | "redeemerMessage"
+        | "initAuctionFee"
+        | "maxFee"
+    >;
+
+    export function isOrderRequest(value: any): value is OrderRequest {
+        return (
+            typeof value === "object" &&
+            <FastMarketOrder>value.amountIn !== undefined &&
+            <FastMarketOrder>value.redeemer !== undefined &&
+            <FastMarketOrder>value.targetChain !== undefined
+        );
+    }
+
+    /** The Address or Id of a prepared order */
+    export type PreparedOrder<C extends Chain> = AccountAddress<C>;
+}
+
 export interface TokenRouter<N extends Network = Network, C extends Chain = Chain> {
     placeMarketOrder(
-        amount: bigint,
-        redeemer: ChainAddress<Chain>,
-        redeemerMessage: Uint8Array,
-        minAmountOut?: bigint,
-        refundAddress?: AccountAddress<C>,
-    ): AsyncGenerator<UnsignedTransaction<N, C>>;
-
-    placeFastMarketOrder<RC extends Chain>(
-        amount: bigint,
-        chain: Chain,
-        redeemer: AccountAddress<RC>,
-        redeemerMessage: Uint8Array,
-        maxFee: bigint,
-        deadline: number,
-        minAmountOut?: bigint,
-        refundAddress?: string,
+        sender: AccountAddress<C>,
+        order: TokenRouter.OrderRequest | TokenRouter.PreparedOrder<C>,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
 
     redeemFill(

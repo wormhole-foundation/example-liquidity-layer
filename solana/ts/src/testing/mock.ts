@@ -64,7 +64,7 @@ export async function createLiquidityLayerVaa(
 
     const vaa = MOCK_GUARDIANS.addSignatures(published, [0]);
 
-    // @ts-ignore -- lie
+    // @ts-ignore -- TODO: this is lie, need to define discriminator
     return vaa;
 }
 

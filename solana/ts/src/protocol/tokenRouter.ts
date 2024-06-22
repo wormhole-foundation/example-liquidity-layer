@@ -9,16 +9,19 @@ import {
     VersionedTransaction,
 } from "@solana/web3.js";
 import {
+    FastMarketOrder,
     FastTransfer,
+    Message,
     TokenRouter,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { Chain, Network, Platform, toChainId } from "@wormhole-foundation/sdk-base";
+import { Chain, ChainId, Network, Platform, toChainId } from "@wormhole-foundation/sdk-base";
 import {
     AccountAddress,
     ChainAddress,
     ChainsConfig,
     CircleBridge,
     Contracts,
+    UniversalAddress,
     UnsignedTransaction,
 } from "@wormhole-foundation/sdk-definitions";
 import {
@@ -73,6 +76,10 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         });
     }
 
+    private usdcMint(wallet: PublicKey) {
+        return splToken.getAssociatedTokenAddressSync(this.mint, wallet);
+    }
+
     async *initialize(
         owner: AnySolanaAddress,
         ownerAssistant: AnySolanaAddress,
@@ -89,47 +96,79 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         yield this.createUnsignedTx({ transaction }, "TokenRouter.Initialize");
     }
 
-    async *prepareMarketOrder(
+    private makeFastMarketOrder(
         sender: AnySolanaAddress,
-        amount: bigint,
-        redeemer: ChainAddress<Chain>,
-        minAmountOut?: bigint,
-        redeemerMessage?: Uint8Array,
-        preparedOrder?: Keypair,
-    ) {
+        order: Partial<FastMarketOrder>,
+    ): FastMarketOrder {
+        const senderAddress = new SolanaAddress(sender).toUniversalAddress();
+        const o: FastMarketOrder = {
+            // TODO: from auction params? take as args?
+            maxFee: order.maxFee ?? 0n,
+            initAuctionFee: order.initAuctionFee ?? 0n,
+            deadline: order.deadline ?? 0,
+            // TODO: specify which params we need, not just partial
+            amountIn: order.amountIn!,
+            minAmountOut: order.minAmountOut!,
+            targetChain: order.targetChain!,
+            redeemer: order.redeemer!,
+            // TODO: which of these can we assume? any
+            sender: order.sender ?? senderAddress,
+            refundAddress: order.refundAddress ?? senderAddress,
+            redeemerMessage: order.redeemerMessage ?? new Uint8Array(),
+        };
+
+        return o;
+    }
+
+    private async _prepareMarketOrderIxs(
+        sender: AnySolanaAddress,
+        order: TokenRouter.OrderRequest,
+        prepareTo?: Keypair,
+    ): Promise<[TransactionInstruction[], Keypair[]]> {
         const payer = new SolanaAddress(sender).unwrap();
 
-        // assume sender token is the usdc mint address
-        const senderToken = splToken.getAssociatedTokenAddressSync(this.mint, payer);
+        // TODO: assumes sender token is the usdc mint address
+        const senderToken = this.usdcMint(payer);
 
         // Where we'll write the prepared order
-        preparedOrder = preparedOrder ?? Keypair.generate();
+        prepareTo = prepareTo ?? Keypair.generate();
 
         const [approveIx, prepareIx] = await this.prepareMarketOrderIx(
             {
                 payer,
                 senderToken,
-                preparedOrder: preparedOrder.publicKey,
+                preparedOrder: prepareTo.publicKey,
             },
             {
-                amountIn: amount,
-                minAmountOut: minAmountOut !== undefined ? minAmountOut : null,
-                targetChain: toChainId(redeemer.chain),
-                redeemer: Array.from(redeemer.address.toUniversalAddress().toUint8Array()),
-                redeemerMessage: redeemerMessage ? Buffer.from(redeemerMessage) : Buffer.from(""),
+                amountIn: order.amountIn,
+                minAmountOut: order.minAmountOut !== undefined ? order.minAmountOut : null,
+                targetChain: toChainId(order.targetChain),
+                redeemer: Array.from(order.redeemer.toUint8Array()),
+                redeemerMessage: order.redeemerMessage
+                    ? Buffer.from(order.redeemerMessage)
+                    : Buffer.from(""),
             },
         );
 
-        // TODO: fix prepareMarketOrderIx to not return null at all
+        // TODO: fix prepareMarketOrderIx to not return null at all?
         const ixs = [];
         if (approveIx) ixs.push(approveIx);
         ixs.push(prepareIx);
 
+        return [ixs, [prepareTo]];
+    }
+
+    async *prepareMarketOrder(
+        sender: AnySolanaAddress,
+        order: TokenRouter.OrderRequest,
+        prepareTo?: Keypair,
+    ) {
+        const payer = new SolanaAddress(sender).unwrap();
+
+        const [ixs, signers] = await this._prepareMarketOrderIxs(sender, order, prepareTo);
+
         const transaction = this.createTx(payer, ixs);
-        yield this.createUnsignedTx(
-            { transaction, signers: [preparedOrder] },
-            "TokenRouter.PrepareMarketOrder",
-        );
+        yield this.createUnsignedTx({ transaction, signers }, "TokenRouter.PrepareMarketOrder");
     }
 
     async *closePreparedOrder(sender: AnySolanaAddress, order: AnySolanaAddress) {
@@ -139,20 +178,57 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         const ix = await this.closePreparedOrderIx({
             preparedOrder,
             preparedBy: payer,
+            orderSender: payer,
         });
 
         const transaction = this.createTx(payer, [ix]);
+
         yield this.createUnsignedTx({ transaction }, "TokenRouter.ClosePreparedOrder");
     }
 
-    placeMarketOrder(
-        amount: bigint,
-        redeemer: ChainAddress<Chain>,
-        redeemerMessage: Uint8Array,
-        minAmountOut?: bigint | undefined,
-        refundAddress?: AccountAddress<C> | undefined,
+    async *placeMarketOrder(
+        sender: AnySolanaAddress,
+        order: TokenRouter.OrderRequest | AnySolanaAddress,
+        prepareTo?: Keypair,
     ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
-        throw new Error("Method not implemented.");
+        const payer = new SolanaAddress(sender).unwrap();
+
+        let ixs: TransactionInstruction[] = [];
+        let signers: Keypair[] = [];
+        let preparedOrder: PublicKey;
+        let targetChain: ChainId | undefined;
+
+        if (TokenRouter.isOrderRequest(order)) {
+            prepareTo = prepareTo ?? Keypair.generate();
+
+            const combined = false; // TODO how to choose?
+            if (combined) {
+                const [ixs, signers] = await this._prepareMarketOrderIxs(sender, order, prepareTo);
+                ixs.push(...ixs);
+                signers.push(...signers);
+            } else {
+                yield* this.prepareMarketOrder(sender, order, prepareTo);
+            }
+
+            preparedOrder = prepareTo.publicKey;
+            targetChain = toChainId(order.targetChain);
+        } else {
+            preparedOrder = new SolanaAddress(order).unwrap();
+        }
+
+        const ix = await this.placeMarketOrderCctpIx(
+            {
+                payer,
+                preparedOrder,
+                preparedBy: payer,
+            },
+            // TODO: add cctpDomain fn
+            { targetChain }, //,destinationDomain: 3 },
+        );
+        ixs.push(ix);
+
+        const transaction = this.createTx(payer, ixs);
+        yield this.createUnsignedTx({ transaction, signers }, "TokenRouter.PlaceMarketOrder");
     }
 
     placeFastMarketOrder<RC extends Chain>(
