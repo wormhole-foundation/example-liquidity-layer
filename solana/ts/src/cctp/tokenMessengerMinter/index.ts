@@ -6,7 +6,7 @@ import { RemoteTokenMessenger } from "./RemoteTokenMessenger";
 
 export const PROGRAM_IDS = ["CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"] as const;
 
-export type ProgramId = (typeof PROGRAM_IDS)[number];
+export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
 
 export type DepositForBurnWithCallerAccounts = {
     senderAuthority: PublicKey;

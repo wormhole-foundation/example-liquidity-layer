@@ -28,14 +28,27 @@ import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import { Custodian, PreparedFill, PreparedOrder } from "./state";
-import { ChainId, isChainId } from "@wormhole-foundation/sdk-base";
+import { ChainId, Network, isChainId } from "@wormhole-foundation/sdk-base";
 
 export const PROGRAM_IDS = [
     "TokenRouter11111111111111111111111111111111",
     "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md",
 ] as const;
 
-export type ProgramId = (typeof PROGRAM_IDS)[number];
+export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
+
+export type TokenRouterAddresses = {
+    tokenRouter: string;
+    // upstream wormhole
+    matchingEngine: string;
+    coreBridge: string;
+    // cctp
+    usdcMint: string;
+    messageTransmitter: string;
+    tokenMessenger: string;
+    //
+    upgradeManager: string;
+};
 
 export type PrepareMarketOrderArgs = {
     amountIn: bigint;
@@ -115,14 +128,16 @@ export type AddCctpRouterEndpointArgs = {
 
 export class TokenRouterProgram {
     private _programId: ProgramId;
-    private _mint: PublicKey;
+    private _addresses: TokenRouterAddresses;
 
     program: Program<TokenRouter>;
 
     // TODO: fix this
-    constructor(connection: Connection, programId: ProgramId, mint: PublicKey) {
+    constructor(connection: Connection, programId: ProgramId, addresses?: TokenRouterAddresses) {
         this._programId = programId;
-        this._mint = mint;
+
+        this._addresses = addresses!;
+
         this.program = new Program(
             { ...(IDL as any), address: this._programId },
             {
@@ -136,7 +151,23 @@ export class TokenRouterProgram {
     }
 
     get mint(): PublicKey {
-        return this._mint;
+        return new PublicKey(this._addresses.usdcMint);
+    }
+
+    get cctpTokenMessenger(): PublicKey {
+        return new PublicKey(this._addresses.tokenMessenger);
+    }
+    get cctpMessageTransmitter(): PublicKey {
+        return new PublicKey(this._addresses.messageTransmitter);
+    }
+    get matchingEngineProgramId(): PublicKey {
+        return new PublicKey(this._addresses.matchingEngine);
+    }
+    get upgradeManager(): PublicKey {
+        return new PublicKey(this._addresses.upgradeManager);
+    }
+    get coreBridgeProgramId(): PublicKey {
+        return new PublicKey(this._addresses.coreBridge);
     }
 
     custodianAddress(): PublicKey {
@@ -878,7 +909,7 @@ export class TokenRouterProgram {
     }
 
     publishMessageAccounts(emitter: PublicKey): PublishMessageAccounts {
-        const coreBridgeProgram = this.coreBridgeProgramId();
+        const coreBridgeProgram = this.coreBridgeProgramId;
 
         return {
             coreBridgeConfig: PublicKey.findProgramAddressSync(
@@ -898,80 +929,28 @@ export class TokenRouterProgram {
     }
 
     upgradeManagerProgram(): UpgradeManagerProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new UpgradeManagerProgram(
-                    this.program.provider.connection,
-                    "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
-                );
-            }
-            case localnet(): {
-                return new UpgradeManagerProgram(
-                    this.program.provider.connection,
-                    "UpgradeManager11111111111111111111111111111",
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new UpgradeManagerProgram(this.program.provider.connection, this._addresses);
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
         return new TokenMessengerMinterProgram(
             this.program.provider.connection,
-            "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
+            this.cctpTokenMessenger.toBase58(),
         );
     }
 
     messageTransmitterProgram(): MessageTransmitterProgram {
         return new MessageTransmitterProgram(
             this.program.provider.connection,
-            "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
+            this.cctpMessageTransmitter.toBase58(),
         );
     }
 
     matchingEngineProgram(): matchingEngineSdk.MatchingEngineProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new matchingEngineSdk.MatchingEngineProgram(
-                    this.program.provider.connection,
-                    matchingEngineSdk.testnet(),
-                    this.mint,
-                );
-            }
-            case localnet(): {
-                return new matchingEngineSdk.MatchingEngineProgram(
-                    this.program.provider.connection,
-                    matchingEngineSdk.localnet(),
-                    this.mint,
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new matchingEngineSdk.MatchingEngineProgram(
+            this.program.provider.connection,
+            this.matchingEngineProgramId.toBase58(),
+            this._addresses,
+        );
     }
-
-    coreBridgeProgramId(): PublicKey {
-        switch (this._programId) {
-            case testnet(): {
-                return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
-            }
-            case localnet(): {
-                return new PublicKey("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
-    }
-}
-
-export function localnet(): ProgramId {
-    return "TokenRouter11111111111111111111111111111111";
-}
-
-export function testnet(): ProgramId {
-    return "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md";
 }

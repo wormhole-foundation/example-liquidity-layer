@@ -131,6 +131,7 @@ export interface TokenRouter<N extends Network = Network, C extends Chain = Chai
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
 
     redeemFill(
+        sender: AccountAddress<C>,
         vaa: FastTransfer.VAA,
         cctp: CircleBridge.Attestation,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;

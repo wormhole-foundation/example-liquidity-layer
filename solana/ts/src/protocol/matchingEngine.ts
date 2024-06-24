@@ -33,8 +33,13 @@ import { AuctionParameters, MatchingEngineProgram, ProgramId } from "../matching
 import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
 
 export interface SolanaMatchingEngineContracts {
+    tokenRouter: string;
     matchingEngine: string;
     usdcMint: string;
+    coreBridge: string;
+    messageTransmitter: string;
+    tokenMessenger: string;
+    upgradeManager: string;
 }
 
 export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
@@ -53,11 +58,10 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
             _connection,
             // TODO: BEN
             _contracts.matchingEngine as ProgramId,
-            new PublicKey(_contracts.usdcMint),
+            _contracts,
         );
 
         this.coreBridge = new SolanaWormholeCore(_network, _chain, _connection, {
-            coreBridge: this.coreBridgeProgramId().toBase58(),
             ...this._contracts,
         });
     }

@@ -53,7 +53,7 @@ import {
     ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
-import { VAA, keccak256 } from "@wormhole-foundation/sdk-definitions";
+import { TokenRouterAddresses } from "../tokenRouter";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -64,7 +64,7 @@ export const FEE_PRECISION_MAX = 1_000_000n;
 
 export const CPI_EVENT_IX_SELECTOR = Uint8Array.from([228, 69, 165, 46, 81, 203, 154, 29]);
 
-export type ProgramId = (typeof PROGRAM_IDS)[number];
+export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
 
 export type AddCctpRouterEndpointArgs = {
     chain: ChainId;
@@ -223,13 +223,17 @@ export class MatchingEngineProgram {
 
     program: Program<MatchingEngine>;
 
-    constructor(connection: Connection, programId: ProgramId, mint: PublicKey) {
+    constructor(
+        connection: Connection,
+        programId: ProgramId,
+        private _addresses: TokenRouterAddresses,
+    ) {
         this._programId = programId;
-        this._mint = mint;
+        this._mint = new PublicKey(_addresses.usdcMint);
         this.pdas = programDerivedAddresses(
             new PublicKey(programId),
-            mint,
-            this.coreBridgeProgramId(),
+            this._mint,
+            this.coreBridgeProgramId,
         );
         this.program = new Program(
             { ...(IDL as any), address: this._programId },
@@ -245,6 +249,10 @@ export class MatchingEngineProgram {
 
     get mint(): PublicKey {
         return this._mint;
+    }
+
+    get coreBridgeProgramId(): PublicKey {
+        return new PublicKey(this._addresses.coreBridge);
     }
 
     onAuctionSettled(callback: (event: AuctionSettled, slot: number, signature: string) => void) {
@@ -2278,7 +2286,7 @@ export class MatchingEngineProgram {
     async publishMessageAccounts(auction: PublicKey): Promise<PublishMessageAccounts> {
         const coreMessage = this.coreMessageAddress(auction);
 
-        const coreBridgeProgram = this.coreBridgeProgramId();
+        const coreBridgeProgram = this.coreBridgeProgramId;
         const custodian = this.custodianAddress();
 
         return {
@@ -2365,51 +2373,21 @@ export class MatchingEngineProgram {
     }
 
     upgradeManagerProgram(): UpgradeManagerProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new UpgradeManagerProgram(
-                    this.program.provider.connection,
-                    "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
-                );
-            }
-            case localnet(): {
-                return new UpgradeManagerProgram(
-                    this.program.provider.connection,
-                    "UpgradeManager11111111111111111111111111111",
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new UpgradeManagerProgram(this.program.provider.connection, this._addresses);
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
         return new TokenMessengerMinterProgram(
             this.program.provider.connection,
-            "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
+            this._addresses.tokenMessenger,
         );
     }
 
     messageTransmitterProgram(): MessageTransmitterProgram {
         return new MessageTransmitterProgram(
             this.program.provider.connection,
-            "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
+            this._addresses.messageTransmitter,
         );
-    }
-
-    coreBridgeProgramId(): PublicKey {
-        switch (this._programId) {
-            case testnet(): {
-                return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
-            }
-            case localnet(): {
-                return new PublicKey("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
     }
 
     async computeDepositPenalty(

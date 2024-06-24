@@ -17,6 +17,7 @@ import { CctpTokenBurnMessage } from "../src/cctp";
 import { LiquidityLayerDeposit, LiquidityLayerMessage, uint64ToBN } from "../src/common";
 import {
     CircleAttester,
+    DEFAULT_ADDRESSES,
     ETHEREUM_USDC_ADDRESS,
     LOCALHOST,
     MOCK_GUARDIANS,
@@ -33,8 +34,8 @@ import {
     postLiquidityLayerVaa,
     toUniversalAddress,
 } from "../src/testing";
-import { Custodian, PreparedOrder, TokenRouterProgram, localnet } from "../src/tokenRouter";
-import { SolanaTokenRouter } from "../src/protocol";
+import { Custodian, PreparedOrder, TokenRouterProgram } from "../src/tokenRouter";
+import { SolanaTokenRouter, SolanaTokenRouterContracts } from "../src/protocol";
 import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 const SOLANA_CHAIN_ID = toChainId("Solana");
@@ -56,10 +57,8 @@ describe("Token Router", function () {
     const foreignEndpointAddress = REGISTERED_TOKEN_ROUTERS["Ethereum"]!;
     const foreignCctpDomain = 0;
     //const tokenRouter = new TokenRouterProgram(connection, localnet(), USDC_MINT_ADDRESS);
-    const tokenRouter = new SolanaTokenRouter("Devnet", "Solana", connection, {
-        tokenRouter: localnet(),
-        usdcMint: USDC_MINT_ADDRESS.toBase58(),
-    });
+    const contracts: SolanaTokenRouterContracts = DEFAULT_ADDRESSES["Devnet"]!;
+    const tokenRouter = new SolanaTokenRouter("Devnet", "Solana", connection, contracts);
 
     let lookupTableAddress: PublicKey;
 
@@ -726,7 +725,6 @@ describe("Token Router", function () {
                 const amountIn = 69n;
                 const txs = tokenRouter.prepareMarketOrder(
                     payer.publicKey,
-
                     {
                         amountIn,
                         targetChain: toChain(foreignChain),

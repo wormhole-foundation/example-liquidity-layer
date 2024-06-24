@@ -10,19 +10,15 @@ import {
 } from "@solana/web3.js";
 import {
     FastMarketOrder,
-    FastTransfer,
-    Message,
     TokenRouter,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { Chain, ChainId, Network, Platform, toChainId } from "@wormhole-foundation/sdk-base";
+import { ChainId, Network, Platform, toChainId } from "@wormhole-foundation/sdk-base";
 import {
-    AccountAddress,
-    ChainAddress,
     ChainsConfig,
     CircleBridge,
     Contracts,
-    UniversalAddress,
     UnsignedTransaction,
+    VAA,
 } from "@wormhole-foundation/sdk-definitions";
 import {
     AnySolanaAddress,
@@ -33,11 +29,17 @@ import {
     SolanaUnsignedTransaction,
 } from "@wormhole-foundation/sdk-solana";
 import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
-import { ProgramId, TokenRouterProgram } from "../tokenRouter";
+import { TokenRouterProgram } from "../tokenRouter";
+import { SolanaMatchingEngine } from "./matchingEngine";
 
 export interface SolanaTokenRouterContracts {
     tokenRouter: string;
     usdcMint: string;
+    coreBridge: string;
+    matchingEngine: string;
+    messageTransmitter: string;
+    tokenMessenger: string;
+    upgradeManager: string;
 }
 
 export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
@@ -45,6 +47,7 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
     implements TokenRouter<N, C>
 {
     coreBridge: SolanaWormholeCore<N, C>;
+    matchingEngine: SolanaMatchingEngine<N, C>;
 
     constructor(
         readonly _network: N,
@@ -52,12 +55,10 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         readonly _connection: Connection,
         readonly _contracts: Contracts & SolanaTokenRouterContracts,
     ) {
-        super(_connection, _contracts.tokenRouter as ProgramId, new PublicKey(_contracts.usdcMint));
+        super(_connection, _contracts.tokenRouter, _contracts);
 
-        this.coreBridge = new SolanaWormholeCore(_network, _chain, _connection, {
-            coreBridge: this.coreBridgeProgramId().toBase58(),
-            ...this._contracts,
-        });
+        this.coreBridge = new SolanaWormholeCore(_network, _chain, _connection, _contracts);
+        this.matchingEngine = new SolanaMatchingEngine(_network, _chain, _connection, _contracts);
     }
 
     static async fromRpc<N extends Network>(
@@ -89,7 +90,7 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         const ix = await this.initializeIx({
             owner: sender,
             ownerAssistant: new SolanaAddress(ownerAssistant).unwrap(),
-            mint: mint ? new SolanaAddress(mint).unwrap() : undefined,
+            mint: mint ? new SolanaAddress(mint).unwrap() : this.mint,
         });
 
         const transaction = this.createTx(sender, [ix]);
@@ -231,23 +232,42 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         yield this.createUnsignedTx({ transaction, signers }, "TokenRouter.PlaceMarketOrder");
     }
 
-    placeFastMarketOrder<RC extends Chain>(
-        amount: bigint,
-        chain: RC,
-        redeemer: AccountAddress<RC>,
-        redeemerMessage: Uint8Array,
-        maxFee: bigint,
-        deadline: number,
-        minAmountOut?: bigint | undefined,
-        refundAddress?: string | undefined,
-    ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
-        throw new Error("Method not implemented.");
-    }
-
-    redeemFill(
-        vaa: FastTransfer.VAA,
+    async *redeemFill(
+        sender: AnySolanaAddress,
+        vaa: VAA<"FastTransfer:CctpDeposit">,
         cctp: CircleBridge.Attestation,
     ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
+        // const payer = new SolanaAddress(sender).unwrap();
+
+        // //
+        // const { payload: fill } = vaa.payload;
+        // if (!Payload.is(fill, "Fill")) {
+        //     throw new Error("Invalid VAA payload");
+        // }
+
+        // const postedVaaAddress = coreUtils.derivePostedVaaKey(
+        //     this.coreBridge.address,
+        //     Buffer.from(vaa.hash),
+        // );
+
+        // const ix = await this.redeemCctpFillIx(
+        //     {
+        //         payer: payer,
+        //         vaa: postedVaaAddress,
+        //         sourceRouterEndpoint: this.matchingEngine.routerEndpointAddress(
+        //             toChainId(fill.sourceChain),
+        //         ),
+        //     },
+        //     {
+        //         encodedCctpMessage,
+        //         cctpAttestation,
+        //     },
+        // );
+
+        // //const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+        // //    units: 300_000,
+        // //});
+
         throw new Error("Method not implemented.");
     }
 

@@ -1,7 +1,8 @@
 import { PublicKey, Keypair } from "@solana/web3.js";
-import { Chain, contracts } from "@wormhole-foundation/sdk-base";
+import { Chain, Network, contracts } from "@wormhole-foundation/sdk-base";
 import { UniversalAddress } from "@wormhole-foundation/sdk-definitions";
 import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
+import { TokenRouterAddresses } from "../tokenRouter";
 
 export const CORE_BRIDGE_PID = new PublicKey(contracts.coreBridge.get("Mainnet", "Solana")!);
 
@@ -73,3 +74,27 @@ export const REGISTERED_TOKEN_ROUTERS_V2: { [k in Chain]?: UniversalAddress } = 
         new UniversalAddress(new Uint8Array(v)),
     ]),
 );
+
+export const DEFAULT_ADDRESSES: {
+    [network in Network]?: TokenRouterAddresses;
+} = {
+    // This is local development network, not Solana's 'devnet'
+    Devnet: {
+        coreBridge: "worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth",
+        matchingEngine: "MatchingEngine11111111111111111111111111111",
+        tokenRouter: "TokenRouter11111111111111111111111111111111",
+        tokenMessenger: "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
+        messageTransmitter: "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
+        upgradeManager: "UpgradeManager11111111111111111111111111111",
+        usdcMint: USDC_MINT_ADDRESS.toBase58(),
+    },
+    Testnet: {
+        coreBridge: "3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5",
+        matchingEngine: "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS",
+        tokenRouter: "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md",
+        tokenMessenger: "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
+        messageTransmitter: "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
+        upgradeManager: "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
+        usdcMint: "todo",
+    },
+};

@@ -21,15 +21,15 @@ export const PROGRAM_IDS = [
     "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
 ] as const;
 
-export type ProgramId = (typeof PROGRAM_IDS)[number];
+export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
 
 export class UpgradeManagerProgram {
-    private _programId: ProgramId;
+    private _programId: PublicKey;
 
     program: Program<UpgradeManager>;
 
-    constructor(connection: Connection, programId: ProgramId) {
-        this._programId = programId;
+    constructor(connection: Connection, private _addresses: tokenRouterSdk.TokenRouterAddresses) {
+        this._programId = new PublicKey(_addresses.upgradeManager);
         this.program = new Program(
             { ...(IDL as any), address: this._programId },
             {
@@ -192,54 +192,18 @@ export class UpgradeManagerProgram {
     }
 
     matchingEngineProgram(): matchingEngineSdk.MatchingEngineProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new matchingEngineSdk.MatchingEngineProgram(
-                    this.program.provider.connection,
-                    matchingEngineSdk.testnet(),
-                    PublicKey.default,
-                );
-            }
-            case localnet(): {
-                return new matchingEngineSdk.MatchingEngineProgram(
-                    this.program.provider.connection,
-                    matchingEngineSdk.localnet(),
-                    PublicKey.default,
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new matchingEngineSdk.MatchingEngineProgram(
+            this.program.provider.connection,
+            this._addresses.matchingEngine,
+            this._addresses,
+        );
     }
 
     tokenRouterProgram(): tokenRouterSdk.TokenRouterProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new tokenRouterSdk.TokenRouterProgram(
-                    this.program.provider.connection,
-                    tokenRouterSdk.testnet(),
-                    PublicKey.default,
-                );
-            }
-            case localnet(): {
-                return new tokenRouterSdk.TokenRouterProgram(
-                    this.program.provider.connection,
-                    tokenRouterSdk.localnet(),
-                    PublicKey.default,
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new tokenRouterSdk.TokenRouterProgram(
+            this.program.provider.connection,
+            this._addresses.tokenRouter,
+            this._addresses,
+        );
     }
-}
-
-export function testnet(): ProgramId {
-    return "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt";
-}
-
-export function localnet(): ProgramId {
-    return "UpgradeManager11111111111111111111111111111";
 }

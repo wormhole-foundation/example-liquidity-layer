@@ -9,7 +9,7 @@ import { UsedNonses } from "./UsedNonces";
 
 export const PROGRAM_IDS = ["CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"] as const;
 
-export type ProgramId = (typeof PROGRAM_IDS)[number];
+export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
 
 export type ReceiveTokenMessengerMinterMessageAccounts = {
     authority: PublicKey;

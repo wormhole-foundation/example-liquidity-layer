@@ -32,6 +32,7 @@ import * as matchingEngineSdk from "../src/matchingEngine";
 import {
     CHAIN_TO_DOMAIN,
     CircleAttester,
+    DEFAULT_ADDRESSES,
     ETHEREUM_USDC_ADDRESS,
     LOCALHOST,
     MOCK_GUARDIANS,
@@ -51,6 +52,7 @@ import {
 } from "../src/testing";
 import * as tokenRouterSdk from "../src/tokenRouter";
 import { VaaAccount } from "../src/wormhole";
+import { SolanaMatchingEngine, SolanaTokenRouter } from "../src/protocol";
 
 const SOLANA_CHAIN_ID = toChainId("Solana");
 
@@ -62,15 +64,17 @@ describe("Matching Engine <> Token Router", function () {
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
 
     const foreignChain = toChainId("Ethereum");
-    const matchingEngine = new matchingEngineSdk.MatchingEngineProgram(
+    const matchingEngine = new SolanaMatchingEngine(
+        "Devnet",
+        "Solana",
         connection,
-        matchingEngineSdk.localnet(),
-        USDC_MINT_ADDRESS,
+        DEFAULT_ADDRESSES["Devnet"]!,
     );
-    const tokenRouter = new tokenRouterSdk.TokenRouterProgram(
+    const tokenRouter = new SolanaTokenRouter(
+        "Devnet",
+        "Solana",
         connection,
-        tokenRouterSdk.localnet(),
-        matchingEngine.mint,
+        DEFAULT_ADDRESSES["Devnet"]!,
     );
 
     const playerOne = PLAYER_ONE_KEYPAIR;

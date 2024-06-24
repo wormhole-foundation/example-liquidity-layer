@@ -43,6 +43,7 @@ import { SolanaMatchingEngine } from "../src/protocol/matchingEngine";
 import {
     CHAIN_TO_DOMAIN,
     CircleAttester,
+    DEFAULT_ADDRESSES,
     ETHEREUM_USDC_ADDRESS,
     LOCALHOST,
     OWNER_ASSISTANT_KEYPAIR,
@@ -129,10 +130,12 @@ describe("Matching Engine", function () {
     const solanaChain = toChainId("Solana");
 
     // Matching Engine program.
-    const engine = new SolanaMatchingEngine("Devnet", "Solana", connection, {
-        matchingEngine: localnet(),
-        usdcMint: USDC_MINT_ADDRESS.toBase58(),
-    });
+    const engine = new SolanaMatchingEngine(
+        "Devnet",
+        "Solana",
+        connection,
+        DEFAULT_ADDRESSES["Devnet"]!,
+    );
 
     let lookupTableAddress: PublicKey;
 
