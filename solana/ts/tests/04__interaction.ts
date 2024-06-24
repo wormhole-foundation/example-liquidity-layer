@@ -29,30 +29,31 @@ import {
     writeUint64BE,
 } from "../src/common";
 import * as matchingEngineSdk from "../src/matchingEngine";
+import { SolanaMatchingEngine, SolanaTokenRouter } from "../src/protocol";
 import {
     CHAIN_TO_DOMAIN,
     CircleAttester,
     DEFAULT_ADDRESSES,
     ETHEREUM_USDC_ADDRESS,
     LOCALHOST,
-    MOCK_GUARDIANS,
     OWNER_ASSISTANT_KEYPAIR,
     OWNER_KEYPAIR,
     PAYER_KEYPAIR,
     PLAYER_ONE_KEYPAIR,
     REGISTERED_TOKEN_ROUTERS,
     USDC_MINT_ADDRESS,
+    createLiquidityLayerVaa,
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,
     getBlockTime,
-    postLiquidityLayerVaa,
+    getSdkSigner,
+    postLiquidityLayerVaav2,
     toUniversalAddress,
     waitUntilSlot,
 } from "../src/testing";
 import * as tokenRouterSdk from "../src/tokenRouter";
 import { VaaAccount } from "../src/wormhole";
-import { SolanaMatchingEngine, SolanaTokenRouter } from "../src/protocol";
 
 const SOLANA_CHAIN_ID = toChainId("Solana");
 
@@ -60,6 +61,8 @@ describe("Matching Engine <> Token Router", function () {
     const connection = new Connection(LOCALHOST, "processed");
 
     const payer = PAYER_KEYPAIR;
+    const { signer: payerSigner } = getSdkSigner(connection, payer);
+
     const owner = OWNER_KEYPAIR;
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
 
@@ -1805,16 +1808,20 @@ describe("Matching Engine <> Token Router", function () {
             throw new Error(`Invalid source chain: ${sourceChain}`);
         }
 
-        const fastVaa = await postLiquidityLayerVaa(
+        const mockFastVaa = await createLiquidityLayerVaa(
             connection,
-            payer,
-            MOCK_GUARDIANS,
             emitter,
             wormholeSequence++,
             new LiquidityLayerMessage({
                 fastMarketOrder,
             }),
             { sourceChain, timestamp: vaaTimestamp },
+        );
+
+        const { address: fastVaa } = await postLiquidityLayerVaav2(
+            payerSigner,
+            matchingEngine,
+            mockFastVaa,
         );
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
         const fast = { fastMarketOrder, vaa: fastVaa, vaaAccount: fastVaaAccount };
@@ -1842,15 +1849,20 @@ describe("Matching Engine <> Token Router", function () {
                 }),
             });
 
-            const finalizedVaa = await postLiquidityLayerVaa(
+            const mockFinalizedVaa = await createLiquidityLayerVaa(
                 connection,
-                payer,
-                MOCK_GUARDIANS,
                 finalizedEmitter,
                 finalizedSequence,
                 finalizedMessage,
                 { sourceChain: finalizedSourceChain, timestamp: finalizedVaaTimestamp },
             );
+
+            const { address: finalizedVaa } = await postLiquidityLayerVaav2(
+                payerSigner,
+                matchingEngine,
+                mockFinalizedVaa,
+            );
+
             const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
             return {
                 fast,

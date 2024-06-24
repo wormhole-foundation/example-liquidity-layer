@@ -929,7 +929,11 @@ export class TokenRouterProgram {
     }
 
     upgradeManagerProgram(): UpgradeManagerProgram {
-        return new UpgradeManagerProgram(this.program.provider.connection, this._addresses);
+        return new UpgradeManagerProgram(
+            this.program.provider.connection,
+            this.upgradeManager.toBase58(),
+            this._addresses,
+        );
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {

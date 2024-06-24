@@ -24,12 +24,15 @@ export const PROGRAM_IDS = [
 export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
 
 export class UpgradeManagerProgram {
-    private _programId: PublicKey;
-
+    private _programId: ProgramId;
     program: Program<UpgradeManager>;
 
-    constructor(connection: Connection, private _addresses: tokenRouterSdk.TokenRouterAddresses) {
-        this._programId = new PublicKey(_addresses.upgradeManager);
+    constructor(
+        connection: Connection,
+        programId: ProgramId,
+        private _addresses: tokenRouterSdk.TokenRouterAddresses,
+    ) {
+        this._programId = programId;
         this.program = new Program(
             { ...(IDL as any), address: this._programId },
             {

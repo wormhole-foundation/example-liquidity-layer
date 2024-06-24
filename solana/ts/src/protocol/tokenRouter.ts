@@ -1,6 +1,7 @@
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableAccount,
+    ComputeBudgetProgram,
     Connection,
     Keypair,
     PublicKey,
@@ -10,9 +11,10 @@ import {
 } from "@solana/web3.js";
 import {
     FastMarketOrder,
+    Payload,
     TokenRouter,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { ChainId, Network, Platform, toChainId } from "@wormhole-foundation/sdk-base";
+import { ChainId, Network, Platform, encoding, toChainId } from "@wormhole-foundation/sdk-base";
 import {
     ChainsConfig,
     CircleBridge,
@@ -237,38 +239,35 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         vaa: VAA<"FastTransfer:CctpDeposit">,
         cctp: CircleBridge.Attestation,
     ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
-        // const payer = new SolanaAddress(sender).unwrap();
+        const payer = new SolanaAddress(sender).unwrap();
 
-        // //
-        // const { payload: fill } = vaa.payload;
-        // if (!Payload.is(fill, "Fill")) {
-        //     throw new Error("Invalid VAA payload");
-        // }
+        const postedVaaAddress = this.matchingEngine.pdas.postedVaa(vaa);
 
-        // const postedVaaAddress = coreUtils.derivePostedVaaKey(
-        //     this.coreBridge.address,
-        //     Buffer.from(vaa.hash),
-        // );
+        const { payload: fill } = vaa.payload;
+        if (!Payload.is(fill, "Fill")) {
+            throw new Error("Invalid VAA payload");
+        }
 
-        // const ix = await this.redeemCctpFillIx(
-        //     {
-        //         payer: payer,
-        //         vaa: postedVaaAddress,
-        //         sourceRouterEndpoint: this.matchingEngine.routerEndpointAddress(
-        //             toChainId(fill.sourceChain),
-        //         ),
-        //     },
-        //     {
-        //         encodedCctpMessage,
-        //         cctpAttestation,
-        //     },
-        // );
+        const ix = await this.redeemCctpFillIx(
+            {
+                payer: payer,
+                vaa: postedVaaAddress,
+                sourceRouterEndpoint: this.matchingEngine.routerEndpointAddress(
+                    toChainId(fill.sourceChain),
+                ),
+            },
+            {
+                encodedCctpMessage: Buffer.from(CircleBridge.serialize(cctp.message)),
+                cctpAttestation: Buffer.from(cctp.attestation!, "hex"),
+            },
+        );
 
-        // //const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-        // //    units: 300_000,
-        // //});
+        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
+            units: 300_000,
+        });
 
-        throw new Error("Method not implemented.");
+        const transaction = this.createTx(payer, [ix, computeIx]);
+        yield this.createUnsignedTx({ transaction }, "TokenRouter.RedeemFill");
     }
 
     private createTx(

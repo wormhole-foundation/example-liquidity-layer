@@ -82,40 +82,6 @@ export async function postLiquidityLayerVaav2<N extends Network>(
     return { address, account };
 }
 
-// TODO: Replace any invocations of this function with postLiquidityLayerVaav2
-// then rename back to postLiquidityLayerVaa
-export async function postLiquidityLayerVaa(
-    connection: Connection,
-    payer: Keypair,
-    guardians: mocks.MockGuardians,
-    foreignEmitterAddress: Array<number>,
-    sequence: bigint,
-    message: LiquidityLayerMessage | Buffer,
-    args: { sourceChain?: Chain; timestamp?: number } = {},
-) {
-    let { sourceChain, timestamp } = args;
-    sourceChain ??= "Ethereum";
-    timestamp ??= await getBlockTime(connection);
-
-    const foreignEmitter = new mocks.MockEmitter(
-        toUniversal(sourceChain, new Uint8Array(foreignEmitterAddress)),
-        sourceChain ?? "Ethereum",
-        sequence - 1n,
-    );
-
-    const published = foreignEmitter.publishMessage(
-        0, // nonce,
-        Buffer.isBuffer(message) ? message : message.encode(),
-        0, // consistencyLevel
-        timestamp,
-    );
-    const vaa = guardians.addSignatures(published, [0]);
-
-    await postVaa(connection, payer, vaa);
-
-    return coreUtils.derivePostedVaaKey(CORE_BRIDGE_PID, Buffer.from(vaa.hash));
-}
-
 export class CircleAttester {
     attester: ethers.utils.SigningKey;
 

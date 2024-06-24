@@ -9,34 +9,34 @@ import {
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
+import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { UniversalAddress, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
 import { CctpTokenBurnMessage } from "../src/cctp";
 import { LiquidityLayerDeposit, LiquidityLayerMessage, uint64ToBN } from "../src/common";
+import { SolanaTokenRouter, SolanaTokenRouterContracts } from "../src/protocol";
 import {
     CircleAttester,
     DEFAULT_ADDRESSES,
     ETHEREUM_USDC_ADDRESS,
     LOCALHOST,
-    MOCK_GUARDIANS,
     OWNER_ASSISTANT_KEYPAIR,
     OWNER_KEYPAIR,
     PAYER_KEYPAIR,
     REGISTERED_TOKEN_ROUTERS,
     USDC_MINT_ADDRESS,
+    createLiquidityLayerVaa,
     expectIxErr,
     expectIxOk,
     expectTxsErr,
     expectTxsOk,
     getSdkSigner,
-    postLiquidityLayerVaa,
+    postLiquidityLayerVaav2,
     toUniversalAddress,
 } from "../src/testing";
 import { Custodian, PreparedOrder, TokenRouterProgram } from "../src/tokenRouter";
-import { SolanaTokenRouter, SolanaTokenRouterContracts } from "../src/protocol";
-import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 const SOLANA_CHAIN_ID = toChainId("Solana");
 
@@ -1176,15 +1176,20 @@ describe("Token Router", function () {
                     }),
                 });
 
-                const vaa = await postLiquidityLayerVaa(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    payer,
-                    MOCK_GUARDIANS,
                     foreignEndpointAddress,
                     wormholeSequence++,
                     message,
                     { sourceChain: "Polygon" },
                 );
+
+                const { address: vaa } = await postLiquidityLayerVaav2(
+                    payerSigner,
+                    tokenRouter.matchingEngine,
+                    mockInvalidVaa,
+                );
+
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
                         payer: payer.publicKey,
@@ -1250,14 +1255,19 @@ describe("Token Router", function () {
                     }),
                 });
 
-                const vaa = await postLiquidityLayerVaa(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    payer,
-                    MOCK_GUARDIANS,
                     new Array(32).fill(0), // emitter address
                     wormholeSequence++,
                     message,
                 );
+
+                const { address: vaa } = await postLiquidityLayerVaav2(
+                    payerSigner,
+                    tokenRouter.matchingEngine,
+                    mockInvalidVaa,
+                );
+
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
                         payer: payer.publicKey,
@@ -1321,14 +1331,19 @@ describe("Token Router", function () {
                 const encodedMessage = message.encode();
                 encodedMessage[147] = 69;
 
-                const vaa = await postLiquidityLayerVaa(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    payer,
-                    MOCK_GUARDIANS,
                     foreignEndpointAddress,
                     wormholeSequence++,
                     encodedMessage,
                 );
+
+                const { address: vaa } = await postLiquidityLayerVaav2(
+                    payerSigner,
+                    tokenRouter.matchingEngine,
+                    mockInvalidVaa,
+                );
+
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
                         payer: payer.publicKey,
@@ -1388,23 +1403,22 @@ describe("Token Router", function () {
                     }),
                 });
 
-                const vaa = await postLiquidityLayerVaa(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    payer,
-                    MOCK_GUARDIANS,
                     foreignEndpointAddress,
                     wormholeSequence++,
                     message,
                 );
+
+                const { address: vaa } = await postLiquidityLayerVaav2(
+                    payerSigner,
+                    tokenRouter.matchingEngine,
+                    mockInvalidVaa,
+                );
+
                 const ix = await tokenRouter.redeemCctpFillIx(
-                    {
-                        payer: payer.publicKey,
-                        vaa,
-                    },
-                    {
-                        encodedCctpMessage,
-                        cctpAttestation,
-                    },
+                    { payer: payer.publicKey, vaa },
+                    { encodedCctpMessage, cctpAttestation },
                 );
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
@@ -1465,14 +1479,18 @@ describe("Token Router", function () {
                     }),
                 });
 
-                const vaa = await postLiquidityLayerVaa(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    payer,
-                    MOCK_GUARDIANS,
                     foreignEndpointAddress,
                     wormholeSequence++,
                     message,
                 );
+                const { address: vaa } = await postLiquidityLayerVaav2(
+                    payerSigner,
+                    tokenRouter.matchingEngine,
+                    mockInvalidVaa,
+                );
+
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
                         payer: payer.publicKey,

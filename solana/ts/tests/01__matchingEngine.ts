@@ -17,7 +17,7 @@ import {
     SlowOrderResponse,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { CircleBridge, VAA, create, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { CircleBridge, VAA, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
 import { CctpTokenBurnMessage } from "../src/cctp";
@@ -37,7 +37,6 @@ import {
     PreparedOrderResponse,
     Proposal,
     RouterEndpoint,
-    localnet,
 } from "../src/matchingEngine";
 import { SolanaMatchingEngine } from "../src/protocol/matchingEngine";
 import {

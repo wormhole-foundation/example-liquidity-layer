@@ -2373,7 +2373,11 @@ export class MatchingEngineProgram {
     }
 
     upgradeManagerProgram(): UpgradeManagerProgram {
-        return new UpgradeManagerProgram(this.program.provider.connection, this._addresses);
+        return new UpgradeManagerProgram(
+            this.program.provider.connection,
+            this._addresses.upgradeManager,
+            this._addresses,
+        );
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
