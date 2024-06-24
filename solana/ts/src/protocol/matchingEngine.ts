@@ -32,16 +32,6 @@ import { vaaHash } from "../common";
 import { AuctionParameters, MatchingEngineProgram, ProgramId } from "../matchingEngine";
 import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
 
-export interface SolanaMatchingEngineContracts {
-    tokenRouter: string;
-    matchingEngine: string;
-    usdcMint: string;
-    coreBridge: string;
-    messageTransmitter: string;
-    tokenMessenger: string;
-    upgradeManager: string;
-}
-
 export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     extends MatchingEngineProgram
     implements MatchingEngine<N, C>
@@ -52,7 +42,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         readonly _network: N,
         readonly _chain: C,
         readonly _connection: Connection,
-        readonly _contracts: Contracts & SolanaMatchingEngineContracts,
+        readonly _contracts: Contracts & MatchingEngine.Addresses,
     ) {
         super(
             _connection,
@@ -69,7 +59,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     static async fromRpc<N extends Network>(
         connection: Connection,
         config: ChainsConfig<N, Platform>,
-        contracts: SolanaMatchingEngineContracts,
+        contracts: MatchingEngine.Addresses,
     ) {
         const [network, chain] = await SolanaPlatform.chainFromRpc(connection);
         const conf = config[chain]!;

@@ -48,7 +48,7 @@ import {
     expectIxOkDetails,
     getBlockTime,
     getSdkSigner,
-    postLiquidityLayerVaav2,
+    postAndFetchVaa,
     toUniversalAddress,
     waitUntilSlot,
 } from "../src/testing";
@@ -1818,7 +1818,7 @@ describe("Matching Engine <> Token Router", function () {
             { sourceChain, timestamp: vaaTimestamp },
         );
 
-        const { address: fastVaa } = await postLiquidityLayerVaav2(
+        const { address: fastVaa } = await postAndFetchVaa(
             payerSigner,
             matchingEngine,
             mockFastVaa,
@@ -1857,7 +1857,7 @@ describe("Matching Engine <> Token Router", function () {
                 { sourceChain: finalizedSourceChain, timestamp: finalizedVaaTimestamp },
             );
 
-            const { address: finalizedVaa } = await postLiquidityLayerVaav2(
+            const { address: finalizedVaa } = await postAndFetchVaa(
                 payerSigner,
                 matchingEngine,
                 mockFinalizedVaa,

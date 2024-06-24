@@ -34,6 +34,19 @@ export interface FastTransfer<N extends Network, C extends Chain> {
     // redeem?
 }
 
+export namespace MatchingEngine {
+    export type Addresses = {
+        matchingEngine: string;
+        coreBridge: string;
+        // cctp
+        usdcMint: string;
+        messageTransmitter: string;
+        tokenMessenger: string;
+        //
+        upgradeManager: string;
+    };
+}
+
 // matching engine: this is only on solana and where the auctions happen
 export interface MatchingEngine<N extends Network, C extends Chain> {
     // Admin methods
@@ -119,6 +132,10 @@ export namespace TokenRouter {
             <FastMarketOrder>value.targetChain !== undefined
         );
     }
+
+    export type Addresses = MatchingEngine.Addresses & {
+        tokenRouter: string;
+    };
 
     /** The Address or Id of a prepared order */
     export type PreparedOrder<C extends Chain> = AccountAddress<C>;

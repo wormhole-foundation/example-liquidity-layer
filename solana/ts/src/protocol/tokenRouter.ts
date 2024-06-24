@@ -34,16 +34,6 @@ import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
 import { TokenRouterProgram } from "../tokenRouter";
 import { SolanaMatchingEngine } from "./matchingEngine";
 
-export interface SolanaTokenRouterContracts {
-    tokenRouter: string;
-    usdcMint: string;
-    coreBridge: string;
-    matchingEngine: string;
-    messageTransmitter: string;
-    tokenMessenger: string;
-    upgradeManager: string;
-}
-
 export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
     extends TokenRouterProgram
     implements TokenRouter<N, C>
@@ -55,7 +45,7 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         readonly _network: N,
         readonly _chain: C,
         readonly _connection: Connection,
-        readonly _contracts: Contracts & SolanaTokenRouterContracts,
+        readonly _contracts: Contracts & TokenRouter.Addresses,
     ) {
         super(_connection, _contracts.tokenRouter, _contracts);
 
@@ -66,7 +56,7 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
     static async fromRpc<N extends Network>(
         connection: Connection,
         config: ChainsConfig<N, Platform>,
-        contracts: SolanaTokenRouterContracts,
+        contracts: TokenRouter.Addresses,
     ) {
         const [network, chain] = await SolanaPlatform.chainFromRpc(connection);
         const conf = config[chain]!;

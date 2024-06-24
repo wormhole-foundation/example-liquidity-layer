@@ -27,7 +27,7 @@ import {
     uint64ToBigInt,
 } from "../common";
 import IDL from "../idl/json/matching_engine.json";
-import { MatchingEngine } from "../idl/ts/matching_engine";
+import { type MatchingEngine as MatchingEngineType } from "../idl/ts/matching_engine";
 import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
@@ -53,7 +53,7 @@ import {
     ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
-import { TokenRouterAddresses } from "../tokenRouter";
+import { MatchingEngine } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -221,12 +221,12 @@ export class MatchingEngineProgram {
 
     pdas: ReturnType<typeof programDerivedAddresses>;
 
-    program: Program<MatchingEngine>;
+    program: Program<MatchingEngineType>;
 
     constructor(
         connection: Connection,
         programId: ProgramId,
-        private _addresses: TokenRouterAddresses,
+        private _addresses: MatchingEngine.Addresses,
     ) {
         this._programId = programId;
         this._mint = new PublicKey(_addresses.usdcMint);
@@ -2376,7 +2376,8 @@ export class MatchingEngineProgram {
         return new UpgradeManagerProgram(
             this.program.provider.connection,
             this._addresses.upgradeManager,
-            this._addresses,
+            // TODO: matching engine does not require token router
+            { ...this._addresses, tokenRouter: "" },
         );
     }
 
@@ -2484,12 +2485,4 @@ export class MatchingEngineProgram {
     transferAuthorityAddress = (auction: PublicKey, offerPrice: Uint64): PublicKey =>
         this.pdas.transferAuthority(auction, offerPrice);
     auctionHistoryAddress = (id: Uint64): PublicKey => this.pdas.auctionHistory(id);
-}
-
-export function testnet(): ProgramId {
-    return "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
-}
-
-export function localnet(): ProgramId {
-    return "MatchingEngine11111111111111111111111111111";
 }

@@ -33,7 +33,7 @@ import {
     expectTxsErr,
     expectTxsOk,
     getSdkSigner,
-    postLiquidityLayerVaav2,
+    postAndFetchVaa,
     toUniversalAddress,
 } from "../src/testing";
 import { Custodian, PreparedOrder, TokenRouterProgram } from "../src/tokenRouter";
@@ -1184,7 +1184,7 @@ describe("Token Router", function () {
                     { sourceChain: "Polygon" },
                 );
 
-                const { address: vaa } = await postLiquidityLayerVaav2(
+                const { address: vaa } = await postAndFetchVaa(
                     payerSigner,
                     tokenRouter.matchingEngine,
                     mockInvalidVaa,
@@ -1262,7 +1262,7 @@ describe("Token Router", function () {
                     message,
                 );
 
-                const { address: vaa } = await postLiquidityLayerVaav2(
+                const { address: vaa } = await postAndFetchVaa(
                     payerSigner,
                     tokenRouter.matchingEngine,
                     mockInvalidVaa,
@@ -1338,7 +1338,7 @@ describe("Token Router", function () {
                     encodedMessage,
                 );
 
-                const { address: vaa } = await postLiquidityLayerVaav2(
+                const { address: vaa } = await postAndFetchVaa(
                     payerSigner,
                     tokenRouter.matchingEngine,
                     mockInvalidVaa,
@@ -1410,7 +1410,7 @@ describe("Token Router", function () {
                     message,
                 );
 
-                const { address: vaa } = await postLiquidityLayerVaav2(
+                const { address: vaa } = await postAndFetchVaa(
                     payerSigner,
                     tokenRouter.matchingEngine,
                     mockInvalidVaa,
@@ -1485,7 +1485,7 @@ describe("Token Router", function () {
                     wormholeSequence++,
                     message,
                 );
-                const { address: vaa } = await postLiquidityLayerVaav2(
+                const { address: vaa } = await postAndFetchVaa(
                     payerSigner,
                     tokenRouter.matchingEngine,
                     mockInvalidVaa,

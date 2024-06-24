@@ -11,7 +11,7 @@ import {
 } from "@solana/web3.js";
 import { Keccak } from "sha3";
 import IDL from "../idl/json/token_router.json";
-import { TokenRouter } from "../idl/ts/token_router";
+import { type TokenRouter as TokenRouterType } from "../idl/ts/token_router";
 import {
     CctpTokenBurnMessage,
     MessageTransmitterProgram,
@@ -29,6 +29,7 @@ import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils"
 import { VaaAccount } from "../wormhole";
 import { Custodian, PreparedFill, PreparedOrder } from "./state";
 import { ChainId, Network, isChainId } from "@wormhole-foundation/sdk-base";
+import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 export const PROGRAM_IDS = [
     "TokenRouter11111111111111111111111111111111",
@@ -36,19 +37,6 @@ export const PROGRAM_IDS = [
 ] as const;
 
 export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
-
-export type TokenRouterAddresses = {
-    tokenRouter: string;
-    // upstream wormhole
-    matchingEngine: string;
-    coreBridge: string;
-    // cctp
-    usdcMint: string;
-    messageTransmitter: string;
-    tokenMessenger: string;
-    //
-    upgradeManager: string;
-};
 
 export type PrepareMarketOrderArgs = {
     amountIn: bigint;
@@ -128,16 +116,13 @@ export type AddCctpRouterEndpointArgs = {
 
 export class TokenRouterProgram {
     private _programId: ProgramId;
-    private _addresses: TokenRouterAddresses;
+    private _addresses: TokenRouter.Addresses;
 
-    program: Program<TokenRouter>;
+    program: Program<TokenRouterType>;
 
-    // TODO: fix this
-    constructor(connection: Connection, programId: ProgramId, addresses?: TokenRouterAddresses) {
+    constructor(connection: Connection, programId: ProgramId, addresses?: TokenRouter.Addresses) {
         this._programId = programId;
-
         this._addresses = addresses!;
-
         this.program = new Program(
             { ...(IDL as any), address: this._programId },
             {

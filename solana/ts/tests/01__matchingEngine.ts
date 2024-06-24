@@ -63,7 +63,7 @@ import {
     getBlockTime,
     getSdkSigner,
     getUsdcAtaBalance,
-    postLiquidityLayerVaav2,
+    postAndFetchVaa,
     toUniversalAddress,
     unwrapSigners,
     waitUntilSlot,
@@ -1417,7 +1417,7 @@ describe("Matching Engine", function () {
                     Buffer.from("deadbeef", "hex"),
                 );
 
-                const { address: fastVaa, account: account } = await postLiquidityLayerVaav2(
+                const { address: fastVaa, account: account } = await postAndFetchVaa(
                     playerOneSigner,
                     engine,
                     mockInvalidVaa,
@@ -1549,7 +1549,7 @@ describe("Matching Engine", function () {
                     msg,
                 );
 
-                const { address: fastVaa, account } = await postLiquidityLayerVaav2(
+                const { address: fastVaa, account } = await postAndFetchVaa(
                     playerOneSigner,
                     engine,
                     mockInvalidVaa,
@@ -4878,7 +4878,7 @@ describe("Matching Engine", function () {
             { sourceChain, timestamp: vaaTimestamp },
         );
 
-        const { address: fastVaa, account: fastVaaAccount } = await postLiquidityLayerVaav2(
+        const { address: fastVaa, account: fastVaaAccount } = await postAndFetchVaa(
             payerSigner,
             engine,
             mockFastVaa,
@@ -4916,8 +4916,11 @@ describe("Matching Engine", function () {
             { sourceChain: finalizedSourceChain, timestamp: finalizedVaaTimestamp },
         );
 
-        const { address: finalizedVaa, account: finalizedVaaAccount } =
-            await postLiquidityLayerVaav2(payerSigner, engine, mockFinalizedVaa);
+        const { address: finalizedVaa, account: finalizedVaaAccount } = await postAndFetchVaa(
+            payerSigner,
+            engine,
+            mockFinalizedVaa,
+        );
 
         return {
             fast,

@@ -15,6 +15,7 @@ import * as matchingEngineSdk from "../matchingEngine";
 import * as tokenRouterSdk from "../tokenRouter";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { UpgradeReceipt } from "./state";
+import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 export const PROGRAM_IDS = [
     "UpgradeManager11111111111111111111111111111",
@@ -30,7 +31,7 @@ export class UpgradeManagerProgram {
     constructor(
         connection: Connection,
         programId: ProgramId,
-        private _addresses: tokenRouterSdk.TokenRouterAddresses,
+        private _addresses: TokenRouter.Addresses,
     ) {
         this._programId = programId;
         this.program = new Program(

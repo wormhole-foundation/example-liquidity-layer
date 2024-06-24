@@ -55,20 +55,15 @@ export async function createLiquidityLayerVaa(
         sequence - 1n,
     );
 
-    const published = foreignEmitter.publishMessage(
-        0, // nonce,
-        Buffer.isBuffer(message) ? message : message.encode(),
-        0, // consistencyLevel
-        timestamp,
-    );
-
+    const msg = Buffer.isBuffer(message) ? message : message.encode();
+    const published = foreignEmitter.publishMessage(0, msg, 0, timestamp);
     const vaa = MOCK_GUARDIANS.addSignatures(published, [0]);
 
     // @ts-ignore -- TODO: this is lie, need to define discriminator
     return vaa;
 }
 
-export async function postLiquidityLayerVaav2<N extends Network>(
+export async function postAndFetchVaa<N extends Network>(
     signer: SDKSigner<N>,
     engine: SolanaMatchingEngine<N, "Solana">,
     vaa: FastTransfer.VAA,
