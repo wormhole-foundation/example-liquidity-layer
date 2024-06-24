@@ -92,9 +92,9 @@ export const DEFAULT_ADDRESSES: {
         coreBridge: "3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5",
         matchingEngine: "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS",
         tokenRouter: "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md",
+        usdcMint: USDC_MINT_ADDRESS.toBase58(),
         tokenMessenger: "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
         messageTransmitter: "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
         upgradeManager: "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
-        usdcMint: "todo",
     },
 };

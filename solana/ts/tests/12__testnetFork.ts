@@ -1,18 +1,17 @@
 import { Connection, Keypair, PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
 import { expect } from "chai";
 import { uint64ToBN } from "../src/common";
-import * as matchingEngineSdk from "../src/matchingEngine";
+import { SolanaMatchingEngine, SolanaTokenRouter } from "../src/protocol";
 import {
+    DEFAULT_ADDRESSES,
     LOCALHOST,
     PAYER_KEYPAIR,
-    USDC_MINT_ADDRESS,
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,
     loadProgramBpf,
 } from "../src/testing";
-import * as tokenRouterSdk from "../src/tokenRouter";
-import { UpgradeManagerProgram, UpgradeReceipt, testnet } from "../src/upgradeManager";
+import { UpgradeManagerProgram, UpgradeReceipt } from "../src/upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../src/utils";
 
 const KEYPATH = `${__dirname}/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json`;
@@ -24,17 +23,15 @@ describe("Upgrade Manager", function () {
     const connection = new Connection(LOCALHOST, "processed");
     const payer = PAYER_KEYPAIR;
 
-    const matchingEngine = new matchingEngineSdk.MatchingEngineProgram(
+    const network = "Testnet";
+    const contracts = DEFAULT_ADDRESSES[network]!;
+    const matchingEngine = new SolanaMatchingEngine(network, "Solana", connection, contracts);
+    const tokenRouter = new SolanaTokenRouter(network, "Solana", connection, contracts);
+    const upgradeManager = new UpgradeManagerProgram(
         connection,
-        matchingEngineSdk.testnet(),
-        USDC_MINT_ADDRESS,
+        contracts.upgradeManager,
+        contracts,
     );
-    const tokenRouter = new tokenRouterSdk.TokenRouterProgram(
-        connection,
-        tokenRouterSdk.testnet(),
-        matchingEngine.mint,
-    );
-    const upgradeManager = new UpgradeManagerProgram(connection, testnet());
 
     describe("Upgrade Matching Engine", function () {
         it("Cannot Execute without Owner", async function () {
