@@ -42,3 +42,8 @@ export type DependenciesJson = [
     tokenMessenger: string;
   }
 ];
+
+export interface ValueDiff {
+  onChain: any;
+  offChain: any;
+}

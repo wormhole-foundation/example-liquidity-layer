@@ -1,9 +1,8 @@
 import { ethers } from "ethers";
 import { MatchingEngineConfiguration, RouterEndpointConfig } from "../../../config/config-types";
 import { MatchingEngine, MatchingEngine__factory } from "../../../contract-bindings";
-import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance } from "../../../helpers";
+import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, getRouterEndpointDifferences, logComparision, someoneIsDifferent } from "../../../helpers";
 import { ERC20 } from "../../../contract-bindings/out/ERC20";
-import { ChainId } from "@certusone/wormhole-sdk";
 
 export function getMachingEngineConfiguration(chain: ChainInfo): Promise<MatchingEngineConfiguration> {
   return getChainConfig<MatchingEngineConfiguration>("matching-engine", chain.chainId);
@@ -52,17 +51,14 @@ export async function deployImplementation(signer: ethers.Signer, config: Matchi
 
 export async function getOnChainMachingEngineConfiguration(chain: ChainInfo) {
   const config = await getMachingEngineConfiguration(chain);
-  const matchingEngineImplementationAddress = await getContractAddress("MatchingEngineImplementation", chain.chainId);
-  const matchingEngineAddress = await getContractAddress("MatchingEngineProxy", chain.chainId);
-  const matchingEngine = (await getContractInstance("MatchingEngine", matchingEngineAddress, chain)) as MatchingEngine;
+  const matchingEngineProxyAddress = await getContractAddress("MatchingEngineProxy", chain.chainId);
+  const matchingEngine = (await getContractInstance("MatchingEngine", matchingEngineProxyAddress, chain)) as MatchingEngine;
 
   // Get the allowance for the token messenger
   const tokenMessengerAddress = getDependencyAddress("tokenMessenger", chain.chainId);
   const tokenAddress = await matchingEngine.token();
   const token = (await getContractInstance("ERC20", tokenAddress, chain)) as ERC20;
-  const decimals = await token.decimals();
-  const rawCctpAllowance = await token.allowance(matchingEngineImplementationAddress, tokenMessengerAddress);
-  const cctpAllowance = ethers.utils.formatUnits(rawCctpAllowance, decimals);
+  const cctpAllowance = (await token.allowance(matchingEngineProxyAddress, tokenMessengerAddress)).toString();
 
   const feeRecipient = await matchingEngine.feeRecipient();
 
@@ -97,82 +93,41 @@ export async function getConfigurationDifferences(chain: ChainInfo) {
     const offChainValue = offChainConfig[key as keyof typeof offChainConfig];
     const onChainValue = onChainConfig[key as keyof typeof onChainConfig];
 
-    if (!offChainValue) 
+    if (offChainValue === undefined) 
       throw new Error(`${key} not found in offChainConfig`);
     
     // Ignore key if it's an array
     if (Array.isArray(offChainValue)) 
       continue;
 
-    const isDifferent = offChainValue.toString() !== onChainValue;
-    if (isDifferent) {
-      differences[key] = {
-        offChain: offChainValue,
-        onChain: onChainValue
-      };
-    }
+    differences[key] = {
+      offChain: offChainValue,
+      onChain: onChainValue
+    };
   }
 
-  let onChainIndex = 0;
-  let offChainIndex = 0; 
-  const routerEndpointsDifferences = [];
-  const onChainRouterEndpoints = onChainConfig.routerEndpoints.sort((a, b) => a.chainId - b.chainId);
-  const offChainRouterEndpoints = offChainConfig.routerEndpoints.sort((a, b) => a.chainId - b.chainId);
-  while (true) {
-    const onChainEndpoint = onChainRouterEndpoints[onChainIndex];
-    const offChainEndpoint = offChainRouterEndpoints[offChainIndex];
-
-    // If we've reached the end of both arrays, we're done
-    if (!onChainEndpoint && !offChainEndpoint) {
-      break;
-    }
-
-    // If we've reached the end of offChainEndpoints, add the remaining onChainEndpoints
-    // or if the onChainEndpoint is less than the offChainEndpoint, add the onChainEndpoint
-    if (!offChainEndpoint || onChainEndpoint?.chainId < offChainEndpoint?.chainId) {
-      routerEndpointsDifferences.push(
-        routerEndpointConfig(onChainEndpoint.chainId, onChainEndpoint, {})
-      );
-      onChainIndex++;
-    } 
-
-    // If we've reached the end of onChainEndpoints, add the remaining offChainEndpoints
-    // or if the offChainEndpoint is less than the onChainEndpoint, add the offChainEndpoint
-    else if (!onChainEndpoint || onChainEndpoint?.chainId > offChainEndpoint?.chainId) {
-      routerEndpointsDifferences.push(
-        routerEndpointConfig(offChainEndpoint.chainId, {}, offChainEndpoint)
-      );
-      offChainIndex++;
-    } 
-    
-    // If the chainIds are the same, add the differences between the two endpoints
-    else {
-      routerEndpointsDifferences.push(
-        routerEndpointConfig(onChainEndpoint.chainId, onChainEndpoint, offChainEndpoint)
-      );
-      onChainIndex++;
-      offChainIndex++;
-    }
-  }
-
-  differences.routerEndpoints = routerEndpointsDifferences;
+  differences.routerEndpoints = getRouterEndpointDifferences(onChainConfig.routerEndpoints, offChainConfig.routerEndpoints);
 
   return differences;
 }
 
-const routerEndpointConfig = (chainId: ChainId,  onChain: Partial<RouterEndpointConfig>, offChain: Partial<RouterEndpointConfig>) => ({
-  [`endpoint-chainId-${chainId}`]: {
-    router: {
-      onChain: onChain?.endpoint?.router,
-      offChain: offChain?.endpoint?.router
-    },
-    mintRecipient: {
-      onChain: onChain?.endpoint?.mintRecipient,
-      offChain: offChain?.endpoint?.mintRecipient
+export function logDiff(differences: Record<string, any>, log: LoggerFn) {
+  logComparision('feeRecipient', differences.feeRecipient, log);
+  logComparision('cctpAllowance', differences.cctpAllowance, log);
+
+  let routersLogged = false;
+  for (const { chainId, router, mintRecipient, circleDomain } of differences.routerEndpoints) {
+    if (!someoneIsDifferent([router, mintRecipient, circleDomain])) 
+      continue;
+
+    if (!routersLogged) {
+      log('Router endpoints:');
+      routersLogged = true;
     }
-  },
-  circleDomain: {
-    onChain: onChain?.circleDomain,
-    offChain: offChain?.circleDomain
+    
+    log(`ChainId ${chainId}:`);
+    logComparision('router', router, log);
+    logComparision('mintRecipient', mintRecipient, log);
+    logComparision('circleDomain', circleDomain, log);
   }
-});
+}

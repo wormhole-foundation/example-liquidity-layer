@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { ERC1967Proxy__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
-import { runOnEvms, ChainInfo, LoggerFn, writeDeployedContract, zeroValues } from "../../../helpers";
+import { runOnEvms, ChainInfo, LoggerFn, writeDeployedContract } from "../../../helpers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { deployImplementation, getTokenRouterConfiguration } from "./utils";
 
@@ -17,7 +17,7 @@ async function deployProxy(signer: ethers.Signer, config: TokenRouterConfigurati
   const data = config.ownerAssistant;
 
   // Validate if the address are valid and not zero 
-  if (!ethers.utils.isAddress(data) || zeroValues.includes(data)) 
+  if (!ethers.utils.isAddress(data) || Number(data) === 0) 
     throw new Error(`Invalid value: ${data}`);
 
   const encodedData = ethers.utils.solidityPack(["address"], [data]);
