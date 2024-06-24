@@ -2,8 +2,8 @@ import { ChainId } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { TokenRouter, TokenRouter__factory } from "../../../contract-bindings";
-import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, ETHEREUM_ADDRESS_LENGTH, getContractInstance } from "../../../helpers"; 
-import bs58 from 'bs58';
+import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, getRouterEndpointDifferences, getAddressAsBytes32, logComparision, someoneIsDifferent } from "../../../helpers"; 
+import { ERC20 } from "../../../contract-bindings/out/ERC20";
 
 export function getTokenRouterConfiguration(chain: ChainInfo): Promise<TokenRouterConfiguration> {
   return getChainConfig<TokenRouterConfiguration>("token-router", chain.chainId);
@@ -45,36 +45,106 @@ export async function deployImplementation(signer: ethers.Signer, config: TokenR
 
 export async function getOnChainTokenRouterConfiguration(chain: ChainInfo) {
   const config = await getTokenRouterConfiguration(chain);
-  const tokenRouterAddress = await getContractAddress("TokenRouterProxy", chain.chainId);
-  const tokenRouter = (await getContractInstance("TokenRouterImplementation", tokenRouterAddress, chain)) as TokenRouter;
+  const tokenRouterProxyAddress = await getContractAddress("TokenRouterProxy", chain.chainId);
+  const tokenRouter = (await getContractInstance("TokenRouter", tokenRouterProxyAddress, chain)) as TokenRouter;
 
-  // instantiate erc20 token and get the allowance for the token messenger?
-  const cctpAllowance = await tokenRouter.cctpAllowance();
+  // Get the allowance for the token messenger
+  const tokenMessengerAddress = getDependencyAddress("tokenMessenger", chain.chainId);
+  const orderTokenAddress = await tokenRouter.orderToken();
+  const orderToken = (await getContractInstance("ERC20", orderTokenAddress, chain)) as ERC20;
+  const cctpAllowance = (await orderToken.allowance(tokenRouterProxyAddress, tokenMessengerAddress)).toString();
 
   const routerEndpoints = await Promise.all(config
     .routerEndpoints
-    .map(async ({ chainId }) => ({ chainId, endpoint: await tokenRouter.getRouterEndpoint(chainId)})));
+    .map(async ({ chainId }) => {
+      const { router, mintRecipient } = await tokenRouter.getRouterEndpoint(chainId);
+      return { 
+        chainId, 
+        endpoint: {
+          router,
+          mintRecipient
+        },
+        circleDomain: await tokenRouter.getDomain(chainId)
+      }
+    }));
 
-
+  const { enabled, maxAmount, baseFee, initAuctionFee} = await tokenRouter.getFastTransferParameters();
 
   return {
     cctpAllowance,
+    fastTransferParameters: {
+      enabled,
+      maxAmount: maxAmount.toString(),
+      baseFee: baseFee.toString(),
+      initAuctionFee: initAuctionFee.toString()
+    },
     routerEndpoints
   };
 }
 
-export function getAddressAsBytes32(address: string): string {
-  const addressLength = address.length - (address.startsWith("0x") ? 2 : 0);
+function compareConfigurations(onChainConfig: Record<string, any>, offChainConfig: Record<string, any>) {
+  const differences = {} as Record<string, any>;
 
-  // Solana address
-  if (addressLength > ETHEREUM_ADDRESS_LENGTH) { 
-    const bytes = bs58.decode(address);
-    address = "0x" + Buffer.from(bytes).toString('hex');
-  } 
-  // Ethereum address
-  else { 
-    address = ethers.utils.defaultAbiCoder.encode(["address"], [address]);
+  for (const key of Object.keys(onChainConfig)) {
+    const offChainValue = offChainConfig[key as keyof typeof offChainConfig];
+    const onChainValue = onChainConfig[key as keyof typeof onChainConfig];
+
+    if (offChainValue === undefined) 
+      throw new Error(`${key} not found in offChainConfig`);
+    
+    // Ignore key if it's an array
+    if (Array.isArray(offChainValue)) 
+      continue;
+      
+    // If the values are objects, compare them
+    if (typeof offChainValue === 'object' && typeof onChainValue === 'object') {
+      differences[key] = compareConfigurations(onChainValue, offChainValue);
+      continue;
+    }
+
+    differences[key] = {
+      offChain: offChainValue,
+      onChain: onChainValue
+    };
   }
 
-  return address;
+  return differences;
+}
+
+export async function getConfigurationDifferences(chain: ChainInfo) {
+  const onChainConfig = await getOnChainTokenRouterConfiguration(chain);
+  const offChainConfig = await getTokenRouterConfiguration(chain);
+  const differences = compareConfigurations(onChainConfig, offChainConfig);
+
+  differences.routerEndpoints = getRouterEndpointDifferences(onChainConfig.routerEndpoints, offChainConfig.routerEndpoints);
+
+  return differences;
+}
+
+export function logDiff(differences: Record<string, any>, log: LoggerFn) {
+  logComparision('cctpAllowance', differences.cctpAllowance, log);
+
+  let routersLogged = false;
+  for (const { chainId, router, mintRecipient, circleDomain } of differences.routerEndpoints) {
+    if (!someoneIsDifferent([router, mintRecipient, circleDomain])) 
+      continue;
+
+    if (!routersLogged) {
+      log('Router endpoints:');
+      routersLogged = true;
+    }
+    
+    log(`ChainId ${chainId}:`);
+    logComparision('router', router, log);
+    logComparision('mintRecipient', mintRecipient, log);
+    logComparision('circleDomain', circleDomain, log);
+  }
+
+  const { enabled, maxAmount, baseFee, initAuctionFee } = differences.fastTransferParameters;
+  if (someoneIsDifferent([enabled, maxAmount, baseFee, initAuctionFee])) {
+    log('Fast transfer parameters:');
+    for (const [key, value] of Object.entries(differences.fastTransferParameters)) {
+      logComparision(key, value, log);
+    }
+  }
 }

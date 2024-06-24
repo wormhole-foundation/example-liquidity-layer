@@ -3,14 +3,6 @@ import { ethers } from "ethers";
 import { ChainInfo, ecosystemChains, EvmScriptCb, getEnv } from "./index";
 
 export const ETHEREUM_ADDRESS_LENGTH = 40;
-export const zeroValues = [
-  0, 
-  "0x0000000000000000000000000000000000000000", 
-  "", 
-  false, 
-  "0x0000000000000000000000000000000000000000000000000000000000000000", 
-  "0.0"
-]; 
 
 export async function runOnEvms(scriptName: string, cb: EvmScriptCb) {
   const chains = evmOperatingChains();
@@ -32,6 +24,26 @@ export async function runOnEvms(scriptName: string, cb: EvmScriptCb) {
   });
 
   await Promise.all(result);
+}
+
+export async function runOnEvmsSequentially(scriptName: string, cb: EvmScriptCb) {
+  const chains = evmOperatingChains();
+
+  console.log(`Running script on EVMs (${chains.map(c => c.chainId).join(", ")}):`, scriptName);
+
+  for (const chain of chains) {
+    const log = (...args: any[]) => console.log(`[${chain.chainId}]`, ...args);
+    const signer = await getSigner(chain);
+    log(`Starting script. Signer: ${await signer.getAddress()}`);
+
+    try {
+      await cb(chain, signer, log);
+      log("Success");
+    } catch (error) {
+      log("Error: ", error);
+    }
+    console.log();
+  }
 }
 
 export function evmOperatingChains() {
