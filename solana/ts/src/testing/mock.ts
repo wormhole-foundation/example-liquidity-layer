@@ -1,17 +1,16 @@
 import { Connection, Keypair } from "@solana/web3.js";
+import { FastTransfer } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, Network } from "@wormhole-foundation/sdk-base";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { signAndSendWait } from "@wormhole-foundation/sdk-connect";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
 import { SolanaAddress, SolanaSendSigner } from "@wormhole-foundation/sdk-solana";
-import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
 import { ethers } from "ethers";
 import { LiquidityLayerMessage } from "../common";
-import { VaaAccount } from "../wormhole";
-import { CORE_BRIDGE_PID, GUARDIAN_KEY, MOCK_GUARDIANS } from "./consts";
-import { getBlockTime, postVaa } from "./utils";
-import { FastTransfer } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { SolanaMatchingEngine } from "../protocol";
+import { VaaAccount } from "../wormhole";
+import { GUARDIAN_KEY, MOCK_GUARDIANS } from "./consts";
+import { getBlockTime } from "./utils";
 
 export class SDKSigner<N extends Network> extends SolanaSendSigner<N, "Solana"> {
     unwrap(): Keypair {

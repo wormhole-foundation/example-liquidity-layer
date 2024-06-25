@@ -9,9 +9,9 @@ import {
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
+import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { ChainId, isChainId } from "@wormhole-foundation/sdk-base";
 import { Keccak } from "sha3";
-import IDL from "../idl/json/token_router.json";
-import { type TokenRouter as TokenRouterType } from "../idl/ts/token_router";
 import {
     CctpTokenBurnMessage,
     MessageTransmitterProgram,
@@ -23,13 +23,20 @@ import {
     reclaimCctpMessageIx,
     uint64ToBN,
 } from "../common";
+import IDL from "../idl/json/token_router.json";
+import { type TokenRouter as TokenRouterType } from "../idl/ts/token_router";
 import * as matchingEngineSdk from "../matchingEngine";
 import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import { Custodian, PreparedFill, PreparedOrder } from "./state";
-import { ChainId, Network, isChainId } from "@wormhole-foundation/sdk-base";
-import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import {
+    PrepareMarketOrderArgs,
+    PublishMessageAccounts,
+    RedeemFastFillAccounts,
+    RedeemFillCctpAccounts,
+    TokenRouterCommonAccounts,
+} from "./types";
 
 export const PROGRAM_IDS = [
     "TokenRouter11111111111111111111111111111111",
@@ -38,97 +45,16 @@ export const PROGRAM_IDS = [
 
 export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
 
-export type PrepareMarketOrderArgs = {
-    amountIn: bigint;
-    minAmountOut: bigint | null;
-    targetChain: ChainId;
-    redeemer: Array<number>;
-    redeemerMessage: Buffer;
-};
-
-export type PublishMessageAccounts = {
-    coreBridgeConfig: PublicKey;
-    coreEmitterSequence: PublicKey;
-    coreFeeCollector: PublicKey;
-    coreBridgeProgram: PublicKey;
-};
-
-export type TokenRouterCommonAccounts = PublishMessageAccounts & {
-    tokenRouterProgram: PublicKey;
-    systemProgram: PublicKey;
-    rent: PublicKey;
-    clock: PublicKey;
-    custodian: PublicKey;
-    cctpMintRecipient: PublicKey;
-    tokenMessenger: PublicKey;
-    tokenMinter: PublicKey;
-    tokenMessengerMinterSenderAuthority: PublicKey;
-    tokenMessengerMinterProgram: PublicKey;
-    messageTransmitterAuthority: PublicKey;
-    messageTransmitterConfig: PublicKey;
-    messageTransmitterProgram: PublicKey;
-    tokenProgram: PublicKey;
-    mint: PublicKey;
-    localToken: PublicKey;
-    tokenMessengerMinterCustodyToken: PublicKey;
-    matchingEngineProgram: PublicKey;
-    matchingEngineCustodian: PublicKey;
-    matchingEngineCctpMintRecipient: PublicKey;
-};
-
-export type RedeemFillCctpAccounts = {
-    custodian: PublicKey;
-    preparedFill: PublicKey;
-    cctpMintRecipient: PublicKey;
-    sourceRouterEndpoint: PublicKey;
-    messageTransmitterAuthority: PublicKey;
-    messageTransmitterConfig: PublicKey;
-    usedNonces: PublicKey;
-    messageTransmitterEventAuthority: PublicKey;
-    tokenMessenger: PublicKey;
-    remoteTokenMessenger: PublicKey;
-    tokenMinter: PublicKey;
-    localToken: PublicKey;
-    tokenPair: PublicKey;
-    tokenMessengerMinterCustodyToken: PublicKey;
-    tokenMessengerMinterProgram: PublicKey;
-    messageTransmitterProgram: PublicKey;
-    tokenMessengerMinterEventAuthority: PublicKey;
-};
-
-export type RedeemFastFillAccounts = {
-    custodian: PublicKey;
-    preparedFill: PublicKey;
-    cctpMintRecipient: PublicKey;
-    matchingEngineCustodian: PublicKey;
-    matchingEngineFromEndpoint: PublicKey;
-    matchingEngineToEndpoint: PublicKey;
-    matchingEngineLocalCustodyToken: PublicKey;
-    matchingEngineProgram: PublicKey;
-};
-
-export type AddCctpRouterEndpointArgs = {
-    chain: number;
-    cctpDomain: number;
-    address: Array<number>;
-    mintRecipient: Array<number> | null;
-};
-
 export class TokenRouterProgram {
     private _programId: ProgramId;
     private _addresses: TokenRouter.Addresses;
 
     program: Program<TokenRouterType>;
 
-    constructor(connection: Connection, programId: ProgramId, addresses?: TokenRouter.Addresses) {
+    constructor(connection: Connection, programId: ProgramId, addresses: TokenRouter.Addresses) {
         this._programId = programId;
-        this._addresses = addresses!;
-        this.program = new Program(
-            { ...(IDL as any), address: this._programId },
-            {
-                connection,
-            },
-        );
+        this._addresses = addresses;
+        this.program = new Program({ ...(IDL as any), address: this._programId }, { connection });
     }
 
     get ID(): PublicKey {
@@ -136,23 +62,23 @@ export class TokenRouterProgram {
     }
 
     get mint(): PublicKey {
-        return new PublicKey(this._addresses.usdcMint);
+        return new PublicKey(this._addresses.cctp.usdcMint);
     }
-
     get cctpTokenMessenger(): PublicKey {
-        return new PublicKey(this._addresses.tokenMessenger);
+        return new PublicKey(this._addresses.cctp.tokenMessenger);
     }
     get cctpMessageTransmitter(): PublicKey {
-        return new PublicKey(this._addresses.messageTransmitter);
+        return new PublicKey(this._addresses.cctp.messageTransmitter);
+    }
+
+    get coreBridgeProgramId(): PublicKey {
+        return new PublicKey(this._addresses.coreBridge);
     }
     get matchingEngineProgramId(): PublicKey {
         return new PublicKey(this._addresses.matchingEngine);
     }
     get upgradeManager(): PublicKey {
-        return new PublicKey(this._addresses.upgradeManager);
-    }
-    get coreBridgeProgramId(): PublicKey {
-        return new PublicKey(this._addresses.coreBridge);
+        return new PublicKey(this._addresses.upgradeManager!);
     }
 
     custodianAddress(): PublicKey {

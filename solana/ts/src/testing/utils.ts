@@ -3,7 +3,6 @@ import {
     AddressLookupTableAccount,
     ConfirmOptions,
     Connection,
-    Keypair,
     PublicKey,
     SendTransactionError,
     Signer,
@@ -13,13 +12,12 @@ import {
 } from "@solana/web3.js";
 import { Network } from "@wormhole-foundation/sdk-base";
 import { SignAndSendSigner as SdkSigner, signAndSendWait } from "@wormhole-foundation/sdk-connect";
-import { UniversalAddress, VAA } from "@wormhole-foundation/sdk-definitions";
-import { SolanaSendSigner, SolanaUnsignedTransaction } from "@wormhole-foundation/sdk-solana";
-import { SolanaWormholeCore, utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
+import { UniversalAddress } from "@wormhole-foundation/sdk-definitions";
+import { SolanaUnsignedTransaction } from "@wormhole-foundation/sdk-solana";
 import { expect } from "chai";
-import { Err, Ok } from "ts-results";
-import { CORE_BRIDGE_PID, USDC_MINT_ADDRESS } from "./consts";
 import { execSync } from "child_process";
+import { Err, Ok } from "ts-results";
+import { USDC_MINT_ADDRESS } from "./consts";
 
 export function toUniversalAddress(address: number[] | Buffer | Array<number>): UniversalAddress {
     return new UniversalAddress(new Uint8Array(address));
@@ -193,30 +191,6 @@ async function debugSendAndConfirmTransaction(
                 return new Err(err.message);
             }
         });
-}
-
-export async function postVaa(
-    connection: Connection,
-    payer: Keypair | SdkSigner<Network, "Solana">,
-    vaa: VAA,
-    coreBridgeAddress?: PublicKey,
-) {
-    coreBridgeAddress ??= CORE_BRIDGE_PID;
-
-    const core = new SolanaWormholeCore("Devnet", "Solana", connection, {
-        coreBridge: coreBridgeAddress.toString(),
-    });
-
-    const signer =
-        payer instanceof Keypair
-            ? new SolanaSendSigner(connection, "Solana", payer, false, {})
-            : payer;
-
-    const txs = core.postVaa(signer.address(), vaa);
-    const address = coreUtils.derivePostedVaaKey(coreBridgeAddress, Buffer.from(vaa.hash));
-    const txids = await signAndSendWait(txs, signer);
-
-    return { txids, address };
 }
 
 export function loadProgramBpf(artifactPath: string, keypath: string): PublicKey {

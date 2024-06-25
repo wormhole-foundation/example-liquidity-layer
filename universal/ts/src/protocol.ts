@@ -3,12 +3,18 @@ import {
     AccountAddress,
     ChainAddress,
     CircleBridge,
+    Contracts,
     EmptyPlatformMap,
     ProtocolVAA,
     UnsignedTransaction,
     VAA,
 } from "@wormhole-foundation/sdk-definitions";
 import { FastMarketOrder, MessageName } from "./messages";
+
+// Utility types to allow re-use of the same type while making some
+// fields optional or required
+type WithRequired<T, K extends keyof T> = T & { [P in K]-?: T[P] };
+type WithOptional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
 export namespace FastTransfer {
     // Add vaas and util methods
@@ -20,6 +26,14 @@ export namespace FastTransfer {
         ProtocolName,
         PayloadName
     >;
+
+    export type Addresses = Contracts & {
+        matchingEngine?: string;
+        tokenRouter?: string;
+        upgradeManager?: string;
+        // Add usdcMint to cctp, mostly for testing
+        cctp?: Contracts["cctp"] & { usdcMint: string };
+    };
 }
 
 export interface FastTransfer<N extends Network, C extends Chain> {
@@ -35,16 +49,10 @@ export interface FastTransfer<N extends Network, C extends Chain> {
 }
 
 export namespace MatchingEngine {
-    export type Addresses = {
-        matchingEngine: string;
-        coreBridge: string;
-        // cctp
-        usdcMint: string;
-        messageTransmitter: string;
-        tokenMessenger: string;
-        //
-        upgradeManager: string;
-    };
+    export type Addresses = WithRequired<
+        FastTransfer.Addresses,
+        "matchingEngine" | "coreBridge" | "cctp"
+    >;
 }
 
 // matching engine: this is only on solana and where the auctions happen
@@ -109,11 +117,9 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
 }
 
-type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
-
 export namespace TokenRouter {
     /** A partially optional copy of FastMarketOrder, to be placed */
-    export type OrderRequest = Optional<
+    export type OrderRequest = WithOptional<
         FastMarketOrder,
         | "sender"
         | "deadline"
@@ -133,9 +139,7 @@ export namespace TokenRouter {
         );
     }
 
-    export type Addresses = MatchingEngine.Addresses & {
-        tokenRouter: string;
-    };
+    export type Addresses = WithRequired<MatchingEngine.Addresses, "tokenRouter">;
 
     /** The Address or Id of a prepared order */
     export type PreparedOrder<C extends Chain> = AccountAddress<C>;

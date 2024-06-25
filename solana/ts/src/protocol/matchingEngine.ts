@@ -44,12 +44,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         readonly _connection: Connection,
         readonly _contracts: Contracts & MatchingEngine.Addresses,
     ) {
-        super(
-            _connection,
-            // TODO: BEN
-            _contracts.matchingEngine as ProgramId,
-            _contracts,
-        );
+        super(_connection, _contracts.matchingEngine, _contracts);
 
         this.coreBridge = new SolanaWormholeCore(_network, _chain, _connection, {
             ...this._contracts,
