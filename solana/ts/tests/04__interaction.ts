@@ -1,4 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
+// @ts-ignore
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,

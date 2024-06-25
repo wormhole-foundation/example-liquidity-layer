@@ -27,11 +27,7 @@ describe("Upgrade Manager", function () {
     const contracts = DEFAULT_ADDRESSES[network]!;
     const matchingEngine = new SolanaMatchingEngine(network, "Solana", connection, contracts);
     const tokenRouter = new SolanaTokenRouter(network, "Solana", connection, contracts);
-    const upgradeManager = new UpgradeManagerProgram(
-        connection,
-        contracts.upgradeManager,
-        contracts,
-    );
+    const upgradeManager = new UpgradeManagerProgram(connection, contracts);
 
     describe("Upgrade Matching Engine", function () {
         it("Cannot Execute without Owner", async function () {
@@ -239,10 +235,7 @@ describe("Upgrade Manager", function () {
             const guy = Keypair.generate();
 
             await executeTokenRouterUpgradeForTest(
-                {
-                    owner: guy.publicKey,
-                    payer: payer.publicKey,
-                },
+                { owner: guy.publicKey, payer: payer.publicKey },
                 { signers: [payer, guy], errorMsg: "Error Code: OwnerOnly" },
             );
         });
@@ -257,10 +250,7 @@ describe("Upgrade Manager", function () {
             const guy = Keypair.generate();
 
             await executeTokenRouterUpgradeForTest(
-                {
-                    owner: guy.publicKey,
-                    payer: payer.publicKey,
-                },
+                { owner: guy.publicKey, payer: payer.publicKey },
                 { signers: [payer, guy], errorMsg: "Error Code: OwnerMismatch" },
             );
         });
@@ -275,22 +265,15 @@ describe("Upgrade Manager", function () {
             const guy = Keypair.generate();
 
             await commitTokenRouterUpgradeForTest(
-                {
-                    owner: guy.publicKey,
-                },
+                { owner: guy.publicKey },
                 { upgrade: false, signers: [payer, guy], errorMsg: "Error Code: OwnerMismatch" },
             );
         });
 
         it("Commit After Execute (Recipient != Owner)", async function () {
             await commitTokenRouterUpgradeForTest(
-                {
-                    owner: payer.publicKey,
-                    recipient: Keypair.generate().publicKey,
-                },
-                {
-                    upgrade: false,
-                },
+                { owner: payer.publicKey, recipient: Keypair.generate().publicKey },
+                { upgrade: false },
             );
         });
 
@@ -385,14 +368,7 @@ describe("Upgrade Manager", function () {
             errorMsg ??= null;
 
             if (upgrade) {
-                await executeTokenRouterUpgradeForTest(
-                    {
-                        owner: accounts.owner,
-                    },
-                    {
-                        artifactPath,
-                    },
-                );
+                await executeTokenRouterUpgradeForTest({ owner: accounts.owner }, { artifactPath });
             }
 
             const recipientBalanceBefore = await (async () => {

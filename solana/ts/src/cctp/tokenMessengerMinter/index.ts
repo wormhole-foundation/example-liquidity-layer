@@ -1,12 +1,9 @@
-import { Program } from "anchor-0.29.0";
 import { Connection, PublicKey } from "@solana/web3.js";
+import { CircleContracts } from "@wormhole-foundation/sdk-base/contracts";
+import { Program } from "anchor-0.29.0";
 import { MessageTransmitterProgram } from "../messageTransmitter";
 import { IDL, TokenMessengerMinter } from "../types/token_messenger_minter";
 import { RemoteTokenMessenger } from "./RemoteTokenMessenger";
-
-export const PROGRAM_IDS = ["CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3"] as const;
-
-export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
 
 export type DepositForBurnWithCallerAccounts = {
     senderAuthority: PublicKey;
@@ -21,15 +18,11 @@ export type DepositForBurnWithCallerAccounts = {
 };
 
 export class TokenMessengerMinterProgram {
-    private _programId: ProgramId;
-
     program: Program<TokenMessengerMinter>;
 
-    constructor(connection: Connection, programId?: ProgramId) {
-        this._programId = programId ?? testnet();
-        this.program = new Program(IDL, new PublicKey(this._programId), {
-            connection,
-        });
+    constructor(connection: Connection, private contracts: CircleContracts) {
+        const programId = new PublicKey(contracts.tokenMessenger);
+        this.program = new Program(IDL, programId, { connection });
     }
 
     get ID(): PublicKey {
@@ -89,23 +82,7 @@ export class TokenMessengerMinterProgram {
     }
 
     messageTransmitterProgram(): MessageTransmitterProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new MessageTransmitterProgram(
-                    this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
-                );
-            }
-            case mainnet(): {
-                return new MessageTransmitterProgram(
-                    this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new MessageTransmitterProgram(this.program.provider.connection, this.contracts);
     }
 
     depositForBurnWithCallerAccounts(
@@ -125,12 +102,4 @@ export class TokenMessengerMinterProgram {
             tokenMessengerMinterProgram: this.ID,
         };
     }
-}
-
-export function mainnet(): ProgramId {
-    return "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3";
-}
-
-export function testnet(): ProgramId {
-    return "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3";
 }

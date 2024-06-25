@@ -8,8 +8,9 @@ import {
     ProtocolVAA,
     UnsignedTransaction,
     VAA,
+    payloadDiscriminator,
 } from "@wormhole-foundation/sdk-definitions";
-import { FastMarketOrder, MessageName } from "./messages";
+import { FastMarketOrder, MessageName, messageNames } from "./messages";
 
 // Utility types to allow re-use of the same type while making some
 // fields optional or required
@@ -17,7 +18,6 @@ type WithRequired<T, K extends keyof T> = T & { [P in K]-?: T[P] };
 type WithOptional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
 
 export namespace FastTransfer {
-    // Add vaas and util methods
     const protocolName = "FastTransfer";
     export type ProtocolName = typeof protocolName;
 
@@ -27,13 +27,16 @@ export namespace FastTransfer {
         PayloadName
     >;
 
+    /** Addresses for FastTransfer protocol contracts */
     export type Addresses = Contracts & {
         matchingEngine?: string;
         tokenRouter?: string;
         upgradeManager?: string;
-        // Add usdcMint to cctp, mostly for testing
+        // Add usdcMint to cctp contracts, mostly for testing
         cctp?: Contracts["cctp"] & { usdcMint: string };
     };
+
+    export const getPayloadDiscriminator = () => payloadDiscriminator([protocolName, messageNames]);
 }
 
 export interface FastTransfer<N extends Network, C extends Chain> {
@@ -49,6 +52,7 @@ export interface FastTransfer<N extends Network, C extends Chain> {
 }
 
 export namespace MatchingEngine {
+    /** Contract addresses required for MatchingEngine */
     export type Addresses = WithRequired<
         FastTransfer.Addresses,
         "matchingEngine" | "coreBridge" | "cctp"
@@ -139,6 +143,7 @@ export namespace TokenRouter {
         );
     }
 
+    /** Contract addresses required for TokenRouter */
     export type Addresses = WithRequired<MatchingEngine.Addresses, "tokenRouter">;
 
     /** The Address or Id of a prepared order */

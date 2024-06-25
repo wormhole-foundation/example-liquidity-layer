@@ -29,7 +29,7 @@ import {
     SolanaUnsignedTransaction,
 } from "@wormhole-foundation/sdk-solana";
 import { vaaHash } from "../common";
-import { AuctionParameters, MatchingEngineProgram, ProgramId } from "../matchingEngine";
+import { AuctionParameters, MatchingEngineProgram } from "../matchingEngine";
 import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
 
 export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
@@ -44,7 +44,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         readonly _connection: Connection,
         readonly _contracts: Contracts & MatchingEngine.Addresses,
     ) {
-        super(_connection, _contracts.matchingEngine, _contracts);
+        super(_connection, _contracts);
 
         this.coreBridge = new SolanaWormholeCore(_network, _chain, _connection, {
             ...this._contracts,

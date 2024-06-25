@@ -37,24 +37,19 @@ import {
     RedeemFillCctpAccounts,
     TokenRouterCommonAccounts,
 } from "./types";
-
-export const PROGRAM_IDS = [
-    "TokenRouter11111111111111111111111111111111",
-    "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md",
-] as const;
-
-export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
+export * from "./types";
 
 export class TokenRouterProgram {
-    private _programId: ProgramId;
     private _addresses: TokenRouter.Addresses;
 
     program: Program<TokenRouterType>;
 
-    constructor(connection: Connection, programId: ProgramId, addresses: TokenRouter.Addresses) {
-        this._programId = programId;
+    constructor(connection: Connection, addresses: TokenRouter.Addresses) {
         this._addresses = addresses;
-        this.program = new Program({ ...(IDL as any), address: this._programId }, { connection });
+        this.program = new Program(
+            { ...(IDL as any), address: this._addresses.tokenRouter },
+            { connection },
+        );
     }
 
     get ID(): PublicKey {
@@ -840,31 +835,26 @@ export class TokenRouterProgram {
     }
 
     upgradeManagerProgram(): UpgradeManagerProgram {
-        return new UpgradeManagerProgram(
-            this.program.provider.connection,
-            this.upgradeManager.toBase58(),
-            this._addresses,
-        );
+        return new UpgradeManagerProgram(this.program.provider.connection, this._addresses);
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
         return new TokenMessengerMinterProgram(
             this.program.provider.connection,
-            this.cctpTokenMessenger.toBase58(),
+            this._addresses.cctp,
         );
     }
 
     messageTransmitterProgram(): MessageTransmitterProgram {
         return new MessageTransmitterProgram(
             this.program.provider.connection,
-            this.cctpMessageTransmitter.toBase58(),
+            this._addresses.cctp,
         );
     }
 
     matchingEngineProgram(): matchingEngineSdk.MatchingEngineProgram {
         return new matchingEngineSdk.MatchingEngineProgram(
             this.program.provider.connection,
-            this.matchingEngineProgramId.toBase58(),
             this._addresses,
         );
     }

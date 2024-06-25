@@ -9,12 +9,8 @@ import {
     TransactionMessage,
     VersionedTransaction,
 } from "@solana/web3.js";
-import {
-    FastMarketOrder,
-    Payload,
-    TokenRouter,
-} from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { ChainId, Network, Platform, encoding, toChainId } from "@wormhole-foundation/sdk-base";
+import { Payload, TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { ChainId, Network, Platform, toChainId } from "@wormhole-foundation/sdk-base";
 import {
     ChainsConfig,
     CircleBridge,
@@ -47,7 +43,7 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         readonly _connection: Connection,
         readonly _contracts: Contracts & TokenRouter.Addresses,
     ) {
-        super(_connection, _contracts.tokenRouter, _contracts);
+        super(_connection, _contracts);
 
         this.coreBridge = new SolanaWormholeCore(_network, _chain, _connection, _contracts);
         this.matchingEngine = new SolanaMatchingEngine(_network, _chain, _connection, _contracts);
@@ -87,30 +83,6 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
 
         const transaction = this.createTx(sender, [ix]);
         yield this.createUnsignedTx({ transaction }, "TokenRouter.Initialize");
-    }
-
-    private makeFastMarketOrder(
-        sender: AnySolanaAddress,
-        order: Partial<FastMarketOrder>,
-    ): FastMarketOrder {
-        const senderAddress = new SolanaAddress(sender).toUniversalAddress();
-        const o: FastMarketOrder = {
-            // TODO: from auction params? take as args?
-            maxFee: order.maxFee ?? 0n,
-            initAuctionFee: order.initAuctionFee ?? 0n,
-            deadline: order.deadline ?? 0,
-            // TODO: specify which params we need, not just partial
-            amountIn: order.amountIn!,
-            minAmountOut: order.minAmountOut!,
-            targetChain: order.targetChain!,
-            redeemer: order.redeemer!,
-            // TODO: which of these can we assume? any
-            sender: order.sender ?? senderAddress,
-            refundAddress: order.refundAddress ?? senderAddress,
-            redeemerMessage: order.redeemerMessage ?? new Uint8Array(),
-        };
-
-        return o;
     }
 
     private async _prepareMarketOrderIxs(
@@ -209,14 +181,18 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
             preparedOrder = new SolanaAddress(order).unwrap();
         }
 
+        // TODO: devnet not happy with this
+        // const destinationDomain = targetChain ? circle.toCircleChainId(this._network, toChain(targetChain)) : undefined;
+
+        const destinationDomain = undefined;
+
         const ix = await this.placeMarketOrderCctpIx(
             {
                 payer,
                 preparedOrder,
                 preparedBy: payer,
             },
-            // TODO: add cctpDomain fn
-            { targetChain }, //,destinationDomain: 3 },
+            { targetChain, destinationDomain },
         );
         ixs.push(ix);
 
@@ -228,15 +204,16 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         sender: AnySolanaAddress,
         vaa: VAA<"FastTransfer:CctpDeposit">,
         cctp: CircleBridge.Attestation,
+        lookupTables?: AddressLookupTableAccount[],
     ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
         const payer = new SolanaAddress(sender).unwrap();
 
         const postedVaaAddress = this.matchingEngine.pdas.postedVaa(vaa);
 
-        const { payload: fill } = vaa.payload;
-        if (!Payload.is(fill, "Fill")) {
-            throw new Error("Invalid VAA payload");
-        }
+        const fill = vaa.payload.payload;
+
+        // Must be a fill payload
+        if (!Payload.is(fill, "Fill")) throw new Error("Invalid VAA payload");
 
         const ix = await this.redeemCctpFillIx(
             {
@@ -256,7 +233,7 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
             units: 300_000,
         });
 
-        const transaction = this.createTx(payer, [ix, computeIx]);
+        const transaction = this.createTx(payer, [ix, computeIx], lookupTables);
         yield this.createUnsignedTx({ transaction }, "TokenRouter.RedeemFill");
     }
 

@@ -6,10 +6,7 @@ import { IDL, MessageTransmitter } from "../types/message_transmitter";
 import { MessageSent } from "./MessageSent";
 import { MessageTransmitterConfig } from "./MessageTransmitterConfig";
 import { UsedNonses } from "./UsedNonces";
-
-export const PROGRAM_IDS = ["CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd"] as const;
-
-export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
+import { CircleContracts } from "@wormhole-foundation/sdk-base/contracts";
 
 export type ReceiveTokenMessengerMinterMessageAccounts = {
     authority: PublicKey;
@@ -28,15 +25,11 @@ export type ReceiveTokenMessengerMinterMessageAccounts = {
 };
 
 export class MessageTransmitterProgram {
-    private _programId: ProgramId;
-
     program: Program<MessageTransmitter>;
 
-    constructor(connection: Connection, programId?: ProgramId) {
-        this._programId = programId ?? testnet();
-        this.program = new Program(IDL, new PublicKey(this._programId), {
-            connection,
-        });
+    constructor(connection: Connection, private contracts: CircleContracts) {
+        const programId = new PublicKey(contracts.messageTransmitter);
+        this.program = new Program(IDL, new PublicKey(programId), { connection });
     }
 
     get ID(): PublicKey {
@@ -71,23 +64,7 @@ export class MessageTransmitterProgram {
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new TokenMessengerMinterProgram(
-                    this.program.provider.connection,
-                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
-                );
-            }
-            case mainnet(): {
-                return new TokenMessengerMinterProgram(
-                    this.program.provider.connection,
-                    "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new TokenMessengerMinterProgram(this.program.provider.connection, this.contracts);
     }
 
     receiveTokenMessengerMinterMessageAccounts(
@@ -132,12 +109,4 @@ export class MessageTransmitterProgram {
             })
             .instruction();
     }
-}
-
-export function mainnet(): ProgramId {
-    return "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd";
-}
-
-export function testnet(): ProgramId {
-    return "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd";
 }

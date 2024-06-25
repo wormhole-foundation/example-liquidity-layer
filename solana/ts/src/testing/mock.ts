@@ -1,8 +1,8 @@
 import { Connection, Keypair } from "@solana/web3.js";
-import { FastTransfer } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { FastTransfer, Message } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, Network } from "@wormhole-foundation/sdk-base";
 import { signAndSendWait } from "@wormhole-foundation/sdk-connect";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { deserialize, serialize, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
 import { SolanaAddress, SolanaSendSigner } from "@wormhole-foundation/sdk-solana";
 import { ethers } from "ethers";
@@ -58,8 +58,12 @@ export async function createLiquidityLayerVaa(
     const published = foreignEmitter.publishMessage(0, msg, 0, timestamp);
     const vaa = MOCK_GUARDIANS.addSignatures(published, [0]);
 
-    // @ts-ignore -- TODO: this is lie, need to define discriminator
-    return vaa;
+    try {
+        return deserialize(FastTransfer.getPayloadDiscriminator(), serialize(vaa));
+    } catch {
+        // @ts-expect-error -- needed to allow testing of invalid payloads
+        return vaa;
+    }
 }
 
 export async function postAndFetchVaa<N extends Network>(

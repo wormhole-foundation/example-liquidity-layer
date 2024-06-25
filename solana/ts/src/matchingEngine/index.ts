@@ -68,18 +68,13 @@ import {
     ReserveFastFillSequenceCompositeOpts,
 } from "./types";
 
-export const PROGRAM_IDS = [
-    "MatchingEngine11111111111111111111111111111",
-    "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS",
-] as const;
-export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
+export * from "./types";
 
 export const FEE_PRECISION_MAX = 1_000_000n;
 
 export const CPI_EVENT_IX_SELECTOR = Uint8Array.from([228, 69, 165, 46, 81, 203, 154, 29]);
 
 export class MatchingEngineProgram {
-    private _programId: ProgramId;
     private _mint: PublicKey;
     private _custodian?: Custodian;
 
@@ -87,12 +82,8 @@ export class MatchingEngineProgram {
 
     program: Program<MatchingEngineType>;
 
-    constructor(
-        connection: Connection,
-        programId: ProgramId,
-        private _addresses: MatchingEngine.Addresses,
-    ) {
-        this._programId = programId;
+    constructor(connection: Connection, private _addresses: MatchingEngine.Addresses) {
+        const programId = _addresses.matchingEngine;
         this._mint = new PublicKey(_addresses.cctp.usdcMint);
         this.pdas = programDerivedAddresses(
             new PublicKey(programId),
@@ -100,7 +91,7 @@ export class MatchingEngineProgram {
             this.coreBridgeProgramId,
         );
         this.program = new Program(
-            { ...(IDL as any), address: this._programId },
+            { ...(IDL as any), address: programId },
             {
                 connection,
             },
@@ -2237,24 +2228,23 @@ export class MatchingEngineProgram {
     }
 
     upgradeManagerProgram(): UpgradeManagerProgram {
-        return new UpgradeManagerProgram(
-            this.program.provider.connection,
-            this._addresses.upgradeManager!,
-            { ...this._addresses, tokenRouter: this._addresses.tokenRouter! },
-        );
+        return new UpgradeManagerProgram(this.program.provider.connection, {
+            ...this._addresses,
+            tokenRouter: this._addresses.tokenRouter!,
+        });
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
         return new TokenMessengerMinterProgram(
             this.program.provider.connection,
-            this._addresses.cctp.tokenMessenger,
+            this._addresses.cctp,
         );
     }
 
     messageTransmitterProgram(): MessageTransmitterProgram {
         return new MessageTransmitterProgram(
             this.program.provider.connection,
-            this._addresses.cctp.messageTransmitter,
+            this._addresses.cctp,
         );
     }
 

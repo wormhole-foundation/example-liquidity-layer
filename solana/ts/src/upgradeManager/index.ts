@@ -17,28 +17,13 @@ import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils"
 import { UpgradeReceipt } from "./state";
 import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
-export const PROGRAM_IDS = [
-    "UpgradeManager11111111111111111111111111111",
-    "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
-] as const;
-
-export type ProgramId = (typeof PROGRAM_IDS)[number] | string;
-
 export class UpgradeManagerProgram {
-    private _programId: ProgramId;
     program: Program<UpgradeManager>;
 
-    constructor(
-        connection: Connection,
-        programId: ProgramId,
-        private _addresses: TokenRouter.Addresses,
-    ) {
-        this._programId = programId;
+    constructor(connection: Connection, private _addresses: TokenRouter.Addresses) {
         this.program = new Program(
-            { ...(IDL as any), address: this._programId },
-            {
-                connection,
-            },
+            { ...(IDL as any), address: this._addresses.upgradeManager },
+            { connection },
         );
     }
 
@@ -198,7 +183,6 @@ export class UpgradeManagerProgram {
     matchingEngineProgram(): matchingEngineSdk.MatchingEngineProgram {
         return new matchingEngineSdk.MatchingEngineProgram(
             this.program.provider.connection,
-            this._addresses.matchingEngine,
             this._addresses,
         );
     }
@@ -206,7 +190,6 @@ export class UpgradeManagerProgram {
     tokenRouterProgram(): tokenRouterSdk.TokenRouterProgram {
         return new tokenRouterSdk.TokenRouterProgram(
             this.program.provider.connection,
-            this._addresses.tokenRouter,
             this._addresses,
         );
     }

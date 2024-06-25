@@ -11,12 +11,12 @@ import {
 } from "@solana/web3.js";
 import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { CircleBridge, VAA, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
 import { CctpTokenBurnMessage } from "../src/cctp";
 import { LiquidityLayerDeposit, LiquidityLayerMessage, uint64ToBN } from "../src/common";
-import { SolanaTokenRouter, SolanaTokenRouterContracts } from "../src/protocol";
+import { SolanaTokenRouter } from "../src/protocol";
 import {
     CircleAttester,
     DEFAULT_ADDRESSES,
@@ -56,9 +56,12 @@ describe("Token Router", function () {
     const invalidChain = (foreignChain + 1) as ChainId;
     const foreignEndpointAddress = REGISTERED_TOKEN_ROUTERS["Ethereum"]!;
     const foreignCctpDomain = 0;
-    //const tokenRouter = new TokenRouterProgram(connection, localnet(), USDC_MINT_ADDRESS);
-    const contracts: SolanaTokenRouterContracts = DEFAULT_ADDRESSES["Devnet"]!;
-    const tokenRouter = new SolanaTokenRouter("Devnet", "Solana", connection, contracts);
+    const tokenRouter = new SolanaTokenRouter(
+        "Devnet",
+        "Solana",
+        connection,
+        DEFAULT_ADDRESSES["Devnet"]!,
+    );
 
     let lookupTableAddress: PublicKey;
 
@@ -1526,9 +1529,7 @@ describe("Token Router", function () {
 
             it("Update Router Endpoint", async function () {
                 const ix = await tokenRouter.matchingEngineProgram().updateCctpRouterEndpointIx(
-                    {
-                        owner: owner.publicKey,
-                    },
+                    { owner: owner.publicKey },
                     {
                         chain: foreignChain,
                         address: foreignEndpointAddress,
@@ -1688,6 +1689,67 @@ describe("Token Router", function () {
 
                 // NOTE: This is a CCTP message transmitter error.
                 await expectIxErr(connection, [ix], [payer], "Error Code: NonceAlreadyUsed");
+            });
+
+            it("Redeem Fill with Protocol Client", async function () {
+                const cctpNonce = testCctpNonce++;
+
+                // Concoct a Circle message.
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(
+                        tokenRouter,
+                        sourceCctpDomain,
+                        cctpNonce,
+                        encodedMintRecipient,
+                        amount,
+                        burnSource,
+                    );
+
+                const message = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit({
+                        tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
+                        amount,
+                        sourceCctpDomain,
+                        destinationCctpDomain,
+                        cctpNonce,
+                        burnSource: toUniversalAddress(burnSource),
+                        mintRecipient: toUniversalAddress(encodedMintRecipient),
+                        payload: {
+                            id: 1,
+                            sourceChain: toChain(foreignChain),
+                            orderSender: toUniversalAddress(Buffer.alloc(32, "d00d", "hex")),
+                            redeemer: toUniversalAddress(redeemer.publicKey.toBuffer()),
+                            redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                        },
+                    }),
+                });
+
+                const mockVaa = (await createLiquidityLayerVaa(
+                    connection,
+                    foreignEndpointAddress,
+                    wormholeSequence++,
+                    message,
+                )) as VAA<"FastTransfer:CctpDeposit">;
+
+                await postAndFetchVaa(payerSigner, tokenRouter.matchingEngine, mockVaa);
+
+                const [cctpMessage] = CircleBridge.deserialize(new Uint8Array(encodedCctpMessage));
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+
+                const txs = tokenRouter.redeemFill(
+                    payer.publicKey,
+                    mockVaa,
+                    {
+                        message: cctpMessage,
+                        attestation: cctpAttestation.toString("hex"),
+                    },
+                    [lookupTableAccount!],
+                );
+
+                await expectTxsOk(payerSigner, txs);
             });
         });
     });
