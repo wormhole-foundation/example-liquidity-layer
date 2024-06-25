@@ -35,7 +35,7 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         return this.contract.address;
     }
 
-    placeMarketOrder(
+    placeMarketOrderTx(
         amountIn: bigint,
         targetChain: number,
         redeemer: Buffer | Uint8Array,
@@ -62,7 +62,7 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         }
     }
 
-    placeFastMarketOrder(
+    placeFastMarketOrderTx(
         amountIn: bigint,
         targetChain: number,
         redeemer: Buffer | Uint8Array,
@@ -97,19 +97,19 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         }
     }
 
-    redeemFill(response: OrderResponse) {
+    redeemFillTx(response: OrderResponse) {
         return this.contract.redeemFill(response);
     }
 
-    addRouterEndpoint(chain: number, endpoint: Endpoint, domain: number) {
+    addRouterEndpointTx(chain: number, endpoint: Endpoint, domain: number) {
         return this.contract.addRouterEndpoint(chain, endpoint, domain);
     }
 
-    updateFastTransferParameters(newParams: FastTransferParameters) {
+    updateFastTransferParametersTx(newParams: FastTransferParameters) {
         return this.contract.updateFastTransferParameters(newParams);
     }
 
-    enableFastTransfer(enable: boolean) {
+    enableFastTransferTx(enable: boolean) {
         return this.contract.enableFastTransfers(enable);
     }
 

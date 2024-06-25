@@ -110,7 +110,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const targetChain = toChainId(toChainName);
                 const minAmountOut = BigInt(0);
                 const receipt = await fromTokenRouter
-                    .placeMarketOrder(
+                    .placeMarketOrderTx(
                         amountIn,
                         targetChain,
                         Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
@@ -159,7 +159,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const balanceBefore = await usdc.balanceOf(toWallet.address);
 
                 const receipt = await toTokenRouter
-                    .redeemFill(orderResponse)
+                    .redeemFillTx(orderResponse)
                     .then((tx) => mineWait(toProvider, tx))
                     .catch((err) => {
                         console.log(err);

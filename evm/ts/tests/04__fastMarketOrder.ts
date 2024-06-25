@@ -159,7 +159,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const minAmountOut = BigInt(0);
                     const deadline = 0;
                     const receipt = await fromTokenRouter
-                        .placeFastMarketOrder(
+                        .placeFastMarketOrderTx(
                             amountIn,
                             targetChain,
                             Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
@@ -443,7 +443,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
                     const receipt = await toTokenRouter
-                        .redeemFill(orderResponse)
+                        .redeemFillTx(orderResponse)
                         .then((tx) => mineWait(toProvider, tx))
                         .catch((err) => {
                             console.log(err);
@@ -540,7 +540,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const minAmountOut = BigInt(0);
                     const deadline = 0;
                     const receipt = await fromTokenRouter
-                        .placeFastMarketOrder(
+                        .placeFastMarketOrderTx(
                             amountIn,
                             targetChain,
                             Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
@@ -840,7 +840,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
                     const receipt = await toTokenRouter
-                        .redeemFill(orderResponse)
+                        .redeemFillTx(orderResponse)
                         .then((tx) => mineWait(toProvider, tx))
                         .catch((err) => {
                             console.log(err);
@@ -939,7 +939,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const minAmountOut = BigInt(0);
                     const deadline = 0;
                     const receipt = await fromTokenRouter
-                        .placeFastMarketOrder(
+                        .placeFastMarketOrderTx(
                             amountIn,
                             targetChain,
                             Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
@@ -1089,7 +1089,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
                     const receipt = await toTokenRouter
-                        .redeemFill(orderResponse)
+                        .redeemFillTx(orderResponse)
                         .then((tx) => mineWait(toProvider, tx))
                         .catch((err) => {
                             console.log(err);
@@ -1153,7 +1153,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const deadline = (await engineProvider.getBlock(currentBlock)).timestamp;
 
                     const receipt = await fromTokenRouter
-                        .placeFastMarketOrder(
+                        .placeFastMarketOrderTx(
                             amountIn,
                             targetChain,
                             Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
@@ -1339,7 +1339,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
                     const receipt = await toTokenRouter
-                        .redeemFill(orderResponse)
+                        .redeemFillTx(orderResponse)
                         .then((tx) => mineWait(toProvider, tx))
                         .catch((err) => {
                             console.log(err);
