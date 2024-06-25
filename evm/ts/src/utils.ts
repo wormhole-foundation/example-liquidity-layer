@@ -4,16 +4,16 @@ import { ethers } from "ethers";
 import { CoreBridgeLiquidityLayerMessage, MessageDecoder } from "./messages";
 
 export function parseEvmEvents(
-    txReceipt: ethers.ContractReceipt,
+    txReceipt: ethers.TransactionReceipt,
     contractAddress: string,
     eventInterface: string,
 ) {
-    let wormholeLogs: ethers.utils.Result[] = [];
+    let wormholeLogs: ethers.Result[] = [];
     for (const txLog of txReceipt.logs) {
         if (txLog.address === contractAddress) {
             try {
-                const iface = new ethers.utils.Interface([`event ${eventInterface}`]);
-                const event = iface.parseLog(txLog).args;
+                const iface = new ethers.Interface([`event ${eventInterface}`]);
+                const event = iface.parseLog(txLog)!.args;
                 wormholeLogs.push(event);
             } catch (e: any) {
                 if (e.reason === "no matching event") {
@@ -30,15 +30,15 @@ export function parseEvmEvents(
 }
 
 export function parseEvmEvent(
-    txReceipt: ethers.ContractReceipt,
+    txReceipt: ethers.TransactionReceipt,
     contractAddress: string,
     eventInterface: string,
 ) {
     for (const txLog of txReceipt.logs) {
         if (txLog.address === contractAddress) {
             try {
-                const iface = new ethers.utils.Interface([`event ${eventInterface}`]);
-                return iface.parseLog(txLog).args;
+                const iface = new ethers.Interface([`event ${eventInterface}`]);
+                return iface.parseLog(txLog)!.args;
             } catch (e: any) {
                 if (e.reason === "no matching event") {
                     continue;
@@ -50,8 +50,9 @@ export function parseEvmEvent(
     throw new Error("contract address not found");
 }
 
-export function bufferfy(value: number | ethers.utils.BytesLike | ethers.utils.Hexable): Buffer {
-    return Buffer.from(ethers.utils.arrayify(value));
+export function bufferfy(value: number | ethers.BytesLike): Buffer {
+    if (typeof value === "number") value = ethers.toQuantity(value);
+    return Buffer.from(ethers.getBytes(value));
 }
 
 export type LiquidityLayerObservation = {
@@ -81,7 +82,7 @@ export class LiquidityLayerTransactionResult {
         chainId: ChainId,
         contractAddress: string,
         coreBridgeAddress: string,
-        txReceipt: ethers.ContractReceipt,
+        txReceipt: ethers.TransactionReceipt,
         circleTransmitterAddress: string,
     ) {
         const chain = toChain(chainId);
@@ -110,8 +111,8 @@ export class LiquidityLayerTransactionResult {
             const encodedMessage = bufferfy(payloadByteslike);
 
             // Make sure the address is checksummed.
-            evmEmitterAddress = ethers.utils.getAddress(evmEmitterAddress);
-            contractAddress = ethers.utils.getAddress(contractAddress);
+            evmEmitterAddress = ethers.getAddress(evmEmitterAddress);
+            contractAddress = ethers.getAddress(contractAddress);
 
             if (evmEmitterAddress !== contractAddress) {
                 throw new Error("Unrecognized emitter address.");

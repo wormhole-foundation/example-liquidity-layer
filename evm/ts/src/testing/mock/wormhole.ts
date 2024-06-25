@@ -16,10 +16,10 @@ export class GuardianNetwork implements EvmObserver<Uint8Array> {
     }
 
     async body(
-        message: ethers.utils.Result,
-        provider: ethers.providers.Provider,
+        message: ethers.Result,
+        provider: ethers.Provider,
         chain: Chain,
-        txReceipt: ethers.ContractReceipt,
+        txReceipt: ethers.TransactionReceipt,
     ) {
         const { sender: emitterAddress, sequence, nonce, payload, consistencyLevel } = message;
 
@@ -34,16 +34,16 @@ export class GuardianNetwork implements EvmObserver<Uint8Array> {
             nonce,
             Buffer.from(payload.substring(2), "hex"),
             consistencyLevel,
-            block.timestamp,
+            block!.timestamp,
         );
 
         return published;
     }
 
     async observeEvm(
-        provider: ethers.providers.Provider,
+        provider: ethers.Provider,
         chain: Chain,
-        txReceipt: ethers.ContractReceipt,
+        txReceipt: ethers.TransactionReceipt,
     ) {
         const coreBridgeAddress = contracts.coreBridge.get("Mainnet", chain)!;
         const message = parseEvmEvent(
@@ -57,9 +57,9 @@ export class GuardianNetwork implements EvmObserver<Uint8Array> {
     }
 
     async observeManyEvm(
-        provider: ethers.providers.Provider,
+        provider: ethers.Provider,
         chain: Chain,
-        txReceipt: ethers.ContractReceipt,
+        txReceipt: ethers.TransactionReceipt,
     ) {
         const coreBridgeAddress = contracts.coreBridge.get("Mainnet", chain)!;
         const messages = parseEvmEvents(

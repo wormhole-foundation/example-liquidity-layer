@@ -22,9 +22,7 @@ describe("Registration", () => {
 
     describe(`Register Token Routers on ${MATCHING_ENGINE_NAME} Matching Engine`, () => {
         const env = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
-        const provider = new ethers.providers.StaticJsonRpcProvider(
-            LOCALHOSTS[MATCHING_ENGINE_NAME],
-        );
+        const provider = new ethers.JsonRpcProvider(LOCALHOSTS[MATCHING_ENGINE_NAME]);
         const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
 
         const matchingEngineAddress = toUniversal("Avalanche", env.matchingEngineAddress).toNative(
@@ -65,7 +63,7 @@ describe("Registration", () => {
     for (const chainName of CHAIN_PATHWAYS) {
         describe(`Register Token Routers on ${chainName}`, () => {
             const env = parseLiquidityLayerEnvFile(`${envPath}/${chainName}.env`);
-            const provider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[chainName]);
+            const provider = new ethers.JsonRpcProvider(LOCALHOSTS[chainName]);
             const assistant = new ethers.Wallet(OWNER_ASSISTANT_PRIVATE_KEY, provider);
             const router = ITokenRouter__factory.connect(env.tokenRouterAddress, assistant);
 

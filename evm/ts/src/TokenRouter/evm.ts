@@ -1,4 +1,4 @@
-import { ChainId } from "@wormhole-foundation/sdk-base";
+import { ChainId, asChainId } from "@wormhole-foundation/sdk-base";
 import { ethers } from "ethers";
 import { Endpoint, OrderResponse, TokenRouter, FastTransferParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
@@ -23,16 +23,16 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
     };
 
     constructor(
-        connection: ethers.Signer | ethers.providers.Provider,
-        contractAddress: string,
-        circleBridge: string,
+        private connection: ethers.Signer | ethers.Provider,
+        readonly contractAddress: string,
+        readonly circleBridge: string,
     ) {
         this.contract = ITokenRouter__factory.connect(contractAddress, connection);
         this.circle = ITokenMessenger__factory.connect(circleBridge, connection);
     }
 
     get address(): string {
-        return this.contract.address;
+        return this.contractAddress;
     }
 
     placeMarketOrderTx(
@@ -44,7 +44,9 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         refundAddress?: string,
     ) {
         if (minAmountOut !== undefined && refundAddress !== undefined) {
-            return this.contract["placeMarketOrder(uint64,uint64,uint16,bytes32,bytes,address)"](
+            return this.contract[
+                "placeMarketOrder(uint64,uint64,uint16,bytes32,bytes,address)"
+            ].populateTransaction(
                 amountIn,
                 minAmountOut,
                 targetChain,
@@ -53,12 +55,9 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
                 refundAddress,
             );
         } else {
-            return this.contract["placeMarketOrder(uint64,uint16,bytes32,bytes)"](
-                amountIn,
-                targetChain,
-                redeemer,
-                redeemerMessage,
-            );
+            return this.contract[
+                "placeMarketOrder(uint64,uint16,bytes32,bytes)"
+            ].populateTransaction(amountIn, targetChain, redeemer, redeemerMessage);
         }
     }
 
@@ -75,7 +74,7 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         if (minAmountOut !== undefined && refundAddress !== undefined) {
             return this.contract[
                 "placeFastMarketOrder(uint64,uint64,uint16,bytes32,bytes,address,uint64,uint32)"
-            ](
+            ].populateTransaction(
                 amountIn,
                 minAmountOut,
                 targetChain,
@@ -86,7 +85,9 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
                 deadline,
             );
         } else {
-            return this.contract["placeFastMarketOrder(uint64,uint16,bytes32,bytes,uint64,uint32)"](
+            return this.contract[
+                "placeFastMarketOrder(uint64,uint16,bytes32,bytes,uint64,uint32)"
+            ].populateTransaction(
                 amountIn,
                 targetChain,
                 redeemer,
@@ -98,26 +99,26 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
     }
 
     redeemFillTx(response: OrderResponse) {
-        return this.contract.redeemFill(response);
+        return this.contract.redeemFill.populateTransaction(response);
     }
 
     addRouterEndpointTx(chain: number, endpoint: Endpoint, domain: number) {
-        return this.contract.addRouterEndpoint(chain, endpoint, domain);
+        return this.contract.addRouterEndpoint.populateTransaction(chain, endpoint, domain);
     }
 
     updateFastTransferParametersTx(newParams: FastTransferParameters) {
-        return this.contract.updateFastTransferParameters(newParams);
+        return this.contract.updateFastTransferParameters.populateTransaction(newParams);
     }
 
     enableFastTransferTx(enable: boolean) {
-        return this.contract.enableFastTransfers(enable);
+        return this.contract.enableFastTransfers.populateTransaction(enable);
     }
 
     async getRouter(chain: number): Promise<string> {
         return this.contract.getRouter(chain);
     }
 
-    async getInitialAuctionFee(): Promise<ethers.BigNumber> {
+    async getInitialAuctionFee() {
         return this.contract.getInitialAuctionFee();
     }
 
@@ -125,14 +126,15 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         // Check cached contracts.
         const { chainId, coreBridge, circleTransmitterAddress } = await this._cacheIfNeeded();
 
-        return this.contract.provider
-            .getTransactionReceipt(txHash)
+        const coreAddress = await coreBridge.getAddress();
+        return this.connection
+            .provider!.getTransactionReceipt(txHash)
             .then((txReceipt) =>
                 LiquidityLayerTransactionResult.fromEthersTransactionReceipt(
                     chainId,
                     this.address,
-                    coreBridge.address,
-                    txReceipt,
+                    coreAddress,
+                    txReceipt!,
                     circleTransmitterAddress,
                 ),
             );
@@ -140,20 +142,16 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
 
     private async _cacheIfNeeded() {
         if (this.cache === undefined) {
-            const provider = this.contract.provider;
+            const provider = this.connection.provider!;
             const coreBridge = await this.contract
                 .wormhole()
                 .then((addr) => IWormhole__factory.connect(addr, provider));
             const circleTransmitterAddress = await this.circle.localMessageTransmitter();
 
             // If this isn't a recognized ChainId, we have problems.
-            const chainId = await coreBridge.chainId();
+            const chainId = asChainId(Number(await coreBridge.chainId()));
 
-            this.cache = {
-                chainId: chainId as ChainId,
-                coreBridge,
-                circleTransmitterAddress,
-            };
+            this.cache = { chainId, coreBridge, circleTransmitterAddress };
         }
 
         return this.cache;

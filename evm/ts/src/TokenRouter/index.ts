@@ -1,5 +1,4 @@
 import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
-import { ethers } from "ethers";
 export * from "./evm";
 
 export type FastTransferParameters = {
@@ -57,6 +56,6 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
 
     abstract enableFastTransferTx(enable: boolean): Promise<PreparedTransactionType>;
 
-    abstract getInitialAuctionFee(): Promise<ethers.BigNumber>;
+    abstract getInitialAuctionFee(): Promise<bigint>;
     abstract getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult>;
 }

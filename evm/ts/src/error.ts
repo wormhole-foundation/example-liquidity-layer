@@ -1,4 +1,6 @@
-import { ethers } from "ethers";
+import { encoding } from "@wormhole-foundation/sdk-base";
+import { keccak256 } from "@wormhole-foundation/sdk-definitions";
+import { isError } from "ethers";
 
 export type DecodedErr = {
     selector: string;
@@ -6,22 +8,11 @@ export type DecodedErr = {
 };
 
 export function errorDecoder(ethersError: any): DecodedErr {
-    if (
-        !("code" in ethersError) ||
-        !("error" in ethersError) ||
-        !("error" in ethersError.error) ||
-        !("error" in ethersError.error.error) ||
-        !("code" in ethersError.error.error.error) ||
-        !("data" in ethersError.error.error.error)
-    ) {
-        throw new Error("not contract error");
-    }
+    if (!isError(ethersError, "CALL_EXCEPTION")) throw new Error("not a CALL_EXCEPTION error");
 
-    const { data } = ethersError.error.error.error as {
-        data: string;
-    };
+    const { data } = ethersError;
 
-    if (data.length < 10 || data.substring(0, 2) != "0x") {
+    if (!data || data.length < 10 || data.substring(0, 2) != "0x") {
         throw new Error("data not custom error");
     }
 
@@ -51,5 +42,7 @@ export function errorDecoder(ethersError: any): DecodedErr {
 }
 
 function computeSelector(methodSignature: string): string {
-    return ethers.utils.keccak256(Buffer.from(methodSignature)).substring(0, 10);
+    return encoding.hex
+        .encode(keccak256(encoding.bytes.encode(methodSignature)), true)
+        .substring(0, 10);
 }

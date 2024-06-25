@@ -1,4 +1,4 @@
-import { ChainId } from "@wormhole-foundation/sdk-base";
+import { ChainId, asChainId } from "@wormhole-foundation/sdk-base";
 import { ethers } from "ethers";
 import { RouterEndpoint, LiveAuctionData, MatchingEngine, RedeemParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
@@ -23,32 +23,24 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
     };
 
     constructor(
-        connection: ethers.Signer | ethers.providers.Provider,
-        contractAddress: string,
-        circleBridge: string,
+        private connection: ethers.Provider,
+        readonly contractAddress: string,
+        readonly circleBridge: string,
     ) {
         this.contract = IMatchingEngine__factory.connect(contractAddress, connection);
         this.circle = ITokenMessenger__factory.connect(circleBridge, connection);
     }
 
     get address(): string {
-        return this.contract.address;
+        return this.contractAddress;
     }
 
-    get signer(): ethers.Signer {
-        return this.contract.signer;
+    get provider(): ethers.Provider {
+        return this.connection;
     }
 
-    get signerAddress(): Promise<string> {
-        return this.contract.signer.getAddress();
-    }
-
-    get provider(): ethers.providers.Provider {
-        return this.contract.provider;
-    }
-
-    connect(connection: ethers.Signer | ethers.providers.Provider): EvmMatchingEngine {
-        return new EvmMatchingEngine(connection, this.address, this.circle.address);
+    connect(connection: ethers.Provider): EvmMatchingEngine {
+        return new EvmMatchingEngine(connection, this.address, this.circleBridge);
     }
 
     async addRouterEndpoint(
@@ -56,41 +48,41 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         endpoint: RouterEndpoint,
         domain: number,
     ): Promise<ethers.ContractTransaction> {
-        return this.contract.addRouterEndpoint(chain, endpoint, domain);
+        return this.contract.addRouterEndpoint.populateTransaction(chain, endpoint, domain);
     }
 
     async placeInitialBid(
         fastTransferVaa: Buffer | Uint8Array,
         feeBid: bigint | ethers.BigNumberish,
     ): Promise<ethers.ContractTransaction> {
-        return this.contract.placeInitialBid(fastTransferVaa, feeBid);
+        return this.contract.placeInitialBid.populateTransaction(fastTransferVaa, feeBid);
     }
 
     async improveBid(
         auctionId: Buffer | Uint8Array,
         feeBid: bigint | ethers.BigNumberish,
     ): Promise<ethers.ContractTransaction> {
-        return this.contract.improveBid(auctionId, feeBid);
+        return this.contract.improveBid.populateTransaction(auctionId, feeBid);
     }
 
     async executeFastOrder(
         fastTransferVaa: Buffer | Uint8Array,
     ): Promise<ethers.ContractTransaction> {
-        return this.contract.executeFastOrder(fastTransferVaa);
+        return this.contract.executeFastOrder.populateTransaction(fastTransferVaa);
     }
 
     async executeSlowOrderAndRedeem(
         fastTransferVaa: Buffer | Uint8Array,
         params: RedeemParameters,
     ): Promise<ethers.ContractTransaction> {
-        return this.contract.executeSlowOrderAndRedeem(fastTransferVaa, params);
+        return this.contract.executeSlowOrderAndRedeem.populateTransaction(fastTransferVaa, params);
     }
 
     async calculateDynamicPenalty(
         auctionId?: Buffer | Uint8Array,
         amount?: bigint | ethers.BigNumberish,
         blocksElapsed?: bigint | ethers.BigNumberish,
-    ): Promise<[ethers.BigNumberish, ethers.BigNumberish]> {
+    ): Promise<[bigint, bigint]> {
         if (auctionId !== undefined) {
             return this.contract["calculateDynamicPenalty(bytes32)"](auctionId);
         } else if (amount !== undefined && blocksElapsed !== undefined) {
@@ -104,27 +96,27 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         return this.contract.liveAuctionInfo(auctionId);
     }
 
-    async auctionStatus(auctionId: Buffer | Uint8Array): Promise<number> {
+    async auctionStatus(auctionId: Buffer | Uint8Array) {
         return this.contract.liveAuctionInfo(auctionId).then((res) => res.status);
     }
 
-    async getAuctionGracePeriod(): Promise<number> {
+    async getAuctionGracePeriod() {
         return this.contract.getAuctionGracePeriod();
     }
 
-    async getAuctionDuration(): Promise<number> {
+    async getAuctionDuration() {
         return this.contract.getAuctionDuration();
     }
 
-    async getPenaltyBlocks(): Promise<number> {
+    async getPenaltyBlocks() {
         return this.contract.getAuctionPenaltyBlocks();
     }
 
-    async getInitialPenaltyBps(): Promise<number> {
+    async getInitialPenaltyBps() {
         return this.contract.getInitialPenaltyBps();
     }
 
-    async getUserPenaltyRewardBps(): Promise<number> {
+    async getUserPenaltyRewardBps() {
         return this.contract.getUserPenaltyRewardBps();
     }
 
@@ -136,14 +128,16 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         // Check cached contracts.
         const { chainId, coreBridge, circleTransmitterAddress } = await this._cacheIfNeeded();
 
-        return this.contract.provider
-            .getTransactionReceipt(txHash)
+        const coreAddress = await coreBridge.getAddress();
+
+        return this.connection
+            .provider!.getTransactionReceipt(txHash)
             .then((txReceipt) =>
                 LiquidityLayerTransactionResult.fromEthersTransactionReceipt(
                     chainId,
                     this.address,
-                    coreBridge.address,
-                    txReceipt,
+                    coreAddress,
+                    txReceipt!,
                     circleTransmitterAddress,
                 ),
             );
@@ -151,20 +145,16 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
 
     private async _cacheIfNeeded() {
         if (this.cache === undefined) {
-            const provider = this.contract.provider;
+            const provider = this.connection;
             const coreBridge = await this.contract
                 .wormhole()
                 .then((addr) => IWormhole__factory.connect(addr, provider));
             const circleTransmitterAddress = await this.circle.localMessageTransmitter();
 
             // If this isn't a recognized ChainId, we have problems.
-            const chainId = await coreBridge.chainId();
+            const chainId = asChainId(Number(await coreBridge.chainId()));
 
-            this.cache = {
-                chainId: chainId as ChainId,
-                coreBridge,
-                circleTransmitterAddress,
-            };
+            this.cache = { chainId, coreBridge, circleTransmitterAddress };
         }
 
         return this.cache;

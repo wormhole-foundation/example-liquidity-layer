@@ -23,7 +23,7 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
     constructor(
         readonly network: N,
         readonly chain: C,
-        readonly provider: ethers.providers.Provider,
+        readonly provider: ethers.Provider,
         readonly contracts: Contracts & TokenRouter.Addresses,
     ) {
         super(provider, contracts.tokenRouter, contracts.cctp.tokenMessenger);
@@ -67,7 +67,7 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
         description: string,
         parallelizable: boolean = false,
     ): EvmUnsignedTransaction<N, C> {
-        txReq.chainId = this._chainId;
+        //txReq.chainId = this._chainId;
 
         return new EvmUnsignedTransaction(
             // txReq,
