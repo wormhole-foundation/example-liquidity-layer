@@ -1,7 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
-import { Keccak } from "sha3";
-import { Uint64, uint64ToBN } from "../../common";
 
 export type OrderType = {
     market?: {

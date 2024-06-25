@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { CircleBridge, UniversalAddress } from "@wormhole-foundation/sdk-definitions";
 
 export type Cctp = {
     version: number;
@@ -13,9 +13,9 @@ export type Cctp = {
 // Taken from https://developers.circle.com/stablecoins/docs/message-format.
 export class CctpMessage {
     cctp: Cctp;
-    message: Buffer;
+    message: CctpTokenBurnMessage;
 
-    constructor(cctp: Cctp, message: Buffer) {
+    constructor(cctp: Cctp, message: CctpTokenBurnMessage) {
         this.cctp = cctp;
         this.message = message;
     }
@@ -30,31 +30,60 @@ export class CctpMessage {
 
     static decode(buf: Readonly<Buffer>): CctpMessage {
         const version = buf.readUInt32BE(0);
-        const sourceDomain = buf.readUInt32BE(4);
-        const destinationDomain = buf.readUInt32BE(8);
-        const nonce = buf.readBigUInt64BE(12);
-        const sender = Array.from(buf.slice(20, 52));
-        const recipient = Array.from(buf.slice(52, 84));
-        const targetCaller = Array.from(buf.slice(84, 116));
-        const message = buf.subarray(116);
+
+        const [msg] = CircleBridge.deserialize(new Uint8Array(buf));
+        const {
+            sourceDomain,
+            destinationDomain,
+            nonce,
+            sender,
+            recipient,
+            destinationCaller,
+            payload,
+        } = msg;
+
+        const { burnToken, mintRecipient, amount, messageSender } = payload;
+        const header: Cctp = {
+            version,
+            sourceDomain,
+            destinationDomain,
+            nonce,
+            sender: Array.from(sender.toUint8Array()),
+            recipient: Array.from(recipient.toUint8Array()),
+            targetCaller: Array.from(destinationCaller.toUint8Array()),
+        };
 
         return new CctpMessage(
-            {
+            header,
+            new CctpTokenBurnMessage(
+                header,
                 version,
-                sourceDomain,
-                destinationDomain,
-                nonce,
-                sender,
-                recipient,
-                targetCaller,
-            },
-            message,
+                Array.from(burnToken.toUint8Array()),
+                Array.from(mintRecipient.toUint8Array()),
+                amount,
+                Array.from(messageSender.toUint8Array()),
+            ),
         );
     }
 
     encode(): Buffer {
         const { cctp, message } = this;
-        return Buffer.concat([encodeCctp(cctp), message]);
+        return Buffer.from(
+            CircleBridge.serialize({
+                sourceDomain: cctp.sourceDomain,
+                destinationDomain: cctp.destinationDomain,
+                nonce: cctp.nonce,
+                sender: new UniversalAddress(new Uint8Array(cctp.sender)),
+                recipient: new UniversalAddress(new Uint8Array(cctp.recipient)),
+                destinationCaller: new UniversalAddress(new Uint8Array(cctp.targetCaller)),
+                payload: {
+                    burnToken: new UniversalAddress(new Uint8Array(message.burnTokenAddress)),
+                    mintRecipient: new UniversalAddress(new Uint8Array(message.mintRecipient)),
+                    amount: message.amount,
+                    messageSender: new UniversalAddress(new Uint8Array(message.sender)),
+                },
+            }),
+        );
     }
 }
 
@@ -91,63 +120,11 @@ export class CctpTokenBurnMessage {
     }
 
     static decode(buf: Readonly<Buffer>): CctpTokenBurnMessage {
-        const { cctp, message } = CctpMessage.decode(buf);
-        const version = message.readUInt32BE(0);
-        const burnTokenAddress = Array.from(message.subarray(4, 36));
-        const mintRecipient = Array.from(message.subarray(36, 68));
-        const amount = BigInt(ethers.BigNumber.from(message.subarray(68, 100)).toString());
-        const sender = Array.from(message.subarray(100, 132));
-
-        return new CctpTokenBurnMessage(
-            cctp,
-            version,
-            burnTokenAddress,
-            mintRecipient,
-            amount,
-            sender,
-        );
+        const { message } = CctpMessage.decode(buf);
+        return message;
     }
 
     encode(): Buffer {
-        const buf = Buffer.alloc(132);
-
-        const { cctp, version, burnTokenAddress, mintRecipient, amount, sender } = this;
-
-        let offset = 0;
-        offset = buf.writeUInt32BE(version, offset);
-        buf.set(burnTokenAddress, offset);
-        offset += 32;
-        buf.set(mintRecipient, offset);
-        offset += 32;
-
-        // Special handling w/ uint256. This value will most likely encoded in < 32 bytes, so we
-        // jump ahead by 32 and subtract the length of the encoded value.
-        const encodedAmount = ethers.utils.arrayify(ethers.BigNumber.from(amount.toString()));
-        buf.set(encodedAmount, (offset += 32) - encodedAmount.length);
-
-        buf.set(sender, offset);
-        offset += 32;
-
-        return Buffer.concat([encodeCctp(cctp), buf]);
+        return new CctpMessage(this.cctp, this).encode();
     }
-}
-
-function encodeCctp(cctp: Cctp): Buffer {
-    const buf = Buffer.alloc(116);
-
-    const { version, sourceDomain, destinationDomain, nonce, sender, recipient, targetCaller } =
-        cctp;
-
-    let offset = 0;
-    offset = buf.writeUInt32BE(version, offset);
-    offset = buf.writeUInt32BE(sourceDomain, offset);
-    offset = buf.writeUInt32BE(destinationDomain, offset);
-    offset = buf.writeBigUInt64BE(nonce, offset);
-    buf.set(sender, offset);
-    offset += 32;
-    buf.set(recipient, offset);
-    offset += 32;
-    buf.set(targetCaller, offset);
-
-    return buf;
 }

@@ -18,6 +18,7 @@ import {
 
 export * from "./messages";
 export * from "./payloads";
+export * from "./protocol";
 
 export namespace Message {
     // Type guard for message types

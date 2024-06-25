@@ -3,21 +3,21 @@ import {
     AddressLookupTableAccount,
     ConfirmOptions,
     Connection,
-    Keypair,
     PublicKey,
+    SendTransactionError,
     Signer,
     TransactionInstruction,
     TransactionMessage,
     VersionedTransaction,
 } from "@solana/web3.js";
+import { Network } from "@wormhole-foundation/sdk-base";
+import { SignAndSendSigner as SdkSigner, signAndSendWait } from "@wormhole-foundation/sdk-connect";
+import { UniversalAddress } from "@wormhole-foundation/sdk-definitions";
+import { SolanaUnsignedTransaction } from "@wormhole-foundation/sdk-solana";
 import { expect } from "chai";
 import { execSync } from "child_process";
 import { Err, Ok } from "ts-results";
-import { CORE_BRIDGE_PID, USDC_MINT_ADDRESS } from "./consts";
-import { SolanaSendSigner } from "@wormhole-foundation/sdk-solana";
-import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
-import { signAndSendWait } from "@wormhole-foundation/sdk-connect";
-import { UniversalAddress, deserialize } from "@wormhole-foundation/sdk-definitions";
+import { USDC_MINT_ADDRESS } from "./consts";
 
 export function toUniversalAddress(address: number[] | Buffer | Array<number>): UniversalAddress {
     return new UniversalAddress(new Uint8Array(address));
@@ -34,6 +34,49 @@ async function confirmLatest(connection: Connection, signature: string) {
             "confirmed",
         ),
     );
+}
+
+export async function expectTxsOk<N extends Network, C extends "Solana" = "Solana">(
+    signer: SdkSigner<N, C>,
+    txs: AsyncGenerator<SolanaUnsignedTransaction<N, C>>,
+) {
+    try {
+        return await signAndSendWait(txs, signer);
+    } catch (e) {
+        console.error(e);
+        throw e;
+    }
+}
+
+export async function expectTxsOkDetails<N extends Network, C extends "Solana" = "Solana">(
+    signer: SdkSigner<N, C>,
+    txs: AsyncGenerator<SolanaUnsignedTransaction<N, C>>,
+    connection: Connection,
+) {
+    const [txSig] = await expectTxsOk(signer, txs);
+    await confirmLatest(connection, txSig.txid);
+    return connection.getTransaction(txSig.txid, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+    });
+}
+
+export async function expectTxsErr<N extends Network, C extends "Solana" = "Solana">(
+    signer: SdkSigner<N, C>,
+    txs: AsyncGenerator<SolanaUnsignedTransaction<N, C>>,
+    expectedError: string,
+) {
+    try {
+        await signAndSendWait(txs, signer);
+    } catch (e) {
+        const errorMsg =
+            e instanceof SendTransactionError && e.logs
+                ? e.logs!.join("\n")
+                : (e as Error).toString();
+        expect(errorMsg).includes(expectedError);
+        return;
+    }
+    throw new Error("Expected transaction to fail");
 }
 
 export async function expectIxOk(
@@ -150,20 +193,6 @@ async function debugSendAndConfirmTransaction(
         });
 }
 
-export async function postVaa(
-    connection: Connection,
-    payer: Keypair,
-    vaaBuf: Buffer,
-    coreBridgeAddress?: PublicKey,
-) {
-    const core = new SolanaWormholeCore("Devnet", "Solana", connection, {
-        coreBridge: (coreBridgeAddress ?? CORE_BRIDGE_PID).toString(),
-    });
-    const txs = core.postVaa(payer.publicKey, deserialize("Uint8Array", vaaBuf));
-    const signer = new SolanaSendSigner(connection, "Solana", payer, false, {});
-    await signAndSendWait(txs, signer);
-}
-
 export function loadProgramBpf(artifactPath: string, keypath: string): PublicKey {
     // Invoke BPF Loader Upgradeable `write-buffer` instruction.
     const buffer = (() => {
@@ -173,11 +202,6 @@ export function loadProgramBpf(artifactPath: string, keypath: string): PublicKey
 
     // Return the pubkey for the buffer (our new program implementation).
     return buffer;
-}
-
-export async function waitBySlots(connection: Connection, numSlots: number) {
-    const targetSlot = await connection.getSlot().then((slot) => slot + numSlots);
-    return waitUntilSlot(connection, targetSlot);
 }
 
 export async function waitUntilSlot(connection: Connection, targetSlot: number) {

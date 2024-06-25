@@ -6,7 +6,11 @@ import {
     constMap,
     layoutDiscriminator,
 } from "@wormhole-foundation/sdk-base";
-import { layoutItems } from "@wormhole-foundation/sdk-definitions";
+import {
+    RegisterPayloadTypes,
+    layoutItems,
+    registerPayloadTypes,
+} from "@wormhole-foundation/sdk-definitions";
 import { payloadLayoutSwitch } from "./payloads";
 
 const cctpDepositLayout = [
@@ -79,3 +83,18 @@ export function messageLayout<N extends MessageName>(name: N): MessageLayout<N> 
 export type CctpDeposit = MessageType<"CctpDeposit">;
 export type FastMarketOrder = MessageType<"FastMarketOrder">;
 export type FastFill = MessageType<"FastFill">;
+
+//
+const fastTransferNamedPayloads = [
+    ["CctpDeposit", messageLayout("CctpDeposit")],
+    ["FastMarketOrder", messageLayout("FastMarketOrder")],
+    ["FastFill", messageLayout("FastFill")],
+] as const satisfies RoArray<[string, Layout]>;
+
+declare module "@wormhole-foundation/sdk-definitions" {
+    export namespace WormholeRegistry {
+        interface PayloadLiteralToLayoutMapping
+            extends RegisterPayloadTypes<"FastTransfer", typeof fastTransferNamedPayloads> {}
+    }
+}
+registerPayloadTypes("FastTransfer", fastTransferNamedPayloads);

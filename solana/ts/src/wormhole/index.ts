@@ -1,26 +1,28 @@
 import { Connection, PublicKey } from "@solana/web3.js";
-import { ChainId, isChainId, toChainId } from "@wormhole-foundation/sdk-base";
-import { deserialize, keccak256 } from "@wormhole-foundation/sdk-definitions";
 import { ethers } from "ethers";
+import {
+    ChainId,
+    Layout,
+    deserializeLayout,
+    toChain,
+    toChainId,
+} from "@wormhole-foundation/sdk-base";
+import {
+    PayloadLiteral,
+    VAA,
+    createVAA,
+    deserialize,
+    keccak256,
+    layoutItems,
+    serialize,
+} from "@wormhole-foundation/sdk-definitions";
 export * from "./spy";
 
 export type EncodedVaa = {
     status: number;
     writeAuthority: PublicKey;
     version: number;
-    buf: Buffer;
-};
-
-export type PostedVaaV1 = {
-    consistencyLevel: number;
-    timestamp: number;
-    signatureSet: PublicKey;
-    guardianSetIndex: number;
-    nonce: number;
-    sequence: bigint;
-    emitterChain: ChainId;
-    emitterAddress: Array<number>;
-    payload: Buffer;
+    vaa: VAA<"Uint8Array">;
 };
 
 export type EmitterInfo = {
@@ -29,9 +31,22 @@ export type EmitterInfo = {
     sequence: bigint;
 };
 
+const vaaAccountLayout = [
+    { name: "discriminator", binary: "bytes", size: 4 },
+    { name: "consistencyLevel", binary: "uint", size: 1, endianness: "little" },
+    { name: "timestamp", binary: "uint", size: 4, endianness: "little" },
+    { name: "signatureSet", binary: "bytes", size: 32 },
+    { name: "guardianSetIndex", binary: "uint", size: 4, endianness: "little" },
+    { name: "nonce", binary: "uint", size: 4, endianness: "little" },
+    { name: "sequence", binary: "uint", size: 8, endianness: "little" },
+    { name: "emitterChain", binary: "uint", size: 2, endianness: "little" },
+    { name: "emitterAddress", ...layoutItems.universalAddressItem },
+    { name: "payload", binary: "bytes", lengthSize: 4, lengthEndianness: "little" },
+] as const satisfies Layout;
+
 export class VaaAccount {
     private _encodedVaa?: EncodedVaa;
-    private _postedVaaV1?: PostedVaaV1;
+    private _postedVaaV1?: VAA<"Uint8Array">;
 
     static async fetch(connection: Connection, addr: PublicKey): Promise<VaaAccount> {
         const accInfo = await connection.getAccountInfo(addr);
@@ -50,118 +65,56 @@ export class VaaAccount {
             offset += 1;
             const bufLen = data.readUInt32LE(offset);
             offset += 4;
-            const buf = data.subarray(offset, (offset += bufLen));
 
-            return new VaaAccount({ encodedVaa: { status, writeAuthority, version, buf } });
+            const vaa = deserialize("Uint8Array", data.subarray(offset, (offset += bufLen)));
+            return new VaaAccount({ encodedVaa: { status, writeAuthority, version, vaa } });
         } else if (disc.subarray(0, (offset -= 4)).equals(Uint8Array.from([118, 97, 97, 1]))) {
-            const consistencyLevel = data[offset];
-            offset += 1;
-            const timestamp = data.readUInt32LE(offset);
-            offset += 4;
-            const signatureSet = new PublicKey(data.subarray(offset, (offset += 32)));
-            const guardianSetIndex = data.readUInt32LE(offset);
-            offset += 4;
-            const nonce = data.readUInt32LE(offset);
-            offset += 4;
-            const sequence = data.readBigUInt64LE(offset);
-            offset += 8;
-            const emitterChain = data.readUInt16LE(offset);
-            if (!isChainId(emitterChain)) {
-                throw new Error("invalid emitter chain");
-            }
-            offset += 2;
-            const emitterAddress = Array.from(data.subarray(offset, (offset += 32)));
-            const payloadLen = data.readUInt32LE(offset);
-            offset += 4;
-            const payload = data.subarray(offset, (offset += payloadLen));
-
-            return new VaaAccount({
-                postedVaaV1: {
-                    consistencyLevel,
-                    timestamp,
-                    signatureSet,
-                    guardianSetIndex,
-                    nonce,
-                    sequence,
-                    emitterChain,
-                    emitterAddress,
-                    payload,
-                },
+            const vaaData = deserializeLayout(vaaAccountLayout, new Uint8Array(data));
+            const vaa = createVAA("Uint8Array", {
+                timestamp: vaaData.timestamp,
+                nonce: vaaData.nonce,
+                emitterChain: toChain(vaaData.emitterChain),
+                emitterAddress: vaaData.emitterAddress,
+                sequence: vaaData.sequence,
+                consistencyLevel: vaaData.consistencyLevel,
+                payload: vaaData.payload,
+                guardianSet: 0,
+                signatures: [],
             });
+            return new VaaAccount({ postedVaaV1: vaa });
         } else {
             throw new Error("invalid VAA account data");
         }
     }
 
+    vaa<P extends PayloadLiteral = "Uint8Array">(payload?: P): VAA<P> {
+        const vaa =
+            this._encodedVaa !== undefined
+                ? this._encodedVaa.vaa
+                : this._postedVaaV1 !== undefined
+                ? this._postedVaaV1
+                : undefined;
+
+        if (!vaa) throw new Error("impossible: vaa() failed");
+
+        return (payload ? deserialize(payload, serialize(vaa)) : vaa) as VAA<P>;
+    }
+
     emitterInfo(): EmitterInfo {
-        if (this._encodedVaa !== undefined) {
-            const parsed = deserialize("Uint8Array", this._encodedVaa.buf);
-            return {
-                chain: toChainId(parsed.emitterChain),
-                address: Array.from(parsed.emitterAddress.toUint8Array()),
-                sequence: parsed.sequence,
-            };
-        } else if (this._postedVaaV1 !== undefined) {
-            const { emitterChain: chain, emitterAddress: address, sequence } = this._postedVaaV1;
-            return {
-                chain,
-                address,
-                sequence,
-            };
-        } else {
-            throw new Error("impossible: emitterInfo() failed");
-        }
+        const { emitterChain: chain, emitterAddress: address, sequence } = this.vaa();
+        return { chain: toChainId(chain), address: Array.from(address.toUint8Array()), sequence };
     }
 
     timestamp(): number {
-        if (this._encodedVaa !== undefined) {
-            return deserialize("Uint8Array", this._encodedVaa.buf).timestamp;
-        } else if (this._postedVaaV1 !== undefined) {
-            return this._postedVaaV1.timestamp;
-        } else {
-            throw new Error("impossible: timestamp() failed");
-        }
+        return this.vaa().timestamp;
     }
 
     payload(): Buffer {
-        if (this._encodedVaa !== undefined) {
-            return Buffer.from(deserialize("Uint8Array", this._encodedVaa.buf).payload);
-        } else if (this._postedVaaV1 !== undefined) {
-            return this._postedVaaV1.payload;
-        } else {
-            throw new Error("impossible: payload() failed");
-        }
+        return Buffer.from(this.vaa().payload);
     }
 
     hash(): Uint8Array {
-        if (this._encodedVaa !== undefined) {
-            return deserialize("Uint8Array", this._encodedVaa.buf).hash;
-        } else if (this._postedVaaV1 !== undefined) {
-            const {
-                consistencyLevel,
-                timestamp,
-                nonce,
-                sequence,
-                emitterChain,
-                emitterAddress,
-                payload,
-            } = this._postedVaaV1;
-
-            let offset = 0;
-            const buf = Buffer.alloc(51 + payload.length);
-            offset = buf.writeUInt32BE(timestamp, offset);
-            offset = buf.writeUInt32BE(nonce, offset);
-            offset = buf.writeUInt16BE(emitterChain, offset);
-            buf.set(emitterAddress, offset);
-            offset += 32;
-            offset = buf.writeBigUInt64BE(sequence, offset);
-            offset = buf.writeUInt8(consistencyLevel, offset);
-            buf.set(payload, offset);
-
-            return ethers.utils.arrayify(ethers.utils.keccak256(buf));
-        } else {
-            throw new Error("impossible: hash() failed");
-        }
+        return this.vaa().hash;
     }
 
     digest(): Uint8Array {
@@ -175,14 +128,14 @@ export class VaaAccount {
         return this._encodedVaa;
     }
 
-    get postedVaaV1(): PostedVaaV1 {
+    get postedVaaV1(): VAA<"Uint8Array"> {
         if (this._postedVaaV1 === undefined) {
             throw new Error("VaaAccount does not have postedVaaV1");
         }
         return this._postedVaaV1;
     }
 
-    private constructor(data: { encodedVaa?: EncodedVaa; postedVaaV1?: PostedVaaV1 }) {
+    private constructor(data: { encodedVaa?: EncodedVaa; postedVaaV1?: VAA<"Uint8Array"> }) {
         const { encodedVaa, postedVaaV1 } = data;
         if (encodedVaa !== undefined && postedVaaV1 !== undefined) {
             throw new Error("VaaAccount cannot have both encodedVaa and postedVaaV1");
