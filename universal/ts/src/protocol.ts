@@ -150,7 +150,7 @@ export namespace TokenRouter {
     export type PreparedOrder<C extends Chain> = AccountAddress<C>;
 }
 
-export interface TokenRouter<N extends Network = Network, C extends Chain = Chain> {
+export interface TokenRouter<N extends Network, C extends Chain> {
     placeMarketOrder(
         sender: AccountAddress<C>,
         order: TokenRouter.OrderRequest | TokenRouter.PreparedOrder<C>,

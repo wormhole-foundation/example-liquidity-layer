@@ -6,14 +6,14 @@ export * from "./wormhole";
 
 export abstract class EvmObserver<T> {
     abstract observeEvm(
-        provider: ethers.providers.Provider,
+        provider: ethers.Provider,
         chain: Chain,
-        txReceipt: ethers.ContractReceipt,
+        txReceipt: ethers.TransactionReceipt,
     ): Promise<T>;
 
     abstract observeManyEvm(
-        provider: ethers.providers.Provider,
+        provider: ethers.Provider,
         chain: Chain,
-        txReceipt: ethers.ContractReceipt,
+        txReceipt: ethers.TransactionReceipt,
     ): Promise<T[]>;
 }

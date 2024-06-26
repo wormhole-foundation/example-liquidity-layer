@@ -26,7 +26,7 @@ const CHAIN_PATHWAYS: ValidNetwork[][] = [
     ["Base", "Avalanche"],
 ];
 
-const TEST_AMOUNT = ethers.utils.parseUnits("1000", 6);
+const TEST_AMOUNT = ethers.parseUnits("1000", 6);
 
 describe("Market Order Business Logic -- CCTP to CCTP", () => {
     const envPath = `${__dirname}/../../env/localnet`;
@@ -39,9 +39,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
 
         describe(`${fromChainName} <> ${toChainName}`, () => {
             // From setup.
-            const fromProvider = new ethers.providers.StaticJsonRpcProvider(
-                LOCALHOSTS[fromChainName],
-            );
+            const fromProvider = new ethers.JsonRpcProvider(LOCALHOSTS[fromChainName]);
             const fromWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], fromProvider);
 
             const fromEnv = parseLiquidityLayerEnvFile(`${envPath}/${fromChainName}.env`);
@@ -58,7 +56,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
             })();
 
             // To setup.
-            const toProvider = new ethers.providers.StaticJsonRpcProvider(LOCALHOSTS[toChainName]);
+            const toProvider = new ethers.JsonRpcProvider(LOCALHOSTS[toChainName]);
             const toWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], toProvider);
 
             const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName}.env`);
@@ -110,7 +108,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const targetChain = toChainId(toChainName);
                 const minAmountOut = BigInt(0);
                 const receipt = await fromTokenRouter
-                    .placeMarketOrder(
+                    .placeMarketOrderTx(
                         amountIn,
                         targetChain,
                         Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
@@ -118,14 +116,19 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                         minAmountOut,
                         fromWallet.address,
                     )
+                    .then(async (txReq) => {
+                        txReq.nonce = await fromWallet.getNonce();
+                        return await fromWallet.sendTransaction(txReq);
+                    })
                     .then((tx) => mineWait(fromProvider, tx))
                     .catch((err) => {
                         console.log(err);
                         console.log(errorDecoder(err));
                         throw err;
                     });
+
                 const transactionResult = await fromTokenRouter.getTransactionResults(
-                    receipt.transactionHash,
+                    receipt!.hash,
                 );
 
                 expect(transactionResult.wormhole.emitterAddress).to.eql(
@@ -137,7 +140,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const fillVaa = await guardianNetwork.observeEvm(
                     fromProvider,
                     fromChainName,
-                    receipt,
+                    receipt!,
                 );
 
                 const circleBridgeMessage = transactionResult.circleMessage!;
@@ -159,7 +162,8 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const balanceBefore = await usdc.balanceOf(toWallet.address);
 
                 const receipt = await toTokenRouter
-                    .redeemFill(orderResponse)
+                    .redeemFillTx(orderResponse)
+                    .then((txReq) => toWallet.sendTransaction(txReq))
                     .then((tx) => mineWait(toProvider, tx))
                     .catch((err) => {
                         console.log(err);
@@ -169,7 +173,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
 
                 const balanceAfter = await usdc.balanceOf(toWallet.address);
 
-                expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
+                expect((balanceAfter - balanceBefore).toString()).to.eql(
                     localVariables.get("amountIn").toString(),
                 );
                 expect(localVariables.delete("amountIn")).is.true;

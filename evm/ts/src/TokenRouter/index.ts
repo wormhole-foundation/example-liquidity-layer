@@ -1,5 +1,4 @@
 import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
-import { ethers } from "ethers";
 export * from "./evm";
 
 export type FastTransferParameters = {
@@ -23,7 +22,7 @@ export type Endpoint = {
 export abstract class TokenRouter<PreparedTransactionType extends PreparedInstruction> {
     abstract get address(): string;
 
-    abstract placeMarketOrder(
+    abstract placeMarketOrderTx(
         amountIn: bigint,
         targetChain: number,
         redeemer: Buffer | Uint8Array,
@@ -32,7 +31,7 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
         refundAddress?: string,
     ): Promise<PreparedTransactionType>;
 
-    abstract placeFastMarketOrder(
+    abstract placeFastMarketOrderTx(
         amountIn: bigint,
         targetChain: number,
         redeemer: Buffer | Uint8Array,
@@ -43,21 +42,20 @@ export abstract class TokenRouter<PreparedTransactionType extends PreparedInstru
         refundAddress?: string,
     ): Promise<PreparedTransactionType>;
 
-    abstract redeemFill(response: OrderResponse): Promise<PreparedTransactionType>;
+    abstract redeemFillTx(response: OrderResponse): Promise<PreparedTransactionType>;
 
-    abstract addRouterEndpoint(
+    abstract addRouterEndpointTx(
         chain: number,
         endpoint: Endpoint,
         domain: number,
     ): Promise<PreparedTransactionType>;
 
-    abstract updateFastTransferParameters(
+    abstract updateFastTransferParametersTx(
         newParams: FastTransferParameters,
     ): Promise<PreparedTransactionType>;
 
-    abstract enableFastTransfer(enable: boolean): Promise<PreparedTransactionType>;
+    abstract enableFastTransferTx(enable: boolean): Promise<PreparedTransactionType>;
 
-    abstract getInitialAuctionFee(): Promise<ethers.BigNumber>;
-
+    abstract getInitialAuctionFee(): Promise<bigint>;
     abstract getTransactionResults(txHash: string): Promise<LiquidityLayerTransactionResult>;
 }

@@ -7,16 +7,16 @@ import { Chain } from "@wormhole-foundation/sdk-base";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 export interface ScoreKeeper {
-    player: ethers.Wallet;
-    bid: ethers.BigNumber;
-    balance: ethers.BigNumber;
+    player: ethers.NonceManager;
+    bid: bigint;
+    balance: bigint;
 }
 
-export async function mine(provider: ethers.providers.StaticJsonRpcProvider) {
+export async function mine(provider: ethers.JsonRpcProvider) {
     await provider.send("evm_mine", []);
 }
 
-export async function mineMany(provider: ethers.providers.StaticJsonRpcProvider, count: number) {
+export async function mineMany(provider: ethers.JsonRpcProvider, count: number) {
     for (let i = 0; i < count; i++) {
         await mine(provider);
     }
@@ -29,37 +29,35 @@ export function tryNativeToUint8Array(address: string, chain: Chain) {
 export async function mineToGracePeriod(
     auctionId: Uint8Array,
     engine: EvmMatchingEngine,
-    provider: ethers.providers.StaticJsonRpcProvider,
+    provider: ethers.JsonRpcProvider,
 ) {
-    const startBlock = await engine.liveAuctionInfo(auctionId).then((info) => info.startBlock);
+    const { startBlock } = await engine.liveAuctionInfo(auctionId);
     const gracePeriod = await engine.getAuctionGracePeriod();
-    const currentBlock = await provider.getBlockNumber();
+    const currentBlock = BigInt(await provider.getBlockNumber());
 
     // Will mine blocks until there is one block left in the grace period.
-    const blocksToMine = gracePeriod - (currentBlock - Number(startBlock)) - 1;
-    await mineMany(provider, blocksToMine);
+    const blocksToMine = gracePeriod - (currentBlock - startBlock) - 2n;
+    await mineMany(provider, Number(blocksToMine));
 }
 
 export async function mineToPenaltyPeriod(
     auctionId: Uint8Array,
     engine: EvmMatchingEngine,
-    provider: ethers.providers.StaticJsonRpcProvider,
+    provider: ethers.JsonRpcProvider,
     penaltyBlocks: number,
 ) {
     const startBlock = await engine.liveAuctionInfo(auctionId).then((info) => info.startBlock);
     const gracePeriod = await engine.getAuctionGracePeriod();
-    const currentBlock = await provider.getBlockNumber();
+    const currentBlock = BigInt(await provider.getBlockNumber());
 
-    const blocksToMine = gracePeriod - (currentBlock - Number(startBlock)) + penaltyBlocks;
-    await mineMany(provider, blocksToMine);
+    const blocksToMine = gracePeriod - (currentBlock - startBlock) + BigInt(penaltyBlocks);
+    await mineMany(provider, Number(blocksToMine));
 }
 
-export async function mineWait(
-    provider: ethers.providers.StaticJsonRpcProvider,
-    tx: ethers.ContractTransaction,
-) {
+export async function mineWait(provider: ethers.JsonRpcProvider, tx: ethers.TransactionResponse) {
     await mine(provider);
-    return tx.wait();
+    // 1 is default confirms, 5000ms timeout to prevent hanging forever.
+    return await tx.wait(1, 5000);
 }
 
 export async function mintNativeUsdc(
@@ -68,14 +66,15 @@ export async function mintNativeUsdc(
     amount: ethers.BigNumberish,
     mineBlock: boolean = true,
 ) {
-    if (!("detectNetwork" in usdc.provider)) {
-        throw new Error("provider must be a StaticJsonRpcProvider");
+    if (!usdc.runner) {
+        throw new Error("provider must be a JsonRpcProvider");
     }
 
-    const provider = usdc.provider as ethers.providers.StaticJsonRpcProvider;
+    const provider = usdc.runner.provider as ethers.JsonRpcProvider;
 
+    const address = await usdc.getAddress();
     const tx = await IUSDC__factory.connect(
-        usdc.address,
+        address,
         new ethers.Wallet(WALLET_PRIVATE_KEYS[9], provider),
     ).mint(recipient, amount);
 
@@ -85,8 +84,11 @@ export async function mintNativeUsdc(
 }
 
 export async function burnAllUsdc(usdc: IERC20) {
+    const signer = usdc.runner! as ethers.Signer;
+    const address = signer.getAddress();
+
     await usdc
-        .balanceOf(usdc.signer.getAddress())
+        .balanceOf(address)
         .then((balance) => usdc.transfer("0x6969696969696969696969696969696969696969", balance))
-        .then((tx) => mineWait(usdc.provider as ethers.providers.StaticJsonRpcProvider, tx));
+        .then((tx) => mineWait(usdc.runner?.provider as ethers.JsonRpcProvider, tx));
 }

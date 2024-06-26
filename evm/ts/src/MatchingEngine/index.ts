@@ -10,13 +10,13 @@ export type RedeemParameters = {
 };
 
 export type LiveAuctionData = {
-    status: number;
-    startBlock: bigint | ethers.BigNumberish;
+    status: bigint;
+    startBlock: bigint;
     highestBidder: string;
     initialBidder: string;
-    amount: bigint | ethers.BigNumberish;
-    securityDeposit: bigint | ethers.BigNumberish;
-    bidPrice: bigint | ethers.BigNumberish;
+    amount: bigint;
+    securityDeposit: bigint;
+    bidPrice: bigint;
 };
 
 export type RouterEndpoint = {
@@ -30,47 +30,47 @@ export abstract class MatchingEngine<PreparedTransactionType extends PreparedIns
     abstract addRouterEndpoint(
         chain: number,
         endpoint: RouterEndpoint,
-        domain: number
+        domain: number,
     ): Promise<PreparedTransactionType>;
 
     abstract liveAuctionInfo(auctionId: Buffer | Uint8Array): Promise<LiveAuctionData>;
 
-    abstract auctionStatus(auctionId: Buffer | Uint8Array): Promise<number>;
+    abstract auctionStatus(auctionId: Buffer | Uint8Array): Promise<bigint>;
 
     abstract placeInitialBid(
         fastTransferVaa: Buffer | Uint8Array,
-        feeBid: bigint
+        feeBid: bigint,
     ): Promise<PreparedTransactionType>;
 
     abstract improveBid(
         auctionId: Buffer | Uint8Array,
-        feeBid: bigint
+        feeBid: bigint,
     ): Promise<PreparedTransactionType>;
 
     abstract executeFastOrder(
-        fastTransferVaa: Buffer | Uint8Array
+        fastTransferVaa: Buffer | Uint8Array,
     ): Promise<PreparedTransactionType>;
 
     abstract executeSlowOrderAndRedeem(
         fastTransferVaa: Buffer | Uint8Array,
-        params: RedeemParameters
+        params: RedeemParameters,
     ): Promise<PreparedTransactionType>;
 
     abstract calculateDynamicPenalty(
         auctionId?: Buffer | Uint8Array,
         amount?: bigint,
-        blocksElapsed?: bigint
+        blocksElapsed?: bigint,
     ): Promise<[ethers.BigNumberish, ethers.BigNumberish]>;
 
-    abstract getAuctionGracePeriod(): Promise<number>;
+    abstract getAuctionGracePeriod(): Promise<bigint>;
 
-    abstract getAuctionDuration(): Promise<number>;
+    abstract getAuctionDuration(): Promise<bigint>;
 
-    abstract getPenaltyBlocks(): Promise<number>;
+    abstract getPenaltyBlocks(): Promise<bigint>;
 
-    abstract getInitialPenaltyBps(): Promise<number>;
+    abstract getInitialPenaltyBps(): Promise<bigint>;
 
-    abstract getInitialPenaltyBps(): Promise<number>;
+    abstract getInitialPenaltyBps(): Promise<bigint>;
 
     abstract wormhole(): Promise<string>;
 

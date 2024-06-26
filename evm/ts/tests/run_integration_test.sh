@@ -1,17 +1,20 @@
 #/bin/bash
 
-pgrep anvil > /dev/null
-if [ $? -eq 0 ]; then
-    echo "anvil already running"
-    exit 1;
-fi
-
 ROOT=$(dirname $0)
 
 . $ROOT/.env
 
 LOGS=$ROOT/.anvil
 mkdir -p $LOGS
+
+pgrep anvil > /dev/null
+
+if [ $? -eq 0 ]; then
+    echo "anvil already running, run 'pkill anvil' if you want to stop it to reset state"
+    exit 1
+fi
+
+echo "starting anvil"
 
 # Avalanche (ME and CCTP).
 anvil --port 8547 \
@@ -34,6 +37,7 @@ anvil --port 8549 \
 # Chill.
 sleep 2
 
+
 # Double-check number of anvil instances.
 if [ "$( pgrep anvil | wc -l )" -ne 3 ]; then
     echo "Not all anvil instances are running. Try again."
@@ -45,5 +49,5 @@ fi
 set -e
 npx ts-mocha -t 1000000 -p $ROOT/tsconfig.json --bail $ROOT/[0-9]*.ts
 
-# # Nuke.
+# Nuke.
 pkill anvil
