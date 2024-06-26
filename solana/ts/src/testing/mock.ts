@@ -81,24 +81,24 @@ export async function postAndFetchVaa<N extends Network>(
 }
 
 export class CircleAttester {
-    attester: ethers.utils.SigningKey;
+    attester: ethers.SigningKey;
 
     constructor() {
-        this.attester = new ethers.utils.SigningKey("0x" + GUARDIAN_KEY);
+        this.attester = new ethers.SigningKey("0x" + GUARDIAN_KEY);
     }
 
     createAttestation(message: Buffer | Uint8Array) {
-        const signature = this.attester.signDigest(ethers.utils.keccak256(message));
+        const signature = this.attester.sign(ethers.keccak256(message));
 
         const attestation = Buffer.alloc(65);
 
         let offset = 0;
-        attestation.set(ethers.utils.arrayify(signature.r), offset);
+        attestation.set(ethers.getBytes(signature.r), offset);
         offset += 32;
-        attestation.set(ethers.utils.arrayify(signature.s), offset);
+        attestation.set(ethers.getBytes(signature.s), offset);
         offset += 32;
 
-        const recoveryId = signature.recoveryParam;
+        const recoveryId = signature.v;
         attestation.writeUInt8(recoveryId < 27 ? recoveryId + 27 : recoveryId, offset);
         offset += 1;
 
