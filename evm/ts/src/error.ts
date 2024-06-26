@@ -13,7 +13,7 @@ export function errorDecoder(ethersError: any): DecodedErr {
     const { data } = ethersError;
 
     if (!data || data.length < 10 || data.substring(0, 2) != "0x") {
-        throw new Error("data not custom error");
+        throw ethersError;
     }
 
     const selector = data.substring(0, 10);

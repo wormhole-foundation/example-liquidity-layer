@@ -56,7 +56,8 @@ export async function mineToPenaltyPeriod(
 
 export async function mineWait(provider: ethers.JsonRpcProvider, tx: ethers.TransactionResponse) {
     await mine(provider);
-    return tx.wait();
+    // 1 is default confirms, 5000ms timeout to prevent hanging forever.
+    return await tx.wait(1, 5000);
 }
 
 export async function mintNativeUsdc(
@@ -66,7 +67,7 @@ export async function mintNativeUsdc(
     mineBlock: boolean = true,
 ) {
     if (!usdc.runner) {
-        throw new Error("provider must be a StaticJsonRpcProvider");
+        throw new Error("provider must be a JsonRpcProvider");
     }
 
     const provider = usdc.runner.provider as ethers.JsonRpcProvider;

@@ -1,16 +1,14 @@
 import { expect } from "chai";
 import { ethers } from "ethers";
 import {
-    EvmTokenRouter,
     EvmMatchingEngine,
-    errorDecoder,
-    OrderResponse,
+    EvmTokenRouter,
     MessageDecoder,
+    OrderResponse,
+    errorDecoder,
 } from "../src";
-import { IERC20__factory } from "../src/types";
 import {
     ChainType,
-    parseLiquidityLayerEnvFile,
     CircleAttester,
     GuardianNetwork,
     LOCALHOSTS,
@@ -20,21 +18,18 @@ import {
     ValidNetwork,
     WALLET_PRIVATE_KEYS,
     burnAllUsdc,
-    mineWait,
     mine,
-    mintNativeUsdc,
     mineToGracePeriod,
     mineToPenaltyPeriod,
+    mineWait,
+    mintNativeUsdc,
+    parseLiquidityLayerEnvFile,
     tryNativeToUint8Array,
 } from "../src/testing";
+import { IERC20__factory } from "../src/types";
 
 import { toChainId } from "@wormhole-foundation/sdk-base";
-import {
-    deserialize,
-    keccak256,
-    serializePayload,
-    toUniversal,
-} from "@wormhole-foundation/sdk-definitions";
+import { deserialize, keccak256, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import "@wormhole-foundation/sdk-evm";
 
 // Cannot send a fast market order from the matching engine chain.
@@ -330,7 +325,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         await mintNativeUsdc(usdc, playerAddress, initialDeposit, false);
                         await usdc.approve(engine.address, initialDeposit);
 
-                        // sleep because otherwise nonce collisions (??)
+                        // give it time to hit the mempool
                         await sleep(1);
 
                         bids[i].balance = await usdc.balanceOf(playerAddress);
@@ -725,6 +720,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         await mintNativeUsdc(usdc, playerAddress, initialDeposit, false);
                         await usdc.approve(engine.address, initialDeposit);
 
+                        // give it time to hit the mempool
                         await sleep(1);
 
                         bids[i].balance = await usdc.balanceOf(playerAddress);
@@ -1163,7 +1159,6 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     );
                 });
             });
-
             describe(`No Auction - Deadline Exceeded`, () => {
                 before(`From Network -- Mint USDC`, async () => {
                     if (fromEnv.chainId == MATCHING_ENGINE_CHAIN) {
@@ -1281,22 +1276,24 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // Prepare usdc for the auction.
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, initialBidder);
                     await mintNativeUsdc(usdc, await initialBidder.getAddress(), initialDeposit);
-                    await usdc.approve(engine.address, initialDeposit);
+                    await usdc
+                        .approve(engine.address, initialDeposit)
+                        .then((tx) => mineWait(engineProvider, tx));
 
                     let failedGracefully = false;
                     const receipt = await engine
                         .connect(initialBidder.provider!)
                         .placeInitialBid(fastVaa, fastOrder.maxFee)
-                        .then(async (txReq) => {
-                            txReq.nonce = await initialBidder.getNonce("pending");
-                            return initialBidder.sendTransaction(txReq);
-                        })
-                        .then((tx) => mineWait(engineProvider, tx))
+                        .then(async (txReq) => await initialBidder.sendTransaction(txReq))
                         .catch((err) => {
                             const error = errorDecoder(err);
                             if (error.selector == "ErrDeadlineExceeded") {
                                 failedGracefully = true;
                             }
+
+                            // We got a failed transaction so we need to
+                            // reset the NonceManagers local tracker
+                            initialBidder.reset();
                         });
 
                     expect(failedGracefully).is.true;
@@ -1319,15 +1316,10 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
                     const feeRecipientBefore = await usdc.balanceOf(engineEnv.feeRecipient!);
 
-                    await sleep(1);
-
                     const receipt = await engine
                         .connect(initialBidder.provider!)
                         .executeSlowOrderAndRedeem(fastVaa, params)
-                        .then(async (txReq) => {
-                            //txReq.nonce = await initialBidder.getNonce("pending");
-                            return initialBidder.sendTransaction(txReq);
-                        })
+                        .then((txReq) => initialBidder.sendTransaction(txReq))
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
                             console.log(err);
