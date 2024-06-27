@@ -19,7 +19,7 @@ export type Endpoint = {
     mintRecipient: string | Buffer | Uint8Array;
 };
 
-export abstract class TokenRouter<PreparedTransactionType extends PreparedInstruction> {
+export abstract class AbstractTokenRouter<PreparedTransactionType extends PreparedInstruction> {
     abstract get address(): string;
 
     abstract placeMarketOrderTx(

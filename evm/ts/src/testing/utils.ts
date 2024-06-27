@@ -1,16 +1,77 @@
-import { ethers } from "ethers";
+import { ethers, isError } from "ethers";
 import { IERC20 } from "../types";
 import { IUSDC__factory } from "../types/factories/IUSDC__factory";
 import { WALLET_PRIVATE_KEYS } from "./consts";
 import { EvmMatchingEngine } from "..";
-import { Chain } from "@wormhole-foundation/sdk-base";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { signAndSendWait } from "@wormhole-foundation/sdk-connect";
+import { Chain, Network } from "@wormhole-foundation/sdk-base";
+import {
+    SignAndSendSigner,
+    UnsignedTransaction,
+    toUniversal,
+} from "@wormhole-foundation/sdk-definitions";
+import { EvmChains, EvmNativeSigner } from "@wormhole-foundation/sdk-evm";
 
 export interface ScoreKeeper {
     player: ethers.NonceManager;
     bid: bigint;
     balance: bigint;
 }
+
+export function getSdkSigner<C extends EvmChains>(
+    fromChain: C,
+    wallet: ethers.Wallet,
+): SdkSigner<Network, C> {
+    // @ts-ignore -- TODO, add peer dep to sdk-evm package for ethers
+    return new SdkSigner(fromChain, wallet.address, wallet);
+}
+
+export class SdkSigner<N extends Network, C extends EvmChains>
+    extends EvmNativeSigner<N, C>
+    implements SignAndSendSigner<N, C>
+{
+    get provider() {
+        return this._signer.provider as unknown as ethers.JsonRpcProvider;
+    }
+    get wallet() {
+        return this._signer as unknown as ethers.Wallet;
+    }
+
+    async signAndSend(txs: UnsignedTransaction<N, C>[]): Promise<string[]> {
+        const txids: string[] = [];
+        for (let tx of txs) {
+            for (let x = 0; x < 3; x++) {
+                try {
+                    const res = await this._signer.sendTransaction(tx.transaction);
+                    txids.push(res.hash);
+                    break;
+                } catch (e) {
+                    if (
+                        isError(e, "CALL_EXCEPTION") &&
+                        "info" in e &&
+                        e.info!.error.message === "nonce too low"
+                    ) {
+                        const nonce = await this.wallet.getNonce();
+                        console.log("Setting nonce to ", nonce);
+                        tx.transaction.nonce = nonce;
+                        continue;
+                    }
+                    throw e;
+                }
+            }
+        }
+
+        await mine(this.provider);
+        await this.provider.waitForTransaction(txids[0], 1, 5000);
+        return txids;
+    }
+}
+
+export const sleep = async (seconds: number) =>
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+
+export const nonceManagedWallet = (key: string, provider: ethers.Provider) =>
+    new ethers.NonceManager(new ethers.Wallet(key, provider));
 
 export async function mine(provider: ethers.JsonRpcProvider) {
     await provider.send("evm_mine", []);
@@ -52,6 +113,14 @@ export async function mineToPenaltyPeriod(
 
     const blocksToMine = gracePeriod - (currentBlock - startBlock) + BigInt(penaltyBlocks);
     await mineMany(provider, Number(blocksToMine));
+}
+
+export async function signSendMineWait<N extends Network, C extends EvmChains>(
+    txs: AsyncGenerator<UnsignedTransaction<N, C>, void, unknown>,
+    signer: SdkSigner<N, C>,
+) {
+    const txids = await signAndSendWait(txs, signer);
+    return await signer.provider.waitForTransaction(txids[0].txid);
 }
 
 export async function mineWait(provider: ethers.JsonRpcProvider, tx: ethers.TransactionResponse) {

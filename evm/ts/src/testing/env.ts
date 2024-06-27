@@ -1,14 +1,11 @@
+import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { Platform } from "@wormhole-foundation/sdk-base";
 //@ts-ignore
 import { parse as envParse } from "envfile";
 import * as fs from "fs";
 
-export enum ChainType {
-    Evm,
-    Solana,
-}
-
 export type LiquidityLayerEnv = {
-    chainType: ChainType;
+    chainType: Platform;
     chainId: number;
     domain: number;
     tokenAddress: string;
@@ -77,16 +74,29 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
     };
 }
 
+export function toContractAddresses(env: LiquidityLayerEnv): TokenRouter.Addresses {
+    return {
+        tokenRouter: env.tokenRouterAddress,
+        matchingEngine: env.tokenMessengerAddress,
+        coreBridge: env.wormholeAddress,
+        cctp: {
+            tokenMessenger: env.tokenMessengerAddress,
+            // TODO
+            messageTransmitter: "",
+            usdcMint: "",
+            wormhole: "",
+            wormholeRelayer: "",
+        },
+    };
+}
+
 function parseChainType(chainType: string) {
     switch (chainType) {
-        case "evm": {
-            return ChainType.Evm;
-        }
-        case "solana": {
-            return ChainType.Solana;
-        }
-        default: {
+        case "evm":
+            return "Evm";
+        case "solana":
+            return "Solana";
+        default:
             throw new Error(`invalid chain type: ${chainType}`);
-        }
     }
 }

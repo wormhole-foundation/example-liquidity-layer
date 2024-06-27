@@ -1,10 +1,11 @@
 import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { Network, nativeChainIds, toChainId } from "@wormhole-foundation/sdk-base";
+import { Network, encoding, toChainId } from "@wormhole-foundation/sdk-base";
 import {
     CircleBridge,
     Contracts,
     UnsignedTransaction,
     VAA,
+    serialize,
 } from "@wormhole-foundation/sdk-definitions";
 import {
     AnyEvmAddress,
@@ -13,13 +14,12 @@ import {
     EvmUnsignedTransaction,
 } from "@wormhole-foundation/sdk-evm";
 import { ethers } from "ethers";
-import { EvmTokenRouter as _EvmTokenRouter } from "../TokenRouter";
+import { TokenRouter as _TokenRouter } from "../TokenRouter";
 
 export class EvmTokenRouter<N extends Network, C extends EvmChains>
-    extends _EvmTokenRouter
+    extends _TokenRouter
     implements TokenRouter<N, C>
 {
-    private _chainId: number;
     constructor(
         readonly network: N,
         readonly chain: C,
@@ -27,20 +27,17 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
         readonly contracts: Contracts & TokenRouter.Addresses,
     ) {
         super(provider, contracts.tokenRouter, contracts.cctp.tokenMessenger);
-        this._chainId = 0; //nativeChainIds.networkChainToNativeChainId(network, chain);
     }
 
-    async *placeMarketOrder(
-        sender: AnyEvmAddress,
-        order: TokenRouter.OrderRequest,
-    ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
+    async *placeMarketOrder(sender: AnyEvmAddress, order: TokenRouter.OrderRequest) {
+        const from = new EvmAddress(sender).unwrap();
         const msg = order.redeemerMessage ? order.redeemerMessage : new Uint8Array();
 
         const refundAddress = order.refundAddress
             ? new EvmAddress(order.refundAddress).unwrap()
             : undefined;
 
-        const tx = await this.placeMarketOrderTx(
+        const txReq = await this.placeMarketOrderTx(
             order.amountIn,
             toChainId(order.targetChain),
             order.redeemer.toUint8Array(),
@@ -49,29 +46,30 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
             refundAddress,
         );
 
-        yield this.createUnsignedTx(tx, "TokenRouter.placeMarketOrder");
+        yield this.createUnsignedTx({ ...txReq, from }, "TokenRouter.placeMarketOrder");
     }
+
     async *redeemFill(
         sender: AnyEvmAddress,
-        vaa:
-            | VAA<"FastTransfer:CctpDeposit">
-            | VAA<"FastTransfer:FastMarketOrder">
-            | VAA<"FastTransfer:FastFill">,
+        vaa: VAA<"FastTransfer:CctpDeposit">,
         cctp: CircleBridge.Attestation,
-    ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
-        throw new Error("Method not implemented.");
+    ) {
+        const from = new EvmAddress(sender).unwrap();
+        const txReq = await this.redeemFillTx({
+            encodedWormholeMessage: serialize(vaa),
+            circleBridgeMessage: CircleBridge.serialize(cctp.message),
+            circleAttestation: encoding.hex.decode(cctp.attestation!),
+        });
+        yield this.createUnsignedTx({ ...txReq, from }, "TokenRouter.redeemFill");
     }
 
     private createUnsignedTx(
-        txReq: ethers.ContractTransaction,
+        txReq: ethers.TransactionRequest,
         description: string,
         parallelizable: boolean = false,
-    ): EvmUnsignedTransaction<N, C> {
-        //txReq.chainId = this._chainId;
-
+    ): UnsignedTransaction<N, C> {
         return new EvmUnsignedTransaction(
-            // txReq,
-            {},
+            txReq,
             this.network,
             this.chain,
             description,

@@ -2,13 +2,12 @@ import { expect } from "chai";
 import { ethers } from "ethers";
 import {
     EvmMatchingEngine,
-    EvmTokenRouter,
     MessageDecoder,
     OrderResponse,
     errorDecoder,
+    EvmTokenRouter,
 } from "../src";
 import {
-    ChainType,
     CircleAttester,
     GuardianNetwork,
     LOCALHOSTS,
@@ -23,14 +22,25 @@ import {
     mineToPenaltyPeriod,
     mineWait,
     mintNativeUsdc,
+    nonceManagedWallet,
     parseLiquidityLayerEnvFile,
     tryNativeToUint8Array,
+    sleep,
+    toContractAddresses,
+    signSendMineWait,
+    getSdkSigner,
 } from "../src/testing";
 import { IERC20__factory } from "../src/types";
 
 import { toChainId } from "@wormhole-foundation/sdk-base";
-import { deserialize, keccak256, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import {
+    deserialize,
+    keccak256,
+    toNative,
+    toUniversal,
+} from "@wormhole-foundation/sdk-definitions";
 import "@wormhole-foundation/sdk-evm";
+import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
@@ -43,9 +53,6 @@ const CHAIN_PATHWAYS: ValidNetwork[][] = [
 const TEST_AMOUNT = ethers.parseUnits("1000", 6);
 const FEE_AMOUNT = BigInt(ethers.parseUnits("10", 6).toString());
 
-const sleep = async (seconds: number) =>
-    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
-
 describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Mocha.Suite) {
     const envPath = `${__dirname}/../../env/localnet`;
 
@@ -57,7 +64,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
     const engineWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[2], engineProvider);
     const engineEnv = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
     const engine = (() => {
-        if (engineEnv.chainType === ChainType.Evm) {
+        if (engineEnv.chainType === "Evm") {
             return new EvmMatchingEngine(
                 engineProvider,
                 toUniversal("Avalanche", engineEnv.matchingEngineAddress)
@@ -71,21 +78,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
     })();
 
     // Auction participants.
-    const initialBidder = new ethers.NonceManager(
-        new ethers.Wallet(WALLET_PRIVATE_KEYS[3], engineProvider),
-    );
-    const bidderTwo = new ethers.NonceManager(
-        new ethers.Wallet(WALLET_PRIVATE_KEYS[4], engineProvider),
-    );
-    const bidderThree = new ethers.NonceManager(
-        new ethers.Wallet(WALLET_PRIVATE_KEYS[5], engineProvider),
-    );
-    const highestBidder = new ethers.NonceManager(
-        new ethers.Wallet(WALLET_PRIVATE_KEYS[6], engineProvider),
-    );
-    const liquidator = new ethers.NonceManager(
-        new ethers.Wallet(WALLET_PRIVATE_KEYS[7], engineProvider),
-    );
+    const initialBidder = nonceManagedWallet(WALLET_PRIVATE_KEYS[3], engineProvider);
+    const bidderTwo = nonceManagedWallet(WALLET_PRIVATE_KEYS[4], engineProvider);
+    const bidderThree = nonceManagedWallet(WALLET_PRIVATE_KEYS[5], engineProvider);
+    const highestBidder = nonceManagedWallet(WALLET_PRIVATE_KEYS[6], engineProvider);
+    const liquidator = nonceManagedWallet(WALLET_PRIVATE_KEYS[7], engineProvider);
 
     for (const [fromChainName, toChainName] of CHAIN_PATHWAYS) {
         const localVariables = new Map<string, any>();
@@ -94,14 +91,16 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
             // From setup.
             const fromProvider = new ethers.JsonRpcProvider(LOCALHOSTS[fromChainName]);
             const fromWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], fromProvider);
+            const fromSigner = getSdkSigner(fromChainName, fromWallet);
 
             const fromEnv = parseLiquidityLayerEnvFile(`${envPath}/${fromChainName}.env`);
             const fromTokenRouter = (() => {
-                if (fromEnv.chainType === ChainType.Evm) {
+                if (fromEnv.chainType === "Evm") {
                     return new EvmTokenRouter(
-                        fromWallet,
-                        fromEnv.tokenRouterAddress,
-                        fromEnv.tokenMessengerAddress,
+                        "Devnet",
+                        fromChainName,
+                        fromProvider,
+                        toContractAddresses(fromEnv),
                     );
                 } else {
                     throw new Error("Unsupported chain");
@@ -111,14 +110,16 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
             // To setup.
             const toProvider = new ethers.JsonRpcProvider(LOCALHOSTS[toChainName]);
             const toWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], toProvider);
+            const toSigner = getSdkSigner(toChainName, toWallet);
 
             const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName}.env`);
             const toTokenRouter = (() => {
-                if (toEnv.chainType === ChainType.Evm) {
+                if (toEnv.chainType === "Evm") {
                     return new EvmTokenRouter(
-                        toWallet,
-                        toEnv.tokenRouterAddress,
-                        fromEnv.tokenMessengerAddress,
+                        "Devnet",
+                        toChainName,
+                        toProvider,
+                        toContractAddresses(toEnv),
                     );
                 } else {
                     throw new Error("Unsupported chain");
@@ -150,7 +151,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                 it(`From Network -- Place Fast Market Order`, async () => {
                     const amountIn = await (async () => {
-                        if (fromEnv.chainType == ChainType.Evm) {
+                        if (fromEnv.chainType == "Evm") {
                             const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
                             const amount = await usdc.balanceOf(fromWallet.address);
                             await usdc
@@ -167,6 +168,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const targetChain = toChainId(toChainName);
                     const minAmountOut = BigInt(0);
                     const deadline = 0;
+
                     const receipt = await fromTokenRouter
                         .placeFastMarketOrderTx(
                             amountIn,
@@ -523,7 +525,6 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     );
                 });
             });
-
             describe(`Penalized Auction`, () => {
                 before(`From Network -- Mint USDC`, async () => {
                     if (fromEnv.chainId == MATCHING_ENGINE_CHAIN) {
@@ -549,7 +550,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                 it(`From Network -- Place Fast Market Order`, async () => {
                     const amountIn = await (async () => {
-                        if (fromEnv.chainType == ChainType.Evm) {
+                        if (fromEnv.chainType == "Evm") {
                             const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
                             const amount = await usdc.balanceOf(fromWallet.address);
                             await usdc.approve
@@ -948,7 +949,6 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     );
                 });
             });
-
             describe(`No Auction`, () => {
                 before(`From Network -- Mint USDC`, async () => {
                     if (fromEnv.chainId == MATCHING_ENGINE_CHAIN) {
@@ -974,7 +974,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                 it(`From Network -- Place Fast Market Order`, async () => {
                     const amountIn = await (async () => {
-                        if (fromEnv.chainType == ChainType.Evm) {
+                        if (fromEnv.chainType == "Evm") {
                             const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
                             const amount = await usdc.balanceOf(fromWallet.address);
                             await usdc
@@ -1184,7 +1184,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                 it(`From Network -- Place Fast Market Order`, async () => {
                     const amountIn = await (async () => {
-                        if (fromEnv.chainType == ChainType.Evm) {
+                        if (fromEnv.chainType == "Evm") {
                             const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
                             const amount = await usdc.balanceOf(fromWallet.address);
                             await usdc
@@ -1196,6 +1196,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                             throw new Error("Unsupported chain");
                         }
                     })();
+
                     localVariables.set("amountIn", amountIn);
 
                     const targetChain = toChainId(toChainName);
@@ -1205,24 +1206,34 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const currentBlock = await engineProvider.getBlockNumber();
                     const deadline = (await engineProvider.getBlock(currentBlock))!.timestamp;
 
-                    const receipt = await fromTokenRouter
-                        .placeFastMarketOrderTx(
-                            amountIn,
-                            targetChain,
-                            Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
-                            Buffer.from("All your base are belong to us."),
-                            FEE_AMOUNT,
-                            deadline!,
-                            minAmountOut,
-                            fromWallet.address,
-                        )
-                        .then((txReq) => fromWallet.sendTransaction(txReq))
-                        .then((tx) => mineWait(fromProvider, tx))
-                        .catch((err) => {
-                            console.log(err);
-                            console.log(errorDecoder(err));
-                            throw err;
-                        });
+                    const redeemer = toNative(toChainName, toWallet.address).toUniversalAddress();
+
+                    const order: TokenRouter.OrderRequest = {
+                        amountIn,
+                        minAmountOut,
+                        redeemer,
+                        targetChain: toChainName,
+                    };
+
+                    const txs = fromTokenRouter.placeMarketOrder(fromWallet.address, order);
+                    const receipt = await signSendMineWait(txs, fromSigner);
+                    //.placeFastMarketOrderTx(
+                    //     amountIn,
+                    //     targetChain,
+                    //     Buffer.from(),
+                    //     Buffer.from("All your base are belong to us."),
+                    //     FEE_AMOUNT,
+                    //     deadline!,
+                    //     minAmountOut,
+                    //     fromWallet.address,
+                    // )
+                    // .then((txReq) => fromWallet.sendTransaction(txReq))
+                    // .then((tx) => mineWait(fromProvider, tx))
+                    // .catch((err) => {
+                    //     console.log(err);
+                    //     console.log(errorDecoder(err));
+                    //     throw err;
+                    // });
                     const transactionResult = await fromTokenRouter.getTransactionResults(
                         receipt!.hash,
                     );
