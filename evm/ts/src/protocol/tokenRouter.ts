@@ -73,14 +73,14 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
 
     async *redeemFill(
         sender: AnyEvmAddress,
-        vaa: VAA<"FastTransfer:CctpDeposit">,
-        cctp: CircleBridge.Attestation,
+        vaa: VAA<"FastTransfer:CctpDeposit"> | VAA<"FastTransfer:FastFill">,
+        cctp?: CircleBridge.Attestation,
     ) {
         const from = new EvmAddress(sender).unwrap();
         const txReq = await this.redeemFillTx({
             encodedWormholeMessage: serialize(vaa),
-            circleBridgeMessage: CircleBridge.serialize(cctp.message),
-            circleAttestation: encoding.hex.decode(cctp.attestation!),
+            circleBridgeMessage: cctp ? CircleBridge.serialize(cctp.message) : new Uint8Array(),
+            circleAttestation: cctp ? encoding.hex.decode(cctp.attestation!) : new Uint8Array(),
         });
         yield this.createUnsignedTx({ ...txReq, from }, "TokenRouter.redeemFill");
     }

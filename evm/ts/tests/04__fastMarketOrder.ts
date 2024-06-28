@@ -40,8 +40,8 @@ import "@wormhole-foundation/sdk-evm";
 
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
-    ["Base", "Ethereum"],
-    ["Ethereum", "Base"],
+    //["Base", "Ethereum"],
+    //["Ethereum", "Base"],
     ["Base", "Avalanche"],
     ["Ethereum", "Avalanche"],
 ];
