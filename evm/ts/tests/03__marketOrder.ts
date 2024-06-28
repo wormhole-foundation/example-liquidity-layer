@@ -1,8 +1,9 @@
-import { encoding, toChainId } from "@wormhole-foundation/sdk-base";
-import { signAndSendWait } from "@wormhole-foundation/sdk-connect";
+import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { encoding } from "@wormhole-foundation/sdk-base";
+import { CircleBridge, deserialize, toNative } from "@wormhole-foundation/sdk-definitions";
 import { expect } from "chai";
 import { ethers } from "ethers";
-import { EvmTokenRouter, OrderResponse, errorDecoder } from "../src";
+import { EvmTokenRouter, OrderResponse, decodedOrderResponse } from "../src";
 import {
     CircleAttester,
     GuardianNetwork,
@@ -19,9 +20,6 @@ import {
     tryNativeToUint8Array,
 } from "../src/testing";
 import { IERC20__factory } from "../src/types";
-import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { CircleBridge, deserialize, toNative } from "@wormhole-foundation/sdk-definitions";
-import { EvmNativeSigner } from "@wormhole-foundation/sdk-evm/dist/cjs";
 
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
     ["Ethereum", "Avalanche"],
@@ -160,16 +158,8 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
                 const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                const vaa = deserialize(
-                    "FastTransfer:CctpDeposit",
-                    orderResponse.encodedWormholeMessage,
-                );
-                const [msg] = CircleBridge.deserialize(orderResponse.circleBridgeMessage);
-                const cctpMsg: CircleBridge.Attestation = {
-                    message: msg,
-                    attestation: encoding.hex.encode(orderResponse.circleAttestation),
-                };
-                const txs = toTokenRouter.redeemFill(toWallet.address, vaa, cctpMsg);
+                const { vaa, cctp } = decodedOrderResponse(orderResponse);
+                const txs = toTokenRouter.redeemFill(toWallet.address, vaa, cctp);
                 const receipt = await signSendMineWait(txs, toSigner);
 
                 const balanceAfter = await usdc.balanceOf(toWallet.address);

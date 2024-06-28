@@ -40,8 +40,8 @@ import "@wormhole-foundation/sdk-evm";
 
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
-    //["Base", "Ethereum"],
-    //["Ethereum", "Base"],
+    ["Base", "Ethereum"],
+    ["Ethereum", "Base"],
     ["Base", "Avalanche"],
     ["Ethereum", "Avalanche"],
 ];
@@ -59,14 +59,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
     const engineProvider = new ethers.JsonRpcProvider(LOCALHOSTS[MATCHING_ENGINE_NAME]);
     const engineWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[2], engineProvider);
     const engineEnv = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
+
     const engine = (() => {
         if (engineEnv.chainType === "Evm") {
             return new EvmMatchingEngine(
+                "Devnet",
+                MATCHING_ENGINE_NAME,
                 engineProvider,
-                toUniversal("Avalanche", engineEnv.matchingEngineAddress)
-                    .toNative("Avalanche")
-                    .toString(),
-                engineEnv.tokenMessengerAddress,
+                toContractAddresses(engineEnv),
             );
         } else {
             throw new Error("Unsupported chain");
@@ -232,6 +232,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         engineEnv.tokenAddress,
                         initialBidder.provider!,
                     );
+
                     const initialBidderAddress = await initialBidder.getAddress();
                     await mintNativeUsdc(usdc, initialBidderAddress, initialDeposit);
                     await usdc.approve
@@ -243,10 +244,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     const receipt = await engine
                         .connect(initialBidder.provider!)
-                        .placeInitialBid(fastVaa, fastOrder.maxFee)
-                        .then(async (txReq) => {
-                            return await initialBidder.sendTransaction(txReq);
-                        })
+                        .placeInitialBidTx(fastVaa, fastOrder.maxFee)
+                        .then((txReq) => initialBidder.sendTransaction(txReq))
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
                             console.log(err);
@@ -324,7 +323,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         // Improve the bid.
                         await engine
                             .connect(player.provider!)
-                            .improveBid(auctionId, bids[i].bid)
+                            .improveBidTx(auctionId, bids[i].bid)
                             .then(async (txReq) => {
                                 txReq.nonce = await player.getNonce("pending");
                                 return await player.sendTransaction(txReq);
@@ -383,7 +382,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     const receipt = await engine
                         .connect(engineProvider)
-                        .executeFastOrder(localVariables.get("fastVaa"))
+                        .executeFastOrderTx(localVariables.get("fastVaa"))
                         .then((txReq) => highestBidder.sendTransaction(txReq))
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
@@ -493,7 +492,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         .then((info) => info.amount);
 
                     const receipt = await engine
-                        .executeSlowOrderAndRedeem(fastVaa, params)
+                        .executeSlowOrderAndRedeemTx(fastVaa, params)
                         .then((txReq) => engineWallet.sendTransaction(txReq))
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
@@ -516,9 +515,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     }
 
                     const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
-
                     await burnAllUsdc(usdc);
-
                     await mintNativeUsdc(
                         IERC20__factory.connect(fromEnv.tokenAddress, fromProvider),
                         fromWallet.address,
@@ -627,7 +624,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     const receipt = await engine
                         .connect(initialBidder.provider!)
-                        .placeInitialBid(fastVaa, fastOrder.maxFee)
+                        .placeInitialBidTx(fastVaa, fastOrder.maxFee)
                         .then(async (txReq) => {
                             txReq.nonce = await initialBidder.getNonce("pending");
                             return initialBidder.sendTransaction(txReq);
@@ -707,7 +704,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         // Improve the bid.
                         await engine
                             .connect(player.provider!)
-                            .improveBid(auctionId, bids[i].bid)
+                            .improveBidTx(auctionId, bids[i].bid)
                             .then(async (txReq) => {
                                 txReq.nonce = await player.getNonce("pending");
                                 return await player.sendTransaction(txReq);
@@ -777,7 +774,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     const receipt = await engine
                         .connect(liquidator.provider!)
-                        .executeFastOrder(localVariables.get("fastVaa"))
+                        .executeFastOrderTx(localVariables.get("fastVaa"))
                         .then((txReq) => liquidator.sendTransaction(txReq))
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
@@ -906,7 +903,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         .then((info) => info.amount);
 
                     const receipt = await engine
-                        .executeSlowOrderAndRedeem(fastVaa, params)
+                        .executeSlowOrderAndRedeemTx(fastVaa, params)
                         .then((txReq) => engineWallet.sendTransaction(txReq))
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
@@ -1029,7 +1026,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     const receipt = await engine
                         .connect(initialBidder.provider!)
-                        .executeSlowOrderAndRedeem(fastVaa, params)
+                        .executeSlowOrderAndRedeemTx(fastVaa, params)
                         .then((txReq) => initialBidder.sendTransaction(txReq))
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {
@@ -1239,7 +1236,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     let failedGracefully = false;
                     const receipt = await engine
                         .connect(initialBidder.provider!)
-                        .placeInitialBid(fastVaa, fastOrder.maxFee)
+                        .placeInitialBidTx(fastVaa, fastOrder.maxFee)
                         .then(async (txReq) => await initialBidder.sendTransaction(txReq))
                         .catch((err) => {
                             const error = errorDecoder(err);
@@ -1274,7 +1271,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     const receipt = await engine
                         .connect(initialBidder.provider!)
-                        .executeSlowOrderAndRedeem(fastVaa, params)
+                        .executeSlowOrderAndRedeemTx(fastVaa, params)
                         .then((txReq) => initialBidder.sendTransaction(txReq))
                         .then((tx) => mineWait(engineProvider, tx))
                         .catch((err) => {

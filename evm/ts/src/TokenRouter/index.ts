@@ -1,7 +1,6 @@
-import { deserialize, CircleBridge, VAA } from "@wormhole-foundation/sdk-definitions";
-import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
 import { encoding } from "@wormhole-foundation/sdk-base";
-import { FastTransfer } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { CircleBridge, VAA, deserialize } from "@wormhole-foundation/sdk-definitions";
+import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
 export * from "./evm";
 
 export type FastTransferParameters = {

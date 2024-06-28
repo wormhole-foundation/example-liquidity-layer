@@ -1,5 +1,6 @@
 import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { Platform } from "@wormhole-foundation/sdk-base";
+import { Chain, Platform, toChain } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 //@ts-ignore
 import { parse as envParse } from "envfile";
 import * as fs from "fs";
@@ -15,7 +16,7 @@ export type LiquidityLayerEnv = {
     tokenRouterAddress: string;
     tokenRouterMintRecipient?: string;
     feeRecipient?: string;
-    matchingEngineChain: string;
+    matchingEngineChain: Chain;
     matchingEngineAddress: string;
     matchingEngineMintRecipient: string;
     matchingEngineDomain?: string;
@@ -67,7 +68,7 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
         tokenRouterAddress: contents.TOKEN_ROUTER_ADDRESS,
         tokenRouterMintRecipient: contents.TOKEN_ROUTER_MINT_RECIPIENT,
         feeRecipient: contents.FEE_RECIPIENT_ADDRESS,
-        matchingEngineChain: contents.MATCHING_ENGINE_CHAIN,
+        matchingEngineChain: toChain(parseInt(contents.MATCHING_ENGINE_CHAIN)),
         matchingEngineAddress: contents.MATCHING_ENGINE_ADDRESS,
         matchingEngineMintRecipient: contents.MATCHING_ENGINE_MINT_RECIPIENT,
         matchingEngineDomain: contents.MATCHING_ENGINE_DOMAIN,
@@ -77,13 +78,15 @@ export function parseLiquidityLayerEnvFile(envPath: string): LiquidityLayerEnv {
 export function toContractAddresses(env: LiquidityLayerEnv): TokenRouter.Addresses {
     return {
         tokenRouter: env.tokenRouterAddress,
-        matchingEngine: env.tokenMessengerAddress,
+        matchingEngine: toUniversal(env.matchingEngineChain, env.matchingEngineAddress)
+            .toNative(env.matchingEngineChain)
+            .toString(),
         coreBridge: env.wormholeAddress,
         cctp: {
             tokenMessenger: env.tokenMessengerAddress,
-            // TODO
+            usdcMint: env.tokenAddress,
+            // TODO: needed?
             messageTransmitter: "",
-            usdcMint: "",
             wormhole: "",
             wormholeRelayer: "",
         },
