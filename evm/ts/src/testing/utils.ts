@@ -8,6 +8,7 @@ import { Chain, Network } from "@wormhole-foundation/sdk-base";
 import {
     SignAndSendSigner,
     UnsignedTransaction,
+    toNative,
     toUniversal,
 } from "@wormhole-foundation/sdk-definitions";
 import { EvmChains, EvmNativeSigner } from "@wormhole-foundation/sdk-evm";

@@ -1,4 +1,6 @@
+import { deserialize, CircleBridge, VAA } from "@wormhole-foundation/sdk-definitions";
 import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
+import { encoding } from "@wormhole-foundation/sdk-base";
 export * from "./evm";
 
 export type FastTransferParameters = {
@@ -13,6 +15,21 @@ export type OrderResponse = {
     circleBridgeMessage: Buffer | Uint8Array;
     circleAttestation: Buffer | Uint8Array;
 };
+
+export type DecodedOrderResponse = {
+    vaa: VAA<"FastTransfer:CctpDeposit">;
+    cctp: CircleBridge.Attestation;
+};
+export function decodedOrderResponse(response: OrderResponse): DecodedOrderResponse {
+    const [msg] = CircleBridge.deserialize(response.circleBridgeMessage);
+    return {
+        vaa: deserialize("FastTransfer:CctpDeposit", response.encodedWormholeMessage),
+        cctp: {
+            message: msg,
+            attestation: encoding.hex.encode(response.circleAttestation),
+        },
+    };
+}
 
 export type Endpoint = {
     router: string | Buffer | Uint8Array;

@@ -2,10 +2,11 @@ import { expect } from "chai";
 import { ethers } from "ethers";
 import {
     EvmMatchingEngine,
+    EvmTokenRouter,
     MessageDecoder,
     OrderResponse,
+    decodedOrderResponse,
     errorDecoder,
-    EvmTokenRouter,
 } from "../src";
 import {
     CircleAttester,
@@ -17,6 +18,7 @@ import {
     ValidNetwork,
     WALLET_PRIVATE_KEYS,
     burnAllUsdc,
+    getSdkSigner,
     mine,
     mineToGracePeriod,
     mineToPenaltyPeriod,
@@ -24,23 +26,17 @@ import {
     mintNativeUsdc,
     nonceManagedWallet,
     parseLiquidityLayerEnvFile,
-    tryNativeToUint8Array,
+    signSendMineWait,
     sleep,
     toContractAddresses,
-    signSendMineWait,
-    getSdkSigner,
+    tryNativeToUint8Array,
 } from "../src/testing";
 import { IERC20__factory } from "../src/types";
 
-import { toChainId } from "@wormhole-foundation/sdk-base";
-import {
-    deserialize,
-    keccak256,
-    toNative,
-    toUniversal,
-} from "@wormhole-foundation/sdk-definitions";
-import "@wormhole-foundation/sdk-evm";
 import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { encoding, toChainId } from "@wormhole-foundation/sdk-base";
+import { deserialize, keccak256, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import "@wormhole-foundation/sdk-evm";
 
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
@@ -165,32 +161,25 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     })();
                     localVariables.set("amountIn", amountIn);
 
-                    const targetChain = toChainId(toChainName);
                     const minAmountOut = BigInt(0);
                     const deadline = 0;
+                    const order: TokenRouter.OrderRequest = {
+                        amountIn,
+                        minAmountOut,
+                        deadline,
+                        maxFee: FEE_AMOUNT,
+                        targetChain: toChainName,
+                        redeemer: toUniversal(toChainName, toWallet.address),
+                        redeemerMessage: encoding.bytes.encode("All your base are belong to us."),
+                        refundAddress: toUniversal(fromChainName, fromWallet.address),
+                    };
 
-                    const receipt = await fromTokenRouter
-                        .placeFastMarketOrderTx(
-                            amountIn,
-                            targetChain,
-                            Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
-                            Buffer.from("All your base are belong to us."),
-                            FEE_AMOUNT,
-                            deadline,
-                            minAmountOut,
-                            fromWallet.address,
-                        )
-                        .then((txReq) => fromWallet.sendTransaction(txReq))
-                        .then((tx) => mineWait(fromProvider, tx))
-                        .catch((err) => {
-                            console.log(err);
-                            console.log(errorDecoder(err));
-                            throw err;
-                        });
-
+                    const txs = fromTokenRouter.placeFastMarketOrder(fromWallet.address, order);
+                    const receipt = await signSendMineWait(txs, fromSigner);
                     const transactionResult = await fromTokenRouter.getTransactionResults(
                         receipt!.hash,
                     );
+
                     expect(transactionResult.wormhole.emitterAddress).to.eql(
                         tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName),
                     );
@@ -474,15 +463,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                    const receipt = await toTokenRouter
-                        .redeemFillTx(orderResponse)
-                        .then((txReq) => toWallet.sendTransaction(txReq))
-                        .then((tx) => mineWait(toProvider, tx))
-                        .catch((err) => {
-                            console.log(err);
-                            console.log(errorDecoder(err));
-                            throw err;
-                        });
+                    const { vaa, cctp } = decodedOrderResponse(orderResponse);
+                    const txs = toTokenRouter.redeemFill(toWallet.address, vaa, cctp);
+                    const receipt = await signSendMineWait(txs, toSigner);
 
                     // Validate balance changes.
                     const { bidPrice, amount } = await engine.liveAuctionInfo(auctionId);
@@ -568,27 +551,22 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     })();
                     localVariables.set("amountIn", amountIn);
 
-                    const targetChain = toChainId(toChainName);
                     const minAmountOut = BigInt(0);
                     const deadline = 0;
-                    const receipt = await fromTokenRouter
-                        .placeFastMarketOrderTx(
-                            amountIn,
-                            targetChain,
-                            Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
-                            Buffer.from("All your base are belong to us."),
-                            FEE_AMOUNT,
-                            deadline,
-                            minAmountOut,
-                            fromWallet.address,
-                        )
-                        .then((txReq) => fromWallet.sendTransaction(txReq))
-                        .then((tx) => mineWait(fromProvider, tx))
-                        .catch((err) => {
-                            console.log(err);
-                            console.log(errorDecoder(err));
-                            throw err;
-                        });
+
+                    const order: TokenRouter.OrderRequest = {
+                        amountIn,
+                        minAmountOut,
+                        deadline,
+                        maxFee: FEE_AMOUNT,
+                        targetChain: toChainName,
+                        redeemer: toUniversal(toChainName, toWallet.address),
+                        redeemerMessage: encoding.bytes.encode("All your base are belong to us."),
+                        refundAddress: toUniversal(fromChainName, fromWallet.address),
+                    };
+
+                    const txs = fromTokenRouter.placeFastMarketOrder(fromWallet.address, order);
+                    const receipt = await signSendMineWait(txs, fromSigner);
                     const transactionResult = await fromTokenRouter.getTransactionResults(
                         receipt!.hash,
                     );
@@ -894,15 +872,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                    const receipt = await toTokenRouter
-                        .redeemFillTx(orderResponse)
-                        .then((txReq) => toWallet.sendTransaction(txReq))
-                        .then((tx) => mineWait(toProvider, tx))
-                        .catch((err) => {
-                            console.log(err);
-                            console.log(errorDecoder(err));
-                            throw err;
-                        });
+                    const { vaa, cctp } = decodedOrderResponse(orderResponse);
+                    const txs = toTokenRouter.redeemFill(toWallet.address, vaa, cctp);
+                    const receipt = await signSendMineWait(txs, toSigner);
 
                     // Validate balance changes.
                     const [bidPrice, amount] = await engine
@@ -991,24 +963,19 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const targetChain = toChainId(toChainName);
                     const minAmountOut = BigInt(0);
                     const deadline = 0;
-                    const receipt = await fromTokenRouter
-                        .placeFastMarketOrderTx(
-                            amountIn,
-                            targetChain,
-                            Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
-                            Buffer.from("All your base are belong to us."),
-                            FEE_AMOUNT,
-                            deadline,
-                            minAmountOut,
-                            fromWallet.address,
-                        )
-                        .then((txReq) => fromWallet.sendTransaction(txReq))
-                        .then((tx) => mineWait(fromProvider, tx))
-                        .catch((err) => {
-                            console.log(err);
-                            console.log(errorDecoder(err));
-                            throw err;
-                        });
+
+                    const order: TokenRouter.OrderRequest = {
+                        amountIn,
+                        minAmountOut,
+                        deadline,
+                        maxFee: FEE_AMOUNT,
+                        targetChain: toChainName,
+                        redeemer: toUniversal(toChainName, toWallet.address),
+                        redeemerMessage: encoding.bytes.encode("All your base are belong to us."),
+                        refundAddress: toUniversal(fromChainName, fromWallet.address),
+                    };
+                    const txs = fromTokenRouter.placeFastMarketOrder(fromWallet.address, order);
+                    const receipt = await signSendMineWait(txs, fromSigner);
                     const transactionResult = await fromTokenRouter.getTransactionResults(
                         receipt!.hash,
                     );
@@ -1141,15 +1108,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                    const receipt = await toTokenRouter
-                        .redeemFillTx(orderResponse)
-                        .then((txReq) => toWallet.sendTransaction(txReq))
-                        .then((tx) => mineWait(toProvider, tx))
-                        .catch((err) => {
-                            console.log(err);
-                            console.log(errorDecoder(err));
-                            throw err;
-                        });
+                    const { vaa, cctp } = decodedOrderResponse(orderResponse);
+                    const txs = toTokenRouter.redeemFill(toWallet.address, vaa, cctp);
+                    const receipt = await signSendMineWait(txs, toSigner);
 
                     // Validate balance changes.
                     const balanceAfter = await usdc.balanceOf(toWallet.address);
@@ -1199,41 +1160,25 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     localVariables.set("amountIn", amountIn);
 
-                    const targetChain = toChainId(toChainName);
-                    const minAmountOut = BigInt(0);
-
                     // Set the deadline to the current block timestamp.
                     const currentBlock = await engineProvider.getBlockNumber();
                     const deadline = (await engineProvider.getBlock(currentBlock))!.timestamp;
-
-                    const redeemer = toNative(toChainName, toWallet.address).toUniversalAddress();
+                    const minAmountOut = BigInt(0);
 
                     const order: TokenRouter.OrderRequest = {
                         amountIn,
                         minAmountOut,
-                        redeemer,
+                        redeemer: toUniversal(toChainName, toWallet.address),
+                        deadline,
+                        maxFee: FEE_AMOUNT,
                         targetChain: toChainName,
+                        redeemerMessage: encoding.bytes.encode("All your base are belong to us."),
+                        refundAddress: toUniversal(fromChainName, fromWallet.address),
                     };
 
-                    const txs = fromTokenRouter.placeMarketOrder(fromWallet.address, order);
+                    const txs = fromTokenRouter.placeFastMarketOrder(fromWallet.address, order);
                     const receipt = await signSendMineWait(txs, fromSigner);
-                    //.placeFastMarketOrderTx(
-                    //     amountIn,
-                    //     targetChain,
-                    //     Buffer.from(),
-                    //     Buffer.from("All your base are belong to us."),
-                    //     FEE_AMOUNT,
-                    //     deadline!,
-                    //     minAmountOut,
-                    //     fromWallet.address,
-                    // )
-                    // .then((txReq) => fromWallet.sendTransaction(txReq))
-                    // .then((tx) => mineWait(fromProvider, tx))
-                    // .catch((err) => {
-                    //     console.log(err);
-                    //     console.log(errorDecoder(err));
-                    //     throw err;
-                    // });
+
                     const transactionResult = await fromTokenRouter.getTransactionResults(
                         receipt!.hash,
                     );

@@ -49,6 +49,28 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
         yield this.createUnsignedTx({ ...txReq, from }, "TokenRouter.placeMarketOrder");
     }
 
+    async *placeFastMarketOrder(sender: AnyEvmAddress, order: TokenRouter.OrderRequest) {
+        const from = new EvmAddress(sender).unwrap();
+        const msg = order.redeemerMessage ? order.redeemerMessage : new Uint8Array();
+
+        const refundAddress = order.refundAddress
+            ? new EvmAddress(order.refundAddress).unwrap()
+            : undefined;
+
+        const txReq = await this.placeFastMarketOrderTx(
+            order.amountIn,
+            toChainId(order.targetChain),
+            order.redeemer.toUint8Array(),
+            msg,
+            order.maxFee!,
+            order.deadline!,
+            order.minAmountOut,
+            refundAddress,
+        );
+
+        yield this.createUnsignedTx({ ...txReq, from }, "TokenRouter.placeMarketOrder");
+    }
+
     async *redeemFill(
         sender: AnyEvmAddress,
         vaa: VAA<"FastTransfer:CctpDeposit">,
