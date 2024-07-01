@@ -1,17 +1,16 @@
-import { ethers, isError } from "ethers";
-import { IERC20 } from "../types";
-import { IUSDC__factory } from "../types/factories/IUSDC__factory";
-import { WALLET_PRIVATE_KEYS } from "./consts";
-import { EvmMatchingEngine } from "..";
-import { signAndSendWait } from "@wormhole-foundation/sdk-connect";
 import { Chain, Network } from "@wormhole-foundation/sdk-base";
+import { signAndSendWait } from "@wormhole-foundation/sdk-connect";
 import {
     SignAndSendSigner,
     UnsignedTransaction,
-    toNative,
     toUniversal,
 } from "@wormhole-foundation/sdk-definitions";
 import { EvmChains, EvmNativeSigner } from "@wormhole-foundation/sdk-evm";
+import { ethers, isError } from "ethers";
+import { MatchingEngine } from "..";
+import { IERC20 } from "../types";
+import { IUSDC__factory } from "../types/factories/IUSDC__factory";
+import { WALLET_PRIVATE_KEYS } from "./consts";
 
 export interface ScoreKeeper {
     player: ethers.NonceManager;
@@ -38,19 +37,21 @@ export class SdkSigner<N extends Network, C extends EvmChains>
         return this._signer as unknown as ethers.Wallet;
     }
 
-    async signAndSend(txs: UnsignedTransaction<N, C>[]): Promise<string[]> {
+    // Does not wait for confirmations
+    async signOnly(txs: UnsignedTransaction<N, C>[]): Promise<string[]> {
         const txids: string[] = [];
         for (let tx of txs) {
-            for (let x = 0; x < 3; x++) {
+            for (let retries = 0; retries < 3; retries++) {
                 try {
                     const res = await this._signer.sendTransaction(tx.transaction);
                     txids.push(res.hash);
                     break;
                 } catch (e) {
                     if (
-                        isError(e, "CALL_EXCEPTION") &&
-                        "info" in e &&
-                        e.info!.error.message === "nonce too low"
+                        (isError(e, "CALL_EXCEPTION") &&
+                            "info" in e &&
+                            e.info!.error.message === "nonce too low") ||
+                        isError(e, "NONCE_EXPIRED")
                     ) {
                         const nonce = await this.wallet.getNonce();
                         console.log("Setting nonce to ", nonce);
@@ -61,18 +62,34 @@ export class SdkSigner<N extends Network, C extends EvmChains>
                 }
             }
         }
-
-        await mine(this.provider);
-        await this.provider.waitForTransaction(txids[0], 1, 5000);
         return txids;
+    }
+
+    // Mine and wait for transaction
+    async signAndSend(txs: UnsignedTransaction<N, C>[]): Promise<string[]> {
+        try {
+            const txids = await this.signOnly(txs);
+            await mine(this.provider);
+            await this.provider.waitForTransaction(txids[0], 1, 5000);
+            return txids;
+        } catch (e) {
+            console.error(e);
+            throw e;
+        }
     }
 }
 
 export const sleep = async (seconds: number) =>
     await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 
-export const nonceManagedWallet = (key: string, provider: ethers.Provider) =>
-    new ethers.NonceManager(new ethers.Wallet(key, provider));
+export function getSigners(key: string, provider: ethers.Provider) {
+    const wallet = new ethers.Wallet(key, provider);
+
+    return {
+        wallet: new ethers.NonceManager(wallet),
+        signer: getSdkSigner("Ethereum", wallet),
+    };
+}
 
 export async function mine(provider: ethers.JsonRpcProvider) {
     await provider.send("evm_mine", []);
@@ -90,7 +107,7 @@ export function tryNativeToUint8Array(address: string, chain: Chain) {
 
 export async function mineToGracePeriod(
     auctionId: Uint8Array,
-    engine: EvmMatchingEngine,
+    engine: MatchingEngine,
     provider: ethers.JsonRpcProvider,
 ) {
     const { startBlock } = await engine.liveAuctionInfo(auctionId);
@@ -104,7 +121,7 @@ export async function mineToGracePeriod(
 
 export async function mineToPenaltyPeriod(
     auctionId: Uint8Array,
-    engine: EvmMatchingEngine,
+    engine: MatchingEngine,
     provider: ethers.JsonRpcProvider,
     penaltyBlocks: number,
 ) {
@@ -114,6 +131,15 @@ export async function mineToPenaltyPeriod(
 
     const blocksToMine = gracePeriod - (currentBlock - startBlock) + BigInt(penaltyBlocks);
     await mineMany(provider, Number(blocksToMine));
+}
+
+export async function signOnly<N extends Network, C extends EvmChains>(
+    txs: AsyncGenerator<UnsignedTransaction<N, C>, void, unknown>,
+    signer: SdkSigner<N, C>,
+) {
+    const txns = [];
+    for await (const tx of txs) txns.push(tx);
+    await signer.signOnly(txns);
 }
 
 export async function signSendMineWait<N extends Network, C extends EvmChains>(

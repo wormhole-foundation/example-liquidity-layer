@@ -1,6 +1,5 @@
 import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { encoding } from "@wormhole-foundation/sdk-base";
-import { CircleBridge, deserialize, toNative } from "@wormhole-foundation/sdk-definitions";
+import { toNative } from "@wormhole-foundation/sdk-definitions";
 import { expect } from "chai";
 import { ethers } from "ethers";
 import { EvmTokenRouter, OrderResponse, decodedOrderResponse } from "../src";
