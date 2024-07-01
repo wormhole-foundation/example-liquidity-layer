@@ -2,8 +2,6 @@ import { LedgerSigner }  from "@xlabs-xyz/ledger-signer";
 import { ethers } from "ethers";
 import { ChainInfo, ecosystemChains, EvmScriptCb, getEnv } from "./index";
 
-export const ETHEREUM_ADDRESS_LENGTH = 40;
-
 export async function runOnEvms(scriptName: string, cb: EvmScriptCb) {
   const chains = evmOperatingChains();
 

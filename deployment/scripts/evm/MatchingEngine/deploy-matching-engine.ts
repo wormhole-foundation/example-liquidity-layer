@@ -1,14 +1,13 @@
 import { ethers } from "ethers";
 import { runOnEvms, ChainInfo, LoggerFn, writeDeployedContract } from "../../../helpers";
 import { MatchingEngineConfiguration } from "../../../config/config-types";
-
-import { ERC1967Proxy__factory } from "@certusone/wormhole-sdk/lib/cjs/ethers-contracts";
 import { deployImplementation, getMachingEngineConfiguration } from "./utils";
+import { ERC1967Proxy__factory } from "../../../contract-bindings";
 
 runOnEvms("deploy-matching-engine", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
   const config = await getMachingEngineConfiguration(chain);
   const implementation = await deployImplementation(signer, config, log);
-  const proxy = await deployProxy(signer, config, implementation, log);
+  await deployProxy(signer, config, implementation, log);
 });
 
 async function deployProxy(signer: ethers.Signer, config: MatchingEngineConfiguration, implementation: ethers.Contract, log: LoggerFn) {
@@ -33,7 +32,7 @@ async function deployProxy(signer: ethers.Signer, config: MatchingEngineConfigur
   await deployment.deployed();
 
   log(`MatchingEngineProxy deployed at ${deployment.address}`);
-  writeDeployedContract(config.chainId, "MatchingEngineProxy", deployment.address);
+  writeDeployedContract(config.chainId, "MatchingEngineProxy", deployment.address, [implementation.address, encodedCall]);
 
   return deployment;
 }

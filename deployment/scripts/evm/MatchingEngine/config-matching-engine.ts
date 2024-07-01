@@ -1,12 +1,12 @@
 import { MatchingEngine } from "../../../contract-bindings";
-import { runOnEvmsSequentially, ChainInfo, LoggerFn, getContractInstance, getContractAddress } from "../../../helpers";
+import { runOnEvmsSequentially, ChainInfo, LoggerFn, getContractInstance, getContractAddress, getFormattedEndpoint } from "../../../helpers";
 import { ethers } from "ethers";
 import { getConfigurationDifferences, logDiff } from "./utils";
 import confirm from '@inquirer/confirm';
 
 runOnEvmsSequentially("config-matching-engine", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
-  const matchingEngineAddress = await getContractAddress("MatchingEngineProxy", chain.chainId);
-  const matchingEgine = (await getContractInstance("MatchingEngine", matchingEngineAddress, chain)) as MatchingEngine;
+  const matchingEngineAddress = getContractAddress("MatchingEngineProxy", chain.chainId);
+  const matchingEngine = (await getContractInstance("MatchingEngine", matchingEngineAddress, chain)) as MatchingEngine;
   const diff = await getConfigurationDifferences(chain);
 
   log(`MatchingEngine configuration differences on chain ${chain.chainId}:`);
@@ -25,40 +25,37 @@ runOnEvmsSequentially("config-matching-engine", async (chain: ChainInfo, signer:
     if (Number(feeRecipient.offChain) === 0)
       throw new Error('Invalid fee recipient address');
 
-    await matchingEgine.updateFeeRecipient(feeRecipient.offChain);
+    await matchingEngine.updateFeeRecipient(feeRecipient.offChain);
     log(`Fee recipient updated to ${feeRecipient.offChain}`);
   }
 
   // CCTP allowance
   if (cctpAllowance.onChain.toString() !== cctpAllowance.offChain.toString()) {
-    await matchingEgine.setCctpAllowance(cctpAllowance.offChain);
+    await matchingEngine.setCctpAllowance(cctpAllowance.offChain);
     log(`CCTP allowance updated to ${cctpAllowance.offChain}`);
   }
 
   // Router endpoints
-  for (const { chainId, router, mintRecipient, circleDomain } of routerEndpoints) {
-    const offChainEndpoint = {
-      router: router.offChain,
-      mintRecipient: mintRecipient.offChain
-    };
+  for (const { wormholeChainId, router, mintRecipient, circleDomain } of routerEndpoints) {
+    const offChainEndpoint = getFormattedEndpoint(router.offChain, mintRecipient.offChain);
     
     // Add new router endpoint if all values are zero
     if (Number(router?.onChain) === 0 && Number(mintRecipient?.onChain) === 0 && Number(circleDomain?.onChain) === 0) {
-      if (chainId === 0) 
-        throw new Error('Invalid chainId when adding new router endpoint');
+      if (wormholeChainId === 0) 
+        throw new Error('Invalid wormholeChainId when adding new router endpoint');
 
       if (Number(offChainEndpoint.router) === 0 || Number(offChainEndpoint.mintRecipient) === 0)
-        throw new Error(`Invalid router or mintRecipient endpoint for chainId ${chainId}`);
+        throw new Error(`Invalid router or mintRecipient endpoint for wormholeChainId ${wormholeChainId}`);
 
-      await matchingEgine.addRouterEndpoint(chainId, offChainEndpoint, circleDomain.offChain);
-      log(`Router endpoint added for chainId ${chainId}`);
+      await matchingEngine.addRouterEndpoint(wormholeChainId, offChainEndpoint, circleDomain.offChain);
+      log(`Router endpoint added for wormholeChainId ${wormholeChainId}`);
       continue;
     }
 
     // Disable router endpoint, must be the three values zero
     if (Number(router?.offChain) === 0 && Number(mintRecipient?.offChain) === 0 && Number(circleDomain?.offChain) === 0) {
-      await matchingEgine.disableRouterEndpoint(chainId);
-      log(`Router endpoint disabled for chainId ${chainId}`);
+      await matchingEngine.disableRouterEndpoint(wormholeChainId);
+      log(`Router endpoint disabled for wormholeChainId ${wormholeChainId}`);
       continue;
     }
 
@@ -68,14 +65,14 @@ runOnEvmsSequentially("config-matching-engine", async (chain: ChainInfo, signer:
       mintRecipient?.onChain.toString() !== mintRecipient?.offChain.toString() || 
       circleDomain?.onChain.toString() !== circleDomain?.offChain.toString()
     ) {      
-      if (chainId === 0) 
-        throw new Error('Invalid chainId when adding new router endpoint');
+      if (wormholeChainId === 0) 
+        throw new Error('Invalid wormholeChainId when adding new router endpoint');
 
       if (Number(offChainEndpoint.router) === 0 || Number(offChainEndpoint.mintRecipient) === 0)
-        throw new Error(`Invalid router or mintRecipient endpoint for chainId ${chainId}`);
+        throw new Error(`Invalid router or mintRecipient endpoint for wormholeChainId ${wormholeChainId}`);
 
-      await matchingEgine.updateRouterEndpoint(chainId, offChainEndpoint, circleDomain.offChain);
-      log(`Router endpoint updated for chainId ${chainId}`);
+      await matchingEngine.updateRouterEndpoint(wormholeChainId, offChainEndpoint, circleDomain.offChain);
+      log(`Router endpoint updated for wormholeChainId ${wormholeChainId}`);
       continue;
     }
   }

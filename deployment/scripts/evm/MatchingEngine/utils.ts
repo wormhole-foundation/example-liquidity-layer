@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { MatchingEngineConfiguration, RouterEndpointConfig } from "../../../config/config-types";
+import { MatchingEngineConfiguration } from "../../../config/config-types";
 import { MatchingEngine, MatchingEngine__factory } from "../../../contract-bindings";
 import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, getRouterEndpointDifferences, logComparision, someoneIsDifferent } from "../../../helpers";
 import { ERC20 } from "../../../contract-bindings/out/ERC20";
@@ -10,11 +10,12 @@ export function getMachingEngineConfiguration(chain: ChainInfo): Promise<Matchin
 
 export async function deployImplementation(signer: ethers.Signer, config: MatchingEngineConfiguration, log: LoggerFn) {
   const factory = new MatchingEngine__factory(signer);
-  const token = getDependencyAddress("token", config.chainId);
-  const wormhole = getDependencyAddress("wormhole", config.chainId);
-  const tokenMessenger = getDependencyAddress("tokenMessenger", config.chainId);
+  const token = getDependencyAddress("token", config.chainId).toString();
+  const wormhole = getDependencyAddress("wormhole", config.chainId).toString();
+  const tokenMessenger = getDependencyAddress("tokenMessenger", config.chainId).toString();
   const MAX_BPS_FEE = 1000000;
 
+  // State validations
   if (Number(config.auctionDuration) === 0) {
     throw new Error(`Auction duration must be greater than 0.`);
   }
@@ -44,14 +45,25 @@ export async function deployImplementation(signer: ethers.Signer, config: Matchi
 
   log(`MatchingEngine deployed at ${deployment.address}`);
 
-  writeDeployedContract(config.chainId, "MatchingEngineImplementation", deployment.address);
+  const constructorArgs = [
+    token,
+    wormhole,
+    tokenMessenger,
+    config.userPenaltyRewardBps,
+    config.initialPenaltyBps,
+    config.auctionDuration,
+    config.auctionGracePeriod,
+    config.auctionPenaltyBlocks
+  ];
+
+  writeDeployedContract(config.chainId, "MatchingEngineImplementation", deployment.address, constructorArgs);
 
   return deployment;
 }
 
 export async function getOnChainMachingEngineConfiguration(chain: ChainInfo) {
   const config = await getMachingEngineConfiguration(chain);
-  const matchingEngineProxyAddress = await getContractAddress("MatchingEngineProxy", chain.chainId);
+  const matchingEngineProxyAddress = getContractAddress("MatchingEngineProxy", chain.chainId);
   const matchingEngine = (await getContractInstance("MatchingEngine", matchingEngineProxyAddress, chain)) as MatchingEngine;
 
   // Get the allowance for the token messenger
@@ -61,24 +73,26 @@ export async function getOnChainMachingEngineConfiguration(chain: ChainInfo) {
   const cctpAllowance = (await token.allowance(matchingEngineProxyAddress, tokenMessengerAddress)).toString();
 
   const feeRecipient = await matchingEngine.feeRecipient();
+  const ownerAssistant = await matchingEngine.getOwnerAssistant();
 
   const routerEndpoints = await Promise.all(config
     .routerEndpoints
-    .map(async ({ chainId }) => {
-      const { router, mintRecipient } = await matchingEngine.getRouterEndpoint(chainId);
+    .map(async ({ wormholeChainId }) => {
+      const { router, mintRecipient } = await matchingEngine.getRouterEndpoint(wormholeChainId);
       return { 
-        chainId, 
+        wormholeChainId, 
         endpoint: {
           router,
           mintRecipient
         },
-        circleDomain: await matchingEngine.getDomain(chainId)
+        circleDomain: await matchingEngine.getDomain(wormholeChainId)
       }
     }));
 
   return {
     cctpAllowance,
     feeRecipient,
+    ownerAssistant,
     routerEndpoints
   };
 } 
@@ -116,7 +130,7 @@ export function logDiff(differences: Record<string, any>, log: LoggerFn) {
   logComparision('cctpAllowance', differences.cctpAllowance, log);
 
   let routersLogged = false;
-  for (const { chainId, router, mintRecipient, circleDomain } of differences.routerEndpoints) {
+  for (const { wormholeChainId, router, mintRecipient, circleDomain } of differences.routerEndpoints) {
     if (!someoneIsDifferent([router, mintRecipient, circleDomain])) 
       continue;
 
@@ -125,7 +139,7 @@ export function logDiff(differences: Record<string, any>, log: LoggerFn) {
       routersLogged = true;
     }
     
-    log(`ChainId ${chainId}:`);
+    log(`WormholeChainId ${wormholeChainId}:`);
     logComparision('router', router, log);
     logComparision('mintRecipient', mintRecipient, log);
     logComparision('circleDomain', circleDomain, log);

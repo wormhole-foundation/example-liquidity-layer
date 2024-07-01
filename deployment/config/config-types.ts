@@ -1,8 +1,8 @@
-import { ChainId } from "@certusone/wormhole-sdk";
+import { ChainId } from "@wormhole-foundation/sdk-base";
 import { BytesLike } from "ethers";
 
 export type RouterEndpointConfig = {
-  chainId: ChainId;
+  wormholeChainId: ChainId;
   endpoint: {
     router: BytesLike;
     mintRecipient: BytesLike;
@@ -11,12 +11,12 @@ export type RouterEndpointConfig = {
 }
 
 export type TokenRouterConfiguration = {
-  // Chain ID of the token router configuration
-  chainId: ChainId;
+  // EVM Chain ID of the token router configuration
+  chainId: number;
   
   // Immutable values
   matchingEngineMintRecipient: string;
-  matchingEngineChain: string;
+  matchingEngineChain: ChainId; // Wormhole Chain ID
   matchingEngineDomain: string;
   
   // Mutable values
@@ -32,8 +32,8 @@ export type TokenRouterConfiguration = {
 };
 
 export type MatchingEngineConfiguration = {
-  // Chain ID of the matching engine configuration
-  chainId: ChainId;
+  // EVM Chain ID of the matching engine configuration
+  chainId: number;
 
   // Immutable values
   userPenaltyRewardBps: string;
