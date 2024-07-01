@@ -5,8 +5,8 @@ import { MatchingEngine } from "../../../contract-bindings";
 import { MatchingEngineConfiguration } from "../../../config/config-types";
 
 runOnEvms("upgrade-matching-engine", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
-  const currentImplementationAddress = await getContractAddress("MatchingEngineImplementation", chain.chainId);
-  const proxyAddress = await getContractAddress("MatchingEngineProxy", chain.chainId);
+  const currentImplementationAddress = getContractAddress("MatchingEngineImplementation", chain.chainId);
+  const proxyAddress = getContractAddress("MatchingEngineProxy", chain.chainId);
   const proxy = (await getContractInstance("MatchingEngine", proxyAddress, chain)) as MatchingEngine;
   const config = await getMachingEngineConfiguration(chain);
 
@@ -37,7 +37,7 @@ async function checkImmutables(matchingEngine: MatchingEngine, config: MatchingE
     matchingEngine.getAuctionPenaltyBlocks(),
   ]);
 
-  if (token !== tokenAddress)
+  if (token.toLowerCase() !== tokenAddress.toLowerCase())
     throw new Error(`Token is an immutable value and cannot be changed.`);
 
   if (userPenaltyRewardBps !== Number(config.userPenaltyRewardBps))

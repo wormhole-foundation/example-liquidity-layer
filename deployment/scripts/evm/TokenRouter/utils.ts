@@ -1,27 +1,33 @@
-import { ChainId } from "@certusone/wormhole-sdk";
 import { ethers } from "ethers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { TokenRouter, TokenRouter__factory } from "../../../contract-bindings";
-import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, getRouterEndpointDifferences, getAddressAsBytes32, logComparision, someoneIsDifferent } from "../../../helpers"; 
+import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, getRouterEndpointDifferences, logComparision, someoneIsDifferent, getAddressType } from "../../../helpers"; 
 import { ERC20 } from "../../../contract-bindings/out/ERC20";
+import { chainIdToChain, nativeChainIds } from "@wormhole-foundation/sdk-base";
+import { UniversalAddress } from "@wormhole-foundation/sdk-definitions";
 
 export function getTokenRouterConfiguration(chain: ChainInfo): Promise<TokenRouterConfiguration> {
   return getChainConfig<TokenRouterConfiguration>("token-router", chain.chainId);
 }
 
-export async function deployImplementation(signer: ethers.Signer, config: TokenRouterConfiguration, log: LoggerFn) {
+export async function deployImplementation(chain: ChainInfo, signer: ethers.Signer, config: TokenRouterConfiguration, log: LoggerFn) {
   const factory = new TokenRouter__factory(signer);
-
   const token = getDependencyAddress("token", config.chainId);
   const wormhole = getDependencyAddress("wormhole", config.chainId);
   const tokenMessenger = getDependencyAddress("tokenMessenger", config.chainId);
-  const matchingEngineMintRecipient = getAddressAsBytes32(config.matchingEngineMintRecipient);
+  const mintRecipientAddressType = getAddressType(config.matchingEngineMintRecipient);
+  const matchingEngineMintRecipient = (new UniversalAddress(config.matchingEngineMintRecipient, mintRecipientAddressType)).toString();
 
-  let matchingEngineAddress = await getContractAddress(
+  const { networkChainToNativeChainId } = nativeChainIds;
+  const chainName = chainIdToChain.get(Number(config.matchingEngineChain));
+  const matchingEngineEvmChainId = parseInt(networkChainToNativeChainId.get(chain.type, chainName!)!.toString());
+  let matchingEngineAddress = (getContractAddress(
     "MatchingEngineProxy", 
-    Number(config.matchingEngineChain) as ChainId
-  );
-  matchingEngineAddress = getAddressAsBytes32(matchingEngineAddress);
+    matchingEngineEvmChainId
+  ));
+
+  const matchingEgineAdressType = getAddressType(matchingEngineAddress);
+  matchingEngineAddress = (new UniversalAddress(matchingEngineAddress, matchingEgineAdressType)).toString();
 
   const deployment = await factory.deploy(
     token,
@@ -38,40 +44,52 @@ export async function deployImplementation(signer: ethers.Signer, config: TokenR
 
   log(`TokenRouter deployed at ${deployment.address}`);
 
-  writeDeployedContract(config.chainId, "TokenRouterImplementation", deployment.address);
+  const constructorArgs = [
+    token,
+    wormhole,
+    tokenMessenger,
+    config.matchingEngineChain,
+    matchingEngineAddress,
+    matchingEngineMintRecipient,
+    config.matchingEngineDomain
+  ];
+
+  writeDeployedContract(config.chainId, "TokenRouterImplementation", deployment.address, constructorArgs);
 
   return deployment;
 }
 
 export async function getOnChainTokenRouterConfiguration(chain: ChainInfo) {
   const config = await getTokenRouterConfiguration(chain);
-  const tokenRouterProxyAddress = await getContractAddress("TokenRouterProxy", chain.chainId);
+  const tokenRouterProxyAddress = getContractAddress("TokenRouterProxy", chain.chainId);
   const tokenRouter = (await getContractInstance("TokenRouter", tokenRouterProxyAddress, chain)) as TokenRouter;
 
   // Get the allowance for the token messenger
   const tokenMessengerAddress = getDependencyAddress("tokenMessenger", chain.chainId);
   const orderTokenAddress = await tokenRouter.orderToken();
   const orderToken = (await getContractInstance("ERC20", orderTokenAddress, chain)) as ERC20;
-  const cctpAllowance = (await orderToken.allowance(tokenRouterProxyAddress, tokenMessengerAddress)).toString();
+  const cctpAllowance = await orderToken.allowance(tokenRouterProxyAddress, tokenMessengerAddress);
 
   const routerEndpoints = await Promise.all(config
     .routerEndpoints
-    .map(async ({ chainId }) => {
-      const { router, mintRecipient } = await tokenRouter.getRouterEndpoint(chainId);
+    .map(async ({ wormholeChainId }) => {
+      const { router, mintRecipient } = await tokenRouter.getRouterEndpoint(wormholeChainId);
       return { 
-        chainId, 
+        wormholeChainId, 
         endpoint: {
           router,
           mintRecipient
         },
-        circleDomain: await tokenRouter.getDomain(chainId)
+        circleDomain: await tokenRouter.getDomain(wormholeChainId)
       }
     }));
 
+  const ownerAssistant = await tokenRouter.getOwnerAssistant();
   const { enabled, maxAmount, baseFee, initAuctionFee} = await tokenRouter.getFastTransferParameters();
 
   return {
     cctpAllowance,
+    ownerAssistant,
     fastTransferParameters: {
       enabled,
       maxAmount: maxAmount.toString(),
@@ -125,7 +143,7 @@ export function logDiff(differences: Record<string, any>, log: LoggerFn) {
   logComparision('cctpAllowance', differences.cctpAllowance, log);
 
   let routersLogged = false;
-  for (const { chainId, router, mintRecipient, circleDomain } of differences.routerEndpoints) {
+  for (const { wormholeChainId, router, mintRecipient, circleDomain } of differences.routerEndpoints) {
     if (!someoneIsDifferent([router, mintRecipient, circleDomain])) 
       continue;
 
@@ -134,7 +152,7 @@ export function logDiff(differences: Record<string, any>, log: LoggerFn) {
       routersLogged = true;
     }
     
-    log(`ChainId ${chainId}:`);
+    log(`WormholeChainId ${wormholeChainId}:`);
     logComparision('router', router, log);
     logComparision('mintRecipient', mintRecipient, log);
     logComparision('circleDomain', circleDomain, log);
