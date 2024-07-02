@@ -30,9 +30,9 @@
     }
   },
   "dependencies": {
-    "@wormhole-foundation/sdk-base": "^0.7.0-beta.6",
-    "@wormhole-foundation/sdk-definitions": "^0.7.0-beta.6",
-    "@wormhole-foundation/sdk-evm": "^0.7.0-beta.6",
+    "@wormhole-foundation/sdk-base": "^0.7.1-beta.2",
+    "@wormhole-foundation/sdk-definitions": "^0.7.1-beta.2",
+    "@wormhole-foundation/sdk-evm": "^0.7.1-beta.2",
     "@wormhole-foundation/example-liquidity-layer-definitions": "0.0.1",
     "ethers": "^6.5.1"
   },

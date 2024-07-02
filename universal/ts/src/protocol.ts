@@ -8,6 +8,7 @@ import {
     ProtocolVAA,
     UnsignedTransaction,
     VAA,
+    keccak256,
     payloadDiscriminator,
 } from "@wormhole-foundation/sdk-definitions";
 import { FastMarketOrder, MessageName, messageNames } from "./messages";
@@ -36,7 +37,14 @@ export namespace FastTransfer {
         cctp?: Contracts["cctp"] & { usdcMint: string };
     };
 
+    export type OrderResponse = {
+        vaa: VAA<"CctpDeposit">; // | VAA<"FastFill">;
+        cctp: CircleBridge.Attestation;
+    };
+
     export const getPayloadDiscriminator = () => payloadDiscriminator([protocolName, messageNames]);
+
+    export const auctionId = (vaa: VAA<"FastMarketOrder">) => keccak256(vaa.hash);
 }
 
 export interface FastTransfer<N extends Network, C extends Chain> {
@@ -98,11 +106,13 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
         offerPrice: bigint,
         totalDeposit?: bigint,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
+    // improve the offer below previous offers
     improveOffer(
         sender: AccountAddress<C>,
         vaa: VAA<"FastTransfer:FastMarketOrder">,
         offer: bigint,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
+    // Order
     executeFastOrder(
         sender: AccountAddress<C>,
         vaa: VAA<"FastTransfer:FastMarketOrder">,
@@ -116,6 +126,7 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
     settleOrder(
         sender: AccountAddress<C>,
         fast: VAA<"FastTransfer:FastMarketOrder">,
+        // TODO: should these be a single param so they're either set or not?
         deposit?: VAA<"FastTransfer:CctpDeposit">,
         cctp?: CircleBridge.Attestation,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;

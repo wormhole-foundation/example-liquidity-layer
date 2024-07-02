@@ -1,6 +1,6 @@
 import { ChainId, asChainId } from "@wormhole-foundation/sdk-base";
 import { ethers } from "ethers";
-import { Endpoint, OrderResponse, TokenRouter, FastTransferParameters } from ".";
+import { Endpoint, OrderResponse, AbstractTokenRouter, FastTransferParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {
     ITokenRouter,
@@ -11,7 +11,7 @@ import {
     ITokenMessenger,
 } from "../types";
 
-export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
+export class TokenRouter implements AbstractTokenRouter<ethers.ContractTransaction> {
     contract: ITokenRouter;
     circle: ITokenMessenger;
 

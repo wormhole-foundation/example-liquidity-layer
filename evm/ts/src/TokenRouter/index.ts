@@ -1,4 +1,7 @@
+import { encoding } from "@wormhole-foundation/sdk-base";
+import { CircleBridge, VAA, deserialize } from "@wormhole-foundation/sdk-definitions";
 import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
+import { FastTransfer } from "@wormhole-foundation/example-liquidity-layer-definitions";
 export * from "./evm";
 
 export type FastTransferParameters = {
@@ -14,12 +17,24 @@ export type OrderResponse = {
     circleAttestation: Buffer | Uint8Array;
 };
 
+export function decodedOrderResponse(response: OrderResponse): FastTransfer.OrderResponse {
+    if (response.circleAttestation.length > 0) {
+        const [message] = CircleBridge.deserialize(response.circleBridgeMessage);
+        const attestation = encoding.hex.encode(response.circleAttestation, true);
+        const vaa = deserialize("FastTransfer:CctpDeposit", response.encodedWormholeMessage);
+        return { vaa, cctp: { message, attestation } };
+    }
+
+    throw "no";
+    //return { vaa: deserialize("FastTransfer:FastFill", response.encodedWormholeMessage) };
+}
+
 export type Endpoint = {
     router: string | Buffer | Uint8Array;
     mintRecipient: string | Buffer | Uint8Array;
 };
 
-export abstract class TokenRouter<PreparedTransactionType extends PreparedInstruction> {
+export abstract class AbstractTokenRouter<PreparedTransactionType extends PreparedInstruction> {
     abstract get address(): string;
 
     abstract placeMarketOrderTx(

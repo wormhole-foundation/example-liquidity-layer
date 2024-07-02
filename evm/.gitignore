@@ -13,3 +13,4 @@ ts/src/types
 dist
 ts-types
 *.tsbuildinfo
+selectors.txt
