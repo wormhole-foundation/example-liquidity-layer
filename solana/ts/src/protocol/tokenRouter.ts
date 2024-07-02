@@ -110,12 +110,10 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
             },
             {
                 amountIn: order.amountIn,
-                minAmountOut: order.minAmountOut !== undefined ? order.minAmountOut : null,
+                minAmountOut: order.minAmountOut ?? null,
                 targetChain: toChainId(order.targetChain),
                 redeemer: Array.from(order.redeemer.toUint8Array()),
-                redeemerMessage: order.redeemerMessage
-                    ? Buffer.from(order.redeemerMessage)
-                    : Buffer.from(""),
+                redeemerMessage: Buffer.from(order.redeemerMessage ?? ""),
             },
         );
 
@@ -209,12 +207,11 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
         orderResponse: FastTransfer.OrderResponse,
         lookupTables?: AddressLookupTableAccount[],
     ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
-        const payer = new SolanaAddress(sender).unwrap();
-
         if (FastTransfer.isFastFill(orderResponse)) throw "Invalid order response";
 
-        const { vaa, cctp } = orderResponse;
+        const payer = new SolanaAddress(sender).unwrap();
 
+        const { vaa, cctp } = orderResponse;
         // Must be a fill payload
         const fill = vaa.payload.payload;
         if (!Payload.is(fill, "Fill")) throw new Error("Invalid VAA payload");

@@ -4161,10 +4161,9 @@ describe("Matching Engine", function () {
         // Place the initial offer.
         const txs = engine.placeInitialOffer(
             accounts.payer,
-            // @ts-expect-error -- may still be a Uint8array payload for testing invalid VAA
+            // @ts-ignore - may still be considered uint8array
             fastMarketOrderVAA,
             args.offerPrice,
-            args.totalDeposit,
         );
 
         if (errorMsg !== null) {

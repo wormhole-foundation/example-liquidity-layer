@@ -8,7 +8,6 @@ import {
     CircleBridge,
     Contracts,
     UnsignedTransaction,
-    VAA,
     serialize,
 } from "@wormhole-foundation/sdk-definitions";
 import {
@@ -81,31 +80,23 @@ export class EvmMatchingEngine<N extends Network, C extends EvmChains>
         }
     }
 
-    async *placeInitialOffer(
-        sender: AnyEvmAddress,
-        vaa: VAA<"FastTransfer:FastMarketOrder">,
-        offerPrice: bigint,
-        totalDeposit?: bigint | undefined,
-    ) {
+    async *placeInitialOffer(sender: AnyEvmAddress, order: FastTransfer.Order, offerPrice: bigint) {
         const from = new EvmAddress(sender).unwrap();
 
-        yield* this.approveAllowance(sender, totalDeposit!);
+        const { amountIn, maxFee } = order.payload;
+        yield* this.approveAllowance(sender, amountIn + maxFee);
 
         const txReq = await this.connect(this.provider).placeInitialBidTx(
-            serialize(vaa),
+            serialize(order),
             offerPrice,
         );
 
         yield this.createUnsignedTx({ ...txReq, from }, "MatchingEngine.placeInitialOffer");
     }
-    async *improveOffer(
-        sender: AnyEvmAddress,
-        vaa: VAA<"FastTransfer:FastMarketOrder">,
-        offer: bigint,
-    ) {
+    async *improveOffer(sender: AnyEvmAddress, order: FastTransfer.Order, offer: bigint) {
         const from = new EvmAddress(sender).unwrap();
 
-        const auctionId = FastTransfer.auctionId(vaa);
+        const auctionId = FastTransfer.auctionId(order);
 
         // TODO: is this the correct amount to request for allowance here
         const { amount, securityDeposit } = await this.liveAuctionInfo(auctionId);
@@ -115,7 +106,7 @@ export class EvmMatchingEngine<N extends Network, C extends EvmChains>
         yield this.createUnsignedTx({ ...txReq, from }, "MatchingEngine.improveOffer");
     }
 
-    async *executeFastOrder(sender: AnyEvmAddress, vaa: VAA<"FastTransfer:FastMarketOrder">) {
+    async *executeFastOrder(sender: AnyEvmAddress, vaa: FastTransfer.Order) {
         const from = new EvmAddress(sender).unwrap();
         const txReq = await this.executeFastOrderTx(serialize(vaa));
         yield this.createUnsignedTx({ ...txReq, from }, "MatchingEngine.executeFastOrder");
@@ -138,7 +129,6 @@ export class EvmMatchingEngine<N extends Network, C extends EvmChains>
 
         const fastVaaBytes = serialize(order);
 
-        // TODO: this doesnt make sense, why dont se serialize the fast fill vaa?
         const txReq = await (FastTransfer.isFastFill(response)
             ? this.executeFastOrderTx(fastVaaBytes)
             : this.executeSlowOrderAndRedeemTx(fastVaaBytes, {

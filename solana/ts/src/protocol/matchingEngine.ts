@@ -10,16 +10,13 @@ import {
 import {
     FastTransfer,
     MatchingEngine,
-    payloadIds,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, Network, Platform, toChainId } from "@wormhole-foundation/sdk-base";
 import {
     AccountAddress,
     ChainsConfig,
-    CircleAttestation,
     CircleBridge,
     Contracts,
-    VAA,
 } from "@wormhole-foundation/sdk-definitions";
 import {
     AnySolanaAddress,
@@ -29,10 +26,9 @@ import {
     SolanaTransaction,
     SolanaUnsignedTransaction,
 } from "@wormhole-foundation/sdk-solana";
+import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
 import { vaaHash } from "../common";
 import { AuctionParameters, MatchingEngineProgram } from "../matchingEngine";
-import { SolanaWormholeCore } from "@wormhole-foundation/sdk-solana-core";
-import { info } from "console";
 
 export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     extends MatchingEngineProgram
@@ -48,9 +44,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
     ) {
         super(_connection, _contracts);
 
-        this.coreBridge = new SolanaWormholeCore(_network, _chain, _connection, {
-            ...this._contracts,
-        });
+        this.coreBridge = new SolanaWormholeCore(_network, _chain, _connection, this._contracts);
     }
 
     static async fromRpc<N extends Network>(
@@ -163,30 +157,25 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
     async *placeInitialOffer(
         sender: AnySolanaAddress,
-        vaa: VAA<"FastTransfer:FastMarketOrder">,
+        order: FastTransfer.Order,
         offerPrice: bigint,
-        totalDeposit?: bigint,
     ) {
         // If the VAA has not yet been posted, do so now
-        yield* this.postVaa(sender, vaa);
+        yield* this.postVaa(sender, order);
 
         const payer = new SolanaAddress(sender).unwrap();
-        const vaaAddress = this.pdas.postedVaa(vaa);
+        const vaaAddress = this.pdas.postedVaa(order);
 
         const ixs = await this.placeInitialOfferCctpIx(
             { payer, fastVaa: vaaAddress },
-            { offerPrice, totalDeposit },
+            { offerPrice },
         );
 
         const transaction = this.createTx(payer, ixs);
         yield this.createUnsignedTx({ transaction }, "MatchingEngine.placeInitialOffer");
     }
 
-    async *improveOffer(
-        sender: AnySolanaAddress,
-        vaa: VAA<"FastTransfer:FastMarketOrder">,
-        offer: bigint,
-    ) {
+    async *improveOffer(sender: AnySolanaAddress, vaa: FastTransfer.Order, offer: bigint) {
         const participant = new SolanaAddress(sender).unwrap();
 
         const digest = vaaHash(vaa);
@@ -204,7 +193,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
     async *executeFastOrder(
         sender: AnySolanaAddress,
-        vaa: VAA<"FastTransfer:FastMarketOrder">,
+        vaa: FastTransfer.Order,
         participant?: AnySolanaAddress,
     ) {
         const payer = new SolanaAddress(sender).unwrap();
@@ -287,10 +276,10 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         response: FastTransfer.OrderResponse,
         lookupTables?: AddressLookupTableAccount[],
     ) {
+        if (FastTransfer.isFastFill(response))
+            throw "Invalid response type in prepareOrderResponse";
+
         const payer = new SolanaAddress(sender).unwrap();
-
-        if (FastTransfer.isFastFill(response)) throw "Invalid response type in order prep";
-
         const ix = await this._prepareOrderResponseIx(sender, order, response);
         if (ix === undefined) return;
 
@@ -306,7 +295,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         response: FastTransfer.OrderResponse,
         lookupTables?: AddressLookupTableAccount[],
     ) {
-        if (FastTransfer.isFastFill(response)) throw "Invalid response type in order settle";
+        if (FastTransfer.isFastFill(response)) throw "Invalid response type in settleOrder";
 
         const payer = new SolanaAddress(sender).unwrap();
 
@@ -343,9 +332,11 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
                 });
             }
 
-            // no auction
+            // no auction, settle none
 
-            if (order.payload.targetChain === "Solana") {
+            const { targetChain } = order.payload;
+
+            if (targetChain === "Solana") {
                 const reservedSequence = this.pdas.reservedFastFillSequence(digest);
                 return await this.settleAuctionNoneLocalIx({
                     payer,
@@ -353,12 +344,12 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
                     preparedOrderResponse,
                     auction,
                 });
-            } else {
-                return await this.settleAuctionNoneCctpIx(
-                    { payer, fastVaa, preparedOrderResponse, auction },
-                    { targetChain: toChainId(order.payload.targetChain) },
-                );
             }
+
+            return await this.settleAuctionNoneCctpIx(
+                { payer, fastVaa, preparedOrderResponse, auction },
+                { targetChain: toChainId(targetChain) },
+            );
         })();
 
         ixs.push(settleIx);

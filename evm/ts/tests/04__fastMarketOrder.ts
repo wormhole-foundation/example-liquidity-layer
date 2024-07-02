@@ -232,7 +232,6 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         initialBidder.address,
                         fastVaa,
                         fastOrder.maxFee,
-                        initialDeposit,
                     );
                     const receipt = await signSendMineWait(txs, initialBidderSigner);
 
@@ -566,12 +565,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     const balanceBefore = await usdc.balanceOf(initialBidder.address);
 
-                    const txs = engine.placeInitialOffer(
-                        initialBidder.address,
-                        fastVaa,
-                        maxFee,
-                        initialDeposit,
-                    );
+                    const txs = engine.placeInitialOffer(initialBidder.address, fastVaa, maxFee);
                     const receipt = await signSendMineWait(txs, initialBidderSigner);
 
                     const balanceAfter = await usdc.balanceOf(initialBidder.address);

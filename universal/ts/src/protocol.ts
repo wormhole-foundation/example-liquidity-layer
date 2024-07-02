@@ -107,7 +107,6 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
         sender: AccountAddress<C>,
         vaa: FastTransfer.Order,
         offerPrice: bigint,
-        totalDeposit?: bigint,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
     // improve the offer below previous offers
     improveOffer(

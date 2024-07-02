@@ -864,7 +864,6 @@ describe("Token Router", function () {
                 );
             });
 
-            // TODO:
             it("Place Market Order", async function () {
                 const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
                 expect(localVariables.delete("preparedOrder")).is.true;
