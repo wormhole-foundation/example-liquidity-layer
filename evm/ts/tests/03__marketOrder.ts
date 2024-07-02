@@ -1,8 +1,11 @@
-import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import {
+    FastTransfer,
+    TokenRouter,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { toNative } from "@wormhole-foundation/sdk-definitions";
 import { expect } from "chai";
 import { ethers } from "ethers";
-import { EvmTokenRouter, OrderResponse, decodedOrderResponse } from "../src";
+import { EvmTokenRouter, decodedOrderResponse } from "../src";
 import {
     CircleAttester,
     GuardianNetwork,
@@ -133,23 +136,22 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const circleBridgeMessage = transactionResult.circleMessage!;
                 const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
-                const orderResponse: OrderResponse = {
+                const orderResponse: FastTransfer.OrderResponse = decodedOrderResponse({
                     encodedWormholeMessage: fillVaa,
                     circleBridgeMessage,
                     circleAttestation,
-                };
+                });
                 localVariables.set("orderResponse", orderResponse);
             });
 
             it(`To Network -- Redeem Fill`, async () => {
-                const orderResponse = localVariables.get("orderResponse") as OrderResponse;
+                const response = localVariables.get("orderResponse") as FastTransfer.OrderResponse;
                 expect(localVariables.delete("orderResponse")).is.true;
 
                 const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
                 const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                const { vaa, cctp } = decodedOrderResponse(orderResponse);
-                const txs = toTokenRouter.redeemFill(toWallet.address, vaa, cctp);
+                const txs = toTokenRouter.redeemFill(toWallet.address, response);
                 await signSendMineWait(txs, toSigner);
 
                 const balanceAfter = await usdc.balanceOf(toWallet.address);

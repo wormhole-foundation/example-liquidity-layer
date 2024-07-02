@@ -251,19 +251,17 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
     private async _prepareOrderResponseIx(
         sender: AnySolanaAddress,
-        fast: VAA<"FastTransfer:FastMarketOrder">,
-        finalized: VAA<"FastTransfer:CctpDeposit">,
-        cctp: {
-            message: CircleBridge.Message;
-            attestation: CircleAttestation;
-        },
+        order: FastTransfer.Order,
+        response: FastTransfer.OrderResponse,
     ) {
+        if (FastTransfer.isFastFill(response)) throw "Invalid";
+
         const payer = new SolanaAddress(sender).unwrap();
 
-        const fastVaa = this.pdas.postedVaa(fast);
-        const finalizedVaa = this.pdas.postedVaa(finalized);
+        const fastVaa = this.pdas.postedVaa(order);
+        const finalizedVaa = this.pdas.postedVaa(response.vaa);
 
-        const digest = vaaHash(fast);
+        const digest = FastTransfer.auctionId(order);
         const preparedAddress = this.pdas.preparedOrderResponse(digest);
 
         try {
@@ -275,8 +273,8 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
         const ix = await this.prepareOrderResponseCctpIx(
             { payer, fastVaa, finalizedVaa },
             {
-                encodedCctpMessage: Buffer.from(CircleBridge.serialize(cctp.message)),
-                cctpAttestation: Buffer.from(cctp.attestation, "hex"),
+                encodedCctpMessage: Buffer.from(CircleBridge.serialize(response.cctp.message)),
+                cctpAttestation: Buffer.from(response.cctp.attestation!, "hex"),
             },
         );
 
@@ -285,16 +283,12 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
     async *prepareOrderResponse(
         sender: AnySolanaAddress,
-        fast: VAA<"FastTransfer:FastMarketOrder">,
-        finalized: VAA<"FastTransfer:CctpDeposit">,
-        cctp: {
-            message: CircleBridge.Message;
-            attestation: CircleAttestation;
-        },
+        order: FastTransfer.Order,
+        response: FastTransfer.OrderResponse,
         lookupTables?: AddressLookupTableAccount[],
     ) {
         const payer = new SolanaAddress(sender).unwrap();
-        const ix = await this._prepareOrderResponseIx(sender, fast, finalized, cctp);
+        const ix = await this._prepareOrderResponseIx(sender, order, response);
         if (ix === undefined) return;
 
         const computeIx = ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 });
@@ -305,43 +299,29 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
 
     async *settleOrder(
         sender: AnySolanaAddress,
-        fast: VAA<"FastTransfer:FastMarketOrder">,
-        finalized?: VAA<"FastTransfer:CctpDeposit">,
-        cctp?: {
-            message: CircleBridge.Message;
-            attestation: CircleAttestation;
-        },
+        order: FastTransfer.Order,
+        response: FastTransfer.OrderResponse,
         lookupTables?: AddressLookupTableAccount[],
     ) {
         const payer = new SolanaAddress(sender).unwrap();
 
-        // If the finalized VAA and CCTP message/attestation are passed
-        // we may try to prepare the order response
-        // this yields its own transaction
         const ixs = [];
-        if (finalized && cctp) {
-            // TODO: how do we decide?
-            const combine = true;
-            // try to include the prepare order instruction in the same transaction
-            if (combine) {
-                const ix = await this._prepareOrderResponseIx(sender, fast, finalized, cctp);
-                if (ix !== undefined) {
-                    ixs.push(ix, ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }));
-                }
-            } else {
-                yield* this.prepareOrderResponse(sender, fast, finalized, cctp, lookupTables);
+        if (!FastTransfer.isFastFill(response)) {
+            const ix = await this._prepareOrderResponseIx(sender, order, response);
+            if (ix !== undefined) {
+                ixs.push(ix, ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }));
             }
         }
 
-        const fastVaa = this.pdas.postedVaa(fast);
+        const fastVaa = this.pdas.postedVaa(order);
 
-        const digest = vaaHash(fast);
+        const digest = FastTransfer.auctionId(order);
         const preparedOrderResponse = this.pdas.preparedOrderResponse(digest);
         const auction = this.pdas.auction(digest);
 
         const settleIx = await (async () => {
-            if (finalized && !cctp) {
-                if (fast.payload.targetChain === "Solana") {
+            if (FastTransfer.isFastFill(response)) {
+                if (order.payload.targetChain === "Solana") {
                     const reservedSequence = this.pdas.reservedFastFillSequence(digest);
                     return await this.settleAuctionNoneLocalIx({
                         payer,
@@ -352,7 +332,7 @@ export class SolanaMatchingEngine<N extends Network, C extends SolanaChains>
                 } else {
                     return await this.settleAuctionNoneCctpIx(
                         { payer, fastVaa, preparedOrderResponse },
-                        { targetChain: toChainId(fast.payload.targetChain) },
+                        { targetChain: toChainId(order.payload.targetChain) },
                     );
                 }
             } else {

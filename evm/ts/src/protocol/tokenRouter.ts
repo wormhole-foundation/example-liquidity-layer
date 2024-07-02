@@ -1,12 +1,9 @@
-import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { Network, encoding, toChainId } from "@wormhole-foundation/sdk-base";
 import {
-    CircleBridge,
-    Contracts,
-    UnsignedTransaction,
-    VAA,
-    serialize,
-} from "@wormhole-foundation/sdk-definitions";
+    FastTransfer,
+    TokenRouter,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { Network, toChainId } from "@wormhole-foundation/sdk-base";
+import { Contracts, UnsignedTransaction } from "@wormhole-foundation/sdk-definitions";
 import {
     AnyEvmAddress,
     EvmAddress,
@@ -14,7 +11,7 @@ import {
     EvmUnsignedTransaction,
 } from "@wormhole-foundation/sdk-evm";
 import { ethers } from "ethers";
-import { TokenRouter as _TokenRouter } from "../TokenRouter";
+import { OrderResponse, TokenRouter as _TokenRouter, encodeOrderResponse } from "../TokenRouter";
 import { IUSDC__factory } from "../types";
 
 export class EvmTokenRouter<N extends Network, C extends EvmChains>
@@ -93,17 +90,11 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
         yield this.createUnsignedTx({ ...txReq, from }, "TokenRouter.placeMarketOrder");
     }
 
-    async *redeemFill(
-        sender: AnyEvmAddress,
-        vaa: VAA<"FastTransfer:CctpDeposit"> | VAA<"FastTransfer:FastFill">,
-        cctp?: CircleBridge.Attestation,
-    ) {
+    async *redeemFill(sender: AnyEvmAddress, orderResponse: FastTransfer.OrderResponse) {
         const from = new EvmAddress(sender).unwrap();
-        const txReq = await this.redeemFillTx({
-            encodedWormholeMessage: serialize(vaa),
-            circleBridgeMessage: cctp ? CircleBridge.serialize(cctp.message) : new Uint8Array(),
-            circleAttestation: cctp ? encoding.hex.decode(cctp.attestation!) : new Uint8Array(),
-        });
+
+        const response: OrderResponse = encodeOrderResponse(orderResponse);
+        const txReq = await this.redeemFillTx(response);
         yield this.createUnsignedTx({ ...txReq, from }, "TokenRouter.redeemFill");
     }
 

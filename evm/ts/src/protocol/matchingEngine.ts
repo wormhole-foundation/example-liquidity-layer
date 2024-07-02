@@ -123,30 +123,29 @@ export class EvmMatchingEngine<N extends Network, C extends EvmChains>
 
     async *prepareOrderResponse(
         sender: AnyEvmAddress,
-        vaa: VAA<"FastTransfer:FastMarketOrder">,
-        deposit: VAA<"FastTransfer:CctpDeposit">,
-        cctp: CircleBridge.Attestation,
+        order: FastTransfer.Order,
+        response: FastTransfer.OrderResponse,
     ) {
         throw new Error("Method not implemented.");
     }
 
     async *settleOrder(
         sender: AnyEvmAddress,
-        fast: VAA<"FastTransfer:FastMarketOrder">,
-        deposit?: VAA<"FastTransfer:CctpDeposit"> | undefined,
-        cctp?: CircleBridge.Attestation | undefined,
+        order: FastTransfer.Order,
+        response: FastTransfer.OrderResponse,
     ) {
         const from = new EvmAddress(sender).unwrap();
 
-        const fastVaaBytes = serialize(fast);
+        const fastVaaBytes = serialize(order);
 
-        const txReq = await (deposit && cctp
-            ? this.executeSlowOrderAndRedeemTx(fastVaaBytes, {
-                  encodedWormholeMessage: serialize(deposit),
-                  circleBridgeMessage: CircleBridge.serialize(cctp.message),
-                  circleAttestation: cctp.attestation!,
-              })
-            : this.executeFastOrderTx(fastVaaBytes));
+        // TODO: this doesnt make sense, why dont se serialize the fast fill vaa?
+        const txReq = await (FastTransfer.isFastFill(response)
+            ? this.executeFastOrderTx(fastVaaBytes)
+            : this.executeSlowOrderAndRedeemTx(fastVaaBytes, {
+                  encodedWormholeMessage: serialize(response.vaa),
+                  circleBridgeMessage: CircleBridge.serialize(response.cctp.message),
+                  circleAttestation: response.cctp.attestation!,
+              }));
 
         yield this.createUnsignedTx({ ...txReq, from }, "MatchingEngine.settleOrder");
     }

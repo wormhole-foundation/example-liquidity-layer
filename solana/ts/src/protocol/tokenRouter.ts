@@ -9,7 +9,11 @@ import {
     TransactionMessage,
     VersionedTransaction,
 } from "@solana/web3.js";
-import { Payload, TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import {
+    FastTransfer,
+    Payload,
+    TokenRouter,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { ChainId, Network, Platform, toChainId } from "@wormhole-foundation/sdk-base";
 import {
     ChainsConfig,
@@ -202,19 +206,20 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
 
     async *redeemFill(
         sender: AnySolanaAddress,
-        vaa: VAA<"FastTransfer:CctpDeposit">,
-        cctp: CircleBridge.Attestation,
+        orderResponse: FastTransfer.OrderResponse,
         lookupTables?: AddressLookupTableAccount[],
     ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
         const payer = new SolanaAddress(sender).unwrap();
 
-        const postedVaaAddress = this.matchingEngine.pdas.postedVaa(vaa);
+        if (FastTransfer.isFastFill(orderResponse)) throw "Invalid order response";
 
-        const fill = vaa.payload.payload;
+        const { vaa, cctp } = orderResponse;
 
         // Must be a fill payload
+        const fill = vaa.payload.payload;
         if (!Payload.is(fill, "Fill")) throw new Error("Invalid VAA payload");
 
+        const postedVaaAddress = this.matchingEngine.pdas.postedVaa(vaa);
         const ix = await this.redeemCctpFillIx(
             {
                 payer: payer,

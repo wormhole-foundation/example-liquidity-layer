@@ -1,7 +1,10 @@
 import { encoding } from "@wormhole-foundation/sdk-base";
-import { CircleBridge, VAA, deserialize } from "@wormhole-foundation/sdk-definitions";
+import { CircleBridge, VAA, deserialize, serialize } from "@wormhole-foundation/sdk-definitions";
 import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
-import { FastTransfer } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import {
+    FastTransfer,
+    MatchingEngine,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
 export * from "./evm";
 
 export type FastTransferParameters = {
@@ -17,6 +20,19 @@ export type OrderResponse = {
     circleAttestation: Buffer | Uint8Array;
 };
 
+export function encodeOrderResponse(response: FastTransfer.OrderResponse): OrderResponse {
+    return FastTransfer.isFastFill(response)
+        ? {
+              encodedWormholeMessage: serialize(response.vaa),
+              circleAttestation: new Uint8Array(),
+              circleBridgeMessage: new Uint8Array(),
+          }
+        : {
+              encodedWormholeMessage: serialize(response.vaa),
+              circleAttestation: encoding.hex.decode(response.cctp.attestation!),
+              circleBridgeMessage: CircleBridge.serialize(response.cctp.message),
+          };
+}
 export function decodedOrderResponse(response: OrderResponse): FastTransfer.OrderResponse {
     if (response.circleAttestation.length > 0) {
         const [message] = CircleBridge.deserialize(response.circleBridgeMessage);
@@ -24,9 +40,7 @@ export function decodedOrderResponse(response: OrderResponse): FastTransfer.Orde
         const vaa = deserialize("FastTransfer:CctpDeposit", response.encodedWormholeMessage);
         return { vaa, cctp: { message, attestation } };
     }
-
-    throw "no";
-    //return { vaa: deserialize("FastTransfer:FastFill", response.encodedWormholeMessage) };
+    return { vaa: deserialize("FastTransfer:FastFill", response.encodedWormholeMessage) };
 }
 
 export type Endpoint = {

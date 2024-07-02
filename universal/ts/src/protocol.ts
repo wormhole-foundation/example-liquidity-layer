@@ -37,14 +37,17 @@ export namespace FastTransfer {
         cctp?: Contracts["cctp"] & { usdcMint: string };
     };
 
-    export type OrderResponse = {
-        vaa: VAA<"CctpDeposit">; // | VAA<"FastFill">;
-        cctp: CircleBridge.Attestation;
-    };
+    export type Order = VAA<"FastMarketOrder">;
+    export const auctionId = (vaa: Order) => keccak256(vaa.hash);
+
+    export type Fill = { vaa: FastTransfer.VAA<"CctpDeposit">; cctp: CircleBridge.Attestation };
+    export type FastFill = { vaa: FastTransfer.VAA<"FastFill"> };
+
+    export type OrderResponse = Fill | FastFill;
+    export const isFastFill = (response: OrderResponse): response is FastFill =>
+        !("cctp" in response);
 
     export const getPayloadDiscriminator = () => payloadDiscriminator([protocolName, messageNames]);
-
-    export const auctionId = (vaa: VAA<"FastMarketOrder">) => keccak256(vaa.hash);
 }
 
 export interface FastTransfer<N extends Network, C extends Chain> {
@@ -102,33 +105,30 @@ export interface MatchingEngine<N extends Network, C extends Chain> {
     // the first offer for the fast transfer and inits an auction
     placeInitialOffer(
         sender: AccountAddress<C>,
-        vaa: VAA<"FastTransfer:FastMarketOrder">,
+        vaa: FastTransfer.Order,
         offerPrice: bigint,
         totalDeposit?: bigint,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
     // improve the offer below previous offers
     improveOffer(
         sender: AccountAddress<C>,
-        vaa: VAA<"FastTransfer:FastMarketOrder">,
+        order: FastTransfer.Order,
         offer: bigint,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
     // Order
     executeFastOrder(
         sender: AccountAddress<C>,
-        vaa: VAA<"FastTransfer:FastMarketOrder">,
+        order: FastTransfer.Order,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
     prepareOrderResponse(
         sender: AccountAddress<C>,
-        vaa: VAA<"FastTransfer:FastMarketOrder">,
-        deposit: VAA<"FastTransfer:CctpDeposit">,
-        cctp: CircleBridge.Attestation,
+        order: FastTransfer.Order,
+        response: FastTransfer.OrderResponse,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
     settleOrder(
         sender: AccountAddress<C>,
-        fast: VAA<"FastTransfer:FastMarketOrder">,
-        // TODO: should these be a single param so they're either set or not?
-        deposit?: VAA<"FastTransfer:CctpDeposit">,
-        cctp?: CircleBridge.Attestation,
+        order: FastTransfer.Order,
+        response: FastTransfer.OrderResponse,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
 }
 
@@ -169,8 +169,7 @@ export interface TokenRouter<N extends Network, C extends Chain> {
 
     redeemFill(
         sender: AccountAddress<C>,
-        vaa: FastTransfer.VAA,
-        cctp: CircleBridge.Attestation,
+        orderResponse: FastTransfer.OrderResponse,
     ): AsyncGenerator<UnsignedTransaction<N, C>>;
 }
 

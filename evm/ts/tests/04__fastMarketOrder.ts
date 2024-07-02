@@ -1,3 +1,16 @@
+import {
+    FastTransfer,
+    MatchingEngine,
+    TokenRouter,
+    payloadIds,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { encoding } from "@wormhole-foundation/sdk-base";
+import {
+    deserialize,
+    keccak256,
+    serialize,
+    toUniversal,
+} from "@wormhole-foundation/sdk-definitions";
 import { expect } from "chai";
 import { ethers } from "ethers";
 import {
@@ -28,24 +41,9 @@ import {
     parseLiquidityLayerEnvFile,
     signSendMineWait,
     signSendOnly,
-    sleep,
     toContractAddresses,
 } from "../src/testing";
 import { IERC20__factory } from "../src/types";
-
-import {
-    FastTransfer,
-    TokenRouter,
-    payloadIds,
-} from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { encoding } from "@wormhole-foundation/sdk-base";
-import {
-    CircleBridge,
-    deserialize,
-    keccak256,
-    serialize,
-    toUniversal,
-} from "@wormhole-foundation/sdk-definitions";
 
 // Cannot send a fast market order from the matching engine chain.
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
@@ -66,18 +64,16 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
     // Matching Engine configuration.
     const engineProvider = new ethers.JsonRpcProvider(LOCALHOSTS[MATCHING_ENGINE_NAME]);
-    const engineWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[2], engineProvider);
     const engineEnv = parseLiquidityLayerEnvFile(`${envPath}/${MATCHING_ENGINE_NAME}.env`);
 
-    const engine = (() => {
-        if (engineEnv.chainType !== "Evm") throw new Error("Unsupported chain");
-        return new EvmMatchingEngine(
-            "Devnet",
-            MATCHING_ENGINE_NAME,
-            engineProvider,
-            toContractAddresses(engineEnv),
-        );
-    })();
+    if (engineEnv.chainType !== "Evm") throw new Error("Unsupported chain");
+
+    const engine = new EvmMatchingEngine(
+        "Devnet",
+        MATCHING_ENGINE_NAME,
+        engineProvider,
+        toContractAddresses(engineEnv),
+    );
 
     // Auction participants.
     const { wallet: initialBidder, signer: initialBidderSigner } = getSigners(
@@ -140,14 +136,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     }
 
                     const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
-
                     await burnAllUsdc(usdc);
-
-                    await mintNativeUsdc(
-                        IERC20__factory.connect(fromEnv.tokenAddress, fromProvider),
-                        fromWallet.address,
-                        TEST_AMOUNT,
-                    );
+                    await mintNativeUsdc(usdc, fromWallet.address, TEST_AMOUNT);
                 });
 
                 after(`Burn USDC`, async () => {
@@ -204,12 +194,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const circleBridgeMessage = transactionResult.circleMessage!;
                     const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
-                    const redeemParameters: OrderResponse = {
-                        encodedWormholeMessage: slowOrderResponse,
-                        circleBridgeMessage,
-                        circleAttestation,
-                    };
-                    localVariables.set("redeemParameters", redeemParameters);
+                    localVariables.set(
+                        "redeemParameters",
+                        decodedOrderResponse({
+                            encodedWormholeMessage: slowOrderResponse,
+                            circleBridgeMessage,
+                            circleAttestation,
+                        }),
+                    );
                     localVariables.set(
                         "fastVaa",
                         deserialize("FastTransfer:FastMarketOrder", fastVaa),
@@ -217,9 +209,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Start Fast Order Auction`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
 
                     const auctionId = FastTransfer.auctionId(fastVaa);
 
@@ -268,9 +258,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Fast Order Auction Period`, async () => {
-                    const vaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const vaa = localVariables.get("fastVaa") as FastTransfer.Order;
 
                     const auctionId = FastTransfer.auctionId(vaa);
                     const auctionInfoBefore = await engine.liveAuctionInfo(auctionId);
@@ -309,8 +297,6 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         await mintNativeUsdc(usdc, player.address, initialDeposit, false);
 
                         bids[i].balance = await usdc.balanceOf(player.address);
-
-                        //await sleep(1);
 
                         const txs = engine.improveOffer(player.address, vaa, bids[i].bid);
                         await signSendOnly(txs, playerSigner);
@@ -354,9 +340,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Execute Fast Order Within Grace Period`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
                     const auctionId = FastTransfer.auctionId(fastVaa);
 
                     await mineToGracePeriod(auctionId, engine, engineProvider);
@@ -428,22 +412,22 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         };
                     }
 
-                    localVariables.set("fastOrderResponse", orderResponse);
+                    localVariables.set("fastOrderResponse", decodedOrderResponse(orderResponse));
                 });
 
                 it(`To Network -- Redeem Fill`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
                     const auctionId = FastTransfer.auctionId(fastVaa);
-                    const orderResponse = localVariables.get("fastOrderResponse") as OrderResponse;
+
+                    const orderResponse = localVariables.get(
+                        "fastOrderResponse",
+                    ) as FastTransfer.OrderResponse;
                     expect(localVariables.delete("fastOrderResponse")).is.true;
 
                     const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                    const { vaa, cctp } = decodedOrderResponse(orderResponse);
-                    const txs = toTokenRouter.redeemFill(toWallet.address, vaa, cctp);
+                    const txs = toTokenRouter.redeemFill(toWallet.address, orderResponse);
                     await signSendMineWait(txs, toSigner);
 
                     // Validate balance changes.
@@ -457,13 +441,15 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Execute Slow Vaa And Redeem`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
-                    const auctionId = FastTransfer.auctionId(fastVaa);
-                    const params = localVariables.get("redeemParameters") as OrderResponse;
-                    expect(localVariables.delete("redeemParameters")).is.true;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
                     expect(localVariables.delete("fastVaa")).is.true;
+
+                    const orderResponse = localVariables.get(
+                        "redeemParameters",
+                    ) as FastTransfer.Fill;
+                    expect(localVariables.delete("redeemParameters")).is.true;
+
+                    const auctionId = FastTransfer.auctionId(fastVaa);
 
                     // Fetch balance of player four since they were the highest bidder.
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
@@ -472,8 +458,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         .liveAuctionInfo(auctionId)
                         .then((info) => info.amount);
 
-                    const { vaa: cctpVaa, cctp } = decodedOrderResponse(params);
-                    const txs = engine.settleOrder(highestBidder.address, fastVaa, cctpVaa, cctp);
+                    const txs = engine.settleOrder(highestBidder.address, fastVaa, orderResponse);
                     await signSendMineWait(txs, highestBidderSigner);
 
                     const balanceAfter = await usdc.balanceOf(highestBidder.address);
@@ -551,12 +536,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const circleBridgeMessage = transactionResult.circleMessage!;
                     const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
-                    const redeemParameters: OrderResponse = {
-                        encodedWormholeMessage: slowOrderResponse,
-                        circleBridgeMessage,
-                        circleAttestation,
-                    };
-                    localVariables.set("redeemParameters", redeemParameters);
+                    localVariables.set(
+                        "redeemParameters",
+                        decodedOrderResponse({
+                            encodedWormholeMessage: slowOrderResponse,
+                            circleBridgeMessage,
+                            circleAttestation,
+                        }),
+                    );
                     localVariables.set(
                         "fastVaa",
                         deserialize("FastTransfer:FastMarketOrder", fastVaa),
@@ -564,9 +551,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Start Fast Order Auction`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
 
                     // Parse the vaa, we will need the hash for later.
                     const auctionId = FastTransfer.auctionId(fastVaa);
@@ -609,9 +594,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Fast Order Auction Period`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
                     const auctionId = FastTransfer.auctionId(fastVaa);
 
                     const auctionInfoBefore = await engine.liveAuctionInfo(auctionId);
@@ -645,9 +628,6 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         const player = bids[i].player;
                         const usdc = IERC20__factory.connect(engineEnv.tokenAddress, player);
                         await mintNativeUsdc(usdc, player.address, initialDeposit, false);
-
-                        // give it time to hit the mempool
-                        await sleep(1);
 
                         bids[i].balance = await usdc.balanceOf(player.address);
 
@@ -692,9 +672,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Execute Fast Order As Liquidator (After Grace Period Ends)`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
                     const auctionId = FastTransfer.auctionId(fastVaa);
 
                     // Mine 50% of the way through the penalty period.
@@ -776,44 +754,40 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         receipt!,
                     );
 
-                    let orderResponse: OrderResponse;
-                    if (toChainName == MATCHING_ENGINE_NAME) {
-                        orderResponse = {
-                            encodedWormholeMessage: signedVaa,
-                            circleBridgeMessage: Buffer.from(""),
-                            circleAttestation: Buffer.from(""),
-                        };
-                    } else {
-                        const circleBridgeMessage = transactionResult.circleMessage!;
-                        const circleAttestation =
-                            circleAttester.createAttestation(circleBridgeMessage);
+                    const orderResponse =
+                        toChainName === MATCHING_ENGINE_NAME
+                            ? {
+                                  encodedWormholeMessage: signedVaa,
+                                  circleBridgeMessage: Buffer.from(""),
+                                  circleAttestation: Buffer.from(""),
+                              }
+                            : {
+                                  encodedWormholeMessage: signedVaa,
+                                  circleBridgeMessage: transactionResult.circleMessage!,
+                                  circleAttestation: circleAttester.createAttestation(
+                                      transactionResult.circleMessage!,
+                                  ),
+                              };
 
-                        orderResponse = {
-                            encodedWormholeMessage: signedVaa,
-                            circleBridgeMessage,
-                            circleAttestation,
-                        };
-                    }
-
-                    localVariables.set("fastOrderResponse", orderResponse);
+                    localVariables.set("fastOrderResponse", decodedOrderResponse(orderResponse));
                     localVariables.set("reward", reward);
                 });
 
                 it(`To Network -- Redeem Fill`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
                     const auctionId = FastTransfer.auctionId(fastVaa);
-                    const orderResponse = localVariables.get("fastOrderResponse") as OrderResponse;
+                    const orderResponse = localVariables.get(
+                        "fastOrderResponse",
+                    ) as FastTransfer.OrderResponse;
+                    expect(localVariables.delete("fastOrderResponse")).is.true;
+
                     const reward = localVariables.get("reward") as string;
                     expect(localVariables.delete("reward")).is.true;
-                    expect(localVariables.delete("fastOrderResponse")).is.true;
 
                     const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                    const { vaa, cctp } = decodedOrderResponse(orderResponse);
-                    const txs = toTokenRouter.redeemFill(toWallet.address, vaa, cctp);
+                    const txs = toTokenRouter.redeemFill(toWallet.address, orderResponse);
                     await signSendMineWait(txs, toSigner);
 
                     // Validate balance changes.
@@ -831,12 +805,13 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Execute Slow Vaa And Redeem`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
-                    const params = localVariables.get("redeemParameters") as OrderResponse;
-                    expect(localVariables.delete("redeemParameters")).is.true;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
                     expect(localVariables.delete("fastVaa")).is.true;
+
+                    const orderResponse = localVariables.get(
+                        "redeemParameters",
+                    ) as FastTransfer.Fill;
+                    expect(localVariables.delete("redeemParameters")).is.true;
 
                     // Fetch balance of player four since they were the highest bidder.
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
@@ -845,13 +820,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         .liveAuctionInfo(FastTransfer.auctionId(fastVaa))
                         .then((info) => info.amount);
 
-                    const { vaa: cctpVaa, cctp } = decodedOrderResponse(params);
-                    const txs = engine.settleOrder(
-                        highestBidderSigner.address(),
-                        fastVaa,
-                        cctpVaa,
-                        cctp,
-                    );
+                    const txs = engine.settleOrder(highestBidder.address, fastVaa, orderResponse);
                     await signSendMineWait(txs, highestBidderSigner);
 
                     const balanceAfter = await usdc.balanceOf(highestBidder.address);
@@ -930,12 +899,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const circleBridgeMessage = transactionResult.circleMessage!;
                     const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
-                    const redeemParameters: OrderResponse = {
-                        encodedWormholeMessage: slowOrderResponse,
-                        circleBridgeMessage,
-                        circleAttestation,
-                    };
-                    localVariables.set("redeemParameters", redeemParameters);
+                    localVariables.set(
+                        "redeemParameters",
+                        decodedOrderResponse({
+                            encodedWormholeMessage: slowOrderResponse,
+                            circleBridgeMessage,
+                            circleAttestation,
+                        }),
+                    );
                     localVariables.set(
                         "fastVaa",
                         deserialize("FastTransfer:FastMarketOrder", fastVaa),
@@ -943,17 +914,16 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Execute Slow Vaa And Redeem`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
-                    const params = localVariables.get("redeemParameters") as OrderResponse;
-                    expect(localVariables.delete("redeemParameters")).is.true;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
                     expect(localVariables.delete("fastVaa")).is.true;
 
                     // NOTE: Imagine that several minutes have passed, and no auction has been started :).
+                    const orderResponse = localVariables.get(
+                        "redeemParameters",
+                    ) as FastTransfer.Fill;
+                    expect(localVariables.delete("redeemParameters")).is.true;
 
-                    const { vaa: slowVaa, cctp } = decodedOrderResponse(params);
-                    const deposit = slowVaa.payload;
+                    const deposit = orderResponse.vaa.payload;
                     if (deposit.payload.id !== payloadIds("SlowOrderResponse"))
                         throw new Error("Invalid message type");
 
@@ -963,7 +933,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
                     const feeRecipientBefore = await usdc.balanceOf(engineEnv.feeRecipient!);
 
-                    const txs = engine.settleOrder(initialBidder.address, fastVaa, slowVaa, cctp);
+                    const txs = engine.settleOrder(initialBidder.address, fastVaa, orderResponse);
                     const receipt = await signSendMineWait(txs, initialBidderSigner);
 
                     // Balance check.
@@ -994,9 +964,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         receipt!,
                     );
 
-                    let orderResponse: OrderResponse;
+                    let fastOrderResponse: OrderResponse;
                     if (toChainName == MATCHING_ENGINE_NAME) {
-                        orderResponse = {
+                        fastOrderResponse = {
                             encodedWormholeMessage: signedVaa,
                             circleBridgeMessage: Buffer.from(""),
                             circleAttestation: Buffer.from(""),
@@ -1005,8 +975,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         const circleBridgeMessage = transactionResult.circleMessage!;
                         const circleAttestation =
                             circleAttester.createAttestation(circleBridgeMessage);
-
-                        orderResponse = {
+                        fastOrderResponse = {
                             encodedWormholeMessage: signedVaa,
                             circleBridgeMessage,
                             circleAttestation,
@@ -1014,27 +983,31 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     }
 
                     // Confirm that the auction was market as complete.
-                    const auctionId = FastTransfer.auctionId(fastVaa);
                     const auctionStatus = await engine
-                        .liveAuctionInfo(auctionId)
+                        .liveAuctionInfo(FastTransfer.auctionId(fastVaa))
                         .then((info) => info.status);
                     expect(auctionStatus).to.eql(2n);
 
-                    localVariables.set("fastOrderResponse", orderResponse);
+                    localVariables.set(
+                        "fastOrderResponse",
+                        decodedOrderResponse(fastOrderResponse),
+                    );
                     localVariables.set("baseFee", baseFee);
                 });
 
                 it(`To Network -- Redeem Fill`, async () => {
-                    const orderResponse = localVariables.get("fastOrderResponse") as OrderResponse;
-                    const baseFee = localVariables.get("baseFee") as bigint;
+                    const orderResponse = localVariables.get(
+                        "fastOrderResponse",
+                    ) as FastTransfer.OrderResponse;
                     expect(localVariables.delete("fastOrderResponse")).is.true;
+
+                    const baseFee = localVariables.get("baseFee") as bigint;
                     expect(localVariables.delete("baseFee")).is.true;
 
                     const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                    const { vaa, cctp } = decodedOrderResponse(orderResponse);
-                    const txs = toTokenRouter.redeemFill(toWallet.address, vaa, cctp);
+                    const txs = toTokenRouter.redeemFill(toWallet.address, orderResponse);
                     await signSendMineWait(txs, toSigner);
 
                     // Validate balance changes.
@@ -1122,12 +1095,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const circleBridgeMessage = transactionResult.circleMessage!;
                     const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
-                    const redeemParameters: OrderResponse = {
-                        encodedWormholeMessage: slowOrderResponse,
-                        circleBridgeMessage,
-                        circleAttestation,
-                    };
-                    localVariables.set("redeemParameters", redeemParameters);
+                    localVariables.set(
+                        "redeemParameters",
+                        decodedOrderResponse({
+                            encodedWormholeMessage: slowOrderResponse,
+                            circleBridgeMessage,
+                            circleAttestation,
+                        }),
+                    );
                     localVariables.set(
                         "fastVaa",
                         deserialize("FastTransfer:FastMarketOrder", fastVaa),
@@ -1135,16 +1110,10 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Attempt to Start Auction After Deadline`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
-
-                    // Parse the vaa, we will need the hash for later.
-                    const auctionId = FastTransfer.auctionId(fastVaa);
-
-                    const { amountIn, maxFee } = fastVaa.payload;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
 
                     // Security deposit amount of the initial bid.
+                    const { amountIn, maxFee } = fastVaa.payload;
                     const initialDeposit = amountIn + maxFee;
 
                     // Prepare usdc for the auction.
@@ -1155,7 +1124,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         .then((tx) => mineWait(engineProvider, tx));
 
                     let failedGracefully = false;
-                    const receipt = await engine
+                    await engine
                         .connect(initialBidder.provider!)
                         .placeInitialBidTx(serialize(fastVaa), maxFee)
                         .then(async (txReq) => await initialBidder.sendTransaction(txReq))
@@ -1170,28 +1139,27 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Execute Slow Vaa And Redeem`, async () => {
-                    const fastVaa = localVariables.get(
-                        "fastVaa",
-                    ) as FastTransfer.VAA<"FastMarketOrder">;
-                    const params = localVariables.get("redeemParameters") as OrderResponse;
-                    expect(localVariables.delete("redeemParameters")).is.true;
+                    const fastVaa = localVariables.get("fastVaa") as FastTransfer.Order;
                     expect(localVariables.delete("fastVaa")).is.true;
 
                     // NOTE: Imagine that several minutes have passed, and no auction has been started :).
 
-                    const { vaa: slowVaa, cctp } = decodedOrderResponse(params);
+                    const orderResponse = localVariables.get(
+                        "redeemParameters",
+                    ) as FastTransfer.Fill;
+                    expect(localVariables.delete("redeemParameters")).is.true;
 
-                    if (slowVaa.payload.payload.id !== payloadIds("SlowOrderResponse"))
+                    if (orderResponse.vaa.payload.payload.id !== payloadIds("SlowOrderResponse"))
                         throw new Error("Invalid message type");
 
                     // Parse the slow VAA for the baseFee and amount
-                    const { baseFee } = slowVaa.payload.payload;
+                    const { baseFee } = orderResponse.vaa.payload.payload;
 
                     // Use player one as the relayer.
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
                     const feeRecipientBefore = await usdc.balanceOf(engineEnv.feeRecipient!);
 
-                    const txs = engine.settleOrder(initialBidder.address, fastVaa, slowVaa, cctp);
+                    const txs = engine.settleOrder(initialBidder.address, fastVaa, orderResponse);
                     const receipt = await signSendMineWait(txs, initialBidderSigner);
 
                     // Balance check.
@@ -1222,9 +1190,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         receipt!,
                     );
 
-                    let orderResponse: OrderResponse;
+                    let fastOrderResponse: OrderResponse;
                     if (toChainName == MATCHING_ENGINE_NAME) {
-                        orderResponse = {
+                        fastOrderResponse = {
                             encodedWormholeMessage: signedVaa,
                             circleBridgeMessage: Buffer.from(""),
                             circleAttestation: Buffer.from(""),
@@ -1234,7 +1202,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         const circleAttestation =
                             circleAttester.createAttestation(circleBridgeMessage);
 
-                        orderResponse = {
+                        fastOrderResponse = {
                             encodedWormholeMessage: signedVaa,
                             circleBridgeMessage,
                             circleAttestation,
@@ -1248,21 +1216,26 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         .then((info) => info.status);
                     expect(auctionStatus).to.eql(2n);
 
-                    localVariables.set("fastOrderResponse", orderResponse);
+                    localVariables.set(
+                        "fastOrderResponse",
+                        decodedOrderResponse(fastOrderResponse),
+                    );
                     localVariables.set("baseFee", baseFee);
                 });
 
                 it(`To Network -- Redeem Fill`, async () => {
-                    const orderResponse = localVariables.get("fastOrderResponse") as OrderResponse;
-                    const baseFee = localVariables.get("baseFee") as bigint;
+                    const orderResponse = localVariables.get(
+                        "fastOrderResponse",
+                    ) as FastTransfer.OrderResponse;
                     expect(localVariables.delete("fastOrderResponse")).is.true;
+
+                    const baseFee = localVariables.get("baseFee") as bigint;
                     expect(localVariables.delete("baseFee")).is.true;
 
                     const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                    const { vaa: slowVaa, cctp } = decodedOrderResponse(orderResponse);
-                    const txs = toTokenRouter.redeemFill(toWallet.address, slowVaa, cctp);
+                    const txs = toTokenRouter.redeemFill(toWallet.address, orderResponse);
                     await signSendMineWait(txs, toSigner);
 
                     // Validate balance changes.
