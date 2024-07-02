@@ -143,8 +143,8 @@ export class EvmMatchingEngine<N extends Network, C extends EvmChains>
             ? this.executeFastOrderTx(fastVaaBytes)
             : this.executeSlowOrderAndRedeemTx(fastVaaBytes, {
                   encodedWormholeMessage: serialize(response.vaa),
-                  circleBridgeMessage: CircleBridge.serialize(response.cctp.message),
-                  circleAttestation: response.cctp.attestation!,
+                  circleBridgeMessage: CircleBridge.serialize(response.cctp!.message),
+                  circleAttestation: response.cctp!.attestation!,
               }));
 
         yield this.createUnsignedTx({ ...txReq, from }, "MatchingEngine.settleOrder");

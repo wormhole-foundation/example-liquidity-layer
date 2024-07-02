@@ -3561,14 +3561,18 @@ describe("Matching Engine", function () {
                     const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                         lookupTableAddress,
                     );
-                    const tx2 = engine.settleOrder(
-                        playerTwo.publicKey,
-                        fast.vaaAccount.vaa("FastTransfer:FastMarketOrder"),
-                        finalized!.vaaAccount.vaa("FastTransfer:CctpDeposit"),
-                        {
+
+                    const response = {
+                        vaa: finalized!.vaaAccount.vaa("FastTransfer:CctpDeposit"),
+                        cctp: {
                             message: cctpMessage,
                             attestation: cctpAttestation.toString("hex"),
                         },
+                    };
+                    const tx2 = engine.settleOrder(
+                        playerTwo.publicKey,
+                        fast.vaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                        response,
                         [lookupTableAccount!],
                     );
 
@@ -4406,8 +4410,10 @@ describe("Matching Engine", function () {
         const txs = engine.prepareOrderResponse(
             accounts.payer,
             fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
-            finalizedVaaAccount.vaa("FastTransfer:CctpDeposit"),
-            { message: cctpMessage, attestation: cctpAttestation },
+            {
+                vaa: finalizedVaaAccount.vaa("FastTransfer:CctpDeposit"),
+                cctp: { message: cctpMessage, attestation: cctpAttestation },
+            },
             [lookupTableAccount!],
         );
 
@@ -4524,12 +4530,13 @@ describe("Matching Engine", function () {
             throw new Error("preparedInSameTransaction not implemented");
         }
 
-        const { fastVaa, finalizedVaa, preparedOrderResponse } = await (async () => {
+        const { fastVaa, finalizedVaa, preparedOrderResponse, args } = await (async () => {
             if (accounts.preparedOrderResponse !== undefined) {
                 return {
                     fastVaa: null,
                     finalizedVaa: null,
                     preparedOrderResponse: accounts.preparedOrderResponse,
+                    args: opts.args,
                 };
             } else {
                 const result = await prepareOrderResponseCctpForTest(
@@ -4550,13 +4557,12 @@ describe("Matching Engine", function () {
 
         const executor = accounts.executor ?? playerOne.publicKey;
 
-        const ix = await engine.settleAuctionCompleteIx({
-            ...accounts,
-            executor,
-            preparedOrderResponse,
-        });
-
         if (errorMsg !== null) {
+            const ix = await engine.settleAuctionCompleteIx({
+                ...accounts,
+                executor,
+                preparedOrderResponse,
+            });
             return expectIxErr(connection, [ix], unwrapSigners(signers), errorMsg);
         }
 
@@ -4607,9 +4613,12 @@ describe("Matching Engine", function () {
             .getAccountInfo(preparedCustodyToken)
             .then((info) => info!.lamports);
 
+        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
+
         const txs = engine.settleOrder(
             executor,
             fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+            { vaa: finalizedVaaAccount.vaa("FastTransfer:CctpDeposit") },
         );
 
         const signer = executorIsPreparer ? prepareSigners[0] : payerSigner;
@@ -4629,7 +4638,6 @@ describe("Matching Engine", function () {
             bestOfferToken,
         );
 
-        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
         const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
         const { baseFee } = deposit!.message.payload! as SlowOrderResponse;
 
@@ -4692,12 +4700,13 @@ describe("Matching Engine", function () {
             throw new Error("preparedInSameTransaction not implemented");
         }
 
-        const { fastVaa, finalizedVaa, preparedOrderResponse } = await (async () => {
+        const { fastVaa, finalizedVaa, preparedOrderResponse, args } = await (async () => {
             if (accounts.fastVaa !== undefined && accounts.preparedOrderResponse !== undefined) {
                 return {
                     fastVaa: accounts.fastVaa,
                     finalizedVaa: null,
                     preparedOrderResponse: accounts.preparedOrderResponse,
+                    args: opts.args,
                 };
             } else {
                 const result = await prepareOrderResponseCctpForTest(
@@ -4713,6 +4722,7 @@ describe("Matching Engine", function () {
                     finalizedVaa: result!.finalizedVaa,
                     preparedOrderResponse:
                         accounts.preparedOrderResponse ?? result!.preparedOrderResponse,
+                    args: result!.args ?? opts.args,
                 };
             }
         })();
@@ -4721,14 +4731,21 @@ describe("Matching Engine", function () {
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
 
-        let finalizedVaaAccount = finalizedVaa
-            ? await VaaAccount.fetch(connection, finalizedVaa)
+        const cctp = args
+            ? {
+                  message: CircleBridge.deserialize(args!.encodedCctpMessage!)[0],
+                  attestation: encoding.hex.encode(args!.cctpAttestation, true),
+              }
             : undefined;
 
+        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa!);
         const txs = engine.settleOrder(
             accounts.payer,
             fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
-            finalizedVaaAccount?.vaa("FastTransfer:CctpDeposit"),
+            {
+                vaa: finalizedVaaAccount.vaa("FastTransfer:CctpDeposit"),
+                cctp,
+            },
         );
 
         if (errorMsg !== null) {

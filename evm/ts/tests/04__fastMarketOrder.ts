@@ -1090,15 +1090,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(signedVaas.length).to.eql(2);
 
                     // The first message is the slow CCTP transfer.
-                    const [slowOrderResponse, fastVaa] = signedVaas;
-
+                    const [encodedWormholeMessage, fastVaa] = signedVaas;
                     const circleBridgeMessage = transactionResult.circleMessage!;
                     const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
                     localVariables.set(
                         "redeemParameters",
                         decodedOrderResponse({
-                            encodedWormholeMessage: slowOrderResponse,
+                            encodedWormholeMessage,
                             circleBridgeMessage,
                             circleAttestation,
                         }),

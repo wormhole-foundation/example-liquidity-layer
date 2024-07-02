@@ -1741,10 +1741,12 @@ describe("Token Router", function () {
 
                 const txs = tokenRouter.redeemFill(
                     payer.publicKey,
-                    mockVaa,
                     {
-                        message: cctpMessage,
-                        attestation: cctpAttestation.toString("hex"),
+                        vaa: mockVaa,
+                        cctp: {
+                            message: cctpMessage,
+                            attestation: cctpAttestation.toString("hex"),
+                        },
                     },
                     [lookupTableAccount!],
                 );

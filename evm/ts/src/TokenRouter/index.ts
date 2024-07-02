@@ -29,8 +29,8 @@ export function encodeOrderResponse(response: FastTransfer.OrderResponse): Order
           }
         : {
               encodedWormholeMessage: serialize(response.vaa),
-              circleAttestation: encoding.hex.decode(response.cctp.attestation!),
-              circleBridgeMessage: CircleBridge.serialize(response.cctp.message),
+              circleAttestation: encoding.hex.decode(response.cctp!.attestation!),
+              circleBridgeMessage: CircleBridge.serialize(response.cctp!.message),
           };
 }
 export function decodedOrderResponse(response: OrderResponse): FastTransfer.OrderResponse {

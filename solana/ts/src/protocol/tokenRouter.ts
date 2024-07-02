@@ -229,8 +229,8 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
                 ),
             },
             {
-                encodedCctpMessage: Buffer.from(CircleBridge.serialize(cctp.message)),
-                cctpAttestation: Buffer.from(cctp.attestation!, "hex"),
+                encodedCctpMessage: Buffer.from(CircleBridge.serialize(cctp!.message)),
+                cctpAttestation: Buffer.from(cctp!.attestation!, "hex"),
             },
         );
 

@@ -40,12 +40,12 @@ export namespace FastTransfer {
     export type Order = VAA<"FastMarketOrder">;
     export const auctionId = (vaa: Order) => keccak256(vaa.hash);
 
-    export type Fill = { vaa: FastTransfer.VAA<"CctpDeposit">; cctp: CircleBridge.Attestation };
+    export type Fill = { vaa: FastTransfer.VAA<"CctpDeposit">; cctp?: CircleBridge.Attestation };
     export type FastFill = { vaa: FastTransfer.VAA<"FastFill"> };
 
     export type OrderResponse = Fill | FastFill;
     export const isFastFill = (response: OrderResponse): response is FastFill =>
-        !("cctp" in response);
+        response.vaa.payloadName === "FastFill";
 
     export const getPayloadDiscriminator = () => payloadDiscriminator([protocolName, messageNames]);
 }
