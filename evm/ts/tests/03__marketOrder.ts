@@ -9,14 +9,13 @@ import {
     LOCALHOSTS,
     ValidNetwork,
     WALLET_PRIVATE_KEYS,
+    asUniversalBytes,
     burnAllUsdc,
     getSdkSigner,
-    mineWait,
     mintNativeUsdc,
     parseLiquidityLayerEnvFile,
     signSendMineWait,
     toContractAddresses,
-    tryNativeToUint8Array,
 } from "../src/testing";
 import { IERC20__factory } from "../src/types";
 
@@ -44,7 +43,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
             // From setup.
             const fromProvider = new ethers.JsonRpcProvider(LOCALHOSTS[fromChainName]);
             const fromWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], fromProvider);
-            const fromSigner = getSdkSigner(fromChainName, fromWallet);
+            const fromSigner = getSdkSigner(fromChainName, new ethers.NonceManager(fromWallet));
 
             const fromEnv = parseLiquidityLayerEnvFile(`${envPath}/${fromChainName}.env`);
             const fromTokenRouter = (() => {
@@ -98,26 +97,18 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
 
             it(`From Network -- Place Market Order`, async () => {
                 const amountIn = await (async () => {
-                    if (fromEnv.chainType == "Evm") {
-                        const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
-                        const amount = await usdc.balanceOf(fromWallet.address);
-                        await usdc
-                            .approve(fromTokenRouter.address, amount)
-                            .then((tx) => mineWait(fromProvider, tx));
-
-                        return BigInt(amount.toString());
-                    } else {
-                        throw new Error("Unsupported chain");
-                    }
+                    if (fromEnv.chainType !== "Evm") throw new Error("Unsupported chain");
+                    return await IERC20__factory.connect(
+                        fromEnv.tokenAddress,
+                        fromWallet,
+                    ).balanceOf(fromWallet.address);
                 })();
                 localVariables.set("amountIn", amountIn);
 
-                const minAmountOut = BigInt(0);
-                const redeemer = toNative("Ethereum", toWallet.address).toUniversalAddress();
                 const order: TokenRouter.OrderRequest = {
                     amountIn,
-                    minAmountOut,
-                    redeemer,
+                    minAmountOut: BigInt(0),
+                    redeemer: toNative("Ethereum", toWallet.address).toUniversalAddress(),
                     targetChain: toChainName,
                 };
 
@@ -128,7 +119,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 );
 
                 expect(transactionResult.wormhole.emitterAddress).to.eql(
-                    tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName),
+                    asUniversalBytes(fromEnv.tokenRouterAddress),
                 );
                 expect(transactionResult.wormhole.message.body).has.property("fill");
                 expect(transactionResult.circleMessage).is.not.undefined;
@@ -159,7 +150,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
 
                 const { vaa, cctp } = decodedOrderResponse(orderResponse);
                 const txs = toTokenRouter.redeemFill(toWallet.address, vaa, cctp);
-                const receipt = await signSendMineWait(txs, toSigner);
+                await signSendMineWait(txs, toSigner);
 
                 const balanceAfter = await usdc.balanceOf(toWallet.address);
 

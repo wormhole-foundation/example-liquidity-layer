@@ -15,6 +15,7 @@ import {
 } from "@wormhole-foundation/sdk-evm";
 import { ethers } from "ethers";
 import { TokenRouter as _TokenRouter } from "../TokenRouter";
+import { IUSDC__factory } from "../types";
 
 export class EvmTokenRouter<N extends Network, C extends EvmChains>
     extends _TokenRouter
@@ -29,6 +30,22 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
         super(provider, contracts.tokenRouter, contracts.cctp.tokenMessenger);
     }
 
+    async *approveAllowance(sender: AnyEvmAddress, amount: bigint) {
+        const from = new EvmAddress(sender).unwrap();
+
+        const tokenContract = IUSDC__factory.connect(this.contracts.cctp.usdcMint, this.provider);
+        const allowed = await tokenContract.allowance(from, this.address);
+
+        if (amount > allowed) {
+            const txReq = await tokenContract.approve.populateTransaction(this.address, amount);
+            yield this.createUnsignedTx(
+                { ...txReq, from },
+                "MatchingEngine.approveAllowance",
+                false,
+            );
+        }
+    }
+
     async *placeMarketOrder(sender: AnyEvmAddress, order: TokenRouter.OrderRequest) {
         const from = new EvmAddress(sender).unwrap();
         const msg = order.redeemerMessage ? order.redeemerMessage : new Uint8Array();
@@ -36,6 +53,8 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
         const refundAddress = order.refundAddress
             ? new EvmAddress(order.refundAddress).unwrap()
             : undefined;
+
+        yield* this.approveAllowance(sender, order.amountIn + (order.maxFee || 0n));
 
         const txReq = await this.placeMarketOrderTx(
             order.amountIn,
@@ -56,6 +75,9 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
         const refundAddress = order.refundAddress
             ? new EvmAddress(order.refundAddress).unwrap()
             : undefined;
+
+        // If necessary, approve the amountIn to be spent by the TokenRouter.
+        yield* this.approveAllowance(sender, order.amountIn + (order.maxFee || 0n));
 
         const txReq = await this.placeFastMarketOrderTx(
             order.amountIn,
