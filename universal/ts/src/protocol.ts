@@ -8,6 +8,7 @@ import {
     ProtocolVAA,
     UnsignedTransaction,
     VAA,
+    keccak256,
     payloadDiscriminator,
 } from "@wormhole-foundation/sdk-definitions";
 import { FastMarketOrder, MessageName, messageNames } from "./messages";
@@ -37,6 +38,8 @@ export namespace FastTransfer {
     };
 
     export const getPayloadDiscriminator = () => payloadDiscriminator([protocolName, messageNames]);
+
+    export const auctionId = (vaa: VAA<"FastMarketOrder">) => keccak256(vaa.hash);
 }
 
 export interface FastTransfer<N extends Network, C extends Chain> {

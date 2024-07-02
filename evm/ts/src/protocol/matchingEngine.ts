@@ -1,4 +1,7 @@
-import { MatchingEngine } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import {
+    FastTransfer,
+    MatchingEngine,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, Network } from "@wormhole-foundation/sdk-base";
 import {
     AccountAddress,
@@ -6,7 +9,6 @@ import {
     Contracts,
     UnsignedTransaction,
     VAA,
-    keccak256,
     serialize,
 } from "@wormhole-foundation/sdk-definitions";
 import {
@@ -103,7 +105,7 @@ export class EvmMatchingEngine<N extends Network, C extends EvmChains>
     ) {
         const from = new EvmAddress(sender).unwrap();
 
-        const auctionId = keccak256(vaa.hash);
+        const auctionId = FastTransfer.auctionId(vaa);
 
         // TODO: is this the correct amount to request for allowance here
         const { amount, securityDeposit } = await this.liveAuctionInfo(auctionId);

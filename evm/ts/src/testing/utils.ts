@@ -24,9 +24,11 @@ export function getSdkSigner<C extends EvmChains>(
 ): SdkSigner<Network, C> {
     wallet = "reset" in wallet ? wallet : new ethers.NonceManager(wallet);
 
+    const address = (wallet.provider as unknown as ethers.Wallet).address;
+
     return new SdkSigner(
         fromChain,
-        "",
+        address,
         // @ts-ignore -- incorrect ethers version
         wallet,
     );
@@ -61,12 +63,12 @@ export class SdkSigner<N extends Network, C extends EvmChains>
                             e.info!.error.message === "nonce too low") ||
                         isError(e, "NONCE_EXPIRED")
                     ) {
+                        // Sometimes it take a second for the mempool to update the new nonce
                         await sleep(1);
                         this.wallet.reset();
                         const nonce = await this.wallet.getNonce("pending");
                         if (this.opts?.debug)
                             console.log("Setting nonce for", this.address(), " to ", nonce);
-
                         tx.transaction.nonce = nonce;
                         continue;
                     }
