@@ -40,7 +40,7 @@ export type ProgramId = (typeof PROGRAM_IDS)[number];
 export type PrepareMarketOrderArgs = {
     amountIn: bigint;
     minAmountOut: bigint | null;
-    targetChain: number;
+    targetChain: ChainId;
     redeemer: Array<number>;
     redeemerMessage: Buffer;
 };
@@ -79,7 +79,7 @@ export type RedeemFillCctpAccounts = {
     custodian: PublicKey;
     preparedFill: PublicKey;
     cctpMintRecipient: PublicKey;
-    routerEndpoint: PublicKey;
+    sourceRouterEndpoint: PublicKey;
     messageTransmitterAuthority: PublicKey;
     messageTransmitterConfig: PublicKey;
     usedNonces: PublicKey;
@@ -190,7 +190,11 @@ export class TokenRouterProgram {
         return this.program.account.preparedFill.fetch(addr);
     }
 
-    transferAuthorityAddress(preparedOrder: PublicKey, args: PrepareMarketOrderArgs): PublicKey {
+    transferAuthorityAddress(
+        preparedOrder: PublicKey,
+        args: PrepareMarketOrderArgs,
+        refundToken: PublicKey,
+    ): PublicKey {
         const { amountIn, minAmountOut, targetChain, redeemer, redeemerMessage } = args;
         const hasher = new Keccak(256);
         hasher.update(uint64ToBN(amountIn).toBuffer("be", 8));
@@ -208,7 +212,12 @@ export class TokenRouterProgram {
         hasher.update(redeemerMessage);
 
         return PublicKey.findProgramAddressSync(
-            [Buffer.from("transfer-authority"), preparedOrder.toBuffer(), hasher.digest()],
+            [
+                Buffer.from("transfer-authority"),
+                preparedOrder.toBuffer(),
+                hasher.digest(),
+                refundToken.toBuffer(),
+            ],
             this.ID,
         )[0];
     }
@@ -289,6 +298,20 @@ export class TokenRouterProgram {
         return { owner, custodian: custodian ?? this.custodianAddress() };
     }
 
+    registeredEndpointComposite(opts: { chain?: ChainId; endpoint?: PublicKey }): {
+        endpoint: PublicKey;
+    } {
+        let { chain, endpoint } = opts;
+        if (chain === undefined && endpoint === undefined) {
+            throw new Error("chain or endpoint must be provided");
+        }
+
+        endpoint ??= this.matchingEngineProgram().routerEndpointAddress(chain!);
+        return {
+            endpoint,
+        };
+    }
+
     liquidityLayerVaaComposite(vaa: PublicKey): { vaa: PublicKey } {
         return {
             vaa,
@@ -322,11 +345,12 @@ export class TokenRouterProgram {
         accounts: {
             preparedOrder: PublicKey;
             senderToken: PublicKey;
+            refundToken: PublicKey;
             senderTokenAuthority?: PublicKey;
         },
         args: PrepareMarketOrderArgs,
     ): Promise<{ transferAuthority: PublicKey; ix: TransactionInstruction }> {
-        const { preparedOrder, senderToken } = accounts;
+        const { preparedOrder, senderToken, refundToken } = accounts;
         const { amountIn } = args;
 
         let { senderTokenAuthority } = accounts;
@@ -338,7 +362,7 @@ export class TokenRouterProgram {
             return tokenAccount.owner;
         })();
 
-        const transferAuthority = this.transferAuthorityAddress(preparedOrder, args);
+        const transferAuthority = this.transferAuthorityAddress(preparedOrder, args, refundToken);
 
         return {
             transferAuthority,
@@ -360,10 +384,17 @@ export class TokenRouterProgram {
             refundToken?: PublicKey;
             programTransferAuthority?: PublicKey | null;
             sender?: PublicKey | null;
+            targetRouterEndpoint?: PublicKey;
         },
         args: { useTransferAuthority?: boolean } & PrepareMarketOrderArgs,
     ): Promise<[approveIx: TransactionInstruction | null, prepareIx: TransactionInstruction]> {
-        const { payer, preparedOrder, senderToken, senderTokenAuthority } = accounts;
+        const {
+            payer,
+            preparedOrder,
+            senderToken,
+            senderTokenAuthority,
+            targetRouterEndpoint: endpoint,
+        } = accounts;
 
         let { refundToken, programTransferAuthority, sender } = accounts;
         refundToken ??= senderToken;
@@ -380,7 +411,7 @@ export class TokenRouterProgram {
         if (programTransferAuthority === undefined) {
             if (useTransferAuthority) {
                 const approveResult = await this.approveTransferAuthorityIx(
-                    { preparedOrder, senderToken, senderTokenAuthority },
+                    { preparedOrder, senderToken, refundToken, senderTokenAuthority },
                     args,
                 );
                 programTransferAuthority = approveResult.transferAuthority;
@@ -389,6 +420,11 @@ export class TokenRouterProgram {
                 programTransferAuthority = null;
             }
         }
+
+        const targetRouterEndpoint = this.registeredEndpointComposite({
+            chain: args.targetChain,
+            endpoint,
+        });
 
         const prepareIx = await this.program.methods
             .prepareMarketOrder({
@@ -407,6 +443,7 @@ export class TokenRouterProgram {
                 refundToken,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrder),
                 usdc: this.usdcComposite(),
+                targetRouterEndpoint,
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
             })
@@ -472,15 +509,15 @@ export class TokenRouterProgram {
             payer: PublicKey;
             preparedOrder: PublicKey;
             preparedBy?: PublicKey;
-            routerEndpoint?: PublicKey;
+            targetRouterEndpoint?: PublicKey;
         },
         args: {
             targetChain?: ChainId;
             destinationDomain?: number;
         } = {},
     ): Promise<TransactionInstruction> {
-        const { payer, preparedOrder } = accounts;
-        let { preparedBy, routerEndpoint } = accounts;
+        const { payer, preparedOrder, targetRouterEndpoint: endpoint } = accounts;
+        let { preparedBy } = accounts;
         let { targetChain, destinationDomain } = args;
 
         if (preparedBy === undefined || targetChain === undefined) {
@@ -497,14 +534,17 @@ export class TokenRouterProgram {
         }
 
         const matchingEngine = this.matchingEngineProgram();
-        routerEndpoint ??= matchingEngine.routerEndpointAddress(targetChain);
 
         const coreMessage = this.coreMessageAddress(preparedOrder);
         const cctpMessage = this.cctpMessageAddress(preparedOrder);
+        const targetRouterEndpoint = this.registeredEndpointComposite({
+            chain: targetChain,
+            endpoint,
+        });
 
         if (destinationDomain === undefined) {
             const { protocol } = await matchingEngine.fetchRouterEndpointInfo({
-                address: routerEndpoint,
+                address: targetRouterEndpoint.endpoint,
             });
             if (protocol.cctp === undefined) {
                 throw new Error("invalid router endpoint");
@@ -540,7 +580,7 @@ export class TokenRouterProgram {
                 preparedOrder,
                 mint: this.mint,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrder),
-                routerEndpoint,
+                targetRouterEndpoint,
                 coreBridgeConfig,
                 coreMessage,
                 cctpMessage,
@@ -598,7 +638,7 @@ export class TokenRouterProgram {
             custodian: this.custodianAddress(),
             preparedFill,
             cctpMintRecipient,
-            routerEndpoint: this.matchingEngineProgram().routerEndpointAddress(chain),
+            sourceRouterEndpoint: this.matchingEngineProgram().routerEndpointAddress(chain),
             messageTransmitterAuthority,
             messageTransmitterConfig,
             usedNonces,
@@ -619,22 +659,20 @@ export class TokenRouterProgram {
         accounts: {
             payer: PublicKey;
             vaa: PublicKey;
-            routerEndpoint?: PublicKey;
+            sourceRouterEndpoint?: PublicKey;
         },
         args: {
             encodedCctpMessage: Buffer;
             cctpAttestation: Buffer;
         },
     ): Promise<TransactionInstruction> {
-        const { payer, vaa } = accounts;
+        const { payer, vaa, sourceRouterEndpoint: endpoint } = accounts;
         const { encodedCctpMessage } = args;
-
-        let { routerEndpoint } = accounts;
 
         const {
             preparedFill,
             cctpMintRecipient,
-            routerEndpoint: derivedRouterEndpoint,
+            sourceRouterEndpoint: derivedRouterEndpoint,
             messageTransmitterAuthority,
             messageTransmitterConfig,
             usedNonces,
@@ -649,7 +687,9 @@ export class TokenRouterProgram {
             messageTransmitterProgram,
             tokenMessengerMinterEventAuthority,
         } = await this.redeemCctpFillAccounts(vaa, encodedCctpMessage);
-        routerEndpoint ??= derivedRouterEndpoint;
+        const sourceRouterEndpoint = this.registeredEndpointComposite({
+            endpoint: endpoint ?? derivedRouterEndpoint,
+        });
 
         return this.program.methods
             .redeemCctpFill(args)
@@ -660,7 +700,7 @@ export class TokenRouterProgram {
                 preparedFill,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedFill),
                 usdc: this.usdcComposite(),
-                routerEndpoint,
+                sourceRouterEndpoint,
                 cctp: {
                     mintRecipient: { mintRecipient: cctpMintRecipient },
                     messageTransmitterAuthority,

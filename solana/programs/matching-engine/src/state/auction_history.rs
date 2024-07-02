@@ -51,7 +51,10 @@ impl AuctionHistoryHeader {
 impl AuctionHistory {
     pub const SEED_PREFIX: &'static [u8] = b"auction-history";
 
-    pub const START: usize = 8 + AuctionHistoryHeader::INIT_SPACE + 4;
+    pub const START: usize = 8 // DISCRIMINATOR
+        + AuctionHistoryHeader::INIT_SPACE
+        + 4 // data len
+    ;
 
     cfg_if::cfg_if! {
         if #[cfg(feature = "integration-test")] {
@@ -88,7 +91,7 @@ impl AccountDeserialize for AuctionHistoryInternal {
     }
 
     fn try_deserialize_unchecked(buf: &mut &[u8]) -> Result<Self> {
-        *buf = &mut &buf[8..];
+        *buf = &buf[8..];
         Ok(Self {
             header: AnchorDeserialize::deserialize(buf)?,
             num_entries: AnchorDeserialize::deserialize(buf)?,

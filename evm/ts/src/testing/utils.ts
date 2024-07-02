@@ -1,8 +1,8 @@
 import { ethers } from "ethers";
-import { IERC20 } from "../../src/types";
-import { IUSDC__factory } from "../../src/types/factories/IUSDC__factory";
+import { IERC20 } from "../types";
+import { IUSDC__factory } from "../types/factories/IUSDC__factory";
 import { WALLET_PRIVATE_KEYS } from "./consts";
-import { EvmMatchingEngine } from "../../src";
+import { EvmMatchingEngine } from "..";
 import { Chain } from "@wormhole-foundation/sdk-base";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 

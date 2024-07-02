@@ -139,10 +139,15 @@ export type CctpMessageArgs = {
     cctpAttestation: Buffer;
 };
 
+export type SettledTokenAccountInfo = {
+    key: PublicKey;
+    balanceAfter: BN;
+};
+
 export type AuctionSettled = {
     auction: PublicKey;
-    bestOfferToken: PublicKey | null;
-    tokenBalanceAfter: BN;
+    bestOfferToken: SettledTokenAccountInfo | null;
+    executorToken: SettledTokenAccountInfo | null;
     withExecute: MessageProtocol | null;
 };
 
@@ -158,7 +163,7 @@ export type AuctionUpdated = {
     tokenBalanceBefore: BN;
     amountIn: BN;
     totalDeposit: BN;
-    maxOfferPriceAllowed: BN;
+    maxOfferPriceAllowed: BN | null;
 };
 
 export type OrderExecuted = {
@@ -177,8 +182,8 @@ export type Enacted = {
 
 export type LocalFastOrderFilled = {
     seeds: FastFillSeeds;
-    preparedBy: PublicKey;
     info: FastFillInfo;
+    auction: PublicKey | null;
 };
 
 export type FastFillSequenceReserved = {
@@ -1594,10 +1599,12 @@ export class MatchingEngineProgram {
         preparedOrderResponse: PublicKey;
         auction?: PublicKey;
         bestOfferToken?: PublicKey;
+        executorToken?: PublicKey;
     }) {
         const { executor, preparedOrderResponse } = accounts;
 
-        let { auction, bestOfferToken } = accounts;
+        let { auction, bestOfferToken, executorToken } = accounts;
+        executorToken ??= splToken.getAssociatedTokenAddressSync(this.mint, executor);
 
         if (auction === undefined) {
             const { seeds } = await this.fetchPreparedOrderResponse({
@@ -1620,7 +1627,7 @@ export class MatchingEngineProgram {
             .settleAuctionComplete()
             .accounts({
                 executor,
-                executorToken: splToken.getAssociatedTokenAddressSync(this.mint, executor),
+                executorToken,
                 preparedOrderResponse,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
                 auction,
@@ -1787,7 +1794,7 @@ export class MatchingEngineProgram {
             sourceChain ??= fastVaaAccount.emitterInfo().chain;
 
             const message = LiquidityLayerMessage.decode(fastVaaAccount.payload());
-            if (message.fastMarketOrder == undefined) {
+            if (message.fastMarketOrder === undefined) {
                 throw new Error("Message not FastMarketOrder");
             }
 
@@ -2062,6 +2069,7 @@ export class MatchingEngineProgram {
             toEndpoint?: PublicKey;
             sequencer?: PublicKey;
             reserved?: PublicKey;
+            auction?: PublicKey;
         },
         opts: ReserveFastFillSequenceCompositeOpts,
     ): Promise<{
@@ -2070,6 +2078,7 @@ export class MatchingEngineProgram {
             fastOrderPath: FastOrderPathComposite;
             sequencer: PublicKey;
             reserved: PublicKey;
+            auction: PublicKey;
             systemProgram: PublicKey;
         };
         definedOpts: {
@@ -2081,7 +2090,7 @@ export class MatchingEngineProgram {
     }> {
         const { payer, fastVaa } = accounts;
 
-        let { fromEndpoint, toEndpoint, sequencer, reserved } = accounts;
+        let { fromEndpoint, toEndpoint, sequencer, reserved, auction } = accounts;
         let { fastVaaHash, sourceChain, orderSender, targetChain } = opts;
 
         if (
@@ -2109,6 +2118,7 @@ export class MatchingEngineProgram {
         toEndpoint ??= this.routerEndpointAddress(targetChain);
         sequencer ??= this.fastFillSequencerAddress(sourceChain, orderSender);
         reserved ??= this.reservedFastFillSequenceAddress(fastVaaHash);
+        auction ??= this.auctionAddress(fastVaaHash);
 
         return {
             reserveSequence: {
@@ -2116,6 +2126,7 @@ export class MatchingEngineProgram {
                 fastOrderPath: this.fastOrderPathComposite({ fastVaa, fromEndpoint, toEndpoint }),
                 sequencer,
                 reserved,
+                auction,
                 systemProgram: SystemProgram.programId,
             },
             definedOpts: { fastVaaHash, sourceChain, orderSender, targetChain },
@@ -2133,12 +2144,20 @@ export class MatchingEngineProgram {
             auction?: PublicKey;
             auctionConfig?: PublicKey;
             bestOfferToken?: PublicKey;
+            executor?: PublicKey;
         },
         opts: ReserveFastFillSequenceCompositeOpts = {},
     ): Promise<TransactionInstruction> {
-        const { payer, fastVaa, fromEndpoint, toEndpoint, fastFillSequencer, reservedSequence } =
-            accounts;
-        const { reserveSequence, definedOpts } = await this.reserveFastFillSequenceComposite(
+        const {
+            payer,
+            fastVaa,
+            fromEndpoint,
+            toEndpoint,
+            fastFillSequencer,
+            reservedSequence,
+            auction,
+        } = accounts;
+        const { reserveSequence } = await this.reserveFastFillSequenceComposite(
             {
                 payer,
                 fastVaa,
@@ -2146,16 +2165,15 @@ export class MatchingEngineProgram {
                 toEndpoint,
                 sequencer: fastFillSequencer,
                 reserved: reservedSequence,
+                auction,
             },
             opts,
         );
-        const { fastVaaHash } = definedOpts;
 
-        let { auctionConfig, auction, bestOfferToken } = accounts;
-        auction ??= this.auctionAddress(fastVaaHash);
+        let { auctionConfig, bestOfferToken, executor } = accounts;
 
         if (bestOfferToken === undefined || auctionConfig === undefined) {
-            const { info } = await this.fetchAuction({ address: auction });
+            const { info } = await this.fetchAuction({ address: reserveSequence.auction });
             if (info === null) {
                 throw new Error("no auction info found");
             }
@@ -2163,13 +2181,23 @@ export class MatchingEngineProgram {
             bestOfferToken ??= info.bestOfferToken;
         }
 
+        if (executor === undefined) {
+            const token = await splToken
+                .getAccount(this.program.provider.connection, bestOfferToken)
+                .catch((_) => null);
+            if (token === null) {
+                throw new Error("Executor must be provided because best offer token is not found");
+            }
+            executor = token.owner;
+        }
+
         return this.program.methods
             .reserveFastFillSequenceActiveAuction()
             .accounts({
                 reserveSequence,
-                auction,
                 auctionConfig,
                 bestOfferToken,
+                executor,
             })
             .instruction();
     }
@@ -2210,7 +2238,6 @@ export class MatchingEngineProgram {
             .reserveFastFillSequenceNoAuction()
             .accounts({
                 reserveSequence,
-                auction,
                 preparedOrderResponse,
             })
             .instruction();
@@ -2227,7 +2254,7 @@ export class MatchingEngineProgram {
             bestOfferToken?: PublicKey;
             initialOfferToken?: PublicKey;
             initialParticipant?: PublicKey;
-            bestOfferParticipant?: PublicKey;
+            reserveBeneficiary?: PublicKey;
         },
         opts: {
             sourceChain?: ChainId;
@@ -2245,7 +2272,7 @@ export class MatchingEngineProgram {
             executorToken,
             initialOfferToken,
             initialParticipant,
-            bestOfferParticipant,
+            reserveBeneficiary,
         } = accounts;
         let { sourceChain, orderSender, sequence } = opts;
         executorToken ??= splToken.getAssociatedTokenAddressSync(this.mint, payer);
@@ -2269,11 +2296,12 @@ export class MatchingEngineProgram {
             orderSender ??= Array.from(fastMarketOrder.sender.toUint8Array());
         }
 
-        if (sequence === undefined) {
-            const { fastFillSeeds } = await this.fetchReservedFastFillSequence({
+        if (sequence === undefined || reserveBeneficiary === undefined) {
+            const reservedData = await this.fetchReservedFastFillSequence({
                 address: reservedSequence,
             });
-            sequence = fastFillSeeds.sequence;
+            sequence ??= reservedData.fastFillSeeds.sequence;
+            reserveBeneficiary ??= reservedData.beneficiary;
         }
 
         let auctionInfo: AuctionInfo | undefined;
@@ -2300,11 +2328,6 @@ export class MatchingEngineProgram {
             { auctionInfo },
         );
 
-        if (bestOfferParticipant === undefined) {
-            const token = await splToken.getAccount(connection, activeAuction.bestOfferToken);
-            bestOfferParticipant = token.owner;
-        }
-
         return this.program.methods
             .executeFastOrderLocal()
             .accounts({
@@ -2318,7 +2341,7 @@ export class MatchingEngineProgram {
                     initialParticipant,
                 },
                 reservedSequence,
-                bestOfferParticipant,
+                reserveBeneficiary,
                 fastFill: this.fastFillAddress(sourceChain, orderSender, sequence),
                 eventAuthority: this.eventAuthorityAddress(),
                 program: this.ID,
@@ -2523,7 +2546,7 @@ export class MatchingEngineProgram {
 
     async computeMinOfferDelta(offerPrice: Uint64): Promise<bigint> {
         const { minOfferDeltaBps } = await this.fetchAuctionParameters();
-        return (uint64ToBigInt(offerPrice) * BigInt(minOfferDeltaBps)) / FEE_PRECISION_MAX;
+        return (uint64ToBigInt(offerPrice) * BigInt(minOfferDeltaBps)) / FEE_PRECISION_MAX + 1n;
     }
 
     async computeNotionalSecurityDeposit(amountIn: Uint64, configId?: number) {

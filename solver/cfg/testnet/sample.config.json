@@ -1,5 +1,5 @@
 {
-  "environment": "testnet",
+  "environment": "Testnet",
   "logging": {
     "app": "warn",
     "logic": "debug"
@@ -25,37 +25,37 @@
   "knownAtaOwners": [],
   "endpointConfig": [
     {
-      "chain": "sepolia",
+      "chain": "Sepolia",
       "rpc": "",
       "endpoint": "0xE57D917bf955FedE2888AAbD056202a6497F1882",
       "chainType": 0
     },
     {
-      "chain": "avalanche",
+      "chain": "Avalanche",
       "rpc": "",
       "endpoint": "0x8Cd7D7C980cd72eBD16737dC3fa04469dcFcf07A",
       "chainType": 0
     },
     {
-      "chain": "optimism_sepolia",
+      "chain": "OptimismSepolia",
       "rpc": "",
       "endpoint": "0x6BAa7397c18abe6221b4f6C3Ac91C88a9faE00D8",
       "chainType": 0
     },
     {
-      "chain": "arbitrum_sepolia",
+      "chain": "ArbitrumSepolia",
       "rpc": "",
       "endpoint": "0xe0418C44F06B0b0D7D1706E01706316DBB0B210E",
       "chainType": 0
     },
     {
-      "chain": "base_sepolia",
+      "chain": "BaseSepolia",
       "rpc": "https://sepolia.base.org",
       "endpoint": "0x824Ea687CD1CC2f2446235D33Ae764CbCd08e18C",
       "chainType": 0
     },
     {
-      "chain": "polygon",
+      "chain": "Polygon",
       "rpc": "",
       "endpoint": "0xa098368AaaDc0FdF3e309cda710D7A5f8BDEeCD9",
       "chainType": 0
@@ -63,32 +63,32 @@
   ],
   "pricing": [
     {
-      "chain": "sepolia",
+      "chain": "Sepolia",
       "probability": 0.0005,
       "edgePctOfFv": 0
     },
     {
-      "chain": "avalanche",
+      "chain": "Avalanche",
       "probability": 0.0005,
       "edgePctOfFv": 0
     },
     {
-      "chain": "optimism_sepolia",
+      "chain": "OptimismSepolia",
       "probability": 0.0005,
       "edgePctOfFv": 0
     },
     {
-      "chain": "arbitrum_sepolia",
+      "chain": "ArbitrumSepolia",
       "probability": 0.0005,
       "edgePctOfFv": 0
     },
     {
-      "chain": "base_sepolia",
+      "chain": "BaseSepolia",
       "probability": 0.0005,
       "edgePctOfFv": 0
     },
     {
-      "chain": "polygon",
+      "chain": "Polygon",
       "probability": 0.1,
       "edgePctOfFv": 0
     }

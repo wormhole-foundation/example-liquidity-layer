@@ -8,11 +8,12 @@ import {
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
-import { use as chaiUse, expect } from "chai";
-import chaiAsPromised from "chai-as-promised";
+import { ChainId, toChain, toChainId } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
+import { expect } from "chai";
 import { CctpTokenBurnMessage } from "../src/cctp";
 import { LiquidityLayerDeposit, LiquidityLayerMessage, uint64ToBN } from "../src/common";
-import { Custodian, PreparedOrder, TokenRouterProgram, localnet } from "../src/tokenRouter";
 import {
     CircleAttester,
     ETHEREUM_USDC_ADDRESS,
@@ -28,13 +29,9 @@ import {
     postLiquidityLayerVaa,
     toUniversalAddress,
 } from "../src/testing";
-import { ChainId, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
-import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
+import { Custodian, PreparedOrder, TokenRouterProgram, localnet } from "../src/tokenRouter";
 
 const SOLANA_CHAIN_ID = toChainId("Solana");
-
-chaiUse(chaiAsPromised);
 
 describe("Token Router", function () {
     const connection = new Connection(LOCALHOST, "processed");
@@ -917,7 +914,7 @@ describe("Token Router", function () {
                     {
                         payer: payer.publicKey,
                         preparedOrder,
-                        routerEndpoint: unregisteredEndpoint,
+                        targetRouterEndpoint: unregisteredEndpoint,
                     },
                     { destinationDomain: 3 },
                 );
@@ -929,7 +926,7 @@ describe("Token Router", function () {
                     connection,
                     [ix],
                     [payer],
-                    "router_endpoint. Error Code: AccountNotInitialized",
+                    "endpoint. Error Code: AccountNotInitialized",
                     {
                         addressLookupTableAccounts: [lookupTableAccount!],
                     },
@@ -1279,7 +1276,7 @@ describe("Token Router", function () {
                     {
                         payer: payer.publicKey,
                         vaa,
-                        routerEndpoint: tokenRouter
+                        sourceRouterEndpoint: tokenRouter
                             .matchingEngineProgram()
                             .routerEndpointAddress(foreignChain),
                     },

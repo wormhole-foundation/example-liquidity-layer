@@ -50,7 +50,7 @@ solana program deploy -u d --program-id ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oX
 
 ## Managing Upgrades
 
-TODO
+TODO: Discuss Upgrade Manager.
 
 ## Testnet Example Solver
 

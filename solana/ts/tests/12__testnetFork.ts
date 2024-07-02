@@ -1,25 +1,19 @@
 import { Connection, Keypair, PublicKey, Signer, TransactionInstruction } from "@solana/web3.js";
-import { use as chaiUse, expect } from "chai";
-import chaiAsPromised from "chai-as-promised";
+import { expect } from "chai";
+import { uint64ToBN } from "../src/common";
 import * as matchingEngineSdk from "../src/matchingEngine";
-import * as tokenRouterSdk from "../src/tokenRouter";
-import { testnet, UpgradeManagerProgram, UpgradeReceipt } from "../src/upgradeManager";
-import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../src/utils";
 import {
+    LOCALHOST,
+    PAYER_KEYPAIR,
+    USDC_MINT_ADDRESS,
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,
     loadProgramBpf,
-    LOCALHOST,
-    PAYER_KEYPAIR,
-    USDC_MINT_ADDRESS,
 } from "../src/testing";
-
-// TODO: remove
-import "dotenv/config";
-import { uint64ToBN } from "../src/common";
-
-chaiUse(chaiAsPromised);
+import * as tokenRouterSdk from "../src/tokenRouter";
+import { UpgradeManagerProgram, UpgradeReceipt, testnet } from "../src/upgradeManager";
+import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../src/utils";
 
 const KEYPATH = `${__dirname}/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json`;
 const MATCHING_ENGINE_ARTIFACT_PATH = `${__dirname}/artifacts/new_testnet_matching_engine.so`;

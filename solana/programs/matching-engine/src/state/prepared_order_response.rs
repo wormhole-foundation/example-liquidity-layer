@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-use super::EndpointInfo;
+use super::{Auction, EndpointInfo};
 
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub struct PreparedOrderResponseSeeds {
@@ -41,13 +41,28 @@ impl std::ops::Deref for PreparedOrderResponse {
 impl PreparedOrderResponse {
     pub const SEED_PREFIX: &'static [u8] = b"order-response";
 
-    pub fn compute_size(redeemer_message_len: usize) -> usize {
+    /// This is a necessary security check. This will prevent a relayer from
+    /// starting an auction with the fast transfer VAA, even though the slow
+    /// relayer already delivered the slow VAA. Not setting this could lead to
+    /// trapped funds (which would require an upgrade to fix).
+    pub(crate) fn new_auction_placeholder(&self, bump: u8) -> Auction {
+        Auction {
+            bump,
+            vaa_hash: self.seeds.fast_vaa_hash,
+            vaa_timestamp: self.fast_vaa_timestamp,
+            target_protocol: self.to_endpoint.protocol,
+            status: Default::default(),
+            info: Default::default(),
+        }
+    }
+
+    pub(crate) fn compute_size(redeemer_message_len: usize) -> usize {
         const FIXED: usize = 8 // DISCRIMINATOR
             + PreparedOrderResponseSeeds::INIT_SPACE
             + PreparedOrderResponseInfo::INIT_SPACE
             + EndpointInfo::INIT_SPACE
-            + 4 // redeemer_message length
-            ;
+            + 4 // redeemer_message_len
+        ;
 
         redeemer_message_len.saturating_add(FIXED)
     }

@@ -115,35 +115,23 @@ pub struct RedeemCctpFill<'info> {
     ///
     /// Seeds must be \["registered_emitter", target_chain.to_be_bytes()\].
     #[account(
-        seeds = [
-            matching_engine::state::RouterEndpoint::SEED_PREFIX,
-            router_endpoint.chain.to_be_bytes().as_ref(),
-        ],
-        bump = router_endpoint.bump,
-        seeds::program = matching_engine::id(),
         constraint = {
-            require!(
-                router_endpoint.protocol != matching_engine::state::MessageProtocol::None,
-                TokenRouterError::EndpointDisabled
-            );
-
             // Validate that this message originated from a registered emitter.
-            let endpoint = &router_endpoint;
             let emitter = fill_vaa.load_unchecked().emitter_info();
             require_eq!(
                 emitter.chain,
-                endpoint.chain,
+                source_router_endpoint.chain,
                 TokenRouterError::InvalidSourceRouter
             );
             require!(
-                emitter.address == endpoint.address,
+                emitter.address == source_router_endpoint.address,
                 TokenRouterError::InvalidSourceRouter
             );
 
             true
         }
     )]
-    router_endpoint: Box<Account<'info, matching_engine::state::RouterEndpoint>>,
+    source_router_endpoint: RegisteredEndpoint<'info>,
 
     cctp: CctpReceiveMessage<'info>,
 
@@ -295,6 +283,7 @@ fn try_compute_prepared_fill_size(fill_vaa: &LiquidityLayerVaa) -> Result<usize>
         .fill()
         .ok_or(TokenRouterError::InvalidDepositPayloadId)?;
 
-    PreparedFill::checked_compute_size(fill.redeemer_message_len().into())
-        .ok_or(error!(TokenRouterError::PreparedFillTooLarge))
+    Ok(PreparedFill::compute_size(
+        fill.redeemer_message_len().into(),
+    ))
 }

@@ -910,10 +910,11 @@ export type MatchingEngine = {
           "writable": true
         },
         {
-          "name": "bestOfferParticipant",
+          "name": "reserveBeneficiary",
           "docs": [
             "When the reserved sequence account was created, the beneficiary was set to the best offer",
-            "token's owner. This account will receive the lamports from the reserved sequence account.",
+            "token's owner if it existed (and if not, to whomever executed the reserve fast fill sequence",
+            "instruction). This account will receive the lamports from the reserved sequence account.",
             ""
           ],
           "writable": true
@@ -1634,15 +1635,16 @@ export type MatchingEngine = {
               "writable": true
             },
             {
+              "name": "auction",
+              "docs": [
+                "must have been created by this point. Otherwise the auction account must reflect a completed",
+                "auction."
+              ],
+              "writable": true
+            },
+            {
               "name": "systemProgram"
             }
-          ]
-        },
-        {
-          "name": "auction",
-          "docs": [
-            "must have been created by this point. Otherwise the auction account must reflect a completed",
-            "auction."
           ]
         },
         {
@@ -1652,7 +1654,16 @@ export type MatchingEngine = {
           "name": "bestOfferToken",
           "docs": [
             "Best offer token account, whose owner will be the beneficiary of the reserved fast fill",
-            "sequence account when it is closed."
+            "sequence account when it is closed.",
+            "",
+            "in the auction account."
+          ]
+        },
+        {
+          "name": "executor",
+          "docs": [
+            "of the reserved fast fill sequence account when it is closed. Otherwise, this account must",
+            "equal the best offer token account's owner."
           ]
         }
       ],
@@ -1670,6 +1681,15 @@ export type MatchingEngine = {
         "order response should call this instruction to reserve the fast fill's sequence number.",
         "This sequence number is warehoused in the `ReservedFastFillSequence` account and will be",
         "closed when the funds are finally settled.",
+        "",
+        "NOTE: This instruction is expected to be in the same transaction as the one that executes",
+        "the prepare order response instruction. If it is not, there is a risk that after preparing",
+        "the order response that someone starts an auction. This scenario risks the preparer's rent",
+        "that he paid because the winning auction participant can take his lamports when he calls",
+        "settle auction complete. Although this is an unlikely scenario, it is possible if there is",
+        "no deadline specified to start the auction and no participants use the fast VAA to start an",
+        "auction until the finalized VAA exists (which guarantees that the funds have finalized on",
+        "the source network).",
         "",
         "# Arguments",
         "",
@@ -1749,6 +1769,14 @@ export type MatchingEngine = {
               "writable": true
             },
             {
+              "name": "auction",
+              "docs": [
+                "must have been created by this point. Otherwise the auction account must reflect a completed",
+                "auction."
+              ],
+              "writable": true
+            },
+            {
               "name": "systemProgram"
             }
           ]
@@ -1759,13 +1787,6 @@ export type MatchingEngine = {
             "The preparer will be the beneficiary of the reserved fast fill sequence account when it is",
             "closed. This instruction will not allow this account to be provided if there is an existing",
             "auction, which would enforce the order be executed when it is time to complete the auction."
-          ]
-        },
-        {
-          "name": "auction",
-          "docs": [
-            "must have been created by this point. Otherwise the auction account must reflect a completed",
-            "auction."
           ]
         }
       ],
@@ -1856,7 +1877,8 @@ export type MatchingEngine = {
             "Destination token account, which the redeemer may not own. But because the redeemer is a",
             "signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent",
             "to any account he chooses (this one).",
-            ""
+            "",
+            "of the tokens to the executor token account."
           ],
           "writable": true
         },
@@ -2123,7 +2145,8 @@ export type MatchingEngine = {
         {
           "name": "auction",
           "docs": [
-            "There should be no account data here because an auction was never created."
+            "This account will have been created using the reserve fast fill sequence (no auction)",
+            "instruction. We need to make sure that this account has not been used in an auction."
           ],
           "writable": true
         },
@@ -2231,8 +2254,8 @@ export type MatchingEngine = {
       "name": "updateAuctionParameters",
       "docs": [
         "This instruction is used to enact an existing auction update proposal. It can only be",
-        "executed after the `slot_enact_delay` has passed. This instruction can only be called by",
-        "the `owner` of the proposal.",
+        "executed after the `slot_enact_delay` has passed. This instruction can only be called by the",
+        "`owner`.",
         "",
         "# Arguments",
         "",
@@ -2994,7 +3017,7 @@ export type MatchingEngine = {
     },
     {
       "code": 7065,
-      "name": "accountNotAuction"
+      "name": "noAuction"
     },
     {
       "code": 7066,
@@ -3031,6 +3054,10 @@ export type MatchingEngine = {
     {
       "code": 7080,
       "name": "reservedSequenceMismatch"
+    },
+    {
+      "code": 7082,
+      "name": "auctionAlreadySettled"
     },
     {
       "code": 7280,
@@ -3455,19 +3482,30 @@ export type MatchingEngine = {
           {
             "name": "bestOfferToken",
             "docs": [
-              "If there was an active auction, this pubkey is the best offer token that was paid back."
+              "If there was an active auction, this field will have the pubkey of the best offer token that",
+              "was paid back and its balance after repayment."
             ],
             "type": {
-              "option": "pubkey"
+              "option": {
+                "defined": {
+                  "name": "settledTokenAccountInfo"
+                }
+              }
             }
           },
           {
-            "name": "tokenBalanceAfter",
+            "name": "executorToken",
             "docs": [
-              "Token account's new balance. If there was no auction, this balance will be of the fee",
-              "recipient token account."
+              "Depending on whether there was an active auction, this field will have the pubkey of the",
+              "executor token (if there was an auction) or fee recipient token (if there was no auction)."
             ],
-            "type": "u64"
+            "type": {
+              "option": {
+                "defined": {
+                  "name": "settledTokenAccountInfo"
+                }
+              }
+            }
           },
           {
             "name": "withExecute",
@@ -3586,7 +3624,9 @@ export type MatchingEngine = {
           },
           {
             "name": "maxOfferPriceAllowed",
-            "type": "u64"
+            "type": {
+              "option": "u64"
+            }
           }
         ]
       }
@@ -4324,6 +4364,22 @@ export type MatchingEngine = {
                 "name": "endpointInfo"
               }
             }
+          }
+        ]
+      }
+    },
+    {
+      "name": "settledTokenAccountInfo",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "key",
+            "type": "pubkey"
+          },
+          {
+            "name": "balanceAfter",
+            "type": "u64"
           }
         ]
       }

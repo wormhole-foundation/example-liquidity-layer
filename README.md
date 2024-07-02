@@ -21,3 +21,32 @@ Install [Foundry tools](https://book.getfoundry.sh/getting-started/installation)
 Each directory represents Wormhole integrations for specific blockchain networks. Please navigate to a network subdirectory to see more details (see the relevant README.md) on building, testing and deploying the smart contracts.
 
 [Wormhole Circle Integration]: https://github.com/wormhole-foundation/wormhole-circle-integration/blob/main/DESIGN.md
+
+
+### Typescript SDK
+
+To use the Typescript SDK, at the root of this repository, run:
+
+```sh
+npm ci && npm run build && npm run pack
+```
+
+Which will produce a `.tgz` file that can be installed using npm or any other package manager like:
+
+```sh
+npm install /path/to/example-liquidity-layer/wormhole-foundation-example-liquidity-layer-solana-0.0.1.tgz
+```
+
+Once installed, it can be used like any other package:
+
+```ts
+// ...
+import * as tokenRouterSdk from "@wormhole-foundation/example-liquidity-layer-solana/tokenRouter";
+import {
+  LiquidityLayerDeposit,
+  LiquidityLayerMessage,
+} from "@wormhole-foundation/example-liquidity-layer-solana/common";
+import { PreparedOrder } from "@wormhole-foundation/example-liquidity-layer-solana/tokenRouter/state";
+// ...
+```
+

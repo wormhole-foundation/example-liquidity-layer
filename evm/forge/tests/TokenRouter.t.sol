@@ -29,11 +29,11 @@ import {Messages} from "src/shared/Messages.sol";
 import {Utils} from "src/shared/Utils.sol";
 
 import "src/interfaces/ITokenRouter.sol";
+import "src/interfaces/ITokenRouterEvents.sol";
 import {FastTransferParameters, Endpoint} from "src/interfaces/ITokenRouterTypes.sol";
-
 import {WormholeCctpMessages} from "src/shared/WormholeCctpMessages.sol";
 
-contract TokenRouterTest is Test {
+contract TokenRouterTest is Test, ITokenRouterEvents {
     using BytesParsing for bytes;
     using WormholeCctpMessages for *;
     using Messages for *;
@@ -933,7 +933,7 @@ contract TokenRouterTest is Test {
             encoded, // redeemerMessage
             address(this) // refundAddress
         );
-    } 
+    }
 
     function testCannotPlaceMarketOrderErrUnsupportedChain() public {
         uint64 amountIn = 69;
@@ -1811,6 +1811,10 @@ contract TokenRouterTest is Test {
         );
 
         uint256 balanceBefore = _router.orderToken().balanceOf(address(this));
+        (IWormhole.VM memory _vm) = wormhole.parseVM(redeemParams.encodedWormholeMessage);
+
+        vm.expectEmit();
+        emit FillRedeemed(_vm.emitterChainId, _vm.emitterAddress, _vm.sequence);
 
         RedeemedFill memory redeemed = _router.redeemFill(
             OrderResponse({

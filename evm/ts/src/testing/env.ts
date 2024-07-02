@@ -1,3 +1,4 @@
+//@ts-ignore
 import { parse as envParse } from "envfile";
 import * as fs from "fs";
 

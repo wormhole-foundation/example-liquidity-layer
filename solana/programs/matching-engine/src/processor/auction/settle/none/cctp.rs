@@ -84,6 +84,16 @@ fn handle_settle_auction_none_cctp(
     ctx: Context<SettleAuctionNoneCctp>,
     destination_cctp_domain: u32,
 ) -> Result<()> {
+    let auction = &mut ctx.accounts.auction;
+
+    // First set data in the auction account.
+    auction.set_inner(
+        ctx.accounts
+            .prepared
+            .order_response
+            .new_auction_placeholder(ctx.bumps.auction),
+    );
+
     let prepared_by = &ctx.accounts.prepared.by;
     let prepared_custody_token = &ctx.accounts.prepared.custody_token;
     let custodian = &ctx.accounts.custodian;
@@ -92,17 +102,14 @@ fn handle_settle_auction_none_cctp(
     let super::SettledNone {
         user_amount: amount,
         fill,
-    } = super::settle_none_and_prepare_fill(
-        super::SettleNoneAndPrepareFill {
-            prepared_order_response: &mut ctx.accounts.prepared.order_response,
-            prepared_custody_token,
-            auction: &mut ctx.accounts.auction,
-            fee_recipient_token: &ctx.accounts.fee_recipient_token,
-            custodian,
-            token_program,
-        },
-        ctx.bumps.auction,
-    )?;
+    } = super::settle_none_and_prepare_fill(super::SettleNoneAndPrepareFill {
+        prepared_order_response: &mut ctx.accounts.prepared.order_response,
+        prepared_custody_token,
+        auction: &mut ctx.accounts.auction,
+        fee_recipient_token: &ctx.accounts.fee_recipient_token,
+        custodian,
+        token_program,
+    })?;
 
     let EndpointInfo {
         chain: _,

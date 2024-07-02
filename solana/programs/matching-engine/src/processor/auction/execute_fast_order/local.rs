@@ -41,19 +41,20 @@ pub struct ExecuteFastOrderLocal<'info> {
     reserved_sequence: Account<'info, ReservedFastFillSequence>,
 
     /// When the reserved sequence account was created, the beneficiary was set to the best offer
-    /// token's owner. This account will receive the lamports from the reserved sequence account.
+    /// token's owner if it existed (and if not, to whomever executed the reserve fast fill sequence
+    /// instruction). This account will receive the lamports from the reserved sequence account.
     ///
     /// CHECK: This account's address must equal the one encoded in the reserved sequence account.
     #[account(
         mut,
         address = reserved_sequence.beneficiary,
     )]
-    best_offer_participant: UncheckedAccount<'info>,
+    reserve_beneficiary: UncheckedAccount<'info>,
 
     #[account(
         init,
         payer = payer,
-        space = FastFill::checked_compute_size({
+        space = FastFill::compute_size({
             let vaa = execute_order.fast_vaa.load_unchecked();
 
             // We can unwrap and convert to FastMarketOrder unchecked because we validate the VAA
@@ -63,8 +64,7 @@ pub struct ExecuteFastOrderLocal<'info> {
                 .to_fast_market_order_unchecked();
 
             order.redeemer_message_len().into()
-        })
-        .ok_or(MatchingEngineError::FastFillTooLarge)?,
+        }),
         seeds = [
             FastFill::SEED_PREFIX,
             &reserved_sequence.fast_fill_seeds.source_chain.to_be_bytes(),
@@ -150,5 +150,5 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
     // participant.
     ctx.accounts
         .reserved_sequence
-        .close(ctx.accounts.best_offer_participant.to_account_info())
+        .close(ctx.accounts.reserve_beneficiary.to_account_info())
 }

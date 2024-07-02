@@ -183,8 +183,8 @@ pub mod matching_engine {
     }
 
     /// This instruction is used to enact an existing auction update proposal. It can only be
-    /// executed after the `slot_enact_delay` has passed. This instruction can only be called by
-    /// the `owner` of the proposal.
+    /// executed after the `slot_enact_delay` has passed. This instruction can only be called by the
+    /// `owner`.
     ///
     /// # Arguments
     ///
@@ -419,6 +419,15 @@ pub mod matching_engine {
     /// order response should call this instruction to reserve the fast fill's sequence number.
     /// This sequence number is warehoused in the `ReservedFastFillSequence` account and will be
     /// closed when the funds are finally settled.
+    ///
+    /// NOTE: This instruction is expected to be in the same transaction as the one that executes
+    /// the prepare order response instruction. If it is not, there is a risk that after preparing
+    /// the order response that someone starts an auction. This scenario risks the preparer's rent
+    /// that he paid because the winning auction participant can take his lamports when he calls
+    /// settle auction complete. Although this is an unlikely scenario, it is possible if there is
+    /// no deadline specified to start the auction and no participants use the fast VAA to start an
+    /// auction until the finalized VAA exists (which guarantees that the funds have finalized on
+    /// the source network).
     ///
     /// # Arguments
     ///

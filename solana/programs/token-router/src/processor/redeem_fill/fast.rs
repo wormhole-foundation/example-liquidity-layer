@@ -1,6 +1,5 @@
 use crate::{
     composite::*,
-    error::TokenRouterError,
     state::{Custodian, FillType, PreparedFill, PreparedFillInfo, PreparedFillSeeds},
 };
 use anchor_lang::prelude::*;
@@ -31,8 +30,7 @@ pub struct RedeemFastFill<'info> {
     #[account(
         init_if_needed,
         payer = payer,
-        space = PreparedFill::checked_compute_size(fast_fill.redeemer_message.len())
-            .ok_or(error!(TokenRouterError::PreparedFillTooLarge))?,
+        space = PreparedFill::compute_size(fast_fill.redeemer_message.len()),
         seeds = [
             PreparedFill::SEED_PREFIX,
             fast_fill.key().as_ref(),

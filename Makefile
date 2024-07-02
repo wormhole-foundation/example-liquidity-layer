@@ -3,7 +3,9 @@
 clean:
 	rm -rf node_modules
 	npm run clean
+	cd evm && $(MAKE) clean
 	cd solana && $(MAKE) clean
+	cd universal/rs && cargo clean
 
 .PHONY: clean-install
 clean-install: clean node_modules

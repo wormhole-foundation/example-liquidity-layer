@@ -59,21 +59,10 @@ pub struct PlaceMarketOrderCctp<'info> {
     )]
     prepared_custody_token: Box<Account<'info, token::TokenAccount>>,
 
-    /// Registered router endpoint representing a foreign Token Router. This account may have a
-    /// CCTP domain encoded if this route is CCTP-enabled. For this instruction, it is required that
-    /// [RouterEndpoint::cctp_domain] is `Some(value)`.
-    ///
-    /// Seeds must be \["registered_emitter", target_chain.to_be_bytes()\].
     #[account(
-        seeds = [
-            matching_engine::state::RouterEndpoint::SEED_PREFIX,
-            router_endpoint.chain.to_be_bytes().as_ref(),
-        ],
-        bump = router_endpoint.bump,
-        seeds::program = matching_engine::id(),
         constraint = {
             require_eq!(
-                router_endpoint.chain,
+                target_router_endpoint.chain,
                 prepared_order.target_chain,
                 TokenRouterError::InvalidTargetRouter,
             );
@@ -81,7 +70,7 @@ pub struct PlaceMarketOrderCctp<'info> {
             true
         }
     )]
-    router_endpoint: Box<Account<'info, matching_engine::state::RouterEndpoint>>,
+    target_router_endpoint: RegisteredEndpoint<'info>,
 
     /// CHECK: Seeds must be \["Bridge"\] (Wormhole Core Bridge program).
     #[account(mut)]
@@ -172,7 +161,7 @@ pub struct PlaceMarketOrderCctp<'info> {
 ///
 /// See [burn_and_publish](wormhole_cctp_solana::cpi::burn_and_publish) for more details.
 pub fn place_market_order_cctp(ctx: Context<PlaceMarketOrderCctp>) -> Result<()> {
-    match ctx.accounts.router_endpoint.protocol {
+    match ctx.accounts.target_router_endpoint.protocol {
         matching_engine::state::MessageProtocol::Cctp { domain } => {
             handle_place_market_order_cctp(ctx, domain)
         }
@@ -192,7 +181,7 @@ fn handle_place_market_order_cctp(
     let prepared_custody_token = &ctx.accounts.prepared_custody_token;
     let token_program = &ctx.accounts.token_program;
     let system_program = &ctx.accounts.system_program;
-    let router_endpoint = &ctx.accounts.router_endpoint;
+    let target_router_endpoint = &ctx.accounts.target_router_endpoint;
 
     let order_info = &ctx.accounts.prepared_order.info;
 
@@ -268,10 +257,10 @@ fn handle_place_market_order_cctp(
         ),
         wormhole_cctp_solana::cpi::BurnAndPublishArgs {
             burn_source: order_info.src_token.into(),
-            destination_caller: router_endpoint.address,
+            destination_caller: target_router_endpoint.address,
             destination_cctp_domain,
             amount: prepared_custody_token.amount,
-            mint_recipient: router_endpoint.mint_recipient,
+            mint_recipient: target_router_endpoint.mint_recipient,
             wormhole_message_nonce: common::WORMHOLE_MESSAGE_NONCE,
             payload: common::messages::Fill {
                 source_chain: SOLANA_CHAIN,

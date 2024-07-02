@@ -29,6 +29,7 @@ pub struct PrepareMarketOrder<'info> {
             TRANSFER_AUTHORITY_SEED_PREFIX,
             prepared_order.key().as_ref(),
             &args.hash().0,
+            refund_token.key().as_ref()
         ],
         bump,
         constraint = {
@@ -116,6 +117,19 @@ pub struct PrepareMarketOrder<'info> {
 
     usdc: Usdc<'info>,
 
+    #[account(
+        constraint = {
+            require_eq!(
+                target_router_endpoint.chain,
+                args.target_chain,
+                TokenRouterError::InvalidTargetRouter,
+            );
+
+            true
+        }
+    )]
+    target_router_endpoint: RegisteredEndpoint<'info>,
+
     token_program: Program<'info, token::Token>,
     system_program: Program<'info, System>,
 }
@@ -175,6 +189,14 @@ pub fn prepare_market_order(
         redeemer_message,
     } = args;
 
+    let token_program = &ctx.accounts.token_program;
+    let sender_token = &ctx.accounts.sender_token;
+    let custody_token = &ctx.accounts.prepared_custody_token;
+    let refund_token = &ctx.accounts.refund_token;
+
+    let prepared_order = &mut ctx.accounts.prepared_order;
+    let prepared_order_key = prepared_order.key();
+
     // Finally transfer amount to custody token account. We perform exclusive or because we do not
     // want to allow specifying more than one authority.
     let order_sender = match (
@@ -184,10 +206,10 @@ pub fn prepare_market_order(
         (Some(sender), None) => {
             token::transfer(
                 CpiContext::new(
-                    ctx.accounts.token_program.to_account_info(),
+                    token_program.to_account_info(),
                     token::Transfer {
-                        from: ctx.accounts.sender_token.to_account_info(),
-                        to: ctx.accounts.prepared_custody_token.to_account_info(),
+                        from: sender_token.to_account_info(),
+                        to: custody_token.to_account_info(),
                         authority: sender.to_account_info(),
                     },
                 ),
@@ -197,20 +219,19 @@ pub fn prepare_market_order(
             sender.key()
         }
         (None, Some(program_transfer_authority)) => {
-            let sender_token = &ctx.accounts.sender_token;
-
             token::transfer(
                 CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
+                    token_program.to_account_info(),
                     token::Transfer {
                         from: sender_token.to_account_info(),
-                        to: ctx.accounts.prepared_custody_token.to_account_info(),
+                        to: custody_token.to_account_info(),
                         authority: program_transfer_authority.to_account_info(),
                     },
                     &[&[
                         TRANSFER_AUTHORITY_SEED_PREFIX,
-                        ctx.accounts.prepared_order.key().as_ref(),
+                        prepared_order_key.as_ref(),
                         &hashed_args.0,
+                        refund_token.key().as_ref(),
                         &[ctx.bumps.program_transfer_authority.unwrap()],
                     ]],
                 ),
@@ -223,13 +244,13 @@ pub fn prepare_market_order(
     };
 
     // Set the values in prepared order account.
-    ctx.accounts.prepared_order.set_inner(PreparedOrder {
+    prepared_order.set_inner(PreparedOrder {
         info: PreparedOrderInfo {
             order_sender,
             prepared_by: ctx.accounts.payer.key(),
             order_type: OrderType::Market { min_amount_out },
-            src_token: ctx.accounts.sender_token.key(),
-            refund_token: ctx.accounts.refund_token.key(),
+            src_token: sender_token.key(),
+            refund_token: refund_token.key(),
             target_chain,
             redeemer,
             prepared_custody_token_bump: ctx.bumps.prepared_custody_token,

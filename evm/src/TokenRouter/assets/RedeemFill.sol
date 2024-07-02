@@ -16,26 +16,30 @@ import "./Errors.sol";
 import {State} from "./State.sol";
 
 import "src/interfaces/IRedeemFill.sol";
+import "src/interfaces/ITokenRouterEvents.sol";
 
-abstract contract RedeemFill is IRedeemFill, Admin, State {
+abstract contract RedeemFill is IRedeemFill, ITokenRouterEvents, Admin, State {
     using Messages for *;
     using Utils for *;
 
     /// @inheritdoc IRedeemFill
-    function redeemFill(OrderResponse calldata response) external returns (RedeemedFill memory) {
-        uint16 emitterChain = response.encodedWormholeMessage.unsafeEmitterChainFromVaa();
-        bytes32 emitterAddress = response.encodedWormholeMessage.unsafeEmitterAddressFromVaa();
+    function redeemFill(OrderResponse calldata response) external returns (RedeemedFill memory fill) {
+        (, uint16 emitterChain, bytes32 emitterAddress, uint64 sequence) =
+            response.encodedWormholeMessage.unsafeVaaKeyFromVaa();
 
         // If the emitter is the matching engine, and this TokenRouter is on the same chain
         // as the matching engine, then this is a fast fill.
+
         if (
             (emitterChain == _matchingEngineChain && _chainId == _matchingEngineChain)
                 && emitterAddress == _matchingEngineAddress
         ) {
-            return _handleFastFill(response.encodedWormholeMessage);
+            fill = _handleFastFill(response.encodedWormholeMessage);
         } else {
-            return _handleFill(emitterChain, response);
+            fill = _handleFill(emitterChain, response);
         }
+
+        emit FillRedeemed(emitterChain, emitterAddress, sequence);
     }
 
     // ------------------------------- Private ---------------------------------

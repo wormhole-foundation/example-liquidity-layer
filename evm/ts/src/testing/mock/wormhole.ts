@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import { EvmObserver } from ".";
-import { parseEvmEvents, parseEvmEvent } from "../../../src";
+import { parseEvmEvents, parseEvmEvent } from "../..";
 import { GUARDIAN_PRIVATE_KEY, WORMHOLE_GUARDIAN_SET_INDEX } from "../consts";
 import { Chain, contracts } from "@wormhole-foundation/sdk-base";
 import { serialize, toUniversal } from "@wormhole-foundation/sdk-definitions";
