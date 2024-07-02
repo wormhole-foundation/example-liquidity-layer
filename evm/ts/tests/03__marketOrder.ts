@@ -1,21 +1,26 @@
+import {
+    FastTransfer,
+    TokenRouter,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { toNative } from "@wormhole-foundation/sdk-definitions";
 import { expect } from "chai";
 import { ethers } from "ethers";
-import { EvmTokenRouter, errorDecoder, OrderResponse } from "../src";
-import { IERC20__factory } from "../src/types";
+import { EvmTokenRouter, decodedOrderResponse } from "../src";
 import {
     CircleAttester,
     GuardianNetwork,
     LOCALHOSTS,
     ValidNetwork,
     WALLET_PRIVATE_KEYS,
+    asUniversalBytes,
     burnAllUsdc,
-    mineWait,
+    getSdkSigner,
     mintNativeUsdc,
-    ChainType,
     parseLiquidityLayerEnvFile,
-    tryNativeToUint8Array,
+    signSendMineWait,
+    toContractAddresses,
 } from "../src/testing";
-import { toChainId } from "@wormhole-foundation/sdk-base";
+import { IERC20__factory } from "../src/types";
 
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
     ["Ethereum", "Avalanche"],
@@ -41,14 +46,16 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
             // From setup.
             const fromProvider = new ethers.JsonRpcProvider(LOCALHOSTS[fromChainName]);
             const fromWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[0], fromProvider);
+            const fromSigner = getSdkSigner(fromChainName, new ethers.NonceManager(fromWallet));
 
             const fromEnv = parseLiquidityLayerEnvFile(`${envPath}/${fromChainName}.env`);
             const fromTokenRouter = (() => {
-                if (fromEnv.chainType === ChainType.Evm) {
+                if (fromEnv.chainType === "Evm") {
                     return new EvmTokenRouter(
-                        fromWallet,
-                        fromEnv.tokenRouterAddress,
-                        fromEnv.tokenMessengerAddress,
+                        "Devnet",
+                        fromChainName,
+                        fromProvider,
+                        toContractAddresses(fromEnv),
                     );
                 } else {
                     throw new Error("Unsupported chain");
@@ -58,14 +65,16 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
             // To setup.
             const toProvider = new ethers.JsonRpcProvider(LOCALHOSTS[toChainName]);
             const toWallet = new ethers.Wallet(WALLET_PRIVATE_KEYS[1], toProvider);
+            const toSigner = getSdkSigner(toChainName, toWallet);
 
             const toEnv = parseLiquidityLayerEnvFile(`${envPath}/${toChainName}.env`);
             const toTokenRouter = (() => {
-                if (toEnv.chainType === ChainType.Evm) {
+                if (toEnv.chainType === "Evm") {
                     return new EvmTokenRouter(
-                        toWallet,
-                        toEnv.tokenRouterAddress,
-                        toEnv.tokenMessengerAddress,
+                        "Devnet",
+                        toChainName,
+                        toProvider,
+                        toContractAddresses(toEnv),
                     );
                 } else {
                     throw new Error("Unsupported chain");
@@ -91,48 +100,29 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
 
             it(`From Network -- Place Market Order`, async () => {
                 const amountIn = await (async () => {
-                    if (fromEnv.chainType == ChainType.Evm) {
-                        const usdc = IERC20__factory.connect(fromEnv.tokenAddress, fromWallet);
-                        const amount = await usdc.balanceOf(fromWallet.address);
-                        await usdc
-                            .approve(fromTokenRouter.address, amount)
-                            .then((tx) => mineWait(fromProvider, tx));
-
-                        return BigInt(amount.toString());
-                    } else {
-                        throw new Error("Unsupported chain");
-                    }
+                    if (fromEnv.chainType !== "Evm") throw new Error("Unsupported chain");
+                    return await IERC20__factory.connect(
+                        fromEnv.tokenAddress,
+                        fromWallet,
+                    ).balanceOf(fromWallet.address);
                 })();
                 localVariables.set("amountIn", amountIn);
 
-                const targetChain = toChainId(toChainName);
-                const minAmountOut = BigInt(0);
-                const receipt = await fromTokenRouter
-                    .placeMarketOrderTx(
-                        amountIn,
-                        targetChain,
-                        Buffer.from(tryNativeToUint8Array(toWallet.address, toChainName)),
-                        Buffer.from("All your base are belong to us."),
-                        minAmountOut,
-                        fromWallet.address,
-                    )
-                    .then(async (txReq) => {
-                        txReq.nonce = await fromWallet.getNonce();
-                        return await fromWallet.sendTransaction(txReq);
-                    })
-                    .then((tx) => mineWait(fromProvider, tx))
-                    .catch((err) => {
-                        console.log(err);
-                        console.log(errorDecoder(err));
-                        throw err;
-                    });
+                const order: TokenRouter.OrderRequest = {
+                    amountIn,
+                    minAmountOut: BigInt(0),
+                    redeemer: toNative("Ethereum", toWallet.address).toUniversalAddress(),
+                    targetChain: toChainName,
+                };
 
+                const txs = fromTokenRouter.placeMarketOrder(fromWallet.address, order);
+                const receipt = await signSendMineWait(txs, fromSigner);
                 const transactionResult = await fromTokenRouter.getTransactionResults(
                     receipt!.hash,
                 );
 
                 expect(transactionResult.wormhole.emitterAddress).to.eql(
-                    tryNativeToUint8Array(fromEnv.tokenRouterAddress, fromChainName),
+                    asUniversalBytes(fromEnv.tokenRouterAddress),
                 );
                 expect(transactionResult.wormhole.message.body).has.property("fill");
                 expect(transactionResult.circleMessage).is.not.undefined;
@@ -146,30 +136,23 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 const circleBridgeMessage = transactionResult.circleMessage!;
                 const circleAttestation = circleAttester.createAttestation(circleBridgeMessage);
 
-                const orderResponse: OrderResponse = {
+                const orderResponse: FastTransfer.OrderResponse = decodedOrderResponse({
                     encodedWormholeMessage: fillVaa,
                     circleBridgeMessage,
                     circleAttestation,
-                };
+                });
                 localVariables.set("orderResponse", orderResponse);
             });
 
             it(`To Network -- Redeem Fill`, async () => {
-                const orderResponse = localVariables.get("orderResponse") as OrderResponse;
+                const response = localVariables.get("orderResponse") as FastTransfer.OrderResponse;
                 expect(localVariables.delete("orderResponse")).is.true;
 
                 const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
                 const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                const receipt = await toTokenRouter
-                    .redeemFillTx(orderResponse)
-                    .then((txReq) => toWallet.sendTransaction(txReq))
-                    .then((tx) => mineWait(toProvider, tx))
-                    .catch((err) => {
-                        console.log(err);
-                        console.log(errorDecoder(err));
-                        throw err;
-                    });
+                const txs = toTokenRouter.redeemFill(toWallet.address, response);
+                await signSendMineWait(txs, toSigner);
 
                 const balanceAfter = await usdc.balanceOf(toWallet.address);
 

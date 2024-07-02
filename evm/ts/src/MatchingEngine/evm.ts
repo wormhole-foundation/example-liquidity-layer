@@ -1,6 +1,6 @@
 import { ChainId, asChainId } from "@wormhole-foundation/sdk-base";
 import { ethers } from "ethers";
-import { RouterEndpoint, LiveAuctionData, MatchingEngine, RedeemParameters } from ".";
+import { AbstractMatchingEngine, LiveAuctionData, RedeemParameters, RouterEndpoint } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {
     IMatchingEngine,
@@ -11,7 +11,7 @@ import {
     IWormhole__factory,
 } from "../types";
 
-export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransaction> {
+export class MatchingEngine implements AbstractMatchingEngine<ethers.ContractTransaction> {
     contract: IMatchingEngine;
     circle: ITokenMessenger;
 
@@ -39,11 +39,11 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         return this.connection;
     }
 
-    connect(connection: ethers.Provider): EvmMatchingEngine {
-        return new EvmMatchingEngine(connection, this.address, this.circleBridge);
+    connect(connection: ethers.Provider): MatchingEngine {
+        return new MatchingEngine(connection, this.address, this.circleBridge);
     }
 
-    async addRouterEndpoint(
+    async addRouterEndpointTx(
         chain: number,
         endpoint: RouterEndpoint,
         domain: number,
@@ -51,27 +51,27 @@ export class EvmMatchingEngine implements MatchingEngine<ethers.ContractTransact
         return this.contract.addRouterEndpoint.populateTransaction(chain, endpoint, domain);
     }
 
-    async placeInitialBid(
+    async placeInitialBidTx(
         fastTransferVaa: Buffer | Uint8Array,
         feeBid: bigint | ethers.BigNumberish,
     ): Promise<ethers.ContractTransaction> {
         return this.contract.placeInitialBid.populateTransaction(fastTransferVaa, feeBid);
     }
 
-    async improveBid(
+    async improveBidTx(
         auctionId: Buffer | Uint8Array,
         feeBid: bigint | ethers.BigNumberish,
     ): Promise<ethers.ContractTransaction> {
         return this.contract.improveBid.populateTransaction(auctionId, feeBid);
     }
 
-    async executeFastOrder(
+    async executeFastOrderTx(
         fastTransferVaa: Buffer | Uint8Array,
     ): Promise<ethers.ContractTransaction> {
         return this.contract.executeFastOrder.populateTransaction(fastTransferVaa);
     }
 
-    async executeSlowOrderAndRedeem(
+    async executeSlowOrderAndRedeemTx(
         fastTransferVaa: Buffer | Uint8Array,
         params: RedeemParameters,
     ): Promise<ethers.ContractTransaction> {

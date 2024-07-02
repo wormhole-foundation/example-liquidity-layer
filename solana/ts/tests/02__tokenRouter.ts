@@ -864,7 +864,6 @@ describe("Token Router", function () {
                 );
             });
 
-            // TODO:
             it("Place Market Order", async function () {
                 const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
                 expect(localVariables.delete("preparedOrder")).is.true;
@@ -1741,10 +1740,12 @@ describe("Token Router", function () {
 
                 const txs = tokenRouter.redeemFill(
                     payer.publicKey,
-                    mockVaa,
                     {
-                        message: cctpMessage,
-                        attestation: cctpAttestation.toString("hex"),
+                        vaa: mockVaa,
+                        cctp: {
+                            message: cctpMessage,
+                            attestation: cctpAttestation.toString("hex"),
+                        },
                     },
                     [lookupTableAccount!],
                 );

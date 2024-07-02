@@ -1,11 +1,9 @@
-import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
-import { Network, nativeChainIds, toChainId } from "@wormhole-foundation/sdk-base";
 import {
-    CircleBridge,
-    Contracts,
-    UnsignedTransaction,
-    VAA,
-} from "@wormhole-foundation/sdk-definitions";
+    FastTransfer,
+    TokenRouter,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { Network, toChainId } from "@wormhole-foundation/sdk-base";
+import { Contracts, UnsignedTransaction } from "@wormhole-foundation/sdk-definitions";
 import {
     AnyEvmAddress,
     EvmAddress,
@@ -13,13 +11,13 @@ import {
     EvmUnsignedTransaction,
 } from "@wormhole-foundation/sdk-evm";
 import { ethers } from "ethers";
-import { EvmTokenRouter as _EvmTokenRouter } from "../TokenRouter";
+import { OrderResponse, TokenRouter as _TokenRouter, encodeOrderResponse } from "../TokenRouter";
+import { IUSDC__factory } from "../types";
 
 export class EvmTokenRouter<N extends Network, C extends EvmChains>
-    extends _EvmTokenRouter
+    extends _TokenRouter
     implements TokenRouter<N, C>
 {
-    private _chainId: number;
     constructor(
         readonly network: N,
         readonly chain: C,
@@ -27,20 +25,35 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
         readonly contracts: Contracts & TokenRouter.Addresses,
     ) {
         super(provider, contracts.tokenRouter, contracts.cctp.tokenMessenger);
-        this._chainId = 0; //nativeChainIds.networkChainToNativeChainId(network, chain);
     }
 
-    async *placeMarketOrder(
-        sender: AnyEvmAddress,
-        order: TokenRouter.OrderRequest,
-    ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
+    async *approveAllowance(sender: AnyEvmAddress, amount: bigint) {
+        const from = new EvmAddress(sender).unwrap();
+
+        const tokenContract = IUSDC__factory.connect(this.contracts.cctp.usdcMint, this.provider);
+        const allowed = await tokenContract.allowance(from, this.address);
+
+        if (amount > allowed) {
+            const txReq = await tokenContract.approve.populateTransaction(this.address, amount);
+            yield this.createUnsignedTx(
+                { ...txReq, from },
+                "MatchingEngine.approveAllowance",
+                false,
+            );
+        }
+    }
+
+    async *placeMarketOrder(sender: AnyEvmAddress, order: TokenRouter.OrderRequest) {
+        const from = new EvmAddress(sender).unwrap();
         const msg = order.redeemerMessage ? order.redeemerMessage : new Uint8Array();
 
         const refundAddress = order.refundAddress
             ? new EvmAddress(order.refundAddress).unwrap()
             : undefined;
 
-        const tx = await this.placeMarketOrderTx(
+        yield* this.approveAllowance(sender, order.amountIn + (order.maxFee || 0n));
+
+        const txReq = await this.placeMarketOrderTx(
             order.amountIn,
             toChainId(order.targetChain),
             order.redeemer.toUint8Array(),
@@ -49,29 +62,49 @@ export class EvmTokenRouter<N extends Network, C extends EvmChains>
             refundAddress,
         );
 
-        yield this.createUnsignedTx(tx, "TokenRouter.placeMarketOrder");
+        yield this.createUnsignedTx({ ...txReq, from }, "TokenRouter.placeMarketOrder");
     }
-    async *redeemFill(
-        sender: AnyEvmAddress,
-        vaa:
-            | VAA<"FastTransfer:CctpDeposit">
-            | VAA<"FastTransfer:FastMarketOrder">
-            | VAA<"FastTransfer:FastFill">,
-        cctp: CircleBridge.Attestation,
-    ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
-        throw new Error("Method not implemented.");
+
+    async *placeFastMarketOrder(sender: AnyEvmAddress, order: TokenRouter.OrderRequest) {
+        const from = new EvmAddress(sender).unwrap();
+        const msg = order.redeemerMessage ? order.redeemerMessage : new Uint8Array();
+
+        const refundAddress = order.refundAddress
+            ? new EvmAddress(order.refundAddress).unwrap()
+            : undefined;
+
+        // If necessary, approve the amountIn to be spent by the TokenRouter.
+        yield* this.approveAllowance(sender, order.amountIn + (order.maxFee || 0n));
+
+        const txReq = await this.placeFastMarketOrderTx(
+            order.amountIn,
+            toChainId(order.targetChain),
+            order.redeemer.toUint8Array(),
+            msg,
+            order.maxFee!,
+            order.deadline!,
+            order.minAmountOut,
+            refundAddress,
+        );
+
+        yield this.createUnsignedTx({ ...txReq, from }, "TokenRouter.placeMarketOrder");
+    }
+
+    async *redeemFill(sender: AnyEvmAddress, orderResponse: FastTransfer.OrderResponse) {
+        const from = new EvmAddress(sender).unwrap();
+
+        const response: OrderResponse = encodeOrderResponse(orderResponse);
+        const txReq = await this.redeemFillTx(response);
+        yield this.createUnsignedTx({ ...txReq, from }, "TokenRouter.redeemFill");
     }
 
     private createUnsignedTx(
-        txReq: ethers.ContractTransaction,
+        txReq: ethers.TransactionRequest,
         description: string,
         parallelizable: boolean = false,
-    ): EvmUnsignedTransaction<N, C> {
-        //txReq.chainId = this._chainId;
-
+    ): UnsignedTransaction<N, C> {
         return new EvmUnsignedTransaction(
-            // txReq,
-            {},
+            txReq,
             this.network,
             this.chain,
             description,

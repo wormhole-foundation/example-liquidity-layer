@@ -7,7 +7,6 @@ import {
     ValidNetwork,
     MATCHING_ENGINE_NAME,
     parseLiquidityLayerEnvFile,
-    ChainType,
     LiquidityLayerEnv,
 } from "../src/testing";
 import { expect } from "chai";
@@ -103,7 +102,7 @@ function fetchTokenRouterEndpoint(
 ): [Uint8Array, Uint8Array] {
     const formattedAddress = toUniversal(chainName, targetEnv.tokenRouterAddress).toUint8Array();
     let formattedMintRecipient;
-    if (targetEnv.chainType === ChainType.Evm) {
+    if (targetEnv.chainType === "Evm") {
         formattedMintRecipient = formattedAddress;
     } else {
         if (targetEnv.tokenRouterMintRecipient === undefined) {

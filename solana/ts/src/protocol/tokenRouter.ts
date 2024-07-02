@@ -9,7 +9,11 @@ import {
     TransactionMessage,
     VersionedTransaction,
 } from "@solana/web3.js";
-import { Payload, TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import {
+    FastTransfer,
+    Payload,
+    TokenRouter,
+} from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { ChainId, Network, Platform, toChainId } from "@wormhole-foundation/sdk-base";
 import {
     ChainsConfig,
@@ -106,12 +110,10 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
             },
             {
                 amountIn: order.amountIn,
-                minAmountOut: order.minAmountOut !== undefined ? order.minAmountOut : null,
+                minAmountOut: order.minAmountOut ?? null,
                 targetChain: toChainId(order.targetChain),
                 redeemer: Array.from(order.redeemer.toUint8Array()),
-                redeemerMessage: order.redeemerMessage
-                    ? Buffer.from(order.redeemerMessage)
-                    : Buffer.from(""),
+                redeemerMessage: Buffer.from(order.redeemerMessage ?? ""),
             },
         );
 
@@ -202,19 +204,19 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
 
     async *redeemFill(
         sender: AnySolanaAddress,
-        vaa: VAA<"FastTransfer:CctpDeposit">,
-        cctp: CircleBridge.Attestation,
+        orderResponse: FastTransfer.OrderResponse,
         lookupTables?: AddressLookupTableAccount[],
     ): AsyncGenerator<UnsignedTransaction<N, C>, any, unknown> {
+        if (FastTransfer.isFastFill(orderResponse)) throw "Invalid order response";
+
         const payer = new SolanaAddress(sender).unwrap();
 
-        const postedVaaAddress = this.matchingEngine.pdas.postedVaa(vaa);
-
-        const fill = vaa.payload.payload;
-
+        const { vaa, cctp } = orderResponse;
         // Must be a fill payload
+        const fill = vaa.payload.payload;
         if (!Payload.is(fill, "Fill")) throw new Error("Invalid VAA payload");
 
+        const postedVaaAddress = this.matchingEngine.pdas.postedVaa(vaa);
         const ix = await this.redeemCctpFillIx(
             {
                 payer: payer,
@@ -224,8 +226,8 @@ export class SolanaTokenRouter<N extends Network, C extends SolanaChains>
                 ),
             },
             {
-                encodedCctpMessage: Buffer.from(CircleBridge.serialize(cctp.message)),
-                cctpAttestation: Buffer.from(cctp.attestation!, "hex"),
+                encodedCctpMessage: Buffer.from(CircleBridge.serialize(cctp!.message)),
+                cctpAttestation: Buffer.from(cctp!.attestation!, "hex"),
             },
         );
 

@@ -24,10 +24,10 @@ export type RouterEndpoint = {
     mintRecipient: string | Buffer | Uint8Array;
 };
 
-export abstract class MatchingEngine<PreparedTransactionType extends PreparedInstruction> {
+export abstract class AbstractMatchingEngine<PreparedTransactionType extends PreparedInstruction> {
     abstract get address(): string;
 
-    abstract addRouterEndpoint(
+    abstract addRouterEndpointTx(
         chain: number,
         endpoint: RouterEndpoint,
         domain: number,
@@ -37,21 +37,21 @@ export abstract class MatchingEngine<PreparedTransactionType extends PreparedIns
 
     abstract auctionStatus(auctionId: Buffer | Uint8Array): Promise<bigint>;
 
-    abstract placeInitialBid(
+    abstract placeInitialBidTx(
         fastTransferVaa: Buffer | Uint8Array,
         feeBid: bigint,
     ): Promise<PreparedTransactionType>;
 
-    abstract improveBid(
+    abstract improveBidTx(
         auctionId: Buffer | Uint8Array,
         feeBid: bigint,
     ): Promise<PreparedTransactionType>;
 
-    abstract executeFastOrder(
+    abstract executeFastOrderTx(
         fastTransferVaa: Buffer | Uint8Array,
     ): Promise<PreparedTransactionType>;
 
-    abstract executeSlowOrderAndRedeem(
+    abstract executeSlowOrderAndRedeemTx(
         fastTransferVaa: Buffer | Uint8Array,
         params: RedeemParameters,
     ): Promise<PreparedTransactionType>;
