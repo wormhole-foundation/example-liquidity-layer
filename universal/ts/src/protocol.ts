@@ -37,6 +37,11 @@ export namespace FastTransfer {
         cctp?: Contracts["cctp"] & { usdcMint: string };
     };
 
+    export type OrderResponse = {
+        vaa: VAA<"CctpDeposit">; // | VAA<"FastFill">;
+        cctp: CircleBridge.Attestation;
+    };
+
     export const getPayloadDiscriminator = () => payloadDiscriminator([protocolName, messageNames]);
 
     export const auctionId = (vaa: VAA<"FastMarketOrder">) => keccak256(vaa.hash);

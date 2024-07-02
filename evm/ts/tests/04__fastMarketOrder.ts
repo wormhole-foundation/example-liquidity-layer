@@ -3,7 +3,6 @@ import { ethers } from "ethers";
 import {
     EvmMatchingEngine,
     EvmTokenRouter,
-    MessageDecoder,
     OrderResponse,
     decodedOrderResponse,
     errorDecoder,
@@ -42,7 +41,6 @@ import {
 import { encoding } from "@wormhole-foundation/sdk-base";
 import {
     CircleBridge,
-    VAA,
     deserialize,
     keccak256,
     serialize,
@@ -221,10 +219,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 it(`Matching Engine -- Start Fast Order Auction`, async () => {
                     const fastVaa = localVariables.get(
                         "fastVaa",
-                    ) as VAA<"FastTransfer:FastMarketOrder">;
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
 
                     const auctionId = FastTransfer.auctionId(fastVaa);
-                    localVariables.set("auctionId", auctionId);
 
                     const fastOrder = fastVaa.payload;
 
@@ -237,20 +234,19 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         initialBidder.provider!,
                     );
 
-                    const initialBidderAddress = await initialBidder.getAddress();
-                    await mintNativeUsdc(usdc, initialBidderAddress, initialDeposit);
+                    await mintNativeUsdc(usdc, initialBidder.address, initialDeposit);
 
-                    const balanceBefore = await usdc.balanceOf(initialBidderAddress);
+                    const balanceBefore = await usdc.balanceOf(initialBidder.address);
 
                     const txs = engine.placeInitialOffer(
-                        initialBidderAddress,
+                        initialBidder.address,
                         fastVaa,
                         fastOrder.maxFee,
                         initialDeposit,
                     );
                     const receipt = await signSendMineWait(txs, initialBidderSigner);
 
-                    const balanceAfter = await usdc.balanceOf(initialBidderAddress);
+                    const balanceAfter = await usdc.balanceOf(initialBidder.address);
                     expect((balanceBefore - balanceAfter).toString()).to.eql(
                         initialDeposit.toString(),
                     );
@@ -262,8 +258,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(auctionData.startBlock.toString()).to.eql(
                         receipt!.blockNumber.toString(),
                     );
-                    expect(auctionData.highestBidder).to.eql(initialBidderAddress);
-                    expect(auctionData.initialBidder).to.eql(initialBidderAddress);
+                    expect(auctionData.highestBidder).to.eql(initialBidder.address);
+                    expect(auctionData.initialBidder).to.eql(initialBidder.address);
                     expect(auctionData.amount.toString()).to.eql(fastOrder.amountIn.toString());
                     expect(auctionData.securityDeposit.toString()).to.eql(
                         fastOrder.maxFee.toString(),
@@ -274,9 +270,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 it(`Matching Engine -- Fast Order Auction Period`, async () => {
                     const vaa = localVariables.get(
                         "fastVaa",
-                    ) as VAA<"FastTransfer:FastMarketOrder">;
-                    const auctionId = localVariables.get("auctionId") as Uint8Array;
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
 
+                    const auctionId = FastTransfer.auctionId(vaa);
                     const auctionInfoBefore = await engine.liveAuctionInfo(auctionId);
                     const startingBid = auctionInfoBefore.bidPrice;
                     const initialDeposit =
@@ -307,17 +303,16 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // Loop through and make multiple bids in the same block.
                     for (let i = 0; i < bids.length; i++) {
                         const player = bids[i].player;
-                        const playerAddress = await player.getAddress();
                         const playerSigner = getSdkSigner(fromChainName, player);
 
                         const usdc = IERC20__factory.connect(engineEnv.tokenAddress, player);
-                        await mintNativeUsdc(usdc, playerAddress, initialDeposit, false);
+                        await mintNativeUsdc(usdc, player.address, initialDeposit, false);
 
-                        bids[i].balance = await usdc.balanceOf(playerAddress);
+                        bids[i].balance = await usdc.balanceOf(player.address);
 
-                        await sleep(1);
+                        //await sleep(1);
 
-                        const txs = engine.improveOffer(playerAddress, vaa, bids[i].bid);
+                        const txs = engine.improveOffer(player.address, vaa, bids[i].bid);
                         await signSendOnly(txs, playerSigner);
                     }
 
@@ -328,9 +323,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // should've been refunded.
                     for (let i = 0; i < bids.length; i++) {
                         const player = bids[i].player;
-                        const playerAddress = await player.getAddress();
                         const usdc = IERC20__factory.connect(engineEnv.tokenAddress, player);
-                        const balanceAfter = await usdc.balanceOf(playerAddress);
+                        const balanceAfter = await usdc.balanceOf(player.address);
 
                         if (i == 2) {
                             expect((balanceAfter - bids[i].balance).toString()).to.eql("0");
@@ -348,7 +342,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(auctionInfoAfter.startBlock.toString()).to.eql(
                         auctionInfoBefore.startBlock.toString(),
                     );
-                    expect(auctionInfoAfter.highestBidder).to.eql(await highestBidder.getAddress());
+                    expect(auctionInfoAfter.highestBidder).to.eql(highestBidder.address);
                     expect(auctionInfoAfter.initialBidder).to.eql(auctionInfoBefore.initialBidder);
                     expect(auctionInfoAfter.amount.toString()).to.eql(
                         auctionInfoBefore.amount.toString(),
@@ -362,21 +356,19 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 it(`Matching Engine -- Execute Fast Order Within Grace Period`, async () => {
                     const fastVaa = localVariables.get(
                         "fastVaa",
-                    ) as VAA<"FastTransfer:FastMarketOrder">;
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const auctionId = FastTransfer.auctionId(fastVaa);
 
-                    const auctionId = localVariables.get("auctionId") as Uint8Array;
                     await mineToGracePeriod(auctionId, engine, engineProvider);
-
-                    const highestBidderAddress = await highestBidder.getAddress();
 
                     // Fetch the initial bidder so we can do a balance check.
                     const auctionInfo = await engine.liveAuctionInfo(auctionId);
 
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
-                    const balanceBefore = await usdc.balanceOf(highestBidderAddress);
+                    const balanceBefore = await usdc.balanceOf(highestBidder.address);
                     const initialBidderBefore = await usdc.balanceOf(auctionInfo.initialBidder);
 
-                    const txs = engine.executeFastOrder(highestBidderAddress, fastVaa);
+                    const txs = engine.executeFastOrder(highestBidder.address, fastVaa);
                     const receipt = await signSendMineWait(txs, highestBidderSigner);
 
                     const transactionResult = await engine.getTransactionResults(receipt!.hash);
@@ -395,7 +387,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(transactionResult.fastMessage).is.undefined;
 
                     // Validate state and balance changes.
-                    const balanceAfter = await usdc.balanceOf(await highestBidder.getAddress());
+                    const balanceAfter = await usdc.balanceOf(highestBidder.address);
                     const initialBidderAfter = await usdc.balanceOf(auctionInfo.initialBidder);
                     const initAuctionFee = await fromTokenRouter.getInitialAuctionFee();
 
@@ -440,7 +432,10 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`To Network -- Redeem Fill`, async () => {
-                    const auctionId = localVariables.get("auctionId") as Uint8Array;
+                    const fastVaa = localVariables.get(
+                        "fastVaa",
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const auctionId = FastTransfer.auctionId(fastVaa);
                     const orderResponse = localVariables.get("fastOrderResponse") as OrderResponse;
                     expect(localVariables.delete("fastOrderResponse")).is.true;
 
@@ -462,14 +457,13 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Execute Slow Vaa And Redeem`, async () => {
-                    const auctionId = localVariables.get("auctionId") as Uint8Array;
                     const fastVaa = localVariables.get(
                         "fastVaa",
-                    ) as VAA<"FastTransfer:FastMarketOrder">;
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const auctionId = FastTransfer.auctionId(fastVaa);
                     const params = localVariables.get("redeemParameters") as OrderResponse;
                     expect(localVariables.delete("redeemParameters")).is.true;
                     expect(localVariables.delete("fastVaa")).is.true;
-                    expect(localVariables.delete("auctionId")).is.true;
 
                     // Fetch balance of player four since they were the highest bidder.
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
@@ -478,19 +472,11 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         .liveAuctionInfo(auctionId)
                         .then((info) => info.amount);
 
-                    const cctpVaa = deserialize(
-                        "FastTransfer:CctpDeposit",
-                        params.encodedWormholeMessage,
-                    );
-                    const cctp = {
-                        message: CircleBridge.deserialize(params.circleBridgeMessage)[0],
-                        attestation: encoding.hex.encode(params.circleAttestation, true),
-                    };
-
+                    const { vaa: cctpVaa, cctp } = decodedOrderResponse(params);
                     const txs = engine.settleOrder(highestBidder.address, fastVaa, cctpVaa, cctp);
                     await signSendMineWait(txs, highestBidderSigner);
 
-                    const balanceAfter = await usdc.balanceOf(await highestBidder.getAddress());
+                    const balanceAfter = await usdc.balanceOf(highestBidder.address);
                     expect((balanceAfter - balanceBefore).toString()).to.eql(
                         expectedAmount.toString(),
                     );
@@ -580,33 +566,30 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 it(`Matching Engine -- Start Fast Order Auction`, async () => {
                     const fastVaa = localVariables.get(
                         "fastVaa",
-                    ) as VAA<"FastTransfer:FastMarketOrder">;
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
 
                     // Parse the vaa, we will need the hash for later.
                     const auctionId = FastTransfer.auctionId(fastVaa);
-                    localVariables.set("auctionId", auctionId);
-
-                    const { amountIn, maxFee } = fastVaa.payload;
 
                     // Security deposit amount of the initial bid.
+                    const { amountIn, maxFee } = fastVaa.payload;
                     const initialDeposit = amountIn + maxFee;
 
-                    const initialBidderAddress = await initialBidder.getAddress();
                     // Prepare usdc for the auction.
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, initialBidder);
-                    await mintNativeUsdc(usdc, initialBidderAddress, initialDeposit);
+                    await mintNativeUsdc(usdc, initialBidder.address, initialDeposit);
 
-                    const balanceBefore = await usdc.balanceOf(initialBidderAddress);
+                    const balanceBefore = await usdc.balanceOf(initialBidder.address);
 
                     const txs = engine.placeInitialOffer(
-                        initialBidderAddress,
+                        initialBidder.address,
                         fastVaa,
                         maxFee,
                         initialDeposit,
                     );
                     const receipt = await signSendMineWait(txs, initialBidderSigner);
 
-                    const balanceAfter = await usdc.balanceOf(initialBidderAddress);
+                    const balanceAfter = await usdc.balanceOf(initialBidder.address);
                     expect((balanceBefore - balanceAfter).toString()).to.eql(
                         initialDeposit.toString(),
                     );
@@ -618,8 +601,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(auctionData.startBlock.toString()).to.eql(
                         receipt!.blockNumber.toString(),
                     );
-                    expect(auctionData.highestBidder).to.eql(initialBidderAddress);
-                    expect(auctionData.initialBidder).to.eql(initialBidderAddress);
+                    expect(auctionData.highestBidder).to.eql(initialBidder.address);
+                    expect(auctionData.initialBidder).to.eql(initialBidder.address);
                     expect(auctionData.amount.toString()).to.eql(amountIn.toString());
                     expect(auctionData.securityDeposit.toString()).to.eql(maxFee.toString());
                     expect(auctionData.bidPrice.toString()).to.eql(maxFee.toString());
@@ -628,8 +611,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 it(`Matching Engine -- Fast Order Auction Period`, async () => {
                     const fastVaa = localVariables.get(
                         "fastVaa",
-                    ) as VAA<"FastTransfer:FastMarketOrder">;
-                    const auctionId = localVariables.get("auctionId") as Uint8Array;
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const auctionId = FastTransfer.auctionId(fastVaa);
 
                     const auctionInfoBefore = await engine.liveAuctionInfo(auctionId);
                     const startingBid = auctionInfoBefore.bidPrice;
@@ -660,16 +643,15 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     // Loop through and make multiple bids in the same block.
                     for (let i = 0; i < bids.length; i++) {
                         const player = bids[i].player;
-                        const playerAddress = await player.getAddress();
                         const usdc = IERC20__factory.connect(engineEnv.tokenAddress, player);
-                        await mintNativeUsdc(usdc, playerAddress, initialDeposit, false);
+                        await mintNativeUsdc(usdc, player.address, initialDeposit, false);
 
                         // give it time to hit the mempool
                         await sleep(1);
 
-                        bids[i].balance = await usdc.balanceOf(playerAddress);
+                        bids[i].balance = await usdc.balanceOf(player.address);
 
-                        const txs = engine.improveOffer(playerAddress, fastVaa, bids[i].bid);
+                        const txs = engine.improveOffer(player.address, fastVaa, bids[i].bid);
                         await signSendOnly(txs, getSdkSigner(MATCHING_ENGINE_NAME, player));
                     }
                     // Mine the block.
@@ -680,7 +662,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     for (let i = 0; i < bids.length; i++) {
                         const player = bids[i].player;
                         const usdc = IERC20__factory.connect(engineEnv.tokenAddress, player);
-                        const balanceAfter = await usdc.balanceOf(await player.getAddress());
+                        const balanceAfter = await usdc.balanceOf(player.address);
 
                         if (i == 2) {
                             expect((balanceAfter - bids[i].balance).toString()).to.eql("0");
@@ -698,7 +680,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(auctionInfoAfter.startBlock.toString()).to.eql(
                         auctionInfoBefore.startBlock.toString(),
                     );
-                    expect(auctionInfoAfter.highestBidder).to.eql(await highestBidder.getAddress());
+                    expect(auctionInfoAfter.highestBidder).to.eql(highestBidder.address);
                     expect(auctionInfoAfter.initialBidder).to.eql(auctionInfoBefore.initialBidder);
                     expect(auctionInfoAfter.amount.toString()).to.eql(
                         auctionInfoBefore.amount.toString(),
@@ -712,8 +694,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 it(`Matching Engine -- Execute Fast Order As Liquidator (After Grace Period Ends)`, async () => {
                     const fastVaa = localVariables.get(
                         "fastVaa",
-                    ) as VAA<"FastTransfer:FastMarketOrder">;
-                    const auctionId = localVariables.get("auctionId") as Uint8Array;
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const auctionId = FastTransfer.auctionId(fastVaa);
 
                     // Mine 50% of the way through the penalty period.
                     await engine
@@ -731,10 +713,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const auctionInfo = await engine.liveAuctionInfo(auctionId);
 
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, highestBidder);
-                    const balanceBefore = await usdc.balanceOf(await highestBidder.getAddress());
-                    const balanceLiquidatorBefore = await usdc.balanceOf(
-                        await liquidator.getAddress(),
-                    );
+                    const balanceBefore = await usdc.balanceOf(highestBidder.address);
+                    const balanceLiquidatorBefore = await usdc.balanceOf(liquidator.address);
                     const initialBidderBefore = await usdc.balanceOf(auctionInfo.initialBidder);
 
                     const receipt = await engine
@@ -766,11 +746,9 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     expect(transactionResult.fastMessage).is.undefined;
 
                     // Validate state and balance changes.
-                    const balanceAfter = await usdc.balanceOf(await highestBidder.getAddress());
+                    const balanceAfter = await usdc.balanceOf(highestBidder.address);
                     const initialBidderAfter = await usdc.balanceOf(auctionInfo.initialBidder);
-                    const balanceLiquidatorAfter = await usdc.balanceOf(
-                        await liquidator.getAddress(),
-                    );
+                    const balanceLiquidatorAfter = await usdc.balanceOf(liquidator.address);
                     const initAuctionFee = await fromTokenRouter.getInitialAuctionFee();
 
                     expect((balanceAfter - balanceBefore).toString()).to.eql(
@@ -822,7 +800,10 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`To Network -- Redeem Fill`, async () => {
-                    const auctionId = localVariables.get("auctionId") as Uint8Array;
+                    const fastVaa = localVariables.get(
+                        "fastVaa",
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
+                    const auctionId = FastTransfer.auctionId(fastVaa);
                     const orderResponse = localVariables.get("fastOrderResponse") as OrderResponse;
                     const reward = localVariables.get("reward") as string;
                     expect(localVariables.delete("reward")).is.true;
@@ -850,31 +831,21 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 });
 
                 it(`Matching Engine -- Execute Slow Vaa And Redeem`, async () => {
-                    const auctionId = localVariables.get("auctionId") as Uint8Array;
                     const fastVaa = localVariables.get(
                         "fastVaa",
-                    ) as VAA<"FastTransfer:FastMarketOrder">;
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
                     const params = localVariables.get("redeemParameters") as OrderResponse;
                     expect(localVariables.delete("redeemParameters")).is.true;
                     expect(localVariables.delete("fastVaa")).is.true;
-                    expect(localVariables.delete("auctionId")).is.true;
 
                     // Fetch balance of player four since they were the highest bidder.
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
-                    const balanceBefore = await usdc.balanceOf(await highestBidder.getAddress());
+                    const balanceBefore = await usdc.balanceOf(highestBidder.address);
                     const expectedAmount = await engine
-                        .liveAuctionInfo(auctionId)
+                        .liveAuctionInfo(FastTransfer.auctionId(fastVaa))
                         .then((info) => info.amount);
 
-                    const cctpVaa = deserialize(
-                        "FastTransfer:CctpDeposit",
-                        params.encodedWormholeMessage,
-                    );
-                    const cctp = {
-                        message: CircleBridge.deserialize(params.circleBridgeMessage)[0],
-                        attestation: encoding.hex.encode(params.circleAttestation, true),
-                    };
-
+                    const { vaa: cctpVaa, cctp } = decodedOrderResponse(params);
                     const txs = engine.settleOrder(
                         highestBidderSigner.address(),
                         fastVaa,
@@ -883,7 +854,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     );
                     await signSendMineWait(txs, highestBidderSigner);
 
-                    const balanceAfter = await usdc.balanceOf(await highestBidder.getAddress());
+                    const balanceAfter = await usdc.balanceOf(highestBidder.address);
                     expect((balanceAfter - balanceBefore).toString()).to.eql(
                         expectedAmount.toString(),
                     );
@@ -974,20 +945,15 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 it(`Matching Engine -- Execute Slow Vaa And Redeem`, async () => {
                     const fastVaa = localVariables.get(
                         "fastVaa",
-                    ) as VAA<"FastTransfer:FastMarketOrder">;
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
                     const params = localVariables.get("redeemParameters") as OrderResponse;
                     expect(localVariables.delete("redeemParameters")).is.true;
                     expect(localVariables.delete("fastVaa")).is.true;
 
                     // NOTE: Imagine that several minutes have passed, and no auction has been started :).
 
-                    // Parse the slow VAA for the baseFee and amount
-                    const slowVaa = deserialize(
-                        "FastTransfer:CctpDeposit",
-                        params.encodedWormholeMessage,
-                    );
+                    const { vaa: slowVaa, cctp } = decodedOrderResponse(params);
                     const deposit = slowVaa.payload;
-
                     if (deposit.payload.id !== payloadIds("SlowOrderResponse"))
                         throw new Error("Invalid message type");
 
@@ -997,10 +963,6 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
                     const feeRecipientBefore = await usdc.balanceOf(engineEnv.feeRecipient!);
 
-                    const cctp = {
-                        message: CircleBridge.deserialize(params.circleBridgeMessage)[0],
-                        attestation: encoding.hex.encode(params.circleAttestation, true),
-                    };
                     const txs = engine.settleOrder(initialBidder.address, fastVaa, slowVaa, cctp);
                     const receipt = await signSendMineWait(txs, initialBidderSigner);
 
@@ -1175,11 +1137,10 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 it(`Matching Engine -- Attempt to Start Auction After Deadline`, async () => {
                     const fastVaa = localVariables.get(
                         "fastVaa",
-                    ) as VAA<"FastTransfer:FastMarketOrder">;
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
 
                     // Parse the vaa, we will need the hash for later.
                     const auctionId = FastTransfer.auctionId(fastVaa);
-                    localVariables.set("auctionId", auctionId);
 
                     const { amountIn, maxFee } = fastVaa.payload;
 
@@ -1188,7 +1149,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
 
                     // Prepare usdc for the auction.
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, initialBidder);
-                    await mintNativeUsdc(usdc, await initialBidder.getAddress(), initialDeposit);
+                    await mintNativeUsdc(usdc, initialBidder.address, initialDeposit);
                     await usdc
                         .approve(engine.address, initialDeposit)
                         .then((tx) => mineWait(engineProvider, tx));
@@ -1211,17 +1172,14 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                 it(`Matching Engine -- Execute Slow Vaa And Redeem`, async () => {
                     const fastVaa = localVariables.get(
                         "fastVaa",
-                    ) as VAA<"FastTransfer:FastMarketOrder">;
+                    ) as FastTransfer.VAA<"FastMarketOrder">;
                     const params = localVariables.get("redeemParameters") as OrderResponse;
                     expect(localVariables.delete("redeemParameters")).is.true;
                     expect(localVariables.delete("fastVaa")).is.true;
 
                     // NOTE: Imagine that several minutes have passed, and no auction has been started :).
 
-                    const slowVaa = deserialize(
-                        "FastTransfer:CctpDeposit",
-                        params.encodedWormholeMessage,
-                    );
+                    const { vaa: slowVaa, cctp } = decodedOrderResponse(params);
 
                     if (slowVaa.payload.payload.id !== payloadIds("SlowOrderResponse"))
                         throw new Error("Invalid message type");
@@ -1233,11 +1191,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const usdc = IERC20__factory.connect(engineEnv.tokenAddress, engineProvider);
                     const feeRecipientBefore = await usdc.balanceOf(engineEnv.feeRecipient!);
 
-                    const txs = engine.settleOrder(initialBidder.address, fastVaa, slowVaa, {
-                        message: CircleBridge.deserialize(params.circleBridgeMessage)[0],
-                        attestation: encoding.hex.encode(params.circleAttestation, true),
-                    });
-
+                    const txs = engine.settleOrder(initialBidder.address, fastVaa, slowVaa, cctp);
                     const receipt = await signSendMineWait(txs, initialBidderSigner);
 
                     // Balance check.
@@ -1307,16 +1261,7 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const usdc = IERC20__factory.connect(toEnv.tokenAddress, toProvider);
                     const balanceBefore = await usdc.balanceOf(toWallet.address);
 
-                    const slowVaa = deserialize(
-                        "FastTransfer:CctpDeposit",
-                        orderResponse.encodedWormholeMessage,
-                    );
-
-                    const cctp = {
-                        message: CircleBridge.deserialize(orderResponse.circleBridgeMessage)[0],
-                        attestation: encoding.hex.encode(orderResponse.circleAttestation, true),
-                    };
-
+                    const { vaa: slowVaa, cctp } = decodedOrderResponse(orderResponse);
                     const txs = toTokenRouter.redeemFill(toWallet.address, slowVaa, cctp);
                     await signSendMineWait(txs, toSigner);
 
