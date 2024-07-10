@@ -126,6 +126,7 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
     let super::SettledNone {
         user_amount: amount,
         fill,
+        auction_settled_event,
     } = super::settle_none_and_prepare_fill(super::SettleNoneAndPrepareFill {
         prepared_order_response: &mut ctx.accounts.prepared.order_response,
         prepared_custody_token,
@@ -135,6 +136,9 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
         token_program,
     })?;
 
+    // Emit an event indicating that the auction has been settled.
+    emit_cpi!(auction_settled_event);
+
     let fast_fill = FastFill::new(
         fill,
         ctx.accounts.reserved_sequence.fast_fill_seeds.sequence,
@@ -142,6 +146,8 @@ pub fn settle_auction_none_local(ctx: Context<SettleAuctionNoneLocal>) -> Result
         ctx.accounts.payer.key(),
         amount,
     );
+
+    // Emit the fast fill.
     emit_cpi!(crate::events::LocalFastOrderFilled {
         seeds: fast_fill.seeds,
         info: fast_fill.info,

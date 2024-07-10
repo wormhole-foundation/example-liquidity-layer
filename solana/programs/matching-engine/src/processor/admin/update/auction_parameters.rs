@@ -6,6 +6,7 @@ use crate::{
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
+#[event_cpi]
 pub struct UpdateAuctionParameters<'info> {
     #[account(mut)]
     payer: Signer<'info>,
@@ -70,7 +71,7 @@ pub fn update_auction_parameters(ctx: Context<UpdateAuctionParameters>) -> Resul
     let action = ctx.accounts.proposal.action;
 
     // Emit event to reflect enacting the proposal.
-    emit!(crate::events::Enacted { action });
+    emit_cpi!(crate::events::Enacted { action });
 
     match action {
         ProposalAction::UpdateAuctionParameters { id, parameters } => {

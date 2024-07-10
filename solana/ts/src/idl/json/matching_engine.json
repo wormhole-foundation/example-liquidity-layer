@@ -437,6 +437,12 @@
         },
         {
           "name": "token_program"
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -802,6 +808,12 @@
               ]
             }
           ]
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -1009,6 +1021,12 @@
         },
         {
           "name": "token_program"
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": [
@@ -1273,6 +1291,12 @@
         },
         {
           "name": "token_program"
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": [
@@ -1528,6 +1552,12 @@
         },
         {
           "name": "epoch_schedule"
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": [
@@ -1649,6 +1679,12 @@
         },
         {
           "name": "auction_config"
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -1772,6 +1808,12 @@
             "closed. This instruction will not allow this account to be provided if there is an existing",
             "auction, which would enforce the order be executed when it is time to complete the auction."
           ]
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -1883,6 +1925,12 @@
         },
         {
           "name": "token_program"
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -2062,6 +2110,12 @@
               ]
             }
           ]
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -2287,6 +2341,12 @@
         },
         {
           "name": "system_program"
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []

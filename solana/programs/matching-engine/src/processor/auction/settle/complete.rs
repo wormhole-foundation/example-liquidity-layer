@@ -8,6 +8,7 @@ use anchor_lang::prelude::*;
 use anchor_spl::token::{self, TokenAccount};
 
 #[derive(Accounts)]
+#[event_cpi]
 pub struct SettleAuctionComplete<'info> {
     /// CHECK: Must equal prepared_order_response.prepared_by, who paid the rent to post the
     /// finalized VAA.
@@ -247,7 +248,7 @@ fn handle_settle_auction_complete(
         None => None,
     };
 
-    emit!(crate::events::AuctionSettled {
+    emit_cpi!(crate::events::AuctionSettled {
         auction: ctx.accounts.auction.key(),
         best_offer_token: settled_best_offer_result,
         base_fee_token: settled_base_fee_result,

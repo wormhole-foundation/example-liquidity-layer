@@ -9,6 +9,7 @@ use common::{wormhole_cctp_solana, wormhole_io::TypePrefixedPayload};
 
 /// Accounts required for [settle_auction_none_cctp].
 #[derive(Accounts)]
+#[event_cpi]
 pub struct SettleAuctionNoneCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
@@ -102,6 +103,7 @@ fn handle_settle_auction_none_cctp(
     let super::SettledNone {
         user_amount: amount,
         fill,
+        auction_settled_event,
     } = super::settle_none_and_prepare_fill(super::SettleNoneAndPrepareFill {
         prepared_order_response: &mut ctx.accounts.prepared.order_response,
         prepared_custody_token,
@@ -208,6 +210,9 @@ fn handle_settle_auction_none_cctp(
             payload: fill.to_vec(),
         },
     )?;
+
+    // Emit an event indicating that the auction has been settled.
+    emit_cpi!(auction_settled_event);
 
     // Finally close the account since it is no longer needed.
     token::close_account(CpiContext::new_with_signer(

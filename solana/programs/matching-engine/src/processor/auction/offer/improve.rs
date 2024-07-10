@@ -5,6 +5,7 @@ use common::TRANSFER_AUTHORITY_SEED_PREFIX;
 
 #[derive(Accounts)]
 #[instruction(offer_price: u64)]
+#[event_cpi]
 pub struct ImproveOffer<'info> {
     /// The auction participant needs to set approval to this PDA.
     ///
@@ -134,7 +135,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
         let info = auction.info.as_ref().unwrap();
 
         // Emit event for auction participants to listen to.
-        emit!(crate::events::AuctionUpdated {
+        emit_cpi!(crate::utils::log_emit(crate::events::AuctionUpdated {
             config_id: info.config_id,
             auction: auction.key(),
             vaa: Default::default(),
@@ -148,7 +149,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
             total_deposit: info.total_deposit(),
             max_offer_price_allowed: utils::auction::compute_min_allowed_offer(config, info)
                 .checked_sub(1),
-        });
+        }));
     }
 
     // Done.

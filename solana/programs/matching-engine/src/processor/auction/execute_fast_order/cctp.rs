@@ -9,6 +9,7 @@ use common::{wormhole_cctp_solana, wormhole_io::TypePrefixedPayload};
 
 /// Accounts required for [execute_fast_order_cctp].
 #[derive(Accounts)]
+#[event_cpi]
 pub struct ExecuteFastOrderCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
@@ -79,6 +80,7 @@ pub fn handle_execute_fast_order_cctp(
     let super::PreparedOrderExecution {
         user_amount: amount,
         fill,
+        order_executed_event,
     } = super::handle_execute_fast_order(
         &mut ctx.accounts.execute_order,
         &ctx.accounts.custodian,
@@ -181,6 +183,10 @@ pub fn handle_execute_fast_order_cctp(
             payload: fill.to_vec(),
         },
     )?;
+
+    // Emit the order executed event, which liquidators can listen to if this execution ended up
+    // being penalized so they can collect the base fee at settlement.
+    emit_cpi!(order_executed_event);
 
     // Finally close the account since it is no longer needed.
     token::close_account(CpiContext::new_with_signer(

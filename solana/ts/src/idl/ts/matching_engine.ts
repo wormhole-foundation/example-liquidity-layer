@@ -443,6 +443,12 @@ export type MatchingEngine = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -808,6 +814,12 @@ export type MatchingEngine = {
               ]
             }
           ]
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -1015,6 +1027,12 @@ export type MatchingEngine = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": [
@@ -1279,6 +1297,12 @@ export type MatchingEngine = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": [
@@ -1534,6 +1558,12 @@ export type MatchingEngine = {
         },
         {
           "name": "epochSchedule"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": [
@@ -1655,6 +1685,12 @@ export type MatchingEngine = {
         },
         {
           "name": "auctionConfig"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -1778,6 +1814,12 @@ export type MatchingEngine = {
             "closed. This instruction will not allow this account to be provided if there is an existing",
             "auction, which would enforce the order be executed when it is time to complete the auction."
           ]
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -1889,6 +1931,12 @@ export type MatchingEngine = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -2068,6 +2116,12 @@ export type MatchingEngine = {
               ]
             }
           ]
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -2293,6 +2347,12 @@ export type MatchingEngine = {
         },
         {
           "name": "systemProgram"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []

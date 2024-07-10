@@ -9,6 +9,7 @@ use common::wormhole_cctp_solana::wormhole::SOLANA_CHAIN;
 
 /// Accounts required for [complete_fast_fill].
 #[derive(Accounts)]
+#[event_cpi]
 pub struct CompleteFastFill<'info> {
     /// Custodian, which may be used in the future.
     custodian: CheckedCustodian<'info>,
@@ -81,7 +82,7 @@ pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
     ctx.accounts.fast_fill.redeemed = true;
 
     // Emit event that the fast fill is redeemed. Listeners can close this account.
-    emit!(crate::events::FastFillRedeemed {
+    emit_cpi!(crate::events::FastFillRedeemed {
         prepared_by: ctx.accounts.fast_fill.info.prepared_by,
         fast_fill: ctx.accounts.fast_fill.key(),
     });

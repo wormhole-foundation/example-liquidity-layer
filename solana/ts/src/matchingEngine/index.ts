@@ -31,7 +31,7 @@ import {
     writeUint64BE,
 } from "../common";
 import { UpgradeManagerProgram } from "../upgradeManager";
-import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
+import { ArrayQueue, BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import {
     Auction,
@@ -55,6 +55,7 @@ import {
     RouterEndpoint,
 } from "./state";
 import { ChainId, toChainId, isChainId } from "@wormhole-foundation/sdk-base";
+import { decodeIdlAccount } from "anchor-0.29.0/dist/cjs/idl";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -131,6 +132,7 @@ export type RedeemFastFillAccounts = {
     fromRouterEndpoint: PublicKey;
     toRouterEndpoint: PublicKey;
     localCustodyToken: PublicKey;
+    eventAuthority: PublicKey;
     matchingEngineProgram: PublicKey;
 };
 
@@ -196,6 +198,17 @@ export type FastFillRedeemed = {
     fastFill: PublicKey;
 };
 
+export type MatchingEngineEvent = {
+    auctionSettled?: AuctionSettled;
+    auctionUpdated?: AuctionUpdated;
+    orderExecuted?: OrderExecuted;
+    proposed?: Proposed;
+    enacted?: Enacted;
+    localFastOrderFilled?: LocalFastOrderFilled;
+    fastFillSequenceReserved?: FastFillSequenceReserved;
+    fastFillRedeemed?: FastFillRedeemed;
+};
+
 export type FastOrderPathComposite = {
     fastVaa: {
         vaa: PublicKey;
@@ -240,46 +253,34 @@ export class MatchingEngineProgram {
         return this._mint;
     }
 
-    onAuctionSettled(callback: (event: AuctionSettled, slot: number, signature: string) => void) {
-        return this.program.addEventListener("auctionSettled", callback);
-    }
-
+    /// NOTE: This listener can be unreliable because it depends on parsing program logs. For a more
+    /// reliable method, use `onEventCpi` and filter for the "auctionUpdated" event.
     onAuctionUpdated(callback: (event: AuctionUpdated, slot: number, signature: string) => void) {
         return this.program.addEventListener("auctionUpdated", callback);
     }
 
-    onOrderExecuted(callback: (event: OrderExecuted, slot: number, signature: string) => void) {
-        return this.program.addEventListener("orderExecuted", callback);
-    }
-
-    onProposed(callback: (event: Proposed, slot: number, signature: string) => void) {
-        return this.program.addEventListener("proposed", callback);
-    }
-
-    onEnacted(callback: (event: Enacted, slot: number, signature: string) => void) {
-        return this.program.addEventListener("enacted", callback);
-    }
-
-    onFilledLocalFastOrder(
+    /// NOTE: This function is not optimized to minimize RPC calls.
+    onEventCpi(
         callback: (
-            event: LocalFastOrderFilled,
+            event: MatchingEngineEvent,
             eventSlot: number,
             signature: string,
             currentSlotInfo?: SlotInfo,
         ) => void,
         commitment: Finality = "confirmed",
-    ) {
+    ): number {
         const program = this.program;
         const connection = program.provider.connection;
 
-        const signatureSlots: { signature: string; eventSlot: number }[] = [];
+        const unprocessedTxs = new ArrayQueue<{ signature: string; eventSlot: number }>();
+        const observedTxs = new Map<number, Set<string>>();
 
         connection.onSlotChange(async (slotInfo) => {
             // TODO: Make this more efficient by fetching multiple parsed transactions.
-            while (signatureSlots.length > 0) {
-                const { signature, eventSlot } = signatureSlots[0];
+            while (!unprocessedTxs.isEmpty()) {
+                const { signature, eventSlot } = unprocessedTxs.head();
 
-                const parsedTx = await program.provider.connection.getParsedTransaction(signature, {
+                const parsedTx = await connection.getParsedTransaction(signature, {
                     commitment,
                     maxSupportedTransactionVersion: 0,
                 });
@@ -288,8 +289,7 @@ export class MatchingEngineProgram {
                     break;
                 }
 
-                // Finally dequeue.
-                signatureSlots.shift();
+                unprocessedTxs.dequeue();
 
                 // Find the event.
                 for (const innerIx of parsedTx.meta?.innerInstructions!) {
@@ -307,43 +307,44 @@ export class MatchingEngineProgram {
                             utils.bytes.base64.encode(data.subarray(8)),
                         );
 
-                        if (decoded !== null && decoded.name === "localFastOrderFilled") {
-                            return callback(decoded.data, eventSlot, signature, slotInfo);
+                        if (decoded !== null) {
+                            callback(
+                                {
+                                    [decoded.name]: decoded.data,
+                                },
+                                eventSlot,
+                                signature,
+                                slotInfo,
+                            );
                         }
                     }
                 }
             }
+
+            // Clean up consumed.
+            for (const [slot] of observedTxs) {
+                if (slot < slotInfo.slot - 64) {
+                    observedTxs.delete(slot);
+                }
+            }
         });
 
-        this.onOrderExecuted(async (orderExecutedEvent, eventSlot, signature) => {
-            if (orderExecutedEvent.targetProtocol.local === undefined) {
+        return connection.onLogs(program.programId, (logs, ctx) => {
+            const signature = logs.signature;
+            const eventSlot = ctx.slot;
+
+            if (!observedTxs.has(eventSlot)) {
+                observedTxs.set(eventSlot, new Set());
+            }
+
+            const observed = observedTxs.get(eventSlot)!;
+            if (observed.has(signature)) {
                 return;
             }
 
-            signatureSlots.push({ signature, eventSlot });
+            unprocessedTxs.enqueue({ signature, eventSlot });
+            observed.add(signature);
         });
-
-        // No new listener IDs are created on subsequent addEventListener calls.
-        return this.onAuctionSettled(async (auctionSettledEvent, eventSlot, signature) => {
-            const withExecute = auctionSettledEvent.withExecute;
-            if (withExecute === null || withExecute.local === undefined) {
-                return;
-            }
-
-            signatureSlots.push({ signature, eventSlot });
-        });
-    }
-
-    onFastFillSequenceReserved(
-        callback: (event: FastFillSequenceReserved, slot: number, signature: string) => void,
-    ) {
-        return this.program.addEventListener("fastFillSequenceReserved", callback);
-    }
-
-    onFastFillRedeemed(
-        callback: (event: FastFillRedeemed, slot: number, signature: string) => void,
-    ) {
-        return this.program.addEventListener("fastFillRedeemed", callback);
     }
 
     eventAuthorityAddress(): PublicKey {
@@ -1085,6 +1086,8 @@ export class MatchingEngineProgram {
                 proposal,
                 epochSchedule: SYSVAR_EPOCH_SCHEDULE_PUBKEY,
                 systemProgram: SystemProgram.programId,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -1147,6 +1150,8 @@ export class MatchingEngineProgram {
                 proposal,
                 auctionConfig,
                 systemProgram: SystemProgram.programId,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -1374,6 +1379,8 @@ export class MatchingEngineProgram {
                 usdc: this.usdcComposite(),
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
 
@@ -1461,6 +1468,8 @@ export class MatchingEngineProgram {
                 ),
                 offerToken: splToken.getAssociatedTokenAddressSync(this.mint, participant),
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
 
@@ -1640,6 +1649,8 @@ export class MatchingEngineProgram {
                 auction,
                 bestOfferToken,
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -1865,6 +1876,8 @@ export class MatchingEngineProgram {
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
                 sysvars: this.requiredSysvarsComposite(),
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -2062,6 +2075,8 @@ export class MatchingEngineProgram {
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
                 sysvars: this.requiredSysvarsComposite(),
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -2188,6 +2203,8 @@ export class MatchingEngineProgram {
             .accounts({
                 reserveSequence,
                 auctionConfig,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -2229,6 +2246,8 @@ export class MatchingEngineProgram {
             .accounts({
                 reserveSequence,
                 preparedOrderResponse,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -2353,6 +2372,7 @@ export class MatchingEngineProgram {
             fromRouterEndpoint: this.routerEndpointAddress(sourceChain),
             toRouterEndpoint: this.routerEndpointAddress(toChainId("Solana")),
             localCustodyToken: this.localCustodyTokenAddress(sourceChain),
+            eventAuthority: this.eventAuthorityAddress(),
             matchingEngineProgram: this.ID,
         };
     }

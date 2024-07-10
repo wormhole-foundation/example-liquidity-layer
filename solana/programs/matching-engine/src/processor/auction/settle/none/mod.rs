@@ -6,6 +6,7 @@ pub use local::*;
 
 use crate::{
     composite::*,
+    events::AuctionSettled,
     state::{Auction, AuctionStatus, PreparedOrderResponse},
 };
 use anchor_lang::prelude::*;
@@ -24,6 +25,7 @@ struct SettleNoneAndPrepareFill<'ctx, 'info> {
 struct SettledNone {
     user_amount: u64,
     fill: Fill,
+    auction_settled_event: AuctionSettled,
 }
 
 fn settle_none_and_prepare_fill(accounts: SettleNoneAndPrepareFill<'_, '_>) -> Result<SettledNone> {
@@ -81,16 +83,16 @@ fn settle_none_and_prepare_fill(accounts: SettleNoneAndPrepareFill<'_, '_>) -> R
         total_penalty: None,
     };
 
-    emit!(crate::events::AuctionSettled {
+    let auction_settled_event = AuctionSettled {
         auction: auction.key(),
         best_offer_token: Default::default(),
         base_fee_token: crate::events::SettledTokenAccountInfo {
             key: fee_recipient_token.key(),
-            balance_after: fee_recipient_token.amount.saturating_add(fee)
+            balance_after: fee_recipient_token.amount.saturating_add(fee),
         }
         .into(),
         with_execute: auction.target_protocol.into(),
-    });
+    };
 
     // TryInto is safe to unwrap here because the redeemer message had to have been able to fit in
     // the prepared order response account (so it would not have exceed u32::MAX).
@@ -105,5 +107,6 @@ fn settle_none_and_prepare_fill(accounts: SettleNoneAndPrepareFill<'_, '_>) -> R
             redeemer: prepared_order_response.redeemer,
             redeemer_message,
         },
+        auction_settled_event,
     })
 }
