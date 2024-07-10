@@ -400,7 +400,7 @@ describe("Matching Engine", function () {
                         payer.publicKey,
                         null,
                         false,
-                        PublicKey.default,
+                        payer.publicKey,
                         ownerAssistant.publicKey,
                         feeRecipientToken,
                         expectedAuctionConfigId,
