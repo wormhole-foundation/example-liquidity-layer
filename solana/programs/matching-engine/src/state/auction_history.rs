@@ -66,7 +66,7 @@ impl AuctionHistory {
             #[allow(clippy::as_conversions)]
             #[allow(clippy::cast_possible_truncation)]
             #[allow(clippy::integer_division)]
-            pub const MAX_ENTRIES: u32 = ((10 * 1024 * 1000 - Self::START) / AuctionEntry::INIT_SPACE) as u32;
+            pub const MAX_ENTRIES: u32 = ((10 * 1024 * 1024 - Self::START) / AuctionEntry::INIT_SPACE) as u32;
         }
     }
 }
@@ -136,7 +136,7 @@ mod test {
 
     #[test]
     fn check_max_entries() {
-        const MAX: usize = (10 * 1024 * 1000 - AuctionHistory::START) / AuctionEntry::INIT_SPACE;
+        const MAX: usize = (10 * 1024 * 1024 - AuctionHistory::START) / AuctionEntry::INIT_SPACE;
         assert!(MAX <= u32::MAX.try_into().unwrap());
     }
 }
