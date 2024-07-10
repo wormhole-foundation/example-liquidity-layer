@@ -57,3 +57,13 @@ pub fn checked_deserialize_token_account(
             .map(Box::new)
     }
 }
+
+/// This method is just used out of convenience to return the same event that was emitted so
+/// something like `emit_cpi!` can be used on the same event.
+pub fn log_emit<E>(event: E) -> E
+where
+    E: anchor_lang::Event,
+{
+    emit!(event);
+    event
+}

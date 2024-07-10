@@ -73,6 +73,9 @@ pub struct RedeemFastFill<'info> {
     #[account(mut)]
     matching_engine_local_custody_token: UncheckedAccount<'info>,
 
+    /// CHECK: Seeds must be \["__event_authority"] (Matching Engine program).
+    matching_engine_event_authority: UncheckedAccount<'info>,
+
     matching_engine_program: Program<'info, matching_engine::program::MatchingEngine>,
     token_program: Program<'info, token::Token>,
     system_program: Program<'info, System>,
@@ -112,6 +115,11 @@ fn handle_redeem_fast_fill(ctx: Context<RedeemFastFill>) -> Result<()> {
                 .matching_engine_local_custody_token
                 .to_account_info(),
             token_program: ctx.accounts.token_program.to_account_info(),
+            event_authority: ctx
+                .accounts
+                .matching_engine_event_authority
+                .to_account_info(),
+            program: ctx.accounts.matching_engine_program.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],
     ))?;

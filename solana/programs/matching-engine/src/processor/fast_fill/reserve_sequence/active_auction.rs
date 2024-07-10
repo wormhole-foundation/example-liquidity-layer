@@ -2,6 +2,7 @@ use crate::{composite::*, error::MatchingEngineError, state::AuctionConfig};
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
+#[event_cpi]
 pub struct ReserveFastFillSequenceActiveAuction<'info> {
     reserve_sequence: ReserveFastFillSequence<'info>,
 
@@ -34,10 +35,15 @@ pub fn reserve_fast_fill_sequence_active_auction(
     let beneficiary = ctx.accounts.reserve_sequence.payer.key();
     let fast_vaa_hash = ctx.accounts.reserve_sequence.auction.vaa_hash;
 
-    super::set_reserved_sequence_data(
+    let sequence_reserved_event = super::set_reserved_sequence_data(
         &mut ctx.accounts.reserve_sequence,
         &ctx.bumps.reserve_sequence,
         fast_vaa_hash,
         beneficiary,
-    )
+    )?;
+
+    // Emit an event indicating that the fast fill sequence has been reserved.
+    emit_cpi!(sequence_reserved_event);
+
+    Ok(())
 }

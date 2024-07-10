@@ -6,6 +6,7 @@ use crate::{
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
+#[event_cpi]
 pub struct ProposeAuctionParameters<'info> {
     #[account(mut)]
     payer: Signer<'info>,
@@ -56,7 +57,7 @@ pub fn propose_auction_parameters(
     )?;
 
     // Emit event reflecting the proposal.
-    emit!(crate::events::Proposed { action });
+    emit_cpi!(crate::events::Proposed { action });
 
     // Done.
     Ok(())

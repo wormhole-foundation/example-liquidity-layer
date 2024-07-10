@@ -7,6 +7,7 @@ pub use no_auction::*;
 use crate::{
     composite::*,
     error::MatchingEngineError,
+    events::FastFillSequenceReserved,
     state::{
         FastFillSeeds, FastFillSequencer, FastFillSequencerSeeds, ReservedFastFillSequence,
         ReservedFastFillSequenceSeeds,
@@ -20,7 +21,7 @@ fn set_reserved_sequence_data(
     bumps: &ReserveFastFillSequenceBumps,
     fast_vaa_hash: [u8; 32],
     beneficiary: Pubkey,
-) -> Result<()> {
+) -> Result<FastFillSequenceReserved> {
     let sequencer = &mut reserve_sequence.sequencer;
 
     // If the fast fill sequencer was just created, we need to set it with data.
@@ -76,13 +77,10 @@ fn set_reserved_sequence_data(
         .checked_add(1)
         .ok_or_else(|| MatchingEngineError::U64Overflow)?;
 
-    // Emit an event to help auction participants track the fast fill sequence so they can more
+    // Prepare an event to help auction participants track the fast fill sequence so they can more
     // easily execute local orders.
-    emit!(crate::events::FastFillSequenceReserved {
+    Ok(FastFillSequenceReserved {
         fast_vaa_hash,
         fast_fill_seeds,
-    });
-
-    // Done.
-    Ok(())
+    })
 }

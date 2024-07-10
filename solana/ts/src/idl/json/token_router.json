@@ -846,6 +846,9 @@
           "writable": true
         },
         {
+          "name": "matching_engine_event_authority"
+        },
+        {
           "name": "matching_engine_program"
         },
         {

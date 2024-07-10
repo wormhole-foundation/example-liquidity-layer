@@ -10,6 +10,7 @@ use common::{messages::raw::LiquidityLayerMessage, TRANSFER_AUTHORITY_SEED_PREFI
 
 #[derive(Accounts)]
 #[instruction(offer_price: u64)]
+#[event_cpi]
 pub struct PlaceInitialOfferCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
@@ -92,7 +93,7 @@ pub struct PlaceInitialOfferCctp<'info> {
     )]
     auction: Box<Account<'info, Auction>>,
 
-    offer_token: Account<'info, token::TokenAccount>,
+    offer_token: Box<Account<'info, token::TokenAccount>>,
 
     #[account(
         init,
@@ -105,7 +106,7 @@ pub struct PlaceInitialOfferCctp<'info> {
         ],
         bump,
     )]
-    auction_custody_token: Account<'info, token::TokenAccount>,
+    auction_custody_token: Box<Account<'info, token::TokenAccount>>,
 
     usdc: Usdc<'info>,
 
@@ -166,7 +167,7 @@ pub fn place_initial_offer_cctp(
     let info = ctx.accounts.auction.info.as_ref().unwrap();
 
     // Emit event for auction participants to listen to.
-    emit!(crate::events::AuctionUpdated {
+    emit_cpi!(crate::utils::log_emit(crate::events::AuctionUpdated {
         config_id: info.config_id,
         auction: ctx.accounts.auction.key(),
         vaa: ctx.accounts.fast_order_path.fast_vaa.key().into(),
@@ -180,7 +181,7 @@ pub fn place_initial_offer_cctp(
         total_deposit: info.total_deposit(),
         max_offer_price_allowed: utils::auction::compute_min_allowed_offer(config, info)
             .checked_sub(1),
-    });
+    }));
 
     // Finally transfer tokens from the offer authority's token account to the
     // auction's custody account.

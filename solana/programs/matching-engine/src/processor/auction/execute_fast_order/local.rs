@@ -98,11 +98,16 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
     let super::PreparedOrderExecution {
         user_amount: amount,
         fill,
+        order_executed_event,
     } = super::handle_execute_fast_order(
         &mut ctx.accounts.execute_order,
         &ctx.accounts.custodian,
         &ctx.accounts.token_program,
     )?;
+
+    // Emit the order executed event, which liquidators can listen to if this execution ended up
+    // being penalized so they can collect the base fee at settlement.
+    emit_cpi!(order_executed_event);
 
     let fast_fill = FastFill::new(
         fill,
@@ -111,6 +116,8 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         ctx.accounts.payer.key(),
         amount,
     );
+
+    // Emit the fast fill.
     emit_cpi!(crate::events::LocalFastOrderFilled {
         seeds: fast_fill.seeds,
         info: fast_fill.info,

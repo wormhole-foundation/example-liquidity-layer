@@ -852,6 +852,9 @@ export type TokenRouter = {
           "writable": true
         },
         {
+          "name": "matchingEngineEventAuthority"
+        },
+        {
           "name": "matchingEngineProgram"
         },
         {

@@ -7,6 +7,7 @@ pub use local::*;
 use crate::{
     composite::*,
     error::MatchingEngineError,
+    events::OrderExecuted,
     state::{Auction, AuctionStatus, MessageProtocol},
     utils::{self, auction::DepositPenalty},
 };
@@ -20,6 +21,7 @@ use common::messages::{
 struct PreparedOrderExecution {
     pub user_amount: u64,
     pub fill: Fill,
+    pub order_executed_event: OrderExecuted,
 }
 
 fn handle_execute_fast_order<'info>(
@@ -40,7 +42,7 @@ fn handle_execute_fast_order<'info>(
         .unwrap()
         .to_fast_market_order_unchecked();
 
-    let (user_amount, new_status) = {
+    let (user_amount, new_status, order_executed_event) = {
         let auction_info = auction.info.as_ref().unwrap();
         let current_slot = Clock::get().unwrap().slot;
 
@@ -205,21 +207,18 @@ fn handle_execute_fast_order<'info>(
             custodian.key().into(),
         )?;
 
-        // Emit the order executed event, which liquidators can listen to if this execution ended up
-        // being penalized so they can collect the base fee at settlement.
-        emit!(crate::events::OrderExecuted {
-            auction: auction.key(),
-            vaa: fast_vaa.key(),
-            source_chain: auction_info.source_chain,
-            target_protocol: auction.target_protocol,
-            penalized,
-        });
-
         (
             user_amount,
             AuctionStatus::Completed {
                 slot: current_slot,
                 execute_penalty: if penalized { penalty.into() } else { None },
+            },
+            OrderExecuted {
+                auction: auction.key(),
+                vaa: fast_vaa.key(),
+                source_chain: auction_info.source_chain,
+                target_protocol: auction.target_protocol,
+                penalized,
             },
         )
     };
@@ -238,5 +237,6 @@ fn handle_execute_fast_order<'info>(
                 .try_into()
                 .map_err(|_| MatchingEngineError::RedeemerMessageTooLarge)?,
         },
+        order_executed_event,
     })
 }
