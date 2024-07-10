@@ -5,6 +5,7 @@ import { ChainConfig, ChainInfo, ContractsJson, Dependencies, Ecosystem } from "
 import { getSigner } from "./evm";
 // TODO: support different env files
 import 'dotenv/config';
+import { ChainId } from "@wormhole-foundation/sdk-base";
 
 export const env = getEnv("ENV");
 export const contracts = loadContracts();
@@ -39,46 +40,46 @@ export function getEnv(env: string): string {
   return v;
 }
 
-export async function getChainConfig<T extends ChainConfig>(filename: string, evmChainId: number): Promise<T> {
+export async function getChainConfig<T extends ChainConfig>(filename: string, whChainId: ChainId): Promise<T> {
   const scriptConfig: T[] = await loadJson(filename);
 
-  const chainConfig = scriptConfig.find((x) => x.chainId == evmChainId);
+  const chainConfig = scriptConfig.find((x) => x.chainId == whChainId);
 
   if (!chainConfig) {
-    throw Error(`Failed to find chain config for chain ${evmChainId}`);
+    throw Error(`Failed to find chain config for chain ${whChainId}`);
   }
 
   return chainConfig;
 }
 
-export function getContractAddress(contractName: string, evmChainId: number): string {
-  const contract = contracts[contractName]?.find((c) => c.chainId === evmChainId)?.address;
+export function getContractAddress(contractName: string, whChainId: ChainId): string {
+  const contract = contracts[contractName]?.find((c) => c.chainId === whChainId)?.address;
 
   if (!contract) {
-    throw new Error(`No ${contractName} contract found for chain ${evmChainId}`);
+    throw new Error(`No ${contractName} contract found for chain ${whChainId}`);
   }
 
   if (!utils.isAddress(contract) && !validateSolAddress(contract)){
-    throw new Error(`Invalid address for ${contractName} contract found for chain ${evmChainId}`);
+    throw new Error(`Invalid address for ${contractName} contract found for chain ${whChainId}`);
   }
 
   return contract;
 }
 
-export function getDependencyAddress(dependencyName: string, evmChainId: number): string {
-  const chainDependencies = dependencies.find((d) => d.chainId === evmChainId);
+export function getDependencyAddress(dependencyName: string, whChainId: ChainId): string {
+  const chainDependencies = dependencies.find((d) => d.chainId === whChainId);
 
   if (chainDependencies === undefined ) {
-    throw new Error(`No dependencies found for chain ${evmChainId}`);
+    throw new Error(`No dependencies found for chain ${whChainId}`);
   }
 
   const dependency = chainDependencies[dependencyName as keyof Dependencies] as string;
   if (dependency === undefined) {
-    throw new Error(`No dependency found for ${dependencyName} for chain ${evmChainId}`);
+    throw new Error(`No dependency found for ${dependencyName} for chain ${whChainId}`);
   }
 
   if (!utils.isAddress(dependency) && !validateSolAddress(dependency)){
-    throw new Error(`Invalid address for ${dependencyName} dependency found for chain ${evmChainId}`);
+    throw new Error(`Invalid address for ${dependencyName} dependency found for chain ${whChainId}`);
   }
 
   return dependency;
@@ -94,30 +95,30 @@ export async function getContractInstance(
   return factory.connect(contractAddress, signer);
 }
 
-export function getDeploymentArgs(contractName: string, evmChainId: number): any[] {
-  const constructorArgs = contracts[contractName]?.find((c) => c.chainId === evmChainId)?.constructorArgs;
+export function getDeploymentArgs(contractName: string, whChainId: ChainId): any[] {
+  const constructorArgs = contracts[contractName]?.find((c) => c.chainId === whChainId)?.constructorArgs;
 
   if (!constructorArgs) {
-    throw new Error(`No constructorArgs found for ${contractName} contract for chain ${evmChainId}`);
+    throw new Error(`No constructorArgs found for ${contractName} contract for chain ${whChainId}`);
   }
 
   return constructorArgs;
 }
 
-export function writeDeployedContract(evmChainId: number, contractName: string, address: string, constructorArgs: any[] ) {
+export function writeDeployedContract(whChainId: ChainId, contractName: string, address: string, constructorArgs: any[] ) {
   const contracts = loadContracts();
   if (!contracts[contractName]) {
-    contracts[contractName] = [{ chainId: evmChainId, address, constructorArgs }];
+    contracts[contractName] = [{ chainId: whChainId, address, constructorArgs }];
   }
 
-  else if (!contracts[contractName].find((c) => c.chainId === evmChainId)) {
-    contracts[contractName].push({ chainId: evmChainId, address, constructorArgs });
+  else if (!contracts[contractName].find((c) => c.chainId === whChainId)) {
+    contracts[contractName].push({ chainId: whChainId, address, constructorArgs });
   }
 
   else {
     contracts[contractName] = contracts[contractName].map((c) => {
-      if (c.chainId === evmChainId) {
-        return { chainId: evmChainId, address, constructorArgs };
+      if (c.chainId === whChainId) {
+        return { chainId: whChainId, address, constructorArgs };
       }
 
       return c;

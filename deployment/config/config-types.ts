@@ -11,8 +11,8 @@ export type RouterEndpointConfig = {
 }
 
 export type TokenRouterConfiguration = {
-  // EVM Chain ID of the token router configuration
-  chainId: number;
+  // Wormhole Chain ID of the token router configuration
+  chainId: ChainId;
   
   // Immutable values
   matchingEngineMintRecipient: string;
@@ -32,8 +32,8 @@ export type TokenRouterConfiguration = {
 };
 
 export type MatchingEngineConfiguration = {
-  // EVM Chain ID of the matching engine configuration
-  chainId: number;
+  // Wormhole Chain ID of the matching engine configuration
+  chainId: ChainId;
 
   // Immutable values
   userPenaltyRewardBps: string;

@@ -8,6 +8,9 @@ runOnEvms("bytecode-verification-matching-engine", async (chain: ChainInfo, sign
   // The root path of the foundry project
   const rootPath = path.resolve('../evm/');
 
+  if (chain.externalId === undefined)
+    throw new Error(`Chain ${chain.chainId} does not have an external ID`);
+
   // Implementation data
   const implementationName = "MatchingEngine";
   const implementationPath = 'src/MatchingEngine/MatchingEngine.sol';
@@ -20,7 +23,7 @@ runOnEvms("bytecode-verification-matching-engine", async (chain: ChainInfo, sign
     implementationAddress, 
     implementationConstructorSignature, 
     implementationDeploymentArgs, 
-    chain.chainId
+    parseInt(chain.externalId)
   );
   
   // Proxy data
@@ -35,7 +38,7 @@ runOnEvms("bytecode-verification-matching-engine", async (chain: ChainInfo, sign
     proxyAddress, 
     proxyConstructorSignature, 
     proxyDeploymentArgs, 
-    chain.chainId
+    parseInt(chain.externalId)
   );
 
   log(chalk.green("Verifying implementation bytecode..."));

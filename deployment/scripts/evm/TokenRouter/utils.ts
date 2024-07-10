@@ -3,7 +3,6 @@ import { TokenRouterConfiguration } from "../../../config/config-types";
 import { TokenRouter, TokenRouter__factory } from "../../../contract-bindings";
 import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, getRouterEndpointDifferences, logComparision, someoneIsDifferent, getAddressType } from "../../../helpers"; 
 import { ERC20 } from "../../../contract-bindings/out/ERC20";
-import { chainIdToChain, nativeChainIds } from "@wormhole-foundation/sdk-base";
 import { UniversalAddress } from "@wormhole-foundation/sdk-definitions";
 
 export function getTokenRouterConfiguration(chain: ChainInfo): Promise<TokenRouterConfiguration> {
@@ -18,12 +17,9 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
   const mintRecipientAddressType = getAddressType(config.matchingEngineMintRecipient);
   const matchingEngineMintRecipient = (new UniversalAddress(config.matchingEngineMintRecipient, mintRecipientAddressType)).toString();
 
-  const { networkChainToNativeChainId } = nativeChainIds;
-  const chainName = chainIdToChain.get(Number(config.matchingEngineChain));
-  const matchingEngineEvmChainId = parseInt(networkChainToNativeChainId.get(chain.type, chainName!)!.toString());
   let matchingEngineAddress = (getContractAddress(
     "MatchingEngineProxy", 
-    matchingEngineEvmChainId
+    chain.chainId
   ));
 
   const matchingEgineAdressType = getAddressType(matchingEngineAddress);
