@@ -51,12 +51,12 @@ pub struct PrepareOrderResponseCctp<'info> {
             let finalized_msg = LiquidityLayerMessage::try_from(finalized_vaa.payload()).unwrap();
             let deposit = finalized_msg
                 .deposit()
-                .ok_or(MatchingEngineError::InvalidPayloadId)?;
+                .ok_or_else(|| MatchingEngineError::InvalidPayloadId)?;
             let deposit_msg = LiquidityLayerDepositMessage::try_from(deposit.payload())
                 .map_err(|_| error!(MatchingEngineError::InvalidDepositMessage))?;
             let slow_order_response = deposit_msg
                 .slow_order_response()
-                .ok_or(MatchingEngineError::InvalidDepositPayloadId)?;
+                .ok_or_else(|| MatchingEngineError::InvalidDepositPayloadId)?;
 
             true
         }
@@ -72,7 +72,7 @@ pub struct PrepareOrderResponseCctp<'info> {
                 .unwrap();
             let order = message
                 .fast_market_order()
-                .ok_or(MatchingEngineError::InvalidPayloadId)?;
+                .ok_or_else(|| MatchingEngineError::InvalidPayloadId)?;
 
             order.redeemer_message_len().into()
         }),
@@ -193,7 +193,7 @@ fn handle_prepare_order_response_cctp(
     let message = LiquidityLayerDepositMessage::try_from(deposit.payload()).unwrap();
     let order_response = message
         .slow_order_response()
-        .ok_or(MatchingEngineError::InvalidPayloadId)?;
+        .ok_or_else(|| MatchingEngineError::InvalidPayloadId)?;
 
     let fast_vaa = ctx.accounts.fast_order_path.fast_vaa.load_unchecked();
     let order = LiquidityLayerMessage::try_from(fast_vaa.payload())

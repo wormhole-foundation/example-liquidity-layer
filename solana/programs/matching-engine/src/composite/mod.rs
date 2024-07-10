@@ -276,7 +276,7 @@ pub struct FastOrderPath<'info> {
             let message = LiquidityLayerMessage::try_from(vaa.payload()).unwrap();
             let order = message
                 .fast_market_order()
-                .ok_or(MatchingEngineError::NotFastMarketOrder)?;
+                .ok_or_else(|| MatchingEngineError::NotFastMarketOrder)?;
             require_eq!(
                 path.to_endpoint.chain,
                 order.target_chain(),

@@ -188,7 +188,7 @@ pub fn handle_execute_fast_order_cctp(
         token_program.to_account_info(),
         token::CloseAccount {
             account: auction_custody_token.to_account_info(),
-            destination: beneficiary.unwrap_or(payer.to_account_info()),
+            destination: beneficiary.unwrap_or_else(|| payer.to_account_info()),
             authority: custodian.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],

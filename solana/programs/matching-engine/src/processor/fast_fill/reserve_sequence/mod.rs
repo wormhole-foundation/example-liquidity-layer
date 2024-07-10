@@ -70,7 +70,7 @@ fn set_reserved_sequence_data(
     // Now uptick sequencer's value. If this errors out, we have problems.
     *next_sequence = next_sequence
         .checked_add(1)
-        .ok_or(MatchingEngineError::U64Overflow)?;
+        .ok_or_else(|| MatchingEngineError::U64Overflow)?;
 
     // Emit an event to help auction participants track the fast fill sequence so they can more
     // easily execute local orders.

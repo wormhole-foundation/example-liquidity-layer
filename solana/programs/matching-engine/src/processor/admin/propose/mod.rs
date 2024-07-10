@@ -28,7 +28,7 @@ fn propose(accounts: Propose, action: ProposalAction, proposal_bump_seed: u8) ->
     custodian
         .next_proposal_id
         .checked_add(1)
-        .ok_or(MatchingEngineError::U64Overflow)?;
+        .ok_or_else(|| MatchingEngineError::U64Overflow)?;
 
     let slot_proposed_at = Clock::get().unwrap().slot;
 
@@ -38,18 +38,18 @@ fn propose(accounts: Propose, action: ProposalAction, proposal_bump_seed: u8) ->
             // Arbitrary set for fast testing.
             let slot_enact_delay = slot_proposed_at
                 .checked_add(8)
-                .ok_or(MatchingEngineError::U64Overflow)?;
+                .ok_or_else(|| MatchingEngineError::U64Overflow)?;
         } else if #[cfg(feature = "testnet")] {
             let _ = epoch_schedule;
             // Arbitrary set to roughly 10 seconds (10 seconds / 0.4 seconds per slot) for
             // faster testing.
             let slot_enact_delay = slot_proposed_at
                 .checked_add(25)
-                .ok_or(MatchingEngineError::U64Overflow)?;
+                .ok_or_else(|| MatchingEngineError::U64Overflow)?;
         } else {
             let slot_enact_delay = slot_proposed_at
                 .checked_add(epoch_schedule.slots_per_epoch)
-                .ok_or(MatchingEngineError::U64Overflow)?;
+                .ok_or_else(|| MatchingEngineError::U64Overflow)?;
         }
     }
 

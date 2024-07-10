@@ -41,7 +41,7 @@ pub fn propose_auction_parameters(
         .custodian
         .auction_config_id
         .checked_add(1)
-        .ok_or(MatchingEngineError::U32Overflow)?;
+        .ok_or_else(|| MatchingEngineError::U32Overflow)?;
     let action = ProposalAction::UpdateAuctionParameters { id, parameters };
 
     super::propose(

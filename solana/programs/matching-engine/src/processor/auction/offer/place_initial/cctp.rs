@@ -55,7 +55,7 @@ pub struct PlaceInitialOfferCctp<'info> {
             let message = LiquidityLayerMessage::try_from(fast_vaa.payload()).unwrap();
             let order = message
                 .fast_market_order()
-                .ok_or(MatchingEngineError::InvalidPayloadId)?;
+                .ok_or_else(|| MatchingEngineError::InvalidPayloadId)?;
 
             let curr_time = Clock::get().unwrap().unix_timestamp;
 
@@ -200,6 +200,6 @@ pub fn place_initial_offer_cctp(
         ),
         amount_in
             .checked_add(security_deposit)
-            .ok_or(MatchingEngineError::U64Overflow)?,
+            .ok_or_else(|| MatchingEngineError::U64Overflow)?,
     )
 }
