@@ -4,6 +4,7 @@ pub mod auction;
 
 use crate::{error::MatchingEngineError, state::RouterEndpoint};
 use anchor_lang::prelude::*;
+use anchor_spl::token;
 use common::wormhole_cctp_solana::wormhole::{VaaAccount, SOLANA_CHAIN};
 
 pub trait VaaDigest {
@@ -39,4 +40,15 @@ pub fn require_local_endpoint(endpoint: &RouterEndpoint) -> Result<bool> {
     );
 
     Ok(true)
+}
+
+pub fn checked_deserialize_token_account(
+    acc_info: &AccountInfo,
+    expected_mint: &Pubkey,
+) -> Option<token::TokenAccount> {
+    let data = acc_info.try_borrow_data().ok()?;
+
+    token::TokenAccount::try_deserialize(&mut &data[..])
+        .ok()
+        .filter(|token_data| acc_info.owner == &token::ID && &token_data.mint == expected_mint)
 }

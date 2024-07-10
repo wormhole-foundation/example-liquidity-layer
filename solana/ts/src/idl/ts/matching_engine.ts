@@ -691,6 +691,9 @@ export type MatchingEngine = {
             },
             {
               "name": "executorToken",
+              "docs": [
+                "Must be a token account, whose mint is [common::USDC_MINT]."
+              ],
               "writable": true
             },
             {
@@ -883,6 +886,9 @@ export type MatchingEngine = {
             },
             {
               "name": "executorToken",
+              "docs": [
+                "Must be a token account, whose mint is [common::USDC_MINT]."
+              ],
               "writable": true
             },
             {
