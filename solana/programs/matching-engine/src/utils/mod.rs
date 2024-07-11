@@ -46,9 +46,13 @@ pub fn checked_deserialize_token_account(
     acc_info: &AccountInfo,
     expected_mint: &Pubkey,
 ) -> Option<token::TokenAccount> {
-    let data = acc_info.try_borrow_data().ok()?;
+    if acc_info.owner != &token::ID {
+        None
+    } else {
+        let data = acc_info.try_borrow_data().ok()?;
 
-    token::TokenAccount::try_deserialize(&mut &data[..])
-        .ok()
-        .filter(|token_data| acc_info.owner == &token::ID && &token_data.mint == expected_mint)
+        token::TokenAccount::try_deserialize(&mut &data[..])
+            .ok()
+            .filter(|token_data| &token_data.mint == expected_mint)
+    }
 }
