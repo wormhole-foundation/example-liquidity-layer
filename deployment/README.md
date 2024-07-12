@@ -5,7 +5,7 @@
 - Install & Build
 
 ```
-npm install
+npm ci
 npm run build-evm
 ```
 
