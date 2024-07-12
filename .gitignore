@@ -8,3 +8,4 @@ dist
 .env
 out
 cache
+tmp
