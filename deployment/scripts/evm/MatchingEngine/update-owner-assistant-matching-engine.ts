@@ -3,8 +3,13 @@ import { runOnEvmsSequentially, ChainInfo, LoggerFn, getContractInstance, getCon
 import { ethers } from "ethers";
 import { getConfigurationDifferences } from "./utils";
 import confirm from '@inquirer/confirm';
+import chalk from "chalk";
 
 runOnEvmsSequentially("update-owner-assistant-matching-engine", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+
+  console.warn(chalk.yellow("This script is deprecated due to the only MatchingEngine contract is deployed in Solana."))
+  throw new Error("This script is deprecated due to the only MatchingEngine contract is deployed in Solana.");
+
   const matchingEngineAddress = getContractAddress("MatchingEngineProxy", chain.chainId);
   const matchingEngine = (await getContractInstance("MatchingEngine", matchingEngineAddress, chain)) as MatchingEngine;
   const diff = await getConfigurationDifferences(chain);

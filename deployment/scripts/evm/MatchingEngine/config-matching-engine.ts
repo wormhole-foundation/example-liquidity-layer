@@ -3,14 +3,22 @@ import { runOnEvmsSequentially, ChainInfo, LoggerFn, getContractInstance, getCon
 import { ethers } from "ethers";
 import { getConfigurationDifferences, logDiff } from "./utils";
 import confirm from '@inquirer/confirm';
+import { inspect } from "util";
+import chalk from "chalk";
 
 runOnEvmsSequentially("config-matching-engine", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+
+  console.warn(chalk.yellow("This script is deprecated due to the only MatchingEngine contract is deployed in Solana."))
+  throw new Error("This script is deprecated due to the only MatchingEngine contract is deployed in Solana.");
+
   const matchingEngineAddress = getContractAddress("MatchingEngineProxy", chain.chainId);
   const matchingEngine = (await getContractInstance("MatchingEngine", matchingEngineAddress, chain)) as MatchingEngine;
   const diff = await getConfigurationDifferences(chain);
 
+  console.log(inspect(diff, { depth: null, colors: true }));
+
   log(`MatchingEngine configuration differences on chain ${chain.chainId}:`);
-  logDiff(diff, log);
+  logDiff(diff, log, ["new", "update"]);
 
   const deployConfig: boolean = await confirm({ message: 'Continue?', default: false });
   if (!deployConfig){
@@ -37,7 +45,10 @@ runOnEvmsSequentially("config-matching-engine", async (chain: ChainInfo, signer:
 
   // Router endpoints
   for (const { wormholeChainId, router, mintRecipient, circleDomain } of routerEndpoints) {
-    const offChainEndpoint = getFormattedEndpoint(router.offChain, mintRecipient.offChain);
+    const offChainEndpoint = {
+      router: router.offChain,
+      mintRecipient: mintRecipient.offChain
+    };
     
     // Add new router endpoint if all values are zero
     if (Number(router?.onChain) === 0 && Number(mintRecipient?.onChain) === 0 && Number(circleDomain?.onChain) === 0) {
@@ -52,19 +63,18 @@ runOnEvmsSequentially("config-matching-engine", async (chain: ChainInfo, signer:
       continue;
     }
 
-    // Disable router endpoint, must be the three values zero
-    if (Number(router?.offChain) === 0 && Number(mintRecipient?.offChain) === 0 && Number(circleDomain?.offChain) === 0) {
-      await matchingEngine.disableRouterEndpoint(wormholeChainId);
-      log(`Router endpoint disabled for wormholeChainId ${wormholeChainId}`);
-      continue;
-    }
-
     // Update router endpoint
     if (
-      router?.onChain.toString() !== router?.offChain.toString() || 
-      mintRecipient?.onChain.toString() !== mintRecipient?.offChain.toString() || 
+      router?.onChain.toString() !== offChainEndpoint.router.toString() || 
+      mintRecipient?.onChain.toString() !== offChainEndpoint.mintRecipient.toString() || 
       circleDomain?.onChain.toString() !== circleDomain?.offChain.toString()
-    ) {      
+    ) {   
+
+      if (Number(router?.offChain) === 0 && Number(mintRecipient?.offChain) === 0 && Number(circleDomain?.offChain) === 0) {
+        log(`Router endpoint already disabled for wormholeChainId ${wormholeChainId}.`);
+        continue;
+      }
+
       if (wormholeChainId === 0) 
         throw new Error('Invalid wormholeChainId when adding new router endpoint');
 

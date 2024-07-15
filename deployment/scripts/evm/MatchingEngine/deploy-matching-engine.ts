@@ -3,8 +3,13 @@ import { runOnEvms, ChainInfo, LoggerFn, writeDeployedContract } from "../../../
 import { MatchingEngineConfiguration } from "../../../config/config-types";
 import { deployImplementation, getMachingEngineConfiguration } from "./utils";
 import { ERC1967Proxy__factory } from "../../../contract-bindings";
+import chalk from "chalk";
 
 runOnEvms("deploy-matching-engine", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+
+  console.warn(chalk.yellow("This script is deprecated due to the only MatchingEngine contract is deployed in Solana."))
+  throw new Error("This script is deprecated due to the only MatchingEngine contract is deployed in Solana.");
+
   const config = await getMachingEngineConfiguration(chain);
   const implementation = await deployImplementation(signer, config, log);
   await deployProxy(signer, config, implementation, log);

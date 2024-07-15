@@ -125,14 +125,29 @@ export async function getConfigurationDifferences(chain: ChainInfo) {
   return differences;
 }
 
-export function logDiff(differences: Record<string, any>, log: LoggerFn) {
+export function logDiff(differences: Record<string, any>, log: LoggerFn, valuesToShow?: Array<"new" | "update" | "delete">) {
   logComparision('feeRecipient', differences.feeRecipient, log);
   logComparision('cctpAllowance', differences.cctpAllowance, log);
 
+  logRoutersDiff(differences, log, valuesToShow);
+}
+
+export function logRoutersDiff(differences: Record<string, any>, log: LoggerFn, valuesToShow?: Array<"new" | "update" | "delete">) {
   let routersLogged = false;
   for (const { wormholeChainId, router, mintRecipient, circleDomain } of differences.routerEndpoints) {
+    // In no one is different, skip
     if (!someoneIsDifferent([router, mintRecipient, circleDomain])) 
       continue;
+
+    // Edge case: if only mintRecipient is different and the off chain values are 0 (the endpoint is disabled), skip
+    if (
+      someoneIsDifferent([mintRecipient]) && 
+      !someoneIsDifferent([router, circleDomain]) && 
+      (Number(router.onChain) === 0 && Number(circleDomain.onChain) === 0) &&
+      (Number(mintRecipient.offChain) === 0)
+    ) {
+      continue;
+    }
 
     if (!routersLogged) {
       log('Router endpoints:');
@@ -140,8 +155,8 @@ export function logDiff(differences: Record<string, any>, log: LoggerFn) {
     }
     
     log(`WormholeChainId ${wormholeChainId}:`);
-    logComparision('router', router, log);
-    logComparision('mintRecipient', mintRecipient, log);
-    logComparision('circleDomain', circleDomain, log);
+    logComparision('router', router, log, valuesToShow);
+    logComparision('mintRecipient', mintRecipient, log, valuesToShow);
+    logComparision('circleDomain', circleDomain, log, valuesToShow);
   }
 }

@@ -3,8 +3,13 @@ import { ethers } from "ethers";
 import { deployImplementation, getMachingEngineConfiguration } from "./utils";
 import { MatchingEngine } from "../../../contract-bindings";
 import { MatchingEngineConfiguration } from "../../../config/config-types";
+import chalk from "chalk";
 
 runOnEvms("upgrade-matching-engine", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+
+  console.warn(chalk.yellow("This script is deprecated due to the only MatchingEngine contract is deployed in Solana."))
+  throw new Error("This script is deprecated due to the only MatchingEngine contract is deployed in Solana.");
+
   const currentImplementationAddress = getContractAddress("MatchingEngineImplementation", chain.chainId);
   const proxyAddress = getContractAddress("MatchingEngineProxy", chain.chainId);
   const proxy = (await getContractInstance("MatchingEngine", proxyAddress, chain)) as MatchingEngine;
