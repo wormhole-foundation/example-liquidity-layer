@@ -1,4 +1,4 @@
-import { ChainInfo, LoggerFn, getContractInstance, getContractAddress, runOnEvmsSequentially, ValueDiff, getFormattedEndpoint } from "../../../helpers";
+import { ChainInfo, LoggerFn, getContractInstance, getContractAddress, runOnEvmsSequentially, ValueDiff } from "../../../helpers";
 import { ethers } from "ethers";
 import { getConfigurationDifferences, logDiff } from "./utils";
 import confirm from '@inquirer/confirm';
@@ -19,7 +19,7 @@ runOnEvmsSequentially("config-token-router", async (chain: ChainInfo, signer: et
     return;
   }
 
-  const { cctpAllowance, routerEndpoints, fastTransferParameters } = diff;
+  const { cctpAllowance, fastTransferParameters } = diff;
 
   // Fast transfer parameters
   await updateFastTransferParameters(tokenRouter, fastTransferParameters, log);
@@ -28,48 +28,6 @@ runOnEvmsSequentially("config-token-router", async (chain: ChainInfo, signer: et
   if (cctpAllowance.onChain.toString() !== cctpAllowance.offChain.toString()) {
     await tokenRouter.setCctpAllowance(cctpAllowance.offChain);
     log(`CCTP allowance updated to ${cctpAllowance.offChain}`);
-  }
-
-  // Router endpoints
-  for (const { wormholeChainId, router, mintRecipient, circleDomain } of routerEndpoints) {
-    const offChainEndpoint = getFormattedEndpoint(router.offChain, mintRecipient.offChain);
-    
-    // Add new router endpoint if all values are zero
-    if (Number(router?.onChain) === 0 && Number(mintRecipient?.onChain) === 0 && Number(circleDomain?.onChain) === 0) {
-      if (wormholeChainId === 0) 
-        throw new Error('Invalid wormholeChainId when adding new router endpoint');
-
-      if (Number(offChainEndpoint.router) === 0 || Number(offChainEndpoint.mintRecipient) === 0)
-        throw new Error(`Invalid router or mintRecipient endpoint for wormholeChainId ${wormholeChainId}`);
-
-      await tokenRouter.addRouterEndpoint(wormholeChainId, offChainEndpoint, circleDomain.offChain);
-      log(`Router endpoint added for wormholeChainId ${wormholeChainId}`);
-      continue;
-    }
-
-    // Disable router endpoint, must be the three values zero
-    if (Number(router?.offChain) === 0 && Number(mintRecipient?.offChain) === 0 && Number(circleDomain?.offChain) === 0) {
-      await tokenRouter.disableRouterEndpoint(wormholeChainId);
-      log(`Router endpoint disabled for wormholeChainId ${wormholeChainId}`);
-      continue;
-    }
-
-    // Update router endpoint
-    if (
-      router?.onChain.toString() !== router?.offChain.toString() || 
-      mintRecipient?.onChain.toString() !== mintRecipient?.offChain.toString() || 
-      circleDomain?.onChain.toString() !== circleDomain?.offChain.toString()
-    ) {
-      if (wormholeChainId === 0) 
-        throw new Error('Invalid wormholeChainId when adding new router endpoint');
-
-      if (Number(offChainEndpoint.router) === 0 || Number(offChainEndpoint.mintRecipient) === 0)
-        throw new Error(`Invalid router or mintRecipient endpoint for chainId ${wormholeChainId}`);
-
-      await tokenRouter.updateRouterEndpoint(wormholeChainId, offChainEndpoint, circleDomain.offChain);
-      log(`Router endpoint updated for chainId ${wormholeChainId}`);
-      continue;
-    }
   }
 });
 

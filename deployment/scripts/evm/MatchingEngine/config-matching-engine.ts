@@ -1,5 +1,5 @@
 import { MatchingEngine } from "../../../contract-bindings";
-import { runOnEvmsSequentially, ChainInfo, LoggerFn, getContractInstance, getContractAddress, getFormattedEndpoint } from "../../../helpers";
+import { runOnEvmsSequentially, ChainInfo, LoggerFn, getContractInstance, getContractAddress } from "../../../helpers";
 import { ethers } from "ethers";
 import { getConfigurationDifferences, logDiff } from "./utils";
 import confirm from '@inquirer/confirm';

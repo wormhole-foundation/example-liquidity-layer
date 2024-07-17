@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import { MatchingEngineConfiguration } from "../../../config/config-types";
 import { MatchingEngine, MatchingEngine__factory } from "../../../contract-bindings";
-import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, getRouterEndpointDifferences, logComparision, someoneIsDifferent } from "../../../helpers";
+import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance,  logComparision, someoneIsDifferent } from "../../../helpers";
 import { ERC20 } from "../../../contract-bindings/out/ERC20";
 
 export function getMachingEngineConfiguration(chain: ChainInfo): Promise<MatchingEngineConfiguration> {
@@ -75,25 +75,11 @@ export async function getOnChainMachingEngineConfiguration(chain: ChainInfo) {
   const feeRecipient = await matchingEngine.feeRecipient();
   const ownerAssistant = await matchingEngine.getOwnerAssistant();
 
-  const routerEndpoints = await Promise.all(config
-    .routerEndpoints
-    .map(async ({ wormholeChainId }) => {
-      const { router, mintRecipient } = await matchingEngine.getRouterEndpoint(wormholeChainId);
-      return { 
-        wormholeChainId, 
-        endpoint: {
-          router,
-          mintRecipient
-        },
-        circleDomain: await matchingEngine.getDomain(wormholeChainId)
-      }
-    }));
 
   return {
     cctpAllowance,
     feeRecipient,
-    ownerAssistant,
-    routerEndpoints
+    ownerAssistant
   };
 } 
 
@@ -120,8 +106,6 @@ export async function getConfigurationDifferences(chain: ChainInfo) {
     };
   }
 
-  differences.routerEndpoints = getRouterEndpointDifferences(onChainConfig.routerEndpoints, offChainConfig.routerEndpoints);
-
   return differences;
 }
 
@@ -129,34 +113,4 @@ export function logDiff(differences: Record<string, any>, log: LoggerFn, valuesT
   logComparision('feeRecipient', differences.feeRecipient, log);
   logComparision('cctpAllowance', differences.cctpAllowance, log);
 
-  logRoutersDiff(differences, log, valuesToShow);
-}
-
-export function logRoutersDiff(differences: Record<string, any>, log: LoggerFn, valuesToShow?: Array<"new" | "update" | "delete">) {
-  let routersLogged = false;
-  for (const { wormholeChainId, router, mintRecipient, circleDomain } of differences.routerEndpoints) {
-    // In no one is different, skip
-    if (!someoneIsDifferent([router, mintRecipient, circleDomain])) 
-      continue;
-
-    // Edge case: if only mintRecipient is different and the off chain values are 0 (the endpoint is disabled), skip
-    if (
-      someoneIsDifferent([mintRecipient]) && 
-      !someoneIsDifferent([router, circleDomain]) && 
-      (Number(router.onChain) === 0 && Number(circleDomain.onChain) === 0) &&
-      (Number(mintRecipient.offChain) === 0)
-    ) {
-      continue;
-    }
-
-    if (!routersLogged) {
-      log('Router endpoints:');
-      routersLogged = true;
-    }
-    
-    log(`WormholeChainId ${wormholeChainId}:`);
-    logComparision('router', router, log, valuesToShow);
-    logComparision('mintRecipient', mintRecipient, log, valuesToShow);
-    logComparision('circleDomain', circleDomain, log, valuesToShow);
-  }
 }

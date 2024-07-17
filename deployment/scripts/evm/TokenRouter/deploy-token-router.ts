@@ -31,7 +31,6 @@ async function deployProxy(signer: ethers.Signer, config: TokenRouterConfigurati
   await deployment.deployed();
 
   log(`TokenRouterProxy deployed at ${deployment.address}`);
-
   writeDeployedContract(config.chainId, "TokenRouterProxy", deployment.address, [implementation.address, encodedCall]);
 
   return deployment;

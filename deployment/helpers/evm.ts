@@ -45,7 +45,7 @@ export async function runOnEvmsSequentially(scriptName: string, cb: EvmScriptCb)
 }
 
 export function evmOperatingChains() {
-  const { operatingChains } = ecosystemChains.evm;
+  const { operatingChains } = ecosystemChains;
   if (Array.isArray(operatingChains) && operatingChains.length >= 1) {
     return ecosystemChains.evm.networks.filter((x) => {
       return operatingChains.includes(x.chainId);

@@ -1,6 +1,6 @@
 import { ChainId } from "@wormhole-foundation/sdk-base";
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
-import { ethers } from "ethers";
+import { BytesLike, ethers } from "ethers";
 
 export type EvmScriptCb = (chain: ChainInfo, signer: ethers.Signer, logFn: LoggerFn) => Promise<void>;
 export type SolanaScriptCb = (chain: ChainInfo, signer: SolanaLedgerSigner, logFn: LoggerFn) => Promise<void>;
@@ -21,9 +21,8 @@ export type Deployment = {
 };
 
 export type Ecosystem = {
-  guardianSetIndex: number;
+  operatingChains?: number[];
   evm: {
-    operatingChains?: number[];
     networks: ChainInfo[];
   },
   solana: {
@@ -46,4 +45,22 @@ export interface Dependencies extends ChainConfig {
 export interface ValueDiff {
   onChain: any;
   offChain: any;
+}
+
+export interface VerificationApiKeys extends ChainConfig {
+  etherscan: string;
+  blockscout?: {
+    mainnet: string;
+    testnet: string;
+  };
+  sourcify?: string;
+} 
+
+export type RouterEndpoint = {
+  wormholeChainId: ChainId;
+  endpoint: {
+    router: BytesLike;
+    mintRecipient: BytesLike;
+  },
+  circleDomain: number;
 }

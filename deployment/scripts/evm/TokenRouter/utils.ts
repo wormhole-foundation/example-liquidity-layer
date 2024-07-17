@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { TokenRouter, TokenRouter__factory } from "../../../contract-bindings";
-import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, getRouterEndpointDifferences, logComparision, someoneIsDifferent, getAddressType } from "../../../helpers"; 
+import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, logComparision, someoneIsDifferent } from "../../../helpers"; 
 import { ERC20 } from "../../../contract-bindings/out/ERC20";
 import { UniversalAddress } from "@wormhole-foundation/sdk-definitions";
 
@@ -9,30 +9,34 @@ export function getTokenRouterConfiguration(chain: ChainInfo): Promise<TokenRout
   return getChainConfig<TokenRouterConfiguration>("token-router", chain.chainId);
 }
 
+// TODO
+function getMintRecipientAddress() {
+  return '6y7V8dL673XFzm9QyC5vvh3itWkp7wztahBd2yDqsyrK'
+};
+
 export async function deployImplementation(chain: ChainInfo, signer: ethers.Signer, config: TokenRouterConfiguration, log: LoggerFn) {
   const factory = new TokenRouter__factory(signer);
   const token = getDependencyAddress("token", config.chainId);
   const wormhole = getDependencyAddress("wormhole", config.chainId);
   const tokenMessenger = getDependencyAddress("tokenMessenger", config.chainId);
-  const mintRecipientAddressType = getAddressType(config.matchingEngineMintRecipient);
-  const matchingEngineMintRecipient = (new UniversalAddress(config.matchingEngineMintRecipient, mintRecipientAddressType)).toString();
-
+  
+  const matchingEngineMintRecipient = (new UniversalAddress(getMintRecipientAddress(), 'base58')).toString();
+  const matchinEngineChain = 1; // Solana wormhole chain id
+  const matchingEngineDomain = 5; // Solana cctp domain  
   let matchingEngineAddress = (getContractAddress(
     "MatchingEngineProxy", 
-    chain.chainId
+    matchinEngineChain
   ));
-
-  const matchingEgineAdressType = getAddressType(matchingEngineAddress);
-  matchingEngineAddress = (new UniversalAddress(matchingEngineAddress, matchingEgineAdressType)).toString();
+  matchingEngineAddress = (new UniversalAddress(matchingEngineAddress, 'base58')).toString();
 
   const deployment = await factory.deploy(
     token,
     wormhole,
     tokenMessenger,
-    config.matchingEngineChain,
+    matchinEngineChain,
     matchingEngineAddress,
     matchingEngineMintRecipient,
-    config.matchingEngineDomain,
+    matchingEngineDomain,
     {} // overrides
   );
 
@@ -44,10 +48,10 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
     token,
     wormhole,
     tokenMessenger,
-    config.matchingEngineChain,
+    matchinEngineChain,
     matchingEngineAddress,
     matchingEngineMintRecipient,
-    config.matchingEngineDomain
+    matchingEngineDomain
   ];
 
   writeDeployedContract(config.chainId, "TokenRouterImplementation", deployment.address, constructorArgs);
@@ -56,7 +60,6 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
 }
 
 export async function getOnChainTokenRouterConfiguration(chain: ChainInfo) {
-  const config = await getTokenRouterConfiguration(chain);
   const tokenRouterProxyAddress = getContractAddress("TokenRouterProxy", chain.chainId);
   const tokenRouter = (await getContractInstance("TokenRouter", tokenRouterProxyAddress, chain)) as TokenRouter;
 
@@ -65,21 +68,6 @@ export async function getOnChainTokenRouterConfiguration(chain: ChainInfo) {
   const orderTokenAddress = await tokenRouter.orderToken();
   const orderToken = (await getContractInstance("ERC20", orderTokenAddress, chain)) as ERC20;
   const cctpAllowance = await orderToken.allowance(tokenRouterProxyAddress, tokenMessengerAddress);
-
-  const routerEndpoints = await Promise.all(config
-    .routerEndpoints
-    .map(async ({ wormholeChainId }) => {
-      const { router, mintRecipient } = await tokenRouter.getRouterEndpoint(wormholeChainId);
-      return { 
-        wormholeChainId, 
-        endpoint: {
-          router,
-          mintRecipient
-        },
-        circleDomain: await tokenRouter.getDomain(wormholeChainId)
-      }
-    }));
-
   const ownerAssistant = await tokenRouter.getOwnerAssistant();
   const { enabled, maxAmount, baseFee, initAuctionFee} = await tokenRouter.getFastTransferParameters();
 
@@ -91,8 +79,7 @@ export async function getOnChainTokenRouterConfiguration(chain: ChainInfo) {
       maxAmount: maxAmount.toString(),
       baseFee: baseFee.toString(),
       initAuctionFee: initAuctionFee.toString()
-    },
-    routerEndpoints
+    }
   };
 }
 
@@ -128,31 +115,11 @@ function compareConfigurations(onChainConfig: Record<string, any>, offChainConfi
 export async function getConfigurationDifferences(chain: ChainInfo) {
   const onChainConfig = await getOnChainTokenRouterConfiguration(chain);
   const offChainConfig = await getTokenRouterConfiguration(chain);
-  const differences = compareConfigurations(onChainConfig, offChainConfig);
-
-  differences.routerEndpoints = getRouterEndpointDifferences(onChainConfig.routerEndpoints, offChainConfig.routerEndpoints);
-
-  return differences;
+  return compareConfigurations(onChainConfig, offChainConfig);
 }
 
 export function logDiff(differences: Record<string, any>, log: LoggerFn) {
   logComparision('cctpAllowance', differences.cctpAllowance, log);
-
-  let routersLogged = false;
-  for (const { wormholeChainId, router, mintRecipient, circleDomain } of differences.routerEndpoints) {
-    if (!someoneIsDifferent([router, mintRecipient, circleDomain])) 
-      continue;
-
-    if (!routersLogged) {
-      log('Router endpoints:');
-      routersLogged = true;
-    }
-    
-    log(`WormholeChainId ${wormholeChainId}:`);
-    logComparision('router', router, log);
-    logComparision('mintRecipient', mintRecipient, log);
-    logComparision('circleDomain', circleDomain, log);
-  }
 
   const { enabled, maxAmount, baseFee, initAuctionFee } = differences.fastTransferParameters;
   if (someoneIsDifferent([enabled, maxAmount, baseFee, initAuctionFee])) {
