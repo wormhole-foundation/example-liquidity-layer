@@ -11,6 +11,7 @@
     "@solana/web3.js": "^1.92.2",
     "@typechain/ethers-v5": "^11.1.2",
     "@types/node": "^20.11.22",
+    "@wormhole-foundation/example-liquidity-layer-solana": "file:../solana",
     "@wormhole-foundation/sdk-base": "^0.7.0",
     "@wormhole-foundation/sdk-definitions": "^0.7.0",
     "@xlabs-xyz/ledger-signer": "^0.0.4",
@@ -20,7 +21,9 @@
     "ethers": "^5.7.2",
     "tsx": "^4.7.2",
     "typechain": "^8.3.2",
-    "typescript": "^5.4.5",
-    "@wormhole-foundation/example-liquidity-layer-solana": "file:../solana"
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "@solana/spl-token": "^0.4.8"
   }
 }
