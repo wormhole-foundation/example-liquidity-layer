@@ -22,7 +22,7 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
   
   const matchingEngineMintRecipient = (new UniversalAddress(getMintRecipientAddress(), 'base58')).toString();
   const matchinEngineChain = 1; // Solana wormhole chain id
-  const matchingEngineDomain = 5; // Solana cctp domain  
+  const matchingEngineDomain = 5; // Solana cctp domain
   let matchingEngineAddress = (getContractAddress(
     "MatchingEngineProxy", 
     matchinEngineChain
