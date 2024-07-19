@@ -18,7 +18,12 @@ pub use utils::admin::AddCctpRouterEndpointArgs;
 use anchor_lang::{prelude::*, solana_program::pubkey};
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "testnet")] {
+    if #[cfg(feature = "mainnet")] {
+        declare_id!("HtkeCDdYY4i9ncAxXKjYTx8Uu3WM8JbtiLRYjtHwaVXb");
+
+        const CUSTODIAN_BUMP: u8 = 254;
+        const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("HUXc7MBf55vWrrkevVbmJN8HAyfFtjLcPLBt9yWngKzm");
+    } else if #[cfg(feature = "testnet")] {
         declare_id!("mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS");
 
         const CUSTODIAN_BUMP: u8 = 254;

@@ -17,8 +17,18 @@ no-entrypoint = []
 no-idl = []
 no-log-ix-name = []
 cpi = ["no-entrypoint"]
-testnet = ["common/testnet", "matching-engine/testnet"]
-localnet = ["common/localnet", "matching-engine/localnet"]
+mainnet = [
+    "common/mainnet",
+    "matching-engine/mainnet"
+]
+testnet = [
+    "common/testnet",
+    "matching-engine/testnet"
+]
+localnet = [
+    "common/localnet",
+    "matching-engine/localnet"
+]
 integration-test = ["localnet"]
 idl-build = [
     "localnet",

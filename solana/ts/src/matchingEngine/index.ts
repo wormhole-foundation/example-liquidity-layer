@@ -59,6 +59,7 @@ import { ChainId, toChainId, isChainId } from "@wormhole-foundation/sdk-base";
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
     "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS",
+    "HtkeCDdYY4i9ncAxXKjYTx8Uu3WM8JbtiLRYjtHwaVXb",
 ] as const;
 
 export const FEE_PRECISION_MAX = 1_000_000n;
@@ -2462,6 +2463,12 @@ export class MatchingEngineProgram {
 
     upgradeManagerProgram(): UpgradeManagerProgram {
         switch (this._programId) {
+            case mainnet(): {
+                return new UpgradeManagerProgram(
+                    this.program.provider.connection,
+                    "4jyJ7EEsYa72REdD8ZMBvHFTXZ4VYGQPUHaJTajsK8SN",
+                );
+            }
             case testnet(): {
                 return new UpgradeManagerProgram(
                     this.program.provider.connection,
@@ -2481,21 +2488,18 @@ export class MatchingEngineProgram {
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
-        return new TokenMessengerMinterProgram(
-            this.program.provider.connection,
-            "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
-        );
+        return new TokenMessengerMinterProgram(this.program.provider.connection);
     }
 
     messageTransmitterProgram(): MessageTransmitterProgram {
-        return new MessageTransmitterProgram(
-            this.program.provider.connection,
-            "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
-        );
+        return new MessageTransmitterProgram(this.program.provider.connection);
     }
 
     coreBridgeProgramId(): PublicKey {
         switch (this._programId) {
+            case mainnet(): {
+                return new PublicKey("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
+            }
             case testnet(): {
                 return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
             }
@@ -2558,6 +2562,10 @@ export class MatchingEngineProgram {
             (uint64ToBigInt(amountIn) * BigInt(securityDepositBps)) / FEE_PRECISION_MAX
         );
     }
+}
+
+export function mainnet(): ProgramId {
+    return "HtkeCDdYY4i9ncAxXKjYTx8Uu3WM8JbtiLRYjtHwaVXb";
 }
 
 export function testnet(): ProgramId {

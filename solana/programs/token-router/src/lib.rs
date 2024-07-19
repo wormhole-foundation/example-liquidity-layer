@@ -14,7 +14,12 @@ pub mod state;
 use anchor_lang::{prelude::*, solana_program::pubkey};
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "testnet")] {
+    if #[cfg(feature = "mainnet")] {
+        declare_id!("28topqjtJzMnPaGFmmZk68tzGmj9W9aMntaEK3QkgtRe");
+
+        const CUSTODIAN_BUMP: u8 = 255;
+        const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("J9jEttqjYkWWaWDvwuo69fLPEA9fHEUQqE62WjBCf55P");
+    } else if #[cfg(feature = "testnet")] {
         declare_id!("tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md");
 
         const CUSTODIAN_BUMP: u8 = 255;

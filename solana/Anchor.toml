@@ -23,6 +23,11 @@ token_router = "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md"
 matching_engine = "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS"
 upgrade_manager = "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt"
 
+[programs.mainnet]
+token_router = "28topqjtJzMnPaGFmmZk68tzGmj9W9aMntaEK3QkgtRe"
+matching_engine = "HtkeCDdYY4i9ncAxXKjYTx8Uu3WM8JbtiLRYjtHwaVXb"
+upgrade_manager = "4jyJ7EEsYa72REdD8ZMBvHFTXZ4VYGQPUHaJTajsK8SN"
+
 [registry]
 url = "https://api.apr.dev"
 

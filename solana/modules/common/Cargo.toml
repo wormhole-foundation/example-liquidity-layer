@@ -10,6 +10,7 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
+mainnet = ["wormhole-solana-consts/mainnet", "wormhole-cctp-solana/mainnet"]
 testnet = ["wormhole-solana-consts/testnet", "wormhole-cctp-solana/testnet"]
 localnet = ["wormhole-solana-consts/mainnet", "wormhole-cctp-solana/mainnet"]
 idl-build = ["localnet", "anchor-lang/idl-build"]
