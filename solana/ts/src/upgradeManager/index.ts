@@ -19,6 +19,7 @@ import { UpgradeReceipt } from "./state";
 export const PROGRAM_IDS = [
     "UpgradeManager11111111111111111111111111111",
     "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
+    "4jyJ7EEsYa72REdD8ZMBvHFTXZ4VYGQPUHaJTajsK8SN",
 ] as const;
 
 export type ProgramId = (typeof PROGRAM_IDS)[number];
@@ -234,6 +235,10 @@ export class UpgradeManagerProgram {
             }
         }
     }
+}
+
+export function mainnet(): ProgramId {
+    return "4jyJ7EEsYa72REdD8ZMBvHFTXZ4VYGQPUHaJTajsK8SN";
 }
 
 export function testnet(): ProgramId {

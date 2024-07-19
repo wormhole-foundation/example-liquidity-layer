@@ -17,7 +17,9 @@ use anchor_lang::prelude::*;
 declare_id!(common::UPGRADE_MANAGER_PROGRAM_ID);
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "testnet")] {
+    if #[cfg(feature = "mainnet")] {
+        const UPGRADE_AUTHORITY_BUMP: u8 = 255;
+    } else if #[cfg(feature = "testnet")] {
         const UPGRADE_AUTHORITY_BUMP: u8 = 255;
     } else if #[cfg(feature = "localnet")] {
         const UPGRADE_AUTHORITY_BUMP: u8 = 255;
