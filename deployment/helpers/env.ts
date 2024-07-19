@@ -1,7 +1,7 @@
 import fs from "fs";
 import { ethers, utils } from "ethers";
 import { validateSolAddress } from "./solana";
-import { ChainConfig, ChainInfo, ContractsJson, Dependencies, Ecosystem } from "./interfaces";
+import { ChainConfig, ChainInfo, ContractsJson, Dependencies, Ecosystem, VerificationApiKeys } from "./interfaces";
 import { getSigner } from "./evm";
 // TODO: support different env files
 import 'dotenv/config';
@@ -11,6 +11,7 @@ export const env = getEnv("ENV");
 export const contracts = loadContracts();
 export const dependencies = loadDependencies();
 export const ecosystemChains = loadEcosystem();
+export const verificationApiKeys = loadVerificationApiKeys();
 
 function loadJson<T>(filename: string): T {
   const fileContent = fs.readFileSync(
@@ -30,6 +31,10 @@ function loadContracts<T extends ContractsJson>() {
 
 function loadEcosystem(): Ecosystem {
   return loadJson<Ecosystem>("ecosystem");
+}
+
+function loadVerificationApiKeys() {
+  return loadJson<VerificationApiKeys[]>("verification-api-keys");
 }
 
 export function getEnv(env: string): string {

@@ -1,4 +1,4 @@
-import { ChainId } from "@wormhole-foundation/sdk-base";
+import { ChainId, Network } from "@wormhole-foundation/sdk-base";
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
 import { BytesLike, ethers } from "ethers";
 
@@ -9,13 +9,23 @@ export type LoggerFn = (...args: any[]) => void;
 
 export type ChainInfo = {
   name: string;
-  chainId: ChainId; // Wormhole ChainId
+  /**
+   * Wormhole ChainId
+   */
+  chainId: ChainId;
   rpc: string;
-  externalId?: string; // Native ChainId
+  /**
+   * Native ChainId
+   */
+  externalId?: string;
+  network: Network;
 };
 
 export type Deployment = {
-  chainId: number; // Wormhole ChainId
+  /**
+   * Wormhole ChainId
+   */
+  chainId: number;
   address: string;
   constructorArgs?: any[];
 };
@@ -33,7 +43,10 @@ export type Ecosystem = {
 export type ContractsJson = Record<string, Deployment[]>;
 
 export interface ChainConfig {
-  chainId: ChainId; // Wormhole ChainId
+  /**
+   * Wormhole ChainId
+   */
+  chainId: ChainId;
 }
 
 export interface Dependencies extends ChainConfig {
@@ -57,7 +70,10 @@ export interface VerificationApiKeys extends ChainConfig {
 } 
 
 export type RouterEndpoint = {
-  wormholeChainId: ChainId;
+  /**
+   * Wormhole ChainId
+   */
+  chainId: ChainId;
   endpoint: {
     router: BytesLike;
     mintRecipient: BytesLike;

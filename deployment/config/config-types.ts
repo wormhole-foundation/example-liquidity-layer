@@ -12,7 +12,7 @@ export type TokenRouterConfiguration = {
     baseFee: number;
     initAuctionFee: number;
   };
-  cctpAllowance: number;
+  cctpAllowance: string;
   disableRouterEndpoints?: ChainId[];
 };
 
@@ -30,5 +30,5 @@ export type MatchingEngineConfiguration = {
   // Mutable values
   ownerAssistant: string;
   feeRecipient: string;
-  cctpAllowance: number;
+  cctpAllowance: string;
 };
