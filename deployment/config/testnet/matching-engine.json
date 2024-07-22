@@ -7,7 +7,7 @@
     "initialPenaltyBps": "",
     "auctionDuration": "",
     "auctionGracePeriod": "",
-    "auctionPenaltyBlocks": ""
+    "auctionPenaltySlots": ""
   },
   {
     "chainId": 5,
@@ -17,7 +17,7 @@
     "initialPenaltyBps": "",
     "auctionDuration": "",
     "auctionGracePeriod": "",
-    "auctionPenaltyBlocks": ""
+    "auctionPenaltySlots": ""
   },
   {
     "chainId": 6,
@@ -27,7 +27,7 @@
     "initialPenaltyBps": "",
     "auctionDuration": "",
     "auctionGracePeriod": "",
-    "auctionPenaltyBlocks": ""
+    "auctionPenaltySlots": ""
   },
   {
     "chainId": 23,
@@ -37,7 +37,7 @@
     "initialPenaltyBps": "",
     "auctionDuration": "",
     "auctionGracePeriod": "",
-    "auctionPenaltyBlocks": ""
+    "auctionPenaltySlots": ""
   },
   {
     "chainId": 24,
@@ -47,7 +47,7 @@
     "initialPenaltyBps": "",
     "auctionDuration": "",
     "auctionGracePeriod": "",
-    "auctionPenaltyBlocks": ""
+    "auctionPenaltySlots": ""
   },
   {
     "chainId": 30,
@@ -57,6 +57,6 @@
     "initialPenaltyBps": "",
     "auctionDuration": "",
     "auctionGracePeriod": "",
-    "auctionPenaltyBlocks": ""
+    "auctionPenaltySlots": ""
   }
 ]

@@ -12,18 +12,6 @@ import { ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/m
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
 import { circle } from "@wormhole-foundation/sdk-base";
 
-
-const AUCTION_PARAMS: AuctionParameters = {
-    userPenaltyRewardBps: 400000, // 40%
-    initialPenaltyBps: 250000, // 25%
-    duration: 5, // slots
-    gracePeriod: 10, // slots
-    penaltyPeriod: 20, // slots
-    minOfferDeltaBps: 50000, // 5%
-    securityDepositBase: uint64ToBN(1000000n), // 1 USDC
-    securityDepositBps: 5000, // 0.5%
-};
-
 runOnSolana("deploy-matching-engine", async (chain, signer, log) => {
     const config = await getChainConfig<MatchingEngineConfiguration>("matching-engine", chain.chainId);
     const matchingEngineId = getContractAddress("MatchingEngine", chain.chainId) as ProgramId;
@@ -49,13 +37,23 @@ async function initialize(matchingEngine: MatchingEngineProgram, signer: SolanaL
     }
 
     const signerPubkey = new PublicKey(await signer.getAddress());
+    const auctionParams: AuctionParameters = {
+        userPenaltyRewardBps: toIntegerNumber(config.userPenaltyRewardBps, "userPenaltyRewardBps"),
+        initialPenaltyBps: toIntegerNumber(config.initialPenaltyBps, "initialPenaltyBps"),
+        duration: toIntegerNumber(config.auctionDuration, "duration"),
+        gracePeriod: toIntegerNumber(config.auctionGracePeriod, "gracePeriod"),
+        penaltyPeriod: toIntegerNumber(config.auctionPenaltySlots, "penaltyPeriod"),
+        minOfferDeltaBps: toIntegerNumber(config.minOfferDeltaBps, "minOfferDeltaBps"),
+        securityDepositBase: uint64ToBN(BigInt(config.securityDepositBase)),
+        securityDepositBps: toIntegerNumber(config.securityDepositBps, "securityDepositBps"),
+    }
     const initializeIx = await matchingEngine.initializeIx(
         {
             owner: signerPubkey,
-            ownerAssistant: signerPubkey,
-            feeRecipient: signerPubkey,
+            ownerAssistant: new PublicKey(config.ownerAssistant),
+            feeRecipient: new PublicKey(config.feeRecipient),
         },
-        AUCTION_PARAMS,
+        auctionParams
     );
 
     const splToken = await import("@solana/spl-token");
@@ -72,3 +70,10 @@ async function initialize(matchingEngine: MatchingEngineProgram, signer: SolanaL
     log(`InitializeTxid ${initializeTxid}`);
 }
 
+function toIntegerNumber(text: string, name: string): number {
+    const res = Number(text);
+    if (!Number.isSafeInteger(res)) {
+        throw new Error(`${name} is not a safe integer. Received ${text}`)
+    }
+    return res;
+}
