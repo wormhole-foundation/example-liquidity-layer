@@ -1,11 +1,10 @@
-import { runOnEvms, ChainInfo, LoggerFn, getContractInstance, getContractAddress, getDependencyAddress, getAddressType } from "../../../helpers";
-import { ethers } from "ethers";
+import { evm, ChainInfo, getContractInstance, getContractAddress, getDependencyAddress, getAddressType } from "../../../helpers";
 import { deployImplementation, getTokenRouterConfiguration } from "./utils";
 import { TokenRouter } from "../../../contract-bindings";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { UniversalAddress } from "@wormhole-foundation/sdk-definitions";
 
-runOnEvms("upgrade-token-router", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+evm.runOnEvms("upgrade-token-router", async (chain, signer, log) => {
   const currentImplementationAddress = getContractAddress("TokenRouterImplementation", chain.chainId);
   const proxyAddress = getContractAddress("TokenRouterProxy", chain.chainId);
   const proxy = (await getContractInstance("TokenRouter", proxyAddress, chain)) as TokenRouter;

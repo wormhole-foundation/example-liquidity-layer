@@ -1,9 +1,8 @@
 import { TokenRouter } from "../../../contract-bindings";
-import { ChainInfo, LoggerFn, getContractInstance, getContractAddress, runOnEvms } from "../../../helpers";
-import { ethers } from "ethers";
+import { evm, getContractInstance, getContractAddress } from "../../../helpers";
 import { getTokenRouterConfiguration } from "./utils";
 
-runOnEvms("disable-router-token-router", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+evm.runOnEvms("disable-router-token-router", async (chain, signer, log) => {
   const tokenRouterAddress = getContractAddress("TokenRouterProxy", chain.chainId);
   const tokenRouter = (await getContractInstance("TokenRouter", tokenRouterAddress, chain)) as TokenRouter;
   const config = await getTokenRouterConfiguration(chain);

@@ -6,19 +6,19 @@ import {
 import "dotenv/config";
 import { uint64ToBN } from "@wormhole-foundation/example-liquidity-layer-solana/common";
 import { AuctionParameters, MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
-import { LoggerFn, connectionCommitmentLevel, getChainConfig, getContractAddress, ledgerSignAndSend, runOnSolana } from "../../helpers";
+import { solana, LoggerFn, getChainConfig, getContractAddress } from "../../helpers";
 import { MatchingEngineConfiguration } from "../../config/config-types";
 import { ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
 import { circle } from "@wormhole-foundation/sdk-base";
 
-runOnSolana("deploy-matching-engine", async (chain, signer, log) => {
+solana.runOnSolana("deploy-matching-engine", async (chain, signer, log) => {
     const config = await getChainConfig<MatchingEngineConfiguration>("matching-engine", chain.chainId);
     const matchingEngineId = getContractAddress("MatchingEngine", chain.chainId) as ProgramId;
 
     const env = "Mainnet";
     const usdcMint = new PublicKey(circle.usdcContract(env, "Solana"));
-    const connection = new Connection(chain.rpc, connectionCommitmentLevel);
+    const connection = new Connection(chain.rpc, solana.connectionCommitmentLevel);
     const matchingEngine = new MatchingEngineProgram(connection, matchingEngineId, usdcMint);
 
     await initialize(matchingEngine, signer, log, config, usdcMint);
@@ -63,10 +63,10 @@ async function initialize(matchingEngine: MatchingEngineProgram, signer: SolanaL
     createAtaInstructions.push(splToken.createAssociatedTokenAccountInstruction(signerPubkey, associatedToken, signerPubkey, usdcMint));
     createAtaInstructions.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }));
 
-    const createAtaTxid = await ledgerSignAndSend(connection, createAtaInstructions, []);
+    const createAtaTxid = await solana.ledgerSignAndSend(connection, createAtaInstructions, []);
     log(`CreateAtaTxid ${createAtaTxid}`);
 
-    const initializeTxid = await ledgerSignAndSend(connection, [initializeIx], []);
+    const initializeTxid = await solana.ledgerSignAndSend(connection, [initializeIx], []);
     log(`InitializeTxid ${initializeTxid}`);
 }
 

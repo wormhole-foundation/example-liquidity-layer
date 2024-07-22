@@ -1,9 +1,8 @@
-import { runOnEvms, ChainInfo, LoggerFn } from "../../../helpers";
-import { ethers } from "ethers";
+import { evm } from "../../../helpers";
 import { getOnChainTokenRouterConfiguration } from "./utils";
 import { inspect } from "util";
 
-runOnEvms("read-config-token-router", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+evm.runOnEvms("read-config-token-router", async (chain, signer, log) => {
   const onChainConfig = await getOnChainTokenRouterConfiguration(chain);
   log(`TokenRouter configuration for chainId ${chain.chainId}:`);
   log(inspect(onChainConfig, { depth: null, colors: true, compact: true }));

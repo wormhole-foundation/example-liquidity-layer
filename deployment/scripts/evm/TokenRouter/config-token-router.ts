@@ -1,11 +1,10 @@
-import { ChainInfo, LoggerFn, getContractInstance, getContractAddress, runOnEvmsSequentially, ValueDiff } from "../../../helpers";
-import { ethers } from "ethers";
+import { evm, LoggerFn, getContractInstance, getContractAddress, ValueDiff } from "../../../helpers";
 import { getConfigurationDifferences, logDiff } from "./utils";
 import confirm from '@inquirer/confirm';
 import { TokenRouter } from "../../../contract-bindings";
 import { FastTransferParametersStruct } from "../../../contract-bindings/ITokenRouter";
 
-runOnEvmsSequentially("config-token-router", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+evm.runOnEvmsSequentially("config-token-router", async (chain, signer, log) => {
   const tokenRouterAddress = getContractAddress("TokenRouterProxy", chain.chainId);
   const tokenRouter = (await getContractInstance("TokenRouter", tokenRouterAddress, chain)) as TokenRouter;
   const diff = await getConfigurationDifferences(chain);

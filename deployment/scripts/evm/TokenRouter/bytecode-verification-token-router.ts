@@ -1,10 +1,9 @@
-import { runOnEvms, ChainInfo, LoggerFn, getContractAddress, getDeploymentArgs, getVerifyCommand, verificationApiKeys, flattenObject } from "../../../helpers";
-import { ethers } from "ethers";
+import { evm, getContractAddress, getDeploymentArgs, getVerifyCommand, verificationApiKeys, flattenObject } from "../../../helpers";
 import { execSync } from "child_process";
 import path from "path";
 import chalk from "chalk";
 
-runOnEvms("bytecode-verification-token-router", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+evm.runOnEvms("bytecode-verification-token-router", async (chain, signer, log) => {
   // The root path of the foundry project
   const rootPath = path.resolve('../evm/');
 

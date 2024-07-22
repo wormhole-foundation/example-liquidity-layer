@@ -5,7 +5,7 @@ import {
 } from "@solana/web3.js";
 import "dotenv/config";
 import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
-import { LoggerFn, connectionCommitmentLevel, contracts, getContractAddress, ledgerSignAndSend, runOnSolana } from "../../helpers";
+import { solana, LoggerFn, contracts, getContractAddress } from "../../helpers";
 import { ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
 import { Chain, chainToPlatform, circle, toChain, toChainId } from "@wormhole-foundation/sdk-base";
@@ -13,12 +13,12 @@ import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { TokenRouterProgram } from "@wormhole-foundation/example-liquidity-layer-solana/tokenRouter";
 
 
-runOnSolana("register-routers-matching-engine", async (chain, signer, log) => {
+solana.runOnSolana("register-routers-matching-engine", async (chain, signer, log) => {
     const matchingEngineId = getContractAddress("MatchingEngine", chain.chainId) as ProgramId;
 
     const env = "Mainnet";
     const usdcMint = new PublicKey(circle.usdcContract(env, "Solana"));
-    const connection = new Connection(chain.rpc, connectionCommitmentLevel);
+    const connection = new Connection(chain.rpc, solana.connectionCommitmentLevel);
     const matchingEngine = new MatchingEngineProgram(connection, matchingEngineId, usdcMint);
 
     const deployedTokenRouters = contracts['TokenRouterProxy'];
@@ -131,7 +131,7 @@ async function addCctpRouterEndpoint(
     } else {
         const priorityFeeIx = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 });
         const instructions = [registerIx, priorityFeeIx]
-        const txSig = await ledgerSignAndSend(connection, instructions, []);
+        const txSig = await solana.ledgerSignAndSend(connection, instructions, []);
         log(
             `${action} endpoint`,
             txSig,
@@ -188,6 +188,6 @@ async function addSolanaCctpRouterEndpoint(
     });
     const priorityFeeIx = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 });
     const instructions = [registerIx, priorityFeeIx];
-    const txSig = await ledgerSignAndSend(connection, instructions, []);
+    const txSig = await solana.ledgerSignAndSend(connection, instructions, []);
     log("added local endpoint", txSig, "router", tokenRouter.ID.toString());
 }

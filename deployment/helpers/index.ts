@@ -1,5 +1,5 @@
 export * from "./env";
-export * from "./evm";
-export * from "./solana";
+export * as evm from "./evm";
+export * as solana from "./solana";
 export * from "./interfaces";
 export * from "./utils";

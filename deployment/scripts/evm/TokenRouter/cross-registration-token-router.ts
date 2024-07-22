@@ -1,9 +1,8 @@
-import { ChainInfo, LoggerFn, getContractInstance, getContractAddress, runOnEvms, contracts, getUniversalAddress } from "../../../helpers";
-import { ethers } from "ethers";
+import { evm, getContractInstance, getContractAddress, contracts, getUniversalAddress } from "../../../helpers";
 import { TokenRouter } from "../../../contract-bindings";
 import { circle, toChain } from "@wormhole-foundation/sdk-base";
 
-runOnEvms("cross-registration-token-router", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+evm.runOnEvms("cross-registration-token-router", async (chain, signer, log) => {
   const tokenRouterAddress = getContractAddress("TokenRouterProxy", chain.chainId);
   const tokenRouter = (await getContractInstance("TokenRouter", tokenRouterAddress, chain)) as TokenRouter;
   const deployedTokenRouters = contracts['TokenRouterProxy'].filter((router) => router.chainId !== chain.chainId);

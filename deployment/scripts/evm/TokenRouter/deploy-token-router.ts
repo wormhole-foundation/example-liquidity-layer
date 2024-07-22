@@ -1,10 +1,10 @@
 import { ethers } from "ethers";
-import { runOnEvms, ChainInfo, LoggerFn, writeDeployedContract } from "../../../helpers";
+import { evm, LoggerFn, writeDeployedContract } from "../../../helpers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { deployImplementation, getTokenRouterConfiguration } from "./utils";
 import { ERC1967Proxy__factory } from "../../../contract-bindings";
 
-runOnEvms("deploy-token-router", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+evm.runOnEvms("deploy-token-router", async (chain, signer, log) => {
   const config = await getTokenRouterConfiguration(chain);
   const implementation = await deployImplementation(chain, signer, config, log);
   await deployProxy(signer, config, implementation, log);

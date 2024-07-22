@@ -1,8 +1,7 @@
-import { runOnEvms, ChainInfo, LoggerFn } from "../../../helpers";
-import { ethers } from "ethers";
+import { evm } from "../../../helpers";
 import { getConfigurationDifferences, logDiff } from "./utils";
 
-runOnEvms("get-config-diff-token-router", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+evm.runOnEvms("get-config-diff-token-router", async (chain, signer, log) => {
   const diff = await getConfigurationDifferences(chain);
 
   log(`TokenRouter configuration differences on chain ${chain.chainId}:`);

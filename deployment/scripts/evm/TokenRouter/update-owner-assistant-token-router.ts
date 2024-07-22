@@ -1,15 +1,13 @@
 import { TokenRouter } from "../../../contract-bindings";
-import { runOnEvmsSequentially, ChainInfo, LoggerFn, getContractInstance, getContractAddress, logComparision } from "../../../helpers";
-import { ethers } from "ethers";
+import { evm, getContractInstance, getContractAddress, logComparision } from "../../../helpers";
 import { getConfigurationDifferences } from "./utils";
 import confirm from '@inquirer/confirm';
 
-runOnEvmsSequentially("update-owner-assistant-token-router", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
+evm.runOnEvmsSequentially("update-owner-assistant-token-router", async (chain, signer, log) => {
   const tokenRouterAddress = getContractAddress("TokenRouterProxy", chain.chainId);
   const tokenRouter = (await getContractInstance("TokenRouter", tokenRouterAddress, chain)) as TokenRouter;
   const diff = await getConfigurationDifferences(chain);
 
-  
   log(`TokenRouter configuration differences on chain ${chain.chainId}:`);
   logComparision('OwnerAssistant', diff.ownerAssistant, log);
 
