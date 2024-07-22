@@ -1,0 +1,22 @@
+{
+  "operatingChains": [23, 30],
+  "evm": {
+    "networks": [
+      {
+        "name": "Arbitrum",
+        "externalId": "42161",
+        "chainId": 23,
+        "rpc": "https://rpc.ankr.com/arbitrum"
+      },
+      {
+        "name": "Base",
+        "externalId": "8453",
+        "chainId": 30,
+        "rpc": "https://mainnet.base.org"
+      }
+    ]
+  },
+  "solana": {
+    "networks": []
+  }
+}

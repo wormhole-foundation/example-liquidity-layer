@@ -1,0 +1,14 @@
+[
+  {
+    "chainId": 23,
+    "wormhole": "0xa5f208e072434bC67592E4C49C1B991BA79BCA46",
+    "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "tokenMessenger": "0x19330d10D9Cc8751218eaf51E8885D058642E08A"
+  },
+  {
+    "chainId": 30,
+    "wormhole": "0xbebdb6C8ddC678FfA9f8748f85C815C556Dd8ac6",
+    "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "tokenMessenger": "0x1682Ae6375C4E4A97e4B583BC394c861A46D8962"
+  }
+]
