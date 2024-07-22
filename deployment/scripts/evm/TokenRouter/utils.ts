@@ -1,7 +1,7 @@
 import { ethers } from "ethers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { TokenRouter, TokenRouter__factory } from "../../../contract-bindings";
-import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, logComparision, someoneIsDifferent } from "../../../helpers"; 
+import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, logComparison, someoneIsDifferent } from "../../../helpers";
 import { ERC20 } from "../../../contract-bindings/ERC20";
 import { UniversalAddress } from "@wormhole-foundation/sdk-definitions";
 
@@ -119,13 +119,13 @@ export async function getConfigurationDifferences(chain: ChainInfo) {
 }
 
 export function logDiff(differences: Record<string, any>, log: LoggerFn) {
-  logComparision('cctpAllowance', differences.cctpAllowance, log);
+  logComparison('cctpAllowance', differences.cctpAllowance, log);
 
   const { enabled, maxAmount, baseFee, initAuctionFee } = differences.fastTransferParameters;
   if (someoneIsDifferent([enabled, maxAmount, baseFee, initAuctionFee])) {
     log('Fast transfer parameters:');
     for (const [key, value] of Object.entries(differences.fastTransferParameters)) {
-      logComparision(key, value, log);
+      logComparison(key, value, log);
     }
   }
 }

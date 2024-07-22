@@ -4,7 +4,7 @@ import { UniversalAddress } from '@wormhole-foundation/sdk-definitions';
 
 export const someoneIsDifferent = (values: ValueDiff[]) => values.some((value) => value.onChain.toString() !== value.offChain.toString() && Number(value.onChain) !== Number(value.offChain));
 
-export function logComparision(name: string, diffValues: any, log: LoggerFn) {
+export function logComparison(name: string, diffValues: any, log: LoggerFn) {
 
   // If the values are the same, do nothing
   if (diffValues.onChain.toString() === diffValues.offChain.toString() || Number(diffValues.onChain) === Number(diffValues.offChain))

@@ -1,5 +1,5 @@
 import { TokenRouter } from "../../../contract-bindings";
-import { evm, getContractInstance, getContractAddress, logComparision } from "../../../helpers";
+import { evm, getContractInstance, getContractAddress, logComparison } from "../../../helpers";
 import { getConfigurationDifferences } from "./utils";
 import confirm from '@inquirer/confirm';
 
@@ -9,7 +9,7 @@ evm.runOnEvmsSequentially("update-owner-assistant-token-router", async (chain, s
   const diff = await getConfigurationDifferences(chain);
 
   log(`TokenRouter configuration differences on chain ${chain.chainId}:`);
-  logComparision('OwnerAssistant', diff.ownerAssistant, log);
+  logComparison('OwnerAssistant', diff.ownerAssistant, log);
 
   if (diff.ownerAssistant.onChain === diff.ownerAssistant.offChain) {
     log(`No differences found on chain ${chain.chainId}`);
