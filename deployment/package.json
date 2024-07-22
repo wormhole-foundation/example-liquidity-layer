@@ -1,8 +1,8 @@
 {
   "name": "deployment",
   "scripts": {
-    "evm-deps": "forge build --contracts $(dirname $(pwd))/evm/lib/openzeppelin-contracts/contracts/proxy",
-    "build-evm": "npm run evm-deps && npx typechain --target=ethers-v5 --out-dir=./contract-bindings ../evm/out/*/*.json ../out/*/*.json"
+    "evm-deps": "forge build --contracts ../evm/lib/openzeppelin-contracts/contracts/proxy && forge build --config-path ../evm/foundry.toml",
+    "build-evm": "npm run evm-deps && npx typechain --target=ethers-v5 --out-dir=./contract-bindings ../evm/out/*/*.json"
   },
   "author": "",
   "devDependencies": {

@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.json",
+  "include": ["scripts/**/*.ts", "scripts/**/*.json", "helpers/**/*.ts", "config/**/*.ts", "config/**/*.json", "contract-bindings/**/*.ts"],
+  "references": [
+    { "path": "../solana" },
+  ]
+}

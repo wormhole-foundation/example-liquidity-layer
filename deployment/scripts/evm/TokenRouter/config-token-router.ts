@@ -3,7 +3,7 @@ import { ethers } from "ethers";
 import { getConfigurationDifferences, logDiff } from "./utils";
 import confirm from '@inquirer/confirm';
 import { TokenRouter } from "../../../contract-bindings";
-import { FastTransferParametersStruct } from "../../../contract-bindings/evm/out/ITokenRouter";
+import { FastTransferParametersStruct } from "../../../contract-bindings/ITokenRouter";
 
 runOnEvmsSequentially("config-token-router", async (chain: ChainInfo, signer: ethers.Signer, log: LoggerFn) => {
   const tokenRouterAddress = getContractAddress("TokenRouterProxy", chain.chainId);
