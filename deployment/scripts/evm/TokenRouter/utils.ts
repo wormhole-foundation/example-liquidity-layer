@@ -2,17 +2,28 @@ import { ethers } from "ethers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { TokenRouter, TokenRouter__factory } from "../../../contract-bindings";
 import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, logComparison, someoneIsDifferent } from "../../../helpers";
-import { ERC20 } from "../../../contract-bindings/ERC20";
-import { UniversalAddress } from "@wormhole-foundation/sdk-definitions";
+import { IERC20 } from "../../../contract-bindings";
+import { UniversalAddress, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { toChain } from "@wormhole-foundation/sdk-base";
+
+/**
+ * Chain ID for the Solana wormhole chain
+ */
+export const matchingEngineChain = 1; 
+
+/**
+ * CCTP Domain for Solana 
+ */
+export const matchingEngineDomain = 5;
+
+// TODO
+export function getMintRecipientAddress() {
+  return '6y7V8dL673XFzm9QyC5vvh3itWkp7wztahBd2yDqsyrK'
+};
 
 export function getTokenRouterConfiguration(chain: ChainInfo): Promise<TokenRouterConfiguration> {
   return getChainConfig<TokenRouterConfiguration>("token-router", chain.chainId);
 }
-
-// TODO
-function getMintRecipientAddress() {
-  return '6y7V8dL673XFzm9QyC5vvh3itWkp7wztahBd2yDqsyrK'
-};
 
 export async function deployImplementation(chain: ChainInfo, signer: ethers.Signer, config: TokenRouterConfiguration, log: LoggerFn) {
   const factory = new TokenRouter__factory(signer);
@@ -20,20 +31,18 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
   const wormhole = getDependencyAddress("wormhole", config.chainId);
   const tokenMessenger = getDependencyAddress("tokenMessenger", config.chainId);
   
-  const matchingEngineMintRecipient = (new UniversalAddress(getMintRecipientAddress(), 'base58')).toString();
-  const matchinEngineChain = 1; // Solana wormhole chain id
-  const matchingEngineDomain = 5; // Solana cctp domain
+  const matchingEngineMintRecipient = toUniversal("Solana", getMintRecipientAddress()).toString();
   let matchingEngineAddress = (getContractAddress(
     "MatchingEngineProxy", 
-    matchinEngineChain
+    matchingEngineChain
   ));
-  matchingEngineAddress = (new UniversalAddress(matchingEngineAddress, 'base58')).toString();
+  matchingEngineAddress = toUniversal("Solana", matchingEngineAddress).toString();
 
   const deployment = await factory.deploy(
     token,
     wormhole,
     tokenMessenger,
-    matchinEngineChain,
+    matchingEngineChain,
     matchingEngineAddress,
     matchingEngineMintRecipient,
     matchingEngineDomain,
@@ -48,7 +57,7 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
     token,
     wormhole,
     tokenMessenger,
-    matchinEngineChain,
+    matchingEngineChain,
     matchingEngineAddress,
     matchingEngineMintRecipient,
     matchingEngineDomain
@@ -66,7 +75,7 @@ export async function getOnChainTokenRouterConfiguration(chain: ChainInfo) {
   // Get the allowance for the token messenger
   const tokenMessengerAddress = getDependencyAddress("tokenMessenger", chain.chainId);
   const orderTokenAddress = await tokenRouter.orderToken();
-  const orderToken = (await getContractInstance("ERC20", orderTokenAddress, chain)) as ERC20;
+  const orderToken = (await getContractInstance("IERC20", orderTokenAddress, chain)) as IERC20;
   const cctpAllowance = await orderToken.allowance(tokenRouterProxyAddress, tokenMessengerAddress);
   const ownerAssistant = await tokenRouter.getOwnerAssistant();
   const { enabled, maxAmount, baseFee, initAuctionFee} = await tokenRouter.getFastTransferParameters();

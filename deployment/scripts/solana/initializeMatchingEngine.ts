@@ -1,7 +1,8 @@
 import {
-    ComputeBudgetProgram,
-    Connection,
-    PublicKey,
+  AccountInfo,
+  ComputeBudgetProgram,
+  Connection,
+  PublicKey,
 } from "@solana/web3.js";
 import "dotenv/config";
 import { uint64ToBN } from "@wormhole-foundation/example-liquidity-layer-solana/common";
@@ -30,7 +31,7 @@ async function initialize(matchingEngine: MatchingEngineProgram, signer: SolanaL
     const custodian = matchingEngine.custodianAddress();
     log("custodian", custodian.toString());
 
-    const exists = await connection.getAccountInfo(custodian).then((acct) => acct != null);
+    const exists = await connection.getAccountInfo(custodian).then((acct: null | AccountInfo<Buffer>) => acct != null);
     if (exists) {
         log("already initialized");
         return;

@@ -49,11 +49,6 @@ export function flattenObject(obj: Record<string, any>, parentKey = '', result: 
   return result;
 }
 
-export function getUniversalAddress(address: string): string {
-  const type = getAddressType(address);
-  return new UniversalAddress(address, type).toString()
-}
-
 export function getVerifyCommand(
   chain: ChainInfo,
   contractName: string,

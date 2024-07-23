@@ -1,7 +1,8 @@
 import {
-    ComputeBudgetProgram,
-    Connection,
-    PublicKey,
+  AccountInfo,
+  ComputeBudgetProgram,
+  Connection,
+  PublicKey,
 } from "@solana/web3.js";
 import "dotenv/config";
 import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
@@ -16,8 +17,10 @@ import { TokenRouterProgram } from "@wormhole-foundation/example-liquidity-layer
 solana.runOnSolana("register-routers-matching-engine", async (chain, signer, log) => {
     const matchingEngineId = getContractAddress("MatchingEngine", chain.chainId) as ProgramId;
 
-    const env = "Mainnet";
-    const usdcMint = new PublicKey(circle.usdcContract(env, "Solana"));
+    if (chain.network === "Devnet")
+      throw new Error("Devnet is not supported by USDC. Use Mainnet or Testnet.");
+
+    const usdcMint = new PublicKey(circle.usdcContract(chain.network, "Solana"));
     const connection = new Connection(chain.rpc, solana.connectionCommitmentLevel);
     const matchingEngine = new MatchingEngineProgram(connection, matchingEngineId, usdcMint);
 
@@ -60,7 +63,7 @@ async function addCctpRouterEndpoint(
     foreignMintRecipient: string | null,
     log: LoggerFn,
 ) {
-    await matchingEngine.fetchCustodian().catch((_) => {
+    await matchingEngine.fetchCustodian().catch((_: unknown) => {
         throw new Error("no custodian found");
     });
 
@@ -68,7 +71,7 @@ async function addCctpRouterEndpoint(
 
     const foreignChainId = toChainId(foreignChain);
     const endpoint = matchingEngine.routerEndpointAddress(foreignChainId);
-    const exists = await connection.getAccountInfo(endpoint).then((acct) => acct != null);
+    const exists = await connection.getAccountInfo(endpoint).then((acct: null | AccountInfo<Buffer>) => acct != null);
 
     const endpointAddress = Array.from(toUniversal(foreignChain, foreignEmitter).unwrap());
     const endpointMintRecipient =
@@ -153,7 +156,7 @@ async function addSolanaCctpRouterEndpoint(
     tokenRouter: TokenRouterProgram,
     log: LoggerFn,
 ) {
-    await matchingEngine.fetchCustodian().catch((_) => {
+    await matchingEngine.fetchCustodian().catch((_: unknown) => {
         throw new Error("no custodian found");
     });
 
@@ -161,7 +164,7 @@ async function addSolanaCctpRouterEndpoint(
 
     const chain = toChainId("Solana");
     const endpoint = matchingEngine.routerEndpointAddress(chain);
-    const exists = await connection.getAccountInfo(endpoint).then((acct) => acct != null);
+    const exists = await connection.getAccountInfo(endpoint).then((acct: null | AccountInfo<Buffer>) => acct != null);
 
     const endpointAddress = Array.from(
         toUniversal("Solana", tokenRouter.custodianAddress().toString()).unwrap(),

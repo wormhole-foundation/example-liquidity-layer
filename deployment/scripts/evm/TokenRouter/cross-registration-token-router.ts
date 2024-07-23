@@ -1,17 +1,19 @@
-import { evm, getContractInstance, getContractAddress, contracts, getUniversalAddress } from "../../../helpers";
+import { evm, getContractInstance, getContractAddress, contracts } from "../../../helpers";
 import { TokenRouter } from "../../../contract-bindings";
 import { circle, toChain } from "@wormhole-foundation/sdk-base";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
-evm.runOnEvms("cross-registration-token-router", async (chain, signer, log) => {
+evm.runOnEvms("cross-registration-token-router", async (chain, _, log) => {
   const tokenRouterAddress = getContractAddress("TokenRouterProxy", chain.chainId);
   const tokenRouter = (await getContractInstance("TokenRouter", tokenRouterAddress, chain)) as TokenRouter;
   const deployedTokenRouters = contracts['TokenRouterProxy'].filter((router) => router.chainId !== chain.chainId);
-
+  const chainName = toChain(chain.chainId);
+  
   for (const router of deployedTokenRouters) {
     const circleDomain = circle.toCircleChainId(chain.network, toChain(router.chainId));
     const endpoint = {
-      router: getUniversalAddress(router.address),
-      mintRecipient: getUniversalAddress(router.address)
+      router: toUniversal(chainName, router.address).toString(),
+      mintRecipient: toUniversal(chainName, router.address).toString()
     };
 
     if (router.chainId === 0) 

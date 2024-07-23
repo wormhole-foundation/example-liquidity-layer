@@ -7,7 +7,6 @@ evm.runOnEvms("bytecode-verification-token-router", async (chain, signer, log) =
   // The root path of the foundry project
   const rootPath = path.resolve('../evm/');
 
-
   const verifiersData = verificationApiKeys.find((x) => x.chainId == chain.chainId);
   const verifiers = flattenObject(verifiersData!);
   delete verifiers.chainId;
@@ -16,11 +15,11 @@ evm.runOnEvms("bytecode-verification-token-router", async (chain, signer, log) =
     name = name.split("-")[0];
 
     // Implementation data
-    const implementationName = "MatchingEngine";
-    const implementationPath = 'src/MatchingEngine/MatchingEngine.sol';
-    const implementationAddress = getContractAddress("MatchingEngineImplementation", chain.chainId);
-    const implementationDeploymentArgs = getDeploymentArgs("MatchingEngineImplementation", chain.chainId);
-    const implementationConstructorSignature = "constructor(address,address,address,uint24,uint24,uint8,uint8,uint8)";
+    const implementationName = "TokenRouter";
+    const implementationPath = 'src/TokenRouter/TokenRouter.sol';
+    const implementationAddress = getContractAddress("TokenRouterImplementation", chain.chainId);
+    const implementationDeploymentArgs = getDeploymentArgs("TokenRouterImplementation", chain.chainId);
+    const implementationConstructorSignature = "constructor(address,address,address,uint16,bytes32,bytes32,uint32)";
     const verifyImplementationCommand = getVerifyCommand(
       chain,
       implementationName, 

@@ -1,8 +1,7 @@
-import { evm, ChainInfo, getContractInstance, getContractAddress, getDependencyAddress, getAddressType } from "../../../helpers";
-import { deployImplementation, getTokenRouterConfiguration } from "./utils";
+import { evm, ChainInfo, getContractInstance, getContractAddress, getDependencyAddress } from "../../../helpers";
+import { deployImplementation, getMintRecipientAddress, getTokenRouterConfiguration, matchingEngineChain, matchingEngineDomain } from "./utils";
 import { TokenRouter } from "../../../contract-bindings";
-import { TokenRouterConfiguration } from "../../../config/config-types";
-import { UniversalAddress } from "@wormhole-foundation/sdk-definitions";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 evm.runOnEvms("upgrade-token-router", async (chain, signer, log) => {
   const currentImplementationAddress = getContractAddress("TokenRouterImplementation", chain.chainId);
@@ -11,7 +10,7 @@ evm.runOnEvms("upgrade-token-router", async (chain, signer, log) => {
   const config = await getTokenRouterConfiguration(chain);
 
   log(`Checking immutables for TokenRouter`);
-  checkImmutables(proxy, config, chain);
+  checkImmutables(proxy, chain);
 
   const newImplementation = await deployImplementation(chain, signer, config, log);
 
@@ -20,13 +19,13 @@ evm.runOnEvms("upgrade-token-router", async (chain, signer, log) => {
   await proxy.upgradeContract(newImplementation.address);
 });
 
-async function checkImmutables(tokenRouter: TokenRouter, config: TokenRouterConfiguration, chain: ChainInfo) {
+async function checkImmutables(tokenRouter: TokenRouter, chain: ChainInfo) {
   const [
     token,
-    matchingEngineMintRecipient,
-    matchingEngineChain,
-    matchingEngineDomain,
-    matchingEngineAddress,
+    savedMatchingEngineMintRecipient,
+    savedMatchingEngineChain,
+    savedMatchingEngineDomain,
+    savedMatchingEngineAddress,
   ] = await Promise.all([
     tokenRouter.orderToken(),
     tokenRouter.matchingEngineMintRecipient(),
@@ -35,23 +34,21 @@ async function checkImmutables(tokenRouter: TokenRouter, config: TokenRouterConf
     tokenRouter.matchingEngineAddress(),
   ]);
 
-  const mintRecipientAddressType = getAddressType(config.matchingEngineMintRecipient);
-  const expectedMatchingEngineMintRecipient = (new UniversalAddress(config.matchingEngineMintRecipient, mintRecipientAddressType)).toString();
-  const localMatchingEngineAddress = getContractAddress("MatchingEngineProxy", chain.chainId);
-  const matchingEngineAddressType = getAddressType(localMatchingEngineAddress);
-  const expectedMatchingEngineAddress = (new UniversalAddress(localMatchingEngineAddress, matchingEngineAddressType)).toString();
+  const matchingEngineMintRecipient = toUniversal("Solana", getMintRecipientAddress()).toString();
+  const localMatchingEngineAddress = getContractAddress("MatchingEngineProxy", matchingEngineChain);
+  const matchingEngineAddress = toUniversal("Solana", localMatchingEngineAddress).toString();
   const tokenAddress = getDependencyAddress("token", chain.chainId);
 
-  if (matchingEngineMintRecipient.toLowerCase() !== expectedMatchingEngineMintRecipient.toLowerCase())
+  if (savedMatchingEngineMintRecipient.toLowerCase() !== matchingEngineMintRecipient.toLowerCase())
     throw new Error(`MatchingEngineMintRecipient is an immutable value and cannot be changed.`);
 
-  if (matchingEngineChain !== Number(config.matchingEngineChain))
+  if (savedMatchingEngineChain !== matchingEngineChain)
     throw new Error(`MatchingEngineChain is an immutable value and cannot be changed.`);
 
-  if (matchingEngineDomain !== Number(config.matchingEngineDomain))
+  if (savedMatchingEngineDomain !== matchingEngineDomain)
     throw new Error(`MatchingEngineDomain is an immutable value and cannot be changed.`);
 
-  if (matchingEngineAddress.toLowerCase() !== expectedMatchingEngineAddress.toLowerCase())
+  if (savedMatchingEngineAddress.toLowerCase() !== matchingEngineAddress.toLowerCase())
     throw new Error(`MatchingEngineAddress is an immutable value and cannot be changed.`);
 
   if (token.toLowerCase() !== tokenAddress.toLowerCase())
