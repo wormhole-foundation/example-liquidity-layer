@@ -7,13 +7,14 @@ evm.runOnEvms("cross-registration-token-router", async (chain, _, log) => {
   const tokenRouterAddress = getContractAddress("TokenRouterProxy", chain.chainId);
   const tokenRouter = (await getContractInstance("TokenRouter", tokenRouterAddress, chain)) as TokenRouter;
   const deployedTokenRouters = contracts['TokenRouterProxy'].filter((router) => router.chainId !== chain.chainId);
-  const chainName = toChain(chain.chainId);
   
   for (const router of deployedTokenRouters) {
     const circleDomain = circle.toCircleChainId(chain.network, toChain(router.chainId));
+    // TODO: handle Solana registrations correctly in regards to mintRecipient
+    const routerChain = toChain(router.chainId);
     const endpoint = {
-      router: toUniversal(chainName, router.address).toString(),
-      mintRecipient: toUniversal(chainName, router.address).toString()
+      router: toUniversal(routerChain, router.address).toString(),
+      mintRecipient: toUniversal(routerChain, router.address).toString()
     };
 
     if (router.chainId === 0) 

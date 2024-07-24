@@ -4,7 +4,9 @@ import { TokenRouter, TokenRouter__factory } from "../../../contract-bindings";
 import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, logComparison, someoneIsDifferent } from "../../../helpers";
 import { IERC20 } from "../../../contract-bindings";
 import { UniversalAddress, toUniversal } from "@wormhole-foundation/sdk-definitions";
-import { toChain } from "@wormhole-foundation/sdk-base";
+import { circle, toChain, toChainId } from "@wormhole-foundation/sdk-base";
+import { MatchingEngineProgram, ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
+import { Connection, PublicKey } from "@solana/web3.js";
 
 /**
  * Chain ID for the Solana wormhole chain
@@ -16,27 +18,29 @@ export const matchingEngineChain = 1;
  */
 export const matchingEngineDomain = 5;
 
-// TODO
-export function getMintRecipientAddress() {
-  return '6y7V8dL673XFzm9QyC5vvh3itWkp7wztahBd2yDqsyrK'
+export function getMatchingEngineMintRecipientAddress(connection: Connection) {
+  const matchingEngineId = getContractAddress("MatchingEngineProxy", toChainId("Solana")) as ProgramId;
+
+  const env = "Mainnet";
+  const usdcMint = new PublicKey(circle.usdcContract(env, "Solana"));
+  const matchingEngine = new MatchingEngineProgram(connection, matchingEngineId, usdcMint);
+  return matchingEngine.cctpMintRecipientAddress().toBytes();
 };
 
 export function getTokenRouterConfiguration(chain: ChainInfo): Promise<TokenRouterConfiguration> {
   return getChainConfig<TokenRouterConfiguration>("token-router", chain.chainId);
 }
 
-export async function deployImplementation(chain: ChainInfo, signer: ethers.Signer, config: TokenRouterConfiguration, log: LoggerFn) {
+export async function deployImplementation(signer: ethers.Signer, config: TokenRouterConfiguration, matchingEngineMintRecipient: UniversalAddress, log: LoggerFn) {
   const factory = new TokenRouter__factory(signer);
   const token = getDependencyAddress("token", config.chainId);
   const wormhole = getDependencyAddress("wormhole", config.chainId);
   const tokenMessenger = getDependencyAddress("tokenMessenger", config.chainId);
   
-  const matchingEngineMintRecipient = toUniversal("Solana", getMintRecipientAddress()).toString();
-  let matchingEngineAddress = (getContractAddress(
+  const matchingEngineAddress = toUniversal("Solana", (getContractAddress(
     "MatchingEngineProxy", 
     matchingEngineChain
-  ));
-  matchingEngineAddress = toUniversal("Solana", matchingEngineAddress).toString();
+  ))).toString();
 
   const deployment = await factory.deploy(
     token,
@@ -44,7 +48,7 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
     tokenMessenger,
     matchingEngineChain,
     matchingEngineAddress,
-    matchingEngineMintRecipient,
+    matchingEngineMintRecipient.toString(),
     matchingEngineDomain,
     {} // overrides
   );

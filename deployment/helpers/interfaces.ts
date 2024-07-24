@@ -15,7 +15,7 @@ export type ChainInfo = {
   chainId: ChainId;
   rpc: string;
   /**
-   * Native ChainId
+   * Native (e.g. EIP-155) ChainId
    */
   externalId?: string;
   network: Network;

@@ -1,7 +1,8 @@
-import { evm, ChainInfo, getContractInstance, getContractAddress, getDependencyAddress } from "../../../helpers";
-import { deployImplementation, getMintRecipientAddress, getTokenRouterConfiguration, matchingEngineChain, matchingEngineDomain } from "./utils";
+import { evm, ChainInfo, getContractInstance, getContractAddress, getDependencyAddress, ecosystemChains, solana } from "../../../helpers";
+import { deployImplementation, getMatchingEngineMintRecipientAddress, getTokenRouterConfiguration, matchingEngineChain, matchingEngineDomain } from "./utils";
 import { TokenRouter } from "../../../contract-bindings";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { UniversalAddress, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { Connection } from "@solana/web3.js";
 
 evm.runOnEvms("upgrade-token-router", async (chain, signer, log) => {
   const currentImplementationAddress = getContractAddress("TokenRouterImplementation", chain.chainId);
@@ -9,17 +10,26 @@ evm.runOnEvms("upgrade-token-router", async (chain, signer, log) => {
   const proxy = (await getContractInstance("TokenRouter", proxyAddress, chain)) as TokenRouter;
   const config = await getTokenRouterConfiguration(chain);
 
-  log(`Checking immutables for TokenRouter`);
-  checkImmutables(proxy, chain);
+  // TODO: write a `getChain(chainId: ChainId): ChainInfo` function to replace these lines
+  if (ecosystemChains.solana.networks.length !== 1) {
+    throw Error("Unexpected number of Solana networks.");
+  }
+  const solanaRpc = ecosystemChains.solana.networks[0].rpc;
 
-  const newImplementation = await deployImplementation(chain, signer, config, log);
+  const solanaConnection = new Connection(solanaRpc, solana.connectionCommitmentLevel);
+  const matchingEngineMintRecipient = toUniversal("Solana", getMatchingEngineMintRecipientAddress(solanaConnection));
+
+  log(`Checking immutables for TokenRouter`);
+  checkImmutables(proxy, chain, matchingEngineMintRecipient);
+
+  const newImplementation = await deployImplementation(signer, config, matchingEngineMintRecipient, log);
 
   log(`Upgrading TokenRouter implementation from ${currentImplementationAddress} to ${newImplementation.address}`);
-  
+
   await proxy.upgradeContract(newImplementation.address);
 });
 
-async function checkImmutables(tokenRouter: TokenRouter, chain: ChainInfo) {
+async function checkImmutables(tokenRouter: TokenRouter, chain: ChainInfo, matchingEngineMintRecipient: UniversalAddress) {
   const [
     token,
     savedMatchingEngineMintRecipient,
@@ -34,12 +44,11 @@ async function checkImmutables(tokenRouter: TokenRouter, chain: ChainInfo) {
     tokenRouter.matchingEngineAddress(),
   ]);
 
-  const matchingEngineMintRecipient = toUniversal("Solana", getMintRecipientAddress()).toString();
   const localMatchingEngineAddress = getContractAddress("MatchingEngineProxy", matchingEngineChain);
   const matchingEngineAddress = toUniversal("Solana", localMatchingEngineAddress).toString();
   const tokenAddress = getDependencyAddress("token", chain.chainId);
 
-  if (savedMatchingEngineMintRecipient.toLowerCase() !== matchingEngineMintRecipient.toLowerCase())
+  if (savedMatchingEngineMintRecipient.toLowerCase() !== matchingEngineMintRecipient.toString().toLowerCase())
     throw new Error(`MatchingEngineMintRecipient is an immutable value and cannot be changed.`);
 
   if (savedMatchingEngineChain !== matchingEngineChain)
