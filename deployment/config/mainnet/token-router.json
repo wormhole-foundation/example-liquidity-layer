@@ -1,7 +1,7 @@
 [
   {
     "chainId": 23,
-    "ownerAssistant": "",
+    "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
       "maxAmount": "1000000000",
@@ -12,7 +12,7 @@
   },
   {
     "chainId": 30,
-    "ownerAssistant": "",
+    "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
       "maxAmount": "1000000000",
