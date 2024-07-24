@@ -7,12 +7,15 @@ evm.runOnEvms("bytecode-verification-token-router", async (chain, signer, log) =
   // The root path of the foundry project
   const rootPath = path.resolve('../evm/');
 
-  const verifiersData = verificationApiKeys.find((x) => x.chainId == chain.chainId);
-  const verifiers = flattenObject(verifiersData!);
-  delete verifiers.chainId;
+  const verifiers = verificationApiKeys[chain.chainId];
+  if (!verifiers) {
+    log(chalk.red(`No verifiers found for chain ${chain.chainId}`));
+    return;
+  }
 
-  for (let [name, apiKey] of Object.entries(verifiers)) {
-    name = name.split("-")[0];
+  for (let [verifier, data] of Object.entries(verifiers)) {
+    const apiKey = typeof data === 'string' ? data : data.key;
+    const verifierUrl = typeof data === 'string' ? undefined : data.apiUrl;
 
     // Implementation data
     const implementationName = "TokenRouter";
@@ -20,35 +23,37 @@ evm.runOnEvms("bytecode-verification-token-router", async (chain, signer, log) =
     const implementationAddress = getContractAddress("TokenRouterImplementation", chain.chainId);
     const implementationDeploymentArgs = getDeploymentArgs("TokenRouterImplementation", chain.chainId);
     const implementationConstructorSignature = "constructor(address,address,address,uint16,bytes32,bytes32,uint32)";
-    const verifyImplementationCommand = getVerifyCommand(
+    const verifyImplementationCommand = getVerifyCommand({
       chain,
-      implementationName, 
-      implementationPath,
-      implementationAddress, 
-      implementationConstructorSignature, 
-      implementationDeploymentArgs, 
-      name,
+      contractName: implementationName, 
+      contractPath: implementationPath,
+      contractAddress: implementationAddress, 
+      constructorSignature: implementationConstructorSignature, 
+      constructorArgs: implementationDeploymentArgs, 
+      verifier,
+      verifierUrl,
       apiKey
-    );
+    });
     
     // Proxy data
     const proxyName = "ERC1967Proxy";
     const proxyPath = 'lib/openzeppelin-contracts/contracts/proxy/ERC1967/ERC1967Proxy.sol';
-    const proxyAddress = getContractAddress("MatchingEngineProxy", chain.chainId);
-    const proxyDeploymentArgs = getDeploymentArgs("MatchingEngineProxy", chain.chainId);
+    const proxyAddress = getContractAddress("TokenRouterProxy", chain.chainId);
+    const proxyDeploymentArgs = getDeploymentArgs("TokenRouterProxy", chain.chainId);
     const proxyConstructorSignature = "constructor(address,bytes)";
-    const verifyProxyCommand = getVerifyCommand(
+    const verifyProxyCommand = getVerifyCommand({
       chain,
-      proxyName,
-      proxyPath, 
-      proxyAddress, 
-      proxyConstructorSignature, 
-      proxyDeploymentArgs, 
-      name,
+      contractName: proxyName, 
+      contractPath: proxyPath,
+      contractAddress: proxyAddress, 
+      constructorSignature: proxyConstructorSignature, 
+      constructorArgs: proxyDeploymentArgs, 
+      verifier,
+      verifierUrl,
       apiKey
-    );
+    });
 
-    log(chalk.green(`Verifying bytecode on ${name}...`));
+    log(chalk.green(`Verifying bytecode on ${verifier}...`));
     log(chalk.green("Verifying implementation bytecode..."));
     execSync(verifyImplementationCommand, { stdio: "inherit", cwd: rootPath });
     console.log()

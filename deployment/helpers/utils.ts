@@ -49,7 +49,17 @@ export function flattenObject(obj: Record<string, any>, parentKey = '', result: 
   return result;
 }
 
-export function getVerifyCommand(
+export function getVerifyCommand({
+  chain,
+  contractName,
+  contractPath,
+  contractAddress,
+  constructorSignature,
+  constructorArgs,
+  verifier,
+  verifierUrl,
+  apiKey
+}: {  
   chain: ChainInfo,
   contractName: string,
   contractPath: string,
@@ -57,14 +67,19 @@ export function getVerifyCommand(
   constructorSignature: string,
   constructorArgs: any[],
   verifier: string,
+  verifierUrl?: string,
   apiKey?: string
-): string {
+}): string {
   if (chain.externalId === undefined)
     throw new Error(`Chain ${chain.chainId} does not have an external ID`);
+
+  if (verifier === "blockscout" && verifierUrl === undefined)
+    throw new Error(`Verifier URL is required for Blockscout verifier`);
 
   let command = `
     forge verify-contract ${contractAddress} ${contractPath}:${contractName} \
     --verifier ${verifier} \
+    ${ verifier === "blockscout" ? `--verifier-url ${verifierUrl}` : ''} \
     --watch --constructor-args $(cast abi-encode "${constructorSignature}" "${constructorArgs.join('" "')}") \
     --chain-id ${chain.externalId} \
     ${ apiKey === undefined || apiKey === "" ? '' : `--etherscan-api-key ${apiKey}` }

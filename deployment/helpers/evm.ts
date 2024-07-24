@@ -1,6 +1,7 @@
 import { LedgerSigner }  from "@xlabs-xyz/ledger-signer";
 import { ethers } from "ethers";
 import { ChainInfo, ecosystemChains, EvmScriptCb, getEnv } from "./index";
+import { toChain } from "@wormhole-foundation/sdk-base";
 
 export async function runOnEvms(scriptName: string, cb: EvmScriptCb) {
   const chains = evmOperatingChains();
@@ -10,7 +11,7 @@ export async function runOnEvms(scriptName: string, cb: EvmScriptCb) {
   const result = chains.map(async chain => {
     const log = (...args: any[]) => console.log(`[${chain.chainId}]`, ...args);
     const signer = await getSigner(chain);
-    log(`Starting script. Signer: ${await signer.getAddress()}`);
+    log(`Starting script. Signer: ${await signer.getAddress()}. Chain: ${toChain(chain.chainId)}`);
 
     try {
       await cb(chain, signer, log);
