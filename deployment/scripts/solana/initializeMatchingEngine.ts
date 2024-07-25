@@ -48,14 +48,17 @@ async function initialize(matchingEngine: MatchingEngineProgram, signer: SolanaL
         securityDepositBase: uint64ToBN(BigInt(config.securityDepositBase)),
         securityDepositBps: toIntegerNumber(config.securityDepositBps, "securityDepositBps"),
     }
-    const initializeIx = await matchingEngine.initializeIx(
+    const initializeInstructions = [];
+    const priorityFee = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: solana.priorityMicrolamports });
+    initializeInstructions.push(await matchingEngine.initializeIx(
         {
             owner: signerPubkey,
             ownerAssistant: new PublicKey(config.ownerAssistant),
             feeRecipient: new PublicKey(config.feeRecipient),
         },
         auctionParams
-    );
+    ));
+    initializeInstructions.push(priorityFee);
 
     // TODO: this doesn't check if the ATA already exists
     const splToken = await import("@solana/spl-token");
@@ -63,12 +66,12 @@ async function initialize(matchingEngine: MatchingEngineProgram, signer: SolanaL
     const associatedToken = splToken.getAssociatedTokenAddressSync(usdcMint, signerPubkey, undefined, usdcMint, assocciatedTokenProgramId);
     const createAtaInstructions = [];
     createAtaInstructions.push(splToken.createAssociatedTokenAccountInstruction(signerPubkey, associatedToken, signerPubkey, usdcMint));
-    createAtaInstructions.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: solana.priorityMicrolamports }));
+    createAtaInstructions.push(priorityFee);
 
     const createAtaTxid = await solana.ledgerSignAndSend(connection, createAtaInstructions, []);
     log(`CreateAtaTxid ${createAtaTxid}`);
 
-    const initializeTxid = await solana.ledgerSignAndSend(connection, [initializeIx], []);
+    const initializeTxid = await solana.ledgerSignAndSend(connection, initializeInstructions, []);
     log(`InitializeTxid ${initializeTxid}`);
 }
 
