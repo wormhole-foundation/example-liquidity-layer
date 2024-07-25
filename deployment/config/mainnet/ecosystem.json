@@ -1,5 +1,5 @@
 {
-  "operatingChains": [23, 30],
+  "operatingChains": [1, 23, 30],
   "evm": {
     "networks": [
       {
@@ -17,6 +17,12 @@
     ]
   },
   "solana": {
-    "networks": []
+    "networks": [
+      {
+        "name": "Solana",
+        "chainId": 1,
+        "rpc": "https://api.mainnet-beta.solana.com"
+      }
+    ]
   }
 }

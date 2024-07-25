@@ -56,7 +56,7 @@ export function evmOperatingChains() {
 };
 
 export async function getSigner(chain: ChainInfo): Promise<ethers.Signer> {
-  const derivationPath = getEnv("LEDGER_BIP32_PATH");
+  const derivationPath = getEnv("EVM_LEDGER_BIP32_PATH");
   const provider = getProvider(chain);
   return LedgerSigner.create(provider, derivationPath);
 }

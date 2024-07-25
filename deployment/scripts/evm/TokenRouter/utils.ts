@@ -19,7 +19,7 @@ export const matchingEngineChain = 1;
 export const matchingEngineDomain = 5;
 
 export function getMatchingEngineMintRecipientAddress(connection: Connection) {
-  const matchingEngineId = getContractAddress("MatchingEngineProxy", toChainId("Solana")) as ProgramId;
+  const matchingEngineId = getContractAddress("MatchingEngine", toChainId("Solana")) as ProgramId;
 
   const env = "Mainnet";
   const usdcMint = new PublicKey(circle.usdcContract(env, "Solana"));
@@ -38,7 +38,7 @@ export async function deployImplementation(signer: ethers.Signer, config: TokenR
   const tokenMessenger = getDependencyAddress("tokenMessenger", config.chainId);
   
   const matchingEngineAddress = toUniversal("Solana", (getContractAddress(
-    "MatchingEngineProxy", 
+    "MatchingEngine",
     matchingEngineChain
   ))).toString();
 

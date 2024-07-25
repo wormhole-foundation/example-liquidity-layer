@@ -57,12 +57,13 @@ async function initialize(matchingEngine: MatchingEngineProgram, signer: SolanaL
         auctionParams
     );
 
+    // TODO: this doesn't check if the ATA already exists
     const splToken = await import("@solana/spl-token");
     const assocciatedTokenProgramId = splToken.ASSOCIATED_TOKEN_PROGRAM_ID;
     const associatedToken = splToken.getAssociatedTokenAddressSync(usdcMint, signerPubkey, undefined, usdcMint, assocciatedTokenProgramId);
     const createAtaInstructions = [];
     createAtaInstructions.push(splToken.createAssociatedTokenAccountInstruction(signerPubkey, associatedToken, signerPubkey, usdcMint));
-    createAtaInstructions.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }));
+    createAtaInstructions.push(ComputeBudgetProgram.setComputeUnitPrice({ microLamports: solana.priorityMicrolamports }));
 
     const createAtaTxid = await solana.ledgerSignAndSend(connection, createAtaInstructions, []);
     log(`CreateAtaTxid ${createAtaTxid}`);

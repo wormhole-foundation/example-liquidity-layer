@@ -12,6 +12,7 @@ import type { SolanaScriptCb } from "./interfaces";
 import { inspect } from "util";
 
 export const connectionCommitmentLevel = (process.env.SOLANA_COMMITMENT || "confirmed") as Commitment;
+export const priorityMicrolamports = process.env.PRIORITY_MICROLAMPORTS !== "undefined" ? Number(process.env.PRIORITY_MICROLAMPORTS) : 1;
 
 export function validateSolAddress(address: string){
     try {
@@ -40,7 +41,8 @@ export async function runOnSolana(scriptName: string, cb: SolanaScriptCb) {
   const result = chains.map(async chain => {
     const log = (...args: any[]) => console.log(`[${chain.chainId}]`, ...args);
     const signer = await getSigner();
-    log(`Starting script. Signer: ${await signer.getAddress()}`);
+    // TODO: encode in base58
+    log(`Starting script. Signer: ${(await signer.getAddress()).toString("hex")}`);
 
     try {
       await cb(chain, signer, log);
@@ -57,7 +59,7 @@ export async function runOnSolana(scriptName: string, cb: SolanaScriptCb) {
 let signer: SolanaLedgerSigner | null;
 export async function getSigner(): Promise<SolanaLedgerSigner> {
   if (!signer) {
-    const derivationPath = getEnv("LEDGER_BIP32_PATH");
+    const derivationPath = getEnv("SOLANA_LEDGER_BIP32_PATH");
     signer = await SolanaLedgerSigner.create(derivationPath);
   }
 
