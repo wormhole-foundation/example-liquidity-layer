@@ -7,9 +7,12 @@ import {
   Commitment
 } from "@solana/web3.js";
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
-import { ecosystemChains, getEnv } from "./env";
+import { ecosystemChains, env, getContractAddress, getEnv } from "./env";
 import type { SolanaScriptCb } from "./interfaces";
 import { inspect } from "util";
+import { circle, toChainId } from "@wormhole-foundation/sdk-base";
+import { MatchingEngineProgram, ProgramId as MatchingEngineProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
+import { TokenRouterProgram, ProgramId as TokenRouterProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/tokenRouter";
 
 export const connectionCommitmentLevel = (process.env.SOLANA_COMMITMENT || "confirmed") as Commitment;
 export const priorityMicrolamports = process.env.PRIORITY_MICROLAMPORTS !== "undefined" ? Number(process.env.PRIORITY_MICROLAMPORTS) : 1;
@@ -90,3 +93,19 @@ async function addLedgerSignature(tx: Transaction, signer: SolanaLedgerSigner, s
   const signedByPayer = await signer.signTransaction(tx.compileMessage().serialize());
   tx.addSignature(signerPk, signedByPayer);
 }
+
+export function getMatchingEngineProgram(connection: Connection) {
+  const matchingEngineId = getContractAddress("MatchingEngine", toChainId("Solana")) as MatchingEngineProgramId;
+  const network = env === "mainnet" ? "Mainnet" : "Testnet";
+
+  const usdcMint = new PublicKey(circle.usdcContract(network, "Solana"));
+  return new MatchingEngineProgram(connection, matchingEngineId, usdcMint); 
+};
+
+export function getTokenRouterProgram(connection: Connection) {
+  const tokenRouterId = getContractAddress("TokenRouter", toChainId("Solana")) as TokenRouterProgramId;
+  const network = env === "mainnet" ? "Mainnet" : "Testnet";
+
+  const usdcMint = new PublicKey(circle.usdcContract(network, "Solana"));
+  return new TokenRouterProgram(connection, tokenRouterId, usdcMint); 
+};

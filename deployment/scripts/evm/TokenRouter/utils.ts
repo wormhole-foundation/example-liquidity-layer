@@ -4,9 +4,8 @@ import { TokenRouter, TokenRouter__factory } from "../../../contract-bindings";
 import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, logComparison, someoneIsDifferent } from "../../../helpers";
 import { IERC20 } from "../../../contract-bindings";
 import { UniversalAddress, toUniversal } from "@wormhole-foundation/sdk-definitions";
-import { circle, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { MatchingEngineProgram, ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
-import { Connection, PublicKey } from "@solana/web3.js";
+import { Connection } from "@solana/web3.js";
+import { getMatchingEngineProgram } from "../../../helpers/solana";
 
 /**
  * Chain ID for the Solana wormhole chain
@@ -19,11 +18,7 @@ export const matchingEngineChain = 1;
 export const matchingEngineDomain = 5;
 
 export function getMatchingEngineMintRecipientAddress(connection: Connection) {
-  const matchingEngineId = getContractAddress("MatchingEngine", toChainId("Solana")) as ProgramId;
-
-  const env = "Mainnet";
-  const usdcMint = new PublicKey(circle.usdcContract(env, "Solana"));
-  const matchingEngine = new MatchingEngineProgram(connection, matchingEngineId, usdcMint);
+  const matchingEngine = getMatchingEngineProgram(connection);
   return matchingEngine.cctpMintRecipientAddress().toBytes();
 };
 

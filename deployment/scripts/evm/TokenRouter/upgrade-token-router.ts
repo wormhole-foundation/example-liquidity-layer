@@ -1,22 +1,18 @@
-import { evm, ChainInfo, getContractInstance, getContractAddress, getDependencyAddress, ecosystemChains, solana } from "../../../helpers";
+import { evm, ChainInfo, getContractInstance, getContractAddress, getDependencyAddress, getChainInfo } from "../../../helpers";
 import { deployImplementation, getMatchingEngineMintRecipientAddress, getTokenRouterConfiguration, matchingEngineChain, matchingEngineDomain } from "./utils";
 import { TokenRouter } from "../../../contract-bindings";
 import { UniversalAddress, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { Connection } from "@solana/web3.js";
+import { toChainId } from "@wormhole-foundation/sdk-base";
 
 evm.runOnEvms("upgrade-token-router", async (chain, signer, log) => {
   const currentImplementationAddress = getContractAddress("TokenRouterImplementation", chain.chainId);
   const proxyAddress = getContractAddress("TokenRouterProxy", chain.chainId);
   const proxy = (await getContractInstance("TokenRouter", proxyAddress, chain)) as TokenRouter;
   const config = await getTokenRouterConfiguration(chain);
-
-  // TODO: write a `getChain(chainId: ChainId): ChainInfo` function to replace these lines
-  if (ecosystemChains.solana.networks.length !== 1) {
-    throw Error("Unexpected number of Solana networks.");
-  }
-  const solanaRpc = ecosystemChains.solana.networks[0].rpc;
-
-  const solanaConnection = new Connection(solanaRpc, solana.connectionCommitmentLevel);
+  
+  const solanaChainInfo = getChainInfo(toChainId("Solana"));
+  const solanaConnection = new Connection(solanaChainInfo.rpc, solanaChainInfo.commitmentLevel || "confirmed");
   const matchingEngineMintRecipient = toUniversal("Solana", getMatchingEngineMintRecipientAddress(solanaConnection));
 
   log(`Checking immutables for TokenRouter`);

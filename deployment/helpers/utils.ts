@@ -1,6 +1,5 @@
 import chalk from 'chalk';
 import { ChainInfo, LoggerFn, ValueDiff } from '.';
-import { UniversalAddress } from '@wormhole-foundation/sdk-definitions';
 
 export const someoneIsDifferent = (values: ValueDiff[]) => values.some((value) => value.onChain.toString() !== value.offChain.toString() && Number(value.onChain) !== Number(value.offChain));
 

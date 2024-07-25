@@ -45,6 +45,24 @@ export function getEnv(env: string): string {
   return v;
 }
 
+export function getChainInfo(chainId: ChainId): ChainInfo {
+  if (ecosystemChains.solana.networks.length > 1) {
+    throw Error("Unexpected number of Solana networks.");
+  }
+
+  const chains = [
+    ...ecosystemChains.evm.networks,
+    ...ecosystemChains.solana.networks,
+  ];
+
+  const chain = chains.find((c) => c.chainId === chainId);
+  if (chain === undefined) {
+    throw Error(`Failed to find chain info for chain id: ${chainId}`);
+  }
+
+  return chain;
+}
+
 export async function getChainConfig<T extends ChainConfig>(filename: string, whChainId: ChainId): Promise<T> {
   const scriptConfig: T[] = await loadJson(filename);
 

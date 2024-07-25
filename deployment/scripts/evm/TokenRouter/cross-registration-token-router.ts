@@ -1,7 +1,9 @@
-import { evm, getContractInstance, getContractAddress, contracts } from "../../../helpers";
+import { evm, getContractInstance, getContractAddress, contracts, getChainInfo } from "../../../helpers";
 import { TokenRouter } from "../../../contract-bindings";
-import { circle, toChain } from "@wormhole-foundation/sdk-base";
+import { circle, toChain, toChainId } from "@wormhole-foundation/sdk-base";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { getTokenRouterProgram } from "../../../helpers/solana";
+import { Connection } from "@solana/web3.js";
 
 evm.runOnEvms("cross-registration-token-router", async (chain, _, log) => {
   const tokenRouterAddress = getContractAddress("TokenRouterProxy", chain.chainId);
@@ -10,11 +12,12 @@ evm.runOnEvms("cross-registration-token-router", async (chain, _, log) => {
   
   for (const router of deployedTokenRouters) {
     const circleDomain = circle.toCircleChainId(chain.network, toChain(router.chainId));
-    // TODO: handle Solana registrations correctly in regards to mintRecipient
     const routerChain = toChain(router.chainId);
+    const routerAddress = toUniversal(routerChain, router.address).toString();
+    const mintRecipient = routerChain === "Solana" ? getSolanaMintRecipient() : routerAddress;
     const endpoint = {
-      router: toUniversal(routerChain, router.address).toString(),
-      mintRecipient: toUniversal(routerChain, router.address).toString()
+      router: routerAddress,
+      mintRecipient
     };
 
     if (router.chainId === 0) 
@@ -33,3 +36,13 @@ evm.runOnEvms("cross-registration-token-router", async (chain, _, log) => {
     log(`Router endpoint added for chainId ${router.chainId}`);
   }
 });
+
+
+function getSolanaMintRecipient(): string {
+  const chain = "Solana";
+  const chainInfo = getChainInfo(toChainId(chain));
+  const connection = new Connection(chainInfo.rpc, chainInfo.commitmentLevel || "confirmed");
+  const tokenRouter = getTokenRouterProgram(connection);
+
+  return toUniversal(chain, tokenRouter.custodianAddress().toBytes()).toString();
+}

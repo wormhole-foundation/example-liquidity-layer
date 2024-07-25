@@ -1,3 +1,4 @@
+import { Commitment } from "@solana/web3.js";
 import { ChainId, Network } from "@wormhole-foundation/sdk-base";
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
 import { BytesLike, ethers } from "ethers";
@@ -19,6 +20,7 @@ export type ChainInfo = {
    */
   externalId?: string;
   network: Network;
+  commitmentLevel?: Commitment;
 };
 
 export type Deployment = {

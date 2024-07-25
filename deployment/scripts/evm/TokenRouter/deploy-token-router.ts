@@ -1,21 +1,17 @@
 import { ethers } from "ethers";
-import { ecosystemChains, evm, LoggerFn, solana, writeDeployedContract } from "../../../helpers";
+import { evm, getChainInfo, LoggerFn, writeDeployedContract } from "../../../helpers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { deployImplementation, getMatchingEngineMintRecipientAddress, getTokenRouterConfiguration } from "./utils";
 import { ERC1967Proxy__factory } from "../../../contract-bindings";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { Connection } from "@solana/web3.js";
+import { toChainId } from "@wormhole-foundation/sdk-base";
 
 evm.runOnEvms("deploy-token-router", async (chain, signer, log) => {
   const config = await getTokenRouterConfiguration(chain);
+  const solanaChainInfo = getChainInfo(toChainId("Solana"));
+  const solanaConnection = new Connection(solanaChainInfo.rpc, solanaChainInfo.commitmentLevel || "confirmed");
 
-  // TODO: write a `getChain(chainId: ChainId): ChainInfo` function to replace these lines
-  if (ecosystemChains.solana.networks.length !== 1) {
-    throw Error("Unexpected number of Solana networks.");
-  }
-  const solanaRpc = ecosystemChains.solana.networks[0].rpc;
-
-  const solanaConnection = new Connection(solanaRpc, solana.connectionCommitmentLevel);
   const matchingEngineMintRecipient = toUniversal("Solana", getMatchingEngineMintRecipientAddress(solanaConnection));
   const implementation = await deployImplementation(signer, config, matchingEngineMintRecipient, log);
   await deployProxy(signer, config, implementation, log);
