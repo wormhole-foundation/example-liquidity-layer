@@ -9,3 +9,4 @@ dist
 out
 cache
 tmp
+ts-build
