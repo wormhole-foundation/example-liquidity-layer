@@ -24,7 +24,7 @@ import {
     uint64ToBN,
 } from "../common";
 import * as matchingEngineSdk from "../matchingEngine";
-import { UpgradeManagerProgram } from "../upgradeManager";
+import { UpgradeManagerProgram, mainnet as mainnetUpgradeProgramId } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import { Custodian, PreparedFill, PreparedOrder } from "./state";
@@ -910,6 +910,12 @@ export class TokenRouterProgram {
                 return new UpgradeManagerProgram(
                     this.program.provider.connection,
                     "UpgradeManager11111111111111111111111111111",
+                );
+            }
+            case mainnet(): {
+                return new UpgradeManagerProgram(
+                    this.program.provider.connection,
+                    mainnetUpgradeProgramId(),
                 );
             }
             default: {
