@@ -40,7 +40,7 @@ async function checkImmutables(tokenRouter: TokenRouter, chain: ChainInfo, match
     tokenRouter.matchingEngineAddress(),
   ]);
 
-  const localMatchingEngineAddress = getContractAddress("MatchingEngine", matchingEngineChain);
+  const localMatchingEngineAddress = getContractAddress("MatchingEngineProxy", matchingEngineChain);
   const matchingEngineAddress = toUniversal("Solana", localMatchingEngineAddress).toString();
   const tokenAddress = getDependencyAddress("token", chain.chainId);
 

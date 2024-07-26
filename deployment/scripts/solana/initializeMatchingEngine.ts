@@ -15,7 +15,7 @@ import { circle } from "@wormhole-foundation/sdk-base";
 
 solana.runOnSolana("deploy-matching-engine", async (chain, signer, log) => {
     const config = await getChainConfig<MatchingEngineConfiguration>("matching-engine", chain.chainId);
-    const matchingEngineId = getContractAddress("MatchingEngine", chain.chainId) as ProgramId;
+    const matchingEngineId = getContractAddress("MatchingEngineProxy", chain.chainId) as ProgramId;
 
     const env = "Mainnet";
     const usdcMint = new PublicKey(circle.usdcContract(env, "Solana"));
@@ -50,11 +50,12 @@ async function initialize(matchingEngine: MatchingEngineProgram, signer: SolanaL
     }
     const initializeInstructions = [];
     const priorityFee = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: solana.priorityMicrolamports });
+    const feeRecipient = new PublicKey(config.feeRecipient);
     initializeInstructions.push(await matchingEngine.initializeIx(
         {
             owner: signerPubkey,
             ownerAssistant: new PublicKey(config.ownerAssistant),
-            feeRecipient: new PublicKey(config.feeRecipient),
+            feeRecipient,
         },
         auctionParams
     ));
@@ -63,9 +64,9 @@ async function initialize(matchingEngine: MatchingEngineProgram, signer: SolanaL
     // TODO: this doesn't check if the ATA already exists
     const splToken = await import("@solana/spl-token");
     const assocciatedTokenProgramId = splToken.ASSOCIATED_TOKEN_PROGRAM_ID;
-    const associatedToken = splToken.getAssociatedTokenAddressSync(usdcMint, signerPubkey, undefined, usdcMint, assocciatedTokenProgramId);
+    const associatedToken = splToken.getAssociatedTokenAddressSync(usdcMint, feeRecipient, undefined, usdcMint, assocciatedTokenProgramId);
     const createAtaInstructions = [];
-    createAtaInstructions.push(splToken.createAssociatedTokenAccountInstruction(signerPubkey, associatedToken, signerPubkey, usdcMint));
+    createAtaInstructions.push(splToken.createAssociatedTokenAccountInstruction(signerPubkey, associatedToken, feeRecipient, usdcMint));
     createAtaInstructions.push(priorityFee);
 
     const createAtaTxid = await solana.ledgerSignAndSend(connection, createAtaInstructions, []);

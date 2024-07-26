@@ -45,7 +45,8 @@ export async function runOnSolana(scriptName: string, cb: SolanaScriptCb) {
     const log = (...args: any[]) => console.log(`[${chain.chainId}]`, ...args);
     const signer = await getSigner();
     // TODO: encode in base58
-    log(`Starting script. Signer: ${(await signer.getAddress()).toString("hex")}`);
+    const signerPubkey = new PublicKey(await signer.getAddress()).toBase58();
+    log(`Starting script. Signer: ${signerPubkey}`);
 
     try {
       await cb(chain, signer, log);
@@ -95,7 +96,7 @@ async function addLedgerSignature(tx: Transaction, signer: SolanaLedgerSigner, s
 }
 
 export function getMatchingEngineProgram(connection: Connection) {
-  const matchingEngineId = getContractAddress("MatchingEngine", toChainId("Solana")) as MatchingEngineProgramId;
+  const matchingEngineId = getContractAddress("MatchingEngineProxy", toChainId("Solana")) as MatchingEngineProgramId;
   const network = env === "mainnet" ? "Mainnet" : "Testnet";
 
   const usdcMint = new PublicKey(circle.usdcContract(network, "Solana"));
@@ -103,7 +104,7 @@ export function getMatchingEngineProgram(connection: Connection) {
 };
 
 export function getTokenRouterProgram(connection: Connection) {
-  const tokenRouterId = getContractAddress("TokenRouter", toChainId("Solana")) as TokenRouterProgramId;
+  const tokenRouterId = getContractAddress("TokenRouterProxy", toChainId("Solana")) as TokenRouterProgramId;
   const network = env === "mainnet" ? "Mainnet" : "Testnet";
 
   const usdcMint = new PublicKey(circle.usdcContract(network, "Solana"));

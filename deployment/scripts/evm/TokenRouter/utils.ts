@@ -33,7 +33,7 @@ export async function deployImplementation(signer: ethers.Signer, config: TokenR
   const tokenMessenger = getDependencyAddress("tokenMessenger", config.chainId);
   
   const matchingEngineAddress = toUniversal("Solana", (getContractAddress(
-    "MatchingEngine",
+    "MatchingEngineProxy",
     matchingEngineChain
   ))).toString();
 

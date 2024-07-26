@@ -15,7 +15,7 @@ import { TokenRouterProgram } from "@wormhole-foundation/example-liquidity-layer
 
 
 solana.runOnSolana("register-routers-matching-engine", async (chain, signer, log) => {
-    const matchingEngineId = getContractAddress("MatchingEngine", chain.chainId) as ProgramId;
+    const matchingEngineId = getContractAddress("MatchingEngineProxy", chain.chainId) as ProgramId;
 
     if (chain.network === "Devnet")
       throw new Error("Devnet is not supported by USDC. Use Mainnet or Testnet.");
