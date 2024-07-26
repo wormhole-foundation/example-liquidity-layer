@@ -86,7 +86,7 @@ pub struct Initialize<'info> {
             program_data.upgrade_authority_address.is_some()
         } @ MatchingEngineError::ImmutableProgram
     )]
-    program_data: Account<'info, ProgramData>,
+    program_data: Box<Account<'info, ProgramData>>,
 
     /// CHECK: This program PDA will be the upgrade authority for the Token Router program.
     #[account(address = common::UPGRADE_MANAGER_AUTHORITY)]
@@ -110,7 +110,7 @@ pub struct InitializeArgs {
 }
 
 pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
-    let owner: Pubkey = ctx.accounts.owner.key();
+    let owner = ctx.accounts.owner.key();
     let auction_config_id = 0;
 
     // We need to check that the upgrade authority is the owner passed into the account context.
