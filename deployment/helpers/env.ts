@@ -1,11 +1,12 @@
 import fs from "fs";
 import { ethers, utils } from "ethers";
 import { validateSolAddress } from "./solana";
-import { ChainConfig, ChainInfo, ContractsJson, Dependencies, Ecosystem, VerificationApiKeys } from "./interfaces";
+import { ChainConfig, ChainInfo, ContractsJson, Dependencies, DependenciesConfig, Ecosystem, VerificationApiKeys } from "./interfaces";
 import { getSigner } from "./evm";
 // TODO: support different env files
 import 'dotenv/config';
-import { ChainId } from "@wormhole-foundation/sdk-base";
+import { ChainId, Token, contracts as connectDependencies, toChain } from "@wormhole-foundation/sdk-base";
+import { getTokensBySymbol } from "@wormhole-foundation/sdk-base/tokens";
 
 export const env = getEnv("ENV");
 export const contracts = loadContracts();
@@ -21,8 +22,8 @@ function loadJson<T>(filename: string): T {
   return JSON.parse(fileContent.toString()) as T;
 }
 
-function loadDependencies(): Dependencies[] {
-  return loadJson<Dependencies[]>("dependencies");
+function loadDependencies(): DependenciesConfig[] {
+  return loadJson<DependenciesConfig[]>("dependencies");
 }
 
 function loadContracts<T extends ContractsJson>() {
@@ -89,23 +90,52 @@ export function getContractAddress(contractName: string, whChainId: ChainId): st
   return contract;
 }
 
-export function getDependencyAddress(dependencyName: string, whChainId: ChainId): string {
-  const chainDependencies = dependencies.find((d) => d.chainId === whChainId);
+export function getLocalDependencyAddress(dependencyName: keyof Dependencies, chain: ChainInfo): string {
+  const chainDependencies = dependencies.find((d) => d.chainId === chain.chainId);
 
   if (chainDependencies === undefined ) {
-    throw new Error(`No dependencies found for chain ${whChainId}`);
+    throw new Error(`No dependencies found for chain ${chain.chainId}`);
   }
 
   const dependency = chainDependencies[dependencyName as keyof Dependencies] as string;
   if (dependency === undefined) {
-    throw new Error(`No dependency found for ${dependencyName} for chain ${whChainId}`);
+    throw new Error(`No dependency found for ${dependencyName} for chain ${chain.chainId}`);
   }
 
   if (!utils.isAddress(dependency) && !validateSolAddress(dependency)){
-    throw new Error(`Invalid address for ${dependencyName} dependency found for chain ${whChainId}`);
+    throw new Error(`Invalid address for ${dependencyName} dependency found for chain ${chain.chainId}`);
   }
 
   return dependency;
+}
+
+export function getDependencyAddress(dependencyName: keyof Dependencies, chain: ChainInfo): string {
+  const {
+    coreBridge,
+    circleContracts
+  } = connectDependencies;
+
+  const symbol = "USDC";
+  const nativeUSDC = (t: Token) => t.symbol === symbol && t.original === undefined
+  const token = getTokensBySymbol(chain.network, toChain(chain.chainId), symbol)?.find(nativeUSDC)?.address;
+
+  const dependencies = {
+    wormhole: coreBridge.get(chain.network, toChain(chain.chainId)),
+    tokenMessenger: circleContracts.get(chain.network, toChain(chain.chainId))?.tokenMessenger,
+    token
+  } as Dependencies;
+  const connectDependency = dependencies[dependencyName as keyof Dependencies];
+  
+  try {
+    const localDependency = getLocalDependencyAddress(dependencyName, chain);
+    return localDependency === connectDependency ? connectDependency : localDependency;
+  } catch (e) {
+    if (connectDependency === undefined) {
+      throw new Error(`No dependency found for ${dependencyName} for chain ${chain.chainId} on connect sdk`);
+    }
+
+    return connectDependency;
+  }
 }
 
 export async function getContractInstance(

@@ -51,11 +51,13 @@ export interface ChainConfig {
   chainId: ChainId;
 }
 
-export interface Dependencies extends ChainConfig {
+export interface Dependencies {
     wormhole: string;
     token: string;
     tokenMessenger: string;
 };
+
+export interface DependenciesConfig extends ChainConfig, Dependencies {};
 
 export interface ValueDiff {
   onChain: any;

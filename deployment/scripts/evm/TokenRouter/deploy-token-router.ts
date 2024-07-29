@@ -13,7 +13,7 @@ evm.runOnEvms("deploy-token-router", async (chain, signer, log) => {
   const solanaConnection = new Connection(solanaChainInfo.rpc, solanaChainInfo.commitmentLevel || "confirmed");
 
   const matchingEngineMintRecipient = toUniversal("Solana", getMatchingEngineMintRecipientAddress(solanaConnection));
-  const implementation = await deployImplementation(signer, config, matchingEngineMintRecipient, log);
+  const implementation = await deployImplementation(chain, signer, config, matchingEngineMintRecipient, log);
   await deployProxy(signer, config, implementation, log);
 });
 

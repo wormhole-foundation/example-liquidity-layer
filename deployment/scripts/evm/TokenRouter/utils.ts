@@ -26,11 +26,15 @@ export function getTokenRouterConfiguration(chain: ChainInfo): Promise<TokenRout
   return getChainConfig<TokenRouterConfiguration>("token-router", chain.chainId);
 }
 
-export async function deployImplementation(signer: ethers.Signer, config: TokenRouterConfiguration, matchingEngineMintRecipient: UniversalAddress, log: LoggerFn) {
+export async function deployImplementation(chain: ChainInfo, signer: ethers.Signer, config: TokenRouterConfiguration, matchingEngineMintRecipient: UniversalAddress, log: LoggerFn) {
+  if (config.chainId !== chain.chainId) {
+    throw new Error(`Chain ID mismatch: ${config.chainId} !== ${chain.chainId}`);
+  }
+  
   const factory = new TokenRouter__factory(signer);
-  const token = getDependencyAddress("token", config.chainId);
-  const wormhole = getDependencyAddress("wormhole", config.chainId);
-  const tokenMessenger = getDependencyAddress("tokenMessenger", config.chainId);
+  const token = getDependencyAddress("token", chain);
+  const wormhole = getDependencyAddress("wormhole", chain);
+  const tokenMessenger = getDependencyAddress("tokenMessenger", chain);
   
   const matchingEngineAddress = toUniversal("Solana", (getContractAddress(
     "MatchingEngineProxy",
@@ -72,7 +76,7 @@ export async function getOnChainTokenRouterConfiguration(chain: ChainInfo) {
   const tokenRouter = (await getContractInstance("TokenRouter", tokenRouterProxyAddress, chain)) as TokenRouter;
 
   // Get the allowance for the token messenger
-  const tokenMessengerAddress = getDependencyAddress("tokenMessenger", chain.chainId);
+  const tokenMessengerAddress = getDependencyAddress("tokenMessenger", chain);
   const orderTokenAddress = await tokenRouter.orderToken();
   const orderToken = (await getContractInstance("IERC20", orderTokenAddress, chain)) as IERC20;
   const cctpAllowance = await orderToken.allowance(tokenRouterProxyAddress, tokenMessengerAddress);

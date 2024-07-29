@@ -18,7 +18,7 @@ evm.runOnEvms("upgrade-token-router", async (chain, signer, log) => {
   log(`Checking immutables for TokenRouter`);
   checkImmutables(proxy, chain, matchingEngineMintRecipient);
 
-  const newImplementation = await deployImplementation(signer, config, matchingEngineMintRecipient, log);
+  const newImplementation = await deployImplementation(chain, signer, config, matchingEngineMintRecipient, log);
 
   log(`Upgrading TokenRouter implementation from ${currentImplementationAddress} to ${newImplementation.address}`);
 
@@ -42,7 +42,7 @@ async function checkImmutables(tokenRouter: TokenRouter, chain: ChainInfo, match
 
   const localMatchingEngineAddress = getContractAddress("MatchingEngineProxy", matchingEngineChain);
   const matchingEngineAddress = toUniversal("Solana", localMatchingEngineAddress).toString();
-  const tokenAddress = getDependencyAddress("token", chain.chainId);
+  const tokenAddress = getDependencyAddress("token", chain);
 
   if (savedMatchingEngineMintRecipient.toLowerCase() !== matchingEngineMintRecipient.toString().toLowerCase())
     throw new Error(`MatchingEngineMintRecipient is an immutable value and cannot be changed.`);

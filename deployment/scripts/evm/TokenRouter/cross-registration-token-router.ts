@@ -1,6 +1,6 @@
 import { evm, getContractInstance, getContractAddress, contracts, getChainInfo } from "../../../helpers";
 import { TokenRouter } from "../../../contract-bindings";
-import { circle, toChain, toChainId } from "@wormhole-foundation/sdk-base";
+import { ChainId, chainToPlatform, circle, toChain, toChainId } from "@wormhole-foundation/sdk-base";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { getTokenRouterProgram } from "../../../helpers/solana";
 import { Connection } from "@solana/web3.js";
@@ -14,7 +14,7 @@ evm.runOnEvms("cross-registration-token-router", async (chain, _, log) => {
     const circleDomain = circle.toCircleChainId(chain.network, toChain(router.chainId));
     const routerChain = toChain(router.chainId);
     const routerAddress = toUniversal(routerChain, router.address).toString();
-    const mintRecipient = routerChain === "Solana" ? getSolanaMintRecipient() : routerAddress;
+    const mintRecipient = getMintRecipient(chain.chainId, routerAddress);
     const endpoint = {
       router: routerAddress,
       mintRecipient
@@ -38,7 +38,12 @@ evm.runOnEvms("cross-registration-token-router", async (chain, _, log) => {
 });
 
 
-function getSolanaMintRecipient(): string {
+function getMintRecipient(chainId: ChainId, routerAddress: string): string {
+  const platform = chainToPlatform(toChain(chainId));
+  
+  if (platform === "Evm")
+    return routerAddress;
+
   const chain = "Solana";
   const chainInfo = getChainInfo(toChainId(chain));
   const connection = new Connection(chainInfo.rpc, chainInfo.commitmentLevel || "confirmed");
