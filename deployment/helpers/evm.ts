@@ -17,7 +17,7 @@ export async function runOnEvms(scriptName: string, cb: EvmScriptCb) {
       await cb(chain, signer, log);
       log("Success");
     } catch (error) {
-      log("Error: ", error);
+      log("Error: ", (error as any)?.stack || error);
     }
     console.log();
   });
@@ -39,7 +39,7 @@ export async function runOnEvmsSequentially(scriptName: string, cb: EvmScriptCb)
       await cb(chain, signer, log);
       log("Success");
     } catch (error) {
-      log("Error: ", error);
+      log("Error: ", (error as any)?.stack || error);
     }
     console.log();
   }
