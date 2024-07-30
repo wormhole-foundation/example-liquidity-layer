@@ -1,8 +1,7 @@
 import { ethers } from "ethers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
-import { TokenRouter, TokenRouter__factory } from "../../../contract-bindings";
+import { TokenRouter, TokenRouter__factory, IERC20 } from "../../../contract-bindings";
 import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, logComparison, someoneIsDifferent } from "../../../helpers";
-import { IERC20 } from "../../../contract-bindings";
 import { UniversalAddress, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { Connection } from "@solana/web3.js";
 import { getMatchingEngineProgram } from "../../../helpers/solana";
