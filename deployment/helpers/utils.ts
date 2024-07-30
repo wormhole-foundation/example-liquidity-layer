@@ -3,7 +3,7 @@ import { ChainInfo, LoggerFn, UncheckedConstructorArgs, ValueDiff } from '.';
 
 export const someoneIsDifferent = (values: ValueDiff[]) => values.some((value) => value.onChain.toString() !== value.offChain.toString() && Number(value.onChain) !== Number(value.offChain));
 
-export function logComparison(name: string, diffValues: any, log: LoggerFn) {
+export function logComparison(name: string, diffValues: ValueDiff, log: LoggerFn) {
 
   // If the values are the same, do nothing
   if (diffValues.onChain.toString() === diffValues.offChain.toString() || Number(diffValues.onChain) === Number(diffValues.offChain))

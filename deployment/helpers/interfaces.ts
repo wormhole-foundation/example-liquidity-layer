@@ -1,7 +1,7 @@
 import { Commitment } from "@solana/web3.js";
 import { ChainId, Network } from "@wormhole-foundation/sdk-base";
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
-import { BytesLike, ethers } from "ethers";
+import { BigNumber, BytesLike, ethers } from "ethers";
 
 export type EvmScriptCb = (chain: ChainInfo, signer: ethers.Signer, logFn: LoggerFn) => Promise<void>;
 export type SolanaScriptCb = (chain: ChainInfo, signer: SolanaLedgerSigner, logFn: LoggerFn) => Promise<void>;
@@ -59,10 +59,14 @@ export interface Dependencies {
 
 export interface DependenciesConfig extends ChainConfig, Dependencies {};
 
-export interface ValueDiff {
-  onChain: any;
-  offChain: any;
+export interface ValueDiff<T = any> {
+  onChain: T;
+  offChain: T;
 }
+
+export type BooleanDiff = ValueDiff<boolean>;
+export type BigNumberDiff = ValueDiff<BigNumber>;
+export type StringDiff = ValueDiff<string>;
 
 export interface VerificationApiKeys extends ChainConfig {
   etherscan: string;

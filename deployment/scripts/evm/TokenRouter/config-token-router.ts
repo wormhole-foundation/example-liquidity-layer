@@ -1,5 +1,5 @@
-import { evm, LoggerFn, getContractInstance, getContractAddress, ValueDiff } from "../../../helpers";
-import { getConfigurationDifferences, logDiff } from "./utils";
+import { evm, LoggerFn, getContractInstance, getContractAddress } from "../../../helpers";
+import { TokenRouterState, getConfigurationDifferences, logDiff } from "./utils";
 import confirm from '@inquirer/confirm';
 import { TokenRouter } from "../../../contract-bindings";
 import { FastTransferParametersStruct } from "../../../contract-bindings/ITokenRouter";
@@ -24,18 +24,18 @@ evm.runOnEvmsSequentially("config-token-router", async (chain, signer, log) => {
   await updateFastTransferParameters(tokenRouter, fastTransferParameters, log);
 
   // CCTP allowance
-  if (cctpAllowance.onChain.toString() !== cctpAllowance.offChain.toString()) {
+  if (!cctpAllowance.onChain.eq(cctpAllowance.offChain)) {
     await tokenRouter.setCctpAllowance(cctpAllowance.offChain);
     log(`CCTP allowance updated to ${cctpAllowance.offChain}`);
   }
 });
 
-async function updateFastTransferParameters(tokenRouter: TokenRouter, params: Record<string, ValueDiff>, log: LoggerFn) {
+async function updateFastTransferParameters(tokenRouter: TokenRouter, fastTransferParams: TokenRouterState["fastTransferParameters"], log: LoggerFn) {
   let enableFastTransfers = false;
   let updatedFastTransferParameters = false;
 
   // Check if any of the fast transfer parameters have changed
-  for (const [key, value] of Object.entries(params)) {
+  for (const [key, value] of Object.entries(fastTransferParams)) {
     if (value.onChain.toString() !== value.offChain.toString()) {
       // Check if we are updating the enabled flag
       if (key === "enabled") {
@@ -49,21 +49,21 @@ async function updateFastTransferParameters(tokenRouter: TokenRouter, params: Re
   // Update fast transfer parameters if any of the values have changed (except for the enabled flag)
   if (updatedFastTransferParameters) {
 
-    if (params.maxAmount.offChain <= params.baseFee.offChain + params.initAuctionFee.offChain)
+    if (fastTransferParams.maxAmount.offChain.lte(fastTransferParams.baseFee.offChain.add(fastTransferParams.initAuctionFee.offChain)))
       throw new Error(`Invalid fast transfer parameters: maxAmount must be greater than baseFee + initAuctionFee`);
 
     await tokenRouter.updateFastTransferParameters({
-      enabled: params.enabled.offChain,
-      baseFee: params.baseFee.offChain,
-      maxAmount: params.maxAmount.offChain,
-      initAuctionFee: params.initAuctionFee.offChain
+      enabled: fastTransferParams.enabled.offChain,
+      baseFee: fastTransferParams.baseFee.offChain,
+      maxAmount: fastTransferParams.maxAmount.offChain,
+      initAuctionFee: fastTransferParams.initAuctionFee.offChain
     } as FastTransferParametersStruct);
     log(`Fast transfer parameters updated`);
   } 
 
   // Enable / Disable fast transfers if only the enabled flag has changed
   else if (enableFastTransfers) {
-    const enabled = params.enabled.offChain;
+    const enabled = fastTransferParams.enabled.offChain;
     await tokenRouter.enableFastTransfers(enabled);
     if (enabled)
       log(`Fast transfers enabled`);

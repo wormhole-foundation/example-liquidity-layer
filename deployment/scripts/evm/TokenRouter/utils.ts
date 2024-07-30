@@ -1,10 +1,21 @@
-import { ethers } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { TokenRouter, TokenRouter__factory, IERC20 } from "../../../contract-bindings";
-import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, logComparison, someoneIsDifferent } from "../../../helpers";
+import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, logComparison, someoneIsDifferent, ValueDiff, BigNumberDiff, StringDiff, BooleanDiff } from "../../../helpers";
 import { UniversalAddress, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { Connection } from "@solana/web3.js";
 import { getMatchingEngineProgram } from "../../../helpers/solana";
+
+export interface TokenRouterState {
+  cctpAllowance: BigNumberDiff;
+  ownerAssistant: StringDiff;
+  fastTransferParameters: {
+    enabled: BooleanDiff;
+    maxAmount: BigNumberDiff;
+    baseFee: BigNumberDiff;
+    initAuctionFee: BigNumberDiff;
+  };
+}
 
 /**
  * Chain ID for the Solana wormhole chain
@@ -83,15 +94,15 @@ export async function getOnChainTokenRouterConfiguration(chain: ChainInfo) {
     ownerAssistant,
     fastTransferParameters: {
       enabled,
-      maxAmount: maxAmount.toString(),
-      baseFee: baseFee.toString(),
-      initAuctionFee: initAuctionFee.toString()
+      maxAmount,
+      baseFee,
+      initAuctionFee
     }
   };
 }
 
 function compareConfigurations(onChainConfig: Record<string, any>, offChainConfig: Record<string, any>) {
-  const differences = {} as Record<string, any>;
+  const differences = {} as Record<string, ValueDiff>;
 
   for (const key of Object.keys(onChainConfig)) {
     const offChainValue = offChainConfig[key as keyof typeof offChainConfig];
@@ -103,10 +114,10 @@ function compareConfigurations(onChainConfig: Record<string, any>, offChainConfi
     // Ignore key if it's an array
     if (Array.isArray(offChainValue)) 
       continue;
-      
+
     // If the values are objects, compare them
-    if (typeof offChainValue === 'object' && typeof onChainValue === 'object') {
-      differences[key] = compareConfigurations(onChainValue, offChainValue);
+    if (!BigNumber.isBigNumber(offChainValue) && typeof offChainValue === 'object' && typeof onChainValue === 'object') {
+      differences[key] = compareConfigurations(onChainValue, offChainValue) as unknown as ValueDiff;
       continue;
     }
 
@@ -122,10 +133,20 @@ function compareConfigurations(onChainConfig: Record<string, any>, offChainConfi
 export async function getConfigurationDifferences(chain: ChainInfo) {
   const onChainConfig = await getOnChainTokenRouterConfiguration(chain);
   const offChainConfig = await getTokenRouterConfiguration(chain);
-  return compareConfigurations(onChainConfig, offChainConfig);
+  const offChainDesiredState = {
+    cctpAllowance: BigNumber.from(offChainConfig.cctpAllowance),
+    ownerAssistant: offChainConfig.ownerAssistant,
+    fastTransferParameters: {
+      enabled: offChainConfig.fastTransferParameters.enabled,
+      maxAmount: BigNumber.from(offChainConfig.fastTransferParameters.maxAmount),
+      baseFee: BigNumber.from(offChainConfig.fastTransferParameters.baseFee),
+      initAuctionFee: BigNumber.from(offChainConfig.fastTransferParameters.initAuctionFee),
+    },
+  } satisfies typeof onChainConfig;
+  return compareConfigurations(onChainConfig, offChainDesiredState) as unknown as TokenRouterState;
 }
 
-export function logDiff(differences: Record<string, any>, log: LoggerFn) {
+export function logDiff(differences: TokenRouterState, log: LoggerFn) {
   logComparison('cctpAllowance', differences.cctpAllowance, log);
 
   const { enabled, maxAmount, baseFee, initAuctionFee } = differences.fastTransferParameters;
