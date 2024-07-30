@@ -1,5 +1,16 @@
 [
   {
+    "chainId": 1,
+    "ownerAssistant": "DNuVesmYQizpEVXYJZGECSeshqAxHB4fbqX2UC6ehpK4",
+    "fastTransferParameters": {
+      "enabled": true,
+      "maxAmount": "1000000000",
+      "baseFee": "1250000",
+      "initAuctionFee": "950000"
+    },
+    "cctpAllowance": "18446744073709551615"
+  },
+  {
     "chainId": 23,
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
