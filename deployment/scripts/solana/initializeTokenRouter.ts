@@ -14,7 +14,7 @@ import { ledgerSignAndSend } from "../../helpers/solana";
 
 solana.runOnSolana("deploy-token-router", async (chain, signer, log) => {
     const config = await getChainConfig<TokenRouterConfiguration>("token-router", chain.chainId);
-    const tokenRouterId = getContractAddress("TokenRouterProgram", chain.chainId) as ProgramId;
+    const tokenRouterId = getContractAddress("TokenRouterProxy", chain.chainId) as ProgramId;
 
     const env = "Mainnet";
     const usdcMint = new PublicKey(circle.usdcContract(env, "Solana"));
