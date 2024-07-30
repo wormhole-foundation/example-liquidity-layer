@@ -7,11 +7,13 @@ import {
 import "dotenv/config";
 import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
 import { solana, LoggerFn, contracts, getContractAddress } from "../../helpers";
+import { ProgramId as TokenRouterProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/tokenRouter";
 import { ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
 import { Chain, chainToPlatform, circle, toChain, toChainId } from "@wormhole-foundation/sdk-base";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { TokenRouterProgram } from "@wormhole-foundation/example-liquidity-layer-solana/tokenRouter";
+import { priorityMicrolamports } from "../../helpers/solana";
 
 
 solana.runOnSolana("register-routers-matching-engine", async (chain, signer, log) => {
@@ -27,8 +29,8 @@ solana.runOnSolana("register-routers-matching-engine", async (chain, signer, log
     const deployedTokenRouters = contracts['TokenRouterProxy'];
 
     for (const router of deployedTokenRouters) {
-        const circleDomain = circle.toCircleChainId(chain.network, router.chainId);
         const routerChain = toChain(router.chainId);
+        const circleDomain = circle.toCircleChainId(chain.network, routerChain);
         const routerAddress = toUniversal(routerChain, router.address);
 
         // check if it is already registered
@@ -40,14 +42,16 @@ solana.runOnSolana("register-routers-matching-engine", async (chain, signer, log
         if (Number(router.address) === 0)
             throw new Error(`Invalid router address for chainId ${router.chainId}`);
 
-        const chainName = toChain(chain.chainId);
-        if (chain.chainId === toChainId("Solana")) {
-            throw new Error("not implemented");
-            // await addSolanaCctpRouterEndpoint(matchingEngine, signer, tokenRouter)
-        } else if (chainToPlatform(chainName) === "Evm") {
-            await addCctpRouterEndpoint(matchingEngine, signer, chainName, circleDomain, routerAddress.toString(), null, log);
+        if (router.chainId === toChainId("Solana")) {
+            // throw new Error("not implemented");
+            const tokenRouterId = router.address as TokenRouterProgramId;
+            const tokenRouter = new TokenRouterProgram(connection, tokenRouterId, usdcMint);
+            await addSolanaCctpRouterEndpoint(matchingEngine, signer, tokenRouter, log);
+        } else if (chainToPlatform(routerChain) === "Evm") {
+            await addCctpRouterEndpoint(matchingEngine, signer, routerChain, circleDomain, routerAddress.toString(), null, log);
         } else {
-            throw new Error(`Router registrations not implemented for ${chainName}`);
+            const operatingChain = toChain(chain.chainId);
+            throw new Error(`Router registrations not implemented for operating chain ${operatingChain}, target chain ${routerChain}`);
         }
         log(`Router endpoint added for chainId ${router.chainId}`);
     }
@@ -132,7 +136,7 @@ async function addCctpRouterEndpoint(
             foreignMintRecipient,
         );
     } else {
-        const priorityFeeIx = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 });
+        const priorityFeeIx = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityMicrolamports });
         const instructions = [registerIx, priorityFeeIx]
         const txSig = await solana.ledgerSignAndSend(connection, instructions, []);
         log(
@@ -189,7 +193,7 @@ async function addSolanaCctpRouterEndpoint(
         ownerOrAssistant: signerPubkey,
         tokenRouterProgram: tokenRouter.ID,
     });
-    const priorityFeeIx = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 });
+    const priorityFeeIx = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityMicrolamports });
     const instructions = [registerIx, priorityFeeIx];
     const txSig = await solana.ledgerSignAndSend(connection, instructions, []);
     log("added local endpoint", txSig, "router", tokenRouter.ID.toString());
