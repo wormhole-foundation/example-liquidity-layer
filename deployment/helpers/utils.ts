@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { ChainInfo, LoggerFn, ValueDiff } from '.';
+import { ChainInfo, LoggerFn, UncheckedConstructorArgs, ValueDiff } from '.';
 
 export const someoneIsDifferent = (values: ValueDiff[]) => values.some((value) => value.onChain.toString() !== value.offChain.toString() && Number(value.onChain) !== Number(value.offChain));
 
@@ -64,7 +64,7 @@ export function getVerifyCommand({
   contractPath: string,
   contractAddress: string,
   constructorSignature: string,
-  constructorArgs: any[],
+  constructorArgs: UncheckedConstructorArgs,
   verifier: string,
   verifierUrl?: string,
   apiKey?: string

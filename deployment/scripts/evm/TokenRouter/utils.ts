@@ -40,7 +40,7 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
     matchingEngineChain
   ))).toString();
 
-  const deployment = await factory.deploy(
+  const constructorArgs = [
     token,
     wormhole,
     tokenMessenger,
@@ -48,22 +48,18 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
     matchingEngineAddress,
     matchingEngineMintRecipient.toString(),
     matchingEngineDomain,
-    {} // overrides
+  ] as const;
+  const overrides = {};
+
+  const deployment = await factory.deploy(
+    ...constructorArgs,
+    overrides,
   );
 
   await deployment.deployed();
 
   log(`TokenRouter deployed at ${deployment.address}`);
 
-  const constructorArgs = [
-    token,
-    wormhole,
-    tokenMessenger,
-    matchingEngineChain,
-    matchingEngineAddress,
-    matchingEngineMintRecipient,
-    matchingEngineDomain
-  ];
 
   writeDeployedContract(config.chainId, "TokenRouterImplementation", deployment.address, constructorArgs);
 

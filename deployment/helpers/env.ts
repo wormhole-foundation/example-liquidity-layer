@@ -1,7 +1,7 @@
 import fs from "fs";
 import { ethers, utils } from "ethers";
 import { validateSolAddress } from "./solana";
-import { ChainConfig, ChainInfo, ContractsJson, Dependencies, DependenciesConfig, Ecosystem, VerificationApiKeys } from "./interfaces";
+import { ChainConfig, ChainInfo, ContractsJson, Dependencies, DependenciesConfig, Ecosystem, UncheckedConstructorArgs, VerificationApiKeys } from "./interfaces";
 import { getSigner } from "./evm";
 // TODO: support different env files
 import 'dotenv/config';
@@ -148,7 +148,7 @@ export async function getContractInstance(
   return factory.connect(contractAddress, signer);
 }
 
-export function getDeploymentArgs(contractName: string, whChainId: ChainId): any[] {
+export function getDeploymentArgs(contractName: string, whChainId: ChainId): UncheckedConstructorArgs {
   const constructorArgs = contracts[contractName]?.find((c) => c.chainId === whChainId)?.constructorArgs;
 
   if (!constructorArgs) {
@@ -158,7 +158,7 @@ export function getDeploymentArgs(contractName: string, whChainId: ChainId): any
   return constructorArgs;
 }
 
-export function writeDeployedContract(whChainId: ChainId, contractName: string, address: string, constructorArgs: any[] ) {
+export function writeDeployedContract(whChainId: ChainId, contractName: string, address: string, constructorArgs: UncheckedConstructorArgs ) {
   const contracts = loadContracts();
   if (!contracts[contractName]) {
     contracts[contractName] = [{ chainId: whChainId, address, constructorArgs }];

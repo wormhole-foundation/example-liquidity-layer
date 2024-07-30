@@ -29,7 +29,7 @@ export type Deployment = {
    */
   chainId: number;
   address: string;
-  constructorArgs?: any[];
+  constructorArgs?: UncheckedConstructorArgs;
 };
 
 export type Ecosystem = {
@@ -84,3 +84,5 @@ export type RouterEndpoint = {
   },
   circleDomain: number;
 }
+
+export type UncheckedConstructorArgs = readonly any[];
