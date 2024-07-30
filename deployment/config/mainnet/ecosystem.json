@@ -4,12 +4,14 @@
     "networks": [
       {
         "name": "Arbitrum",
+        "network": "Mainnet",
         "externalId": "42161",
         "chainId": 23,
         "rpc": "https://rpc.ankr.com/arbitrum"
       },
       {
         "name": "Base",
+        "network": "Mainnet",
         "externalId": "8453",
         "chainId": 30,
         "rpc": "https://mainnet.base.org"
@@ -20,6 +22,7 @@
     "networks": [
       {
         "name": "Solana",
+        "network": "Mainnet",
         "chainId": 1,
         "rpc": "https://api.mainnet-beta.solana.com"
       }
