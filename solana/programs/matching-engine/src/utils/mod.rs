@@ -53,6 +53,6 @@ pub fn checked_deserialize_token_account(
 
         token::TokenAccount::try_deserialize(&mut &data[..])
             .ok()
-            .filter(|token_data| &token_data.mint == expected_mint)
+            .filter(|token_data| &token_data.mint == expected_mint && !token_data.is_frozen())
     }
 }
