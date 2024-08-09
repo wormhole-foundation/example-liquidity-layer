@@ -736,6 +736,7 @@ describe("Matching Engine <> Token Router", function () {
                 fast.vaaAccount.timestamp(),
                 { local: { programId: tokenRouter.ID } },
                 { active: {} },
+                accounts.payer,
                 {
                     configId: auctionConfigId,
                     custodyTokenBump,

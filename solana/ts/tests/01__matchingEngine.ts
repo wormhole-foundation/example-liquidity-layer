@@ -2051,7 +2051,7 @@ describe("Matching Engine", function () {
                     newOfferAuthority,
                 );
 
-                const { bump, vaaHash, vaaTimestamp, targetProtocol, status, info } =
+                const { bump, vaaHash, vaaTimestamp, targetProtocol, status, preparedBy, info } =
                     auctionDataBefore;
                 const {
                     configId,
@@ -2071,7 +2071,7 @@ describe("Matching Engine", function () {
 
                 const auctionDataAfter = await engine.fetchAuction({ address: auction });
                 expect(auctionDataAfter).to.eql(
-                    new Auction(bump, vaaHash, vaaTimestamp, targetProtocol, status, {
+                    new Auction(bump, vaaHash, vaaTimestamp, targetProtocol, status, preparedBy, {
                         configId,
                         custodyTokenBump,
                         vaaSequence,
@@ -3177,7 +3177,7 @@ describe("Matching Engine", function () {
                 } = balancesBefore;
                 let { custodyToken: custodyTokenBalance } = balancesBefore;
 
-                const { bump, vaaHash, vaaTimestamp, info } = auctionDataBefore;
+                const { bump, vaaHash, vaaTimestamp, preparedBy, info } = auctionDataBefore;
 
                 const auctionDataAfter = await engine.fetchAuction({ address: auction });
 
@@ -3250,6 +3250,7 @@ describe("Matching Engine", function () {
                                     executePenalty: uint64ToBN(penalty),
                                 },
                             },
+                            preparedBy,
                             info,
                         ),
                     );
@@ -3319,6 +3320,7 @@ describe("Matching Engine", function () {
                                     executePenalty: null,
                                 },
                             },
+                            preparedBy,
                             info,
                         ),
                     );
@@ -4459,6 +4461,7 @@ describe("Matching Engine", function () {
                 fast.vaaAccount.timestamp(),
                 { cctp: { domain: destinationDomain! } },
                 { active: {} },
+                accounts.payer,
                 {
                     configId: auctionConfigId,
                     custodyTokenBump,
@@ -5051,7 +5054,7 @@ describe("Matching Engine", function () {
         const fastVaaHash = fastVaaAccount.digest();
         const auction = engine.auctionAddress(fastVaaHash);
         const auctionData = await engine.fetchAuction({ address: auction });
-        const { bump, info } = auctionData;
+        const { bump, preparedBy, info } = auctionData;
         expect(info).is.null;
 
         expect(auctionData).to.eql(
@@ -5066,6 +5069,7 @@ describe("Matching Engine", function () {
                         totalPenalty: null,
                     },
                 },
+                preparedBy,
                 null,
             ),
         );

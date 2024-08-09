@@ -3166,6 +3166,13 @@ export type MatchingEngine = {
             }
           },
           {
+            "name": "preparedBy",
+            "docs": [
+              "The fee payer when placing the initial offer."
+            ],
+            "type": "pubkey"
+          },
+          {
             "name": "info",
             "docs": [
               "Optional auction info. This field will be `None`` if there is no auction."

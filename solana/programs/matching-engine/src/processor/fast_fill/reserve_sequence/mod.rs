@@ -25,8 +25,12 @@ fn set_reserved_sequence_data(
 
     // If the fast fill sequencer was just created, we need to set it with data.
     if sequencer.seeds == Default::default() {
-        msg!("Sequencer created");
+        msg!("Create sequencer");
 
+        msg!(
+            "account_data: {:?}",
+            &reserve_sequence.fast_order_path.fast_vaa.vaa.data.borrow()[..8]
+        );
         let vaa = reserve_sequence.fast_order_path.fast_vaa.load_unchecked();
         let sender = LiquidityLayerMessage::try_from(vaa.payload())
             .unwrap()
