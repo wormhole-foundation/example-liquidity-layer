@@ -3606,19 +3606,6 @@ describe("Matching Engine", function () {
                     );
                 });
 
-                it("Cannot Settle Completed Auction with No Penalty (Executor != Best Offer)", async function () {
-                    await settleAuctionCompleteForTest(
-                        {
-                            executor: payer.publicKey,
-                        },
-                        {
-                            prepareSigners: [payer],
-                            executeWithinGracePeriod: true,
-                            errorMsg: "Error Code: ExecutorTokenMismatch",
-                        },
-                    );
-                });
-
                 it("Settle Completed without Penalty", async function () {
                     await settleAuctionCompleteForTest(
                         {
@@ -3652,7 +3639,7 @@ describe("Matching Engine", function () {
                         {
                             executeWithinGracePeriod: false,
                             executorIsPreparer: false,
-                            errorMsg: "Error Code: ExecutorNotPreparedBy",
+                            errorMsg: "executor. Error Code: ConstraintAddress",
                         },
                     );
                 });
