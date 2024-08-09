@@ -11,19 +11,19 @@ use anchor_spl::{
 
 #[derive(Accounts)]
 pub struct SettleAuctionComplete<'info> {
-    /// CHECK: To prevent squatters from preparing order responses on behalf of the auction winner,
-    /// we will always reward the owner of the executor token account with the lamports from the
-    /// prepared order response and its custody token account when we close these accounts. This
-    /// means we disregard the `prepared_by` field in the prepared order response.
-    #[account(mut)]
+    /// CHECK: Must equal prepared_order_response.prepared_by, who paid the rent to post the
+    /// finalized VAA.
+    #[account(
+        mut,
+        address = prepared_order_response.prepared_by,
+    )]
     executor: UncheckedAccount<'info>,
 
     #[account(
         mut,
         token::mint = common::USDC_MINT,
-        token::authority = executor,
     )]
-    executor_token: Account<'info, TokenAccount>,
+    executor_token: Box<Account<'info, TokenAccount>>,
 
     /// Destination token account, which the redeemer may not own. But because the redeemer is a
     /// signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent
@@ -46,7 +46,7 @@ pub struct SettleAuctionComplete<'info> {
         ],
         bump = prepared_order_response.seeds.bump,
     )]
-    prepared_order_response: Account<'info, PreparedOrderResponse>,
+    prepared_order_response: Box<Account<'info, PreparedOrderResponse>>,
 
     /// CHECK: Seeds must be \["prepared-custody"\, prepared_order_response.key()].
     #[account(
@@ -57,7 +57,7 @@ pub struct SettleAuctionComplete<'info> {
         ],
         bump,
     )]
-    prepared_custody_token: Account<'info, TokenAccount>,
+    prepared_custody_token: Box<Account<'info, TokenAccount>>,
 
     #[account(
         mut,
@@ -67,7 +67,7 @@ pub struct SettleAuctionComplete<'info> {
         ],
         bump = auction.bump,
     )]
-    auction: Account<'info, Auction>,
+    auction: Box<Account<'info, Auction>>,
 
     token_program: Program<'info, token::Token>,
 }
@@ -115,19 +115,6 @@ fn handle_settle_auction_complete(
 
     let (executor_result, best_offer_result) = match execute_penalty {
         None => {
-            // If there is no penalty, we require that the executor token and best offer token be
-            // equal. The winning offer should not be penalized for calling this instruction when he
-            // has executed the order within the grace period.
-            //
-            // By requiring that these pubkeys are equal, we enforce that the owner of the best
-            // offer token gets rewarded the lamports from the prepared order response and its
-            // custody account.
-            require_keys_eq!(
-                executor_token.key(),
-                best_offer_token.key(),
-                MatchingEngineError::ExecutorTokenMismatch
-            );
-
             // If the token account happens to not exist anymore, we will revert.
             match TokenAccount::try_deserialize(&mut &best_offer_token.data.borrow()[..]) {
                 Ok(best_offer) => (
@@ -142,17 +129,6 @@ fn handle_settle_auction_complete(
             }
         }
         _ => {
-            // If there is a penalty, we want to return the lamports back to the person who paid to
-            // create the prepared order response and custody token accounts.
-            //
-            // The executor's intention here would be to collect the base fee to cover the cost to
-            // post the finalized VAA.
-            require_keys_eq!(
-                executor.key(),
-                prepared_order_response.prepared_by,
-                MatchingEngineError::ExecutorNotPreparedBy
-            );
-
             // If the token account happens to not exist anymore, we will give everything to the
             // executor.
             match TokenAccount::try_deserialize(&mut &best_offer_token.data.borrow()[..]) {
@@ -180,6 +156,13 @@ fn handle_settle_auction_complete(
                                 &executor_token.mint
                             ),
                             ErrorCode::AccountNotAssociatedTokenAccount
+                        );
+
+                        // And enforce that the owner of this ATA is the executor.
+                        require_keys_eq!(
+                            executor.key(),
+                            executor_token.owner,
+                            ErrorCode::ConstraintTokenOwner,
                         );
 
                         (
