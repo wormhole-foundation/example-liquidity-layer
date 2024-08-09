@@ -1979,18 +1979,14 @@ export class MatchingEngineProgram {
         }
 
         let auctionInfo: AuctionInfo | undefined;
-        if (initialOfferToken === undefined) {
-            const { info } = await this.fetchAuction({ address: auction });
+        if (initialOfferToken === undefined || initialParticipant === undefined) {
+            const { preparedBy, info } = await this.fetchAuction({ address: auction });
             if (info === null) {
                 throw new Error("no auction info found");
             }
             auctionInfo = info;
-            initialOfferToken = info.initialOfferToken;
-        }
-
-        if (initialParticipant === undefined) {
-            const token = await splToken.getAccount(connection, initialOfferToken);
-            initialParticipant = token.owner;
+            initialOfferToken ??= info.initialOfferToken;
+            initialParticipant ??= preparedBy;
         }
 
         const {
@@ -2305,18 +2301,14 @@ export class MatchingEngineProgram {
         }
 
         let auctionInfo: AuctionInfo | undefined;
-        if (initialOfferToken === undefined) {
-            const { info } = await this.fetchAuction({ address: auction });
+        if (initialOfferToken === undefined || initialParticipant === undefined) {
+            const { preparedBy, info } = await this.fetchAuction({ address: auction });
             if (info === null) {
                 throw new Error("no auction info found");
             }
             auctionInfo = info;
             initialOfferToken ??= auctionInfo.initialOfferToken;
-        }
-
-        if (initialParticipant === undefined) {
-            const token = await splToken.getAccount(connection, initialOfferToken);
-            initialParticipant = token.owner;
+            initialParticipant ??= preparedBy;
         }
 
         const activeAuction = await this.activeAuctionComposite(

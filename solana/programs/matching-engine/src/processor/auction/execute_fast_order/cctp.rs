@@ -79,12 +79,11 @@ pub fn handle_execute_fast_order_cctp(
     let super::PreparedOrderExecution {
         user_amount: amount,
         fill,
-        beneficiary,
-    } = super::prepare_order_execution(super::PrepareFastExecution {
-        execute_order: &mut ctx.accounts.execute_order,
-        custodian: &ctx.accounts.custodian,
-        token_program: &ctx.accounts.token_program,
-    })?;
+    } = super::handle_execute_fast_order(
+        &mut ctx.accounts.execute_order,
+        &ctx.accounts.custodian,
+        &ctx.accounts.token_program,
+    )?;
 
     let active_auction = &ctx.accounts.execute_order.active_auction;
     let auction_custody_token = &active_auction.custody_token;
@@ -188,7 +187,11 @@ pub fn handle_execute_fast_order_cctp(
         token_program.to_account_info(),
         token::CloseAccount {
             account: auction_custody_token.to_account_info(),
-            destination: beneficiary.unwrap_or_else(|| payer.to_account_info()),
+            destination: ctx
+                .accounts
+                .execute_order
+                .initial_participant
+                .to_account_info(),
             authority: custodian.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],
