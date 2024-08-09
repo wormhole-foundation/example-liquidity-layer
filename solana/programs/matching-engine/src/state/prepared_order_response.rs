@@ -52,6 +52,7 @@ impl PreparedOrderResponse {
             vaa_timestamp: self.fast_vaa_timestamp,
             target_protocol: self.to_endpoint.protocol,
             status: Default::default(),
+            prepared_by: self.prepared_by,
             info: Default::default(),
         }
     }

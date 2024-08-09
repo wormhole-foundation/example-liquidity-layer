@@ -650,7 +650,7 @@ pub struct ReserveFastFillSequence<'info> {
             }
         },
     )]
-    pub auction: Account<'info, Auction>,
+    pub auction: Box<Account<'info, Auction>>,
 
     system_program: Program<'info, System>,
 }

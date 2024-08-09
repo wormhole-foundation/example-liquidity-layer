@@ -145,6 +145,7 @@ pub fn place_initial_offer_cctp(
         vaa_timestamp: fast_vaa.timestamp(),
         target_protocol: ctx.accounts.fast_order_path.to_endpoint.protocol,
         status: AuctionStatus::Active,
+        prepared_by: ctx.accounts.payer.key(),
         info: AuctionInfo {
             config_id: config.id,
             custody_token_bump: ctx.bumps.auction_custody_token,
