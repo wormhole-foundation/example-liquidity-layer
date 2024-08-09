@@ -103,7 +103,7 @@ fn handle_add_auction_history_entry(
     // Update the history account with this new entry's vaa timestamp if it is less than the min or
     // greater than the max.
     let auction = &ctx.accounts.auction;
-    if auction.vaa_timestamp < history.min_timestamp.unwrap_or(u32::MAX) {
+    if auction.vaa_timestamp < history.min_timestamp.unwrap_or_else(|| u32::MAX) {
         history.min_timestamp = auction.vaa_timestamp.into();
     }
     if auction.vaa_timestamp > history.max_timestamp.unwrap_or_default() {

@@ -19,7 +19,7 @@ pub(crate) fn handle_add_cctp_router_endpoint(
     args: AddCctpRouterEndpointArgs,
     router_endpoint_bump: Option<u8>,
 ) -> Result<()> {
-    let bump = router_endpoint_bump.unwrap_or(router_endpoint.bump);
+    let bump = router_endpoint_bump.unwrap_or_else(|| router_endpoint.bump);
 
     let AddCctpRouterEndpointArgs {
         chain,
@@ -67,7 +67,7 @@ pub(crate) fn handle_add_local_router_endpoint(
     token_router_custody_token: &Account<token::TokenAccount>,
     router_endpoint_bump: Option<u8>,
 ) -> Result<()> {
-    let bump = router_endpoint_bump.unwrap_or(router_endpoint.bump);
+    let bump = router_endpoint_bump.unwrap_or_else(|| router_endpoint.bump);
 
     router_endpoint.set_inner(RouterEndpoint {
         bump,

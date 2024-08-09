@@ -140,7 +140,7 @@ pub fn execute_fast_order_local(ctx: Context<ExecuteFastOrderLocal>) -> Result<(
         token_program.to_account_info(),
         token::CloseAccount {
             account: auction_custody_token.to_account_info(),
-            destination: beneficiary.unwrap_or(ctx.accounts.payer.to_account_info()),
+            destination: beneficiary.unwrap_or_else(|| ctx.accounts.payer.to_account_info()),
             authority: custodian.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],

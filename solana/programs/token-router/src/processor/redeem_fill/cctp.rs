@@ -276,12 +276,12 @@ fn try_compute_prepared_fill_size(fill_vaa: &LiquidityLayerVaa) -> Result<usize>
 
     let deposit = msg
         .deposit()
-        .ok_or(error!(TokenRouterError::InvalidPayloadId))?;
+        .ok_or_else(|| error!(TokenRouterError::InvalidPayloadId))?;
     let msg = LiquidityLayerDepositMessage::try_from(deposit.payload())
         .map_err(|_| TokenRouterError::InvalidDepositMessage)?;
     let fill = msg
         .fill()
-        .ok_or(TokenRouterError::InvalidDepositPayloadId)?;
+        .ok_or_else(|| TokenRouterError::InvalidDepositPayloadId)?;
 
     Ok(PreparedFill::compute_size(
         fill.redeemer_message_len().into(),

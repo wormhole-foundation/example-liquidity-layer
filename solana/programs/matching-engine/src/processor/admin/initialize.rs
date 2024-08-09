@@ -148,7 +148,7 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
         owner,
         pending_owner: None,
         paused: false,
-        paused_set_by: Pubkey::default(),
+        paused_set_by: owner,
         owner_assistant: ctx.accounts.owner_assistant.key(),
         fee_recipient_token: ctx.accounts.fee_recipient_token.key(),
         auction_config_id,

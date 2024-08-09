@@ -148,7 +148,7 @@ fn prepare_order_execution<'info>(
                 // Add it to the reimbursement.
                 deposit_and_fee = deposit_and_fee
                     .checked_add(init_auction_fee)
-                    .ok_or(MatchingEngineError::U64Overflow)?;
+                    .ok_or_else(|| MatchingEngineError::U64Overflow)?;
             }
         }
 
