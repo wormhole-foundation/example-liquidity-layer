@@ -320,7 +320,7 @@ pub struct ActiveAuction<'info> {
         ],
         bump = auction.info.as_ref().unwrap().custody_token_bump,
     )]
-    pub custody_token: Account<'info, anchor_spl::token::TokenAccount>,
+    pub custody_token: Box<Account<'info, token::TokenAccount>>,
 
     #[account(
         constraint = {
@@ -332,7 +332,7 @@ pub struct ActiveAuction<'info> {
             true
         },
     )]
-    pub config: Account<'info, crate::state::AuctionConfig>,
+    pub config: Box<Account<'info, crate::state::AuctionConfig>>,
 
     /// CHECK: Mutable. Must have the same key in auction data.
     #[account(
@@ -400,7 +400,10 @@ pub struct ExecuteOrder<'info> {
 
     /// CHECK: Must be the owner of initial offer token account. If the initial offer token account
     /// does not exist anymore, we will attempt to perform this check.
-    #[account(mut)]
+    #[account(
+        mut,
+        address = active_auction.prepared_by,
+    )]
     pub initial_participant: UncheckedAccount<'info>,
 }
 

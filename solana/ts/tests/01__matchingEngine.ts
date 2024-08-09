@@ -2543,7 +2543,7 @@ describe("Matching Engine", function () {
                 const ix = await engine.executeFastOrderCctpIx({
                     payer: liquidator.publicKey,
                     fastVaa,
-                    initialParticipant: payer.publicKey,
+                    initialParticipant: auctionDataBefore.preparedBy,
                 });
 
                 const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
