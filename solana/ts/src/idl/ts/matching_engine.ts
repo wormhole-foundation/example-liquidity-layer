@@ -1867,9 +1867,7 @@ export type MatchingEngine = {
         {
           "name": "executor",
           "docs": [
-            "we will always reward the owner of the executor token account with the lamports from the",
-            "prepared order response and its custody token account when we close these accounts. This",
-            "means we disregard the `prepared_by` field in the prepared order response."
+            "finalized VAA."
           ],
           "writable": true
         },
