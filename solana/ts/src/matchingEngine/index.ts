@@ -2139,8 +2139,6 @@ export class MatchingEngineProgram {
             reservedSequence?: PublicKey;
             auction?: PublicKey;
             auctionConfig?: PublicKey;
-            bestOfferToken?: PublicKey;
-            executor?: PublicKey;
         },
         opts: ReserveFastFillSequenceCompositeOpts = {},
     ): Promise<TransactionInstruction> {
@@ -2166,25 +2164,14 @@ export class MatchingEngineProgram {
             opts,
         );
 
-        let { auctionConfig, bestOfferToken, executor } = accounts;
+        let { auctionConfig } = accounts;
 
-        if (bestOfferToken === undefined || auctionConfig === undefined) {
+        if (auctionConfig === undefined) {
             const { info } = await this.fetchAuction({ address: reserveSequence.auction });
             if (info === null) {
                 throw new Error("no auction info found");
             }
-            auctionConfig ??= this.auctionConfigAddress(info.configId);
-            bestOfferToken ??= info.bestOfferToken;
-        }
-
-        if (executor === undefined) {
-            const token = await splToken
-                .getAccount(this.program.provider.connection, bestOfferToken)
-                .catch((_) => null);
-            if (token === null) {
-                throw new Error("Executor must be provided because best offer token is not found");
-            }
-            executor = token.owner;
+            auctionConfig = this.auctionConfigAddress(info.configId);
         }
 
         return this.program.methods
@@ -2192,8 +2179,6 @@ export class MatchingEngineProgram {
             .accounts({
                 reserveSequence,
                 auctionConfig,
-                bestOfferToken,
-                executor,
             })
             .instruction();
     }
