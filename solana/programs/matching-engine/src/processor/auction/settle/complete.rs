@@ -2,6 +2,7 @@ use crate::{
     error::MatchingEngineError,
     events::SettledTokenAccountInfo,
     state::{Auction, AuctionStatus, PreparedOrderResponse},
+    utils,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::{
@@ -116,23 +117,24 @@ fn handle_settle_auction_complete(
     let (executor_result, best_offer_result) = match execute_penalty {
         None => {
             // If the token account happens to not exist anymore, we will revert.
-            match TokenAccount::try_deserialize(&mut &best_offer_token.data.borrow()[..]) {
-                Ok(best_offer) => (
-                    None, // executor_result
-                    TokenAccountResult {
-                        balance_before: best_offer.amount,
-                        amount: repayment,
-                    }
-                    .into(),
-                ),
-                Err(err) => return Err(err),
-            }
+            let best_offer =
+                utils::checked_deserialize_token_account(best_offer_token, &common::USDC_MINT)
+                    .ok_or_else(|| MatchingEngineError::BestOfferTokenRequired)?;
+
+            (
+                None, // executor_result
+                TokenAccountResult {
+                    balance_before: best_offer.amount,
+                    amount: repayment,
+                }
+                .into(),
+            )
         }
         _ => {
             // If the token account happens to not exist anymore, we will give everything to the
             // executor.
-            match TokenAccount::try_deserialize(&mut &best_offer_token.data.borrow()[..]) {
-                Ok(best_offer) => {
+            match utils::checked_deserialize_token_account(best_offer_token, &common::USDC_MINT) {
+                Some(best_offer) => {
                     if executor_token.key() == best_offer_token.key() {
                         (
                             None, // executor_result
@@ -179,7 +181,7 @@ fn handle_settle_auction_complete(
                         )
                     }
                 }
-                Err(_) => (
+                None => (
                     TokenAccountResult {
                         balance_before: executor_token.amount,
                         amount: repayment,

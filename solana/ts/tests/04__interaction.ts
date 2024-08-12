@@ -1091,7 +1091,7 @@ describe("Matching Engine <> Token Router", function () {
         const { success, result } = await invokeReserveFastFillSequence(
             ix,
             fastVaaAccount,
-            playerOne.publicKey,
+            payer.publicKey,
             testOpts,
         );
 
