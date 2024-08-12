@@ -384,9 +384,12 @@ pub struct ExecuteOrder<'info> {
     )]
     pub active_auction: ActiveAuction<'info>,
 
-    /// CHECK: Must be a token account, whose mint is [common::USDC_MINT].
-    #[account(mut)]
-    pub executor_token: UncheckedAccount<'info>,
+    /// Must be a token account, whose mint is [common::USDC_MINT].
+    #[account(
+        mut,
+        token::mint = common::USDC_MINT,
+    )]
+    pub executor_token: Box<Account<'info, token::TokenAccount>>,
 
     /// CHECK: Mutable. Must equal [initial_offer](Auction::initial_offer).
     #[account(

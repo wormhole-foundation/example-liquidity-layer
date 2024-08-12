@@ -111,20 +111,21 @@ fn prepare_order_execution<'info>(
 
         // If the initial offer token account doesn't exist anymore, we have nowhere to send the
         // init auction fee. The executor will get these funds instead.
-        if !initial_offer_token.data_is_empty() {
-            // Deserialize to token account to find owner. We know this is a legitimate token
-            // account, so it is safe to borrow and unwrap here.
-            {
-                let mut acc_data: &[_] = &initial_offer_token.data.borrow();
-                let token_data = token::TokenAccount::try_deserialize(&mut acc_data).unwrap();
-                require_keys_eq!(
-                    token_data.owner,
-                    initial_participant.key(),
-                    ErrorCode::ConstraintTokenOwner
-                );
+        //
+        // Deserialize to token account to find owner. We check that this is a legitimate token
+        // account.
+        if let Some(token_data) =
+            utils::checked_deserialize_token_account(initial_offer_token, &custody_token.mint)
+        {
+            // Before setting the beneficiary to the initial participant, we need to make sure that
+            // he is the owner of this token account.
+            require_keys_eq!(
+                token_data.owner,
+                initial_participant.key(),
+                ErrorCode::ConstraintTokenOwner
+            );
 
-                beneficiary.replace(initial_participant.to_account_info());
-            }
+            beneficiary.replace(initial_participant.to_account_info());
 
             if best_offer_token.key() != initial_offer_token.key() {
                 // Pay the auction initiator their fee.
@@ -155,8 +156,8 @@ fn prepare_order_execution<'info>(
         // Return the security deposit and the fee to the highest bidder.
         //
         if best_offer_token.key() == executor_token.key() {
-            // If the best offer token is equal to the executor token, just send whatever remains in the
-            // custody token account.
+            // If the best offer token is equal to the executor token, just send whatever remains in
+            // the custody token account.
             //
             // NOTE: This will revert if the best offer token does not exist. But this will present
             // an opportunity for another executor to execute this order and take what the best
@@ -177,7 +178,9 @@ fn prepare_order_execution<'info>(
             // Otherwise, send the deposit and fee to the best offer token. If the best offer token
             // doesn't exist at this point (which would be unusual), we will reserve these funds
             // for the executor token.
-            if !best_offer_token.data_is_empty() {
+            if utils::checked_deserialize_token_account(best_offer_token, &custody_token.mint)
+                .is_some()
+            {
                 token::transfer(
                     CpiContext::new_with_signer(
                         token_program.to_account_info(),
