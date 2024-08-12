@@ -566,7 +566,7 @@ impl<'info> VaaDigest for ClosePreparedOrderResponse<'info> {
 #[derive(Accounts)]
 pub struct ReserveFastFillSequence<'info> {
     #[account(mut)]
-    payer: Signer<'info>,
+    pub payer: Signer<'info>,
 
     pub fast_order_path: FastOrderPath<'info>,
 

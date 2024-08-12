@@ -99,32 +99,33 @@ fn handle_execute_fast_order<'info>(
         // init auction fee. The executor will get these funds instead.
         //
         // We check that this is a legitimate token account.
-        if utils::checked_deserialize_token_account(initial_offer_token, &custody_token.mint)
+        if utils::checked_deserialize_token_account(initial_offer_token, &common::USDC_MINT)
             .is_some()
-            && best_offer_token.key() != initial_offer_token.key()
         {
-            // Pay the auction initiator their fee.
-            token::transfer(
-                CpiContext::new_with_signer(
-                    token_program.to_account_info(),
-                    token::Transfer {
-                        from: custody_token.to_account_info(),
-                        to: initial_offer_token.to_account_info(),
-                        authority: auction.to_account_info(),
-                    },
-                    &[auction_signer_seeds],
-                ),
-                init_auction_fee,
-            )?;
+            if best_offer_token.key() != initial_offer_token.key() {
+                // Pay the auction initiator their fee.
+                token::transfer(
+                    CpiContext::new_with_signer(
+                        token_program.to_account_info(),
+                        token::Transfer {
+                            from: custody_token.to_account_info(),
+                            to: initial_offer_token.to_account_info(),
+                            authority: auction.to_account_info(),
+                        },
+                        &[auction_signer_seeds],
+                    ),
+                    init_auction_fee,
+                )?;
 
-            // Because the initial offer token was paid this fee, we account for it here.
-            remaining_custodied_amount =
-                remaining_custodied_amount.saturating_sub(init_auction_fee);
-        } else {
-            // Add it to the reimbursement.
-            deposit_and_fee = deposit_and_fee
-                .checked_add(init_auction_fee)
-                .ok_or_else(|| MatchingEngineError::U64Overflow)?;
+                // Because the initial offer token was paid this fee, we account for it here.
+                remaining_custodied_amount =
+                    remaining_custodied_amount.saturating_sub(init_auction_fee);
+            } else {
+                // Add it to the reimbursement.
+                deposit_and_fee = deposit_and_fee
+                    .checked_add(init_auction_fee)
+                    .ok_or_else(|| MatchingEngineError::U64Overflow)?;
+            }
         }
 
         // Return the security deposit and the fee to the highest bidder.
@@ -152,7 +153,7 @@ fn handle_execute_fast_order<'info>(
             // Otherwise, send the deposit and fee to the best offer token. If the best offer token
             // doesn't exist at this point (which would be unusual), we will reserve these funds
             // for the executor token.
-            if utils::checked_deserialize_token_account(best_offer_token, &custody_token.mint)
+            if utils::checked_deserialize_token_account(best_offer_token, &common::USDC_MINT)
                 .is_some()
             {
                 token::transfer(

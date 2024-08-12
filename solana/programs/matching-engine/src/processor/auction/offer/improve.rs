@@ -79,7 +79,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
             // If the best offer token happens to be closed, we will just keep the funds in the
             // auction custody account. The executor token account will collect these funds when the
             // order is executed.
-            if utils::checked_deserialize_token_account(best_offer_token, &custody_token.mint)
+            if utils::checked_deserialize_token_account(best_offer_token, &common::USDC_MINT)
                 .is_some()
             {
                 token::transfer(
