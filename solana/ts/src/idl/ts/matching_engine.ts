@@ -71,12 +71,9 @@ export type MatchingEngine = {
         {
           "name": "beneficiary",
           "docs": [
-            "was no auction) or the owner of the initial offer token account."
+            "[Auction::prepared_by]."
           ],
           "writable": true
-        },
-        {
-          "name": "beneficiaryToken"
         },
         {
           "name": "systemProgram"
