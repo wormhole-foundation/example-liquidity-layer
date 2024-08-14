@@ -398,8 +398,7 @@ pub struct ExecuteOrder<'info> {
     )]
     pub initial_offer_token: UncheckedAccount<'info>,
 
-    /// CHECK: Must be the owner of initial offer token account. If the initial offer token account
-    /// does not exist anymore, we will attempt to perform this check.
+    /// CHECK: Must be the payer of the initial auction (see [Auction::prepared_by]).
     #[account(
         mut,
         address = active_auction.prepared_by,
