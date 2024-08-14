@@ -3881,32 +3881,17 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Add Entry from Settled Complete Auction with Beneficiary Token != Initial Offer Token", async function () {
+            it("Cannot Add Entry from Settled Complete Auction with Beneficiary != Auction's Preparer", async function () {
                 await addAuctionHistoryEntryForTest(
                     {
                         payer: payer.publicKey,
                         history: engine.auctionHistoryAddress(0),
-                        beneficiary: payer.publicKey,
+                        beneficiary: Keypair.generate().publicKey,
                     },
                     {
                         settlementType: "complete",
-                        errorMsg: "beneficiary_token. Error Code: ConstraintAddress",
+                        errorMsg: "beneficiary. Error Code: ConstraintAddress",
                     },
-                );
-            });
-
-            it("Cannot Add Entry from Settled Complete Auction with Beneficiary != Initial Offer Token Owner", async function () {
-                await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
-                        beneficiary: payer.publicKey,
-                        beneficiaryToken: splToken.getAssociatedTokenAddressSync(
-                            USDC_MINT_ADDRESS,
-                            playerOne.publicKey,
-                        ),
-                    },
-                    { settlementType: "complete", errorMsg: "Error Code: ConstraintTokenOwner" },
                 );
             });
 
@@ -3936,30 +3921,17 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Close Auction Account from Settled Auction None with Beneficiary Token != Fee Recipient Token", async function () {
+            it("Cannot Close Auction Account from Settled Auction None with Beneficiary != Auction's Preparer", async function () {
                 await addAuctionHistoryEntryForTest(
                     {
                         payer: payer.publicKey,
                         history: engine.auctionHistoryAddress(0),
-                        beneficiary: payer.publicKey,
+                        beneficiary: Keypair.generate().publicKey,
                     },
                     {
                         settlementType: "none",
-                        errorMsg: "beneficiary_token. Error Code: ConstraintAddress",
+                        errorMsg: "beneficiary. Error Code: ConstraintAddress",
                     },
-                );
-            });
-
-            it("Cannot Close Auction Account from Settled Auction None with Beneficiary != Fee Recipient", async function () {
-                const { feeRecipientToken } = await engine.fetchCustodian();
-                await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
-                        beneficiary: payer.publicKey,
-                        beneficiaryToken: feeRecipientToken,
-                    },
-                    { settlementType: "none", errorMsg: "Error Code: ConstraintTokenOwner" },
                 );
             });
 
@@ -4161,7 +4133,6 @@ describe("Matching Engine", function () {
                     auction?: PublicKey;
                     history: PublicKey;
                     beneficiary?: PublicKey;
-                    beneficiaryToken?: PublicKey;
                 },
                 opts: ForTestOpts &
                     ObserveCctpOrderVaasOpts &
@@ -4194,8 +4165,8 @@ describe("Matching Engine", function () {
                             return result!.auction;
                         } else if (settlementType == "none") {
                             const result = await settleAuctionNoneCctpForTest(
-                                { payer: payer.publicKey },
-                                { vaaTimestamp },
+                                { payer: playerOne.publicKey },
+                                { vaaTimestamp, signers: [playerOne] },
                             );
                             return result!.auction;
                         } else {
@@ -4209,39 +4180,12 @@ describe("Matching Engine", function () {
                     await waitUntilTimestamp(connection, current + timeToWait);
                 }
 
-                const { beneficiary, beneficiaryToken } = await (async () => {
-                    if (accounts.beneficiary !== undefined) {
-                        return {
-                            beneficiary: accounts.beneficiary,
-                            beneficiaryToken:
-                                accounts.beneficiaryToken ??
-                                splToken.getAssociatedTokenAddressSync(
-                                    USDC_MINT_ADDRESS,
-                                    accounts.beneficiary,
-                                ),
-                        };
-                    } else {
-                        const { info } = await engine.fetchAuction({ address: auction });
-                        const beneficiaryToken = await (async () => {
-                            if (info === null) {
-                                const custodian = await engine.fetchCustodian();
-                                return custodian.feeRecipientToken;
-                            } else {
-                                return info!.initialOfferToken;
-                            }
-                        })();
-                        const { owner } = await splToken.getAccount(connection, beneficiaryToken);
-                        return {
-                            beneficiary: owner,
-                            beneficiaryToken: accounts.beneficiaryToken ?? beneficiaryToken,
-                        };
-                    }
-                })();
-
-                const { vaaHash, vaaTimestamp, info } = await engine.fetchAuction({
+                const { vaaHash, vaaTimestamp, info, preparedBy } = await engine.fetchAuction({
                     address: auction,
                 });
                 expect(info === null).equals(settlementType === "none");
+
+                const beneficiary = accounts.beneficiary ?? preparedBy;
 
                 const ix = await engine.program.methods
                     .addAuctionHistoryEntry()
@@ -4249,7 +4193,6 @@ describe("Matching Engine", function () {
                         ...accounts,
                         auction,
                         beneficiary,
-                        beneficiaryToken,
                         custodian: engine.checkedCustodianComposite(),
                         systemProgram: SystemProgram.programId,
                     })
@@ -4964,11 +4907,12 @@ describe("Matching Engine", function () {
             } else {
                 const result = await prepareOrderResponseCctpForTest(
                     {
-                        payer: payer.publicKey,
+                        payer: accounts.payer,
                     },
                     {
                         ...excludedForTestOpts,
                         placeInitialOffer: false,
+                        signers,
                     },
                 );
                 expect(typeof result == "object" && "preparedOrderResponse" in result).is.true;

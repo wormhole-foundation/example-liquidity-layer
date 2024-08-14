@@ -65,12 +65,9 @@
         {
           "name": "beneficiary",
           "docs": [
-            "was no auction) or the owner of the initial offer token account."
+            "[Auction::prepared_by]."
           ],
           "writable": true
-        },
-        {
-          "name": "beneficiary_token"
         },
         {
           "name": "system_program"

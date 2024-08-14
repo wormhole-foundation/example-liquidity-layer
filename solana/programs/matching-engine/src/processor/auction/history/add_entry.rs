@@ -8,7 +8,6 @@ use crate::{
     },
 };
 use anchor_lang::{prelude::*, system_program};
-use anchor_spl::token;
 
 #[derive(Accounts)]
 pub struct AddAuctionHistoryEntry<'info> {
@@ -62,21 +61,13 @@ pub struct AddAuctionHistoryEntry<'info> {
     )]
     auction: Account<'info, Auction>,
 
-    /// CHECK: This account will either be the owner of the fee recipient token account (if there
-    /// was no auction) or the owner of the initial offer token account.
-    #[account(mut)]
-    beneficiary: UncheckedAccount<'info>,
-
+    /// CHECK: This account is whoever originally created the auction account (see
+    /// [Auction::prepared_by].
     #[account(
-        token::authority = beneficiary,
-        address = {
-            match &auction.info {
-                Some(info) => info.initial_offer_token,
-                None => custodian.fee_recipient_token,
-            }
-        }
+        mut,
+        address = auction.prepared_by,
     )]
-    beneficiary_token: Account<'info, token::TokenAccount>,
+    beneficiary: UncheckedAccount<'info>,
 
     system_program: Program<'info, system_program::System>,
 }
