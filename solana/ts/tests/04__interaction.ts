@@ -779,6 +779,7 @@ describe("Matching Engine <> Token Router", function () {
             payer: PublicKey;
             fastVaa?: PublicKey;
             finalizedVaa?: PublicKey;
+            baseFeeToken?: PublicKey;
         },
         opts: ForTestOpts & ObserveCctpOrderVaasOpts & PrepareOrderResponseForTestOptionalOpts = {},
     ): Promise<void | {
@@ -972,6 +973,10 @@ describe("Matching Engine <> Token Router", function () {
             toChainId(fastMarketOrder!.targetChain),
         );
 
+        const baseFeeToken =
+            accounts.baseFeeToken ??
+            splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, payer.publicKey);
+
         const { baseFee } = deposit!.message.payload! as SlowOrderResponse;
         expect(preparedOrderResponseData).to.eql(
             new matchingEngineSdk.PreparedOrderResponse(
@@ -981,6 +986,7 @@ describe("Matching Engine <> Token Router", function () {
                 },
                 {
                     preparedBy: accounts.payer,
+                    baseFeeToken,
                     fastVaaTimestamp: fastVaaAccount.timestamp(),
                     sourceChain: fastVaaAccount.emitterInfo().chain,
                     baseFee: uint64ToBN(baseFee),

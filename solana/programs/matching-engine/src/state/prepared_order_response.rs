@@ -11,6 +11,7 @@ pub struct PreparedOrderResponseSeeds {
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub struct PreparedOrderResponseInfo {
     pub prepared_by: Pubkey,
+    pub base_fee_token: Pubkey,
 
     pub fast_vaa_timestamp: u32,
     pub source_chain: u16,

@@ -18,8 +18,9 @@ pub struct AuctionSettled {
     pub best_offer_token: Option<SettledTokenAccountInfo>,
 
     /// Depending on whether there was an active auction, this field will have the pubkey of the
-    /// executor token (if there was an auction) or fee recipient token (if there was no auction).
-    pub executor_token: Option<SettledTokenAccountInfo>,
+    /// base fee token account (if there was an auction) or fee recipient token (if there was no
+    /// auction).
+    pub base_fee_token: Option<SettledTokenAccountInfo>,
 
     /// This value will only be some if there was no active auction.
     pub with_execute: Option<MessageProtocol>,

@@ -1376,6 +1376,15 @@ export type MatchingEngine = {
           "writable": true
         },
         {
+          "name": "baseFeeToken",
+          "docs": [
+            "This token account will be the one that collects the base fee only if an auction's order",
+            "was executed late. Otherwise, the protocol's fee recipient token account will be used for",
+            "non-existent auctions and the best offer token account will be used for orders executed on",
+            "time."
+          ]
+        },
+        {
           "name": "usdc",
           "accounts": [
             {
@@ -1840,14 +1849,19 @@ export type MatchingEngine = {
       ],
       "accounts": [
         {
-          "name": "executor",
+          "name": "beneficiary",
           "docs": [
             "finalized VAA."
           ],
           "writable": true
         },
         {
-          "name": "executorToken",
+          "name": "baseFeeToken",
+          "docs": [
+            "This token account will receive the base fee only if there was a penalty when executing the",
+            "order. If it does not exist when there is a penalty, this instruction handler will revert.",
+            ""
+          ],
           "writable": true
         },
         {
@@ -1857,7 +1871,7 @@ export type MatchingEngine = {
             "signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent",
             "to any account he chooses (this one).",
             "",
-            "of the tokens to the executor token account."
+            "of the tokens to the base fee token account."
           ],
           "writable": true
         },
@@ -3039,6 +3053,14 @@ export type MatchingEngine = {
       "name": "auctionAlreadySettled"
     },
     {
+      "code": 7084,
+      "name": "invalidBaseFeeToken"
+    },
+    {
+      "code": 7086,
+      "name": "baseFeeTokenRequired"
+    },
+    {
       "code": 7280,
       "name": "cannotCloseAuctionYet"
     },
@@ -3480,10 +3502,11 @@ export type MatchingEngine = {
             }
           },
           {
-            "name": "executorToken",
+            "name": "baseFeeToken",
             "docs": [
               "Depending on whether there was an active auction, this field will have the pubkey of the",
-              "executor token (if there was an auction) or fee recipient token (if there was no auction)."
+              "base fee token account (if there was an auction) or fee recipient token (if there was no",
+              "auction)."
             ],
             "type": {
               "option": {
@@ -4107,6 +4130,10 @@ export type MatchingEngine = {
         "fields": [
           {
             "name": "preparedBy",
+            "type": "pubkey"
+          },
+          {
+            "name": "baseFeeToken",
             "type": "pubkey"
           },
           {

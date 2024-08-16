@@ -3578,7 +3578,7 @@ describe("Matching Engine", function () {
 
                     await settleAuctionCompleteForTest(
                         {
-                            executor: payer.publicKey,
+                            beneficiary: payer.publicKey,
                             preparedOrderResponse: result!.preparedOrderResponse,
                             auction: engine.auctionAddress(fastVaaAccount.digest()),
                             bestOfferToken: splToken.getAssociatedTokenAddressSync(
@@ -3596,7 +3596,7 @@ describe("Matching Engine", function () {
                 it("Cannot Settle Active Auction", async function () {
                     await settleAuctionCompleteForTest(
                         {
-                            executor: payer.publicKey,
+                            beneficiary: payer.publicKey,
                         },
                         {
                             prepareSigners: [payer],
@@ -3606,10 +3606,23 @@ describe("Matching Engine", function () {
                     );
                 });
 
+                it("Cannot Settle Completed (Beneficiary != Prepared By)", async function () {
+                    await settleAuctionCompleteForTest(
+                        {
+                            beneficiary: playerOne.publicKey,
+                        },
+                        {
+                            executeWithinGracePeriod: false,
+                            executorIsPreparer: false,
+                            errorMsg: "beneficiary. Error Code: ConstraintAddress",
+                        },
+                    );
+                });
+
                 it("Settle Completed without Penalty", async function () {
                     await settleAuctionCompleteForTest(
                         {
-                            executor: playerOne.publicKey,
+                            beneficiary: playerOne.publicKey,
                         },
                         {
                             prepareSigners: [playerOne],
@@ -3621,7 +3634,7 @@ describe("Matching Engine", function () {
                 it("Settle Completed With Order Response Prepared Before Active Auction", async function () {
                     await settleAuctionCompleteForTest(
                         {
-                            executor: playerOne.publicKey,
+                            beneficiary: playerOne.publicKey,
                         },
                         {
                             prepareSigners: [playerOne],
@@ -3631,23 +3644,10 @@ describe("Matching Engine", function () {
                     );
                 });
 
-                it("Cannot Settle Completed with Penalty (Executor != Prepared By)", async function () {
+                it("Settle Completed with Penalty (Base Fee Token == Best Offer Token)", async function () {
                     await settleAuctionCompleteForTest(
                         {
-                            executor: playerOne.publicKey,
-                        },
-                        {
-                            executeWithinGracePeriod: false,
-                            executorIsPreparer: false,
-                            errorMsg: "executor. Error Code: ConstraintAddress",
-                        },
-                    );
-                });
-
-                it("Settle Completed with Penalty (Executor == Best Offer)", async function () {
-                    await settleAuctionCompleteForTest(
-                        {
-                            executor: playerOne.publicKey,
+                            beneficiary: playerOne.publicKey,
                         },
                         {
                             prepareSigners: [playerOne],
@@ -3656,48 +3656,10 @@ describe("Matching Engine", function () {
                     );
                 });
 
-                it("Cannot Settle Completed with Penalty (Executor is not ATA)", async function () {
-                    const executorTokenSigner = Keypair.generate();
-                    const executorToken = executorTokenSigner.publicKey;
-
-                    await expectIxOk(
-                        connection,
-                        [
-                            SystemProgram.createAccount({
-                                fromPubkey: payer.publicKey,
-                                newAccountPubkey: executorToken,
-                                lamports: await connection.getMinimumBalanceForRentExemption(
-                                    splToken.ACCOUNT_SIZE,
-                                ),
-                                space: splToken.ACCOUNT_SIZE,
-                                programId: splToken.TOKEN_PROGRAM_ID,
-                            }),
-                            splToken.createInitializeAccount3Instruction(
-                                executorToken,
-                                engine.mint,
-                                playerTwo.publicKey,
-                            ),
-                        ],
-                        [payer, executorTokenSigner],
-                    );
-
+                it("Settle Completed with Penalty (Base Fee Token != Best Offer Token)", async function () {
                     await settleAuctionCompleteForTest(
                         {
-                            executor: playerTwo.publicKey,
-                            executorToken,
-                        },
-                        {
-                            prepareSigners: [playerTwo],
-                            executeWithinGracePeriod: false,
-                            errorMsg: "Error Code: AccountNotAssociatedTokenAccount",
-                        },
-                    );
-                });
-
-                it("Settle Completed with Penalty (Executor != Best Offer)", async function () {
-                    await settleAuctionCompleteForTest(
-                        {
-                            executor: playerTwo.publicKey,
+                            beneficiary: playerTwo.publicKey,
                         },
                         {
                             prepareSigners: [playerTwo],
@@ -4159,13 +4121,19 @@ describe("Matching Engine", function () {
                         const vaaTimestamp = timestamp - 7200 + timeToWait;
                         if (settlementType == "complete") {
                             const result = await settleAuctionCompleteForTest(
-                                { executor: playerOne.publicKey },
+                                { beneficiary: playerOne.publicKey },
                                 { vaaTimestamp, prepareSigners: [playerOne] },
                             );
                             return result!.auction;
                         } else if (settlementType == "none") {
                             const result = await settleAuctionNoneCctpForTest(
-                                { payer: playerOne.publicKey },
+                                {
+                                    payer: playerOne.publicKey,
+                                    baseFeeToken: splToken.getAssociatedTokenAddressSync(
+                                        USDC_MINT_ADDRESS,
+                                        playerOne.publicKey,
+                                    ),
+                                },
                                 { vaaTimestamp, signers: [playerOne] },
                             );
                             return result!.auction;
@@ -4479,6 +4447,7 @@ describe("Matching Engine", function () {
             payer: PublicKey;
             fastVaa?: PublicKey;
             finalizedVaa?: PublicKey;
+            baseFeeToken?: PublicKey;
         },
         opts: ForTestOpts & ObserveCctpOrderVaasOpts & PrepareOrderResponseForTestOptionalOpts = {},
     ): Promise<void | {
@@ -4601,6 +4570,7 @@ describe("Matching Engine", function () {
                 payer: accounts.payer,
                 fastVaa,
                 finalizedVaa,
+                baseFeeToken: accounts.baseFeeToken,
             },
             args!,
         );
@@ -4666,6 +4636,10 @@ describe("Matching Engine", function () {
             toChainId(fastMarketOrder!.targetChain),
         );
 
+        const baseFeeToken =
+            accounts.baseFeeToken ??
+            splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, payer.publicKey);
+
         const { baseFee } = deposit!.message.payload! as SlowOrderResponse;
         expect(preparedOrderResponseData).to.eql(
             new PreparedOrderResponse(
@@ -4675,6 +4649,7 @@ describe("Matching Engine", function () {
                 },
                 {
                     preparedBy: accounts.payer,
+                    baseFeeToken,
                     fastVaaTimestamp: fastVaaAccount.timestamp(),
                     sourceChain: fastVaaAccount.emitterInfo().chain,
                     baseFee: uint64ToBN(baseFee),
@@ -4711,11 +4686,11 @@ describe("Matching Engine", function () {
 
     async function settleAuctionCompleteForTest(
         accounts: {
-            executor?: PublicKey;
-            executorToken?: PublicKey;
+            beneficiary?: PublicKey;
             preparedOrderResponse?: PublicKey;
             auction?: PublicKey;
             bestOfferToken?: PublicKey;
+            baseFeeToken?: PublicKey;
         },
         opts: ForTestOpts &
             ObserveCctpOrderVaasOpts &
@@ -4743,11 +4718,15 @@ describe("Matching Engine", function () {
                     preparedOrderResponse: accounts.preparedOrderResponse,
                 };
             } else {
+                const preparer = executorIsPreparer
+                    ? accounts.beneficiary ?? playerOne.publicKey
+                    : payer.publicKey;
                 const result = await prepareOrderResponseCctpForTest(
                     {
-                        payer: executorIsPreparer
-                            ? accounts.executor ?? playerOne.publicKey
-                            : payer.publicKey,
+                        payer: preparer,
+                        baseFeeToken:
+                            accounts.baseFeeToken ??
+                            splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, preparer),
                     },
                     {
                         signers: executorIsPreparer ? prepareSigners : [payer],
@@ -4759,11 +4738,11 @@ describe("Matching Engine", function () {
             }
         })();
 
-        const executor = accounts.executor ?? playerOne.publicKey;
+        const beneficiary = accounts.beneficiary ?? playerOne.publicKey;
 
         const ix = await engine.settleAuctionCompleteIx({
             ...accounts,
-            executor,
+            beneficiary,
             preparedOrderResponse,
         });
 
@@ -4777,6 +4756,12 @@ describe("Matching Engine", function () {
             throw new Error("Cannot provide preparedOrderResponse in accounts for successful test");
         }
 
+        const {
+            info: { preparedBy, baseFeeToken },
+        } = await engine.fetchPreparedOrderResponse({
+            address: preparedOrderResponse,
+        });
+
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
 
         const auction = accounts.auction ?? engine.auctionAddress(fastVaaAccount.digest());
@@ -4785,26 +4770,20 @@ describe("Matching Engine", function () {
         });
 
         const { bestOfferToken } = info!;
-        const executorToken = splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, executor);
-        const { owner: bestOfferAuthority, amount: bestOfferTokenBalanceBefore } =
-            await splToken.getAccount(connection, bestOfferToken);
+        const { amount: bestOfferTokenBalanceBefore } = await splToken.getAccount(
+            connection,
+            bestOfferToken,
+        );
 
-        let executorTokenBalanceBefore: bigint | null = null;
-        if ((opts.executeWithinGracePeriod ?? true) || executor.equals(bestOfferAuthority)) {
-            expect(accounts.executor).to.eql(bestOfferAuthority);
-        } else {
-            const {
-                info: { preparedBy },
-            } = await engine.fetchPreparedOrderResponse({
-                address: preparedOrderResponse,
-            });
-            expect(accounts.executor).to.eql(preparedBy);
+        let baseFeeTokenBalanceBefore: bigint | null = null;
+        if (!(opts.executeWithinGracePeriod ?? true) && !baseFeeToken.equals(bestOfferToken)) {
+            expect(beneficiary).to.eql(preparedBy);
 
-            const { amount } = await splToken.getAccount(connection, executorToken);
-            executorTokenBalanceBefore = amount;
+            const { amount } = await splToken.getAccount(connection, baseFeeToken);
+            baseFeeTokenBalanceBefore = amount;
         }
 
-        const authorityLamportsBefore = await connection.getBalance(executor);
+        const beneficiaryLamportsBefore = await connection.getBalance(beneficiary);
 
         const preparedCustodyToken = engine.preparedCustodyTokenAddress(preparedOrderResponse);
         const { amount: preparedCustodyBalanceBefore } = await splToken.getAccount(
@@ -4838,7 +4817,7 @@ describe("Matching Engine", function () {
         const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
         const { baseFee } = deposit!.message.payload! as SlowOrderResponse;
 
-        if (executorTokenBalanceBefore == null) {
+        if (baseFeeTokenBalanceBefore == null) {
             expect(bestOfferTokenBalanceAfter).equals(
                 bestOfferTokenBalanceBefore + preparedCustodyBalanceBefore,
             );
@@ -4847,16 +4826,16 @@ describe("Matching Engine", function () {
                 bestOfferTokenBalanceBefore + preparedCustodyBalanceBefore - baseFee,
             );
 
-            const { amount: executorTokenBalanceAfter } = await splToken.getAccount(
+            const { amount: baseFeeTokenBalanceAfter } = await splToken.getAccount(
                 connection,
-                executorToken,
+                baseFeeToken,
             );
-            expect(executorTokenBalanceAfter).equals(executorTokenBalanceBefore + baseFee);
+            expect(baseFeeTokenBalanceAfter).equals(baseFeeTokenBalanceBefore + baseFee);
         }
 
-        const authorityLamportsAfter = await connection.getBalance(executor);
-        expect(authorityLamportsAfter).equals(
-            authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
+        const beneficiaryLamportsAfter = await connection.getBalance(beneficiary);
+        expect(beneficiaryLamportsAfter).equals(
+            beneficiaryLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
         );
 
         const { status: statusAfter } = await engine.fetchAuction({
@@ -4883,6 +4862,7 @@ describe("Matching Engine", function () {
             fastVaa?: PublicKey;
             preparedOrderResponse?: PublicKey;
             toRouterEndpoint?: PublicKey;
+            baseFeeToken?: PublicKey;
         },
         opts: ForTestOpts &
             ObserveCctpOrderVaasOpts &
@@ -4908,6 +4888,7 @@ describe("Matching Engine", function () {
                 const result = await prepareOrderResponseCctpForTest(
                     {
                         payer: accounts.payer,
+                        baseFeeToken: accounts.baseFeeToken,
                     },
                     {
                         ...excludedForTestOpts,
