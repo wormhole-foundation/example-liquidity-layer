@@ -84,7 +84,7 @@ fn settle_none_and_prepare_fill(accounts: SettleNoneAndPrepareFill<'_, '_>) -> R
     emit!(crate::events::AuctionSettled {
         auction: auction.key(),
         best_offer_token: Default::default(),
-        executor_token: crate::events::SettledTokenAccountInfo {
+        base_fee_token: crate::events::SettledTokenAccountInfo {
             key: fee_recipient_token.key(),
             balance_after: fee_recipient_token.amount.saturating_add(fee)
         }

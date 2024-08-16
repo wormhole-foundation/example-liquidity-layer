@@ -97,6 +97,23 @@ pub struct PrepareOrderResponseCctp<'info> {
     )]
     prepared_custody_token: Box<Account<'info, token::TokenAccount>>,
 
+    /// This token account will be the one that collects the base fee only if an auction's order
+    /// was executed late. Otherwise, the protocol's fee recipient token account will be used for
+    /// non-existent auctions and the best offer token account will be used for orders executed on
+    /// time.
+    #[account(
+        token::mint = usdc,
+        constraint = {
+            require!(
+                base_fee_token.key() != prepared_custody_token.key(),
+                MatchingEngineError::InvalidBaseFeeToken
+            );
+
+            true
+        }
+    )]
+    base_fee_token: Box<Account<'info, token::TokenAccount>>,
+
     usdc: Usdc<'info>,
 
     cctp: CctpReceiveMessage<'info>,
@@ -216,6 +233,7 @@ fn handle_prepare_order_response_cctp(
             },
             info: PreparedOrderResponseInfo {
                 prepared_by: ctx.accounts.payer.key(),
+                base_fee_token: ctx.accounts.base_fee_token.key(),
                 source_chain: finalized_vaa.emitter_chain(),
                 base_fee: order_response.base_fee(),
                 fast_vaa_timestamp: fast_vaa.timestamp(),

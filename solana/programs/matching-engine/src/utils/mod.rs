@@ -45,7 +45,7 @@ pub fn require_local_endpoint(endpoint: &RouterEndpoint) -> Result<bool> {
 pub fn checked_deserialize_token_account(
     acc_info: &AccountInfo,
     expected_mint: &Pubkey,
-) -> Option<token::TokenAccount> {
+) -> Option<Box<token::TokenAccount>> {
     if acc_info.owner != &token::ID {
         None
     } else {
@@ -54,5 +54,6 @@ pub fn checked_deserialize_token_account(
         token::TokenAccount::try_deserialize(&mut &data[..])
             .ok()
             .filter(|token_data| &token_data.mint == expected_mint && !token_data.is_frozen())
+            .map(Box::new)
     }
 }

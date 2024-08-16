@@ -147,7 +147,7 @@ export type SettledTokenAccountInfo = {
 export type AuctionSettled = {
     auction: PublicKey;
     bestOfferToken: SettledTokenAccountInfo | null;
-    executorToken: SettledTokenAccountInfo | null;
+    baseFeeToken: SettledTokenAccountInfo | null;
     withExecute: MessageProtocol | null;
 };
 
@@ -1472,10 +1472,14 @@ export class MatchingEngineProgram {
             payer: PublicKey;
             fastVaa: PublicKey;
             finalizedVaa: PublicKey;
+            baseFeeToken?: PublicKey;
         },
         args: CctpMessageArgs,
     ): Promise<TransactionInstruction> {
         const { payer, fastVaa, finalizedVaa } = accounts;
+
+        let { baseFeeToken } = accounts;
+        baseFeeToken ??= await splToken.getAssociatedTokenAddress(this.mint, payer);
 
         const fastVaaAcct = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
         const fromEndpoint = this.routerEndpointAddress(fastVaaAcct.emitterInfo().chain);
@@ -1516,6 +1520,7 @@ export class MatchingEngineProgram {
                 finalizedVaa: this.liquidityLayerVaaComposite(finalizedVaa),
                 preparedOrderResponse,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
+                baseFeeToken,
                 usdc: this.usdcComposite(),
                 cctp: {
                     mintRecipient: this.cctpMintRecipientComposite(),
@@ -1555,7 +1560,7 @@ export class MatchingEngineProgram {
         let { executor, fastVaa, finalizedVaa, auction, bestOfferToken } = accounts;
 
         const prepareOrderResponseIx = await this.prepareOrderResponseCctpIx(
-            { payer: executor, fastVaa, finalizedVaa },
+            { payer: executor, fastVaa, finalizedVaa, baseFeeToken: bestOfferToken },
             args,
         );
         const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
@@ -1574,10 +1579,11 @@ export class MatchingEngineProgram {
         }
 
         const settleAuctionCompletedIx = await this.settleAuctionCompleteIx({
-            executor,
+            beneficiary: executor,
             auction,
             preparedOrderResponse,
             bestOfferToken,
+            baseFeeToken: bestOfferToken,
         });
 
         const preparedTx: PreparedTransaction = {
@@ -1595,23 +1601,24 @@ export class MatchingEngineProgram {
     }
 
     async settleAuctionCompleteIx(accounts: {
-        executor: PublicKey;
         preparedOrderResponse: PublicKey;
         auction?: PublicKey;
+        beneficiary?: PublicKey;
+        baseFeeToken?: PublicKey;
         bestOfferToken?: PublicKey;
-        executorToken?: PublicKey;
     }) {
-        const { executor, preparedOrderResponse } = accounts;
+        const { preparedOrderResponse } = accounts;
 
-        let { auction, bestOfferToken, executorToken } = accounts;
-        executorToken ??= splToken.getAssociatedTokenAddressSync(this.mint, executor);
+        let { auction, beneficiary, baseFeeToken, bestOfferToken } = accounts;
 
-        if (auction === undefined) {
-            const { seeds } = await this.fetchPreparedOrderResponse({
+        if (auction === undefined || beneficiary === undefined || baseFeeToken === undefined) {
+            const { seeds, info } = await this.fetchPreparedOrderResponse({
                 address: preparedOrderResponse,
             });
 
-            auction = this.auctionAddress(seeds.fastVaaHash);
+            auction ??= this.auctionAddress(seeds.fastVaaHash);
+            beneficiary ??= info.preparedBy;
+            baseFeeToken ??= info.baseFeeToken;
         }
 
         if (bestOfferToken === undefined) {
@@ -1626,8 +1633,8 @@ export class MatchingEngineProgram {
         return this.program.methods
             .settleAuctionComplete()
             .accounts({
-                executor,
-                executorToken,
+                beneficiary,
+                baseFeeToken,
                 preparedOrderResponse,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
                 auction,
@@ -1650,8 +1657,10 @@ export class MatchingEngineProgram {
         confirmOptions?: ConfirmOptions,
     ): Promise<PreparedTransaction> {
         const { executor, fastVaa, finalizedVaa, auction } = accounts;
+
+        const { feeRecipientToken } = await this.fetchCustodian();
         const prepareOrderResponseIx = await this.prepareOrderResponseCctpIx(
-            { payer: executor, fastVaa, finalizedVaa },
+            { payer: executor, fastVaa, finalizedVaa, baseFeeToken: feeRecipientToken },
             args,
         );
         const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
