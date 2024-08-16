@@ -567,6 +567,20 @@ pub struct ReserveFastFillSequence<'info> {
     #[account(mut)]
     pub payer: Signer<'info>,
 
+    #[account(
+        constraint = {
+            // Destination endpoint must be for Solana.
+            require!(
+                matches!(
+                    fast_order_path.to_endpoint.protocol,
+                    MessageProtocol::Local { .. }
+                ),
+                MatchingEngineError::InvalidTargetRouter
+            );
+
+            true
+        },
+    )]
     pub fast_order_path: FastOrderPath<'info>,
 
     /// This sequencer determines the next reserved sequence. If it does not exist for a given
