@@ -115,36 +115,35 @@ fn handle_settle_auction_complete(
         amount: u64,
     }
 
-    let (executor_result, best_offer_result) = match execute_penalty {
+    let (base_fee_result, best_offer_result) = match execute_penalty {
+        // When there is no penalty, we will give everything to the best offer token account.
         None => {
             // If the token account happens to not exist anymore, we will revert.
-            let best_offer =
+            let best_offer_token_data =
                 utils::checked_deserialize_token_account(best_offer_token, &common::USDC_MINT)
                     .ok_or_else(|| MatchingEngineError::BestOfferTokenRequired)?;
 
             (
-                None, // executor_result
+                None, // base_fee_result
                 TokenAccountResult {
-                    balance_before: best_offer.amount,
+                    balance_before: best_offer_token_data.amount,
                     amount: repayment,
                 }
                 .into(),
             )
         }
+        // Otherwise, determine how the repayment should be divvied up.
         _ => {
-            let base_fee_token_data =
-                utils::checked_deserialize_token_account(base_fee_token, &common::USDC_MINT)
-                    .ok_or_else(|| MatchingEngineError::BaseFeeTokenRequired)?;
-
-            // If the token account happens to not exist anymore, we will give everything to the
-            // base fee token account.
-            match utils::checked_deserialize_token_account(best_offer_token, &common::USDC_MINT) {
-                Some(best_offer) => {
+            match (
+                utils::checked_deserialize_token_account(base_fee_token, &common::USDC_MINT),
+                utils::checked_deserialize_token_account(best_offer_token, &common::USDC_MINT),
+            ) {
+                (Some(base_fee_token_data), Some(best_offer_token_data)) => {
                     if base_fee_token.key() == best_offer_token.key() {
                         (
-                            None, // executor_result
+                            None, // base_fee_result
                             TokenAccountResult {
-                                balance_before: best_offer.amount,
+                                balance_before: best_offer_token_data.amount,
                                 amount: repayment,
                             }
                             .into(),
@@ -157,14 +156,16 @@ fn handle_settle_auction_complete(
                             }
                             .into(),
                             TokenAccountResult {
-                                balance_before: best_offer.amount,
+                                balance_before: best_offer_token_data.amount,
                                 amount: repayment.saturating_sub(base_fee),
                             }
                             .into(),
                         )
                     }
                 }
-                None => (
+                // If the best offer token account does not exist, we will give everything to the
+                // base fee token account.
+                (Some(base_fee_token_data), None) => (
                     TokenAccountResult {
                         balance_before: base_fee_token_data.amount,
                         amount: repayment,
@@ -172,12 +173,26 @@ fn handle_settle_auction_complete(
                     .into(),
                     None, // best_offer_result
                 ),
+                // If the base fee token account does not exist, we will give everything to the best
+                // offer token account.
+                (None, Some(best_offer_data)) => {
+                    (
+                        None, // base_fee_result
+                        TokenAccountResult {
+                            balance_before: best_offer_data.amount,
+                            amount: repayment,
+                        }
+                        .into(),
+                    )
+                }
+                // Otherwise revert.
+                _ => return err!(MatchingEngineError::BestOfferTokenRequired),
             }
         }
     };
 
     // Transfer base fee token his bounty if there are any.
-    let settled_executor_result = match executor_result {
+    let settled_base_fee_result = match base_fee_result {
         Some(TokenAccountResult {
             balance_before,
             amount,
@@ -235,7 +250,7 @@ fn handle_settle_auction_complete(
     emit!(crate::events::AuctionSettled {
         auction: ctx.accounts.auction.key(),
         best_offer_token: settled_best_offer_result,
-        base_fee_token: settled_executor_result,
+        base_fee_token: settled_base_fee_result,
         with_execute: Default::default(),
     });
 
