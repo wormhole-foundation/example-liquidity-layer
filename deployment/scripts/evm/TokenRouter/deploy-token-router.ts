@@ -3,16 +3,11 @@ import { evm, getChainInfo, LoggerFn, writeDeployedContract } from "../../../hel
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { deployImplementation, getMatchingEngineMintRecipientAddress, getTokenRouterConfiguration } from "./utils";
 import { ERC1967Proxy__factory } from "../../../contract-bindings";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
-import { Connection } from "@solana/web3.js";
-import { toChainId } from "@wormhole-foundation/sdk-base";
 
 evm.runOnEvms("deploy-token-router", async (chain, signer, log) => {
   const config = await getTokenRouterConfiguration(chain);
-  const solanaChainInfo = getChainInfo(toChainId("Solana"));
-  const solanaConnection = new Connection(solanaChainInfo.rpc, solanaChainInfo.commitmentLevel || "confirmed");
 
-  const matchingEngineMintRecipient = toUniversal("Solana", getMatchingEngineMintRecipientAddress(solanaConnection));
+  const matchingEngineMintRecipient = getMatchingEngineMintRecipientAddress();
   const implementation = await deployImplementation(chain, signer, config, matchingEngineMintRecipient, log);
   await deployProxy(signer, config, implementation, log);
 });

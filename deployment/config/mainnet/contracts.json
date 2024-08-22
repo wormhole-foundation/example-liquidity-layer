@@ -2,6 +2,12 @@
   "MatchingEngineProxy": [
     { "chainId": 1, "address": "HtkeCDdYY4i9ncAxXKjYTx8Uu3WM8JbtiLRYjtHwaVXb" }
   ],
+  "CustodianMatchingEngine": [
+    { "chainId": 1, "address": "8sLeDrpnUfSv69KXzKMKMVTpxP7D8iPue5QrHJgyu5XP" }
+  ],
+  "MatchingEngineMintRecipient": [
+    { "chainId": 1, "address": "BvKLsJ3s3T6jki9XmvvZN33VRtzrKMykyqBwm9q8xTWp" }
+  ],
   "TokenRouterProxy": [
     { "chainId": 1, "address": "28topqjtJzMnPaGFmmZk68tzGmj9W9aMntaEK3QkgtRe" },
     {

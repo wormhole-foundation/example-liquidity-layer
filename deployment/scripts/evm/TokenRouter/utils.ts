@@ -27,16 +27,20 @@ export const matchingEngineChain = 1;
  */
 export const matchingEngineDomain = 5;
 
-export function getMatchingEngineMintRecipientAddress(connection: Connection) {
-  const matchingEngine = getMatchingEngineProgram(connection);
-  return matchingEngine.cctpMintRecipientAddress().toBytes();
+
+// TODO: move matching engine configurations from contracts.json to a separate file
+export function getMatchingEngineMintRecipientAddress(): string {
+  return toUniversal("Solana", (getContractAddress(
+    "MatchingEngineMintRecipient", // i.e. Custodian feeRecipientToken
+    matchingEngineChain
+  ))).toString();
 };
 
 export function getTokenRouterConfiguration(chain: ChainInfo): Promise<TokenRouterConfiguration> {
   return getChainConfig<TokenRouterConfiguration>("token-router", chain.chainId);
 }
 
-export async function deployImplementation(chain: ChainInfo, signer: ethers.Signer, config: TokenRouterConfiguration, matchingEngineMintRecipient: UniversalAddress, log: LoggerFn) {
+export async function deployImplementation(chain: ChainInfo, signer: ethers.Signer, config: TokenRouterConfiguration, matchingEngineMintRecipient: string, log: LoggerFn) {
   if (config.chainId !== chain.chainId) {
     throw new Error(`Chain ID mismatch: ${config.chainId} !== ${chain.chainId}`);
   }
@@ -46,8 +50,9 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
   const wormhole = getDependencyAddress("wormhole", chain);
   const tokenMessenger = getDependencyAddress("tokenMessenger", chain);
   
+  // this should be of the program's emitter address (custodian)
   const matchingEngineAddress = toUniversal("Solana", (getContractAddress(
-    "MatchingEngineProxy",
+    "CustodianMatchingEngine",
     matchingEngineChain
   ))).toString();
 
@@ -57,7 +62,7 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
     tokenMessenger,
     matchingEngineChain,
     matchingEngineAddress,
-    matchingEngineMintRecipient.toString(),
+    matchingEngineMintRecipient,
     matchingEngineDomain,
   ] as const;
   const overrides = {};
@@ -70,7 +75,6 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
   await deployment.deployed();
 
   log(`TokenRouter deployed at ${deployment.address}`);
-
 
   writeDeployedContract(config.chainId, "TokenRouterImplementation", deployment.address, constructorArgs);
 
