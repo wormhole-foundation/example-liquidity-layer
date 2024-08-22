@@ -6,7 +6,7 @@ import * as tokenRouterSdk from "../src/tokenRouter";
 
 const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
 
-const CHAINS: Chain[] = [
+export const CHAINS: Chain[] = [
     "Sepolia",
     "Avalanche",
     "OptimismSepolia",
