@@ -9,12 +9,12 @@ evm.runOnEvms("cross-registration-token-router", async (chain, _, log) => {
   const tokenRouterAddress = getContractAddress("TokenRouterProxy", chain.chainId);
   const tokenRouter = (await getContractInstance("TokenRouter", tokenRouterAddress, chain)) as TokenRouter;
   const deployedTokenRouters = contracts['TokenRouterProxy'].filter((router) => router.chainId !== chain.chainId);
-  
   for (const router of deployedTokenRouters) {
+    log("Processing router for target: ", router.chainId);
     const circleDomain = circle.toCircleChainId(chain.network, toChain(router.chainId));
     const routerChain = toChain(router.chainId);
     const routerAddress = toUniversal(routerChain, router.address).toString();
-    const mintRecipient = getMintRecipient(chain.chainId, routerAddress);
+    const mintRecipient = getMintRecipient();
     const endpoint = {
       router: routerAddress,
       mintRecipient
@@ -38,12 +38,7 @@ evm.runOnEvms("cross-registration-token-router", async (chain, _, log) => {
 });
 
 
-function getMintRecipient(chainId: ChainId, routerAddress: string): string {
-  const platform = chainToPlatform(toChain(chainId));
-  
-  if (platform === "Evm")
-    return routerAddress;
-
+function getMintRecipient(): string {
   const chain = "Solana";
   const chainInfo = getChainInfo(toChainId(chain));
   const connection = new Connection(chainInfo.rpc, chainInfo.commitmentLevel || "confirmed");
