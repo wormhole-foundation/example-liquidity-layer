@@ -49,5 +49,5 @@ function getMintRecipient(chainId: ChainId, routerAddress: string): string {
   const connection = new Connection(chainInfo.rpc, chainInfo.commitmentLevel || "confirmed");
   const tokenRouter = getTokenRouterProgram(connection);
 
-  return toUniversal(chain, tokenRouter.custodianAddress().toBytes()).toString();
+  return toUniversal(chain, tokenRouter.cctpMintRecipientAddress().toBytes()).toString();
 }
