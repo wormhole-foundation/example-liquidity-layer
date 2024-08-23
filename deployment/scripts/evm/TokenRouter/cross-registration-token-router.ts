@@ -14,7 +14,7 @@ evm.runOnEvms("cross-registration-token-router", async (chain, _, log) => {
     const circleDomain = circle.toCircleChainId(chain.network, toChain(router.chainId));
     const routerChain = toChain(router.chainId);
     const routerAddress = toUniversal(routerChain, router.address).toString();
-    const mintRecipient = getMintRecipient(chain.chainId, routerAddress);
+    const mintRecipient = getMintRecipient(router.chainId as ChainId, routerAddress);
     const endpoint = {
       router: routerAddress,
       mintRecipient
