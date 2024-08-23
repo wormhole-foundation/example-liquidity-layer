@@ -25,15 +25,17 @@ evm.runOnEvms("cross-registration-token-router", async (chain, _, log) => {
 
     if (Number(router.address) === 0)
       throw new Error(`Invalid router address for chainId ${router.chainId}`);
-
+    
     const currentMintRecipient = await tokenRouter.getMintRecipient(router.chainId);
+
     if (Number(currentMintRecipient) !== 0) {
-      log(`Router endpoint already registered for chainId ${router.chainId}`);
+      log(`Router endpoint already registered for chainId ${router.chainId}. Updating...`);
+      await tokenRouter.updateRouterEndpoint(router.chainId, endpoint, circleDomain);
       continue;
     }
 
+    log(`Adding router endpoint for chainId ${router.chainId}. Endpoint: ${JSON.stringify(endpoint)}`);
     await tokenRouter.addRouterEndpoint(router.chainId, endpoint, circleDomain);
-    log(`Router endpoint added for chainId ${router.chainId}`);
   }
 });
 
