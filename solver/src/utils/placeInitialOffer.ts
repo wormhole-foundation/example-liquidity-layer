@@ -24,8 +24,8 @@ function getPlaceInitialOfferAccounts(
     const vaa = deserialize("Uint8Array", fastVaaBytes);
     const doubleHash = keccak256(vaa.hash);
     const fastVaaAccount = coreUtils.derivePostedVaaKey(
-        vaa.hash,
-        matchingEngine.coreBridgeProgramId().toBuffer(),
+        matchingEngine.coreBridgeProgramId(),
+        Buffer.from(vaa.hash),
     );
     const auction = matchingEngine.auctionAddress(doubleHash);
     const fromRouterEndpoint = matchingEngine.routerEndpointAddress(fromChain as ChainId);
