@@ -15,26 +15,15 @@ import * as matchingEngineSdk from "../matchingEngine";
 import * as tokenRouterSdk from "../tokenRouter";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { UpgradeReceipt } from "./state";
-
-export const PROGRAM_IDS = [
-    "UpgradeManager11111111111111111111111111111",
-    "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
-] as const;
-
-export type ProgramId = (typeof PROGRAM_IDS)[number];
+import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
 
 export class UpgradeManagerProgram {
-    private _programId: ProgramId;
-
     program: Program<UpgradeManager>;
 
-    constructor(connection: Connection, programId: ProgramId) {
-        this._programId = programId;
+    constructor(connection: Connection, private _addresses: TokenRouter.Addresses) {
         this.program = new Program(
-            { ...(IDL as any), address: this._programId },
-            {
-                connection,
-            },
+            { ...(IDL as any), address: this._addresses.upgradeManager },
+            { connection },
         );
     }
 
@@ -192,54 +181,16 @@ export class UpgradeManagerProgram {
     }
 
     matchingEngineProgram(): matchingEngineSdk.MatchingEngineProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new matchingEngineSdk.MatchingEngineProgram(
-                    this.program.provider.connection,
-                    matchingEngineSdk.testnet(),
-                    PublicKey.default,
-                );
-            }
-            case localnet(): {
-                return new matchingEngineSdk.MatchingEngineProgram(
-                    this.program.provider.connection,
-                    matchingEngineSdk.localnet(),
-                    PublicKey.default,
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new matchingEngineSdk.MatchingEngineProgram(
+            this.program.provider.connection,
+            this._addresses,
+        );
     }
 
     tokenRouterProgram(): tokenRouterSdk.TokenRouterProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new tokenRouterSdk.TokenRouterProgram(
-                    this.program.provider.connection,
-                    tokenRouterSdk.testnet(),
-                    PublicKey.default,
-                );
-            }
-            case localnet(): {
-                return new tokenRouterSdk.TokenRouterProgram(
-                    this.program.provider.connection,
-                    tokenRouterSdk.localnet(),
-                    PublicKey.default,
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new tokenRouterSdk.TokenRouterProgram(
+            this.program.provider.connection,
+            this._addresses,
+        );
     }
-}
-
-export function testnet(): ProgramId {
-    return "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt";
-}
-
-export function localnet(): ProgramId {
-    return "UpgradeManager11111111111111111111111111111";
 }

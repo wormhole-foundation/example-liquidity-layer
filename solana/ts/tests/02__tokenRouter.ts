@@ -1,3 +1,4 @@
+// @ts-ignore
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -8,28 +9,34 @@ import {
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
-import { ChainId, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
+import { CircleBridge, VAA, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
 import { CctpTokenBurnMessage } from "../src/cctp";
 import { LiquidityLayerDeposit, LiquidityLayerMessage, uint64ToBN } from "../src/common";
+import { SolanaTokenRouter } from "../src/protocol";
 import {
     CircleAttester,
+    DEFAULT_ADDRESSES,
     ETHEREUM_USDC_ADDRESS,
     LOCALHOST,
-    MOCK_GUARDIANS,
     OWNER_ASSISTANT_KEYPAIR,
     OWNER_KEYPAIR,
     PAYER_KEYPAIR,
     REGISTERED_TOKEN_ROUTERS,
     USDC_MINT_ADDRESS,
+    createLiquidityLayerVaa,
     expectIxErr,
     expectIxOk,
-    postLiquidityLayerVaa,
+    expectTxsErr,
+    expectTxsOk,
+    getSdkSigner,
+    postAndFetchVaa,
     toUniversalAddress,
 } from "../src/testing";
-import { Custodian, PreparedOrder, TokenRouterProgram, localnet } from "../src/tokenRouter";
+import { Custodian, PreparedOrder, TokenRouterProgram } from "../src/tokenRouter";
 
 const SOLANA_CHAIN_ID = toChainId("Solana");
 
@@ -37,15 +44,24 @@ describe("Token Router", function () {
     const connection = new Connection(LOCALHOST, "processed");
     // payer is also the recipient in all tests
     const payer = PAYER_KEYPAIR;
+    const { signer: payerSigner } = getSdkSigner(connection, payer);
+
     const relayer = Keypair.generate();
     const owner = OWNER_KEYPAIR;
+    const { signer: ownerSigner } = getSdkSigner(connection, owner);
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
+    const { signer: ownerAssistantSigner } = getSdkSigner(connection, ownerAssistant);
 
     const foreignChain = toChainId("Ethereum");
     const invalidChain = (foreignChain + 1) as ChainId;
     const foreignEndpointAddress = REGISTERED_TOKEN_ROUTERS["Ethereum"]!;
     const foreignCctpDomain = 0;
-    const tokenRouter = new TokenRouterProgram(connection, localnet(), USDC_MINT_ADDRESS);
+    const tokenRouter = new SolanaTokenRouter(
+        "Devnet",
+        "Solana",
+        connection,
+        DEFAULT_ADDRESSES["Devnet"]!,
+    );
 
     let lookupTableAddress: PublicKey;
 
@@ -53,36 +69,18 @@ describe("Token Router", function () {
         describe("Initialize", function () {
             it("Cannot Initialize without USDC Mint", async function () {
                 const mint = await splToken.createMint(connection, payer, payer.publicKey, null, 6);
-
-                const ix = await tokenRouter.initializeIx({
-                    owner: payer.publicKey,
-                    ownerAssistant: ownerAssistant.publicKey,
-                    mint,
-                });
-                const unknownAta = splToken.getAssociatedTokenAddressSync(
-                    mint,
-                    tokenRouter.custodianAddress(),
-                    true,
-                );
-                await expectIxErr(connection, [ix], [payer], `mint. Error Code: ConstraintAddress`);
+                const txs = tokenRouter.initialize(payer.publicKey, ownerAssistant.publicKey, mint);
+                await expectTxsErr(payerSigner, txs, `mint. Error Code: ConstraintAddress`);
             });
 
             it("Cannot Initialize with Default Owner Assistant", async function () {
-                const ix = await tokenRouter.initializeIx({
-                    owner: payer.publicKey,
-                    ownerAssistant: PublicKey.default,
-                });
-
-                await expectIxErr(connection, [ix], [payer], "Error Code: AssistantZeroPubkey");
+                const txs = tokenRouter.initialize(payer.publicKey, PublicKey.default);
+                await expectTxsErr(payerSigner, txs, "Error Code: AssistantZeroPubkey");
             });
 
             it("Initialize", async function () {
-                const ix = await tokenRouter.initializeIx({
-                    owner: payer.publicKey,
-                    ownerAssistant: ownerAssistant.publicKey,
-                });
-
-                await expectIxOk(connection, [ix], [payer]);
+                const txs = tokenRouter.initialize(payer.publicKey, ownerAssistant.publicKey);
+                await expectTxsOk(payerSigner, txs);
 
                 const custodianData = await tokenRouter.fetchCustodian();
                 expect(custodianData).to.eql(
@@ -103,15 +101,11 @@ describe("Token Router", function () {
             });
 
             it("Cannot Initialize Again", async function () {
-                const ix = await tokenRouter.initializeIx({
-                    owner: payer.publicKey,
-                    ownerAssistant: ownerAssistant.publicKey,
-                });
+                const txs = tokenRouter.initialize(payer.publicKey, ownerAssistant.publicKey);
 
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
+                await expectTxsErr(
+                    payerSigner,
+                    txs,
                     `Allocate: account Address { address: ${tokenRouter
                         .custodianAddress()
                         .toString()}, base: None } already in use`,
@@ -385,127 +379,47 @@ describe("Token Router", function () {
             const localVariables = new Map<string, any>();
 
             it("Cannot Prepare Market Order with Large Redeemer Payload", async function () {
-                const preparedOrder = Keypair.generate();
-
-                const amountIn = 5000n;
-                const minAmountOut = 0n;
-                const targetChain = foreignChain;
-                const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
-                const redeemerMessage = Buffer.alloc(501, "deadbeef", "hex");
-                const [approveIx, prepareIx] = await tokenRouter.prepareMarketOrderIx(
-                    {
-                        payer: payer.publicKey,
-                        preparedOrder: preparedOrder.publicKey,
-                        senderToken: payerToken,
-                    },
-                    {
-                        amountIn,
-                        minAmountOut,
-                        targetChain,
-                        redeemer,
-                        redeemerMessage,
-                    },
-                );
-
-                await expectIxErr(
-                    connection,
-                    [approveIx!, prepareIx],
-                    [payer, preparedOrder],
-                    "Error Code: RedeemerMessageTooLarge",
-                );
+                const txs = tokenRouter.prepareMarketOrder(payer.publicKey, {
+                    amountIn: 5000n,
+                    minAmountOut: 0n,
+                    redeemer: toUniversalAddress(Buffer.alloc(32, "deadbeef", "hex")),
+                    targetChain: toChain(foreignChain),
+                    redeemerMessage: Buffer.alloc(501, "deadbeef", "hex"),
+                });
+                await expectTxsErr(payerSigner, txs, "Error Code: RedeemerMessageTooLarge");
             });
 
             it("Cannot Prepare Market Order with Insufficient Amount", async function () {
-                const preparedOrder = Keypair.generate();
-
-                const amountIn = 0n;
-                const minAmountOut = 0n;
-                const targetChain = foreignChain;
-                const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
-                const redeemerMessage = Buffer.from("All your base are belong to us");
-                const [approveIx, prepareIx] = await tokenRouter.prepareMarketOrderIx(
-                    {
-                        payer: payer.publicKey,
-                        preparedOrder: preparedOrder.publicKey,
-                        senderToken: payerToken,
-                    },
-                    {
-                        amountIn,
-                        minAmountOut,
-                        targetChain,
-                        redeemer,
-                        redeemerMessage,
-                    },
-                );
-
-                await expectIxErr(
-                    connection,
-                    [approveIx!, prepareIx],
-                    [payer, preparedOrder],
-                    "Error Code: InsufficientAmount",
-                );
+                const txs = tokenRouter.prepareMarketOrder(payer.publicKey, {
+                    amountIn: 0n,
+                    targetChain: toChain(foreignChain),
+                    redeemer: toUniversalAddress(Buffer.alloc(32, "deadbeef", "hex")),
+                    minAmountOut: 0n,
+                    redeemerMessage: Buffer.from("All your base are belong to us"),
+                });
+                await expectTxsErr(payerSigner, txs, "Error Code: InsufficientAmount");
             });
 
             it("Cannot Prepare Market Order with Invalid Redeemer", async function () {
-                const preparedOrder = Keypair.generate();
-
-                const amountIn = 69n;
-                const minAmountOut = 0n;
-                const targetChain = foreignChain;
-                const redeemer = Array.from(Buffer.alloc(32, 0, "hex"));
-                const redeemerMessage = Buffer.from("All your base are belong to us");
-                const [approveIx, prepareIx] = await tokenRouter.prepareMarketOrderIx(
-                    {
-                        payer: payer.publicKey,
-                        preparedOrder: preparedOrder.publicKey,
-                        senderToken: payerToken,
-                    },
-                    {
-                        amountIn,
-                        minAmountOut,
-                        targetChain,
-                        redeemer,
-                        redeemerMessage,
-                    },
-                );
-
-                await expectIxErr(
-                    connection,
-                    [approveIx!, prepareIx],
-                    [payer, preparedOrder],
-                    "Error Code: InvalidRedeemer",
-                );
+                const txs = tokenRouter.prepareMarketOrder(payer.publicKey, {
+                    amountIn: 69n,
+                    targetChain: toChain(foreignChain),
+                    redeemer: toUniversalAddress(Buffer.alloc(32, 0, "hex")),
+                    minAmountOut: 0n,
+                    redeemerMessage: Buffer.from("All your base are belong to us"),
+                });
+                await expectTxsErr(payerSigner, txs, "Error Code: InvalidRedeemer");
             });
 
             it("Cannot Prepare Market Order with Min Amount Too High", async function () {
-                const preparedOrder = Keypair.generate();
-
-                const amountIn = 1n;
-                const minAmountOut = 2n;
-                const targetChain = foreignChain;
-                const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
-                const redeemerMessage = Buffer.from("All your base are belong to us");
-                const [approveIx, prepareIx] = await tokenRouter.prepareMarketOrderIx(
-                    {
-                        payer: payer.publicKey,
-                        preparedOrder: preparedOrder.publicKey,
-                        senderToken: payerToken,
-                    },
-                    {
-                        amountIn,
-                        minAmountOut,
-                        targetChain,
-                        redeemer,
-                        redeemerMessage,
-                    },
-                );
-
-                await expectIxErr(
-                    connection,
-                    [approveIx!, prepareIx],
-                    [payer, preparedOrder],
-                    "Error Code: MinAmountOutTooHigh",
-                );
+                const txs = tokenRouter.prepareMarketOrder(payer.publicKey, {
+                    amountIn: 1n,
+                    minAmountOut: 2n,
+                    targetChain: toChain(foreignChain),
+                    redeemer: toUniversalAddress(Buffer.alloc(32, "deadbeef", "hex")),
+                    redeemerMessage: Buffer.from("All your base are belong to us"),
+                });
+                await expectTxsErr(payerSigner, txs, "Error Code: MinAmountOutTooHigh");
             });
 
             it("Cannot Prepare Market Order without Delegating Authority to Program Transfer Authority", async function () {
@@ -641,34 +555,26 @@ describe("Token Router", function () {
             });
 
             it("Prepare Market Order with Program Transfer Authority Specifying Some Min Amount Out", async function () {
+                // TODO:: Did i remove some actual test here? for the _program transfer authority_ test?
                 const preparedOrder = Keypair.generate();
 
-                const amountIn = 69n;
-                const minAmountOut = 0n;
                 const targetChain = foreignChain;
-                const redeemer = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
-                const redeemerMessage = Buffer.from("All your base are belong to us");
-                const [approveIx, prepareIx] = await tokenRouter.prepareMarketOrderIx(
-                    {
-                        payer: payer.publicKey,
-                        preparedOrder: preparedOrder.publicKey,
-                        senderToken: payerToken,
-                    },
-                    {
-                        amountIn,
-                        minAmountOut,
-                        targetChain,
-                        redeemer,
-                        redeemerMessage,
-                    },
-                );
+
+                const request: TokenRouter.OrderRequest = {
+                    amountIn: 69n,
+                    targetChain: toChain(targetChain),
+                    redeemer: toUniversalAddress(Buffer.alloc(32, "deadbeef", "hex")),
+                    redeemerMessage: Buffer.from("All your base are belong to us"),
+                    minAmountOut: 0n,
+                };
+                const txs = tokenRouter.prepareMarketOrder(payer.publicKey, request, preparedOrder);
 
                 const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
 
-                await expectIxOk(connection, [approveIx!, prepareIx], [payer, preparedOrder]);
+                await expectTxsOk(payerSigner, txs);
 
                 const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
-                expect(balanceAfter).equals(balanceBefore - amountIn);
+                expect(balanceAfter).equals(balanceBefore - request.amountIn);
 
                 const preparedOrderData = await tokenRouter.fetchPreparedOrder(
                     preparedOrder.publicKey,
@@ -683,16 +589,16 @@ describe("Token Router", function () {
                             preparedBy: payer.publicKey,
                             orderType: {
                                 market: {
-                                    minAmountOut: uint64ToBN(minAmountOut),
+                                    minAmountOut: uint64ToBN(request.minAmountOut!),
                                 },
                             },
                             srcToken: payerToken,
                             refundToken: payerToken,
                             targetChain,
-                            redeemer,
+                            redeemer: Array.from(request.redeemer.toUint8Array()),
                             preparedCustodyTokenBump,
                         },
-                        redeemerMessage,
+                        Buffer.from(request.redeemerMessage!),
                     ),
                 );
 
@@ -700,32 +606,28 @@ describe("Token Router", function () {
                     connection,
                     tokenRouter.preparedCustodyTokenAddress(preparedOrder.publicKey),
                 );
-                expect(preparedCustodyTokenBalance).equals(amountIn);
+                expect(preparedCustodyTokenBalance).equals(request.amountIn);
             });
 
             it("Prepare Market Order with Transfer Authority without Specifying Min Amount Out", async function () {
                 const preparedOrder = Keypair.generate();
 
                 const amountIn = 69n;
-                const [approveIx, prepareIx] = await tokenRouter.prepareMarketOrderIx(
-                    {
-                        payer: payer.publicKey,
-                        preparedOrder: preparedOrder.publicKey,
-                        senderToken: payerToken,
-                    },
+                const txs = tokenRouter.prepareMarketOrder(
+                    payer.publicKey,
+
                     {
                         amountIn,
-                        minAmountOut: null,
-                        targetChain: foreignChain,
-                        redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
+                        targetChain: toChain(foreignChain),
+                        redeemer: toUniversalAddress(Buffer.alloc(32, "deadbeef", "hex")),
                         redeemerMessage: Buffer.from("All your base are belong to us"),
                     },
+                    preparedOrder,
                 );
-                expect(approveIx).is.not.null;
 
                 const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
 
-                await expectIxOk(connection, [approveIx!, prepareIx], [payer, preparedOrder]);
+                await expectTxsOk(payerSigner, txs);
 
                 const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
                 expect(balanceAfter).equals(balanceBefore - amountIn);
@@ -802,13 +704,11 @@ describe("Token Router", function () {
                 const amountIn = localVariables.get("amountIn") as bigint;
                 expect(localVariables.delete("amountIn")).is.true;
 
-                const ix = await tokenRouter.closePreparedOrderIx({
-                    preparedOrder,
-                });
+                const txs = tokenRouter.closePreparedOrder(payer.publicKey, preparedOrder);
 
                 const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
 
-                await expectIxOk(connection, [ix], [payer]);
+                await expectTxsOk(payerSigner, txs);
 
                 const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
                 expect(balanceAfter).equals(balanceBefore + amountIn);
@@ -826,27 +726,20 @@ describe("Token Router", function () {
                 const preparedOrder = Keypair.generate();
 
                 const amountIn = 69n;
-                const [approveIx, prepareIx] = await tokenRouter.prepareMarketOrderIx(
+                const txs = tokenRouter.prepareMarketOrder(
+                    payer.publicKey,
                     {
-                        payer: payer.publicKey,
-                        preparedOrder: preparedOrder.publicKey,
-                        senderToken: payerToken,
-                        sender: payer.publicKey,
-                    },
-                    {
-                        useTransferAuthority: false,
                         amountIn,
-                        minAmountOut: null,
-                        targetChain: foreignChain,
-                        redeemer: Array.from(Buffer.alloc(32, "deadbeef", "hex")),
-                        redeemerMessage: Buffer.from("All your base are belong to us"),
+                        targetChain: toChain(foreignChain),
+                        redeemer: toUniversalAddress(Buffer.alloc(32, "deadbeef", "hex")),
+                        redeemerMessage: encoding.bytes.encode("All your base are belong to us"),
                     },
+                    preparedOrder,
                 );
-                expect(approveIx).is.null;
 
                 const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
 
-                await expectIxOk(connection, [prepareIx], [payer, preparedOrder]);
+                await expectTxsOk(payerSigner, txs);
 
                 const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
                 expect(balanceAfter).equals(balanceBefore - amountIn);
@@ -910,6 +803,7 @@ describe("Token Router", function () {
                 const unregisteredEndpoint = tokenRouter
                     .matchingEngineProgram()
                     .routerEndpointAddress(SOLANA_CHAIN_ID);
+
                 const ix = await tokenRouter.placeMarketOrderCctpIx(
                     {
                         payer: payer.publicKey,
@@ -970,23 +864,16 @@ describe("Token Router", function () {
                 );
             });
 
+            // TODO:
             it("Place Market Order", async function () {
                 const preparedOrder = localVariables.get("preparedOrder") as PublicKey;
                 expect(localVariables.delete("preparedOrder")).is.true;
                 const amountIn = localVariables.get("amountIn") as bigint;
                 expect(localVariables.delete("amountIn")).is.true;
 
-                const ix = await tokenRouter.placeMarketOrderCctpIx({
-                    payer: payer.publicKey,
-                    preparedOrder,
-                });
+                const txs = tokenRouter.placeMarketOrder(payer.publicKey, preparedOrder);
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
-                );
-                await expectIxOk(connection, [ix], [payer], {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
+                await expectTxsOk(payerSigner, txs);
 
                 checkAfterEffects({ preparedOrder, amountIn, burnSource: payerToken });
 
@@ -1135,6 +1022,35 @@ describe("Token Router", function () {
                 });
             });
 
+            it("Prepare and Place Market Order in One Transaction using TokenRouter", async function () {
+                const preparedOrder = Keypair.generate();
+
+                const request: TokenRouter.OrderRequest = {
+                    amountIn: 42069n,
+                    targetChain: toChain(foreignChain),
+                    redeemer: toUniversalAddress(redeemer),
+                    redeemerMessage: redeemerMessage,
+                };
+                const txs = tokenRouter.placeMarketOrder(payer.publicKey, request, preparedOrder);
+
+                const { amount: balanceBefore } = await splToken.getAccount(connection, payerToken);
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+
+                await expectTxsOk(payerSigner, txs);
+
+                const { amount: balanceAfter } = await splToken.getAccount(connection, payerToken);
+                expect(balanceAfter).equals(balanceBefore - request.amountIn);
+
+                checkAfterEffects({
+                    preparedOrder: preparedOrder.publicKey,
+                    amountIn: request.amountIn,
+                    burnSource: payerToken,
+                });
+            });
+
             async function prepareOrder(amountIn: bigint) {
                 const preparedOrder = Keypair.generate();
                 const [approveIx, prepareIx] = await tokenRouter.prepareMarketOrderIx(
@@ -1263,15 +1179,20 @@ describe("Token Router", function () {
                     }),
                 });
 
-                const vaa = await postLiquidityLayerVaa(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    payer,
-                    MOCK_GUARDIANS,
                     foreignEndpointAddress,
                     wormholeSequence++,
                     message,
                     { sourceChain: "Polygon" },
                 );
+
+                const { address: vaa } = await postAndFetchVaa(
+                    payerSigner,
+                    tokenRouter.matchingEngine,
+                    mockInvalidVaa,
+                );
+
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
                         payer: payer.publicKey,
@@ -1337,14 +1258,19 @@ describe("Token Router", function () {
                     }),
                 });
 
-                const vaa = await postLiquidityLayerVaa(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    payer,
-                    MOCK_GUARDIANS,
                     new Array(32).fill(0), // emitter address
                     wormholeSequence++,
                     message,
                 );
+
+                const { address: vaa } = await postAndFetchVaa(
+                    payerSigner,
+                    tokenRouter.matchingEngine,
+                    mockInvalidVaa,
+                );
+
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
                         payer: payer.publicKey,
@@ -1408,14 +1334,19 @@ describe("Token Router", function () {
                 const encodedMessage = message.encode();
                 encodedMessage[147] = 69;
 
-                const vaa = await postLiquidityLayerVaa(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    payer,
-                    MOCK_GUARDIANS,
                     foreignEndpointAddress,
                     wormholeSequence++,
                     encodedMessage,
                 );
+
+                const { address: vaa } = await postAndFetchVaa(
+                    payerSigner,
+                    tokenRouter.matchingEngine,
+                    mockInvalidVaa,
+                );
+
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
                         payer: payer.publicKey,
@@ -1475,23 +1406,22 @@ describe("Token Router", function () {
                     }),
                 });
 
-                const vaa = await postLiquidityLayerVaa(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    payer,
-                    MOCK_GUARDIANS,
                     foreignEndpointAddress,
                     wormholeSequence++,
                     message,
                 );
+
+                const { address: vaa } = await postAndFetchVaa(
+                    payerSigner,
+                    tokenRouter.matchingEngine,
+                    mockInvalidVaa,
+                );
+
                 const ix = await tokenRouter.redeemCctpFillIx(
-                    {
-                        payer: payer.publicKey,
-                        vaa,
-                    },
-                    {
-                        encodedCctpMessage,
-                        cctpAttestation,
-                    },
+                    { payer: payer.publicKey, vaa },
+                    { encodedCctpMessage, cctpAttestation },
                 );
 
                 const { value: lookupTableAccount } = await connection.getAddressLookupTable(
@@ -1552,14 +1482,18 @@ describe("Token Router", function () {
                     }),
                 });
 
-                const vaa = await postLiquidityLayerVaa(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    payer,
-                    MOCK_GUARDIANS,
                     foreignEndpointAddress,
                     wormholeSequence++,
                     message,
                 );
+                const { address: vaa } = await postAndFetchVaa(
+                    payerSigner,
+                    tokenRouter.matchingEngine,
+                    mockInvalidVaa,
+                );
+
                 const ix = await tokenRouter.redeemCctpFillIx(
                     {
                         payer: payer.publicKey,
@@ -1595,9 +1529,7 @@ describe("Token Router", function () {
 
             it("Update Router Endpoint", async function () {
                 const ix = await tokenRouter.matchingEngineProgram().updateCctpRouterEndpointIx(
-                    {
-                        owner: owner.publicKey,
-                    },
+                    { owner: owner.publicKey },
                     {
                         chain: foreignChain,
                         address: foreignEndpointAddress,
@@ -1757,6 +1689,67 @@ describe("Token Router", function () {
 
                 // NOTE: This is a CCTP message transmitter error.
                 await expectIxErr(connection, [ix], [payer], "Error Code: NonceAlreadyUsed");
+            });
+
+            it("Redeem Fill with Protocol Client", async function () {
+                const cctpNonce = testCctpNonce++;
+
+                // Concoct a Circle message.
+                const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+                    await craftCctpTokenBurnMessage(
+                        tokenRouter,
+                        sourceCctpDomain,
+                        cctpNonce,
+                        encodedMintRecipient,
+                        amount,
+                        burnSource,
+                    );
+
+                const message = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit({
+                        tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
+                        amount,
+                        sourceCctpDomain,
+                        destinationCctpDomain,
+                        cctpNonce,
+                        burnSource: toUniversalAddress(burnSource),
+                        mintRecipient: toUniversalAddress(encodedMintRecipient),
+                        payload: {
+                            id: 1,
+                            sourceChain: toChain(foreignChain),
+                            orderSender: toUniversalAddress(Buffer.alloc(32, "d00d", "hex")),
+                            redeemer: toUniversalAddress(redeemer.publicKey.toBuffer()),
+                            redeemerMessage: Buffer.from("Somebody set up us the bomb"),
+                        },
+                    }),
+                });
+
+                const mockVaa = (await createLiquidityLayerVaa(
+                    connection,
+                    foreignEndpointAddress,
+                    wormholeSequence++,
+                    message,
+                )) as VAA<"FastTransfer:CctpDeposit">;
+
+                await postAndFetchVaa(payerSigner, tokenRouter.matchingEngine, mockVaa);
+
+                const [cctpMessage] = CircleBridge.deserialize(new Uint8Array(encodedCctpMessage));
+
+                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
+                    lookupTableAddress,
+                );
+
+                const txs = tokenRouter.redeemFill(
+                    payer.publicKey,
+                    mockVaa,
+                    {
+                        message: cctpMessage,
+                        attestation: cctpAttestation.toString("hex"),
+                    },
+                    [lookupTableAccount!],
+                );
+
+                await expectTxsOk(payerSigner, txs);
             });
         });
     });

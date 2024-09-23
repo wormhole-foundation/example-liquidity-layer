@@ -1,5 +1,4 @@
 export * from "./state";
-
 import { BN, Program, utils } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
@@ -15,24 +14,24 @@ import {
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
+import { MatchingEngine } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { ChainId, isChainId, toChainId } from "@wormhole-foundation/sdk-base";
 import { PreparedTransaction, PreparedTransactionOptions } from "..";
-import IDL from "../idl/json/matching_engine.json";
-import { MatchingEngine } from "../idl/ts/matching_engine";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
 import {
     LiquidityLayerMessage,
     Uint64,
     VaaHash,
-    cctpMessageAddress,
-    coreMessageAddress,
     reclaimCctpMessageIx,
     uint64ToBN,
     uint64ToBigInt,
-    writeUint64BE,
 } from "../common";
+import IDL from "../idl/json/matching_engine.json";
+import { type MatchingEngine as MatchingEngineType } from "../idl/ts/matching_engine";
 import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
+import { programDerivedAddresses } from "./pdas";
 import {
     Auction,
     AuctionConfig,
@@ -44,188 +43,55 @@ import {
     Custodian,
     EndpointInfo,
     FastFill,
-    FastFillInfo,
-    FastFillSeeds,
     FastFillSequencer,
-    MessageProtocol,
     PreparedOrderResponse,
     Proposal,
-    ProposalAction,
     ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
-import { ChainId, toChainId, isChainId } from "@wormhole-foundation/sdk-base";
+import {
+    AddCctpRouterEndpointArgs,
+    AuctionSettled,
+    AuctionUpdated,
+    BurnAndPublishAccounts,
+    CctpMessageArgs,
+    Enacted,
+    FastFillRedeemed,
+    FastFillSequenceReserved,
+    FastOrderPathComposite,
+    LocalFastOrderFilled,
+    MatchingEngineCommonAccounts,
+    OrderExecuted,
+    Proposed,
+    PublishMessageAccounts,
+    RedeemFastFillAccounts,
+    ReserveFastFillSequenceCompositeOpts,
+} from "./types";
 
-export const PROGRAM_IDS = [
-    "MatchingEngine11111111111111111111111111111",
-    "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS",
-] as const;
+export * from "./types";
 
 export const FEE_PRECISION_MAX = 1_000_000n;
 
 export const CPI_EVENT_IX_SELECTOR = Uint8Array.from([228, 69, 165, 46, 81, 203, 154, 29]);
 
-export type ProgramId = (typeof PROGRAM_IDS)[number];
-
-export type AddCctpRouterEndpointArgs = {
-    chain: ChainId;
-    cctpDomain: number;
-    address: Array<number>;
-    mintRecipient: Array<number> | null;
-};
-
-export type WormholeCoreBridgeAccounts = {
-    coreBridgeConfig: PublicKey;
-    coreEmitterSequence: PublicKey;
-    coreFeeCollector: PublicKey;
-    coreBridgeProgram: PublicKey;
-};
-
-export type PublishMessageAccounts = WormholeCoreBridgeAccounts & {
-    custodian: PublicKey;
-    coreMessage: PublicKey;
-};
-
-export type MatchingEngineCommonAccounts = WormholeCoreBridgeAccounts & {
-    matchingEngineProgram: PublicKey;
-    systemProgram: PublicKey;
-    rent: PublicKey;
-    clock: PublicKey;
-    custodian: PublicKey;
-    cctpMintRecipient: PublicKey;
-    tokenMessenger: PublicKey;
-    tokenMinter: PublicKey;
-    tokenMessengerMinterSenderAuthority: PublicKey;
-    tokenMessengerMinterProgram: PublicKey;
-    messageTransmitterAuthority: PublicKey;
-    messageTransmitterConfig: PublicKey;
-    messageTransmitterProgram: PublicKey;
-    tokenProgram: PublicKey;
-    mint: PublicKey;
-    localToken: PublicKey;
-    tokenMessengerMinterCustodyToken: PublicKey;
-};
-
-export type BurnAndPublishAccounts = {
-    custodian: PublicKey;
-    routerEndpoint: PublicKey;
-    coreMessage: PublicKey;
-    cctpMessage: PublicKey;
-    coreBridgeConfig: PublicKey;
-    coreEmitterSequence: PublicKey;
-    coreFeeCollector: PublicKey;
-    coreBridgeProgram: PublicKey;
-    tokenMessengerMinterSenderAuthority: PublicKey;
-    messageTransmitterConfig: PublicKey;
-    tokenMessenger: PublicKey;
-    remoteTokenMessenger: PublicKey;
-    tokenMinter: PublicKey;
-    localToken: PublicKey;
-    tokenMessengerMinterEventAuthority: PublicKey;
-    messageTransmitterProgram: PublicKey;
-    tokenMessengerMinterProgram: PublicKey;
-};
-
-export type RedeemFastFillAccounts = {
-    custodian: PublicKey;
-    fromRouterEndpoint: PublicKey;
-    toRouterEndpoint: PublicKey;
-    localCustodyToken: PublicKey;
-    matchingEngineProgram: PublicKey;
-};
-
-export type CctpMessageArgs = {
-    encodedCctpMessage: Buffer;
-    cctpAttestation: Buffer;
-};
-
-export type SettledTokenAccountInfo = {
-    key: PublicKey;
-    balanceAfter: BN;
-};
-
-export type AuctionSettled = {
-    auction: PublicKey;
-    bestOfferToken: SettledTokenAccountInfo | null;
-    executorToken: SettledTokenAccountInfo | null;
-    withExecute: MessageProtocol | null;
-};
-
-export type AuctionUpdated = {
-    configId: number;
-    auction: PublicKey;
-    vaa: PublicKey | null;
-    sourceChain: number;
-    targetProtocol: MessageProtocol;
-    redeemerMessageLen: number;
-    endSlot: BN;
-    bestOfferToken: PublicKey;
-    tokenBalanceBefore: BN;
-    amountIn: BN;
-    totalDeposit: BN;
-    maxOfferPriceAllowed: BN | null;
-};
-
-export type OrderExecuted = {
-    auction: PublicKey;
-    vaa: PublicKey;
-    targetProtocol: MessageProtocol;
-};
-
-export type Proposed = {
-    action: ProposalAction;
-};
-
-export type Enacted = {
-    action: ProposalAction;
-};
-
-export type LocalFastOrderFilled = {
-    seeds: FastFillSeeds;
-    info: FastFillInfo;
-    auction: PublicKey | null;
-};
-
-export type FastFillSequenceReserved = {
-    fastVaaHash: Array<number>;
-    fastFillSeeds: FastFillSeeds;
-};
-
-export type FastFillRedeemed = {
-    preparedBy: PublicKey;
-    fastFill: PublicKey;
-};
-
-export type FastOrderPathComposite = {
-    fastVaa: {
-        vaa: PublicKey;
-    };
-    path: {
-        fromEndpoint: {
-            endpoint: PublicKey;
-        };
-        toEndpoint: { endpoint: PublicKey };
-    };
-};
-
-export type ReserveFastFillSequenceCompositeOpts = {
-    fastVaaHash?: VaaHash;
-    sourceChain?: ChainId;
-    orderSender?: Array<number>;
-    targetChain?: ChainId;
-};
-
 export class MatchingEngineProgram {
-    private _programId: ProgramId;
     private _mint: PublicKey;
+    private _custodian?: Custodian;
 
-    program: Program<MatchingEngine>;
+    pdas: ReturnType<typeof programDerivedAddresses>;
 
-    constructor(connection: Connection, programId: ProgramId, mint: PublicKey) {
-        this._programId = programId;
-        this._mint = mint;
+    program: Program<MatchingEngineType>;
+
+    constructor(connection: Connection, private _addresses: MatchingEngine.Addresses) {
+        const programId = _addresses.matchingEngine;
+        this._mint = new PublicKey(_addresses.cctp.usdcMint);
+        this.pdas = programDerivedAddresses(
+            new PublicKey(programId),
+            this._mint,
+            this.coreBridgeProgramId,
+        );
         this.program = new Program(
-            { ...(IDL as any), address: this._programId },
+            { ...(IDL as any), address: programId },
             {
                 connection,
             },
@@ -238,6 +104,10 @@ export class MatchingEngineProgram {
 
     get mint(): PublicKey {
         return this._mint;
+    }
+
+    get coreBridgeProgramId(): PublicKey {
+        return new PublicKey(this._addresses.coreBridge);
     }
 
     onAuctionSettled(callback: (event: AuctionSettled, slot: number, signature: string) => void) {
@@ -346,21 +216,16 @@ export class MatchingEngineProgram {
         return this.program.addEventListener("fastFillRedeemed", callback);
     }
 
-    eventAuthorityAddress(): PublicKey {
-        return PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], this.ID)[0];
+    /** Get the cached Custodian if it exists, otherwise fetch the latest and cache it */
+    async getCustodian(skipCache?: boolean): Promise<Custodian> {
+        if (this._custodian === undefined || skipCache)
+            this._custodian = await this.fetchCustodian();
+        return this._custodian!;
     }
 
-    custodianAddress(): PublicKey {
-        return Custodian.address(this.ID);
-    }
-
-    async fetchCustodian(input?: { address: PublicKey }): Promise<Custodian> {
-        const addr = input === undefined ? this.custodianAddress() : input.address;
-        return this.program.account.custodian.fetch(addr);
-    }
-
-    auctionConfigAddress(id: number): PublicKey {
-        return AuctionConfig.address(this.ID, id);
+    /** Fetch the latest custodian data */
+    async fetchCustodian(): Promise<Custodian> {
+        return this.program.account.custodian.fetch(this.custodianAddress());
     }
 
     async fetchAuctionConfig(input: number | { address: PublicKey }): Promise<AuctionConfig> {
@@ -370,18 +235,10 @@ export class MatchingEngineProgram {
 
     async fetchAuctionParameters(id?: number): Promise<AuctionParameters> {
         if (id === undefined) {
-            const { auctionConfigId } = await this.fetchCustodian();
+            const { auctionConfigId } = await this.getCustodian();
             id = auctionConfigId;
         }
         return this.fetchAuctionConfig(id).then((config) => config.parameters);
-    }
-
-    cctpMintRecipientAddress(): PublicKey {
-        return splToken.getAssociatedTokenAddressSync(this.mint, this.custodianAddress(), true);
-    }
-
-    routerEndpointAddress(chain: ChainId): PublicKey {
-        return RouterEndpoint.address(this.ID, chain);
     }
 
     async fetchRouterEndpoint(input: ChainId | { address: PublicKey }): Promise<RouterEndpoint> {
@@ -397,37 +254,14 @@ export class MatchingEngineProgram {
         return info;
     }
 
-    auctionAddress(vaaHash: VaaHash): PublicKey {
-        return Auction.address(this.ID, vaaHash);
-    }
-
     async fetchAuction(input: VaaHash | { address: PublicKey }): Promise<Auction> {
         const addr = "address" in input ? input.address : this.auctionAddress(input);
-        // @ts-ignore This is BS. This is correct.
         return this.program.account.auction.fetch(addr);
-    }
-
-    async proposalAddress(proposalId?: Uint64): Promise<PublicKey> {
-        if (proposalId === undefined) {
-            const { nextProposalId } = await this.fetchCustodian();
-            proposalId = nextProposalId;
-        }
-
-        return Proposal.address(this.ID, proposalId);
     }
 
     async fetchProposal(input?: { address: PublicKey }): Promise<Proposal> {
         const addr = input === undefined ? await this.proposalAddress() : input.address;
-        // @ts-ignore This is BS. This is correct.
         return this.program.account.proposal.fetch(addr);
-    }
-
-    coreMessageAddress(auction: PublicKey): PublicKey {
-        return coreMessageAddress(this.ID, auction);
-    }
-
-    cctpMessageAddress(auction: PublicKey): PublicKey {
-        return cctpMessageAddress(this.ID, auction);
     }
 
     async reclaimCctpMessageIx(
@@ -440,10 +274,6 @@ export class MatchingEngineProgram {
         return reclaimCctpMessageIx(this.messageTransmitterProgram(), accounts, cctpAttestation);
     }
 
-    preparedOrderResponseAddress(fastVaaHash: VaaHash): PublicKey {
-        return PreparedOrderResponse.address(this.ID, fastVaaHash);
-    }
-
     async fetchPreparedOrderResponse(
         input: VaaHash | { address: PublicKey },
     ): Promise<PreparedOrderResponse> {
@@ -451,35 +281,11 @@ export class MatchingEngineProgram {
         return this.program.account.preparedOrderResponse.fetch(addr);
     }
 
-    preparedCustodyTokenAddress(preparedOrderResponse: PublicKey): PublicKey {
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("prepared-custody"), preparedOrderResponse.toBuffer()],
-            this.ID,
-        )[0];
-    }
-
-    auctionCustodyTokenAddress(auction: PublicKey): PublicKey {
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("auction-custody"), auction.toBuffer()],
-            this.ID,
-        )[0];
-    }
-
     async fetchAuctionCustodyTokenBalance(auction: PublicKey): Promise<bigint> {
         return splToken
             .getAccount(this.program.provider.connection, this.auctionCustodyTokenAddress(auction))
             .then((token) => token.amount)
             .catch((_) => 0n);
-    }
-
-    localCustodyTokenAddress(sourceChain: ChainId): PublicKey {
-        const encodedSourceChain = Buffer.alloc(2);
-        encodedSourceChain.writeUInt16BE(sourceChain);
-
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("local-custody"), encodedSourceChain],
-            this.ID,
-        )[0];
     }
 
     async fetchLocalCustodyTokenBalance(sourceChain: ChainId): Promise<bigint> {
@@ -492,19 +298,11 @@ export class MatchingEngineProgram {
             .catch((_) => 0n);
     }
 
-    fastFillAddress(sourceChain: ChainId, orderSender: Array<number>, sequence: Uint64): PublicKey {
-        return FastFill.address(this.ID, sourceChain, orderSender, sequence);
-    }
-
     fetchFastFill(
         input: [ChainId, Array<number>, Uint64] | { address: PublicKey },
     ): Promise<FastFill> {
         const addr = "address" in input ? input.address : this.fastFillAddress(...input);
         return this.program.account.fastFill.fetch(addr);
-    }
-
-    fastFillSequencerAddress(sourceChain: ChainId, sender: Array<number>): PublicKey {
-        return FastFillSequencer.address(this.ID, sourceChain, sender);
     }
 
     fetchFastFillSequencer(
@@ -514,29 +312,12 @@ export class MatchingEngineProgram {
         return this.program.account.fastFillSequencer.fetch(addr);
     }
 
-    reservedFastFillSequenceAddress(fastVaaHash: VaaHash): PublicKey {
-        return ReservedFastFillSequence.address(this.ID, fastVaaHash);
-    }
-
     fetchReservedFastFillSequence(
         input: VaaHash | { address: PublicKey },
     ): Promise<ReservedFastFillSequence> {
         const addr =
             "address" in input ? input.address : this.reservedFastFillSequenceAddress(input);
         return this.program.account.reservedFastFillSequence.fetch(addr);
-    }
-
-    transferAuthorityAddress(auction: PublicKey, offerPrice: Uint64): PublicKey {
-        const encodedOfferPrice = Buffer.alloc(8);
-        writeUint64BE(encodedOfferPrice, offerPrice);
-        return PublicKey.findProgramAddressSync(
-            [Buffer.from("transfer-authority"), auction.toBuffer(), encodedOfferPrice],
-            this.ID,
-        )[0];
-    }
-
-    auctionHistoryAddress(id: Uint64): PublicKey {
-        return AuctionHistory.address(this.ID, id);
     }
 
     // Anchor is having trouble deserializing the account data here. Manually deserializing
@@ -764,21 +545,15 @@ export class MatchingEngineProgram {
     }
 
     routerEndpointComposite(addr: PublicKey): { endpoint: PublicKey } {
-        return {
-            endpoint: addr,
-        };
+        return { endpoint: addr };
     }
 
     liquidityLayerVaaComposite(vaa: PublicKey): { vaa: PublicKey } {
-        return {
-            vaa,
-        };
+        return { vaa };
     }
 
     usdcComposite(mint?: PublicKey): { mint: PublicKey } {
-        return {
-            mint: mint ?? this.mint,
-        };
+        return { mint: mint ?? this.mint };
     }
 
     localTokenRouterComposite(tokenRouterProgram: PublicKey): {
@@ -933,9 +708,7 @@ export class MatchingEngineProgram {
         const { ownerOrAssistant, custodian } = accounts;
         return this.program.methods
             .setPause(paused)
-            .accounts({
-                admin: this.adminMutComposite(ownerOrAssistant, custodian),
-            })
+            .accounts({ admin: this.adminMutComposite(ownerOrAssistant, custodian) })
             .instruction();
     }
 
@@ -1134,7 +907,7 @@ export class MatchingEngineProgram {
         proposal ??= await this.proposalAddress(opts.proposalId);
 
         if (auctionConfig === undefined) {
-            const { auctionConfigId } = await this.fetchCustodian();
+            const { auctionConfigId } = await this.getCustodian(true);
             // Add 1 to the current auction config ID to get the next one.
             auctionConfig = this.auctionConfigAddress(auctionConfigId + 1);
         }
@@ -1290,8 +1063,8 @@ export class MatchingEngineProgram {
     async placeInitialOfferCctpIx(
         accounts: {
             payer: PublicKey;
-            feePayer?: PublicKey;
             fastVaa: PublicKey;
+            feePayer?: PublicKey;
             offerToken?: PublicKey;
             auction?: PublicKey;
             auctionConfig?: PublicKey;
@@ -1306,10 +1079,9 @@ export class MatchingEngineProgram {
         [approveIx: TransactionInstruction, placeInitialOfferCctpIx: TransactionInstruction]
     > {
         const { payer, feePayer, fastVaa } = accounts;
+        let { auction, auctionConfig, offerToken, fromRouterEndpoint, toRouterEndpoint } = accounts;
 
         const { offerPrice } = args;
-
-        let { auction, auctionConfig, offerToken, fromRouterEndpoint, toRouterEndpoint } = accounts;
         let { totalDeposit } = args;
 
         offerToken ??= await splToken.getAssociatedTokenAddress(this.mint, payer);
@@ -1329,7 +1101,7 @@ export class MatchingEngineProgram {
             }
             toRouterEndpoint ??= this.routerEndpointAddress(toChainId(fastMarketOrder.targetChain));
 
-            const custodianData = await this.fetchCustodian();
+            const custodianData = await this.getCustodian();
             fetchedConfigId = custodianData.auctionConfigId;
 
             const notionalDeposit = await this.computeNotionalSecurityDeposit(
@@ -1342,7 +1114,7 @@ export class MatchingEngineProgram {
 
         if (auctionConfig === undefined) {
             if (fetchedConfigId === null) {
-                const custodianData = await this.fetchCustodian();
+                const custodianData = await this.getCustodian();
                 fetchedConfigId = custodianData.auctionConfigId;
             }
             auctionConfig = this.auctionConfigAddress(fetchedConfigId);
@@ -1740,7 +1512,7 @@ export class MatchingEngineProgram {
             sequence ??= fastFillSeeds.sequence;
         }
 
-        const { feeRecipientToken } = await this.fetchCustodian();
+        const { feeRecipientToken } = await this.getCustodian();
 
         return this.program.methods
             .settleAuctionNoneLocal()
@@ -1802,7 +1574,6 @@ export class MatchingEngineProgram {
         }
         const {
             custodian,
-            routerEndpoint: toRouterEndpoint,
             coreMessage,
             cctpMessage,
             coreBridgeConfig,
@@ -1820,7 +1591,7 @@ export class MatchingEngineProgram {
             tokenMessengerMinterProgram,
         } = await this.burnAndPublishAccounts(auction, { targetChain });
 
-        const { feeRecipientToken } = await this.fetchCustodian();
+        const { feeRecipientToken } = await this.getCustodian();
 
         return this.program.methods
             .settleAuctionNoneCctp()
@@ -1949,9 +1720,7 @@ export class MatchingEngineProgram {
             initialOfferToken?: PublicKey;
             initialParticipant?: PublicKey;
         },
-        opts: {
-            targetChain?: ChainId;
-        } = {},
+        opts: { targetChain?: ChainId } = {},
     ) {
         const connection = this.program.provider.connection;
 
@@ -1971,10 +1740,8 @@ export class MatchingEngineProgram {
         if (targetChain === undefined) {
             fastVaaAccount ??= await VaaAccount.fetch(connection, fastVaa);
 
-            const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
-            if (fastMarketOrder === undefined) {
-                throw new Error("Message not FastMarketOrder");
-            }
+            const { payload: fastMarketOrder } = fastVaaAccount.vaa("FastTransfer:FastMarketOrder");
+
             targetChain ??= toChainId(fastMarketOrder.targetChain);
         }
 
@@ -2374,7 +2141,7 @@ export class MatchingEngineProgram {
     async publishMessageAccounts(auction: PublicKey): Promise<PublishMessageAccounts> {
         const coreMessage = this.coreMessageAddress(auction);
 
-        const coreBridgeProgram = this.coreBridgeProgramId();
+        const coreBridgeProgram = this.coreBridgeProgramId;
         const custodian = this.custodianAddress();
 
         return {
@@ -2461,51 +2228,24 @@ export class MatchingEngineProgram {
     }
 
     upgradeManagerProgram(): UpgradeManagerProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new UpgradeManagerProgram(
-                    this.program.provider.connection,
-                    "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
-                );
-            }
-            case localnet(): {
-                return new UpgradeManagerProgram(
-                    this.program.provider.connection,
-                    "UpgradeManager11111111111111111111111111111",
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new UpgradeManagerProgram(this.program.provider.connection, {
+            ...this._addresses,
+            tokenRouter: this._addresses.tokenRouter!,
+        });
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
         return new TokenMessengerMinterProgram(
             this.program.provider.connection,
-            "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
+            this._addresses.cctp,
         );
     }
 
     messageTransmitterProgram(): MessageTransmitterProgram {
         return new MessageTransmitterProgram(
             this.program.provider.connection,
-            "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
+            this._addresses.cctp,
         );
-    }
-
-    coreBridgeProgramId(): PublicKey {
-        switch (this._programId) {
-            case testnet(): {
-                return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
-            }
-            case localnet(): {
-                return new PublicKey("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
     }
 
     async computeDepositPenalty(
@@ -2558,12 +2298,44 @@ export class MatchingEngineProgram {
             (uint64ToBigInt(amountIn) * BigInt(securityDepositBps)) / FEE_PRECISION_MAX
         );
     }
-}
 
-export function testnet(): ProgramId {
-    return "mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS";
-}
+    async proposalAddress(proposalId?: Uint64): Promise<PublicKey> {
+        if (proposalId === undefined) {
+            // Intentionally skip cache to get a fresh proposal ID.
+            ({ nextProposalId: proposalId } = await this.getCustodian(true));
+        }
 
-export function localnet(): ProgramId {
-    return "MatchingEngine11111111111111111111111111111";
+        return this.pdas.proposal(proposalId);
+    }
+
+    // TODO: we should be able to eliminate these fns, replacing with the call to `.pdas` directly
+    auctionConfigAddress = (id: number): PublicKey => this.pdas.auctionConfig(id);
+    cctpMintRecipientAddress = (): PublicKey =>
+        this.pdas.cctpMintRecipient(this.custodianAddress());
+    routerEndpointAddress = (chain: ChainId): PublicKey => this.pdas.routerEndpoint(chain);
+    eventAuthorityAddress = (): PublicKey => this.pdas.eventAuthority();
+    auctionAddress = (vaaHash: VaaHash): PublicKey => this.pdas.auction(vaaHash);
+    custodianAddress = (): PublicKey => this.pdas.custodian();
+    fastFillAddress = (
+        sourceChain: ChainId,
+        orderSender: Array<number>,
+        sequence: Uint64,
+    ): PublicKey => this.pdas.fastFill(sourceChain, orderSender, sequence);
+    coreMessageAddress = (auction: PublicKey): PublicKey => this.pdas.coreMessage(auction);
+    cctpMessageAddress = (auction: PublicKey): PublicKey => this.pdas.cctpMessage(auction);
+    preparedOrderResponseAddress = (fastVaaHash: VaaHash): PublicKey =>
+        this.pdas.preparedOrderResponse(fastVaaHash);
+    preparedCustodyTokenAddress = (preparedOrderResponse: PublicKey): PublicKey =>
+        this.pdas.preparedCustodyToken(preparedOrderResponse);
+    auctionCustodyTokenAddress = (auction: PublicKey): PublicKey =>
+        this.pdas.auctionCustodyToken(auction);
+    localCustodyTokenAddress = (sourceChain: ChainId): PublicKey =>
+        this.pdas.localCustodyToken(sourceChain);
+    fastFillSequencerAddress = (sourceChain: ChainId, sender: Array<number>): PublicKey =>
+        this.pdas.fastFillSequencer(sourceChain, sender);
+    reservedFastFillSequenceAddress = (fastVaaHash: VaaHash): PublicKey =>
+        this.pdas.reservedFastFillSequence(fastVaaHash);
+    transferAuthorityAddress = (auction: PublicKey, offerPrice: Uint64): PublicKey =>
+        this.pdas.transferAuthority(auction, offerPrice);
+    auctionHistoryAddress = (id: Uint64): PublicKey => this.pdas.auctionHistory(id);
 }

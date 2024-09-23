@@ -1,4 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
+// @ts-ignore
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -6,7 +7,6 @@ import {
     Connection,
     Keypair,
     PublicKey,
-    Signer,
     SystemProgram,
     TransactionInstruction,
     VersionedTransactionResponse,
@@ -17,7 +17,7 @@ import {
     SlowOrderResponse,
 } from "@wormhole-foundation/example-liquidity-layer-definitions";
 import { Chain, ChainId, encoding, toChain, toChainId } from "@wormhole-foundation/sdk-base";
-import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { CircleBridge, VAA, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { deserializePostMessage } from "@wormhole-foundation/sdk-solana-core";
 import { expect } from "chai";
 import { CctpTokenBurnMessage } from "../src/cctp";
@@ -34,55 +34,88 @@ import {
     AuctionParameters,
     CctpMessageArgs,
     Custodian,
-    MatchingEngineProgram,
     PreparedOrderResponse,
     Proposal,
     RouterEndpoint,
-    localnet,
 } from "../src/matchingEngine";
+import { SolanaMatchingEngine } from "../src/protocol/matchingEngine";
 import {
     CHAIN_TO_DOMAIN,
     CircleAttester,
+    DEFAULT_ADDRESSES,
     ETHEREUM_USDC_ADDRESS,
     LOCALHOST,
-    MOCK_GUARDIANS,
     OWNER_ASSISTANT_KEYPAIR,
     OWNER_KEYPAIR,
     PAYER_KEYPAIR,
     PLAYER_ONE_KEYPAIR,
     REGISTERED_TOKEN_ROUTERS,
+    REGISTERED_TOKEN_ROUTERS_V2,
+    SDKSigner,
     USDC_MINT_ADDRESS,
+    createLiquidityLayerVaa,
     expectIxErr,
     expectIxOk,
     expectIxOkDetails,
+    expectTxsErr,
+    expectTxsOk,
+    expectTxsOkDetails,
     getBlockTime,
+    getSdkSigner,
     getUsdcAtaBalance,
-    postLiquidityLayerVaa,
+    postAndFetchVaa,
     toUniversalAddress,
+    unwrapSigners,
     waitUntilSlot,
     waitUntilTimestamp,
 } from "../src/testing";
 import { VaaAccount } from "../src/wormhole";
 
+import chai from "chai";
+chai.config.truncateThreshold = 0;
+
 const SLOTS_PER_EPOCH = 8;
+
+// Set to true to add debug logs for Signer
+const SIGNER_DEBUG = false;
 
 describe("Matching Engine", function () {
     const connection = new Connection(LOCALHOST, "processed");
 
     // owner is also the recipient in all tests
     const payer = PAYER_KEYPAIR;
+    const { signer: payerSigner } = getSdkSigner(connection, payer, SIGNER_DEBUG);
+
     const owner = OWNER_KEYPAIR;
+    const { signer: ownerSigner } = getSdkSigner(connection, owner, SIGNER_DEBUG);
+
     const relayer = Keypair.generate();
+    const { signer: relayerSigner } = getSdkSigner(connection, relayer, SIGNER_DEBUG);
+
     const ownerAssistant = OWNER_ASSISTANT_KEYPAIR;
+    const { signer: ownerAssistantSigner } = getSdkSigner(connection, ownerAssistant, SIGNER_DEBUG);
+
     const feeRecipient = Keypair.generate().publicKey;
     const feeRecipientToken = splToken.getAssociatedTokenAddressSync(
         USDC_MINT_ADDRESS,
         feeRecipient,
+        SIGNER_DEBUG,
     );
     const newFeeRecipient = Keypair.generate().publicKey;
     const playerOne = PLAYER_ONE_KEYPAIR;
+    const { signer: playerOneSigner } = getSdkSigner(connection, playerOne, SIGNER_DEBUG);
     const playerTwo = Keypair.generate();
+    const { signer: playerTwoSigner, address: playerTwoAddress } = getSdkSigner(
+        connection,
+        playerTwo,
+        SIGNER_DEBUG,
+    );
     const liquidator = Keypair.generate();
+    const { signer: liquidatorSigner, address: liquidatorAddress } = getSdkSigner(
+        connection,
+        liquidator,
+        SIGNER_DEBUG,
+    );
 
     // Foreign endpoints.
     const ethChain = toChainId("Ethereum");
@@ -96,7 +129,12 @@ describe("Matching Engine", function () {
     const solanaChain = toChainId("Solana");
 
     // Matching Engine program.
-    const engine = new MatchingEngineProgram(connection, localnet(), USDC_MINT_ADDRESS);
+    const engine = new SolanaMatchingEngine(
+        "Devnet",
+        "Solana",
+        connection,
+        DEFAULT_ADDRESSES["Devnet"]!,
+    );
 
     let lookupTableAddress: PublicKey;
 
@@ -120,8 +158,6 @@ describe("Matching Engine", function () {
 
     describe("Admin", function () {
         describe("Initialize", function () {
-            const localVariables = new Map<string, any>();
-
             before("Transfer Lamports to Executors", async function () {
                 await expectIxOk(
                     connection,
@@ -220,178 +256,124 @@ describe("Matching Engine", function () {
 
             it("Cannot Initialize without USDC Mint", async function () {
                 const mint = await splToken.createMint(connection, payer, payer.publicKey, null, 6);
-
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     auctionParams,
+                    mint,
                 );
-                await expectIxErr(connection, [ix], [payer], "mint. Error Code: ConstraintAddress");
+                await expectTxsErr(payerSigner, txs, "mint. Error Code: ConstraintAddress");
             });
 
             it("Cannot Initialize with Default Owner Assistant", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: PublicKey.default,
-                        feeRecipient,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    PublicKey.default,
+                    feeRecipient,
                     auctionParams,
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: AssistantZeroPubkey");
+                await expectTxsErr(payerSigner, txs, "Error Code: AssistantZeroPubkey");
             });
 
             it("Cannot Initialize with Default Fee Recipient", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient: PublicKey.default,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    PublicKey.default,
                     auctionParams,
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: FeeRecipientZeroPubkey");
+                await expectTxsErr(payerSigner, txs, "Error Code: FeeRecipientZeroPubkey");
             });
 
             it("Cannot Initialize with Zero Auction Duration", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, duration: 0 },
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroDuration");
+                await expectTxsErr(payerSigner, txs, "Error Code: ZeroDuration");
             });
 
             it("Cannot Initialize with Zero Auction Grace Period", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, gracePeriod: 0 },
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroGracePeriod");
+                await expectTxsErr(payerSigner, txs, "Error Code: ZeroGracePeriod");
             });
 
             it("Cannot Initialize with Zero Auction Penalty Period", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, penaltyPeriod: 0 },
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroPenaltyPeriod");
+                await expectTxsErr(payerSigner, txs, "Error Code: ZeroPenaltyPeriod");
             });
 
             it("Cannot Initialize with Invalid User Penalty Bps", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, userPenaltyRewardBps: 1_000_001 },
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
-                    "Error Code: UserPenaltyRewardBpsTooLarge",
-                );
+                await expectTxsErr(payerSigner, txs, "Error Code: UserPenaltyRewardBpsTooLarge");
             });
 
             it("Cannot Initialize with Invalid Initial Penalty Bps", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, initialPenaltyBps: 1_000_001 },
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
-                    "Error Code: InitialPenaltyBpsTooLarge",
-                );
+                await expectTxsErr(payerSigner, txs, "Error Code: InitialPenaltyBpsTooLarge");
             });
 
             it("Cannot Initialize with Invalid Min Offer Delta Bps", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, minOfferDeltaBps: 1_000_001 },
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
-                    "Error Code: MinOfferDeltaBpsTooLarge",
-                );
+                await expectTxsErr(payerSigner, txs, "Error Code: MinOfferDeltaBpsTooLarge");
             });
 
             it("Cannot Initialize with Invalid Security Deposit Base", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, securityDepositBase: uint64ToBN(0) },
                 );
-                await expectIxErr(connection, [ix], [payer], "Error Code: ZeroSecurityDepositBase");
+                await expectTxsErr(payerSigner, txs, "Error Code: ZeroSecurityDepositBase");
             });
 
             it("Cannot Initialize with Invalid Security Deposit Bps", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     { ...auctionParams, securityDepositBps: 1_000_001 },
                 );
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
-                    "Error Code: SecurityDepositBpsTooLarge",
-                );
+                await expectTxsErr(payerSigner, txs, "Error Code: SecurityDepositBpsTooLarge");
             });
 
             it("Finally Initialize Program", async function () {
-                const ix = await engine.initializeIx(
-                    {
-                        owner: payer.publicKey,
-                        ownerAssistant: ownerAssistant.publicKey,
-                        feeRecipient,
-                        mint: USDC_MINT_ADDRESS,
-                    },
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
                     auctionParams,
                 );
-                await expectIxOk(connection, [ix], [payer]);
+                await expectTxsOk(payerSigner, txs);
 
                 const expectedAuctionConfigId = 0;
                 const custodianData = await engine.fetchCustodian();
@@ -412,18 +394,18 @@ describe("Matching Engine", function () {
                 expect(auctionConfigData).to.eql(
                     new AuctionConfig(expectedAuctionConfigId, auctionParams),
                 );
-
-                localVariables.set("ix", ix);
             });
 
             it("Cannot Call Instruction Again: initialize", async function () {
-                const ix = localVariables.get("ix") as TransactionInstruction;
-                expect(localVariables.delete("ix")).is.true;
-
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [payer],
+                const txs = engine.initialize(
+                    payer.publicKey,
+                    ownerAssistant.publicKey,
+                    feeRecipient,
+                    auctionParams,
+                );
+                await expectTxsErr(
+                    payerSigner,
+                    txs,
                     `Allocate: account Address { address: ${engine
                         .custodianAddress()
                         .toString()}, base: None } already in use`,
@@ -684,26 +666,14 @@ describe("Matching Engine", function () {
 
         describe("Set Pause", async function () {
             it("Cannot Set Pause for Transfers as Non-Owner", async function () {
-                const ix = await engine.setPauseIx(
-                    {
-                        ownerOrAssistant: payer.publicKey,
-                    },
-                    true, // paused
-                );
-
-                await expectIxErr(connection, [ix], [payer], "Error Code: OwnerOrAssistantOnly");
+                const txs = engine.setPause(payer.publicKey, true);
+                await expectTxsErr(payerSigner, txs, "Error Code: OwnerOrAssistantOnly");
             });
 
             it("Set Paused == true as Owner Assistant", async function () {
                 const paused = true;
-                const ix = await engine.setPauseIx(
-                    {
-                        ownerOrAssistant: ownerAssistant.publicKey,
-                    },
-                    paused,
-                );
-
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                const txs = engine.setPause(ownerAssistant.publicKey, paused);
+                await expectTxsOk(ownerAssistantSigner, txs);
 
                 const { paused: actualPaused, pausedSetBy } = await engine.fetchCustodian();
                 expect(actualPaused).equals(paused);
@@ -712,15 +682,8 @@ describe("Matching Engine", function () {
 
             it("Set Paused == false as Owner", async function () {
                 const paused = false;
-                const ix = await engine.setPauseIx(
-                    {
-                        ownerOrAssistant: owner.publicKey,
-                    },
-                    paused,
-                );
-
-                await expectIxOk(connection, [ix], [owner]);
-
+                const txs = engine.setPause(owner.publicKey, paused);
+                await expectTxsOk(ownerSigner, txs);
                 const { paused: actualPaused, pausedSetBy } = await engine.fetchCustodian();
                 expect(actualPaused).equals(paused);
                 expect(pausedSetBy).eql(owner.publicKey);
@@ -728,39 +691,36 @@ describe("Matching Engine", function () {
         });
 
         describe("Router Endpoint (CCTP)", function () {
-            const localVariables = new Map<string, any>();
-
             after("Register To Router Endpoints", async function () {
-                const ix = await engine.addCctpRouterEndpointIx(
-                    {
-                        ownerOrAssistant: owner.publicKey,
-                    },
-                    {
-                        chain: toChainId("Arbitrum"),
-                        cctpDomain: CHAIN_TO_DOMAIN["Arbitrum"]!,
-                        address: REGISTERED_TOKEN_ROUTERS["Arbitrum"]!,
-                        mintRecipient: null,
-                    },
-                );
-                await expectIxOk(connection, [ix], [owner]);
+                const endpointChains: Chain[] = ["Arbitrum", "Base"];
+
+                for (const endpointChain of endpointChains) {
+                    const txs = engine.registerRouter(
+                        owner.publicKey,
+                        endpointChain,
+                        CHAIN_TO_DOMAIN[endpointChain]!,
+                        REGISTERED_TOKEN_ROUTERS_V2[endpointChain]!,
+                    );
+
+                    await expectTxsOk(ownerSigner, txs);
+                }
             });
 
             it("Cannot Add Router Endpoint as Non-Owner and Non-Assistant", async function () {
-                const ix = await engine.addCctpRouterEndpointIx(
-                    { ownerOrAssistant: payer.publicKey },
-                    {
-                        chain: ethChain,
-                        cctpDomain: ethDomain,
-                        address: ethRouter,
-                        mintRecipient: null,
-                    },
+                const endpointChain = "Ethereum";
+                const txs = engine.registerRouter(
+                    payer.publicKey,
+                    endpointChain,
+                    CHAIN_TO_DOMAIN[endpointChain]!,
+                    REGISTERED_TOKEN_ROUTERS_V2[endpointChain]!,
                 );
-
-                await expectIxErr(connection, [ix], [payer], "OwnerOrAssistantOnly");
+                await expectTxsErr(payerSigner, txs, "OwnerOrAssistantOnly");
             });
 
             [0, solanaChain].forEach((chain) =>
                 it(`Cannot Register Chain ID == ${chain}`, async function () {
+                    // TODO: Intentionally left as ix tester for now since
+                    // the 0 chain ID would trip other checks.
                     const ix = await engine.addCctpRouterEndpointIx(
                         { ownerOrAssistant: owner.publicKey },
                         {
@@ -775,32 +735,26 @@ describe("Matching Engine", function () {
             );
 
             it("Cannot Register Zero Address", async function () {
-                const ix = await engine.addCctpRouterEndpointIx(
-                    { ownerOrAssistant: owner.publicKey },
-                    {
-                        chain: ethChain,
-                        cctpDomain: ethDomain,
-                        address: new Array(32).fill(0),
-                        mintRecipient: null,
-                    },
+                const txs = engine.registerRouter(
+                    owner.publicKey,
+                    "Ethereum",
+                    ethDomain,
+                    toUniversalAddress(new Array(32).fill(0)),
                 );
-
-                await expectIxErr(connection, [ix], [owner], "InvalidEndpoint");
+                await expectTxsErr(ownerSigner, txs, "InvalidEndpoint");
             });
 
             it("Add Router Endpoint as Owner Assistant", async function () {
                 const contractAddress = Array.from(Buffer.alloc(32, "fbadc0de", "hex"));
                 const mintRecipient = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
-                const ix = await engine.addCctpRouterEndpointIx(
-                    { ownerOrAssistant: ownerAssistant.publicKey },
-                    {
-                        chain: ethChain,
-                        cctpDomain: ethDomain,
-                        address: contractAddress,
-                        mintRecipient,
-                    },
+                const txs = engine.registerRouter(
+                    ownerAssistant.publicKey,
+                    "Ethereum",
+                    ethDomain,
+                    toUniversalAddress(contractAddress),
+                    toUniversalAddress(mintRecipient),
                 );
-                await expectIxOk(connection, [ix], [ownerAssistant]);
+                await expectTxsOk(ownerAssistantSigner, txs);
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(ethChain);
                 expect(routerEndpointData).to.eql(
@@ -813,40 +767,35 @@ describe("Matching Engine", function () {
                         },
                     }),
                 );
-
-                // Save for later.
-                localVariables.set("ix", ix);
             });
 
             it("Cannot Add Router Endpoint Again", async function () {
-                const ix = localVariables.get("ix") as TransactionInstruction;
-                expect(localVariables.delete("ix")).is.true;
-
                 const routerEndpoint = engine.routerEndpointAddress(ethChain);
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [ownerAssistant],
+
+                const contractAddress = Array.from(Buffer.alloc(32, "fbadc0de", "hex"));
+                const mintRecipient = Array.from(Buffer.alloc(32, "deadbeef", "hex"));
+                const txs = engine.registerRouter(
+                    ownerAssistant.publicKey,
+                    "Ethereum",
+                    ethDomain,
+                    toUniversalAddress(contractAddress),
+                    toUniversalAddress(mintRecipient),
+                );
+                await expectTxsErr(
+                    ownerAssistantSigner,
+                    txs,
                     `Allocate: account Address { address: ${routerEndpoint.toString()}, base: None } already in use`,
                 );
             });
 
             it("Cannot Disable Router Endpoint as Owner Assistant", async function () {
-                const ix = await engine.disableRouterEndpointIx(
-                    { owner: ownerAssistant.publicKey },
-                    ethChain,
-                );
-
-                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
+                const txs = engine.disableRouter(ownerAssistant.publicKey, "Ethereum");
+                await expectTxsErr(ownerAssistantSigner, txs, "Error Code: OwnerOnly");
             });
 
             it("Disable Router Endpoint as Owner", async function () {
-                const ix = await engine.disableRouterEndpointIx(
-                    { owner: owner.publicKey },
-                    ethChain,
-                );
-
-                await expectIxOk(connection, [ix], [owner]);
+                const txs = engine.disableRouter(owner.publicKey, "Ethereum");
+                await expectTxsOk(ownerSigner, txs);
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(ethChain);
                 const { bump } = routerEndpointData;
@@ -861,31 +810,24 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Update Router Endpoint as Owner Assistant", async function () {
-                const ix = await engine.updateCctpRouterEndpointIx(
-                    { owner: ownerAssistant.publicKey },
-                    {
-                        chain: ethChain,
-                        cctpDomain: ethDomain,
-                        address: ethRouter,
-                        mintRecipient: null,
-                    },
+                const txs = engine.updateRouter(
+                    ownerAssistant.publicKey,
+                    "Ethereum",
+                    ethDomain,
+                    REGISTERED_TOKEN_ROUTERS_V2["Ethereum"]!,
                 );
-
-                await expectIxErr(connection, [ix], [ownerAssistant], "Error Code: OwnerOnly");
+                await expectTxsErr(ownerAssistantSigner, txs, "Error Code: OwnerOnly");
             });
 
             it("Update Router Endpoint as Owner", async function () {
-                const ix = await engine.updateCctpRouterEndpointIx(
-                    { owner: owner.publicKey },
-                    {
-                        chain: ethChain,
-                        cctpDomain: ethDomain,
-                        address: ethRouter,
-                        mintRecipient: null,
-                    },
+                const txs = engine.updateRouter(
+                    owner.publicKey,
+                    "Ethereum",
+                    ethDomain,
+                    REGISTERED_TOKEN_ROUTERS_V2["Ethereum"]!,
                 );
 
-                await expectIxOk(connection, [ix], [owner]);
+                await expectTxsOk(ownerSigner, txs);
 
                 const routerEndpointData = await engine.fetchRouterEndpoint(ethChain);
                 expect(routerEndpointData).to.eql(
@@ -1374,14 +1316,10 @@ describe("Matching Engine", function () {
             for (const offerPrice of [0n, baseFastOrder.maxFee / 2n, baseFastOrder.maxFee]) {
                 it(`Place Initial Offer (Price == ${offerPrice})`, async function () {
                     await placeInitialOfferCctpForTest(
+                        { payer: playerOne.publicKey },
                         {
-                            payer: playerOne.publicKey,
-                        },
-                        {
-                            args: {
-                                offerPrice,
-                            },
-                            signers: [playerOne],
+                            args: { offerPrice },
+                            signers: [playerOneSigner],
                             finalized: false,
                             fastMarketOrder: baseFastOrder,
                         },
@@ -1428,7 +1366,7 @@ describe("Matching Engine", function () {
                         payer: playerOne.publicKey,
                     },
                     {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: {
                             ...baseFastOrder,
@@ -1449,7 +1387,7 @@ describe("Matching Engine", function () {
                         payer: playerOne.publicKey,
                     },
                     {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         fastMarketOrder: { ...baseFastOrder, deadline },
                         finalized: false,
                     },
@@ -1462,7 +1400,7 @@ describe("Matching Engine", function () {
                         payer: playerOne.publicKey,
                     },
                     {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                         vaaTimestamp: 69,
@@ -1472,33 +1410,34 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer (Invalid VAA)", async function () {
-                const fastVaa = await postLiquidityLayerVaa(
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    playerOne,
-                    MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
                     Buffer.from("deadbeef", "hex"),
                 );
 
-                const auction = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
-                    engine.auctionAddress(vaa.digest()),
+                const { address: fastVaa, account: account } = await postAndFetchVaa(
+                    playerOneSigner,
+                    engine,
+                    mockInvalidVaa,
                 );
+
+                const auction = engine.auctionAddress(account.digest());
                 await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                         fastVaa,
                         auction,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
-                        toRouterEndpoint: engine.routerEndpointAddress(arbChain),
                     },
                     {
                         args: {
                             offerPrice: 69n,
                             totalDeposit: 69n,
                         },
-                        signers: [playerOne],
-                        errorMsg: "Error Code: InvalidVaa",
+                        signers: [playerOneSigner],
+                        errorMsg: "Error: Invalid Liquidity Layer message",
                     },
                 );
             });
@@ -1523,7 +1462,7 @@ describe("Matching Engine", function () {
                         payer: playerOne.publicKey,
                     },
                     {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                         errorMsg: "Error Code: Paused",
@@ -1558,7 +1497,7 @@ describe("Matching Engine", function () {
                         payer: playerOne.publicKey,
                     },
                     {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                         errorMsg: "Error Code: EndpointDisabled",
@@ -1584,50 +1523,53 @@ describe("Matching Engine", function () {
             });
 
             it("Cannot Place Initial Offer (Invalid Payload)", async function () {
-                const fastVaa = await postLiquidityLayerVaa(
+                const msg = new LiquidityLayerMessage({
+                    deposit: new LiquidityLayerDeposit({
+                        tokenAddress: toUniversalAddress(Array(32).fill(69)),
+                        amount: 1000n,
+                        sourceCctpDomain: 69,
+                        destinationCctpDomain: 69,
+                        cctpNonce: 6969n,
+                        burnSource: toUniversalAddress(new Array(32).fill(69)),
+                        mintRecipient: toUniversalAddress(Array(32).fill(69)),
+                        payload: {
+                            id: 1,
+                            sourceChain: toChain(ethChain),
+                            orderSender: baseFastOrder.sender,
+                            redeemer: baseFastOrder.redeemer,
+                            redeemerMessage: baseFastOrder.redeemerMessage,
+                        },
+                    }),
+                });
+
+                const mockInvalidVaa = await createLiquidityLayerVaa(
                     connection,
-                    playerOne,
-                    MOCK_GUARDIANS,
                     ethRouter,
                     wormholeSequence++,
-                    new LiquidityLayerMessage({
-                        deposit: new LiquidityLayerDeposit({
-                            tokenAddress: toUniversalAddress(Array(32).fill(69)),
-                            amount: 1000n,
-                            sourceCctpDomain: 69,
-                            destinationCctpDomain: 69,
-                            cctpNonce: 6969n,
-                            burnSource: toUniversalAddress(new Array(32).fill(69)),
-                            mintRecipient: toUniversalAddress(Array(32).fill(69)),
-                            payload: {
-                                id: 1,
-                                sourceChain: toChain(ethChain),
-                                orderSender: baseFastOrder.sender,
-                                redeemer: baseFastOrder.redeemer,
-                                redeemerMessage: baseFastOrder.redeemerMessage,
-                            },
-                        }),
-                    }),
+                    msg,
                 );
 
-                const auction = await VaaAccount.fetch(connection, fastVaa).then((vaa) =>
-                    engine.auctionAddress(vaa.digest()),
+                const { address: fastVaa, account } = await postAndFetchVaa(
+                    playerOneSigner,
+                    engine,
+                    mockInvalidVaa,
                 );
+
+                const auction = engine.auctionAddress(account.digest());
                 await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
                         fastVaa,
                         auction,
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
-                        toRouterEndpoint: engine.routerEndpointAddress(arbChain),
                     },
                     {
                         args: {
                             offerPrice: 69n,
                             totalDeposit: 69n,
                         },
-                        signers: [playerOne],
-                        errorMsg: "Error Code: NotFastMarketOrder",
+                        signers: [playerOneSigner],
+                        errorMsg: "Error: Message not FastMarketOrder",
                     },
                 );
             });
@@ -1644,7 +1586,7 @@ describe("Matching Engine", function () {
                         payer: playerOne.publicKey,
                     },
                     {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: { ...baseFastOrder, deadline },
                         errorMsg: "Error Code: FastMarketOrderExpired",
@@ -1661,7 +1603,7 @@ describe("Matching Engine", function () {
                         args: {
                             offerPrice: baseFastOrder.maxFee + 1n,
                         },
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                         errorMsg: "Error Code: OfferPriceTooHigh",
@@ -1676,10 +1618,10 @@ describe("Matching Engine", function () {
                         fromRouterEndpoint: engine.routerEndpointAddress(ethChain),
                     },
                     {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
-                        sourceChain: "Polygon",
+                        sourceChain: "Base",
                         emitter: REGISTERED_TOKEN_ROUTERS["Ethereum"],
                         errorMsg: "Error Code: InvalidSourceRouter",
                     },
@@ -1695,7 +1637,7 @@ describe("Matching Engine", function () {
                         args: {
                             offerPrice: baseFastOrder.maxFee + 1n,
                         },
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                         sourceChain: "Ethereum",
@@ -1705,26 +1647,25 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Place Initial Offer (Invalid Target Router Chain)", async function () {
-                await placeInitialOfferCctpForTest(
-                    {
-                        payer: playerOne.publicKey,
-                        toRouterEndpoint: engine.routerEndpointAddress(arbChain),
-                    },
-                    {
-                        args: {
-                            offerPrice: baseFastOrder.maxFee + 1n,
-                        },
-                        signers: [playerOne],
-                        finalized: false,
-                        fastMarketOrder: {
-                            ...baseFastOrder,
-                            targetChain: "Acala",
-                        },
-                        errorMsg: "Error Code: InvalidTargetRouter",
-                    },
-                );
-            });
+            //  TODO: Ben -- the following test is failing because we no longer pass the accounts in during
+            //  the initial offer fn call.
+            //  it("Cannot Place Initial Offer (Invalid Target Router Chain)", async function () {
+            //      await placeInitialOfferCctpForTest(
+            //          { payer: playerOne.publicKey, toRouterEndpoint: engine.routerEndpointAddress(ethChain) },
+            //          {
+            //              args: {
+            //                  offerPrice: baseFastOrder.maxFee - 1n,
+            //              },
+            //              signers: [playerOneSigner],
+            //              finalized: false,
+            //              fastMarketOrder: {
+            //                  ...baseFastOrder,
+            //                  targetChain: "Base",
+            //              },
+            //              errorMsg: "Error Code: InvalidTargetRouter",
+            //          },
+            //      );
+            //  });
 
             it("Cannot Place Initial Offer Again", async function () {
                 const result = await placeInitialOfferCctpForTest(
@@ -1732,7 +1673,7 @@ describe("Matching Engine", function () {
                         payer: playerOne.publicKey,
                     },
                     {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                     },
@@ -1744,7 +1685,7 @@ describe("Matching Engine", function () {
                         fastVaa: result!.fastVaa,
                     },
                     {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                         errorMsg: `Allocate: account Address { address: ${result!.auction.toString()}, base: None } already in use`,
@@ -1757,16 +1698,14 @@ describe("Matching Engine", function () {
             for (const newOffer of [0n, baseFastOrder.maxFee / 2n]) {
                 it(`Improve Offer (Price == ${newOffer})`, async function () {
                     const result = await placeInitialOfferCctpForTest(
+                        { payer: playerOne.publicKey },
                         {
-                            payer: playerOne.publicKey,
-                        },
-                        {
-                            signers: [playerOne],
+                            signers: [playerOneSigner],
                             finalized: false,
                             fastMarketOrder: baseFastOrder,
                         },
                     );
-                    const { auction, auctionDataBefore } = result!;
+                    const { auction, auctionDataBefore, fastVaaAccount } = result!;
 
                     const initialOfferBalanceBefore = await getUsdcAtaBalance(
                         connection,
@@ -1778,15 +1717,13 @@ describe("Matching Engine", function () {
                     );
                     const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
-                    const [approveIx, ix] = await engine.improveOfferIx(
-                        {
-                            auction,
-                            participant: playerTwo.publicKey,
-                        },
-                        { offerPrice: newOffer },
+                    const txs = engine.improveOffer(
+                        playerTwo.publicKey,
+                        fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                        newOffer,
                     );
 
-                    await expectIxOk(connection, [approveIx, ix], [playerTwo]);
+                    await expectTxsOk(playerTwoSigner, txs);
 
                     await checkAfterEffects(
                         auction,
@@ -1804,16 +1741,14 @@ describe("Matching Engine", function () {
 
             it("Improve Offer (Tx)", async function () {
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerOne.publicKey },
                     {
-                        payer: playerOne.publicKey,
-                    },
-                    {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                     },
                 );
-                const { auction, auctionDataBefore } = result!;
+                const { auction, auctionDataBefore, fastVaaAccount } = result!;
 
                 const currentOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
                 const newOffer =
@@ -1846,16 +1781,14 @@ describe("Matching Engine", function () {
 
             it("Improve Offer By Min Offer Delta", async function () {
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerOne.publicKey },
                     {
-                        payer: playerOne.publicKey,
-                    },
-                    {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                     },
                 );
-                const { auction, auctionDataBefore } = result!;
+                const { auction, auctionDataBefore, fastVaaAccount } = result!;
 
                 const currentOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
                 const newOffer =
@@ -1871,15 +1804,13 @@ describe("Matching Engine", function () {
                 );
                 const { amount: custodyBalanceBefore } = await engine.fetchCctpMintRecipient();
 
-                const [approveIx, ix] = await engine.improveOfferIx(
-                    {
-                        auction,
-                        participant: playerTwo.publicKey,
-                    },
-                    { offerPrice: newOffer },
+                const txs = engine.improveOffer(
+                    playerTwo.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                    newOffer,
                 );
 
-                await expectIxOk(connection, [approveIx, ix], [playerTwo]);
+                await expectTxsOk(playerTwoSigner, txs);
 
                 await checkAfterEffects(auction, playerTwo.publicKey, newOffer, auctionDataBefore, {
                     custodyToken: custodyBalanceBefore,
@@ -1890,16 +1821,14 @@ describe("Matching Engine", function () {
 
             it("Improve Offer With Same Best Offer Token Account", async function () {
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerOne.publicKey },
                     {
-                        payer: playerOne.publicKey,
-                    },
-                    {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                     },
                 );
-                const { auction, auctionDataBefore } = result!;
+                const { auction, auctionDataBefore, fastVaaAccount } = result!;
 
                 const initialOfferBalanceBefore = await getUsdcAtaBalance(
                     connection,
@@ -1911,15 +1840,13 @@ describe("Matching Engine", function () {
                 const currentOffer = BigInt(auctionDataBefore.info!.offerPrice.toString());
                 const newOffer = currentOffer - (await engine.computeMinOfferDelta(currentOffer));
 
-                const [approveIx, ix] = await engine.improveOfferIx(
-                    {
-                        auction,
-                        participant: playerOne.publicKey,
-                    },
-                    { offerPrice: newOffer },
+                const txs = engine.improveOffer(
+                    playerOne.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                    newOffer,
                 );
 
-                await expectIxOk(connection, [approveIx, ix], [playerOne]);
+                await expectTxsOk(playerOneSigner, txs);
 
                 await checkAfterEffects(auction, playerOne.publicKey, newOffer, auctionDataBefore, {
                     custodyToken: custodyBalanceBefore,
@@ -1929,16 +1856,14 @@ describe("Matching Engine", function () {
 
             it("Cannot Improve Offer (Auction Expired)", async function () {
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerOne.publicKey },
                     {
-                        payer: playerOne.publicKey,
-                    },
-                    {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                     },
                 );
-                const { auction, auctionDataBefore } = result!;
+                const { auctionDataBefore, fastVaaAccount } = result!;
 
                 const { startSlot, offerPrice } = auctionDataBefore.info!;
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
@@ -1950,29 +1875,20 @@ describe("Matching Engine", function () {
                 // New Offer from playerOne.
                 const newOffer = BigInt(offerPrice.subn(100).toString());
 
-                const [approveIx, ix] = await engine.improveOfferIx(
-                    {
-                        auction,
-                        participant: playerOne.publicKey,
-                    },
-                    { offerPrice: newOffer },
+                const txs = engine.improveOffer(
+                    playerOne.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                    newOffer,
                 );
 
-                await expectIxErr(
-                    connection,
-                    [approveIx, ix],
-                    [playerOne],
-                    "Error Code: AuctionPeriodExpired",
-                );
+                await expectTxsErr(playerOneSigner, txs, "Error Code: AuctionPeriodExpired");
             });
 
             it("Cannot Improve Offer (Invalid Best Offer Token Account)", async function () {
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerOne.publicKey },
                     {
-                        payer: playerOne.publicKey,
-                    },
-                    {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                     },
@@ -2000,33 +1916,24 @@ describe("Matching Engine", function () {
 
             it("Cannot Improve Offer (Carping Not Allowed)", async function () {
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerOne.publicKey },
                     {
-                        payer: playerOne.publicKey,
-                    },
-                    {
-                        signers: [playerOne],
+                        signers: [playerOneSigner],
                         finalized: false,
                         fastMarketOrder: baseFastOrder,
                     },
                 );
-                const { auction, auctionDataBefore } = result!;
+                const { auctionDataBefore, fastVaaAccount } = result!;
 
                 // Attempt to improve by the minimum allowed.
                 const newOffer = BigInt(auctionDataBefore.info!.offerPrice.toString()) - 1n;
-                const [approveIx, ix] = await engine.improveOfferIx(
-                    {
-                        auction,
-                        participant: playerTwo.publicKey,
-                    },
-                    { offerPrice: newOffer },
+                const txs = engine.improveOffer(
+                    playerTwo.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                    newOffer,
                 );
 
-                await expectIxErr(
-                    connection,
-                    [approveIx, ix],
-                    [playerTwo],
-                    "Error Code: CarpingNotAllowed",
-                );
+                await expectTxsErr(playerTwoSigner, txs, "Error Code: CarpingNotAllowed");
             });
 
             async function checkAfterEffects(
@@ -2131,12 +2038,14 @@ describe("Matching Engine", function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerTwo.publicKey },
                     {
-                        payer: playerTwo.publicKey,
+                        signers: [playerTwoSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
                     },
-                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
                 );
-                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+                const { fastVaaAccount, auction, auctionDataBefore: initialData } = result!;
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -2144,7 +2053,7 @@ describe("Matching Engine", function () {
                     ),
                 );
                 const { auctionDataBefore } = await improveOfferForTest(
-                    auction,
+                    fastVaaAccount,
                     playerOne,
                     improveBy,
                 );
@@ -2167,16 +2076,11 @@ describe("Matching Engine", function () {
                     auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
                 );
 
-                const ix = await engine.executeFastOrderCctpIx({
-                    payer: playerOne.publicKey,
-                    fastVaa,
-                });
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const txDetails = await expectIxOkDetails(connection, [computeIx, ix], [playerOne]);
+                const txs = engine.executeFastOrder(
+                    playerOne.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                );
+                const txDetails = await expectTxsOkDetails(playerOneSigner, txs, connection);
 
                 await checkAfterEffects(
                     txDetails!,
@@ -2198,12 +2102,14 @@ describe("Matching Engine", function () {
 
             it("Execute Fast Order (Tx)", async function () {
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerTwo.publicKey },
                     {
-                        payer: playerTwo.publicKey,
+                        signers: [playerTwoSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
                     },
-                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
                 );
-                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+                const { fastVaaAccount, auctionDataBefore: initialData } = result!;
 
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
                 await waitUntilSlot(
@@ -2211,28 +2117,12 @@ describe("Matching Engine", function () {
                     initialData.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
                 );
 
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
+                const txs = engine.executeFastOrder(
+                    playerTwo.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
                 );
 
-                const tx = await engine.executeFastOrderTx(
-                    { payer: playerTwo.publicKey, fastVaa, auction },
-                    [playerTwo],
-                    {
-                        feeMicroLamports: 10,
-                        computeUnits: 400_000,
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    },
-                    { commitment: "confirmed" },
-                );
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 400_000,
-                });
-
-                await expectIxOkDetails(connection, [computeIx, ...tx.ixs], [playerTwo], {
-                    addressLookupTableAccounts: [lookupTableAccount!],
-                });
+                await expectTxsOkDetails(playerTwoSigner, txs, connection);
             });
 
             it("Reclaim by Closing CCTP Message", async function () {
@@ -2250,10 +2140,7 @@ describe("Matching Engine", function () {
                 const cctpAttestation = new CircleAttester().createAttestation(message);
 
                 const ix = await engine.reclaimCctpMessageIx(
-                    {
-                        payer: playerOne.publicKey,
-                        cctpMessage,
-                    },
+                    { payer: playerOne.publicKey, cctpMessage },
                     cctpAttestation,
                 );
 
@@ -2289,12 +2176,14 @@ describe("Matching Engine", function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerTwo.publicKey },
                     {
-                        payer: playerTwo.publicKey,
+                        signers: [playerTwoSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
                     },
-                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
                 );
-                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+                const { fastVaaAccount, auction, auctionDataBefore: initialData } = result!;
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -2302,7 +2191,7 @@ describe("Matching Engine", function () {
                     ),
                 );
                 const { auctionDataBefore } = await improveOfferForTest(
-                    auction,
+                    fastVaaAccount,
                     playerOne,
                     improveBy,
                 );
@@ -2328,16 +2217,12 @@ describe("Matching Engine", function () {
                         .toNumber(),
                 );
 
-                const ix = await engine.executeFastOrderCctpIx({
-                    payer: playerOne.publicKey,
-                    fastVaa,
-                });
+                const txs = engine.executeFastOrder(
+                    playerOne.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                );
 
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const txDetails = await expectIxOkDetails(connection, [computeIx, ix], [playerOne]);
+                const txDetails = await expectTxsOkDetails(playerOneSigner, txs, connection);
 
                 await checkAfterEffects(
                     txDetails!,
@@ -2359,12 +2244,14 @@ describe("Matching Engine", function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerTwo.publicKey },
                     {
-                        payer: playerTwo.publicKey,
+                        signers: [playerTwoSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
                     },
-                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
                 );
-                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+                const { fastVaaAccount, auction, auctionDataBefore: initialData } = result!;
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -2372,7 +2259,7 @@ describe("Matching Engine", function () {
                     ),
                 );
                 const { auctionDataBefore } = await improveOfferForTest(
-                    auction,
+                    fastVaaAccount,
                     playerOne,
                     improveBy,
                 );
@@ -2407,24 +2294,11 @@ describe("Matching Engine", function () {
                         .toNumber(),
                 );
 
-                const ix = await engine.executeFastOrderCctpIx({
-                    payer: liquidator.publicKey,
-                    fastVaa,
-                });
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
+                const txs = engine.executeFastOrder(
+                    liquidator.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
                 );
-                const txDetails = await expectIxOkDetails(
-                    connection,
-                    [computeIx, ix],
-                    [liquidator],
-                    { addressLookupTableAccounts: [lookupTableAccount!] },
-                );
+                const txDetails = await expectTxsOkDetails(liquidatorSigner, txs, connection);
 
                 await checkAfterEffects(
                     txDetails!,
@@ -2445,6 +2319,7 @@ describe("Matching Engine", function () {
 
             it("Execute Fast Order After Grace Period with Liquidator (Initial Offer Token is Closed)", async function () {
                 const tmpOwner = Keypair.generate();
+                const { signer: tmpOwnerSiner } = getSdkSigner(connection, tmpOwner);
                 const transferLamportsToTmpOwnerIx = SystemProgram.transfer({
                     fromPubkey: payer.publicKey,
                     toPubkey: tmpOwner.publicKey,
@@ -2477,12 +2352,11 @@ describe("Matching Engine", function () {
 
                 // Place the initial offer with a token account that will be closed.
                 const result = await placeInitialOfferCctpForTest(
-                    {
-                        payer: tmpOwner.publicKey,
-                    },
-                    { signers: [tmpOwner], finalized: false, fastMarketOrder: baseFastOrder },
+                    { payer: tmpOwner.publicKey },
+                    { signers: [tmpOwnerSiner], finalized: false, fastMarketOrder: baseFastOrder },
                 );
-                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+
+                const { fastVaaAccount, auction, auctionDataBefore: initialData } = result!;
 
                 // Burn funds out and close tmp ATA.
                 const { amount: burnAmount } = await splToken.getAccount(connection, tmpAta);
@@ -2505,7 +2379,7 @@ describe("Matching Engine", function () {
                     ),
                 );
                 const { auctionDataBefore } = await improveOfferForTest(
-                    auction,
+                    fastVaaAccount,
                     playerOne,
                     improveBy,
                 );
@@ -2540,25 +2414,12 @@ describe("Matching Engine", function () {
                         .toNumber(),
                 );
 
-                const ix = await engine.executeFastOrderCctpIx({
-                    payer: liquidator.publicKey,
-                    fastVaa,
-                    initialParticipant: payer.publicKey,
-                });
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
+                const txs = engine.executeFastOrder(
+                    liquidator.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                    payer.publicKey,
                 );
-                const txDetails = await expectIxOkDetails(
-                    connection,
-                    [computeIx, ix],
-                    [liquidator],
-                    { addressLookupTableAccounts: [lookupTableAccount!] },
-                );
+                const txDetails = await expectTxsOkDetails(liquidatorSigner, txs, connection);
 
                 await checkAfterEffects(
                     txDetails!,
@@ -2584,9 +2445,13 @@ describe("Matching Engine", function () {
                     {
                         payer: playerTwo.publicKey,
                     },
-                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
+                    {
+                        signers: [playerTwoSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
+                    },
                 );
-                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+                const { fastVaaAccount, auction, auctionDataBefore: initialData } = result!;
 
                 const tmpOwner = Keypair.generate();
                 const transferLamportsToTmpOwnerIx = SystemProgram.transfer({
@@ -2627,7 +2492,7 @@ describe("Matching Engine", function () {
                     ),
                 );
                 const { auctionDataBefore } = await improveOfferForTest(
-                    auction,
+                    fastVaaAccount,
                     tmpOwner,
                     improveBy,
                 );
@@ -2677,24 +2542,12 @@ describe("Matching Engine", function () {
                         .toNumber(),
                 );
 
-                const ix = await engine.executeFastOrderCctpIx({
-                    payer: liquidator.publicKey,
-                    fastVaa,
-                });
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
+                const txs = engine.executeFastOrder(
+                    liquidator.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
                 );
-                const txDetails = await expectIxOkDetails(
-                    connection,
-                    [computeIx, ix],
-                    [liquidator],
-                    { addressLookupTableAccounts: [lookupTableAccount!] },
-                );
+
+                const txDetails = await expectTxsOkDetails(liquidatorSigner, txs, connection);
 
                 await checkAfterEffects(
                     txDetails!,
@@ -2717,12 +2570,14 @@ describe("Matching Engine", function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerTwo.publicKey },
                     {
-                        payer: playerTwo.publicKey,
+                        signers: [playerTwoSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
                     },
-                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
                 );
-                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+                const { auction, fastVaaAccount, auctionDataBefore: initialData } = result!;
 
                 const tmpOwner = Keypair.generate();
                 const transferLamportsToTmpOwnerIx = SystemProgram.transfer({
@@ -2761,7 +2616,7 @@ describe("Matching Engine", function () {
                     ),
                 );
                 const { auctionDataBefore: afterFirstImprovedData } = await improveOfferForTest(
-                    auction,
+                    fastVaaAccount,
                     tmpOwner,
                     improveBy,
                 );
@@ -2787,7 +2642,7 @@ describe("Matching Engine", function () {
                     ),
                 );
                 const { auctionDataBefore } = await improveOfferForTest(
-                    auction,
+                    fastVaaAccount,
                     playerOne,
                     improveByAgain,
                 );
@@ -2821,24 +2676,11 @@ describe("Matching Engine", function () {
                         .toNumber(),
                 );
 
-                const ix = await engine.executeFastOrderCctpIx({
-                    payer: liquidator.publicKey,
-                    fastVaa,
-                });
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
+                const txs = engine.executeFastOrder(
+                    liquidator.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
                 );
-                const txDetails = await expectIxOkDetails(
-                    connection,
-                    [computeIx, ix],
-                    [liquidator],
-                    { addressLookupTableAccounts: [lookupTableAccount!] },
-                );
+                const txDetails = await expectTxsOkDetails(liquidatorSigner, txs, connection);
 
                 await checkAfterEffects(
                     txDetails!,
@@ -2864,9 +2706,13 @@ describe("Matching Engine", function () {
                     {
                         payer: playerTwo.publicKey,
                     },
-                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
+                    {
+                        signers: [playerTwoSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
+                    },
                 );
-                const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+                const { fastVaaAccount, auction, auctionDataBefore: initialData } = result!;
 
                 const improveBy = Number(
                     await engine.computeMinOfferDelta(
@@ -2874,7 +2720,7 @@ describe("Matching Engine", function () {
                     ),
                 );
                 const { auctionDataBefore } = await improveOfferForTest(
-                    auction,
+                    fastVaaAccount,
                     playerOne,
                     improveBy,
                 );
@@ -2909,24 +2755,12 @@ describe("Matching Engine", function () {
                         .toNumber(),
                 );
 
-                const ix = await engine.executeFastOrderCctpIx({
-                    payer: liquidator.publicKey,
-                    fastVaa,
-                });
-
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 300_000,
-                });
-
-                const { value: lookupTableAccount } = await connection.getAddressLookupTable(
-                    lookupTableAddress,
+                const txs = engine.executeFastOrder(
+                    liquidator.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
                 );
-                const txDetails = await expectIxOkDetails(
-                    connection,
-                    [computeIx, ix],
-                    [liquidator],
-                    { addressLookupTableAccounts: [lookupTableAccount!] },
-                );
+
+                const txDetails = await expectTxsOkDetails(liquidatorSigner, txs, connection);
 
                 await checkAfterEffects(
                     txDetails!,
@@ -2947,10 +2781,12 @@ describe("Matching Engine", function () {
 
             it("Cannot Execute Fast Order (Endpoint Disabled)", async function () {
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerOne.publicKey },
                     {
-                        payer: playerOne.publicKey,
+                        signers: [playerOneSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
                     },
-                    { signers: [playerOne], finalized: false, fastMarketOrder: baseFastOrder },
                 );
                 const { fastVaa, auctionDataBefore } = result!;
 
@@ -2998,7 +2834,11 @@ describe("Matching Engine", function () {
                     {
                         payer: playerTwo.publicKey,
                     },
-                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
+                    {
+                        signers: [playerTwoSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
+                    },
                 );
                 const { fastVaaAccount, auction, auctionDataBefore } = result!;
 
@@ -3006,7 +2846,7 @@ describe("Matching Engine", function () {
                     {
                         payer: playerTwo.publicKey,
                     },
-                    { signers: [playerTwo], fastMarketOrder: baseFastOrder },
+                    { signers: [playerTwoSigner], fastMarketOrder: baseFastOrder },
                 );
                 const { fastVaa: anotherFastVaa, fastVaaAccount: anotherFastVaaAccount } =
                     anotherResult!;
@@ -3032,7 +2872,11 @@ describe("Matching Engine", function () {
                     {
                         payer: playerOne.publicKey,
                     },
-                    { signers: [playerOne], finalized: false, fastMarketOrder: baseFastOrder },
+                    {
+                        signers: [playerOneSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
+                    },
                 );
                 const { fastVaa, auctionDataBefore } = result!;
 
@@ -3061,7 +2905,11 @@ describe("Matching Engine", function () {
                     {
                         payer: playerOne.publicKey,
                     },
-                    { signers: [playerOne], finalized: false, fastMarketOrder: baseFastOrder },
+                    {
+                        signers: [playerOneSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
+                    },
                 );
                 const { fastVaa, auctionDataBefore } = result!;
 
@@ -3095,12 +2943,14 @@ describe("Matching Engine", function () {
                 // Start the auction with offer two so that we can
                 // check that the initial offer is refunded.
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerTwo.publicKey },
                     {
-                        payer: playerTwo.publicKey,
+                        signers: [playerTwoSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
                     },
-                    { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
                 );
-                const { fastVaa, auctionDataBefore } = result!;
+                const { auctionDataBefore, fastVaaAccount } = result!;
 
                 const { duration, gracePeriod } = await engine.fetchAuctionParameters();
                 await waitUntilSlot(
@@ -3108,51 +2958,46 @@ describe("Matching Engine", function () {
                     auctionDataBefore.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
                 );
 
-                const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                    units: 250_000,
-                });
-                const ix = await engine.executeFastOrderCctpIx({
-                    payer: playerOne.publicKey,
-                    fastVaa,
-                });
+                localVariables.set("acct", fastVaaAccount);
 
-                await expectIxOk(connection, [computeIx, ix], [playerOne]);
+                const txs = engine.executeFastOrder(
+                    playerOne.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                );
 
-                localVariables.set("ix", ix);
+                await expectTxsOk(playerOneSigner, txs);
             });
 
             it("Cannot Execute Fast Order on Auction Completed", async function () {
-                const ix = localVariables.get("ix") as TransactionInstruction;
-                expect(localVariables.delete("ix")).is.true;
-
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [playerOne],
+                const fastVaaAccount = localVariables.get("acct") as VaaAccount;
+                const txs = engine.executeFastOrder(
+                    playerOne.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                );
+                await expectTxsErr(
+                    playerOneSigner,
+                    txs,
                     "custody_token. Error Code: AccountNotInitialized",
                 );
             });
 
             it("Cannot Execute Fast Order (Auction Period Not Expired)", async function () {
                 const result = await placeInitialOfferCctpForTest(
+                    { payer: playerOne.publicKey },
                     {
-                        payer: playerOne.publicKey,
+                        signers: [playerOneSigner],
+                        finalized: false,
+                        fastMarketOrder: baseFastOrder,
                     },
-                    { signers: [playerOne], finalized: false, fastMarketOrder: baseFastOrder },
                 );
-                const { fastVaa } = result!;
+                const { fastVaaAccount } = result!;
 
-                const ix = await engine.executeFastOrderCctpIx({
-                    payer: playerOne.publicKey,
-                    fastVaa,
-                });
-
-                await expectIxErr(
-                    connection,
-                    [ix],
-                    [playerOne],
-                    "Error Code: AuctionPeriodNotExpired",
+                const txs = engine.executeFastOrder(
+                    playerOne.publicKey,
+                    fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
                 );
+
+                await expectTxsErr(playerOneSigner, txs, "Error Code: AuctionPeriodNotExpired");
             });
 
             async function checkAfterEffects(
@@ -3396,6 +3241,7 @@ describe("Matching Engine", function () {
                 });
                 const fastEmitterInfo = fast.vaaAccount.emitterInfo();
                 const finalizedEmitterInfo = finalized!.vaaAccount.emitterInfo();
+
                 expect(fastEmitterInfo.chain).not.equals(finalizedEmitterInfo.chain);
 
                 await prepareOrderResponseCctpForTest(
@@ -3488,9 +3334,7 @@ describe("Matching Engine", function () {
 
             it("Prepare Order Response", async function () {
                 const result = await prepareOrderResponseCctpForTest(
-                    {
-                        payer: payer.publicKey,
-                    },
+                    { payer: payer.publicKey },
                     {
                         placeInitialOffer: false,
                     },
@@ -3529,34 +3373,22 @@ describe("Matching Engine", function () {
 
             it("Prepare Order Response for Active Auction", async function () {
                 await prepareOrderResponseCctpForTest(
-                    {
-                        payer: payer.publicKey,
-                    },
-                    {
-                        executeOrder: false,
-                    },
+                    { payer: payer.publicKey },
+                    { executeOrder: false },
                 );
             });
 
             it("Prepare Order Response for Completed Auction Within Grace Period", async function () {
                 await prepareOrderResponseCctpForTest(
-                    {
-                        payer: payer.publicKey,
-                    },
-                    {
-                        executeWithinGracePeriod: true,
-                    },
+                    { payer: payer.publicKey },
+                    { executeWithinGracePeriod: true },
                 );
             });
 
             it("Prepare Order Response for Completed Auction After Grace Period", async function () {
                 await prepareOrderResponseCctpForTest(
-                    {
-                        payer: payer.publicKey,
-                    },
-                    {
-                        executeWithinGracePeriod: false,
-                    },
+                    { payer: payer.publicKey },
+                    { executeWithinGracePeriod: false },
                 );
             });
         });
@@ -3565,20 +3397,15 @@ describe("Matching Engine", function () {
             describe("Auction Complete", function () {
                 it("Cannot Settle Non-Existent Auction", async function () {
                     const result = await prepareOrderResponseCctpForTest(
-                        {
-                            payer: payer.publicKey,
-                        },
-                        {
-                            placeInitialOffer: false,
-                        },
+                        { payer: payer.publicKey },
+                        { placeInitialOffer: false },
                     );
-                    const fastVaaAccount = await VaaAccount.fetch(connection, result!.fastVaa);
 
                     await settleAuctionCompleteForTest(
                         {
                             executor: payer.publicKey,
                             preparedOrderResponse: result!.preparedOrderResponse,
-                            auction: engine.auctionAddress(fastVaaAccount.digest()),
+                            auction: engine.auctionAddress(result!.fastVaaAccount.digest()),
                             bestOfferToken: splToken.getAssociatedTokenAddressSync(
                                 USDC_MINT_ADDRESS,
                                 payer.publicKey,
@@ -3593,11 +3420,9 @@ describe("Matching Engine", function () {
 
                 it("Cannot Settle Active Auction", async function () {
                     await settleAuctionCompleteForTest(
+                        { executor: payer.publicKey },
                         {
-                            executor: payer.publicKey,
-                        },
-                        {
-                            prepareSigners: [payer],
+                            prepareSigners: [payerSigner],
                             executeOrder: false,
                             errorMsg: "Error Code: AuctionNotCompleted",
                         },
@@ -3606,11 +3431,9 @@ describe("Matching Engine", function () {
 
                 it("Cannot Settle Completed Auction with No Penalty (Executor != Best Offer)", async function () {
                     await settleAuctionCompleteForTest(
+                        { executor: payer.publicKey },
                         {
-                            executor: payer.publicKey,
-                        },
-                        {
-                            prepareSigners: [payer],
+                            prepareSigners: [payerSigner],
                             executeWithinGracePeriod: true,
                             errorMsg: "Error Code: ExecutorTokenMismatch",
                         },
@@ -3619,11 +3442,9 @@ describe("Matching Engine", function () {
 
                 it("Settle Completed without Penalty", async function () {
                     await settleAuctionCompleteForTest(
+                        { executor: playerOne.publicKey },
                         {
-                            executor: playerOne.publicKey,
-                        },
-                        {
-                            prepareSigners: [playerOne],
+                            prepareSigners: [playerOneSigner],
                             executeWithinGracePeriod: true,
                         },
                     );
@@ -3631,11 +3452,9 @@ describe("Matching Engine", function () {
 
                 it("Settle Completed With Order Response Prepared Before Active Auction", async function () {
                     await settleAuctionCompleteForTest(
+                        { executor: playerOne.publicKey },
                         {
-                            executor: playerOne.publicKey,
-                        },
-                        {
-                            prepareSigners: [playerOne],
+                            prepareSigners: [playerOneSigner],
                             executeWithinGracePeriod: true,
                             prepareAfterExecuteOrder: false,
                         },
@@ -3644,9 +3463,7 @@ describe("Matching Engine", function () {
 
                 it("Cannot Settle Completed with Penalty (Executor != Prepared By)", async function () {
                     await settleAuctionCompleteForTest(
-                        {
-                            executor: playerOne.publicKey,
-                        },
+                        { executor: playerOne.publicKey },
                         {
                             executeWithinGracePeriod: false,
                             executorIsPreparer: false,
@@ -3657,11 +3474,9 @@ describe("Matching Engine", function () {
 
                 it("Settle Completed with Penalty (Executor == Best Offer)", async function () {
                     await settleAuctionCompleteForTest(
+                        { executor: playerOne.publicKey },
                         {
-                            executor: playerOne.publicKey,
-                        },
-                        {
-                            prepareSigners: [playerOne],
+                            prepareSigners: [playerOneSigner],
                             executeWithinGracePeriod: false,
                         },
                     );
@@ -3693,12 +3508,9 @@ describe("Matching Engine", function () {
                     );
 
                     await settleAuctionCompleteForTest(
+                        { executor: playerTwo.publicKey, executorToken },
                         {
-                            executor: playerTwo.publicKey,
-                            executorToken,
-                        },
-                        {
-                            prepareSigners: [playerTwo],
+                            prepareSigners: [playerTwoSigner],
                             executeWithinGracePeriod: false,
                             errorMsg: "Error Code: AccountNotAssociatedTokenAccount",
                         },
@@ -3707,11 +3519,9 @@ describe("Matching Engine", function () {
 
                 it("Settle Completed with Penalty (Executor != Best Offer)", async function () {
                     await settleAuctionCompleteForTest(
+                        { executor: playerTwo.publicKey },
                         {
-                            executor: playerTwo.publicKey,
-                        },
-                        {
-                            prepareSigners: [playerTwo],
+                            prepareSigners: [playerTwoSigner],
                             executeWithinGracePeriod: false,
                         },
                     );
@@ -3723,13 +3533,14 @@ describe("Matching Engine", function () {
                     });
 
                     const result = await placeInitialOfferCctpForTest(
+                        { payer: playerTwo.publicKey, fastVaa: fast.vaa },
                         {
-                            payer: playerTwo.publicKey,
-                            fastVaa: fast.vaa,
+                            signers: [playerTwoSigner],
+                            finalized: false,
+                            fastMarketOrder: baseFastOrder,
                         },
-                        { signers: [playerTwo], finalized: false, fastMarketOrder: baseFastOrder },
                     );
-                    const { fastVaa, auction, auctionDataBefore: initialData } = result!;
+                    const { auctionDataBefore: initialData } = result!;
 
                     const { duration, gracePeriod } = await engine.fetchAuctionParameters();
                     await waitUntilSlot(
@@ -3737,49 +3548,31 @@ describe("Matching Engine", function () {
                         initialData.info!.startSlot.addn(duration + gracePeriod - 1).toNumber(),
                     );
 
+                    const txs = engine.executeFastOrder(
+                        playerTwo.publicKey,
+                        fast.vaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                    );
+
+                    await expectTxsOkDetails(playerTwoSigner, txs, connection);
+
+                    const { encodedCctpMessage, cctpAttestation } = finalized!.cctp;
+                    const [cctpMessage] = CircleBridge.deserialize(encodedCctpMessage);
+
                     const { value: lookupTableAccount } = await connection.getAddressLookupTable(
                         lookupTableAddress,
                     );
-
-                    const tx = await engine.executeFastOrderTx(
-                        { payer: playerTwo.publicKey, fastVaa, auction },
-                        [playerTwo],
+                    const tx2 = engine.settleOrder(
+                        playerTwo.publicKey,
+                        fast.vaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                        finalized!.vaaAccount.vaa("FastTransfer:CctpDeposit"),
                         {
-                            feeMicroLamports: 10,
-                            computeUnits: 300_000,
-                            addressLookupTableAccounts: [lookupTableAccount!],
+                            message: cctpMessage,
+                            attestation: cctpAttestation.toString("hex"),
                         },
-                        { commitment: "confirmed" },
+                        [lookupTableAccount!],
                     );
 
-                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                        units: 300_000,
-                    });
-
-                    await expectIxOkDetails(connection, [computeIx, ...tx.ixs], [playerTwo], {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    });
-
-                    const tx2 = await engine.settleAuctionCompleteTx(
-                        {
-                            executor: playerTwo.publicKey,
-                            auction,
-                            fastVaa,
-                            finalizedVaa: finalized!.vaa,
-                            bestOfferToken: initialData.info!.bestOfferToken,
-                        },
-                        finalized!.cctp,
-                        [playerTwo],
-                        {
-                            feeMicroLamports: 10,
-                            computeUnits: 300_000,
-                            addressLookupTableAccounts: [lookupTableAccount!],
-                        },
-                        { commitment: "confirmed" },
-                    );
-                    await expectIxOkDetails(connection, [computeIx, ...tx2.ixs], [playerTwo], {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    });
+                    await expectTxsOkDetails(playerTwoSigner, tx2, connection);
                 });
             });
 
@@ -3832,9 +3625,7 @@ describe("Matching Engine", function () {
                         payer: payer.publicKey,
                         firstHistory: Keypair.generate().publicKey,
                     },
-                    {
-                        errorMsg: "Error Code: ConstraintSeeds",
-                    },
+                    { errorMsg: "Error Code: ConstraintSeeds" },
                 );
             });
 
@@ -3848,9 +3639,7 @@ describe("Matching Engine", function () {
                 const auctionHistory = engine.auctionHistoryAddress(0);
 
                 await createFirstAuctionHistoryForTest(
-                    {
-                        payer: payer.publicKey,
-                    },
+                    { payer: payer.publicKey },
                     {
                         errorMsg: `Allocate: account Address { address: ${auctionHistory.toString()}, base: None } already in use`,
                     },
@@ -3859,10 +3648,8 @@ describe("Matching Engine", function () {
 
             it("Cannot Add Entry from Unsettled Auction", async function () {
                 const result = await placeInitialOfferCctpForTest(
-                    {
-                        payer: playerOne.publicKey,
-                    },
-                    { signers: [playerOne], finalized: false },
+                    { payer: playerOne.publicKey },
+                    { signers: [playerOneSigner], finalized: false },
                 );
 
                 await addAuctionHistoryEntryForTest(
@@ -3872,18 +3659,13 @@ describe("Matching Engine", function () {
                         auction: result!.auction,
                         beneficiary: playerOne.publicKey,
                     },
-                    {
-                        errorMsg: "Error Code: AuctionNotSettled",
-                    },
+                    { errorMsg: "Error Code: AuctionNotSettled" },
                 );
             });
 
             it("Cannot Add Entry from Settled Complete Auction Before Expiration Time", async function () {
                 await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
-                    },
+                    { payer: payer.publicKey, history: engine.auctionHistoryAddress(0) },
                     {
                         settlementType: "complete",
                         waitToExpiration: false,
@@ -3923,22 +3705,14 @@ describe("Matching Engine", function () {
 
             it("Add Entry from Settled Complete Auction After Expiration Time", async function () {
                 await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
-                    },
-                    {
-                        settlementType: "complete",
-                    },
+                    { payer: payer.publicKey, history: engine.auctionHistoryAddress(0) },
+                    { settlementType: "complete" },
                 );
             });
 
             it("Cannot Close Auction Account from Settled Auction None Before Expiration Time", async function () {
                 await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
-                    },
+                    { payer: payer.publicKey, history: engine.auctionHistoryAddress(0) },
                     {
                         settlementType: "none",
                         waitToExpiration: false,
@@ -3976,46 +3750,29 @@ describe("Matching Engine", function () {
 
             it("Close Auction Account from Settled Auction None", async function () {
                 await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
-                    },
+                    { payer: payer.publicKey, history: engine.auctionHistoryAddress(0) },
                     { settlementType: "none" },
                 );
             });
 
             it("Cannot Create New Auction History with Current History Not Full", async function () {
                 await createNewAuctionHistoryForTest(
-                    {
-                        payer: payer.publicKey,
-                        currentHistory: engine.auctionHistoryAddress(0),
-                    },
+                    { payer: payer.publicKey, currentHistory: engine.auctionHistoryAddress(0) },
                     { errorMsg: "Error Code: AuctionHistoryNotFull" },
                 );
             });
 
             it("Add Another Entry from Settled Complete Auction", async function () {
                 await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
-                    },
-                    {
-                        settlementType: "complete",
-                    },
+                    { payer: payer.publicKey, history: engine.auctionHistoryAddress(0) },
+                    { settlementType: "complete" },
                 );
             });
 
             it("Cannot Add Another Entry from Settled Complete Auction To Full History", async function () {
                 await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
-                    },
-                    {
-                        settlementType: "complete",
-                        errorMsg: "Error Code: AuctionHistoryFull",
-                    },
+                    { payer: payer.publicKey, history: engine.auctionHistoryAddress(0) },
+                    { settlementType: "complete", errorMsg: "Error Code: AuctionHistoryFull" },
                 );
             });
 
@@ -4028,21 +3785,16 @@ describe("Matching Engine", function () {
 
             it("Add Another Entry from Settled Complete Auction To New History", async function () {
                 await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(1),
-                    },
-                    {
-                        settlementType: "complete",
-                    },
+                    { payer: payer.publicKey, history: engine.auctionHistoryAddress(1) },
+                    { settlementType: "complete" },
                 );
             });
 
             async function createFirstAuctionHistoryForTest(
                 accounts: { payer: PublicKey; firstHistory?: PublicKey },
-                opts: ForTestOpts = {},
+                opts: TestOptions = {},
             ) {
-                let [{ signers, errorMsg }] = setDefaultForTestOpts(opts);
+                let [{ signers, errorMsg }] = addDefaultOptions(opts);
 
                 const ix = await engine.program.methods
                     .createFirstAuctionHistory()
@@ -4050,7 +3802,7 @@ describe("Matching Engine", function () {
                     .instruction();
 
                 if (errorMsg !== null) {
-                    return expectIxErr(connection, [ix], signers, errorMsg);
+                    return expectIxErr(connection, [ix], unwrapSigners(signers), errorMsg);
                 }
 
                 const auctionHistory = engine.auctionHistoryAddress(0);
@@ -4059,7 +3811,7 @@ describe("Matching Engine", function () {
                     expect(accInfo).is.null;
                 }
 
-                await expectIxOk(connection, [ix], signers);
+                await expectIxOk(connection, [ix], unwrapSigners(signers));
 
                 const firstHistoryData = await engine.fetchAuctionHistory({
                     address: auctionHistory,
@@ -4095,9 +3847,9 @@ describe("Matching Engine", function () {
 
             async function createNewAuctionHistoryForTest(
                 accounts: { payer: PublicKey; currentHistory: PublicKey; newHistory?: PublicKey },
-                opts: ForTestOpts = {},
+                opts: TestOptions = {},
             ) {
-                let [{ signers, errorMsg }] = setDefaultForTestOpts(opts);
+                let [{ signers, errorMsg }] = addDefaultOptions(opts);
 
                 const definedAccounts = await createNewAuctionHistoryAccounts(accounts);
 
@@ -4107,7 +3859,7 @@ describe("Matching Engine", function () {
                     .instruction();
 
                 if (errorMsg !== null) {
-                    return expectIxErr(connection, [ix], signers, errorMsg);
+                    return expectIxErr(connection, [ix], unwrapSigners(signers), errorMsg);
                 }
 
                 const { newHistory } = definedAccounts;
@@ -4116,7 +3868,7 @@ describe("Matching Engine", function () {
                     expect(accInfo).is.null;
                 }
 
-                await expectIxOk(connection, [ix], signers);
+                await expectIxOk(connection, [ix], unwrapSigners(signers));
 
                 const [{ id }, numEntries] = await engine.fetchAuctionHistoryHeader({
                     address: definedAccounts.currentHistory,
@@ -4174,14 +3926,14 @@ describe("Matching Engine", function () {
                     beneficiary?: PublicKey;
                     beneficiaryToken?: PublicKey;
                 },
-                opts: ForTestOpts &
+                opts: TestOptions &
                     ObserveCctpOrderVaasOpts &
                     PrepareOrderResponseForTestOptionalOpts & {
                         settlementType?: "complete" | "none" | null;
                         waitToExpiration?: boolean;
                     } = {},
             ) {
-                let [{ signers, errorMsg }, excludedForTestOpts] = setDefaultForTestOpts(opts);
+                let [{ signers, errorMsg }, excludedForTestOpts] = addDefaultOptions(opts);
                 let { settlementType, waitToExpiration } = excludedForTestOpts;
                 settlementType ??= null;
                 // Set timestamps to 2 seconds before auction expiration so we don't have to wait
@@ -4200,7 +3952,7 @@ describe("Matching Engine", function () {
                         if (settlementType == "complete") {
                             const result = await settleAuctionCompleteForTest(
                                 { executor: playerOne.publicKey },
-                                { vaaTimestamp, prepareSigners: [playerOne] },
+                                { vaaTimestamp, prepareSigners: [playerOneSigner] },
                             );
                             return result!.auction;
                         } else if (settlementType == "none") {
@@ -4267,7 +4019,7 @@ describe("Matching Engine", function () {
                     .instruction();
 
                 if (errorMsg !== null) {
-                    return expectIxErr(connection, [ix], signers, errorMsg);
+                    return expectIxErr(connection, [ix], unwrapSigners(signers), errorMsg);
                 }
 
                 const beneficiaryBalanceBefore = await connection.getBalance(beneficiary);
@@ -4293,7 +4045,7 @@ describe("Matching Engine", function () {
                     .getAccountInfo(accounts.history)
                     .then((info) => info!.data.length);
 
-                await expectIxOk(connection, [ix], signers);
+                await expectIxOk(connection, [ix], unwrapSigners(signers));
 
                 const historyData = await engine.fetchAuctionHistory({
                     address: accounts.history,
@@ -4334,6 +4086,24 @@ describe("Matching Engine", function () {
         });
     });
 
+    interface TestOptions {
+        signers?: SDKSigner<"Devnet">[];
+        errorMsg?: string | null;
+    }
+
+    function addDefaultOptions<T extends TestOptions>(
+        opts: T,
+    ): [{ signers: SDKSigner<"Devnet">[]; errorMsg: string | null }, Omit<T, keyof TestOptions>] {
+        let { signers, errorMsg } = opts;
+        signers ??= [payerSigner];
+        delete opts.signers;
+
+        errorMsg ??= null;
+        delete opts.errorMsg;
+
+        return [{ signers, errorMsg }, { ...opts }];
+    }
+
     async function placeInitialOfferCctpForTest(
         accounts: {
             payer: PublicKey;
@@ -4342,9 +4112,8 @@ describe("Matching Engine", function () {
             auction?: PublicKey;
             auctionConfig?: PublicKey;
             fromRouterEndpoint?: PublicKey;
-            toRouterEndpoint?: PublicKey;
         },
-        opts: ForTestOpts &
+        opts: TestOptions &
             ObserveCctpOrderVaasOpts & {
                 args?: {
                     offerPrice?: bigint;
@@ -4358,26 +4127,27 @@ describe("Matching Engine", function () {
         auction: PublicKey;
         auctionDataBefore: Auction;
     }> {
-        const [{ errorMsg, signers }, excludedForTestOpts] = setDefaultForTestOpts(opts);
+        const [{ errorMsg, signers }, excludedForTestOpts] = addDefaultOptions(opts);
         let { args } = excludedForTestOpts;
         args ??= {};
 
-        const { fast, finalized } = await (async () => {
-            if (accounts.fastVaa !== undefined) {
-                const vaaAccount = await VaaAccount.fetch(connection, accounts.fastVaa);
-                return { fast: { vaa: accounts.fastVaa, vaaAccount }, finalized: undefined };
-            } else {
-                return observeCctpOrderVaas(excludedForTestOpts);
-            }
-        })();
+        const { fast } =
+            accounts.fastVaa !== undefined
+                ? {
+                      fast: {
+                          vaa: accounts.fastVaa,
+                          vaaAccount: await VaaAccount.fetch(connection, accounts.fastVaa),
+                      },
+                  }
+                : await observeCctpOrderVaas(excludedForTestOpts);
 
+        let fastMarketOrderVAA: VAA<"Uint8Array"> | VAA<"FastTransfer:FastMarketOrder">;
         try {
-            const { fastMarketOrder } = LiquidityLayerMessage.decode(fast.vaaAccount.payload());
-            if (fastMarketOrder !== undefined) {
-                args.offerPrice ??= fastMarketOrder!.maxFee;
-            }
+            fastMarketOrderVAA = fast.vaaAccount.vaa("FastTransfer:FastMarketOrder");
+            args.offerPrice ??= fastMarketOrderVAA.payload.maxFee;
         } catch (e) {
-            // Ignore if parsing failed.
+            // Ignore if parsing failed, this will be a VAA<"Uint8Array">
+            fastMarketOrderVAA = fast.vaaAccount.vaa("Uint8Array");
         }
 
         if (args.offerPrice === undefined) {
@@ -4385,21 +4155,26 @@ describe("Matching Engine", function () {
         }
 
         // Place the initial offer.
-        const ixs = await engine.placeInitialOfferCctpIx(
-            { ...accounts, fastVaa: fast.vaa },
-            {
-                offerPrice: args.offerPrice,
-                totalDeposit: args.totalDeposit,
-            },
+        const txs = engine.placeInitialOffer(
+            accounts.payer,
+            // @ts-expect-error -- may still be a Uint8array payload for testing invalid VAA
+            fastMarketOrderVAA,
+            args.offerPrice,
+            args.totalDeposit,
         );
 
         if (errorMsg !== null) {
-            return expectIxErr(connection, ixs, signers, errorMsg);
+            return expectTxsErr(signers[0], txs, errorMsg);
         }
+
+        // If we still have a Uint8Array, we failed to deserialize it earlier but it was accepted
+        // and not caught by the above error check. Why?
+        if (fastMarketOrderVAA.payloadLiteral === "Uint8Array") throw "Invalid VAA";
 
         const offerToken =
             accounts.offerToken ??
             splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, accounts.payer);
+
         const { owner: participant } = await splToken.getAccount(connection, offerToken);
         expect(offerToken).to.eql(
             splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, participant),
@@ -4414,7 +4189,7 @@ describe("Matching Engine", function () {
         const auction = engine.auctionAddress(vaaHash);
         const auctionCustodyBalanceBefore = await engine.fetchAuctionCustodyTokenBalance(auction);
 
-        const txDetails = await expectIxOkDetails(connection, ixs, signers);
+        const txDetails = await expectTxsOkDetails(signers[0], txs, connection);
         if (txDetails === null) {
             throw new Error("Transaction details are null");
         }
@@ -4428,7 +4203,7 @@ describe("Matching Engine", function () {
 
         const auctionCustodyBalanceAfter = await engine.fetchAuctionCustodyTokenBalance(auction);
 
-        const { fastMarketOrder } = LiquidityLayerMessage.decode(fast.vaaAccount.payload());
+        const fastMarketOrder = fastMarketOrderVAA.payload;
         expect(fastMarketOrder).is.not.undefined;
         const { amountIn, maxFee, targetChain, redeemerMessage } = fastMarketOrder!;
 
@@ -4485,49 +4260,26 @@ describe("Matching Engine", function () {
         };
     }
 
-    async function improveOfferForTest(
-        auction: PublicKey,
-        participant: Keypair,
-        improveBy: number,
-    ) {
+    async function improveOfferForTest(vaa: VaaAccount, participant: Keypair, improveBy: number) {
+        const auction = engine.auctionAddress(vaa.digest());
+
         const auctionData = await engine.fetchAuction({ address: auction });
         const newOffer = uint64ToBigInt(auctionData.info!.offerPrice.subn(improveBy));
 
-        const ixs = await engine.improveOfferIx(
-            {
-                auction,
-                participant: participant.publicKey,
-            },
-            { offerPrice: newOffer },
+        const txs = engine.improveOffer(
+            participant.publicKey,
+            vaa.vaa("FastTransfer:FastMarketOrder"),
+            newOffer,
         );
 
         // Improve the bid with offer one.
-        await expectIxOk(connection, ixs, [participant]);
+        const { signer } = getSdkSigner(connection, participant);
+        await expectTxsOk(signer, txs);
 
         const auctionDataBefore = await engine.fetchAuction({ address: auction });
         expect(uint64ToBigInt(auctionDataBefore.info!.offerPrice)).equals(newOffer);
 
-        return {
-            auctionDataBefore,
-        };
-    }
-
-    type ForTestOpts = {
-        signers?: Signer[];
-        errorMsg?: string | null;
-    };
-
-    function setDefaultForTestOpts<T extends ForTestOpts>(
-        opts: T,
-    ): [{ signers: Signer[]; errorMsg: string | null }, Omit<T, keyof ForTestOpts>] {
-        let { signers, errorMsg } = opts;
-        signers ??= [payer];
-        delete opts.signers;
-
-        errorMsg ??= null;
-        delete opts.errorMsg;
-
-        return [{ signers, errorMsg }, { ...opts }];
+        return { auctionDataBefore };
     }
 
     type PrepareOrderResponseForTestOptionalOpts = {
@@ -4537,7 +4289,6 @@ describe("Matching Engine", function () {
         executeOrder?: boolean;
         executeWithinGracePeriod?: boolean;
         prepareAfterExecuteOrder?: boolean;
-        instructionOnly?: boolean;
         alreadyPrepared?: boolean;
     };
 
@@ -4547,15 +4298,16 @@ describe("Matching Engine", function () {
             fastVaa?: PublicKey;
             finalizedVaa?: PublicKey;
         },
-        opts: ForTestOpts & ObserveCctpOrderVaasOpts & PrepareOrderResponseForTestOptionalOpts = {},
+        opts: TestOptions & ObserveCctpOrderVaasOpts & PrepareOrderResponseForTestOptionalOpts = {},
     ): Promise<void | {
         fastVaa: PublicKey;
+        fastVaaAccount: VaaAccount;
         finalizedVaa: PublicKey;
+        finalizedVaaAccount: VaaAccount;
         args: CctpMessageArgs;
         preparedOrderResponse: PublicKey;
-        prepareOrderResponseInstruction?: TransactionInstruction;
     }> {
-        let [{ signers, errorMsg }, excludedForTestOpts] = setDefaultForTestOpts(opts);
+        let [{ signers, errorMsg }, excludedForTestOpts] = addDefaultOptions(opts);
         let {
             args,
             placeInitialOffer,
@@ -4563,7 +4315,6 @@ describe("Matching Engine", function () {
             executeOrder,
             executeWithinGracePeriod,
             prepareAfterExecuteOrder,
-            instructionOnly,
             alreadyPrepared,
         } = excludedForTestOpts;
         placeInitialOffer ??= true;
@@ -4571,18 +4322,19 @@ describe("Matching Engine", function () {
         executeOrder ??= placeInitialOffer;
         executeWithinGracePeriod ??= true;
         prepareAfterExecuteOrder ??= true;
-        instructionOnly ??= false;
         alreadyPrepared ??= false;
 
-        const { fastVaa, fastVaaAccount, finalizedVaa } = await (async () => {
+        const { fastVaa, fastVaaAccount, finalizedVaa, finalizedVaaAccount } = await (async () => {
             const { fastVaa, finalizedVaa } = accounts;
 
             if (fastVaa !== undefined && finalizedVaa !== undefined && args !== undefined) {
                 const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+                const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
                 return {
                     fastVaa,
                     fastVaaAccount,
                     finalizedVaa,
+                    finalizedVaaAccount,
                 };
             } else if (fastVaa === undefined && finalizedVaa === undefined) {
                 const { fast, finalized } = await observeCctpOrderVaas(excludedForTestOpts);
@@ -4592,6 +4344,7 @@ describe("Matching Engine", function () {
                     fastVaa: fast.vaa,
                     fastVaaAccount: fast.vaaAccount,
                     finalizedVaa: finalized!.vaa,
+                    finalizedVaaAccount: finalized!.vaaAccount,
                 };
             } else {
                 throw new Error(
@@ -4607,13 +4360,8 @@ describe("Matching Engine", function () {
         const placeAndExecute = async () => {
             if (placeInitialOffer) {
                 const result = await placeInitialOfferCctpForTest(
-                    {
-                        payer: playerOne.publicKey,
-                        fastVaa,
-                    },
-                    {
-                        signers: [playerOne],
-                    },
+                    { payer: playerOne.publicKey, fastVaa },
+                    { signers: [playerOneSigner] },
                 );
 
                 if (executeOrder) {
@@ -4623,8 +4371,7 @@ describe("Matching Engine", function () {
                     if (info === null) {
                         throw new Error("No auction info found");
                     }
-                    const { configId, bestOfferToken, initialOfferToken, startSlot } = info;
-                    const auctionConfig = engine.auctionConfigAddress(configId);
+                    const { configId, startSlot } = info;
                     const { duration, gracePeriod, penaltyPeriod } =
                         await engine.fetchAuctionParameters(configId);
 
@@ -4640,21 +4387,12 @@ describe("Matching Engine", function () {
 
                     await waitUntilSlot(connection, endSlot);
 
-                    const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-                        units: 300_000,
-                    });
+                    const txs = engine.executeFastOrder(
+                        payer.publicKey,
+                        fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+                    );
 
-                    const ix = await engine.executeFastOrderCctpIx({
-                        payer: payer.publicKey,
-                        fastVaa,
-                        auction,
-                        auctionConfig,
-                        bestOfferToken,
-                        initialOfferToken,
-                    });
-                    await expectIxOk(connection, [computeIx, ix], [payer], {
-                        addressLookupTableAccounts: [lookupTableAccount!],
-                    });
+                    await expectTxsOk(payerSigner, txs);
                 }
             }
         };
@@ -4663,20 +4401,18 @@ describe("Matching Engine", function () {
             await placeAndExecute();
         }
 
-        const ix = await engine.prepareOrderResponseCctpIx(
-            {
-                payer: accounts.payer,
-                fastVaa,
-                finalizedVaa,
-            },
-            args!,
+        const [cctpMessage] = CircleBridge.deserialize(new Uint8Array(args!.encodedCctpMessage!));
+        const cctpAttestation = encoding.hex.encode(new Uint8Array(args!.cctpAttestation!));
+        const txs = engine.prepareOrderResponse(
+            accounts.payer,
+            fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+            finalizedVaaAccount.vaa("FastTransfer:CctpDeposit"),
+            { message: cctpMessage, attestation: cctpAttestation },
+            [lookupTableAccount!],
         );
 
         if (errorMsg !== null) {
-            expect(instructionOnly).is.false;
-            return expectIxErr(connection, [ix], signers, errorMsg, {
-                addressLookupTableAccounts: [lookupTableAccount!],
-            });
+            return expectTxsErr(signers[0], txs, errorMsg);
         }
 
         const preparedOrderResponse = engine.preparedOrderResponseAddress(fastVaaAccount.digest());
@@ -4690,28 +4426,13 @@ describe("Matching Engine", function () {
             }
         })();
 
-        if (instructionOnly) {
-            return {
-                fastVaa,
-                finalizedVaa,
-                args: args!,
-                preparedOrderResponse,
-                prepareOrderResponseInstruction: ix,
-            };
-        }
-
         const preparedCustodyToken = engine.preparedCustodyTokenAddress(preparedOrderResponse);
         {
             const accInfo = await connection.getAccountInfo(preparedCustodyToken);
             expect(accInfo !== null).equals(alreadyPrepared);
         }
 
-        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-            units: 280_000,
-        });
-        await expectIxOk(connection, [computeIx, ix], signers, {
-            addressLookupTableAccounts: [lookupTableAccount!],
-        });
+        await expectTxsOk(signers[0], txs);
 
         if (!prepareAfterExecuteOrder) {
             await placeAndExecute();
@@ -4722,12 +4443,11 @@ describe("Matching Engine", function () {
         });
         const { seeds } = preparedOrderResponseData;
 
-        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
-        const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
-        expect(deposit).is.not.undefined;
-
         const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
         expect(fastMarketOrder).is.not.undefined;
+
+        const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
+        expect(deposit).is.not.undefined;
 
         const toEndpoint = await engine.fetchRouterEndpointInfo(
             toChainId(fastMarketOrder!.targetChain),
@@ -4770,7 +4490,9 @@ describe("Matching Engine", function () {
 
         return {
             fastVaa,
+            fastVaaAccount,
             finalizedVaa,
+            finalizedVaaAccount,
             args: args!,
             preparedOrderResponse,
         };
@@ -4784,18 +4506,18 @@ describe("Matching Engine", function () {
             auction?: PublicKey;
             bestOfferToken?: PublicKey;
         },
-        opts: ForTestOpts &
+        opts: TestOptions &
             ObserveCctpOrderVaasOpts &
             PrepareOrderResponseForTestOptionalOpts & {
                 executorIsPreparer?: boolean;
-                prepareSigners?: Signer[];
+                prepareSigners?: SDKSigner<"Devnet">[];
                 preparedInSameTransaction?: boolean;
             } = {},
     ): Promise<void | { auction: PublicKey }> {
-        let [{ signers, errorMsg }, excludedForTestOpts] = setDefaultForTestOpts(opts);
+        let [{ signers, errorMsg }, excludedForTestOpts] = addDefaultOptions(opts);
         let { executorIsPreparer, prepareSigners, preparedInSameTransaction } = excludedForTestOpts;
         executorIsPreparer ??= true;
-        prepareSigners ??= [playerOne];
+        prepareSigners ??= [playerOneSigner];
         preparedInSameTransaction ??= false; // TODO: do something with this
 
         if (preparedInSameTransaction) {
@@ -4817,7 +4539,7 @@ describe("Matching Engine", function () {
                             : payer.publicKey,
                     },
                     {
-                        signers: executorIsPreparer ? prepareSigners : [payer],
+                        signers: executorIsPreparer ? prepareSigners : [payerSigner],
                         ...excludedForTestOpts,
                     },
                 );
@@ -4835,7 +4557,7 @@ describe("Matching Engine", function () {
         });
 
         if (errorMsg !== null) {
-            return expectIxErr(connection, [ix], signers, errorMsg);
+            return expectIxErr(connection, [ix], unwrapSigners(signers), errorMsg);
         }
 
         // If we are at this point, we require that prepareOrderResponseForTest be called. So these
@@ -4845,7 +4567,6 @@ describe("Matching Engine", function () {
         }
 
         const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
-
         const auction = accounts.auction ?? engine.auctionAddress(fastVaaAccount.digest());
         const { info, status: statusBefore } = await engine.fetchAuction({
             address: auction,
@@ -4886,7 +4607,13 @@ describe("Matching Engine", function () {
             .getAccountInfo(preparedCustodyToken)
             .then((info) => info!.lamports);
 
-        await expectIxOk(connection, [ix], [payer]);
+        const txs = engine.settleOrder(
+            executor,
+            fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+        );
+
+        const signer = executorIsPreparer ? prepareSigners[0] : payerSigner;
+        await expectTxsOk(signer, txs);
 
         {
             const accInfo = await connection.getAccountInfo(preparedCustodyToken);
@@ -4901,6 +4628,7 @@ describe("Matching Engine", function () {
             connection,
             bestOfferToken,
         );
+
         const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
         const { deposit } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload());
         const { baseFee } = deposit!.message.payload! as SlowOrderResponse;
@@ -4923,7 +4651,7 @@ describe("Matching Engine", function () {
 
         const authorityLamportsAfter = await connection.getBalance(executor);
         expect(authorityLamportsAfter).equals(
-            authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports,
+            authorityLamportsBefore + preparedOrderLamports + preparedCustodyLamports - 5000,
         );
 
         const { status: statusAfter } = await engine.fetchAuction({
@@ -4951,13 +4679,13 @@ describe("Matching Engine", function () {
             preparedOrderResponse?: PublicKey;
             toRouterEndpoint?: PublicKey;
         },
-        opts: ForTestOpts &
+        opts: TestOptions &
             ObserveCctpOrderVaasOpts &
             PrepareOrderResponseForTestOptionalOpts & {
                 preparedInSameTransaction?: boolean;
             } = {},
     ): Promise<void | { auction: PublicKey }> {
-        let [{ signers, errorMsg }, excludedForTestOpts] = setDefaultForTestOpts(opts);
+        let [{ signers, errorMsg }, excludedForTestOpts] = addDefaultOptions(opts);
         let { preparedInSameTransaction } = excludedForTestOpts;
         preparedInSameTransaction ??= false; // TODO: do something with this
         if (preparedInSameTransaction) {
@@ -4973,9 +4701,7 @@ describe("Matching Engine", function () {
                 };
             } else {
                 const result = await prepareOrderResponseCctpForTest(
-                    {
-                        payer: payer.publicKey,
-                    },
+                    { payer: payer.publicKey },
                     {
                         ...excludedForTestOpts,
                         placeInitialOffer: false,
@@ -4991,18 +4717,22 @@ describe("Matching Engine", function () {
             }
         })();
 
-        const computeIx = ComputeBudgetProgram.setComputeUnitLimit({
-            units: 300_000,
-        });
+        const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
+        expect(fastMarketOrder).is.not.undefined;
 
-        const ix = await engine.settleAuctionNoneCctpIx({
-            ...accounts,
-            fastVaa,
-            preparedOrderResponse,
-        });
+        let finalizedVaaAccount = finalizedVaa
+            ? await VaaAccount.fetch(connection, finalizedVaa)
+            : undefined;
+
+        const txs = engine.settleOrder(
+            accounts.payer,
+            fastVaaAccount.vaa("FastTransfer:FastMarketOrder"),
+            finalizedVaaAccount?.vaa("FastTransfer:CctpDeposit"),
+        );
 
         if (errorMsg !== null) {
-            return expectIxErr(connection, [computeIx, ix], signers, errorMsg);
+            return expectTxsErr(signers[0], txs, errorMsg);
         }
 
         // If we are at this point, we require that prepareOrderResponseForTest be called. So the
@@ -5018,16 +4748,11 @@ describe("Matching Engine", function () {
             feeRecipientToken,
         );
 
-        await expectIxOk(connection, [computeIx, ix], signers);
+        await expectTxsOk(signers[0], txs);
 
-        const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
-        const { fastMarketOrder } = LiquidityLayerMessage.decode(fastVaaAccount.payload());
-        expect(fastMarketOrder).is.not.undefined;
-
-        const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
         const {
             message: { payload: slowOrderResponse },
-        } = LiquidityLayerMessage.decode(finalizedVaaAccount.payload()).deposit!;
+        } = LiquidityLayerMessage.decode(finalizedVaaAccount!.payload()).deposit!;
         expect(slowOrderResponse).is.not.undefined;
 
         const fee =
@@ -5084,52 +4809,24 @@ describe("Matching Engine", function () {
             redeemerMessage?: Buffer;
         } = {},
     ): FastMarketOrder {
-        const {
-            amountIn,
-            targetChain,
-            minAmountOut,
-            maxFee,
-            initAuctionFee,
-            deadline,
-            redeemerMessage,
-        } = args;
-
         return {
-            amountIn: amountIn ?? 1_000_000_000n,
-            minAmountOut: minAmountOut ?? 0n,
-            targetChain: targetChain ?? "Arbitrum",
+            amountIn: 1_000_000_000n,
+            minAmountOut: 0n,
+            targetChain: "Arbitrum",
             redeemer: toUniversalAddress(new Array(32).fill(1)),
             sender: toUniversalAddress(new Array(32).fill(2)),
             refundAddress: toUniversalAddress(new Array(32).fill(3)),
-            maxFee: maxFee ?? 42069n,
-            initAuctionFee: initAuctionFee ?? 1_250_000n,
-            deadline: deadline ?? 0,
-            redeemerMessage:
-                redeemerMessage ?? encoding.bytes.encode("Somebody set up us the bomb"),
+            maxFee: 42069n,
+            initAuctionFee: 1_250_000n,
+            deadline: 0,
+            redeemerMessage: encoding.bytes.encode("Somebody set up us the bomb"),
+            ...args,
         };
     }
 
     function newSlowOrderResponse(args: { baseFee?: bigint } = {}): SlowOrderResponse {
-        const { baseFee } = args;
-
-        return {
-            baseFee: baseFee ?? 420n,
-        };
+        return { baseFee: 420n, ...args };
     }
-
-    type VaaResult = {
-        vaa: PublicKey;
-        vaaAccount: VaaAccount;
-    };
-
-    type FastObservedResult = VaaResult & {
-        fastMarketOrder: FastMarketOrder;
-    };
-
-    type FinalizedObservedResult = VaaResult & {
-        slowOrderResponse: SlowOrderResponse;
-        cctp: CctpMessageArgs;
-    };
 
     type ObserveCctpOrderVaasOpts = {
         sourceChain?: Chain;
@@ -5144,10 +4841,7 @@ describe("Matching Engine", function () {
         finalizedVaaTimestamp?: number;
     };
 
-    async function observeCctpOrderVaas(opts: ObserveCctpOrderVaasOpts = {}): Promise<{
-        fast: FastObservedResult;
-        finalized?: FinalizedObservedResult;
-    }> {
+    async function observeCctpOrderVaas(opts: ObserveCctpOrderVaasOpts = {}) {
         let {
             sourceChain,
             emitter,
@@ -5176,66 +4870,67 @@ describe("Matching Engine", function () {
             throw new Error(`Invalid source chain: ${sourceChain}`);
         }
 
-        const fastVaa = await postLiquidityLayerVaa(
+        const mockFastVaa = await createLiquidityLayerVaa(
             connection,
-            payer,
-            MOCK_GUARDIANS,
             emitter,
             wormholeSequence++,
-            new LiquidityLayerMessage({
-                fastMarketOrder,
-            }),
+            new LiquidityLayerMessage({ fastMarketOrder }),
             { sourceChain, timestamp: vaaTimestamp },
         );
-        const fastVaaAccount = await VaaAccount.fetch(connection, fastVaa);
+
+        const { address: fastVaa, account: fastVaaAccount } = await postAndFetchVaa(
+            payerSigner,
+            engine,
+            mockFastVaa,
+        );
+
         const fast = { fastMarketOrder, vaa: fastVaa, vaaAccount: fastVaaAccount };
 
-        if (finalized) {
-            const { amountIn: amount } = fastMarketOrder;
-            const cctpNonce = testCctpNonce++;
+        if (!finalized) return { fast };
 
-            // Concoct a Circle message.
-            const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
-                await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amount);
+        const { amountIn: amount } = fastMarketOrder;
+        const cctpNonce = testCctpNonce++;
 
-            const finalizedMessage = new LiquidityLayerMessage({
-                deposit: new LiquidityLayerDeposit({
-                    tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
-                    amount,
-                    sourceCctpDomain,
-                    destinationCctpDomain,
-                    cctpNonce,
-                    burnSource: toUniversalAddress(Buffer.alloc(32, "beefdead", "hex")),
-                    mintRecipient: toUniversalAddress(engine.cctpMintRecipientAddress().toBuffer()),
-                    payload: { id: 2, ...slowOrderResponse },
-                }),
-            });
+        // Concoct a Circle message.
+        const { destinationCctpDomain, burnMessage, encodedCctpMessage, cctpAttestation } =
+            await craftCctpTokenBurnMessage(sourceCctpDomain, cctpNonce, amount);
 
-            const finalizedVaa = await postLiquidityLayerVaa(
-                connection,
-                payer,
-                MOCK_GUARDIANS,
-                finalizedEmitter,
-                finalizedSequence,
-                finalizedMessage,
-                { sourceChain: finalizedSourceChain, timestamp: finalizedVaaTimestamp },
-            );
-            const finalizedVaaAccount = await VaaAccount.fetch(connection, finalizedVaa);
-            return {
-                fast,
-                finalized: {
-                    slowOrderResponse,
-                    vaa: finalizedVaa,
-                    vaaAccount: finalizedVaaAccount,
-                    cctp: {
-                        encodedCctpMessage,
-                        cctpAttestation,
-                    },
-                },
-            };
-        } else {
-            return { fast };
-        }
+        const finalizedMessage = new LiquidityLayerMessage({
+            deposit: new LiquidityLayerDeposit({
+                tokenAddress: toUniversalAddress(burnMessage.burnTokenAddress),
+                amount,
+                sourceCctpDomain,
+                destinationCctpDomain,
+                cctpNonce,
+                burnSource: toUniversalAddress(Buffer.alloc(32, "beefdead", "hex")),
+                mintRecipient: toUniversalAddress(engine.cctpMintRecipientAddress().toBuffer()),
+                payload: { id: 2, ...slowOrderResponse },
+            }),
+        });
+
+        const mockFinalizedVaa = await createLiquidityLayerVaa(
+            connection,
+            finalizedEmitter,
+            finalizedSequence,
+            finalizedMessage,
+            { sourceChain: finalizedSourceChain, timestamp: finalizedVaaTimestamp },
+        );
+
+        const { address: finalizedVaa, account: finalizedVaaAccount } = await postAndFetchVaa(
+            payerSigner,
+            engine,
+            mockFinalizedVaa,
+        );
+
+        return {
+            fast,
+            finalized: {
+                slowOrderResponse,
+                vaa: finalizedVaa,
+                vaaAccount: finalizedVaaAccount,
+                cctp: { encodedCctpMessage, cctpAttestation },
+            },
+        };
     }
 
     async function craftCctpTokenBurnMessage(

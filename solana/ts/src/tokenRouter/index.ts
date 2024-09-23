@@ -9,9 +9,9 @@ import {
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
+import { TokenRouter } from "@wormhole-foundation/example-liquidity-layer-definitions";
+import { ChainId, isChainId } from "@wormhole-foundation/sdk-base";
 import { Keccak } from "sha3";
-import IDL from "../idl/json/token_router.json";
-import { TokenRouter } from "../idl/ts/token_router";
 import {
     CctpTokenBurnMessage,
     MessageTransmitterProgram,
@@ -23,111 +23,32 @@ import {
     reclaimCctpMessageIx,
     uint64ToBN,
 } from "../common";
+import IDL from "../idl/json/token_router.json";
+import { type TokenRouter as TokenRouterType } from "../idl/ts/token_router";
 import * as matchingEngineSdk from "../matchingEngine";
 import { UpgradeManagerProgram } from "../upgradeManager";
 import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import { Custodian, PreparedFill, PreparedOrder } from "./state";
-import { ChainId, isChainId } from "@wormhole-foundation/sdk-base";
-
-export const PROGRAM_IDS = [
-    "TokenRouter11111111111111111111111111111111",
-    "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md",
-] as const;
-
-export type ProgramId = (typeof PROGRAM_IDS)[number];
-
-export type PrepareMarketOrderArgs = {
-    amountIn: bigint;
-    minAmountOut: bigint | null;
-    targetChain: ChainId;
-    redeemer: Array<number>;
-    redeemerMessage: Buffer;
-};
-
-export type PublishMessageAccounts = {
-    coreBridgeConfig: PublicKey;
-    coreEmitterSequence: PublicKey;
-    coreFeeCollector: PublicKey;
-    coreBridgeProgram: PublicKey;
-};
-
-export type TokenRouterCommonAccounts = PublishMessageAccounts & {
-    tokenRouterProgram: PublicKey;
-    systemProgram: PublicKey;
-    rent: PublicKey;
-    clock: PublicKey;
-    custodian: PublicKey;
-    cctpMintRecipient: PublicKey;
-    tokenMessenger: PublicKey;
-    tokenMinter: PublicKey;
-    tokenMessengerMinterSenderAuthority: PublicKey;
-    tokenMessengerMinterProgram: PublicKey;
-    messageTransmitterAuthority: PublicKey;
-    messageTransmitterConfig: PublicKey;
-    messageTransmitterProgram: PublicKey;
-    tokenProgram: PublicKey;
-    mint: PublicKey;
-    localToken: PublicKey;
-    tokenMessengerMinterCustodyToken: PublicKey;
-    matchingEngineProgram: PublicKey;
-    matchingEngineCustodian: PublicKey;
-    matchingEngineCctpMintRecipient: PublicKey;
-};
-
-export type RedeemFillCctpAccounts = {
-    custodian: PublicKey;
-    preparedFill: PublicKey;
-    cctpMintRecipient: PublicKey;
-    sourceRouterEndpoint: PublicKey;
-    messageTransmitterAuthority: PublicKey;
-    messageTransmitterConfig: PublicKey;
-    usedNonces: PublicKey;
-    messageTransmitterEventAuthority: PublicKey;
-    tokenMessenger: PublicKey;
-    remoteTokenMessenger: PublicKey;
-    tokenMinter: PublicKey;
-    localToken: PublicKey;
-    tokenPair: PublicKey;
-    tokenMessengerMinterCustodyToken: PublicKey;
-    tokenMessengerMinterProgram: PublicKey;
-    messageTransmitterProgram: PublicKey;
-    tokenMessengerMinterEventAuthority: PublicKey;
-};
-
-export type RedeemFastFillAccounts = {
-    custodian: PublicKey;
-    preparedFill: PublicKey;
-    cctpMintRecipient: PublicKey;
-    matchingEngineCustodian: PublicKey;
-    matchingEngineFromEndpoint: PublicKey;
-    matchingEngineToEndpoint: PublicKey;
-    matchingEngineLocalCustodyToken: PublicKey;
-    matchingEngineProgram: PublicKey;
-};
-
-export type AddCctpRouterEndpointArgs = {
-    chain: number;
-    cctpDomain: number;
-    address: Array<number>;
-    mintRecipient: Array<number> | null;
-};
+import {
+    PrepareMarketOrderArgs,
+    PublishMessageAccounts,
+    RedeemFastFillAccounts,
+    RedeemFillCctpAccounts,
+    TokenRouterCommonAccounts,
+} from "./types";
+export * from "./types";
 
 export class TokenRouterProgram {
-    private _programId: ProgramId;
-    private _mint: PublicKey;
+    private _addresses: TokenRouter.Addresses;
 
-    program: Program<TokenRouter>;
+    program: Program<TokenRouterType>;
 
-    // TODO: fix this
-    constructor(connection: Connection, programId: ProgramId, mint: PublicKey) {
-        this._programId = programId;
-        this._mint = mint;
+    constructor(connection: Connection, addresses: TokenRouter.Addresses) {
+        this._addresses = addresses;
         this.program = new Program(
-            { ...(IDL as any), address: this._programId },
-            {
-                connection,
-            },
+            { ...(IDL as any), address: this._addresses.tokenRouter },
+            { connection },
         );
     }
 
@@ -136,7 +57,23 @@ export class TokenRouterProgram {
     }
 
     get mint(): PublicKey {
-        return this._mint;
+        return new PublicKey(this._addresses.cctp.usdcMint);
+    }
+    get cctpTokenMessenger(): PublicKey {
+        return new PublicKey(this._addresses.cctp.tokenMessenger);
+    }
+    get cctpMessageTransmitter(): PublicKey {
+        return new PublicKey(this._addresses.cctp.messageTransmitter);
+    }
+
+    get coreBridgeProgramId(): PublicKey {
+        return new PublicKey(this._addresses.coreBridge);
+    }
+    get matchingEngineProgramId(): PublicKey {
+        return new PublicKey(this._addresses.matchingEngine);
+    }
+    get upgradeManager(): PublicKey {
+        return new PublicKey(this._addresses.upgradeManager!);
     }
 
     custodianAddress(): PublicKey {
@@ -878,7 +815,7 @@ export class TokenRouterProgram {
     }
 
     publishMessageAccounts(emitter: PublicKey): PublishMessageAccounts {
-        const coreBridgeProgram = this.coreBridgeProgramId();
+        const coreBridgeProgram = this.coreBridgeProgramId;
 
         return {
             coreBridgeConfig: PublicKey.findProgramAddressSync(
@@ -898,80 +835,27 @@ export class TokenRouterProgram {
     }
 
     upgradeManagerProgram(): UpgradeManagerProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new UpgradeManagerProgram(
-                    this.program.provider.connection,
-                    "ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt",
-                );
-            }
-            case localnet(): {
-                return new UpgradeManagerProgram(
-                    this.program.provider.connection,
-                    "UpgradeManager11111111111111111111111111111",
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new UpgradeManagerProgram(this.program.provider.connection, this._addresses);
     }
 
     tokenMessengerMinterProgram(): TokenMessengerMinterProgram {
         return new TokenMessengerMinterProgram(
             this.program.provider.connection,
-            "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3",
+            this._addresses.cctp,
         );
     }
 
     messageTransmitterProgram(): MessageTransmitterProgram {
         return new MessageTransmitterProgram(
             this.program.provider.connection,
-            "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
+            this._addresses.cctp,
         );
     }
 
     matchingEngineProgram(): matchingEngineSdk.MatchingEngineProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new matchingEngineSdk.MatchingEngineProgram(
-                    this.program.provider.connection,
-                    matchingEngineSdk.testnet(),
-                    this.mint,
-                );
-            }
-            case localnet(): {
-                return new matchingEngineSdk.MatchingEngineProgram(
-                    this.program.provider.connection,
-                    matchingEngineSdk.localnet(),
-                    this.mint,
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new matchingEngineSdk.MatchingEngineProgram(
+            this.program.provider.connection,
+            this._addresses,
+        );
     }
-
-    coreBridgeProgramId(): PublicKey {
-        switch (this._programId) {
-            case testnet(): {
-                return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
-            }
-            case localnet(): {
-                return new PublicKey("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
-    }
-}
-
-export function localnet(): ProgramId {
-    return "TokenRouter11111111111111111111111111111111";
-}
-
-export function testnet(): ProgramId {
-    return "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md";
 }
