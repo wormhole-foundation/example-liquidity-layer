@@ -11,7 +11,7 @@ pub struct SettledTokenAccountInfo {
 #[derive(Debug)]
 pub struct AuctionSettled {
     /// The pubkey of the auction that was settled.
-    pub auction: Pubkey,
+    pub fast_vaa_hash: [u8; 32],
 
     /// If there was an active auction, this field will have the pubkey of the best offer token that
     /// was paid back and its balance after repayment.

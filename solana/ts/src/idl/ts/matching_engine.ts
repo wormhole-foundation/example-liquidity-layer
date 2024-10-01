@@ -3541,11 +3541,16 @@ export type MatchingEngine = {
         "kind": "struct",
         "fields": [
           {
-            "name": "auction",
+            "name": "fastVaaHash",
             "docs": [
               "The pubkey of the auction that was settled."
             ],
-            "type": "pubkey"
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "bestOfferToken",
@@ -3646,8 +3651,13 @@ export type MatchingEngine = {
             "type": "u32"
           },
           {
-            "name": "auction",
-            "type": "pubkey"
+            "name": "fastVaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "vaa",
@@ -3917,7 +3927,11 @@ export type MatchingEngine = {
           },
           {
             "name": "fastFill",
-            "type": "pubkey"
+            "type": {
+              "defined": {
+                "name": "fastFillSeeds"
+              }
+            }
           }
         ]
       }
@@ -3979,7 +3993,7 @@ export type MatchingEngine = {
             }
           },
           {
-            "name": "fastFillSeeds",
+            "name": "fastFill",
             "type": {
               "defined": {
                 "name": "fastFillSeeds"
@@ -4121,8 +4135,13 @@ export type MatchingEngine = {
         "kind": "struct",
         "fields": [
           {
-            "name": "auction",
-            "type": "pubkey"
+            "name": "fastVaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "vaa",

@@ -81,6 +81,6 @@ fn set_reserved_sequence_data(
     // easily execute local orders.
     Ok(FastFillSequenceReserved {
         fast_vaa_hash,
-        fast_fill_seeds,
+        fast_fill: fast_fill_seeds,
     })
 }

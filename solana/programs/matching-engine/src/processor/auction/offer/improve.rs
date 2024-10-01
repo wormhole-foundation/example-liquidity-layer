@@ -137,7 +137,7 @@ pub fn improve_offer(ctx: Context<ImproveOffer>, offer_price: u64) -> Result<()>
         // Emit event for auction participants to listen to.
         emit_cpi!(crate::utils::log_emit(crate::events::AuctionUpdated {
             config_id: info.config_id,
-            auction: auction.key(),
+            fast_vaa_hash: auction.vaa_hash,
             vaa: Default::default(),
             source_chain: info.source_chain,
             target_protocol: auction.target_protocol,

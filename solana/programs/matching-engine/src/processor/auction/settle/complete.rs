@@ -249,7 +249,7 @@ fn handle_settle_auction_complete(
     };
 
     emit_cpi!(crate::events::AuctionSettled {
-        auction: ctx.accounts.auction.key(),
+        fast_vaa_hash: ctx.accounts.auction.vaa_hash,
         best_offer_token: settled_best_offer_result,
         base_fee_token: settled_base_fee_result,
         with_execute: Default::default(),

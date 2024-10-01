@@ -84,7 +84,7 @@ fn settle_none_and_prepare_fill(accounts: SettleNoneAndPrepareFill<'_, '_>) -> R
     };
 
     let auction_settled_event = AuctionSettled {
-        auction: auction.key(),
+        fast_vaa_hash: auction.vaa_hash,
         best_offer_token: Default::default(),
         base_fee_token: crate::events::SettledTokenAccountInfo {
             key: fee_recipient_token.key(),
