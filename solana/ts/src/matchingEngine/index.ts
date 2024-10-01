@@ -147,7 +147,7 @@ export type SettledTokenAccountInfo = {
 };
 
 export type AuctionSettled = {
-    auction: PublicKey;
+    fastVaaHash: Array<number>;
     bestOfferToken: SettledTokenAccountInfo | null;
     baseFeeToken: SettledTokenAccountInfo | null;
     withExecute: MessageProtocol | null;
@@ -155,7 +155,7 @@ export type AuctionSettled = {
 
 export type AuctionUpdated = {
     configId: number;
-    auction: PublicKey;
+    fastVaaHash: Array<number>;
     vaa: PublicKey | null;
     sourceChain: number;
     targetProtocol: MessageProtocol;
@@ -169,7 +169,7 @@ export type AuctionUpdated = {
 };
 
 export type OrderExecuted = {
-    auction: PublicKey;
+    fastVaaHash: Array<number>;
     vaa: PublicKey;
     targetProtocol: MessageProtocol;
 };
@@ -190,12 +190,12 @@ export type LocalFastOrderFilled = {
 
 export type FastFillSequenceReserved = {
     fastVaaHash: Array<number>;
-    fastFillSeeds: FastFillSeeds;
+    fastFill: FastFillSeeds;
 };
 
 export type FastFillRedeemed = {
     preparedBy: PublicKey;
-    fastFill: PublicKey;
+    fastFill: FastFillSeeds;
 };
 
 export type MatchingEngineEvent = {

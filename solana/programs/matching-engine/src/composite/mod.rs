@@ -97,7 +97,7 @@ pub struct CheckedCustodian<'info> {
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
     )]
-    pub custodian: Account<'info, Custodian>,
+    pub custodian: Box<Account<'info, Custodian>>,
 }
 
 impl<'info> Deref for CheckedCustodian<'info> {
@@ -138,7 +138,7 @@ pub struct OwnerOnlyMut<'info> {
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
     )]
-    pub custodian: Account<'info, Custodian>,
+    pub custodian: Box<Account<'info, Custodian>>,
 }
 
 #[derive(Accounts)]
@@ -171,7 +171,7 @@ pub struct AdminMut<'info> {
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
     )]
-    pub custodian: Account<'info, Custodian>,
+    pub custodian: Box<Account<'info, Custodian>>,
 }
 
 #[derive(Accounts)]
@@ -195,7 +195,7 @@ pub struct LocalTokenRouter<'info> {
         associated_token::mint = common::USDC_MINT,
         associated_token::authority = token_router_emitter,
     )]
-    pub token_router_mint_recipient: Account<'info, token::TokenAccount>,
+    pub token_router_mint_recipient: Box<Account<'info, token::TokenAccount>>,
 }
 
 #[derive(Accounts)]
@@ -208,7 +208,7 @@ pub struct ExistingMutRouterEndpoint<'info> {
         ],
         bump = endpoint.bump,
     )]
-    pub endpoint: Account<'info, RouterEndpoint>,
+    pub endpoint: Box<Account<'info, RouterEndpoint>>,
 }
 
 impl<'info> Deref for ExistingMutRouterEndpoint<'info> {
@@ -644,7 +644,7 @@ pub struct ReserveFastFillSequence<'info> {
                 // This check makes sure that the auction account did not exist before this
                 // instruction was called.
                 require!(
-                    auction.vaa_hash == [0; 32],
+                    auction.vaa_hash == <[u8; 32]>::default(),
                     MatchingEngineError::AuctionExists,
                 );
 

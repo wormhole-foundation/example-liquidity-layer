@@ -5,7 +5,7 @@ use anchor_lang::prelude::*;
 #[derive(Debug)]
 pub struct AuctionUpdated {
     pub config_id: u32,
-    pub auction: Pubkey,
+    pub fast_vaa_hash: [u8; 32],
     pub vaa: Option<Pubkey>,
     pub source_chain: u16,
     pub target_protocol: MessageProtocol,

@@ -214,7 +214,7 @@ fn handle_execute_fast_order<'info>(
                 execute_penalty: if penalized { penalty.into() } else { None },
             },
             OrderExecuted {
-                auction: auction.key(),
+                fast_vaa_hash: auction.vaa_hash,
                 vaa: fast_vaa.key(),
                 source_chain: auction_info.source_chain,
                 target_protocol: auction.target_protocol,

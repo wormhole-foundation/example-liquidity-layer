@@ -3535,11 +3535,16 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "auction",
+            "name": "fast_vaa_hash",
             "docs": [
               "The pubkey of the auction that was settled."
             ],
-            "type": "pubkey"
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "best_offer_token",
@@ -3640,8 +3645,13 @@
             "type": "u32"
           },
           {
-            "name": "auction",
-            "type": "pubkey"
+            "name": "fast_vaa_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "vaa",
@@ -3911,7 +3921,11 @@
           },
           {
             "name": "fast_fill",
-            "type": "pubkey"
+            "type": {
+              "defined": {
+                "name": "FastFillSeeds"
+              }
+            }
           }
         ]
       }
@@ -3973,7 +3987,7 @@
             }
           },
           {
-            "name": "fast_fill_seeds",
+            "name": "fast_fill",
             "type": {
               "defined": {
                 "name": "FastFillSeeds"
@@ -4115,8 +4129,13 @@
         "kind": "struct",
         "fields": [
           {
-            "name": "auction",
-            "type": "pubkey"
+            "name": "fast_vaa_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "vaa",
