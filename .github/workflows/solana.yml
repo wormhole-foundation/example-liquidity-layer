@@ -1,4 +1,5 @@
 name: solana
+
 on:
   push:
     branches:
@@ -8,7 +9,9 @@ on:
       - 'solana/**'
 
 env:
+  CARGO_TERM_COLOR: always
   RUSTC_VERSION: 1.75.0
+
 jobs:
   cancel-previous-runs:
     runs-on: ubuntu-latest
@@ -17,6 +20,7 @@ jobs:
         uses: styfle/cancel-workflow-action@0.9.1
         with:
           access_token: ${{ github.token }}
+
   make-cargo-test-all:
     name: make cargo-test-all
     runs-on: ubuntu-latest
@@ -26,10 +30,10 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUSTC_VERSION }}
-          components: clippy, rustfmt
       - name: make cargo-test-all
         run: make cargo-test-all
         working-directory: ./solana
+
   make-lint:
     name: make lint
     runs-on: ubuntu-latest
@@ -43,6 +47,7 @@ jobs:
       - name: make lint
         run: make lint
         working-directory: ./solana
+
   make-check-idl:
     name: make check-idl
     runs-on: ubuntu-latest
@@ -59,6 +64,7 @@ jobs:
       - name: make check-idl
         run: make check-idl
         working-directory: ./solana
+
   make-anchor-test:
     name: make anchor-test
     runs-on: ubuntu-latest
@@ -79,6 +85,7 @@ jobs:
       - name: make anchor-test
         run: make anchor-test
         working-directory: ./solana
+
   make-anchor-test-upgrade:
     name: make anchor-test-upgrade
     runs-on: ubuntu-latest
