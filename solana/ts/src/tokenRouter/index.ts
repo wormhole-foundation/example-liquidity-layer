@@ -33,6 +33,7 @@ import { ChainId, isChainId } from "@wormhole-foundation/sdk-base";
 export const PROGRAM_IDS = [
     "TokenRouter11111111111111111111111111111111",
     "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md",
+    "28topqjtJzMnPaGFmmZk68tzGmj9W9aMntaEK3QkgtRe",
 ] as const;
 
 export type ProgramId = (typeof PROGRAM_IDS)[number];
@@ -938,6 +939,13 @@ export class TokenRouterProgram {
 
     matchingEngineProgram(): matchingEngineSdk.MatchingEngineProgram {
         switch (this._programId) {
+            case mainnet(): {
+                return new matchingEngineSdk.MatchingEngineProgram(
+                    this.program.provider.connection,
+                    matchingEngineSdk.mainnet(),
+                    this.mint,
+                );
+            }
             case testnet(): {
                 return new matchingEngineSdk.MatchingEngineProgram(
                     this.program.provider.connection,
@@ -960,6 +968,9 @@ export class TokenRouterProgram {
 
     coreBridgeProgramId(): PublicKey {
         switch (this._programId) {
+            case mainnet(): {
+                return new PublicKey("worm2ZoG2kUd4vFXhvjh93UUH596ayRfgQ2MgjNMTth");
+            }
             case testnet(): {
                 return new PublicKey("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
             }
@@ -973,10 +984,14 @@ export class TokenRouterProgram {
     }
 }
 
-export function localnet(): ProgramId {
-    return "TokenRouter11111111111111111111111111111111";
+export function mainnet(): ProgramId {
+    return "28topqjtJzMnPaGFmmZk68tzGmj9W9aMntaEK3QkgtRe";
 }
 
 export function testnet(): ProgramId {
     return "tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md";
+}
+
+export function localnet(): ProgramId {
+    return "TokenRouter11111111111111111111111111111111";
 }

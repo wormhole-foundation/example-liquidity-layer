@@ -30,6 +30,7 @@ cargo-test:
 cargo-test-all:
 	NETWORK=localnet $(MAKE) cargo-test
 	NETWORK=testnet $(MAKE) cargo-test
+	NETWORK=mainnet $(MAKE) cargo-test
 
 .PHONY: build
 build:
@@ -79,6 +80,7 @@ lint:
 	cargo fmt --check
 	NETWORK=localnet $(MAKE) clippy
 	NETWORK=testnet $(MAKE) clippy
+	NETWORK=mainnet $(MAKE) clippy
 
 ts/tests/artifacts:
 	mkdir ts/tests/artifacts

@@ -17,7 +17,10 @@ pub use wormhole_solana_consts::USDC_MINT;
 use solana_program::{pubkey, pubkey::Pubkey};
 
 cfg_if::cfg_if! {
-    if #[cfg(feature = "testnet")] {
+    if #[cfg(feature = "mainnet")] {
+        pub const UPGRADE_MANAGER_PROGRAM_ID: Pubkey = pubkey!("4jyJ7EEsYa72REdD8ZMBvHFTXZ4VYGQPUHaJTajsK8SN");
+        pub const UPGRADE_MANAGER_AUTHORITY: Pubkey = pubkey!("Ag7BnUJ6C3mFXTaJfL2v9eJM2QbQ7GNLsDyewdCCLY8r");
+    } else if #[cfg(feature = "testnet")] {
         pub const UPGRADE_MANAGER_PROGRAM_ID: Pubkey = pubkey!("ucdP9ktgrXgEUnn6roqD2SfdGMR2JSiWHUKv23oXwxt");
         pub const UPGRADE_MANAGER_AUTHORITY: Pubkey = pubkey!("2sxpm9pvWmNWFzhgWtmxkMsdWk2uSNT9MoKvww53po1M");
     } else if #[cfg(feature = "localnet")] {

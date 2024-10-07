@@ -26,7 +26,7 @@ export class TokenMessengerMinterProgram {
     program: Program<TokenMessengerMinter>;
 
     constructor(connection: Connection, programId?: ProgramId) {
-        this._programId = programId ?? testnet();
+        this._programId = programId ?? PROGRAM_IDS[0];
         this.program = new Program(IDL, new PublicKey(this._programId), {
             connection,
         });
@@ -89,23 +89,10 @@ export class TokenMessengerMinterProgram {
     }
 
     messageTransmitterProgram(): MessageTransmitterProgram {
-        switch (this._programId) {
-            case testnet(): {
-                return new MessageTransmitterProgram(
-                    this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
-                );
-            }
-            case mainnet(): {
-                return new MessageTransmitterProgram(
-                    this.program.provider.connection,
-                    "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
-                );
-            }
-            default: {
-                throw new Error("unsupported network");
-            }
-        }
+        return new MessageTransmitterProgram(
+            this.program.provider.connection,
+            "CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd",
+        );
     }
 
     depositForBurnWithCallerAccounts(
@@ -125,12 +112,4 @@ export class TokenMessengerMinterProgram {
             tokenMessengerMinterProgram: this.ID,
         };
     }
-}
-
-export function mainnet(): ProgramId {
-    return "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3";
-}
-
-export function testnet(): ProgramId {
-    return "CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3";
 }
