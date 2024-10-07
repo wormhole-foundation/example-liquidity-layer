@@ -1,3 +1,5 @@
+import "@wormhole-foundation/sdk-evm/address";
+
 import { ethers } from "ethers";
 import { ITokenRouter__factory, IMatchingEngine__factory } from "../src/types";
 import {
@@ -13,7 +15,6 @@ import {
 import { expect } from "chai";
 import { toChainId } from "@wormhole-foundation/sdk-base";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
-import "@wormhole-foundation/sdk-evm";
 
 const CHAIN_PATHWAYS: ValidNetwork[] = ["Ethereum", "Avalanche", "Base"];
 
