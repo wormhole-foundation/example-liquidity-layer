@@ -1,5 +1,3 @@
-import "@wormhole-foundation/sdk-evm/address";
-
 import { ethers } from "ethers";
 import { ITokenRouter__factory, IMatchingEngine__factory } from "../src/types";
 import {
