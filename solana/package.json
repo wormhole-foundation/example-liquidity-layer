@@ -45,7 +45,6 @@
     "anchor-0.29.0": "npm:@coral-xyz/anchor@^0.29.0",
     "bn.js": "^5.2.1",
     "dotenv": "^16.4.1",
-    "ethers": "^5.7.2",
     "sha3": "^2.1.4",
     "winston": "^3.13.0",
     "yargs": "^17.7.2"
