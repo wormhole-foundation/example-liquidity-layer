@@ -1,13 +1,41 @@
 {
-  "operatingChains": [1, 23, 30],
+  "operatingChains": [2, 5, 6, 24],
   "evm": {
     "networks": [
+      {
+        "name": "Ethereum",
+        "network": "Mainnet",
+        "externalId": "1",
+        "chainId": 2,
+        "rpc": "https://rpc.ankr.com/eth"
+      },
+      {
+        "name": "Polygon",
+        "network": "Mainnet",
+        "externalId": "137",
+        "chainId": 5,
+        "rpc": "https://rpc.ankr.com/polygon"
+      },
+      {
+        "name": "Avalanche",
+        "network": "Mainnet",
+        "externalId": "43114",
+        "chainId": 6,
+        "rpc": "https://rpc.ankr.com/avalanche"
+      },
       {
         "name": "Arbitrum",
         "network": "Mainnet",
         "externalId": "42161",
         "chainId": 23,
         "rpc": "https://rpc.ankr.com/arbitrum"
+      },
+      {
+        "name": "Optimism",
+        "network": "Mainnet",
+        "externalId": "10",
+        "chainId": 24,
+        "rpc": "https://rpc.ankr.com/optimism"
       },
       {
         "name": "Base",

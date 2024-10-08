@@ -1,9 +1,39 @@
 [
   {
+    "chainId": 1,
+    "matchingEngineProxy": "HtkeCDdYY4i9ncAxXKjYTx8Uu3WM8JbtiLRYjtHwaVXb",
+    "custodianMatchingEngine": "8sLeDrpnUfSv69KXzKMKMVTpxP7D8iPue5QrHJgyu5XP",
+    "matchingEngineMintRecipient": "HUXc7MBf55vWrrkevVbmJN8HAyfFtjLcPLBt9yWngKzm"
+  },
+  {
+    "chainId": 2,
+    "wormhole": "0x98f3c9e6E3fAce36bAAd05FE09d375Ef1464288B",
+    "token": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    "tokenMessenger": "0xBd3fa81B58Ba92a82136038B25aDec7066af3155"
+  },
+  {
+    "chainId": 5,
+    "wormhole": "0x7A4B5a56256163F07b2C80A7cA55aBE66c4ec4d7",
+    "token": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    "tokenMessenger": "0x9daF8c91AEFAE50b9c0E69629D3F6Ca40cA3B3FE"
+  },
+  {
+    "chainId": 6,
+    "wormhole": "0x54a8e5f9c4CbA08F9943965859F6c34eAF03E26c",
+    "token": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    "tokenMessenger": "0x6B25532e1060CE10cc3B0A99e5683b91BFDe6982"
+  },
+  {
     "chainId": 23,
     "wormhole": "0xa5f208e072434bC67592E4C49C1B991BA79BCA46",
     "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     "tokenMessenger": "0x19330d10D9Cc8751218eaf51E8885D058642E08A"
+  },
+  {
+    "chainId": 24,
+    "wormhole": "0xEe91C335eab126dF5fDB3797EA9d6aD93aeC9722",
+    "token": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    "tokenMessenger": "0x2B4069517957735bE00ceE0fadAE88a26365528f"
   },
   {
     "chainId": 30,
