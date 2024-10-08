@@ -1,10 +1,8 @@
 import { BigNumber, ethers } from "ethers";
 import { TokenRouterConfiguration } from "../../../config/config-types";
 import { TokenRouter, TokenRouter__factory, IERC20 } from "../../../contract-bindings";
-import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, logComparison, someoneIsDifferent, ValueDiff, BigNumberDiff, StringDiff, BooleanDiff } from "../../../helpers";
-import { UniversalAddress, toUniversal } from "@wormhole-foundation/sdk-definitions";
-import { Connection } from "@solana/web3.js";
-import { getMatchingEngineProgram } from "../../../helpers/solana";
+import { ChainInfo, getChainConfig, LoggerFn, getDependencyAddress, writeDeployedContract, getContractAddress, getContractInstance, logComparison, someoneIsDifferent, ValueDiff, BigNumberDiff, StringDiff, BooleanDiff, getLocalDependencyAddress } from "../../../helpers";
+import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
 export interface TokenRouterState {
   cctpAllowance: BigNumberDiff;
@@ -27,12 +25,10 @@ export const matchingEngineChain = 1;
  */
 export const matchingEngineDomain = 5;
 
-
-// TODO: move matching engine configurations from contracts.json to a separate file
 export function getMatchingEngineMintRecipientAddress(): string {
-  return toUniversal("Solana", (getContractAddress(
-    "MatchingEngineMintRecipient", // i.e. Custodian feeRecipientToken
-    matchingEngineChain
+  return toUniversal("Solana", (getLocalDependencyAddress(
+    "matchingEngineMintRecipient", // i.e. Custodian Matching Engine Mint Recipient
+    { chainId: matchingEngineChain } as ChainInfo
   ))).toString();
 };
 
@@ -51,9 +47,9 @@ export async function deployImplementation(chain: ChainInfo, signer: ethers.Sign
   const tokenMessenger = getDependencyAddress("tokenMessenger", chain);
   
   // this should be of the program's emitter address (custodian)
-  const matchingEngineAddress = toUniversal("Solana", (getContractAddress(
-    "CustodianMatchingEngine",
-    matchingEngineChain
+  const matchingEngineAddress = toUniversal("Solana", (getLocalDependencyAddress(
+    "custodianMatchingEngine",
+    { chainId: matchingEngineChain } as ChainInfo
   ))).toString();
 
   const constructorArgs = [

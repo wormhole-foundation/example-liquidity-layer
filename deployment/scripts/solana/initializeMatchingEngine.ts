@@ -7,7 +7,7 @@ import {
 import "dotenv/config";
 import { uint64ToBN } from "@wormhole-foundation/example-liquidity-layer-solana/common";
 import { AuctionParameters, MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
-import { solana, LoggerFn, getChainConfig, getContractAddress } from "../../helpers";
+import { solana, LoggerFn, getChainConfig, getContractAddress, getLocalDependencyAddress } from "../../helpers";
 import { MatchingEngineConfiguration } from "../../config/config-types";
 import { ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
@@ -15,7 +15,7 @@ import { circle } from "@wormhole-foundation/sdk-base";
 
 solana.runOnSolana("deploy-matching-engine", async (chain, signer, log) => {
     const config = await getChainConfig<MatchingEngineConfiguration>("matching-engine", chain.chainId);
-    const matchingEngineId = getContractAddress("MatchingEngineProxy", chain.chainId) as ProgramId;
+    const matchingEngineId = getLocalDependencyAddress("MatchingEngineProxy", chain) as ProgramId;
 
     const env = "Mainnet";
     const usdcMint = new PublicKey(circle.usdcContract(env, "Solana"));

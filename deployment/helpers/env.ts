@@ -90,7 +90,7 @@ export function getContractAddress(contractName: string, whChainId: ChainId): st
   return contract;
 }
 
-export function getLocalDependencyAddress(dependencyName: keyof Dependencies, chain: ChainInfo): string {
+export function getLocalDependencyAddress(dependencyName: string, chain: ChainInfo): string {
   const chainDependencies = dependencies.find((d) => d.chainId === chain.chainId);
 
   if (chainDependencies === undefined ) {
@@ -100,10 +100,6 @@ export function getLocalDependencyAddress(dependencyName: keyof Dependencies, ch
   const dependency = chainDependencies[dependencyName as keyof Dependencies] as string;
   if (dependency === undefined) {
     throw new Error(`No dependency found for ${dependencyName} for chain ${chain.chainId}`);
-  }
-
-  if (!utils.isAddress(dependency) && !validateSolAddress(dependency)){
-    throw new Error(`Invalid address for ${dependencyName} dependency found for chain ${chain.chainId}`);
   }
 
   return dependency;

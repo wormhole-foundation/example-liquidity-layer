@@ -6,7 +6,7 @@ import {
 } from "@solana/web3.js";
 import "dotenv/config";
 import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
-import { solana, LoggerFn, contracts, getContractAddress } from "../../helpers";
+import { solana, LoggerFn, contracts, getLocalDependencyAddress } from "../../helpers";
 import { ProgramId as TokenRouterProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/tokenRouter";
 import { ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
@@ -17,7 +17,7 @@ import { priorityMicrolamports } from "../../helpers/solana";
 
 
 solana.runOnSolana("register-routers-matching-engine", async (chain, signer, log) => {
-    const matchingEngineId = getContractAddress("MatchingEngineProxy", chain.chainId) as ProgramId;
+    const matchingEngineId = getLocalDependencyAddress("MatchingEngineProxy", chain) as ProgramId;
 
     if (chain.network === "Devnet")
       throw new Error("Devnet is not supported by USDC. Use Mainnet or Testnet.");

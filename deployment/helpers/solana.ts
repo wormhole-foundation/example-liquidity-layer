@@ -7,8 +7,8 @@ import {
   Commitment
 } from "@solana/web3.js";
 import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
-import { ecosystemChains, env, getContractAddress, getEnv } from "./env";
-import type { SolanaScriptCb } from "./interfaces";
+import { ecosystemChains, env, getContractAddress, getEnv, getLocalDependencyAddress } from "./env";
+import type { ChainInfo, SolanaScriptCb } from "./interfaces";
 import { inspect } from "util";
 import { circle, toChainId } from "@wormhole-foundation/sdk-base";
 import { MatchingEngineProgram, ProgramId as MatchingEngineProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
@@ -96,7 +96,7 @@ async function addLedgerSignature(tx: Transaction, signer: SolanaLedgerSigner, s
 }
 
 export function getMatchingEngineProgram(connection: Connection) {
-  const matchingEngineId = getContractAddress("MatchingEngineProxy", toChainId("Solana")) as MatchingEngineProgramId;
+  const matchingEngineId = getLocalDependencyAddress("matchingEngineProxy", { chainId: toChainId("Solana")} as ChainInfo) as MatchingEngineProgramId;
   const network = env === "mainnet" ? "Mainnet" : "Testnet";
 
   const usdcMint = new PublicKey(circle.usdcContract(network, "Solana"));
