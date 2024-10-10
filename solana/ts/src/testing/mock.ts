@@ -1,12 +1,12 @@
+import { BN } from "@coral-xyz/anchor";
 import { Connection, Keypair } from "@solana/web3.js";
-import { ethers } from "ethers";
-import { LiquidityLayerMessage } from "../common";
-import { CORE_BRIDGE_PID, GUARDIAN_KEY } from "./consts";
-import { postVaa, getBlockTime } from "./utils";
+import { Chain } from "@wormhole-foundation/sdk-base";
+import { keccak256, secp256k1, serialize, toUniversal } from "@wormhole-foundation/sdk-definitions";
 import { mocks } from "@wormhole-foundation/sdk-definitions/testing";
 import { utils as coreUtils } from "@wormhole-foundation/sdk-solana-core";
-import { Chain } from "@wormhole-foundation/sdk-base";
-import { serialize, toUniversal } from "@wormhole-foundation/sdk-definitions";
+import { LiquidityLayerMessage } from "../common";
+import { CORE_BRIDGE_PID, GUARDIAN_KEY } from "./consts";
+import { getBlockTime, postVaa } from "./utils";
 
 // TODO: return VaaAccount, too
 export async function postLiquidityLayerVaa(
@@ -42,24 +42,22 @@ export async function postLiquidityLayerVaa(
 }
 
 export class CircleAttester {
-    attester: ethers.utils.SigningKey;
-
-    constructor() {
-        this.attester = new ethers.utils.SigningKey("0x" + GUARDIAN_KEY);
-    }
-
     createAttestation(message: Buffer | Uint8Array) {
-        const signature = this.attester.signDigest(ethers.utils.keccak256(message));
+        const signature = secp256k1.sign(keccak256(message), GUARDIAN_KEY);
 
         const attestation = Buffer.alloc(65);
 
         let offset = 0;
-        attestation.set(ethers.utils.arrayify(signature.r), offset);
-        offset += 32;
-        attestation.set(ethers.utils.arrayify(signature.s), offset);
+
+        // bigint -> Uint8Array conversion is painful.
+        attestation.set(new BN(signature.r.toString()).toBuffer("be", 32), offset);
         offset += 32;
 
-        const recoveryId = signature.recoveryParam;
+        // bigint -> Uint8Array conversion is painful.
+        attestation.set(new BN(signature.s.toString()).toBuffer("be", 32), offset);
+        offset += 32;
+
+        const recoveryId = signature.recovery;
         attestation.writeUInt8(recoveryId < 27 ? recoveryId + 27 : recoveryId, offset);
         offset += 1;
 

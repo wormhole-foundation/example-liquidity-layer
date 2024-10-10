@@ -427,9 +427,6 @@ describe("Matching Engine <> Token Router", function () {
 
             describe("Settle No Auction (Local)", function () {
                 before("Start Event Listener", async function () {
-                    // listenerId = matchingEngine.onFilledLocalFastOrder((event, slot, signature) => {
-                    //     emittedEvents.push({ event, slot, signature });
-                    // });
                     listenerId = matchingEngine.onEventCpi((event, slot, signature) => {
                         const { localFastOrderFilled } = event;
                         if (localFastOrderFilled !== undefined) {
@@ -470,9 +467,6 @@ describe("Matching Engine <> Token Router", function () {
             let listenerId: number | undefined;
 
             before("Start Event Listener", async function () {
-                // listenerId = matchingEngine.onFilledLocalFastOrder((event, slot, signature) => {
-                //     emittedEvents.push({ event, slot, signature });
-                // });
                 listenerId = matchingEngine.onEventCpi((event, slot, signature) => {
                     const { localFastOrderFilled } = event;
                     if (localFastOrderFilled !== undefined) {
