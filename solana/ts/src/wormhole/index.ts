@@ -1,7 +1,6 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { ChainId, isChainId, toChainId } from "@wormhole-foundation/sdk-base";
 import { deserialize, keccak256 } from "@wormhole-foundation/sdk-definitions";
-import { ethers } from "ethers";
 export * from "./spy";
 
 export type EncodedVaa = {
@@ -158,7 +157,7 @@ export class VaaAccount {
             offset = buf.writeUInt8(consistencyLevel, offset);
             buf.set(payload, offset);
 
-            return ethers.utils.arrayify(ethers.utils.keccak256(buf));
+            return keccak256(buf);
         } else {
             throw new Error("impossible: hash() failed");
         }
