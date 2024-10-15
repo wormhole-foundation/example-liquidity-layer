@@ -6,6 +6,7 @@ import {
     ConfirmOptions,
     Connection,
     Finality,
+    ParsedTransactionWithMeta,
     PublicKey,
     SYSVAR_CLOCK_PUBKEY,
     SYSVAR_EPOCH_SCHEDULE_PUBKEY,
@@ -267,6 +268,7 @@ export class MatchingEngineProgram {
             eventSlot: number,
             signature: string,
             currentSlotInfo?: SlotInfo,
+            parsedTransaction?: ParsedTransactionWithMeta,
         ) => void,
         commitment: Finality = "confirmed",
     ): number {
@@ -279,7 +281,17 @@ export class MatchingEngineProgram {
         connection.onSlotChange(async (slotInfo) => {
             // TODO: Make this more efficient by fetching multiple parsed transactions.
             while (!unprocessedTxs.isEmpty()) {
-                const { signature, eventSlot } = unprocessedTxs.head();
+                const head = unprocessedTxs.head();
+
+                // This check is superfluous. But we do it anyway to make sure the unprocessed
+                // transaction queue is actually empty.
+                //
+                // Once the ArrayQueue has been thoroughly tested, we can remove this check.
+                if (head === null) {
+                    break;
+                }
+
+                const { signature, eventSlot } = head;
 
                 const parsedTx = await connection.getParsedTransaction(signature, {
                     commitment,
@@ -316,6 +328,7 @@ export class MatchingEngineProgram {
                                 eventSlot,
                                 signature,
                                 slotInfo,
+                                parsedTx,
                             );
                         }
                     }
