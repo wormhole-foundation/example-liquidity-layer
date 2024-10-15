@@ -20,9 +20,9 @@ export class ArrayQueue<T> {
         this._data = new Array(capacity ?? 256).fill(null);
     }
 
-    head(): T {
+    head(): T | null {
         if (this.isEmpty()) {
-            throw new Error("queue is empty");
+            return null;
         }
 
         return this._data[this._index]!;
@@ -42,6 +42,10 @@ export class ArrayQueue<T> {
     }
 
     dequeue(): void {
+        if (this.isEmpty()) {
+            return;
+        }
+
         const data = this._data;
         const index = this._index;
 
