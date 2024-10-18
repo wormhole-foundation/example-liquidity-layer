@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { BN } from "@coral-xyz/anchor";
 
 export type Cctp = {
     version: number;
@@ -95,7 +95,9 @@ export class CctpTokenBurnMessage {
         const version = message.readUInt32BE(0);
         const burnTokenAddress = Array.from(message.subarray(4, 36));
         const mintRecipient = Array.from(message.subarray(36, 68));
-        const amount = BigInt(ethers.BigNumber.from(message.subarray(68, 100)).toString());
+
+        // BN -> bigint conversion is painful.
+        const amount = BigInt(new BN(message.subarray(68, 100), 10, "be").toString());
         const sender = Array.from(message.subarray(100, 132));
 
         return new CctpTokenBurnMessage(
@@ -122,7 +124,9 @@ export class CctpTokenBurnMessage {
 
         // Special handling w/ uint256. This value will most likely encoded in < 32 bytes, so we
         // jump ahead by 32 and subtract the length of the encoded value.
-        const encodedAmount = ethers.utils.arrayify(ethers.BigNumber.from(amount.toString()));
+        //
+        // bigint -> Uint8Array conversion is painful.
+        const encodedAmount = new BN(amount.toString()).toBuffer("be", 32);
         buf.set(encodedAmount, (offset += 32) - encodedAmount.length);
 
         buf.set(sender, offset);

@@ -1,19 +1,13 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { Chain, toChainId } from "@wormhole-foundation/sdk-base";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
+import "@wormhole-foundation/sdk-evm/address";
 import * as matchingEngineSdk from "../src/matchingEngine";
 import * as tokenRouterSdk from "../src/tokenRouter";
 
-const USDC_MINT = new PublicKey("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
 
-export const CHAINS: Chain[] = [
-    "Sepolia",
-    "Avalanche",
-    "OptimismSepolia",
-    "ArbitrumSepolia",
-    "BaseSepolia",
-    "PolygonSepolia",
-];
+const CHAINS: Chain[] = ["Arbitrum", "Base"];
 
 // Here we go.
 main();
@@ -21,14 +15,14 @@ main();
 // impl
 
 async function main() {
-    const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+    const connection = new Connection("https://api.mainnet-beta.solana.com", "confirmed");
 
     console.log("Collecting Solana Matching Engine and Token Router Info...");
     console.log();
     {
         const matchingEngine = new matchingEngineSdk.MatchingEngineProgram(
             connection,
-            matchingEngineSdk.testnet(),
+            matchingEngineSdk.mainnet(),
             USDC_MINT,
         );
 
@@ -78,7 +72,7 @@ async function main() {
     {
         const tokenRouter = new tokenRouterSdk.TokenRouterProgram(
             connection,
-            tokenRouterSdk.testnet(),
+            tokenRouterSdk.mainnet(),
             USDC_MINT,
         );
 

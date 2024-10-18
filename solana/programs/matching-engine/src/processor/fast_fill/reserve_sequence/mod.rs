@@ -7,6 +7,7 @@ pub use no_auction::*;
 use crate::{
     composite::*,
     error::MatchingEngineError,
+    events::FastFillSequenceReserved,
     state::{
         FastFillSeeds, FastFillSequencer, FastFillSequencerSeeds, ReservedFastFillSequence,
         ReservedFastFillSequenceSeeds,
@@ -20,13 +21,17 @@ fn set_reserved_sequence_data(
     bumps: &ReserveFastFillSequenceBumps,
     fast_vaa_hash: [u8; 32],
     beneficiary: Pubkey,
-) -> Result<()> {
+) -> Result<FastFillSequenceReserved> {
     let sequencer = &mut reserve_sequence.sequencer;
 
     // If the fast fill sequencer was just created, we need to set it with data.
     if sequencer.seeds == Default::default() {
-        msg!("Sequencer created");
+        msg!("Create sequencer");
 
+        msg!(
+            "account_data: {:?}",
+            &reserve_sequence.fast_order_path.fast_vaa.vaa.data.borrow()[..8]
+        );
         let vaa = reserve_sequence.fast_order_path.fast_vaa.load_unchecked();
         let sender = LiquidityLayerMessage::try_from(vaa.payload())
             .unwrap()
@@ -70,15 +75,12 @@ fn set_reserved_sequence_data(
     // Now uptick sequencer's value. If this errors out, we have problems.
     *next_sequence = next_sequence
         .checked_add(1)
-        .ok_or(MatchingEngineError::U64Overflow)?;
+        .ok_or_else(|| MatchingEngineError::U64Overflow)?;
 
-    // Emit an event to help auction participants track the fast fill sequence so they can more
+    // Prepare an event to help auction participants track the fast fill sequence so they can more
     // easily execute local orders.
-    emit!(crate::events::FastFillSequenceReserved {
+    Ok(FastFillSequenceReserved {
         fast_vaa_hash,
-        fast_fill_seeds,
-    });
-
-    // Done.
-    Ok(())
+        fast_fill: fast_fill_seeds,
+    })
 }

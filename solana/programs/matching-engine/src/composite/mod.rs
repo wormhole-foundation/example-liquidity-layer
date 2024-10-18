@@ -97,7 +97,7 @@ pub struct CheckedCustodian<'info> {
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
     )]
-    pub custodian: Account<'info, Custodian>,
+    pub custodian: Box<Account<'info, Custodian>>,
 }
 
 impl<'info> Deref for CheckedCustodian<'info> {
@@ -138,7 +138,7 @@ pub struct OwnerOnlyMut<'info> {
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
     )]
-    pub custodian: Account<'info, Custodian>,
+    pub custodian: Box<Account<'info, Custodian>>,
 }
 
 #[derive(Accounts)]
@@ -171,7 +171,7 @@ pub struct AdminMut<'info> {
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
     )]
-    pub custodian: Account<'info, Custodian>,
+    pub custodian: Box<Account<'info, Custodian>>,
 }
 
 #[derive(Accounts)]
@@ -195,7 +195,7 @@ pub struct LocalTokenRouter<'info> {
         associated_token::mint = common::USDC_MINT,
         associated_token::authority = token_router_emitter,
     )]
-    pub token_router_mint_recipient: Account<'info, token::TokenAccount>,
+    pub token_router_mint_recipient: Box<Account<'info, token::TokenAccount>>,
 }
 
 #[derive(Accounts)]
@@ -208,7 +208,7 @@ pub struct ExistingMutRouterEndpoint<'info> {
         ],
         bump = endpoint.bump,
     )]
-    pub endpoint: Account<'info, RouterEndpoint>,
+    pub endpoint: Box<Account<'info, RouterEndpoint>>,
 }
 
 impl<'info> Deref for ExistingMutRouterEndpoint<'info> {
@@ -276,7 +276,7 @@ pub struct FastOrderPath<'info> {
             let message = LiquidityLayerMessage::try_from(vaa.payload()).unwrap();
             let order = message
                 .fast_market_order()
-                .ok_or(MatchingEngineError::NotFastMarketOrder)?;
+                .ok_or_else(|| MatchingEngineError::NotFastMarketOrder)?;
             require_eq!(
                 path.to_endpoint.chain,
                 order.target_chain(),
@@ -320,7 +320,7 @@ pub struct ActiveAuction<'info> {
         ],
         bump = auction.info.as_ref().unwrap().custody_token_bump,
     )]
-    pub custody_token: Account<'info, anchor_spl::token::TokenAccount>,
+    pub custody_token: Box<Account<'info, token::TokenAccount>>,
 
     #[account(
         constraint = {
@@ -332,7 +332,7 @@ pub struct ActiveAuction<'info> {
             true
         },
     )]
-    pub config: Account<'info, crate::state::AuctionConfig>,
+    pub config: Box<Account<'info, crate::state::AuctionConfig>>,
 
     /// CHECK: Mutable. Must have the same key in auction data.
     #[account(
@@ -384,9 +384,12 @@ pub struct ExecuteOrder<'info> {
     )]
     pub active_auction: ActiveAuction<'info>,
 
-    /// CHECK: Must be a token account, whose mint is [common::USDC_MINT].
-    #[account(mut)]
-    pub executor_token: UncheckedAccount<'info>,
+    /// Must be a token account, whose mint is [common::USDC_MINT].
+    #[account(
+        mut,
+        token::mint = common::USDC_MINT,
+    )]
+    pub executor_token: Box<Account<'info, token::TokenAccount>>,
 
     /// CHECK: Mutable. Must equal [initial_offer](Auction::initial_offer).
     #[account(
@@ -395,9 +398,11 @@ pub struct ExecuteOrder<'info> {
     )]
     pub initial_offer_token: UncheckedAccount<'info>,
 
-    /// CHECK: Must be the owner of initial offer token account. If the initial offer token account
-    /// does not exist anymore, we will attempt to perform this check.
-    #[account(mut)]
+    /// CHECK: Must be the payer of the initial auction (see [Auction::prepared_by]).
+    #[account(
+        mut,
+        address = active_auction.prepared_by,
+    )]
     pub initial_participant: UncheckedAccount<'info>,
 }
 
@@ -560,8 +565,22 @@ impl<'info> VaaDigest for ClosePreparedOrderResponse<'info> {
 #[derive(Accounts)]
 pub struct ReserveFastFillSequence<'info> {
     #[account(mut)]
-    payer: Signer<'info>,
+    pub payer: Signer<'info>,
 
+    #[account(
+        constraint = {
+            // Destination endpoint must be for Solana.
+            require!(
+                matches!(
+                    fast_order_path.to_endpoint.protocol,
+                    MessageProtocol::Local { .. }
+                ),
+                MatchingEngineError::InvalidTargetRouter
+            );
+
+            true
+        },
+    )]
     pub fast_order_path: FastOrderPath<'info>,
 
     /// This sequencer determines the next reserved sequence. If it does not exist for a given
@@ -639,7 +658,7 @@ pub struct ReserveFastFillSequence<'info> {
                 // This check makes sure that the auction account did not exist before this
                 // instruction was called.
                 require!(
-                    auction.vaa_hash == [0; 32],
+                    auction.vaa_hash == <[u8; 32]>::default(),
                     MatchingEngineError::AuctionExists,
                 );
 
@@ -647,7 +666,7 @@ pub struct ReserveFastFillSequence<'info> {
             }
         },
     )]
-    pub auction: Account<'info, Auction>,
+    pub auction: Box<Account<'info, Auction>>,
 
     system_program: Program<'info, System>,
 }

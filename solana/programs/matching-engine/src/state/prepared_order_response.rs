@@ -11,6 +11,7 @@ pub struct PreparedOrderResponseSeeds {
 #[derive(Debug, AnchorSerialize, AnchorDeserialize, Clone, InitSpace)]
 pub struct PreparedOrderResponseInfo {
     pub prepared_by: Pubkey,
+    pub base_fee_token: Pubkey,
 
     pub fast_vaa_timestamp: u32,
     pub source_chain: u16,
@@ -52,6 +53,7 @@ impl PreparedOrderResponse {
             vaa_timestamp: self.fast_vaa_timestamp,
             target_protocol: self.to_endpoint.protocol,
             status: Default::default(),
+            prepared_by: self.prepared_by,
             info: Default::default(),
         }
     }

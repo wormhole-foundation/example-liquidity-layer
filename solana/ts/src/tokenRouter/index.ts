@@ -104,6 +104,7 @@ export type RedeemFastFillAccounts = {
     matchingEngineFromEndpoint: PublicKey;
     matchingEngineToEndpoint: PublicKey;
     matchingEngineLocalCustodyToken: PublicKey;
+    matchingEngineEventAuthority: PublicKey;
     matchingEngineProgram: PublicKey;
 };
 
@@ -730,6 +731,7 @@ export class TokenRouterProgram {
             fromRouterEndpoint: matchingEngineFromEndpoint,
             toRouterEndpoint: matchingEngineToEndpoint,
             localCustodyToken: matchingEngineLocalCustodyToken,
+            eventAuthority: matchingEngineEventAuthority,
             matchingEngineProgram,
         } = await this.matchingEngineProgram().redeemFastFillAccounts(fastFill);
 
@@ -741,6 +743,7 @@ export class TokenRouterProgram {
             matchingEngineFromEndpoint,
             matchingEngineToEndpoint,
             matchingEngineLocalCustodyToken,
+            matchingEngineEventAuthority,
             matchingEngineProgram,
         };
     }
@@ -755,6 +758,7 @@ export class TokenRouterProgram {
             matchingEngineFromEndpoint,
             matchingEngineToEndpoint,
             matchingEngineLocalCustodyToken,
+            matchingEngineEventAuthority,
             matchingEngineProgram,
         } = await this.redeemFastFillAccounts(fastFill);
 
@@ -771,6 +775,7 @@ export class TokenRouterProgram {
                 matchingEngineFromEndpoint,
                 matchingEngineToEndpoint,
                 matchingEngineLocalCustodyToken,
+                matchingEngineEventAuthority,
                 matchingEngineProgram,
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,

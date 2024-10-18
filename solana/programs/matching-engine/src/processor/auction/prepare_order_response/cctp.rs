@@ -51,12 +51,12 @@ pub struct PrepareOrderResponseCctp<'info> {
             let finalized_msg = LiquidityLayerMessage::try_from(finalized_vaa.payload()).unwrap();
             let deposit = finalized_msg
                 .deposit()
-                .ok_or(MatchingEngineError::InvalidPayloadId)?;
+                .ok_or_else(|| MatchingEngineError::InvalidPayloadId)?;
             let deposit_msg = LiquidityLayerDepositMessage::try_from(deposit.payload())
                 .map_err(|_| error!(MatchingEngineError::InvalidDepositMessage))?;
             let slow_order_response = deposit_msg
                 .slow_order_response()
-                .ok_or(MatchingEngineError::InvalidDepositPayloadId)?;
+                .ok_or_else(|| MatchingEngineError::InvalidDepositPayloadId)?;
 
             true
         }
@@ -72,7 +72,7 @@ pub struct PrepareOrderResponseCctp<'info> {
                 .unwrap();
             let order = message
                 .fast_market_order()
-                .ok_or(MatchingEngineError::InvalidPayloadId)?;
+                .ok_or_else(|| MatchingEngineError::InvalidPayloadId)?;
 
             order.redeemer_message_len().into()
         }),
@@ -96,6 +96,23 @@ pub struct PrepareOrderResponseCctp<'info> {
         bump,
     )]
     prepared_custody_token: Box<Account<'info, token::TokenAccount>>,
+
+    /// This token account will be the one that collects the base fee only if an auction's order
+    /// was executed late. Otherwise, the protocol's fee recipient token account will be used for
+    /// non-existent auctions and the best offer token account will be used for orders executed on
+    /// time.
+    #[account(
+        token::mint = usdc,
+        constraint = {
+            require!(
+                base_fee_token.key() != prepared_custody_token.key(),
+                MatchingEngineError::InvalidBaseFeeToken
+            );
+
+            true
+        }
+    )]
+    base_fee_token: Box<Account<'info, token::TokenAccount>>,
 
     usdc: Usdc<'info>,
 
@@ -193,7 +210,7 @@ fn handle_prepare_order_response_cctp(
     let message = LiquidityLayerDepositMessage::try_from(deposit.payload()).unwrap();
     let order_response = message
         .slow_order_response()
-        .ok_or(MatchingEngineError::InvalidPayloadId)?;
+        .ok_or_else(|| MatchingEngineError::InvalidPayloadId)?;
 
     let fast_vaa = ctx.accounts.fast_order_path.fast_vaa.load_unchecked();
     let order = LiquidityLayerMessage::try_from(fast_vaa.payload())
@@ -216,6 +233,7 @@ fn handle_prepare_order_response_cctp(
             },
             info: PreparedOrderResponseInfo {
                 prepared_by: ctx.accounts.payer.key(),
+                base_fee_token: ctx.accounts.base_fee_token.key(),
                 source_chain: finalized_vaa.emitter_chain(),
                 base_fee: order_response.base_fee(),
                 fast_vaa_timestamp: fast_vaa.timestamp(),

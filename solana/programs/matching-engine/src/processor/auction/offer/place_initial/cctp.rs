@@ -10,6 +10,7 @@ use common::{messages::raw::LiquidityLayerMessage, TRANSFER_AUTHORITY_SEED_PREFI
 
 #[derive(Accounts)]
 #[instruction(offer_price: u64)]
+#[event_cpi]
 pub struct PlaceInitialOfferCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
@@ -55,7 +56,7 @@ pub struct PlaceInitialOfferCctp<'info> {
             let message = LiquidityLayerMessage::try_from(fast_vaa.payload()).unwrap();
             let order = message
                 .fast_market_order()
-                .ok_or(MatchingEngineError::InvalidPayloadId)?;
+                .ok_or_else(|| MatchingEngineError::InvalidPayloadId)?;
 
             let curr_time = Clock::get().unwrap().unix_timestamp;
 
@@ -92,7 +93,7 @@ pub struct PlaceInitialOfferCctp<'info> {
     )]
     auction: Box<Account<'info, Auction>>,
 
-    offer_token: Account<'info, token::TokenAccount>,
+    offer_token: Box<Account<'info, token::TokenAccount>>,
 
     #[account(
         init,
@@ -105,7 +106,7 @@ pub struct PlaceInitialOfferCctp<'info> {
         ],
         bump,
     )]
-    auction_custody_token: Account<'info, token::TokenAccount>,
+    auction_custody_token: Box<Account<'info, token::TokenAccount>>,
 
     usdc: Usdc<'info>,
 
@@ -145,6 +146,7 @@ pub fn place_initial_offer_cctp(
         vaa_timestamp: fast_vaa.timestamp(),
         target_protocol: ctx.accounts.fast_order_path.to_endpoint.protocol,
         status: AuctionStatus::Active,
+        prepared_by: ctx.accounts.payer.key(),
         info: AuctionInfo {
             config_id: config.id,
             custody_token_bump: ctx.bumps.auction_custody_token,
@@ -165,9 +167,9 @@ pub fn place_initial_offer_cctp(
     let info = ctx.accounts.auction.info.as_ref().unwrap();
 
     // Emit event for auction participants to listen to.
-    emit!(crate::events::AuctionUpdated {
+    emit_cpi!(crate::utils::log_emit(crate::events::AuctionUpdated {
         config_id: info.config_id,
-        auction: ctx.accounts.auction.key(),
+        fast_vaa_hash: ctx.accounts.auction.vaa_hash,
         vaa: ctx.accounts.fast_order_path.fast_vaa.key().into(),
         source_chain: info.source_chain,
         target_protocol: ctx.accounts.auction.target_protocol,
@@ -179,7 +181,7 @@ pub fn place_initial_offer_cctp(
         total_deposit: info.total_deposit(),
         max_offer_price_allowed: utils::auction::compute_min_allowed_offer(config, info)
             .checked_sub(1),
-    });
+    }));
 
     // Finally transfer tokens from the offer authority's token account to the
     // auction's custody account.
@@ -200,6 +202,6 @@ pub fn place_initial_offer_cctp(
         ),
         amount_in
             .checked_add(security_deposit)
-            .ok_or(MatchingEngineError::U64Overflow)?,
+            .ok_or_else(|| MatchingEngineError::U64Overflow)?,
     )
 }

@@ -12,6 +12,17 @@ use common::wormhole_cctp_solana::cctp::token_messenger_minter_program::{
 pub struct UpdateCctpRouterEndpoint<'info> {
     admin: OwnerOnly<'info>,
 
+    #[account(
+        constraint = {
+            require_eq!(
+                args.chain,
+                router_endpoint.chain,
+                crate::error::MatchingEngineError::InvalidEndpoint,
+            );
+
+            true
+        }
+    )]
     router_endpoint: ExistingMutRouterEndpoint<'info>,
 
     /// CHECK: Seeds must be \["remote_token_messenger"\, remote_domain.to_string()] (CCTP Token

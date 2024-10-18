@@ -1,0 +1,7 @@
+### We prefer lazy evaluation to save on compute units.
+disallowed-methods = [
+    { path = "std::option::Option::and", reason = "prefer `and_then` for lazy evaluation" },
+    { path = "std::option::Option::map_or", reason = "prefer `map_or_else` for lazy evaluation" },
+    { path = "std::option::Option::ok_or", reason = "prefer `ok_or_else` for lazy evaluation" },
+    { path = "std::option::Option::unwrap_or", reason = "prefer `unwrap_or_else` for lazy evaluation" },
+]

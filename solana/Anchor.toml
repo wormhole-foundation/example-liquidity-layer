@@ -1,6 +1,6 @@
 [toolchain]
-anchor_version = "0.30.0"   # CLI
-solana_version = "1.18.11"
+anchor_version = "0.30.1"   # CLI
+solana_version = "1.18.15"
 
 [features]
 resolution = false

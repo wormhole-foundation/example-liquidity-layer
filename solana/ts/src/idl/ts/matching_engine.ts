@@ -71,12 +71,9 @@ export type MatchingEngine = {
         {
           "name": "beneficiary",
           "docs": [
-            "was no auction) or the owner of the initial offer token account."
+            "[Auction::prepared_by]."
           ],
           "writable": true
-        },
-        {
-          "name": "beneficiaryToken"
         },
         {
           "name": "systemProgram"
@@ -446,6 +443,12 @@ export type MatchingEngine = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -691,6 +694,9 @@ export type MatchingEngine = {
             },
             {
               "name": "executorToken",
+              "docs": [
+                "Must be a token account, whose mint is [common::USDC_MINT]."
+              ],
               "writable": true
             },
             {
@@ -699,9 +705,6 @@ export type MatchingEngine = {
             },
             {
               "name": "initialParticipant",
-              "docs": [
-                "does not exist anymore, we will attempt to perform this check."
-              ],
               "writable": true
             }
           ]
@@ -811,6 +814,12 @@ export type MatchingEngine = {
               ]
             }
           ]
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -883,6 +892,9 @@ export type MatchingEngine = {
             },
             {
               "name": "executorToken",
+              "docs": [
+                "Must be a token account, whose mint is [common::USDC_MINT]."
+              ],
               "writable": true
             },
             {
@@ -891,9 +903,6 @@ export type MatchingEngine = {
             },
             {
               "name": "initialParticipant",
-              "docs": [
-                "does not exist anymore, we will attempt to perform this check."
-              ],
               "writable": true
             }
           ]
@@ -1018,6 +1027,12 @@ export type MatchingEngine = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": [
@@ -1282,6 +1297,12 @@ export type MatchingEngine = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": [
@@ -1377,6 +1398,15 @@ export type MatchingEngine = {
         {
           "name": "preparedCustodyToken",
           "writable": true
+        },
+        {
+          "name": "baseFeeToken",
+          "docs": [
+            "This token account will be the one that collects the base fee only if an auction's order",
+            "was executed late. Otherwise, the protocol's fee recipient token account will be used for",
+            "non-existent auctions and the best offer token account will be used for orders executed on",
+            "time."
+          ]
         },
         {
           "name": "usdc",
@@ -1528,6 +1558,12 @@ export type MatchingEngine = {
         },
         {
           "name": "epochSchedule"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": [
@@ -1651,20 +1687,10 @@ export type MatchingEngine = {
           "name": "auctionConfig"
         },
         {
-          "name": "bestOfferToken",
-          "docs": [
-            "Best offer token account, whose owner will be the beneficiary of the reserved fast fill",
-            "sequence account when it is closed.",
-            "",
-            "in the auction account."
-          ]
+          "name": "eventAuthority"
         },
         {
-          "name": "executor",
-          "docs": [
-            "of the reserved fast fill sequence account when it is closed. Otherwise, this account must",
-            "equal the best offer token account's owner."
-          ]
+          "name": "program"
         }
       ],
       "args": []
@@ -1788,6 +1814,12 @@ export type MatchingEngine = {
             "closed. This instruction will not allow this account to be provided if there is an existing",
             "auction, which would enforce the order be executed when it is time to complete the auction."
           ]
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -1859,16 +1891,19 @@ export type MatchingEngine = {
       ],
       "accounts": [
         {
-          "name": "executor",
+          "name": "beneficiary",
           "docs": [
-            "we will always reward the owner of the executor token account with the lamports from the",
-            "prepared order response and its custody token account when we close these accounts. This",
-            "means we disregard the `prepared_by` field in the prepared order response."
+            "finalized VAA."
           ],
           "writable": true
         },
         {
-          "name": "executorToken",
+          "name": "baseFeeToken",
+          "docs": [
+            "This token account will receive the base fee only if there was a penalty when executing the",
+            "order. If it does not exist when there is a penalty, this instruction handler will revert.",
+            ""
+          ],
           "writable": true
         },
         {
@@ -1878,7 +1913,7 @@ export type MatchingEngine = {
             "signer and is the one encoded in the Deposit Fill message, he may have the tokens be sent",
             "to any account he chooses (this one).",
             "",
-            "of the tokens to the executor token account."
+            "of the tokens to the base fee token account."
           ],
           "writable": true
         },
@@ -1896,6 +1931,12 @@ export type MatchingEngine = {
         },
         {
           "name": "tokenProgram"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -2075,6 +2116,12 @@ export type MatchingEngine = {
               ]
             }
           ]
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -2300,6 +2347,12 @@ export type MatchingEngine = {
         },
         {
           "name": "systemProgram"
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -3060,6 +3113,14 @@ export type MatchingEngine = {
       "name": "auctionAlreadySettled"
     },
     {
+      "code": 7084,
+      "name": "invalidBaseFeeToken"
+    },
+    {
+      "code": 7086,
+      "name": "baseFeeTokenRequired"
+    },
+    {
       "code": 7280,
       "name": "cannotCloseAuctionYet"
     },
@@ -3158,6 +3219,13 @@ export type MatchingEngine = {
                 "name": "auctionStatus"
               }
             }
+          },
+          {
+            "name": "preparedBy",
+            "docs": [
+              "The fee payer when placing the initial offer."
+            ],
+            "type": "pubkey"
           },
           {
             "name": "info",
@@ -3473,11 +3541,16 @@ export type MatchingEngine = {
         "kind": "struct",
         "fields": [
           {
-            "name": "auction",
+            "name": "fastVaaHash",
             "docs": [
               "The pubkey of the auction that was settled."
             ],
-            "type": "pubkey"
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "bestOfferToken",
@@ -3494,10 +3567,11 @@ export type MatchingEngine = {
             }
           },
           {
-            "name": "executorToken",
+            "name": "baseFeeToken",
             "docs": [
               "Depending on whether there was an active auction, this field will have the pubkey of the",
-              "executor token (if there was an auction) or fee recipient token (if there was no auction)."
+              "base fee token account (if there was an auction) or fee recipient token (if there was no",
+              "auction)."
             ],
             "type": {
               "option": {
@@ -3577,8 +3651,13 @@ export type MatchingEngine = {
             "type": "u32"
           },
           {
-            "name": "auction",
-            "type": "pubkey"
+            "name": "fastVaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "vaa",
@@ -3848,7 +3927,11 @@ export type MatchingEngine = {
           },
           {
             "name": "fastFill",
-            "type": "pubkey"
+            "type": {
+              "defined": {
+                "name": "fastFillSeeds"
+              }
+            }
           }
         ]
       }
@@ -3910,7 +3993,7 @@ export type MatchingEngine = {
             }
           },
           {
-            "name": "fastFillSeeds",
+            "name": "fastFill",
             "type": {
               "defined": {
                 "name": "fastFillSeeds"
@@ -4052,8 +4135,13 @@ export type MatchingEngine = {
         "kind": "struct",
         "fields": [
           {
-            "name": "auction",
-            "type": "pubkey"
+            "name": "fastVaaHash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
           },
           {
             "name": "vaa",
@@ -4121,6 +4209,10 @@ export type MatchingEngine = {
         "fields": [
           {
             "name": "preparedBy",
+            "type": "pubkey"
+          },
+          {
+            "name": "baseFeeToken",
             "type": "pubkey"
           },
           {

@@ -2,6 +2,7 @@ use crate::{composite::*, error::MatchingEngineError, state::PreparedOrderRespon
 use anchor_lang::prelude::*;
 
 #[derive(Accounts)]
+#[event_cpi]
 pub struct ReserveFastFillSequenceNoAuction<'info> {
     #[account(
         constraint = reserve_sequence.auction.info.is_none() @ MatchingEngineError::AuctionExists,
@@ -35,10 +36,15 @@ pub fn reserve_fast_fill_sequence_no_auction(
         prepared_order_response.new_auction_placeholder(ctx.bumps.reserve_sequence.auction),
     );
 
-    super::set_reserved_sequence_data(
+    let sequence_reserved_event = super::set_reserved_sequence_data(
         &mut ctx.accounts.reserve_sequence,
         &ctx.bumps.reserve_sequence,
         prepared_order_response.seeds.fast_vaa_hash,
         prepared_order_response.prepared_by,
-    )
+    )?;
+
+    // Emit an event indicating that the fast fill sequence has been reserved.
+    emit_cpi!(sequence_reserved_event);
+
+    Ok(())
 }

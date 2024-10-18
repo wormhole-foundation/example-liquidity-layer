@@ -9,6 +9,7 @@ use common::wormhole_cctp_solana::wormhole::SOLANA_CHAIN;
 
 /// Accounts required for [complete_fast_fill].
 #[derive(Accounts)]
+#[event_cpi]
 pub struct CompleteFastFill<'info> {
     /// Custodian, which may be used in the future.
     custodian: CheckedCustodian<'info>,
@@ -30,7 +31,7 @@ pub struct CompleteFastFill<'info> {
         bump = fast_fill.seeds.bump,
         constraint = !fast_fill.redeemed @ MatchingEngineError::FastFillAlreadyRedeemed,
     )]
-    fast_fill: Account<'info, FastFill>,
+    fast_fill: Box<Account<'info, FastFill>>,
 
     /// Only the registered local Token Router program can call this instruction. It is allowed to
     /// invoke this instruction by using its emitter (i.e. its Custodian account) as a signer. We
@@ -42,7 +43,7 @@ pub struct CompleteFastFill<'info> {
         mut,
         token::mint = local_custody_token.mint,
     )]
-    token_router_custody_token: Account<'info, token::TokenAccount>,
+    token_router_custody_token: Box<Account<'info, token::TokenAccount>>,
 
     #[account(
         constraint = {
@@ -81,9 +82,9 @@ pub fn complete_fast_fill(ctx: Context<CompleteFastFill>) -> Result<()> {
     ctx.accounts.fast_fill.redeemed = true;
 
     // Emit event that the fast fill is redeemed. Listeners can close this account.
-    emit!(crate::events::FastFillRedeemed {
+    emit_cpi!(crate::events::FastFillRedeemed {
         prepared_by: ctx.accounts.fast_fill.info.prepared_by,
-        fast_fill: ctx.accounts.fast_fill.key(),
+        fast_fill: ctx.accounts.fast_fill.seeds,
     });
 
     // Finally transfer to local token router's token account.

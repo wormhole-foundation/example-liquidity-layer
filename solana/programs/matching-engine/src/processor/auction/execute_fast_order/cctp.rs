@@ -9,6 +9,7 @@ use common::{wormhole_cctp_solana, wormhole_io::TypePrefixedPayload};
 
 /// Accounts required for [execute_fast_order_cctp].
 #[derive(Accounts)]
+#[event_cpi]
 pub struct ExecuteFastOrderCctp<'info> {
     #[account(mut)]
     payer: Signer<'info>,
@@ -79,12 +80,12 @@ pub fn handle_execute_fast_order_cctp(
     let super::PreparedOrderExecution {
         user_amount: amount,
         fill,
-        beneficiary,
-    } = super::prepare_order_execution(super::PrepareFastExecution {
-        execute_order: &mut ctx.accounts.execute_order,
-        custodian: &ctx.accounts.custodian,
-        token_program: &ctx.accounts.token_program,
-    })?;
+        order_executed_event,
+    } = super::handle_execute_fast_order(
+        &mut ctx.accounts.execute_order,
+        &ctx.accounts.custodian,
+        &ctx.accounts.token_program,
+    )?;
 
     let active_auction = &ctx.accounts.execute_order.active_auction;
     let auction_custody_token = &active_auction.custody_token;
@@ -183,12 +184,20 @@ pub fn handle_execute_fast_order_cctp(
         },
     )?;
 
+    // Emit the order executed event, which liquidators can listen to if this execution ended up
+    // being penalized so they can collect the base fee at settlement.
+    emit_cpi!(order_executed_event);
+
     // Finally close the account since it is no longer needed.
     token::close_account(CpiContext::new_with_signer(
         token_program.to_account_info(),
         token::CloseAccount {
             account: auction_custody_token.to_account_info(),
-            destination: beneficiary.unwrap_or(payer.to_account_info()),
+            destination: ctx
+                .accounts
+                .execute_order
+                .initial_participant
+                .to_account_info(),
             authority: custodian.to_account_info(),
         },
         &[Custodian::SIGNER_SEEDS],

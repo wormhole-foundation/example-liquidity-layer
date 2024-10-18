@@ -37,7 +37,7 @@ pub struct CreateNewAuctionHistory<'info> {
                 .id
                 .checked_add(1)
                 .map(|new_id| new_id.to_be_bytes())
-                .ok_or(MatchingEngineError::U32Overflow)?,
+                .ok_or_else(|| MatchingEngineError::U32Overflow)?,
         ],
         bump,
     )]

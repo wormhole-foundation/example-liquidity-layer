@@ -1,4 +1,4 @@
-import { BN } from "@coral-xyz/anchor";
+import { BN, EventParser } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -423,18 +423,25 @@ describe("Matching Engine <> Token Router", function () {
 
         describe("Settle Auction", function () {
             const emittedEvents: EmittedFilledLocalFastOrder[] = [];
-            let listenerId: number | null;
+            let listenerId: number | undefined;
 
             describe("Settle No Auction (Local)", function () {
                 before("Start Event Listener", async function () {
-                    listenerId = matchingEngine.onFilledLocalFastOrder((event, slot, signature) => {
-                        emittedEvents.push({ event, slot, signature });
+                    listenerId = matchingEngine.onEventCpi((event, slot, signature) => {
+                        const { localFastOrderFilled } = event;
+                        if (localFastOrderFilled !== undefined) {
+                            emittedEvents.push({
+                                event: localFastOrderFilled,
+                                slot,
+                                signature,
+                            });
+                        }
                     });
                 });
 
                 after("Stop Event Listener", async function () {
-                    if (listenerId !== null) {
-                        matchingEngine.program.removeEventListener(listenerId!);
+                    if (listenerId !== undefined) {
+                        matchingEngine.program.removeEventListener(listenerId);
                     }
                 });
 
@@ -457,17 +464,24 @@ describe("Matching Engine <> Token Router", function () {
 
         describe("Matching Engine -- Execute Fast Order (Local)", function () {
             const emittedEvents: EmittedFilledLocalFastOrder[] = [];
-            let listenerId: number | null;
+            let listenerId: number | undefined;
 
             before("Start Event Listener", async function () {
-                listenerId = matchingEngine.onFilledLocalFastOrder((event, slot, signature) => {
-                    emittedEvents.push({ event, slot, signature });
+                listenerId = matchingEngine.onEventCpi((event, slot, signature) => {
+                    const { localFastOrderFilled } = event;
+                    if (localFastOrderFilled !== undefined) {
+                        emittedEvents.push({
+                            event: localFastOrderFilled,
+                            slot,
+                            signature,
+                        });
+                    }
                 });
             });
 
             after("Stop Event Listener", async function () {
-                if (listenerId !== null) {
-                    matchingEngine.program.removeEventListener(listenerId!);
+                if (listenerId !== undefined) {
+                    matchingEngine.program.removeEventListener(listenerId);
                 }
             });
 
@@ -497,19 +511,26 @@ describe("Matching Engine <> Token Router", function () {
 
         describe("Token Router -- Redeem Fast Fill", function () {
             const emittedEvents: EmittedFilledLocalFastOrder[] = [];
-            let listenerId: number | null;
+            let listenerId: number | undefined;
 
             const localVariables = new Map<string, any>();
 
             before("Start Event Listener", async function () {
-                listenerId = matchingEngine.onFilledLocalFastOrder((event, slot, signature) => {
-                    emittedEvents.push({ event, slot, signature });
+                listenerId = matchingEngine.onEventCpi((event, slot, signature) => {
+                    const { localFastOrderFilled } = event;
+                    if (localFastOrderFilled !== undefined) {
+                        emittedEvents.push({
+                            event: localFastOrderFilled,
+                            slot,
+                            signature,
+                        });
+                    }
                 });
             });
 
             after("Stop Event Listener", async function () {
-                if (listenerId !== null) {
-                    matchingEngine.program.removeEventListener(listenerId!);
+                if (listenerId !== undefined) {
+                    matchingEngine.program.removeEventListener(listenerId);
                 }
             });
 
@@ -736,6 +757,7 @@ describe("Matching Engine <> Token Router", function () {
                 fast.vaaAccount.timestamp(),
                 { local: { programId: tokenRouter.ID } },
                 { active: {} },
+                accounts.payer,
                 {
                     configId: auctionConfigId,
                     custodyTokenBump,
@@ -778,6 +800,7 @@ describe("Matching Engine <> Token Router", function () {
             payer: PublicKey;
             fastVaa?: PublicKey;
             finalizedVaa?: PublicKey;
+            baseFeeToken?: PublicKey;
         },
         opts: ForTestOpts & ObserveCctpOrderVaasOpts & PrepareOrderResponseForTestOptionalOpts = {},
     ): Promise<void | {
@@ -971,6 +994,10 @@ describe("Matching Engine <> Token Router", function () {
             toChainId(fastMarketOrder!.targetChain),
         );
 
+        const baseFeeToken =
+            accounts.baseFeeToken ??
+            splToken.getAssociatedTokenAddressSync(USDC_MINT_ADDRESS, payer.publicKey);
+
         const { baseFee } = deposit!.message.payload! as SlowOrderResponse;
         expect(preparedOrderResponseData).to.eql(
             new matchingEngineSdk.PreparedOrderResponse(
@@ -980,6 +1007,7 @@ describe("Matching Engine <> Token Router", function () {
                 },
                 {
                     preparedBy: accounts.payer,
+                    baseFeeToken,
                     fastVaaTimestamp: fastVaaAccount.timestamp(),
                     sourceChain: fastVaaAccount.emitterInfo().chain,
                     baseFee: uint64ToBN(baseFee),
@@ -1090,7 +1118,7 @@ describe("Matching Engine <> Token Router", function () {
         const { success, result } = await invokeReserveFastFillSequence(
             ix,
             fastVaaAccount,
-            playerOne.publicKey,
+            payer.publicKey,
             testOpts,
         );
 
@@ -1360,9 +1388,16 @@ describe("Matching Engine <> Token Router", function () {
         ).to.eql(fastFill);
 
         // Check event.
+        let retryCount = 0;
         while (emittedEvents.length == 0) {
-            console.log("waiting...");
             await new Promise((resolve) => setTimeout(resolve, 200));
+            ++retryCount;
+
+            console.log(`waiting... ${retryCount}`);
+
+            if (retryCount > 20) {
+                throw new Error("Timed out waiting for event");
+            }
         }
 
         const { event, slot, signature } = emittedEvents.shift()!;
@@ -1495,9 +1530,16 @@ describe("Matching Engine <> Token Router", function () {
         ).to.eql(fastFill);
 
         // Check event.
+        let retryCount = 0;
         while (emittedEvents.length == 0) {
-            console.log("waiting...");
             await new Promise((resolve) => setTimeout(resolve, 200));
+            ++retryCount;
+
+            console.log(`waiting... ${retryCount}`);
+
+            if (retryCount > 20) {
+                throw new Error("Timed out waiting for event");
+            }
         }
 
         const { event, slot, signature } = emittedEvents.shift()!;

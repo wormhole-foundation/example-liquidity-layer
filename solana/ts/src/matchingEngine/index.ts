@@ -6,6 +6,7 @@ import {
     ConfirmOptions,
     Connection,
     Finality,
+    ParsedTransactionWithMeta,
     PublicKey,
     SYSVAR_CLOCK_PUBKEY,
     SYSVAR_EPOCH_SCHEDULE_PUBKEY,
@@ -31,7 +32,7 @@ import {
     writeUint64BE,
 } from "../common";
 import { UpgradeManagerProgram } from "../upgradeManager";
-import { BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
+import { ArrayQueue, BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
 import {
     Auction,
@@ -55,6 +56,7 @@ import {
     RouterEndpoint,
 } from "./state";
 import { ChainId, toChainId, isChainId } from "@wormhole-foundation/sdk-base";
+import { decodeIdlAccount } from "anchor-0.29.0/dist/cjs/idl";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -132,6 +134,7 @@ export type RedeemFastFillAccounts = {
     fromRouterEndpoint: PublicKey;
     toRouterEndpoint: PublicKey;
     localCustodyToken: PublicKey;
+    eventAuthority: PublicKey;
     matchingEngineProgram: PublicKey;
 };
 
@@ -146,15 +149,15 @@ export type SettledTokenAccountInfo = {
 };
 
 export type AuctionSettled = {
-    auction: PublicKey;
+    fastVaaHash: Array<number>;
     bestOfferToken: SettledTokenAccountInfo | null;
-    executorToken: SettledTokenAccountInfo | null;
+    baseFeeToken: SettledTokenAccountInfo | null;
     withExecute: MessageProtocol | null;
 };
 
 export type AuctionUpdated = {
     configId: number;
-    auction: PublicKey;
+    fastVaaHash: Array<number>;
     vaa: PublicKey | null;
     sourceChain: number;
     targetProtocol: MessageProtocol;
@@ -168,7 +171,7 @@ export type AuctionUpdated = {
 };
 
 export type OrderExecuted = {
-    auction: PublicKey;
+    fastVaaHash: Array<number>;
     vaa: PublicKey;
     targetProtocol: MessageProtocol;
 };
@@ -189,12 +192,23 @@ export type LocalFastOrderFilled = {
 
 export type FastFillSequenceReserved = {
     fastVaaHash: Array<number>;
-    fastFillSeeds: FastFillSeeds;
+    fastFill: FastFillSeeds;
 };
 
 export type FastFillRedeemed = {
     preparedBy: PublicKey;
-    fastFill: PublicKey;
+    fastFill: FastFillSeeds;
+};
+
+export type MatchingEngineEvent = {
+    auctionSettled?: AuctionSettled;
+    auctionUpdated?: AuctionUpdated;
+    orderExecuted?: OrderExecuted;
+    proposed?: Proposed;
+    enacted?: Enacted;
+    localFastOrderFilled?: LocalFastOrderFilled;
+    fastFillSequenceReserved?: FastFillSequenceReserved;
+    fastFillRedeemed?: FastFillRedeemed;
 };
 
 export type FastOrderPathComposite = {
@@ -241,46 +255,45 @@ export class MatchingEngineProgram {
         return this._mint;
     }
 
-    onAuctionSettled(callback: (event: AuctionSettled, slot: number, signature: string) => void) {
-        return this.program.addEventListener("auctionSettled", callback);
-    }
-
+    /// NOTE: This listener can be unreliable because it depends on parsing program logs. For a more
+    /// reliable method, use `onEventCpi` and filter for the "auctionUpdated" event.
     onAuctionUpdated(callback: (event: AuctionUpdated, slot: number, signature: string) => void) {
         return this.program.addEventListener("auctionUpdated", callback);
     }
 
-    onOrderExecuted(callback: (event: OrderExecuted, slot: number, signature: string) => void) {
-        return this.program.addEventListener("orderExecuted", callback);
-    }
-
-    onProposed(callback: (event: Proposed, slot: number, signature: string) => void) {
-        return this.program.addEventListener("proposed", callback);
-    }
-
-    onEnacted(callback: (event: Enacted, slot: number, signature: string) => void) {
-        return this.program.addEventListener("enacted", callback);
-    }
-
-    onFilledLocalFastOrder(
+    /// NOTE: This function is not optimized to minimize RPC calls.
+    onEventCpi(
         callback: (
-            event: LocalFastOrderFilled,
+            event: MatchingEngineEvent,
             eventSlot: number,
             signature: string,
             currentSlotInfo?: SlotInfo,
+            parsedTransaction?: ParsedTransactionWithMeta,
         ) => void,
         commitment: Finality = "confirmed",
-    ) {
+    ): number {
         const program = this.program;
         const connection = program.provider.connection;
 
-        const signatureSlots: { signature: string; eventSlot: number }[] = [];
+        const unprocessedTxs = new ArrayQueue<{ signature: string; eventSlot: number }>();
+        const observedTxs = new Map<number, Set<string>>();
 
         connection.onSlotChange(async (slotInfo) => {
             // TODO: Make this more efficient by fetching multiple parsed transactions.
-            while (signatureSlots.length > 0) {
-                const { signature, eventSlot } = signatureSlots[0];
+            while (!unprocessedTxs.isEmpty()) {
+                const head = unprocessedTxs.head();
 
-                const parsedTx = await program.provider.connection.getParsedTransaction(signature, {
+                // This check is superfluous. But we do it anyway to make sure the unprocessed
+                // transaction queue is actually empty.
+                //
+                // Once the ArrayQueue has been thoroughly tested, we can remove this check.
+                if (head === null) {
+                    break;
+                }
+
+                const { signature, eventSlot } = head;
+
+                const parsedTx = await connection.getParsedTransaction(signature, {
                     commitment,
                     maxSupportedTransactionVersion: 0,
                 });
@@ -289,8 +302,7 @@ export class MatchingEngineProgram {
                     break;
                 }
 
-                // Finally dequeue.
-                signatureSlots.shift();
+                unprocessedTxs.dequeue();
 
                 // Find the event.
                 for (const innerIx of parsedTx.meta?.innerInstructions!) {
@@ -308,43 +320,45 @@ export class MatchingEngineProgram {
                             utils.bytes.base64.encode(data.subarray(8)),
                         );
 
-                        if (decoded !== null && decoded.name === "localFastOrderFilled") {
-                            return callback(decoded.data, eventSlot, signature, slotInfo);
+                        if (decoded !== null) {
+                            callback(
+                                {
+                                    [decoded.name]: decoded.data,
+                                },
+                                eventSlot,
+                                signature,
+                                slotInfo,
+                                parsedTx,
+                            );
                         }
                     }
                 }
             }
+
+            // Clean up consumed.
+            for (const [slot] of observedTxs) {
+                if (slot < slotInfo.slot - 64) {
+                    observedTxs.delete(slot);
+                }
+            }
         });
 
-        this.onOrderExecuted(async (orderExecutedEvent, eventSlot, signature) => {
-            if (orderExecutedEvent.targetProtocol.local === undefined) {
+        return connection.onLogs(program.programId, (logs, ctx) => {
+            const signature = logs.signature;
+            const eventSlot = ctx.slot;
+
+            if (!observedTxs.has(eventSlot)) {
+                observedTxs.set(eventSlot, new Set());
+            }
+
+            const observed = observedTxs.get(eventSlot)!;
+            if (observed.has(signature)) {
                 return;
             }
 
-            signatureSlots.push({ signature, eventSlot });
+            unprocessedTxs.enqueue({ signature, eventSlot });
+            observed.add(signature);
         });
-
-        // No new listener IDs are created on subsequent addEventListener calls.
-        return this.onAuctionSettled(async (auctionSettledEvent, eventSlot, signature) => {
-            const withExecute = auctionSettledEvent.withExecute;
-            if (withExecute === null || withExecute.local === undefined) {
-                return;
-            }
-
-            signatureSlots.push({ signature, eventSlot });
-        });
-    }
-
-    onFastFillSequenceReserved(
-        callback: (event: FastFillSequenceReserved, slot: number, signature: string) => void,
-    ) {
-        return this.program.addEventListener("fastFillSequenceReserved", callback);
-    }
-
-    onFastFillRedeemed(
-        callback: (event: FastFillRedeemed, slot: number, signature: string) => void,
-    ) {
-        return this.program.addEventListener("fastFillRedeemed", callback);
     }
 
     eventAuthorityAddress(): PublicKey {
@@ -1086,6 +1100,8 @@ export class MatchingEngineProgram {
                 proposal,
                 epochSchedule: SYSVAR_EPOCH_SCHEDULE_PUBKEY,
                 systemProgram: SystemProgram.programId,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -1148,6 +1164,8 @@ export class MatchingEngineProgram {
                 proposal,
                 auctionConfig,
                 systemProgram: SystemProgram.programId,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -1375,6 +1393,8 @@ export class MatchingEngineProgram {
                 usdc: this.usdcComposite(),
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
 
@@ -1462,6 +1482,8 @@ export class MatchingEngineProgram {
                 ),
                 offerToken: splToken.getAssociatedTokenAddressSync(this.mint, participant),
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
 
@@ -1473,10 +1495,14 @@ export class MatchingEngineProgram {
             payer: PublicKey;
             fastVaa: PublicKey;
             finalizedVaa: PublicKey;
+            baseFeeToken?: PublicKey;
         },
         args: CctpMessageArgs,
     ): Promise<TransactionInstruction> {
         const { payer, fastVaa, finalizedVaa } = accounts;
+
+        let { baseFeeToken } = accounts;
+        baseFeeToken ??= await splToken.getAssociatedTokenAddress(this.mint, payer);
 
         const fastVaaAcct = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
         const fromEndpoint = this.routerEndpointAddress(fastVaaAcct.emitterInfo().chain);
@@ -1517,6 +1543,7 @@ export class MatchingEngineProgram {
                 finalizedVaa: this.liquidityLayerVaaComposite(finalizedVaa),
                 preparedOrderResponse,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
+                baseFeeToken,
                 usdc: this.usdcComposite(),
                 cctp: {
                     mintRecipient: this.cctpMintRecipientComposite(),
@@ -1556,7 +1583,7 @@ export class MatchingEngineProgram {
         let { executor, fastVaa, finalizedVaa, auction, bestOfferToken } = accounts;
 
         const prepareOrderResponseIx = await this.prepareOrderResponseCctpIx(
-            { payer: executor, fastVaa, finalizedVaa },
+            { payer: executor, fastVaa, finalizedVaa, baseFeeToken: bestOfferToken },
             args,
         );
         const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
@@ -1575,10 +1602,11 @@ export class MatchingEngineProgram {
         }
 
         const settleAuctionCompletedIx = await this.settleAuctionCompleteIx({
-            executor,
+            beneficiary: executor,
             auction,
             preparedOrderResponse,
             bestOfferToken,
+            baseFeeToken: bestOfferToken,
         });
 
         const preparedTx: PreparedTransaction = {
@@ -1596,23 +1624,24 @@ export class MatchingEngineProgram {
     }
 
     async settleAuctionCompleteIx(accounts: {
-        executor: PublicKey;
         preparedOrderResponse: PublicKey;
         auction?: PublicKey;
+        beneficiary?: PublicKey;
+        baseFeeToken?: PublicKey;
         bestOfferToken?: PublicKey;
-        executorToken?: PublicKey;
     }) {
-        const { executor, preparedOrderResponse } = accounts;
+        const { preparedOrderResponse } = accounts;
 
-        let { auction, bestOfferToken, executorToken } = accounts;
-        executorToken ??= splToken.getAssociatedTokenAddressSync(this.mint, executor);
+        let { auction, beneficiary, baseFeeToken, bestOfferToken } = accounts;
 
-        if (auction === undefined) {
-            const { seeds } = await this.fetchPreparedOrderResponse({
+        if (auction === undefined || beneficiary === undefined || baseFeeToken === undefined) {
+            const { seeds, info } = await this.fetchPreparedOrderResponse({
                 address: preparedOrderResponse,
             });
 
-            auction = this.auctionAddress(seeds.fastVaaHash);
+            auction ??= this.auctionAddress(seeds.fastVaaHash);
+            beneficiary ??= info.preparedBy;
+            baseFeeToken ??= info.baseFeeToken;
         }
 
         if (bestOfferToken === undefined) {
@@ -1627,13 +1656,15 @@ export class MatchingEngineProgram {
         return this.program.methods
             .settleAuctionComplete()
             .accounts({
-                executor,
-                executorToken,
+                beneficiary,
+                baseFeeToken,
                 preparedOrderResponse,
                 preparedCustodyToken: this.preparedCustodyTokenAddress(preparedOrderResponse),
                 auction,
                 bestOfferToken,
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -1651,8 +1682,10 @@ export class MatchingEngineProgram {
         confirmOptions?: ConfirmOptions,
     ): Promise<PreparedTransaction> {
         const { executor, fastVaa, finalizedVaa, auction } = accounts;
+
+        const { feeRecipientToken } = await this.fetchCustodian();
         const prepareOrderResponseIx = await this.prepareOrderResponseCctpIx(
-            { payer: executor, fastVaa, finalizedVaa },
+            { payer: executor, fastVaa, finalizedVaa, baseFeeToken: feeRecipientToken },
             args,
         );
         const fastVaaAccount = await VaaAccount.fetch(this.program.provider.connection, fastVaa);
@@ -1857,6 +1890,8 @@ export class MatchingEngineProgram {
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
                 sysvars: this.requiredSysvarsComposite(),
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -1980,18 +2015,14 @@ export class MatchingEngineProgram {
         }
 
         let auctionInfo: AuctionInfo | undefined;
-        if (initialOfferToken === undefined) {
-            const { info } = await this.fetchAuction({ address: auction });
+        if (initialOfferToken === undefined || initialParticipant === undefined) {
+            const { preparedBy, info } = await this.fetchAuction({ address: auction });
             if (info === null) {
                 throw new Error("no auction info found");
             }
             auctionInfo = info;
-            initialOfferToken = info.initialOfferToken;
-        }
-
-        if (initialParticipant === undefined) {
-            const token = await splToken.getAccount(connection, initialOfferToken);
-            initialParticipant = token.owner;
+            initialOfferToken ??= info.initialOfferToken;
+            initialParticipant ??= preparedBy;
         }
 
         const {
@@ -2058,6 +2089,8 @@ export class MatchingEngineProgram {
                 tokenProgram: splToken.TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
                 sysvars: this.requiredSysvarsComposite(),
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -2144,8 +2177,6 @@ export class MatchingEngineProgram {
             reservedSequence?: PublicKey;
             auction?: PublicKey;
             auctionConfig?: PublicKey;
-            bestOfferToken?: PublicKey;
-            executor?: PublicKey;
         },
         opts: ReserveFastFillSequenceCompositeOpts = {},
     ): Promise<TransactionInstruction> {
@@ -2171,25 +2202,14 @@ export class MatchingEngineProgram {
             opts,
         );
 
-        let { auctionConfig, bestOfferToken, executor } = accounts;
+        let { auctionConfig } = accounts;
 
-        if (bestOfferToken === undefined || auctionConfig === undefined) {
+        if (auctionConfig === undefined) {
             const { info } = await this.fetchAuction({ address: reserveSequence.auction });
             if (info === null) {
                 throw new Error("no auction info found");
             }
-            auctionConfig ??= this.auctionConfigAddress(info.configId);
-            bestOfferToken ??= info.bestOfferToken;
-        }
-
-        if (executor === undefined) {
-            const token = await splToken
-                .getAccount(this.program.provider.connection, bestOfferToken)
-                .catch((_) => null);
-            if (token === null) {
-                throw new Error("Executor must be provided because best offer token is not found");
-            }
-            executor = token.owner;
+            auctionConfig = this.auctionConfigAddress(info.configId);
         }
 
         return this.program.methods
@@ -2197,8 +2217,8 @@ export class MatchingEngineProgram {
             .accounts({
                 reserveSequence,
                 auctionConfig,
-                bestOfferToken,
-                executor,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -2240,6 +2260,8 @@ export class MatchingEngineProgram {
             .accounts({
                 reserveSequence,
                 preparedOrderResponse,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
             })
             .instruction();
     }
@@ -2306,18 +2328,14 @@ export class MatchingEngineProgram {
         }
 
         let auctionInfo: AuctionInfo | undefined;
-        if (initialOfferToken === undefined) {
-            const { info } = await this.fetchAuction({ address: auction });
+        if (initialOfferToken === undefined || initialParticipant === undefined) {
+            const { preparedBy, info } = await this.fetchAuction({ address: auction });
             if (info === null) {
                 throw new Error("no auction info found");
             }
             auctionInfo = info;
             initialOfferToken ??= auctionInfo.initialOfferToken;
-        }
-
-        if (initialParticipant === undefined) {
-            const token = await splToken.getAccount(connection, initialOfferToken);
-            initialParticipant = token.owner;
+            initialParticipant ??= preparedBy;
         }
 
         const activeAuction = await this.activeAuctionComposite(
@@ -2368,6 +2386,7 @@ export class MatchingEngineProgram {
             fromRouterEndpoint: this.routerEndpointAddress(sourceChain),
             toRouterEndpoint: this.routerEndpointAddress(toChainId("Solana")),
             localCustodyToken: this.localCustodyTokenAddress(sourceChain),
+            eventAuthority: this.eventAuthorityAddress(),
             matchingEngineProgram: this.ID,
         };
     }

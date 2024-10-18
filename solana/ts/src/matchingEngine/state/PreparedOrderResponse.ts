@@ -10,6 +10,7 @@ export type PreparedOrderResponseSeeds = {
 
 export type PreparedOrderResponseInfo = {
     preparedBy: PublicKey;
+    baseFeeToken: PublicKey;
     fastVaaTimestamp: number;
     sourceChain: number;
     baseFee: BN;

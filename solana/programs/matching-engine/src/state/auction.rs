@@ -149,6 +149,9 @@ pub struct Auction {
     /// Auction status.
     pub status: AuctionStatus,
 
+    /// The fee payer when placing the initial offer.
+    pub prepared_by: Pubkey,
+
     /// Optional auction info. This field will be `None`` if there is no auction.
     pub info: Option<AuctionInfo>,
 }

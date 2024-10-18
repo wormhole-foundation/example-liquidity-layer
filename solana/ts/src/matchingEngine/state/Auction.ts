@@ -38,6 +38,7 @@ export class Auction {
     vaaTimestamp: number;
     targetProtocol: MessageProtocol;
     status: AuctionStatus;
+    preparedBy: PublicKey;
     info: AuctionInfo | null;
 
     constructor(
@@ -46,6 +47,7 @@ export class Auction {
         vaaTimestamp: number,
         targetProtocol: MessageProtocol,
         status: AuctionStatus,
+        preparedBy: PublicKey,
         info: AuctionInfo | null,
     ) {
         this.bump = bump;
@@ -53,6 +55,7 @@ export class Auction {
         this.vaaTimestamp = vaaTimestamp;
         this.targetProtocol = targetProtocol;
         this.status = status;
+        this.preparedBy = preparedBy;
         this.info = info;
     }
 
