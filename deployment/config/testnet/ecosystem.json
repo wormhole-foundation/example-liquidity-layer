@@ -1,0 +1,9 @@
+{
+  "evm": {
+    "operatingChains": [],
+    "networks": []
+  },
+  "solana": {
+    "networks": []
+  }
+}
