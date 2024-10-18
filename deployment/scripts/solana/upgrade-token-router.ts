@@ -17,16 +17,15 @@ solana.runOnSolana("upgrade-token-router", async (chain, signer, log) => {
       "UpgradeManager",
       chain.chainId,
     ) as UpgradeManagerProgramId;
-    const a = new PublicKey(await signer.getAddress());
 
     const upgradeManager = new UpgradeManagerProgram(connection, upgradeManagerProgramId);
 
-    const buffer = new PublicKey(getEnv("TOKEN_ROUTER_UPGRADE_BUFFER_ACCOUNT"));
+    const buffer = new PublicKey(getEnv("TOKEN_ROUTER_BUFFER_ACCOUNT"));
 
     await checkBufferExists(buffer, connection);
 
     const upgradeIx = await upgradeManager.executeTokenRouterUpgradeIx({
-      owner: new PublicKey((await signer.getAddress()).toString()),
+      owner: new PublicKey(await signer.getAddress()),
       tokenRouterBuffer: buffer,
     });
 

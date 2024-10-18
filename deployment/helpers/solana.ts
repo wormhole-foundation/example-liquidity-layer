@@ -15,7 +15,7 @@ import { MatchingEngineProgram, ProgramId as MatchingEngineProgramId } from "@wo
 import { TokenRouterProgram, ProgramId as TokenRouterProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/tokenRouter";
 
 export const connectionCommitmentLevel = (process.env.SOLANA_COMMITMENT || "confirmed") as Commitment;
-export const priorityMicrolamports = process.env.PRIORITY_MICROLAMPORTS !== "undefined" ? Number(process.env.PRIORITY_MICROLAMPORTS) : 1;
+export const priorityMicrolamports = process.env.PRIORITY_MICROLAMPORTS !== undefined? Number(process.env.PRIORITY_MICROLAMPORTS) : 1;
 
 export function validateSolAddress(address: string){
     try {

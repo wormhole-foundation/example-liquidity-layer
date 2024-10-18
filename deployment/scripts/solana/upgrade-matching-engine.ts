@@ -20,7 +20,7 @@ solana.runOnSolana("upgrade-matching-engine", async (chain, signer, log) => {
 
     const upgradeManager = new UpgradeManagerProgram(connection, upgradeManagerProgramId);
 
-    const buffer = new PublicKey(getEnv("MATCHING_ENGINE_UPGRADE_BUFFER_ACCOUNT"));
+    const buffer = new PublicKey(getEnv("MATCHING_ENGINE_BUFFER_ACCOUNT"));
 
     await checkBufferExists(buffer, connection);
 

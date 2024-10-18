@@ -17,7 +17,7 @@ import { priorityMicrolamports } from "../../helpers/solana";
 
 
 solana.runOnSolana("register-routers-matching-engine", async (chain, signer, log) => {
-    const matchingEngineId = getLocalDependencyAddress("MatchingEngineProxy", chain) as ProgramId;
+    const matchingEngineId = getLocalDependencyAddress("matchingEngineProxy", chain) as ProgramId;
 
     if (chain.network === "Devnet")
       throw new Error("Devnet is not supported by USDC. Use Mainnet or Testnet.");
