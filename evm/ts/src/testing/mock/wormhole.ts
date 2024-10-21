@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { ethers } from "ethers-v5";
 import { EvmObserver } from ".";
 import { parseEvmEvents, parseEvmEvent } from "../..";
 import { GUARDIAN_PRIVATE_KEY, WORMHOLE_GUARDIAN_SET_INDEX } from "../consts";

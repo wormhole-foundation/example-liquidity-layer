@@ -1,5 +1,5 @@
 import { ChainId } from "@wormhole-foundation/sdk-base";
-import { ethers } from "ethers";
+import { ethers } from "ethers-v5";
 import { RouterEndpoint, LiveAuctionData, MatchingEngine, RedeemParameters } from ".";
 import { LiquidityLayerTransactionResult } from "..";
 import {

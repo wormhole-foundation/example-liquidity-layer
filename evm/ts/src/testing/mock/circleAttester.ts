@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { ethers } from "ethers-v5";
 import { GUARDIAN_PRIVATE_KEY } from "../consts";
 
 export type Attestation = {

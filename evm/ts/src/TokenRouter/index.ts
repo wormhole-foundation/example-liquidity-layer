@@ -1,5 +1,5 @@
 import { LiquidityLayerTransactionResult, PreparedInstruction } from "..";
-import { ethers } from "ethers";
+import { ethers } from "ethers-v5";
 export * from "./evm";
 
 export type FastTransferParameters = {
