@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { execSync } from "child_process";
-import { ethers } from "ethers";
+import { ethers } from "ethers-v5";
 import {
     ICircleBridge__factory,
     IMessageTransmitter__factory,
