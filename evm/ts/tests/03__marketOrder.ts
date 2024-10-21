@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { ethers } from "ethers";
+import { ethers } from "ethers-v5";
 import { EvmTokenRouter, errorDecoder, OrderResponse } from "../src";
 import { IERC20__factory } from "../src/types";
 import {

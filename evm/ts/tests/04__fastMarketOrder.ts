@@ -1,7 +1,7 @@
 import "@wormhole-foundation/sdk-evm/address";
 
 import { expect } from "chai";
-import { ethers } from "ethers";
+import { ethers } from "ethers-v5";
 import {
     EvmTokenRouter,
     EvmMatchingEngine,
