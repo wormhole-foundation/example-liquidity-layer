@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { ethers } from "ethers-v5";
 import { IERC20 } from "../types";
 import { IUSDC__factory } from "../types/factories/IUSDC__factory";
 import { WALLET_PRIVATE_KEYS } from "./consts";

@@ -1,7 +1,7 @@
 import { getConfig } from "./helpers";
 import { ITokenRouter__factory } from "../src/types/factories/ITokenRouter__factory";
 import { ITokenRouter, FastTransferParametersStruct } from "../src/types/ITokenRouter";
-import { ethers } from "ethers";
+import { ethers } from "ethers-v5";
 import { toChain, toChainId } from "@wormhole-foundation/sdk-base";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
