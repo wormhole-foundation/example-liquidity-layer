@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { ethers } from "ethers-v5";
+import { ethers } from "ethers";
 import { EvmTokenRouter, errorDecoder, OrderResponse } from "../src";
 import { IERC20__factory } from "../src/types";
 import {
@@ -100,7 +100,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                             .approve(fromTokenRouter.address, amount)
                             .then((tx) => mineWait(fromProvider, tx));
 
-                        return BigInt(amount.toString());
+                        return amount;
                     } else {
                         throw new Error("Unsupported chain");
                     }
@@ -108,7 +108,7 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
                 localVariables.set("amountIn", amountIn);
 
                 const targetChain = toChainId(toChainName);
-                const minAmountOut = BigInt(0);
+                const minAmountOut = 0n;
                 const receipt = await fromTokenRouter
                     .placeMarketOrder(
                         amountIn,
@@ -169,8 +169,8 @@ describe("Market Order Business Logic -- CCTP to CCTP", () => {
 
                 const balanceAfter = await usdc.balanceOf(toWallet.address);
 
-                expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                    localVariables.get("amountIn").toString(),
+                expect(balanceAfter.sub(balanceBefore)).to.eql(
+                    localVariables.get("amountIn"),
                 );
                 expect(localVariables.delete("amountIn")).is.true;
             });

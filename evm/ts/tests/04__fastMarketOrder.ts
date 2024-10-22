@@ -1,7 +1,7 @@
 import "@wormhole-foundation/sdk-evm/address";
 
 import { expect } from "chai";
-import { ethers } from "ethers-v5";
+import { ethers } from "ethers";
 import {
     EvmTokenRouter,
     EvmMatchingEngine,
@@ -244,8 +244,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         });
 
                     const balanceAfter = await usdc.balanceOf(initialBidder.address);
-                    expect(balanceBefore.sub(balanceAfter).toString()).to.eql(
-                        initialDeposit.toString(),
+                    expect(balanceBefore.sub(balanceAfter)).to.eql(
+                        ethers.BigNumber.from(initialDeposit),
                     );
 
                     // Validate state changes.
@@ -254,25 +254,25 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     );
 
                     expect(auctionData.status).to.eql(1);
-                    expect(auctionData.startBlock.toString()).to.eql(
-                        receipt.blockNumber.toString(),
+                    expect(auctionData.startBlock).to.eql(
+                        ethers.BigNumber.from(receipt.blockNumber),
                     );
                     expect(auctionData.highestBidder).to.eql(initialBidder.address);
                     expect(auctionData.initialBidder).to.eql(initialBidder.address);
-                    expect(auctionData.amount.toString()).to.eql(fastOrder.amountIn.toString());
-                    expect(auctionData.securityDeposit.toString()).to.eql(
-                        fastOrder.maxFee.toString(),
+                    expect(auctionData.amount).to.eql(ethers.BigNumber.from(fastOrder.amountIn));
+                    expect(auctionData.securityDeposit).to.eql(
+                        ethers.BigNumber.from(fastOrder.maxFee)
                     );
-                    expect(auctionData.bidPrice.toString()).to.eql(fastOrder.maxFee.toString());
+                    expect(auctionData.bidPrice).to.eql(ethers.BigNumber.from(fastOrder.maxFee));
                 });
 
                 it(`Matching Engine -- Fast Order Auction Period`, async () => {
                     const auctionId = localVariables.get("auctionId") as Uint8Array;
 
                     const auctionInfoBefore = await engine.liveAuctionInfo(auctionId);
-                    const startingBid = ethers.BigNumber.from(auctionInfoBefore.bidPrice);
-                    const initialDeposit = ethers.BigNumber.from(auctionInfoBefore.amount).add(
-                        ethers.BigNumber.from(auctionInfoBefore.securityDeposit),
+                    const startingBid = auctionInfoBefore.bidPrice;
+                    const initialDeposit = auctionInfoBefore.amount.add(
+                        auctionInfoBefore.securityDeposit
                     );
                     expect(startingBid.gt(0) && initialDeposit.gt(0)).is.true;
 
@@ -320,10 +320,10 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                         const balanceAfter = await usdc.balanceOf(player.address);
 
                         if (i == 2) {
-                            expect(balanceAfter.sub(bids[i].balance).toString()).to.eql("0");
+                            expect(balanceAfter.sub(bids[i].balance).isZero()).is.true;
                         } else {
-                            expect(balanceAfter.toString()).to.eql(
-                                bids[i].balance.add(initialDeposit).toString(),
+                            expect(balanceAfter).to.eql(
+                                ethers.BigNumber.from(bids[i].balance.add(initialDeposit))
                             );
                         }
                     }
@@ -332,18 +332,18 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const auctionInfoAfter = await engine.liveAuctionInfo(auctionId);
 
                     expect(auctionInfoAfter.status).to.eql(1);
-                    expect(auctionInfoAfter.startBlock.toString()).to.eql(
-                        auctionInfoBefore.startBlock.toString(),
+                    expect(auctionInfoAfter.startBlock).to.eql(
+                        auctionInfoBefore.startBlock
                     );
                     expect(auctionInfoAfter.highestBidder).to.eql(highestBidder.address);
                     expect(auctionInfoAfter.initialBidder).to.eql(auctionInfoBefore.initialBidder);
-                    expect(auctionInfoAfter.amount.toString()).to.eql(
-                        auctionInfoBefore.amount.toString(),
+                    expect(auctionInfoAfter.amount).to.eql(
+                        auctionInfoBefore.amount
                     );
-                    expect(auctionInfoAfter.securityDeposit.toString()).to.eql(
-                        auctionInfoBefore.securityDeposit.toString(),
+                    expect(auctionInfoAfter.securityDeposit).to.eql(
+                        auctionInfoBefore.securityDeposit
                     );
-                    expect(auctionInfoAfter.bidPrice.toString()).to.eql(bids[2].bid.toString());
+                    expect(auctionInfoAfter.bidPrice).to.eql(ethers.BigNumber.from(bids[2].bid));
                 });
 
                 it(`Matching Engine -- Execute Fast Order Within Grace Period`, async () => {
@@ -393,12 +393,10 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const initialBidderAfter = await usdc.balanceOf(auctionInfo.initialBidder);
                     const initAuctionFee = await fromTokenRouter.getInitialAuctionFee();
 
-                    expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                        ethers.BigNumber.from(auctionInfo.bidPrice)
-                            .add(ethers.BigNumber.from(auctionInfo.securityDeposit))
-                            .toString(),
+                    expect(balanceAfter.sub(balanceBefore)).to.eql(
+                        auctionInfo.bidPrice.add(auctionInfo.securityDeposit)
                     );
-                    expect(initialBidderAfter.sub(initialBidderBefore).eq(initAuctionFee)).is.true;
+                    expect(initialBidderAfter.sub(initialBidderBefore)).eql(initAuctionFee);
 
                     // Auction status should be complete (2).
                     const auctionStatus = await engine
@@ -462,8 +460,8 @@ describe("Fast Market Order Business Logic -- CCTP to CCTP", function (this: Moc
                     const initAuctionFee = await fromTokenRouter.getInitialAuctionFee();
                     const balanceAfter = await usdc.balanceOf(toWallet.address);
 
-                    expect(balanceAfter.sub(balanceBefore).toString()).to.eql(
-                        amount.sub(bidPrice).sub(initAuctionFee).toString(),
+                    expect(balanceAfter.sub(balanceBefore)).to.eql(
+                        amount.sub(bidPrice).sub(initAuctionFee),
                     );
                 });
 

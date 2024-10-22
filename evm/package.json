@@ -14,7 +14,7 @@
     "build:esm": "tsc -p tsconfig.esm.json",
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build": "npm run build:esm && npm run build:cjs",
-    "generate": "typechain --target=ethers-v5 --out-dir=ts/src/types out/[!build-info]*/*.json",
+    "generate": "typechain --target=ethers-v6 --out-dir=ts/src/types out/[!build-info]*/*.json",
     "clean": "rm -rf dist && rm -rf node_modules && rm -f ./*.tsbuildinfo"
   },
   "exports": {
@@ -34,10 +34,10 @@
     "@wormhole-foundation/sdk-base": "^0.10.9",
     "@wormhole-foundation/sdk-definitions": "^0.10.9",
     "@wormhole-foundation/sdk-evm": "^0.10.9",
-    "ethers-v5": "npm:ethers@^5.7.2"
+    "ethers": "^6.13.4"
   },
   "devDependencies": {
-    "@typechain/ethers-v5": "^10.2.0",
+    "@typechain/ethers-v6": "^0.5.1",
     "@types/chai": "^4.3.4",
     "@types/mocha": "^10.0.1",
     "@types/node": "^18.14.5",

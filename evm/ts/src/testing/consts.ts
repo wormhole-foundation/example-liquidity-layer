@@ -19,7 +19,7 @@ export const USDC_DECIMALS: NetworkVars<number> = {
     Base: 6,
 };
 
-export const WORMHOLE_MESSAGE_FEE = 0;
+export const WORMHOLE_MESSAGE_FEE = 0n;
 export const WORMHOLE_GUARDIAN_SET_INDEX = 4;
 export const GUARDIAN_PRIVATE_KEY =
     "cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0";

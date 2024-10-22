@@ -35,7 +35,7 @@ dependencies: node_modules
 .PHONY: clean
 clean:
 	forge clean
-	rm -rf anvil.log ts/src/types
+	rm -rf anvil.log ts/src/types node_modules
 
 node_modules: ../package-lock.json
 	cd .. && npm ci && npm run build:universal

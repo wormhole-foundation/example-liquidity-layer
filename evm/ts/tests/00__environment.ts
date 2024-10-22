@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { execSync } from "child_process";
-import { ethers } from "ethers-v5";
+import { ethers } from "ethers";
 import {
     ICircleBridge__factory,
     IMessageTransmitter__factory,
@@ -61,7 +61,7 @@ describe("Environment", () => {
 
                 // fetch current coreBridge protocol fee
                 const messageFee = await coreBridge.messageFee();
-                expect(messageFee.eq(WORMHOLE_MESSAGE_FEE)).to.be.true;
+                expect(messageFee == WORMHOLE_MESSAGE_FEE).to.be.true;
 
                 // override guardian set
                 {
@@ -183,7 +183,7 @@ describe("Environment", () => {
                     .then((address) => IMessageTransmitter__factory.connect(address, provider))
                     .then((messageTransmitter) =>
                         messageTransmitter.getEnabledAttester(
-                            numAttesters.sub(ethers.BigNumber.from("1")),
+                            numAttesters.sub(1),
                         ),
                     );
                 expect(myAttester.address).to.equal(attester);
@@ -221,14 +221,14 @@ describe("Environment", () => {
                 // mint USDC and confirm with a balance check
                 {
                     const usdc = IUSDC__factory.connect(usdcAddress, owner);
-                    const amount = ethers.utils.parseUnits("69420", 6);
+                    const amount = 69420n;
 
                     const balanceBefore = await usdc.balanceOf(owner.address);
 
                     await usdc.mint(owner.address, amount).then((tx) => mineWait(provider, tx));
 
                     const balanceAfter = await usdc.balanceOf(owner.address);
-                    expect(balanceAfter.sub(balanceBefore).eq(amount)).is.true;
+                    expect(balanceAfter - balanceBefore == amount).is.true;
 
                     await usdc
                         .transfer("0x0000000000000000000000000000000000000001", balanceAfter)

@@ -1,6 +1,6 @@
 import "@wormhole-foundation/sdk-evm/address";
 
-import { ethers } from "ethers-v5";
+import { ethers } from "ethers";
 import { ITokenRouter__factory, IMatchingEngine__factory } from "../src/types";
 import {
     LOCALHOSTS,
