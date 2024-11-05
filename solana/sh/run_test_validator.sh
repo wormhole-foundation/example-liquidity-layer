@@ -99,6 +99,8 @@ solana-test-validator \
     8899 \
     --ticks-per-slot \
     $1 \
+    --deactivate-feature \
+    EenyoWx9UMXYKpR8mW5Jmfmy2fRjzUtM7NduYMY8bx33 \
     --url \
     https://api.devnet.solana.com > /dev/null 2>&1 &
 

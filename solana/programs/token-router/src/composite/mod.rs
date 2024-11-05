@@ -87,7 +87,7 @@ pub struct CheckedCustodian<'info> {
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
     )]
-    pub custodian: Account<'info, Custodian>,
+    pub custodian: Box<Account<'info, Custodian>>,
 }
 
 impl<'info> Deref for CheckedCustodian<'info> {
@@ -128,7 +128,7 @@ pub struct OwnerOnlyMut<'info> {
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
     )]
-    pub custodian: Account<'info, Custodian>,
+    pub custodian: Box<Account<'info, Custodian>>,
 }
 
 #[derive(Accounts)]
@@ -161,7 +161,7 @@ pub struct AdminMut<'info> {
         seeds = [Custodian::SEED_PREFIX],
         bump = Custodian::BUMP,
     )]
-    pub custodian: Account<'info, Custodian>,
+    pub custodian: Box<Account<'info, Custodian>>,
 }
 
 /// Registered router endpoint representing a foreign Token Router. This account may have a CCTP

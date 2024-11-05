@@ -1,5 +1,5 @@
 import { Chain } from "@wormhole-foundation/sdk-base";
-import { ethers } from "ethers";
+import { ethers } from "ethers-v5";
 
 export * from "./circleAttester";
 export * from "./wormhole";

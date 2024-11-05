@@ -1,6 +1,6 @@
 import { ChainId, toChain } from "@wormhole-foundation/sdk-base";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
-import { ethers } from "ethers";
+import { ethers } from "ethers-v5";
 import { CoreBridgeLiquidityLayerMessage, MessageDecoder } from "./messages";
 
 export function parseEvmEvents(
