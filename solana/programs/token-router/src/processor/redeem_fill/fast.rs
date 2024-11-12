@@ -25,7 +25,7 @@ pub struct RedeemFastFill<'info> {
         bump = fast_fill.seeds.bump,
         seeds::program = matching_engine_program,
     )]
-    fast_fill: Account<'info, FastFill>,
+    fast_fill: Box<Account<'info, FastFill>>,
 
     #[account(
         init_if_needed,
@@ -37,7 +37,7 @@ pub struct RedeemFastFill<'info> {
         ],
         bump,
     )]
-    prepared_fill: Account<'info, PreparedFill>,
+    prepared_fill: Box<Account<'info, PreparedFill>>,
 
     /// Mint recipient token account, which is encoded as the mint recipient in the CCTP message.
     /// The CCTP Token Messenger Minter program will transfer the amount encoded in the CCTP message
