@@ -169,14 +169,14 @@ export function getMatchingEngineAuctionParameters(chain: ChainInfo): AuctionPar
   }
 
   return { 
-       userPenaltyRewardBps: Number(engineParameters.userPenaltyRewardBps),
-        initialPenaltyBps: Number(engineParameters.initialPenaltyBps),
-        duration: Number(engineParameters.auctionDuration),
-        gracePeriod: Number(engineParameters.auctionGracePeriod),
-        penaltyPeriod: Number(engineParameters.auctionPenaltySlots),
-        minOfferDeltaBps: Number(engineParameters.minOfferDeltaBps),
-        securityDepositBase: new BN(engineParameters.securityDepositBase),
-        securityDepositBps: Number(engineParameters.securityDepositBps)
+    userPenaltyRewardBps: Number(engineParameters.userPenaltyRewardBps),
+    initialPenaltyBps: Number(engineParameters.initialPenaltyBps),
+    duration: Number(engineParameters.auctionDuration),
+    gracePeriod: Number(engineParameters.auctionGracePeriod),
+    penaltyPeriod: Number(engineParameters.auctionPenaltySlots),
+    minOfferDeltaBps: Number(engineParameters.minOfferDeltaBps),
+    securityDepositBase: new BN(engineParameters.securityDepositBase),
+    securityDepositBps: Number(engineParameters.securityDepositBps)
   }
 }
 

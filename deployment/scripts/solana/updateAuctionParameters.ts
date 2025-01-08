@@ -5,16 +5,12 @@ import {
   PublicKey,
 } from "@solana/web3.js";
 import "dotenv/config";
-import { uint64ToBN } from "@wormhole-foundation/example-liquidity-layer-solana/common";
-import { AuctionParameters, MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
-import { solana, LoggerFn, getChainConfig, getContractAddress, getLocalDependencyAddress, getMatchingEngineAuctionParameters as getAuctionEngineParameters, env, getMatchingEngineAuctionParameters } from "../../helpers";
-import { MatchingEngineConfiguration } from "../../config/config-types";
+import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
+import { solana, getLocalDependencyAddress, env, getMatchingEngineAuctionParameters } from "../../helpers";
 import { ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
-import { SolanaLedgerSigner } from "@xlabs-xyz/ledger-signer-solana";
 import { circle } from "@wormhole-foundation/sdk-base";
 
 solana.runOnSolana("update-auction-parameters", async (chain, signer, log) => {
-  const config = await getChainConfig<MatchingEngineConfiguration>("matching-engine", chain.chainId);
   const matchingEngineId = getLocalDependencyAddress("matchingEngineProxy", chain) as ProgramId;
 
   const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
@@ -68,11 +64,3 @@ solana.runOnSolana("update-auction-parameters", async (chain, signer, log) => {
 
   console.log(`Update Transaction ID: ${updateTxSig}, wait for confirmation...`);
 });
-
-function toIntegerNumber(text: string, name: string): number {
-  const res = Number(text);
-  if (!Number.isSafeInteger(res)) {
-    throw new Error(`${name} is not a safe integer. Received ${text}`)
-  }
-  return res;
-}
