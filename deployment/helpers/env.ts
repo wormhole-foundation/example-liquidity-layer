@@ -7,12 +7,16 @@ import { getSigner } from "./evm";
 import 'dotenv/config';
 import { ChainId, Token, contracts as connectDependencies, toChain } from "@wormhole-foundation/sdk-base";
 import { getTokensBySymbol } from "@wormhole-foundation/sdk-base/tokens";
+import { MatchingEngineConfiguration } from "../config/config-types";
+import { AuctionParameters } from "../../solana/ts/src/matchingEngine/state/AuctionConfig";
+import { BN } from "@coral-xyz/anchor";
 
 export const env = getEnv("ENV");
 export const contracts = loadContracts();
 export const dependencies = loadDependencies();
 export const ecosystemChains = loadEcosystem();
 export const verificationApiKeys = loadVerificationApiKeys();
+export const matchingEngineParameters = loadMatchingEngineParameters();
 
 function loadJson<T>(filename: string): T {
   const fileContent = fs.readFileSync(
@@ -36,6 +40,10 @@ function loadEcosystem(): Ecosystem {
 
 function loadVerificationApiKeys() {
   return loadJson<VerificationApiKeys[]>("verification-api-keys");
+}
+
+function loadMatchingEngineParameters(): MatchingEngineConfiguration[] { 
+  return loadJson<MatchingEngineConfiguration[]>("matching-engine");
 }
 
 export function getEnv(env: string): string {
@@ -88,8 +96,8 @@ export function getContractAddress(contractName: string, whChainId: ChainId): st
   }
 
   return contract;
+  
 }
-
 export function getLocalDependencyAddress(dependencyName: string, chain: ChainInfo): string {
   const chainDependencies = dependencies.find((d) => d.chainId === chain.chainId);
 
@@ -152,6 +160,24 @@ export function getDeploymentArgs(contractName: string, whChainId: ChainId): Unc
   }
 
   return constructorArgs;
+}
+
+export function getMatchingEngineAuctionParameters(chain: ChainInfo): AuctionParameters {
+  const engineParameters = matchingEngineParameters.find((x) => x.chainId === chain.chainId);
+  if (engineParameters === undefined) {
+    throw Error(`Failed to find matching engine parameters for chain ${chain.chainId}`);
+  }
+
+  return { 
+       userPenaltyRewardBps: Number(engineParameters.userPenaltyRewardBps),
+        initialPenaltyBps: Number(engineParameters.initialPenaltyBps),
+        duration: Number(engineParameters.auctionDuration),
+        gracePeriod: Number(engineParameters.auctionGracePeriod),
+        penaltyPeriod: Number(engineParameters.auctionPenaltySlots),
+        minOfferDeltaBps: Number(engineParameters.minOfferDeltaBps),
+        securityDepositBase: new BN(engineParameters.securityDepositBase),
+        securityDepositBps: Number(engineParameters.securityDepositBps)
+  }
 }
 
 export function writeDeployedContract(whChainId: ChainId, contractName: string, address: string, constructorArgs: UncheckedConstructorArgs ) {

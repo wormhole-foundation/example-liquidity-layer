@@ -39,6 +39,11 @@ export function solanaOperatingChains() {
 export async function runOnSolana(scriptName: string, cb: SolanaScriptCb) {
   const chains = solanaOperatingChains();
 
+  if (chains.length === 0) {
+    console.log("No operating Solana chains found, check your ecosystem config file.");
+    return;
+  }
+
   console.log(`Running script on Solana:`, scriptName);
 
   const result = chains.map(async chain => {
