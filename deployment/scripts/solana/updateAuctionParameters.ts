@@ -1,5 +1,4 @@
 import {
-  AccountInfo,
   ComputeBudgetProgram,
   Connection,
   PublicKey,
@@ -32,26 +31,18 @@ solana.runOnSolana("update-auction-parameters", async (chain, signer, log) => {
 
   const priorityFee = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: solana.priorityMicrolamports });
   const ownerOrAssistant = new PublicKey(await signer.getAddress());
-  const custodian = matchingEngine.custodianAddress();
 
-  const exists = await connection.getAccountInfo(custodian).then((acct: null | AccountInfo<Buffer>) => acct != null);
-  if (exists) {
-    log("Notice: proposal account already initialized");
-  }
-  else {
+  const proposeInstructions = [];
+  const proposeIx = await matchingEngine.proposeAuctionParametersIx({
+    ownerOrAssistant,
+  }, getMatchingEngineAuctionParameters(chain));
 
-    const proposeInstructions = [];
-    const proposeIx = await matchingEngine.proposeAuctionParametersIx({
-      ownerOrAssistant,
-    }, getMatchingEngineAuctionParameters(chain));
+  proposeInstructions.push(proposeIx, priorityFee);
+  const proposeTxSig = await solana.ledgerSignAndSend(connection, proposeInstructions, []);
 
-    proposeInstructions.push(proposeIx, priorityFee);
-    const proposeTxSig = await solana.ledgerSignAndSend(connection, proposeInstructions, []);
+  console.log(`Propose Transaction ID: ${proposeTxSig}, wait for confirmation...`);
 
-    console.log(`Propose Transaction ID: ${proposeTxSig}, wait for confirmation...`);
-
-    await connection.confirmTransaction(proposeTxSig, 'confirmed');
-  }
+  await connection.confirmTransaction(proposeTxSig, 'confirmed');
 
   const updateInstructions = [];
   const updateIx = await matchingEngine.updateAuctionParametersIx({
