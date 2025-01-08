@@ -24,13 +24,20 @@ solana.runOnSolana("upgrade-matching-engine", async (chain, signer, log) => {
 
     await checkBufferExists(buffer, connection);
 
+    const owner = new PublicKey(await signer.getAddress());
     const upgradeIx = await upgradeManager.executeMatchingEngineUpgradeIx({
-      owner: new PublicKey(await signer.getAddress()),
+      owner,
       matchingEngineBuffer: buffer,
     });
 
     const txId = await solana.ledgerSignAndSend(connection, [upgradeIx], []);
     log(`Succesfully upgraded on tx -> ${txId}`);
+
+    const commitUpgradeIx = await upgradeManager.commitMatchingEngineUpgradeIx({
+      owner
+    });
+    const txIdCommit = await solana.ledgerSignAndSend(connection, [commitUpgradeIx], []);
+    log(`Succesfully commited upgrade on tx -> ${txIdCommit}`);
 });
 
 async function checkBufferExists(buffer: PublicKey, connection: Connection) {

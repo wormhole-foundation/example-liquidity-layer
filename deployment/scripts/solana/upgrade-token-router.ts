@@ -24,13 +24,20 @@ solana.runOnSolana("upgrade-token-router", async (chain, signer, log) => {
 
     await checkBufferExists(buffer, connection);
 
+    const owner = new PublicKey(await signer.getAddress());
     const upgradeIx = await upgradeManager.executeTokenRouterUpgradeIx({
-      owner: new PublicKey(await signer.getAddress()),
+      owner,
       tokenRouterBuffer: buffer,
     });
 
     const txId = await solana.ledgerSignAndSend(connection, [upgradeIx], []);
     log(`Succesfully upgraded on tx -> ${txId}`);
+
+    const commitUpgradeIx = await upgradeManager.commitTokenRouterUpgradeIx({
+      owner
+    });
+    const txIdCommit = await solana.ledgerSignAndSend(connection, [commitUpgradeIx], []);
+    log(`Succesfully committed upgrade on tx -> ${txIdCommit}`);
 });
 
 async function checkBufferExists(buffer: PublicKey, connection: Connection) {
