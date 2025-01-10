@@ -1,40 +1,45 @@
 import {
-  ComputeBudgetProgram,
-  Connection,
-  PublicKey,
+    ComputeBudgetProgram,
+    Connection,
+    PublicKey,
 } from "@solana/web3.js";
 import "dotenv/config";
-import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
-import { solana, getLocalDependencyAddress, env, getMatchingEngineAuctionParameters } from "../../helpers";
-import { ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
+import { MatchingEngineProgram, ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
+import { solana, getLocalDependencyAddress, env } from "../../helpers";
+import { capitalize } from "../../helpers/utils";
 import { circle } from "@wormhole-foundation/sdk-base";
 
 solana.runOnSolana("update-auction-parameters", async (chain, signer, log) => {
-  const matchingEngineId = getLocalDependencyAddress("matchingEngineProxy", chain) as ProgramId;
+    const matchingEngineId = getLocalDependencyAddress("matchingEngineProxy", chain) as ProgramId;
+    const canonicalEnv = capitalize(env);
+    if (canonicalEnv !== "Mainnet" && canonicalEnv !== "Testnet") {
+        throw new Error(`Unsupported environment: ${env}  must be Mainnet or Testnet`);
+    }
 
-  const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
-  const canonicalEnv = capitalize(env);
+    const usdcMint = new PublicKey(circle.usdcContract(canonicalEnv, "Solana"));
+    const connection = new Connection(chain.rpc, solana.connectionCommitmentLevel);
+    const matchingEngine = new MatchingEngineProgram(connection, matchingEngineId, usdcMint);
 
-  if (canonicalEnv !== "Mainnet" && canonicalEnv !== "Testnet") {
-    throw new Error(`Unsupported environment: ${env}  must be Mainnet or Testnet`);
-  }
+    log('Matching Engine Program ID:', matchingEngineId.toString());
 
-  const usdcMint = new PublicKey(circle.usdcContract(canonicalEnv, "Solana"));
-  const connection = new Connection(chain.rpc, solana.connectionCommitmentLevel);
-  const matchingEngine = new MatchingEngineProgram(connection, matchingEngineId, usdcMint);
+    log("Proposal to be closed", await matchingEngine.fetchProposal());
 
-  log('Matching Engine Program ID:', matchingEngineId.toString());
+    if (solana.priorityMicrolamports === undefined || solana.priorityMicrolamports === 0) {
+        log(`(!) PRIORITY_MICROLAMPORTS is undefined or zero,  your transaction may not land during congestion.`)
+    }
 
-  log("Proposal to be closed", await matchingEngine.fetchProposal());
+    const priorityFee = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: solana.priorityMicrolamports });
+    const ownerOrAssistant = new PublicKey(await signer.getAddress());
 
-  const priorityFee = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: solana.priorityMicrolamports });
-  const ownerOrAssistant = new PublicKey(await signer.getAddress());
-  
-  const closeProposalIx = await matchingEngine.closeProposalIx({
-    ownerOrAssistant,
-  });
+    const closeProposalIx = await matchingEngine.closeProposalIx({
+        ownerOrAssistant,
+    });
 
-  const closeTxSig = await solana.ledgerSignAndSend(connection, [closeProposalIx, priorityFee], []);
-  console.log(`Close Proposal Transaction ID: ${closeTxSig}`);
+    try {
+        const closeTxSig = await solana.ledgerSignAndSend(connection, [closeProposalIx, priorityFee], []);
+        console.log(`Close Proposal Transaction ID: ${closeTxSig}`);
+    } catch (error) {
+        console.error('Failed to close proposal:', error);
+    }
 
 });
