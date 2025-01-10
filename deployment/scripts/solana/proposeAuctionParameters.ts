@@ -8,7 +8,7 @@ import { MatchingEngineProgram, ProgramId } from "@wormhole-foundation/example-l
 import { capitalize, env, getLocalDependencyAddress, getMatchingEngineAuctionParameters, solana } from "../../helpers";
 import { circle } from "@wormhole-foundation/sdk-base";
 
-solana.runOnSolana("update-auction-parameters", async (chain, signer, log) => {
+solana.runOnSolana("propose-auction-parameters", async (chain, signer, log) => {
     const matchingEngineId = getLocalDependencyAddress("matchingEngineProxy", chain) as ProgramId;
     const canonicalEnv = capitalize(env);
     if (canonicalEnv !== "Mainnet" && canonicalEnv !== "Testnet") {

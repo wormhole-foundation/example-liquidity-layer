@@ -5,11 +5,11 @@ import {
 } from "@solana/web3.js";
 import "dotenv/config";
 import { MatchingEngineProgram } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
-import { solana, getLocalDependencyAddress, env, getMatchingEngineAuctionParameters, capitalize } from "../../helpers";
+import { solana, getLocalDependencyAddress, env, capitalize } from "../../helpers";
 import { ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
 import { circle } from "@wormhole-foundation/sdk-base";
 
-solana.runOnSolana("update-auction-parameters", async (chain, signer, log) => {
+solana.runOnSolana("fetch-proposal", async (chain, signer, log) => {
     const matchingEngineId = getLocalDependencyAddress("matchingEngineProxy", chain) as ProgramId;
 
     const canonicalEnv = capitalize(env);

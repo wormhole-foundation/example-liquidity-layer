@@ -9,7 +9,7 @@ import { solana, getLocalDependencyAddress, env } from "../../helpers";
 import { capitalize } from "../../helpers/utils";
 import { circle } from "@wormhole-foundation/sdk-base";
 
-solana.runOnSolana("update-auction-parameters", async (chain, signer, log) => {
+solana.runOnSolana("close-proposal", async (chain, signer, log) => {
     const matchingEngineId = getLocalDependencyAddress("matchingEngineProxy", chain) as ProgramId;
     const canonicalEnv = capitalize(env);
     if (canonicalEnv !== "Mainnet" && canonicalEnv !== "Testnet") {
