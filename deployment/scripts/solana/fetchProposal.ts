@@ -24,21 +24,8 @@ import {
     const matchingEngine = new MatchingEngineProgram(connection, matchingEngineId, usdcMint);
   
     log('Matching Engine Program ID:', matchingEngineId.toString());
-    log('Current Matching Engine Auction parameters:', await matchingEngine.fetchAuctionParameters());
-    log('\nTo-be-proposed Matching Engine Auction parameters:', getMatchingEngineAuctionParameters(chain));
 
-    if (solana.priorityMicrolamports === undefined || solana.priorityMicrolamports === 0) {
-        log(`(!) PRIORITY_MICROLAMPORTS is undefined or zero,  your transaction may either be rejected during high activity`)
-    }
-
-    const priorityFee = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: solana.priorityMicrolamports });
-
-    const ownerOrAssistant = new PublicKey(await signer.getAddress());
-    const updateIx = await matchingEngine.updateAuctionParametersIx({
-      owner: ownerOrAssistant,
-    });
-    const updateTxSig = await solana.ledgerSignAndSend(connection, [updateIx, priorityFee], []);
-  
-    console.log(`Update Transaction ID: ${updateTxSig}`);
+    const proposal = await matchingEngine.fetchProposal();
+    console.log(proposal)
   });
   
