@@ -5,15 +5,14 @@ import {
 } from "@solana/web3.js";
 import "dotenv/config";
 import { MatchingEngineProgram, ProgramId } from "@wormhole-foundation/example-liquidity-layer-solana/matchingEngine";
-import { env, getLocalDependencyAddress, getMatchingEngineAuctionParameters, solana } from "../../helpers";
-import { capitalize } from "../../helpers/utils";
+import { capitalize, env, getLocalDependencyAddress, getMatchingEngineAuctionParameters, solana } from "../../helpers";
 import { circle } from "@wormhole-foundation/sdk-base";
 
-solana.runOnSolana("update-auction-parameters", async (chain, signer, log) => {
+solana.runOnSolana("propose-auction-parameters", async (chain, signer, log) => {
     const matchingEngineId = getLocalDependencyAddress("matchingEngineProxy", chain) as ProgramId;
     const canonicalEnv = capitalize(env);
     if (canonicalEnv !== "Mainnet" && canonicalEnv !== "Testnet") {
-        throw new Error(`Unsupported environment: ${env}  must be Mainnet or Testnet`);
+        throw new Error(`Unsupported environment: ${env}. Must be Mainnet or Testnet.`);
     }
 
     const usdcMint = new PublicKey(circle.usdcContract(canonicalEnv, "Solana"));
@@ -25,19 +24,26 @@ solana.runOnSolana("update-auction-parameters", async (chain, signer, log) => {
     log('\nTo-be-proposed Matching Engine Auction parameters:', getMatchingEngineAuctionParameters(chain));
 
     if (solana.priorityMicrolamports === undefined || solana.priorityMicrolamports === 0) {
-        log(`(!) PRIORITY_MICROLAMPORTS is undefined or zero, your transaction may not land during congestion.`)
+        log(`(!) PRIORITY_MICROLAMPORTS is undefined or zero, your transaction may not land during congestion.`);
     }
 
     const priorityFee = ComputeBudgetProgram.setComputeUnitPrice({ microLamports: solana.priorityMicrolamports });
-
     const ownerOrAssistant = new PublicKey(await signer.getAddress());
-    const updateIx = await matchingEngine.updateAuctionParametersIx({
-        owner: ownerOrAssistant,
-    });
+
+    const proposeIx = await matchingEngine.proposeAuctionParametersIx({
+        ownerOrAssistant,
+    }, getMatchingEngineAuctionParameters(chain));
+
     try {
-        const updateTxSig = await solana.ledgerSignAndSend(connection, [updateIx, priorityFee], []);
-        log(`Update Transaction ID: ${updateTxSig}`);
-    } catch (error) {
+        const proposeTxSig = await solana.ledgerSignAndSend(connection, [proposeIx, priorityFee], []);
+        log(`Propose Transaction ID: ${proposeTxSig}.`)
+
+        const proposal = await matchingEngine.fetchProposal();
+        log(`The proposal has been published at slot ${proposal.slotProposedAt.toNumber()}.`);
+        log(`You must wait up to slot ${proposal.slotEnactDelay.toNumber()} to submit the auction parameters update.`);
+    }
+    catch (error) {
         console.error('Failed to send transaction:', error);
     }
+
 });
