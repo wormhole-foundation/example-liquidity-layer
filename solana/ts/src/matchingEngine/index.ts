@@ -200,6 +200,10 @@ export type FastFillRedeemed = {
     fastFill: FastFillSeeds;
 };
 
+export type AuctionClosed = {
+    auction: Auction;
+};
+
 export type MatchingEngineEvent = {
     auctionSettled?: AuctionSettled;
     auctionUpdated?: AuctionUpdated;
@@ -209,6 +213,7 @@ export type MatchingEngineEvent = {
     localFastOrderFilled?: LocalFastOrderFilled;
     fastFillSequenceReserved?: FastFillSequenceReserved;
     fastFillRedeemed?: FastFillRedeemed;
+    auctionClosed?: AuctionClosed;
 };
 
 export type FastOrderPathComposite = {
@@ -2370,6 +2375,49 @@ export class MatchingEngineProgram {
                 sysvars: this.requiredSysvarsComposite(),
             })
             .instruction();
+    }
+
+    async closeAuctionIx(accounts: {
+        auction: PublicKey;
+        beneficiary?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const { auction } = accounts;
+        let { beneficiary } = accounts;
+
+        if (beneficiary === undefined) {
+            const { preparedBy } = await this.fetchAuction({ address: auction });
+            beneficiary = preparedBy;
+        }
+
+        return this.program.methods
+            .closeAuction()
+            .accounts({
+                auction,
+                beneficiary,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
+            })
+            .instruction();
+    }
+
+    async closeAuctionTx(
+        accounts: { auction: PublicKey; beneficiary: PublicKey },
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        confirmOptions?: ConfirmOptions,
+    ): Promise<PreparedTransaction> {
+        const closeAuctionIx = await this.closeAuctionIx(accounts);
+
+        return {
+            ixs: [closeAuctionIx],
+            signers,
+            computeUnits: opts.computeUnits!,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "closeAuction",
+            confirmOptions,
+        };
     }
 
     async redeemFastFillAccounts(fastFill: PublicKey): Promise<RedeemFastFillAccounts> {
