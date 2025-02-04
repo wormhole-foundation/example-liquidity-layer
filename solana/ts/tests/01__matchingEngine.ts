@@ -1,4 +1,4 @@
-import { BN } from "@coral-xyz/anchor";
+import { BN, utils } from "@coral-xyz/anchor";
 import * as splToken from "@solana/spl-token";
 import {
     AddressLookupTableProgram,
@@ -29,9 +29,11 @@ import {
 } from "../src/common";
 import {
     Auction,
+    AuctionClosed,
     AuctionConfig,
     AuctionHistory,
     AuctionParameters,
+    CPI_EVENT_IX_SELECTOR,
     CctpMessageArgs,
     Custodian,
     MatchingEngineProgram,
@@ -3776,39 +3778,8 @@ describe("Matching Engine", function () {
             });
         });
 
-        describe("Auction History", function () {
-            it("Cannot Create First Auction History with Incorrect PDA", async function () {
-                await createFirstAuctionHistoryForTest(
-                    {
-                        payer: payer.publicKey,
-                        firstHistory: Keypair.generate().publicKey,
-                    },
-                    {
-                        errorMsg: "Error Code: ConstraintSeeds",
-                    },
-                );
-            });
-
-            it("Create First Auction History", async function () {
-                await createFirstAuctionHistoryForTest({
-                    payer: payer.publicKey,
-                });
-            });
-
-            it("Cannot Create First Auction History Again", async function () {
-                const auctionHistory = engine.auctionHistoryAddress(0);
-
-                await createFirstAuctionHistoryForTest(
-                    {
-                        payer: payer.publicKey,
-                    },
-                    {
-                        errorMsg: `Allocate: account Address { address: ${auctionHistory.toString()}, base: None } already in use`,
-                    },
-                );
-            });
-
-            it("Cannot Add Entry from Unsettled Auction", async function () {
+        describe("Close Auction", function () {
+            it("Cannot Close Unsettled Auction", async function () {
                 const result = await placeInitialOfferCctpForTest(
                     {
                         payer: playerOne.publicKey,
@@ -3816,10 +3787,9 @@ describe("Matching Engine", function () {
                     { signers: [playerOne], finalized: false },
                 );
 
-                await addAuctionHistoryEntryForTest(
+                await closeAuctionForTest(
                     {
                         payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
                         auction: result!.auction,
                         beneficiary: playerOne.publicKey,
                     },
@@ -3829,11 +3799,10 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Add Entry from Settled Complete Auction Before Expiration Time", async function () {
-                await addAuctionHistoryEntryForTest(
+            it("Cannot Close Settled Complete Auction Before Expiration Time", async function () {
+                await closeAuctionForTest(
                     {
                         payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
                     },
                     {
                         settlementType: "complete",
@@ -3843,11 +3812,10 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Add Entry from Settled Complete Auction with Beneficiary != Auction's Preparer", async function () {
-                await addAuctionHistoryEntryForTest(
+            it("Cannot Close Settled Complete Auction with Beneficiary != Auction's Preparer", async function () {
+                await closeAuctionForTest(
                     {
                         payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
                         beneficiary: Keypair.generate().publicKey,
                     },
                     {
@@ -3857,11 +3825,10 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Add Entry from Settled Complete Auction After Expiration Time", async function () {
-                await addAuctionHistoryEntryForTest(
+            it("Close Settled Complete Auction After Expiration Time", async function () {
+                await closeAuctionForTest(
                     {
                         payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
                     },
                     {
                         settlementType: "complete",
@@ -3869,11 +3836,10 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Close Auction Account from Settled Auction None Before Expiration Time", async function () {
-                await addAuctionHistoryEntryForTest(
+            it("Cannot Close Settled Auction (info is None) Before Expiration Time", async function () {
+                await closeAuctionForTest(
                     {
                         payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
                     },
                     {
                         settlementType: "none",
@@ -3883,11 +3849,10 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Cannot Close Auction Account from Settled Auction None with Beneficiary != Auction's Preparer", async function () {
-                await addAuctionHistoryEntryForTest(
+            it("Cannot Close Settled Auction (info is None) with Beneficiary != Auction's Preparer", async function () {
+                await closeAuctionForTest(
                     {
                         payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
                         beneficiary: Keypair.generate().publicKey,
                     },
                     {
@@ -3897,203 +3862,19 @@ describe("Matching Engine", function () {
                 );
             });
 
-            it("Close Auction Account from Settled Auction None", async function () {
-                await addAuctionHistoryEntryForTest(
+            it("Close Settled Auction (info is None)", async function () {
+                await closeAuctionForTest(
                     {
                         payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
                     },
                     { settlementType: "none" },
                 );
             });
 
-            it("Cannot Create New Auction History with Current History Not Full", async function () {
-                await createNewAuctionHistoryForTest(
-                    {
-                        payer: payer.publicKey,
-                        currentHistory: engine.auctionHistoryAddress(0),
-                    },
-                    { errorMsg: "Error Code: AuctionHistoryNotFull" },
-                );
-            });
-
-            it("Add Another Entry from Settled Complete Auction", async function () {
-                await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
-                    },
-                    {
-                        settlementType: "complete",
-                    },
-                );
-            });
-
-            it("Cannot Add Another Entry from Settled Complete Auction To Full History", async function () {
-                await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(0),
-                    },
-                    {
-                        settlementType: "complete",
-                        errorMsg: "Error Code: AuctionHistoryFull",
-                    },
-                );
-            });
-
-            it("Create New Auction History", async function () {
-                await createNewAuctionHistoryForTest({
-                    payer: payer.publicKey,
-                    currentHistory: engine.auctionHistoryAddress(0),
-                });
-            });
-
-            it("Add Another Entry from Settled Complete Auction To New History", async function () {
-                await addAuctionHistoryEntryForTest(
-                    {
-                        payer: payer.publicKey,
-                        history: engine.auctionHistoryAddress(1),
-                    },
-                    {
-                        settlementType: "complete",
-                    },
-                );
-            });
-
-            async function createFirstAuctionHistoryForTest(
-                accounts: { payer: PublicKey; firstHistory?: PublicKey },
-                opts: ForTestOpts = {},
-            ) {
-                let [{ signers, errorMsg }] = setDefaultForTestOpts(opts);
-
-                const ix = await engine.program.methods
-                    .createFirstAuctionHistory()
-                    .accounts(createFirstAuctionHistoryAccounts(accounts))
-                    .instruction();
-
-                if (errorMsg !== null) {
-                    return expectIxErr(connection, [ix], signers, errorMsg);
-                }
-
-                const auctionHistory = engine.auctionHistoryAddress(0);
-                {
-                    const accInfo = await connection.getAccountInfo(auctionHistory);
-                    expect(accInfo).is.null;
-                }
-
-                await expectIxOk(connection, [ix], signers);
-
-                const firstHistoryData = await engine.fetchAuctionHistory({
-                    address: auctionHistory,
-                });
-                expect(firstHistoryData).to.eql(
-                    new AuctionHistory(
-                        {
-                            id: uint64ToBN(0),
-                            minTimestamp: null,
-                            maxTimestamp: null,
-                        },
-                        [],
-                    ),
-                );
-
-                return { auctionHistory };
-            }
-
-            function createFirstAuctionHistoryAccounts(accounts: {
-                payer: PublicKey;
-                firstHistory?: PublicKey;
-            }) {
-                const { payer } = accounts;
-                let { firstHistory } = accounts;
-                firstHistory ??= engine.auctionHistoryAddress(0);
-
-                return {
-                    payer,
-                    firstHistory,
-                    systemProgram: SystemProgram.programId,
-                };
-            }
-
-            async function createNewAuctionHistoryForTest(
-                accounts: { payer: PublicKey; currentHistory: PublicKey; newHistory?: PublicKey },
-                opts: ForTestOpts = {},
-            ) {
-                let [{ signers, errorMsg }] = setDefaultForTestOpts(opts);
-
-                const definedAccounts = await createNewAuctionHistoryAccounts(accounts);
-
-                const ix = await engine.program.methods
-                    .createNewAuctionHistory()
-                    .accounts(definedAccounts)
-                    .instruction();
-
-                if (errorMsg !== null) {
-                    return expectIxErr(connection, [ix], signers, errorMsg);
-                }
-
-                const { newHistory } = definedAccounts;
-                {
-                    const accInfo = await connection.getAccountInfo(newHistory);
-                    expect(accInfo).is.null;
-                }
-
-                await expectIxOk(connection, [ix], signers);
-
-                const [{ id }, numEntries] = await engine.fetchAuctionHistoryHeader({
-                    address: definedAccounts.currentHistory,
-                });
-                expect(numEntries).equals(2);
-
-                const newHistoryData = await engine.fetchAuctionHistory({
-                    address: newHistory,
-                });
-                expect(newHistoryData).to.eql(
-                    new AuctionHistory(
-                        {
-                            id: uint64ToBN(id.addn(1)),
-                            minTimestamp: null,
-                            maxTimestamp: null,
-                        },
-                        [],
-                    ),
-                );
-
-                return { newHistory };
-            }
-
-            async function createNewAuctionHistoryAccounts(accounts: {
-                payer: PublicKey;
-                currentHistory: PublicKey;
-                newHistory?: PublicKey;
-            }) {
-                const { payer, currentHistory } = accounts;
-
-                const newHistory = await (async () => {
-                    if (accounts.newHistory !== undefined) {
-                        return accounts.newHistory;
-                    } else {
-                        const [header] = await engine.fetchAuctionHistoryHeader({
-                            address: currentHistory,
-                        });
-                        return engine.auctionHistoryAddress(header.id.addn(1));
-                    }
-                })();
-
-                return {
-                    payer,
-                    currentHistory,
-                    newHistory,
-                    systemProgram: SystemProgram.programId,
-                };
-            }
-
-            async function addAuctionHistoryEntryForTest(
+            async function closeAuctionForTest(
                 accounts: {
                     payer: PublicKey;
                     auction?: PublicKey;
-                    history: PublicKey;
                     beneficiary?: PublicKey;
                 },
                 opts: ForTestOpts &
@@ -4148,23 +3929,17 @@ describe("Matching Engine", function () {
                     await waitUntilTimestamp(connection, current + timeToWait);
                 }
 
-                const { vaaHash, vaaTimestamp, info, preparedBy } = await engine.fetchAuction({
+                const auctionData = await engine.fetchAuction({
                     address: auction,
                 });
-                expect(info === null).equals(settlementType === "none");
+                expect(auctionData.info === null).equals(settlementType === "none");
 
-                const beneficiary = accounts.beneficiary ?? preparedBy;
+                const beneficiary = accounts.beneficiary ?? auctionData.preparedBy;
 
-                const ix = await engine.program.methods
-                    .addAuctionHistoryEntry()
-                    .accounts({
-                        ...accounts,
-                        auction,
-                        beneficiary,
-                        custodian: engine.checkedCustodianComposite(),
-                        systemProgram: SystemProgram.programId,
-                    })
-                    .instruction();
+                const ix = await engine.closeAuctionIx({
+                    auction,
+                    beneficiary,
+                });
 
                 if (errorMsg !== null) {
                     return expectIxErr(connection, [ix], signers, errorMsg);
@@ -4175,53 +3950,45 @@ describe("Matching Engine", function () {
                 const expectedLamports = await connection
                     .getAccountInfo(auction)
                     .then((info) => info!.lamports);
-                const historyDataBefore = await engine.fetchAuctionHistory({
-                    address: accounts.history,
-                });
-                const { header } = historyDataBefore;
 
-                const minTimestamp =
-                    header.minTimestamp === null
-                        ? vaaTimestamp
-                        : Math.min(vaaTimestamp, header.minTimestamp);
-                const maxTimestamp =
-                    header.maxTimestamp === null
-                        ? vaaTimestamp
-                        : Math.max(vaaTimestamp, header.maxTimestamp);
-
-                const prevDataLen = await connection
-                    .getAccountInfo(accounts.history)
-                    .then((info) => info!.data.length);
-
-                await expectIxOk(connection, [ix], signers);
-
-                const historyData = await engine.fetchAuctionHistory({
-                    address: accounts.history,
+                const commitment = "confirmed";
+                const txSig = await expectIxOk(connection, [ix], signers, {
+                    confirmOptions: { commitment },
                 });
 
-                if (settlementType === "none") {
-                    expect(historyData).to.eql(historyDataBefore);
-                } else {
-                    const data = Array.from(historyDataBefore.data);
-                    data.push({
-                        vaaHash,
-                        vaaTimestamp,
-                        info: info!,
-                    });
-                    expect(historyData).to.eql(
-                        new AuctionHistory({ id: header.id, minTimestamp, maxTimestamp }, data),
-                    );
+                const parsedTx = await connection.getParsedTransaction(txSig, {
+                    commitment,
+                    maxSupportedTransactionVersion: 0,
+                });
 
-                    {
-                        const accInfo = await connection.getAccountInfo(accounts.history);
+                if (parsedTx === null) {
+                    throw new Error("parsedTx is null");
+                }
 
-                        let entrySize = 159;
-                        if (info!.destinationAssetInfo === null) {
-                            entrySize -= 9;
+                let evt: AuctionClosed | null = null;
+
+                for (const innerIx of parsedTx.meta?.innerInstructions!) {
+                    for (const ix of innerIx.instructions) {
+                        if (!ix.programId.equals(engine.ID) || !("data" in ix)) {
+                            continue;
                         }
-                        expect(accInfo!.data).has.length(prevDataLen + entrySize);
+
+                        const data = utils.bytes.bs58.decode(ix.data);
+                        if (!data.subarray(0, 8).equals(CPI_EVENT_IX_SELECTOR)) {
+                            continue;
+                        }
+
+                        const decoded = engine.program.coder.events.decode(
+                            utils.bytes.base64.encode(data.subarray(8)),
+                        );
+
+                        if (decoded !== null) {
+                            evt = decoded.data;
+                        }
                     }
                 }
+                expect(evt).is.not.null;
+                expect(evt!.auction).to.eql(auctionData);
 
                 {
                     const accInfo = await connection.getAccountInfo(auction);
@@ -4231,6 +3998,56 @@ describe("Matching Engine", function () {
                 const beneficiaryBalanceAfter = await connection.getBalance(beneficiary);
                 expect(beneficiaryBalanceAfter - beneficiaryBalanceBefore).equals(expectedLamports);
             }
+        });
+
+        describe("DEPRECATED -- Auction History", function () {
+            it("Cannot Invoke `create_first_auction_history`", async function () {
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.program.methods
+                            .createFirstAuctionHistory()
+                            .accounts({
+                                dummy: Keypair.generate().publicKey,
+                            })
+                            .instruction(),
+                    ],
+                    [payer],
+                    "Error Code: Deprecated",
+                );
+            });
+
+            it("Cannot Invoke `create_new_auction_history`", async function () {
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.program.methods
+                            .createNewAuctionHistory()
+                            .accounts({
+                                dummy: Keypair.generate().publicKey,
+                            })
+                            .instruction(),
+                    ],
+                    [payer],
+                    "Error Code: Deprecated",
+                );
+            });
+
+            it("Cannot Invoke `add_auction_history_entry`", async function () {
+                await expectIxErr(
+                    connection,
+                    [
+                        await engine.program.methods
+                            .addAuctionHistoryEntry()
+                            .accounts({
+                                dummy: Keypair.generate().publicKey,
+                            })
+                            .instruction(),
+                    ],
+                    [payer],
+                    "Error Code: Deprecated",
+                );
+            });
         });
     });
 

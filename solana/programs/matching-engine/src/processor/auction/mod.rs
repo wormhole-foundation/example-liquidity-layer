@@ -1,8 +1,8 @@
+mod close;
+pub use close::*;
+
 mod execute_fast_order;
 pub use execute_fast_order::*;
-
-mod history;
-pub(crate) use history::*;
 
 mod offer;
 pub use offer::*;
