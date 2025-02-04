@@ -12,9 +12,21 @@ git clone git@github.com:wormhole-foundation/example-liquidity-layer.git --recur
 
 ## Prerequisites
 
+### Node version
+
+It is recommended to use `Node v20.18.x`.
+
+```bash
+# E.g.
+nvm install 20.18.2
+nvm use 20.18.2
+```
+
 ### EVM
 
 Install [Foundry tools](https://book.getfoundry.sh/getting-started/installation), which include `forge`, `anvil` and `cast` CLI tools.
+
+Before using the typescript SDK, build the evm types by running `npm run build` *inside* the `evm` directory. Without this step, the typescript SDK will not be able to be interpreted by the typescript compiler.
 
 ## Build, Test and Deploy Smart Contracts
 
