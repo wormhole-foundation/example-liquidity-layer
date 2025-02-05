@@ -1,3 +1,6 @@
+mod auction_closed;
+pub use auction_closed::*;
+
 mod auction_settled;
 pub use auction_settled::*;
 

@@ -354,46 +354,6 @@ pub mod matching_engine {
         processor::settle_auction_none_local(ctx)
     }
 
-    /// This instruction is used to create the first `AuctionHistory` account, whose PDA is derived
-    /// using ID == 0.
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - `CreateFirstAuctionHistory` context.
-    pub fn create_first_auction_history(ctx: Context<CreateFirstAuctionHistory>) -> Result<()> {
-        processor::create_first_auction_history(ctx)
-    }
-
-    /// This instruction is used to create a new `AuctionHistory` account. The PDA is derived using
-    /// its ID. A new history account can be created only when the current one is full (number of
-    /// entries equals the hard-coded max entries).
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - `CreateNewAuctionHistory` context.
-    pub fn create_new_auction_history(ctx: Context<CreateNewAuctionHistory>) -> Result<()> {
-        processor::create_new_auction_history(ctx)
-    }
-
-    /// This instruction is used to add a new entry to the `AuctionHistory` account if there is an
-    /// `Auction` with some info. Regardless of whether there is info in this account, the
-    /// instruction finishes its operation by closing this auction account. If the history account
-    /// is full, this instruction will revert and `create_new_auction_history`` will have to be
-    /// called to initialize another history account.
-    ///
-    /// This mechanism is important for auction participants. The initial offer participant will
-    /// pay lamports to create the `Auction` account. This instruction allows him to reclaim some
-    /// lamports by closing that account. And the protocol's fee recipient will be able to claim
-    /// lamports by closing the empty `Auction` account it creates when he calls any of the
-    /// `settle_auction_none_*` instructions.
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - `AddAuctionHistoryEntry` context.
-    pub fn add_auction_history_entry(ctx: Context<AddAuctionHistoryEntry>) -> Result<()> {
-        processor::add_auction_history_entry(ctx)
-    }
-
     /// This instruction is used to reserve a sequence number for a fast fill. Fast fills are orders
     /// that have been fulfilled and are destined for Solana and are seeded by source chain, order
     /// sender and sequence number (similar to how Wormhole VAAs are identified by emitter chain,
@@ -415,6 +375,7 @@ pub mod matching_engine {
     ) -> Result<()> {
         processor::reserve_fast_fill_sequence_active_auction(ctx)
     }
+
     /// This instruction is used to reserve a sequence number for a fast fill. Fast fills are orders
     /// that have been fulfilled and are destined for Solana and are seeded by source chain, order
     /// sender and sequence number (similar to how Wormhole VAAs are identified by emitter chain,
@@ -452,6 +413,72 @@ pub mod matching_engine {
     pub fn close_redeemed_fast_fill(ctx: Context<CloseRedeemedFastFill>) -> Result<()> {
         processor::close_redeemed_fast_fill(ctx)
     }
+
+    /// This instruction is used to close an auction account after the auction has been settled and
+    /// the VAA's timestamp indicates the order has expired. This instruction can be called by
+    /// anyone to return the auction's preparer lamports from the rent required to keep this account
+    /// alive. The auction data will be serialized as Anchor event CPI instruction data.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - `CloseAuction` context.
+    pub fn close_auction(ctx: Context<CloseAuction>) -> Result<()> {
+        processor::close_auction(ctx)
+    }
+
+    // Deprecated instructions. These instructions will revert with `ErrorCode::InstructionMissing`.
+
+    /// DEPRECATED. This instruction does not exist anymore.
+    ///
+    /// This instruction is used to create the first `AuctionHistory` account, whose PDA is derived
+    /// using ID == 0.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - `CreateFirstAuctionHistory` context.
+    pub fn create_first_auction_history(_ctx: Context<DeprecatedInstruction>) -> Result<()> {
+        err!(ErrorCode::Deprecated)
+    }
+
+    /// DEPRECATED. This instruction does not exist anymore.
+    ///
+    /// This instruction is used to create a new `AuctionHistory` account. The PDA is derived using
+    /// its ID. A new history account can be created only when the current one is full (number of
+    /// entries equals the hard-coded max entries).
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - `CreateNewAuctionHistory` context.
+    pub fn create_new_auction_history(_ctx: Context<DeprecatedInstruction>) -> Result<()> {
+        err!(ErrorCode::Deprecated)
+    }
+
+    /// DEPRECATED. This instruction does not exist anymore.
+    ///
+    /// This instruction is used to add a new entry to the `AuctionHistory` account if there is an
+    /// `Auction` with some info. Regardless of whether there is info in this account, the
+    /// instruction finishes its operation by closing this auction account. If the history account
+    /// is full, this instruction will revert and `create_new_auction_history`` will have to be
+    /// called to initialize another history account.
+    ///
+    /// This mechanism is important for auction participants. The initial offer participant will
+    /// pay lamports to create the `Auction` account. This instruction allows him to reclaim some
+    /// lamports by closing that account. And the protocol's fee recipient will be able to claim
+    /// lamports by closing the empty `Auction` account it creates when he calls any of the
+    /// `settle_auction_none_*` instructions.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - `AddAuctionHistoryEntry` context.
+    pub fn add_auction_history_entry(_ctx: Context<DeprecatedInstruction>) -> Result<()> {
+        err!(ErrorCode::Deprecated)
+    }
+}
+
+#[derive(Accounts)]
+pub struct DeprecatedInstruction<'info> {
+    /// CHECK: This account is here to avoid program macro compilation errors.
+    _dummy: UncheckedAccount<'info>,
 }
 
 #[cfg(test)]

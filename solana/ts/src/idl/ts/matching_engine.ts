@@ -17,6 +17,8 @@ export type MatchingEngine = {
     {
       "name": "addAuctionHistoryEntry",
       "docs": [
+        "DEPRECATED. This instruction does not exist anymore.",
+        "",
         "This instruction is used to add a new entry to the `AuctionHistory` account if there is an",
         "`Auction` with some info. Regardless of whether there is info in this account, the",
         "instruction finishes its operation by closing this auction account. If the history account",
@@ -45,38 +47,7 @@ export type MatchingEngine = {
       ],
       "accounts": [
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "custodian",
-          "accounts": [
-            {
-              "name": "custodian"
-            }
-          ]
-        },
-        {
-          "name": "history",
-          "docs": [
-            "because we will be writing to this account without using Anchor's [AccountsExit]."
-          ],
-          "writable": true
-        },
-        {
-          "name": "auction",
-          "writable": true
-        },
-        {
-          "name": "beneficiary",
-          "docs": [
-            "[Auction::prepared_by]."
-          ],
-          "writable": true
-        },
-        {
-          "name": "systemProgram"
+          "name": "dummy"
         }
       ],
       "args": []
@@ -270,6 +241,49 @@ export type MatchingEngine = {
               "writable": true
             }
           ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "closeAuction",
+      "docs": [
+        "This instruction is used to close an auction account after the auction has been settled and",
+        "the VAA's timestamp indicates the order has expired. This instruction can be called by",
+        "anyone to return the auction's preparer lamports from the rent required to keep this account",
+        "alive. The auction data will be serialized as Anchor event CPI instruction data.",
+        "",
+        "# Arguments",
+        "",
+        "* `ctx` - `CloseAuction` context."
+      ],
+      "discriminator": [
+        225,
+        129,
+        91,
+        48,
+        215,
+        73,
+        203,
+        172
+      ],
+      "accounts": [
+        {
+          "name": "auction",
+          "writable": true
+        },
+        {
+          "name": "beneficiary",
+          "docs": [
+            "[Auction::prepared_by]."
+          ],
+          "writable": true
+        },
+        {
+          "name": "eventAuthority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -493,6 +507,8 @@ export type MatchingEngine = {
     {
       "name": "createFirstAuctionHistory",
       "docs": [
+        "DEPRECATED. This instruction does not exist anymore.",
+        "",
         "This instruction is used to create the first `AuctionHistory` account, whose PDA is derived",
         "using ID == 0.",
         "",
@@ -512,16 +528,7 @@ export type MatchingEngine = {
       ],
       "accounts": [
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "firstHistory",
-          "writable": true
-        },
-        {
-          "name": "systemProgram"
+          "name": "dummy"
         }
       ],
       "args": []
@@ -529,6 +536,8 @@ export type MatchingEngine = {
     {
       "name": "createNewAuctionHistory",
       "docs": [
+        "DEPRECATED. This instruction does not exist anymore.",
+        "",
         "This instruction is used to create a new `AuctionHistory` account. The PDA is derived using",
         "its ID. A new history account can be created only when the current one is full (number of",
         "entries equals the hard-coded max entries).",
@@ -549,19 +558,7 @@ export type MatchingEngine = {
       ],
       "accounts": [
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "currentHistory"
-        },
-        {
-          "name": "newHistory",
-          "writable": true
-        },
-        {
-          "name": "systemProgram"
+          "name": "dummy"
         }
       ],
       "args": []
@@ -2611,32 +2608,6 @@ export type MatchingEngine = {
       ]
     },
     {
-      "name": "auctionHistory",
-      "discriminator": [
-        149,
-        208,
-        45,
-        154,
-        47,
-        248,
-        102,
-        245
-      ]
-    },
-    {
-      "name": "auctionHistoryInternal",
-      "discriminator": [
-        149,
-        208,
-        45,
-        154,
-        47,
-        248,
-        102,
-        245
-      ]
-    },
-    {
       "name": "custodian",
       "discriminator": [
         132,
@@ -2742,6 +2713,19 @@ export type MatchingEngine = {
     }
   ],
   "events": [
+    {
+      "name": "auctionClosed",
+      "discriminator": [
+        104,
+        72,
+        168,
+        177,
+        241,
+        79,
+        231,
+        167
+      ]
+    },
     {
       "name": "auctionSettled",
       "discriminator": [
@@ -3244,6 +3228,22 @@ export type MatchingEngine = {
       }
     },
     {
+      "name": "auctionClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction",
+            "type": {
+              "defined": {
+                "name": "auction"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "auctionConfig",
       "type": {
         "kind": "struct",
@@ -3281,105 +3281,6 @@ export type MatchingEngine = {
           {
             "name": "amountOut",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "auctionEntry",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "vaaHash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "vaaTimestamp",
-            "type": "u32"
-          },
-          {
-            "name": "info",
-            "type": {
-              "defined": {
-                "name": "auctionInfo"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "auctionHistory",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "header",
-            "type": {
-              "defined": {
-                "name": "auctionHistoryHeader"
-              }
-            }
-          },
-          {
-            "name": "data",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "auctionEntry"
-                }
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "auctionHistoryHeader",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "id",
-            "type": "u64"
-          },
-          {
-            "name": "minTimestamp",
-            "type": {
-              "option": "u32"
-            }
-          },
-          {
-            "name": "maxTimestamp",
-            "type": {
-              "option": "u32"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "auctionHistoryInternal",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "header",
-            "type": {
-              "defined": {
-                "name": "auctionHistoryHeader"
-              }
-            }
-          },
-          {
-            "name": "numEntries",
-            "type": "u32"
           }
         ]
       }

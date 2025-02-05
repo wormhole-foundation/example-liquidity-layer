@@ -16,9 +16,8 @@ import {
     SystemProgram,
     TransactionInstruction,
 } from "@solana/web3.js";
+import { ChainId, isChainId, toChainId } from "@wormhole-foundation/sdk-base";
 import { PreparedTransaction, PreparedTransactionOptions } from "..";
-import IDL from "../idl/json/matching_engine.json";
-import { MatchingEngine } from "../idl/ts/matching_engine";
 import { MessageTransmitterProgram, TokenMessengerMinterProgram } from "../cctp";
 import {
     LiquidityLayerMessage,
@@ -31,6 +30,8 @@ import {
     uint64ToBigInt,
     writeUint64BE,
 } from "../common";
+import IDL from "../idl/json/matching_engine.json";
+import { MatchingEngine } from "../idl/ts/matching_engine";
 import { UpgradeManagerProgram } from "../upgradeManager";
 import { ArrayQueue, BPF_LOADER_UPGRADEABLE_PROGRAM_ID, programDataAddress } from "../utils";
 import { VaaAccount } from "../wormhole";
@@ -55,8 +56,6 @@ import {
     ReservedFastFillSequence,
     RouterEndpoint,
 } from "./state";
-import { ChainId, toChainId, isChainId } from "@wormhole-foundation/sdk-base";
-import { decodeIdlAccount } from "anchor-0.29.0/dist/cjs/idl";
 
 export const PROGRAM_IDS = [
     "MatchingEngine11111111111111111111111111111",
@@ -200,6 +199,10 @@ export type FastFillRedeemed = {
     fastFill: FastFillSeeds;
 };
 
+export type AuctionClosed = {
+    auction: Auction;
+};
+
 export type MatchingEngineEvent = {
     auctionSettled?: AuctionSettled;
     auctionUpdated?: AuctionUpdated;
@@ -209,6 +212,7 @@ export type MatchingEngineEvent = {
     localFastOrderFilled?: LocalFastOrderFilled;
     fastFillSequenceReserved?: FastFillSequenceReserved;
     fastFillRedeemed?: FastFillRedeemed;
+    auctionClosed?: AuctionClosed;
 };
 
 export type FastOrderPathComposite = {
@@ -2370,6 +2374,49 @@ export class MatchingEngineProgram {
                 sysvars: this.requiredSysvarsComposite(),
             })
             .instruction();
+    }
+
+    async closeAuctionIx(accounts: {
+        auction: PublicKey;
+        beneficiary?: PublicKey;
+    }): Promise<TransactionInstruction> {
+        const { auction } = accounts;
+        let { beneficiary } = accounts;
+
+        if (beneficiary === undefined) {
+            const { preparedBy } = await this.fetchAuction({ address: auction });
+            beneficiary = preparedBy;
+        }
+
+        return this.program.methods
+            .closeAuction()
+            .accounts({
+                auction,
+                beneficiary,
+                eventAuthority: this.eventAuthorityAddress(),
+                program: this.ID,
+            })
+            .instruction();
+    }
+
+    async closeAuctionTx(
+        accounts: { auction: PublicKey; beneficiary: PublicKey },
+        signers: Signer[],
+        opts: PreparedTransactionOptions,
+        confirmOptions?: ConfirmOptions,
+    ): Promise<PreparedTransaction> {
+        const closeAuctionIx = await this.closeAuctionIx(accounts);
+
+        return {
+            ixs: [closeAuctionIx],
+            signers,
+            computeUnits: opts.computeUnits!,
+            feeMicroLamports: opts.feeMicroLamports,
+            nonceAccount: opts.nonceAccount,
+            addressLookupTableAccounts: opts.addressLookupTableAccounts,
+            txName: "closeAuction",
+            confirmOptions,
+        };
     }
 
     async redeemFastFillAccounts(fastFill: PublicKey): Promise<RedeemFastFillAccounts> {

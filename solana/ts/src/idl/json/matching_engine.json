@@ -11,6 +11,8 @@
     {
       "name": "add_auction_history_entry",
       "docs": [
+        "DEPRECATED. This instruction does not exist anymore.",
+        "",
         "This instruction is used to add a new entry to the `AuctionHistory` account if there is an",
         "`Auction` with some info. Regardless of whether there is info in this account, the",
         "instruction finishes its operation by closing this auction account. If the history account",
@@ -39,38 +41,7 @@
       ],
       "accounts": [
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "custodian",
-          "accounts": [
-            {
-              "name": "custodian"
-            }
-          ]
-        },
-        {
-          "name": "history",
-          "docs": [
-            "because we will be writing to this account without using Anchor's [AccountsExit]."
-          ],
-          "writable": true
-        },
-        {
-          "name": "auction",
-          "writable": true
-        },
-        {
-          "name": "beneficiary",
-          "docs": [
-            "[Auction::prepared_by]."
-          ],
-          "writable": true
-        },
-        {
-          "name": "system_program"
+          "name": "_dummy"
         }
       ],
       "args": []
@@ -264,6 +235,49 @@
               "writable": true
             }
           ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_auction",
+      "docs": [
+        "This instruction is used to close an auction account after the auction has been settled and",
+        "the VAA's timestamp indicates the order has expired. This instruction can be called by",
+        "anyone to return the auction's preparer lamports from the rent required to keep this account",
+        "alive. The auction data will be serialized as Anchor event CPI instruction data.",
+        "",
+        "# Arguments",
+        "",
+        "* `ctx` - `CloseAuction` context."
+      ],
+      "discriminator": [
+        225,
+        129,
+        91,
+        48,
+        215,
+        73,
+        203,
+        172
+      ],
+      "accounts": [
+        {
+          "name": "auction",
+          "writable": true
+        },
+        {
+          "name": "beneficiary",
+          "docs": [
+            "[Auction::prepared_by]."
+          ],
+          "writable": true
+        },
+        {
+          "name": "event_authority"
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -487,6 +501,8 @@
     {
       "name": "create_first_auction_history",
       "docs": [
+        "DEPRECATED. This instruction does not exist anymore.",
+        "",
         "This instruction is used to create the first `AuctionHistory` account, whose PDA is derived",
         "using ID == 0.",
         "",
@@ -506,16 +522,7 @@
       ],
       "accounts": [
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "first_history",
-          "writable": true
-        },
-        {
-          "name": "system_program"
+          "name": "_dummy"
         }
       ],
       "args": []
@@ -523,6 +530,8 @@
     {
       "name": "create_new_auction_history",
       "docs": [
+        "DEPRECATED. This instruction does not exist anymore.",
+        "",
         "This instruction is used to create a new `AuctionHistory` account. The PDA is derived using",
         "its ID. A new history account can be created only when the current one is full (number of",
         "entries equals the hard-coded max entries).",
@@ -543,19 +552,7 @@
       ],
       "accounts": [
         {
-          "name": "payer",
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "current_history"
-        },
-        {
-          "name": "new_history",
-          "writable": true
-        },
-        {
-          "name": "system_program"
+          "name": "_dummy"
         }
       ],
       "args": []
@@ -2605,32 +2602,6 @@
       ]
     },
     {
-      "name": "AuctionHistory",
-      "discriminator": [
-        149,
-        208,
-        45,
-        154,
-        47,
-        248,
-        102,
-        245
-      ]
-    },
-    {
-      "name": "AuctionHistoryInternal",
-      "discriminator": [
-        149,
-        208,
-        45,
-        154,
-        47,
-        248,
-        102,
-        245
-      ]
-    },
-    {
       "name": "Custodian",
       "discriminator": [
         132,
@@ -2736,6 +2707,19 @@
     }
   ],
   "events": [
+    {
+      "name": "AuctionClosed",
+      "discriminator": [
+        104,
+        72,
+        168,
+        177,
+        241,
+        79,
+        231,
+        167
+      ]
+    },
     {
       "name": "AuctionSettled",
       "discriminator": [
@@ -3238,6 +3222,22 @@
       }
     },
     {
+      "name": "AuctionClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "auction",
+            "type": {
+              "defined": {
+                "name": "Auction"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
       "name": "AuctionConfig",
       "type": {
         "kind": "struct",
@@ -3275,105 +3275,6 @@
           {
             "name": "amount_out",
             "type": "u64"
-          }
-        ]
-      }
-    },
-    {
-      "name": "AuctionEntry",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "vaa_hash",
-            "type": {
-              "array": [
-                "u8",
-                32
-              ]
-            }
-          },
-          {
-            "name": "vaa_timestamp",
-            "type": "u32"
-          },
-          {
-            "name": "info",
-            "type": {
-              "defined": {
-                "name": "AuctionInfo"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "AuctionHistory",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "header",
-            "type": {
-              "defined": {
-                "name": "AuctionHistoryHeader"
-              }
-            }
-          },
-          {
-            "name": "data",
-            "type": {
-              "vec": {
-                "defined": {
-                  "name": "AuctionEntry"
-                }
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "AuctionHistoryHeader",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "id",
-            "type": "u64"
-          },
-          {
-            "name": "min_timestamp",
-            "type": {
-              "option": "u32"
-            }
-          },
-          {
-            "name": "max_timestamp",
-            "type": {
-              "option": "u32"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "AuctionHistoryInternal",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "header",
-            "type": {
-              "defined": {
-                "name": "AuctionHistoryHeader"
-              }
-            }
-          },
-          {
-            "name": "num_entries",
-            "type": "u32"
           }
         ]
       }
