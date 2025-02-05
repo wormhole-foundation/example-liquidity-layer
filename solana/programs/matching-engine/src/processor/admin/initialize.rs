@@ -106,7 +106,7 @@ pub struct Initialize<'info> {
 }
 #[derive(Debug, AnchorSerialize, AnchorDeserialize)]
 pub struct InitializeArgs {
-    auction_params: AuctionParameters,
+    pub auction_params: AuctionParameters,
 }
 
 pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
