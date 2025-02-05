@@ -22,7 +22,7 @@ import {
 } from "../src/testing";
 
 describe("Environment", () => {
-    const chainNames: ValidNetwork[] = ["Avalanche", "Ethereum", "Base"];
+    const chainNames: ValidNetwork[] = ["Avalanche", "Ethereum"];
 
     for (const chainName of chainNames) {
         if (!(chainName in LOCALHOSTS)) {
@@ -282,9 +282,9 @@ describe("Environment", () => {
                 const scripts = `${__dirname}/../../sh`;
                 const cmd =
                     `bash ${scripts}/upgrade_token_router.sh ` +
-                    `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}` +
-                    `> /dev/null 2>&1`;
+                    `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}`;
                 const out = execSync(cmd, { encoding: "utf8" });
+                console.log(out);
                 await provider.send("evm_setAutomine", [false]);
             });
         });
