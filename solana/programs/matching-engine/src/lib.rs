@@ -8,6 +8,7 @@ mod error;
 mod events;
 
 mod processor;
+pub use processor::InitializeArgs;
 use processor::*;
 
 pub mod state;
