@@ -31,9 +31,9 @@
   },
   "dependencies": {
     "@wormhole-foundation/example-liquidity-layer-definitions": "0.0.1",
-    "@wormhole-foundation/sdk-base": "^0.10.9",
-    "@wormhole-foundation/sdk-definitions": "^0.10.9",
-    "@wormhole-foundation/sdk-evm": "^0.10.9",
+    "@wormhole-foundation/sdk-base": "^1.4.4",
+    "@wormhole-foundation/sdk-definitions": "^1.4.4",
+    "@wormhole-foundation/sdk-evm": "^1.4.4",
     "ethers-v5": "npm:ethers@^5.7.2"
   },
   "devDependencies": {

@@ -25,17 +25,11 @@ anvil --port 8548 \
     --no-mining \
     --fork-url $ETHEREUM_RPC > $LOGS/ethereum.log &
 
-# Base (CCTP).
-anvil --port 8549 \
-    -m "myth like bonus scare over problem client lizard pioneer submit female collect" \
-    --no-mining \
-    --fork-url $BASE_RPC > $LOGS/base.log &
-
 # Chill.
 sleep 2
 
 # Double-check number of anvil instances.
-if [ "$( pgrep anvil | wc -l )" -ne 3 ]; then
+if [ "$( pgrep anvil | wc -l )" -ne 2 ]; then
     echo "Not all anvil instances are running. Try again."
     pkill anvil
     exit 1

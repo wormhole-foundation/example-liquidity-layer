@@ -54,7 +54,7 @@ then
     rpc=$RPC
 fi
 
-forge script $FORGE_SCRIPTS/UpgradeTokenRouter.s.sol \
+forge script $FORGE_SCRIPTS/UpgradeTokenRouter.s.sol -vvvv \
     --rpc-url $rpc \
     --broadcast \
     --private-key $private_key
