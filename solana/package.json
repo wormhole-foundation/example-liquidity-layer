@@ -1,6 +1,6 @@
 {
   "name": "@wormhole-foundation/example-liquidity-layer-solana",
-  "version": "0.0.1",
+  "version": "0.4.0",
   "main": "dist/cjs/index.js",
   "types": "dist/cjs/index.d.ts",
   "module": "dist/esm/index.js",
@@ -36,7 +36,7 @@
     "@solana/spl-token-metadata": "^0.1.5",
     "@solana/web3.js": "^1.95.3",
     "@types/node-fetch": "^2.6.11",
-    "@wormhole-foundation/example-liquidity-layer-definitions": "0.0.1",
+    "@wormhole-foundation/example-liquidity-layer-definitions": "0.4.0",
     "@wormhole-foundation/sdk-base": "^1.4.4",
     "@wormhole-foundation/sdk-definitions": "^1.4.4",
     "@wormhole-foundation/sdk-evm": "^1.4.4",

@@ -1,6 +1,6 @@
 {
   "name": "@wormhole-foundation/example-liquidity-layer-evm",
-  "version": "0.0.1",
+  "version": "0.4.0",
   "author": "Wormhole Contributors",
   "license": "Apache-2.0",
   "main": "./dist/cjs/index.js",
@@ -30,7 +30,7 @@
     }
   },
   "dependencies": {
-    "@wormhole-foundation/example-liquidity-layer-definitions": "0.0.1",
+    "@wormhole-foundation/example-liquidity-layer-definitions": "0.4.0",
     "@wormhole-foundation/sdk-base": "^1.4.4",
     "@wormhole-foundation/sdk-definitions": "^1.4.4",
     "@wormhole-foundation/sdk-evm": "^1.4.4",
