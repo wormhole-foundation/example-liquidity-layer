@@ -1,31 +1,19 @@
 use solana_program_test::{ProgramTest, ProgramTestContext, tokio};
 use solana_sdk::{
-    instruction::Instruction, pubkey::Pubkey, signature::{Keypair, Signer}, transaction::Transaction
+    pubkey::Pubkey, signature::{Keypair, Signer},
 };
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use solana_program::{bpf_loader_upgradeable, system_program};
-use anchor_spl::{associated_token::spl_associated_token_account, token::spl_token};
-use anchor_lang::AccountDeserialize;
-
-use anchor_lang::{InstructionData, ToAccountMetas};
-use matching_engine::{
-    accounts::Initialize,
-    InitializeArgs,
-    state::{
-        // AuctionParameters, 
-        Custodian, 
-        AuctionConfig
-    },
-};
-
 mod utils;
-use utils::token_account::{create_token_account, read_keypair_from_file, TokenAccountFixture};
+use utils::{router::add_local_router_endpoint_ix, token_account::{create_token_account, read_keypair_from_file, TokenAccountFixture}, Chain};
 use utils::mint::MintFixture;
-use utils::upgrade_manager::initialise_upgrade_manager;
+use utils::program_fixtures::{initialise_upgrade_manager, initialise_cctp_token_messenger_minter, initialise_wormhole_core_bridge, initialise_cctp_message_transmitter, initialise_local_token_router};
 use utils::airdrop::airdrop;
-
+use utils::initialize::initialize_program;
+use utils::account_fixtures::FixtureAccounts;
+use utils::router::add_cctp_router_endpoint_ix;
+use utils::vaa::create_vaas_test;
 // Configures the program ID and CCTP mint recipient based on the environment
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet")] {
@@ -44,8 +32,6 @@ cfg_if::cfg_if! {
     }
 }
 const OWNER_KEYPAIR_PATH: &str = "tests/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json";
-
-// TODO: When modularising, impl function for the struct to add new solvers
 
 pub struct Solver {
     pub actor: TestingActor,
@@ -97,6 +83,7 @@ impl TestingActor {
     }
 }
 
+/// A struct containing all the testing actors (the owner, the owner assistant, the fee recipient, the relayer, solvers, liquidator)
 pub struct TestingActors {
     pub owner: TestingActor,
     pub owner_assistant: TestingActor,
@@ -153,15 +140,39 @@ impl TestingActors {
             actor.token_account = Some(usdc_ata);
         }
     }
+
+    /// Add solvers to the testing actors
+    #[allow(dead_code)]
+    async fn add_solvers(&mut self, test_context: &Rc<RefCell<ProgramTestContext>>, num_solvers: usize) {
+        for _ in 0..num_solvers {
+            let keypair = Rc::new(Keypair::new());
+            let usdc_ata = create_token_account(test_context.clone(), &keypair, &USDC_MINT_ADDRESS).await;
+            airdrop(test_context, &keypair.pubkey(), 10000000000).await;
+            self.solvers.push(Solver::new(keypair.clone(), Some(usdc_ata), None));
+        }
+    }
 }
 
 pub struct TestingContext {
-    pub program_data_account: Pubkey,
+    pub program_data_account: Pubkey, // Move this into something smarter
     pub testing_actors: TestingActors,
     pub test_context: Rc<RefCell<ProgramTestContext>>,
+    pub fixture_accounts: Option<FixtureAccounts>,
 }
 
-pub async fn setup_test_context() -> TestingContext {
+pub struct PreTestingContext {
+    pub program_test: ProgramTest,
+    pub testing_actors: TestingActors,
+    pub program_data_pubkey: Pubkey,
+    pub account_fixtures: FixtureAccounts,
+}
+
+/// Setup the test context
+///
+/// # Returns
+///
+/// A TestingContext struct containing the program data account, testing actors, test context, and fixture accounts
+fn setup_program_test() -> PreTestingContext {
     let mut program_test = ProgramTest::new(
         "matching_engine",  // Replace with your program name
         PROGRAM_ID,
@@ -171,132 +182,134 @@ pub async fn setup_test_context() -> TestingContext {
     program_test.set_transaction_account_lock_limit(1000);
 
     // Setup Testing Actors
-    let mut testing_actors = TestingActors::new();
+    let testing_actors = TestingActors::new();
 
     // Initialise Upgrade Manager
-    let program_data = initialise_upgrade_manager(&mut program_test, &PROGRAM_ID, testing_actors.owner.pubkey());
+    let program_data_pubkey = initialise_upgrade_manager(&mut program_test, &PROGRAM_ID, testing_actors.owner.pubkey());
 
+    // Initialise CCTP Token Messenger Minter
+    initialise_cctp_token_messenger_minter(&mut program_test);
+
+    // Initialise Wormhole Core Bridge
+    initialise_wormhole_core_bridge(&mut program_test);
+
+    // Initialise CCTP Message Transmitter
+    initialise_cctp_message_transmitter(&mut program_test);
+
+    // Initialise Local Token Router
+    initialise_local_token_router(&mut program_test);
+
+    // Initialise Account Fixtures
+    let account_fixtures = FixtureAccounts::new(&mut program_test);
+
+    // Add lookup table accounts
+    FixtureAccounts::add_lookup_table_hack(&mut program_test);
+
+    PreTestingContext { program_test, testing_actors, program_data_pubkey, account_fixtures }
+}
+
+async fn setup_testing_context(mut pre_testing_context: PreTestingContext) -> TestingContext {
     // Start and get test context
-    let test_context = Rc::new(RefCell::new(program_test.start_with_context().await));
+    let test_context = Rc::new(RefCell::new(pre_testing_context.program_test.start_with_context().await));
     
     // Airdrop to all actors
-    testing_actors.airdrop_all(&test_context).await;
+    pre_testing_context.testing_actors.airdrop_all(&test_context).await;
 
     // Create USDC mint
     let _mint_fixture = MintFixture::new_from_file(&test_context, USDC_MINT_FIXTURE_PATH);
 
     // Create USDC ATAs for all actors that need them
-    testing_actors.create_atas(&test_context).await;
+    pre_testing_context.testing_actors.create_atas(&test_context).await;
 
-    TestingContext { program_data_account: program_data, testing_actors, test_context }
+    TestingContext { program_data_account: pre_testing_context.program_data_pubkey, testing_actors: pre_testing_context.testing_actors, test_context, fixture_accounts: Some(pre_testing_context.account_fixtures) }
 }
 
-pub struct InitializeFixture {
-    pub test_context: Rc<RefCell<ProgramTestContext>>,
-    pub custodian: Custodian,
-}
-
-async fn initialize_program(testing_context: &TestingContext) -> InitializeFixture {
-    let test_context = testing_context.test_context.clone();
-    
-    let (custodian, _custodian_bump) = Pubkey::find_program_address(
-        &[Custodian::SEED_PREFIX],
-        &PROGRAM_ID,
-    );
-
-    let (auction_config, _auction_config_bump) = Pubkey::find_program_address(
-        &[
-            AuctionConfig::SEED_PREFIX,
-            &0u32.to_be_bytes(),
-        ],
-        &PROGRAM_ID,
-    );
-    
-    // Create AuctionParameters
-    let auction_params = matching_engine::state::AuctionParameters {
-        user_penalty_reward_bps: 250_000, // 25%
-        initial_penalty_bps: 250_000, // 25%
-        duration: 2,
-        grace_period: 5,
-        penalty_period: 10,
-        min_offer_delta_bps: 20_000, // 2%
-        security_deposit_base: 4_200_000,
-        security_deposit_bps: 5_000, // 0.5%
-    };
-
-    // Create the instruction data
-    let ix_data = matching_engine::instruction::Initialize {
-        args: InitializeArgs {
-            auction_params,
-        },
-    };
-    
-    // Get account metas
-    let accounts = Initialize {
-        owner: testing_context.testing_actors.owner.pubkey(),
-        custodian,
-        auction_config,
-        owner_assistant: testing_context.testing_actors.owner_assistant.pubkey(),
-        fee_recipient: testing_context.testing_actors.fee_recipient.pubkey(),
-        fee_recipient_token: testing_context.testing_actors.fee_recipient.token_account_address().unwrap(),
-        cctp_mint_recipient: CCTP_MINT_RECIPIENT,
-        usdc: matching_engine::accounts::Usdc{mint: USDC_MINT_ADDRESS},
-        program_data: testing_context.program_data_account,
-        upgrade_manager_authority: common::UPGRADE_MANAGER_AUTHORITY,
-        upgrade_manager_program: common::UPGRADE_MANAGER_PROGRAM_ID,
-        bpf_loader_upgradeable_program: bpf_loader_upgradeable::id(),
-        system_program: system_program::id(),
-        token_program: spl_token::id(),
-        associated_token_program: spl_associated_token_account::id(),
-    };
-    
-    // Create the instruction
-    let instruction = Instruction {
-        program_id: PROGRAM_ID,
-        accounts: accounts.to_account_metas(None),
-        data: ix_data.data(),
-    };
-
-    // Create and sign transaction
-    let mut transaction = Transaction::new_with_payer(
-        &[instruction],
-        Some(&test_context.borrow().payer.pubkey()),
-    );
-    transaction.sign(&[&test_context.borrow().payer, &testing_context.testing_actors.owner.keypair()], test_context.borrow().last_blockhash);
-
-    // Process transaction
-    test_context.borrow_mut().banks_client.process_transaction(transaction).await.unwrap();
-
-    // Verify the results
-    let custodian_account = test_context.borrow_mut().banks_client
-        .get_account(custodian)
-        .await
-        .unwrap()
-        .unwrap();
-    
-    let custodian_data = Custodian::try_deserialize(&mut custodian_account.data.as_slice()).unwrap();
-
-    InitializeFixture { test_context, custodian: custodian_data }
-}
-    
+/// Test that the program is initialised correctly
 #[tokio::test]
 pub async fn test_initialize_program() {
     
-    let testing_context = setup_test_context().await;
-    
-    let initialize_fixture = initialize_program(&testing_context).await;
-    
-    let custodian_data = initialize_fixture.custodian;
+    let pre_testing_context = setup_program_test();
+    let testing_context = setup_testing_context(pre_testing_context).await;
 
-    // Verify owner is correct
-    assert_eq!(custodian_data.owner, testing_context.testing_actors.owner.pubkey());
-    // Verify owner assistant is correct
-    assert_eq!(custodian_data.owner_assistant, testing_context.testing_actors.owner_assistant.pubkey());
-    // Verify fee recipient token is correct
-    assert_eq!(custodian_data.fee_recipient_token, testing_context.testing_actors.fee_recipient.token_account.unwrap().address);
-    // Verify auction config id is 0
-    assert_eq!(custodian_data.auction_config_id, 0);
-    // Verify next proposal id is 0
-    assert_eq!(custodian_data.next_proposal_id, 0);
+    let initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
+
+    // Check that custodian data corresponds to the expected values
+    initialize_fixture.verify_custodian(testing_context.testing_actors.owner.pubkey(), testing_context.testing_actors.owner_assistant.pubkey(), testing_context.testing_actors.fee_recipient.token_account.unwrap().address);
 }
 
+/// Test that a CCTP token router endpoint is created for the arbitrum and ethereum chains
+#[tokio::test]
+pub async fn test_cctp_token_router_endpoint_creation() {
+    let pre_testing_context = setup_program_test();
+    let testing_context = setup_testing_context(pre_testing_context).await;
+
+    let initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
+
+    // Create a token router endpoint for the arbitrum chain
+    let arb_chain = Chain::Arbitrum;
+    
+    let fixture_accounts = testing_context.fixture_accounts.expect("Pre-made fixture accounts not found");
+    let arb_remote_token_messenger = fixture_accounts.arbitrum_remote_token_messenger;
+
+    let usdc_mint_address = USDC_MINT_ADDRESS;
+    
+    let arbitrum_token_router_endpoint = add_cctp_router_endpoint_ix(
+        &testing_context.test_context,
+        testing_context.testing_actors.owner.pubkey(),
+        initialize_fixture.custodian_address,
+        testing_context.testing_actors.owner.keypair().as_ref(),
+        PROGRAM_ID,
+        arb_remote_token_messenger,
+        usdc_mint_address,
+        arb_chain,
+    ).await;
+    assert_eq!(arbitrum_token_router_endpoint.info.chain, arb_chain.to_chain_id());
+
+    // Create a token router endpoint for the ethereum chain
+    let eth_chain = Chain::Ethereum;
+    let eth_remote_token_messenger = fixture_accounts.ethereum_remote_token_messenger;
+
+    let _eth_token_router_endpoint = add_cctp_router_endpoint_ix(
+        &testing_context.test_context,
+        testing_context.testing_actors.owner.pubkey(),
+        initialize_fixture.custodian_address,
+        testing_context.testing_actors.owner.keypair().as_ref(),
+        PROGRAM_ID,
+        eth_remote_token_messenger,
+        usdc_mint_address,
+        eth_chain,
+    ).await;
+}
+
+#[tokio::test]
+pub async fn test_local_token_router_endpoint_creation() {
+    let pre_testing_context = setup_program_test();
+    let testing_context = setup_testing_context(pre_testing_context).await;
+
+    let initialize_fixture: utils::initialize::InitializeFixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
+    let _fixture_accounts: FixtureAccounts = testing_context.fixture_accounts.expect("Pre-made fixture accounts not found");
+
+    let usdc_mint_address = USDC_MINT_ADDRESS;
+
+    let _local_token_router_endpoint = add_local_router_endpoint_ix(
+        &testing_context.test_context,
+        testing_context.testing_actors.owner.pubkey(),
+        initialize_fixture.custodian_address,
+        testing_context.testing_actors.owner.keypair().as_ref(),
+        PROGRAM_ID,
+        &usdc_mint_address,
+    ).await;
+}
+
+// Test setting up vaas
+// - The payload of the vaa should be the .to_vec() of the FastMarketOrder under universal/rs/messages/src/fast_market_order.rs
+#[tokio::test]
+pub async fn test_setup_vaas() {
+    let mut pre_testing_context = setup_program_test();
+    let vaas_test = create_vaas_test(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT);
+    let testing_context = setup_testing_context(pre_testing_context).await;
+    let _initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
+    vaas_test.0.first().unwrap().verify_vaas(&testing_context.test_context).await;
+
+    // Try making initial offer
+}
