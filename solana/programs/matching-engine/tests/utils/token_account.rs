@@ -1,9 +1,8 @@
 use solana_sdk::{program_pack::Pack, transaction::Transaction, pubkey::Pubkey, signature::Keypair, signer::Signer};
 use anchor_spl::token::spl_token;
 use anchor_spl::associated_token::spl_associated_token_account;
-use solana_program_test::{ProgramTest, ProgramTestContext};
-use serde_json::Value;
-use std::{cell::RefCell, fs, rc::Rc, str::FromStr};
+use solana_program_test::ProgramTestContext;
+use std::{cell::RefCell, fs, rc::Rc};
 
 
 pub struct TokenAccountFixture {
@@ -76,6 +75,37 @@ pub async fn create_token_account(
     }
 }
 
+pub async fn create_token_account_for_pda(
+    test_context: &Rc<RefCell<ProgramTestContext>>,
+    pda: &Pubkey,  // The PDA that will own the token account
+    mint: &Pubkey, // The mint (USDC in your case)
+) -> Pubkey {
+    let mut ctx = test_context.borrow_mut();
+    
+    // Get the ATA address
+    let ata = anchor_spl::associated_token::get_associated_token_address(&pda, mint);
+    
+    // Create the create_ata instruction
+    let create_ata_ix = spl_associated_token_account::instruction::create_associated_token_account(
+        &ctx.payer.pubkey(),    // Funding account
+        pda,                    // Account that will own the token account
+        mint,                   // Token mint (USDC)
+        &spl_token::id(),       // Token program
+    );
+
+    // Create and send transaction
+    let transaction = Transaction::new_signed_with_payer(
+        &[create_ata_ix],
+        Some(&ctx.payer.pubkey()),
+        &[&ctx.payer],
+        ctx.last_blockhash,
+    );
+
+    ctx.banks_client.process_transaction(transaction).await.unwrap();
+
+    ata
+}
+
 /// Reads a keypair from a JSON fixture file
 ///
 /// Reads the JSON file and parses it into a Value object that is used to extract the keypair.
@@ -95,72 +125,4 @@ pub fn read_keypair_from_file(filename: &str) -> Keypair {
     // Create keypair from bytes
     Keypair::from_bytes(&bytes)
         .expect("Bytes must form a valid keypair")
-}
-
-// FIXME: This does not work, using the function in the mint.rs file instead
-/// Adds an account from a JSON fixture file to the program test
-///
-/// Loads the JSON file and parses it into a Value object that is used to extract the lamports, address, and owner values.
-///
-/// # Arguments
-///
-/// * `program_test` - The program test instance
-/// * `filename` - The path to the JSON fixture file
-#[allow(dead_code, unused_variables)]
-pub fn add_account_from_file(
-    program_test: &mut ProgramTest,
-    filename: &str,
-) {
-    // Parse the JSON file to an AccountFixture struct
-    let account_fixture = read_account_from_file(filename);
-    // Add the account to the program test
-    program_test.add_account_with_file_data(account_fixture.address, account_fixture.lamports, account_fixture.owner, filename)
-}
-
-#[allow(dead_code, unused_variables)]
-struct AccountFixture {
-    pub address: Pubkey,
-    pub owner: Pubkey,
-    pub lamports: u64,
-}
-
-// FIXME: This code is not being used, remove it
-
-/// Reads an account from a JSON fixture file
-///
-/// Reads the JSON file and parses it into a Value object that is used to extract the lamports, address, and owner values.
-///
-/// # Arguments
-///
-/// * `filename` - The path to the JSON fixture file
-///
-/// # Returns
-///
-/// An AccountFixture struct containing the address, owner, lamports, and filename.
-fn read_account_from_file(
-    filename: &str,
-) -> AccountFixture {
-    // Read the JSON file
-    let data = fs::read_to_string(filename)
-    .expect("Unable to read file");
-
-    // Parse the JSON
-    let json: Value = serde_json::from_str(&data)
-    .expect("Unable to parse JSON");
-
-    // Extract the lamports value
-    let lamports = json["account"]["lamports"]
-    .as_u64()
-    .expect("lamports field not found or invalid");
-
-    // Extract the address value
-    let address: Pubkey = solana_sdk::pubkey::Pubkey::from_str(json["pubkey"].as_str().expect("pubkey field not found or invalid")).expect("Pubkey field in file is not a valid pubkey");
-    // Extract the owner address value
-    let owner: Pubkey = solana_sdk::pubkey::Pubkey::from_str(json["account"]["owner"].as_str().expect("owner field not found or invalid")).expect("Owner field in file is not a valid pubkey");
-    
-    AccountFixture {
-        address,
-        owner,
-        lamports,
-    }
 }

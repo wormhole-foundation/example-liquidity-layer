@@ -37,9 +37,9 @@ cfg_if::cfg_if! {
     }
 }
 
-const AUCTION_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"auction-custody";
-const LOCAL_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"local-custody";
-const PREPARED_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"prepared-custody";
+pub const AUCTION_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"auction-custody";
+pub const LOCAL_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"local-custody";
+pub const PREPARED_CUSTODY_TOKEN_SEED_PREFIX: &[u8] = b"prepared-custody";
 
 const FEE_PRECISION_MAX: u32 = 1_000_000;
 const VAA_AUCTION_EXPIRATION_TIME: i64 = 2 * 60 * 60; // 2 hours

@@ -22,7 +22,6 @@ pub async fn airdrop(
     recipient: &Pubkey,
     amount: u64,
 ) {
-    println!("Airdropping {:?} with amount {:?}", recipient, amount);
     let mut ctx = test_context.borrow_mut();
     
     // Create the transfer instruction with values from the context
