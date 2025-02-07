@@ -13,6 +13,8 @@
     "sourceMap": true,
     "skipLibCheck": true,
     "noErrorTruncation": true,
+    "outDir": "ts-build",
+    "resolveJsonModule": true,
     // Strict Checks
     // "alwaysStrict": true,
     // "noImplicitAny": true,

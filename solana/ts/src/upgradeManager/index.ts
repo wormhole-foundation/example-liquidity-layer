@@ -208,6 +208,13 @@ export class UpgradeManagerProgram {
                     PublicKey.default,
                 );
             }
+            case mainnet(): {
+                return new matchingEngineSdk.MatchingEngineProgram(
+                    this.program.provider.connection,
+                    matchingEngineSdk.mainnet(),
+                    PublicKey.default,
+                );
+            }
             default: {
                 throw new Error("unsupported network");
             }
@@ -227,6 +234,13 @@ export class UpgradeManagerProgram {
                 return new tokenRouterSdk.TokenRouterProgram(
                     this.program.provider.connection,
                     tokenRouterSdk.localnet(),
+                    PublicKey.default,
+                );
+            }
+            case mainnet(): {
+                return new tokenRouterSdk.TokenRouterProgram(
+                    this.program.provider.connection,
+                    tokenRouterSdk.mainnet(),
                     PublicKey.default,
                 );
             }

@@ -1,0 +1,7 @@
+{
+  "<wormhole-chain-id-1>": { "etherscan": "<key>", "blockscout": {"key": "<key>", "apiUrl": "https://<chain>.blockscout.com/api"}, "sourcify": ""},
+  "<wormhole-chain-id-2>": { "etherscan": "<key>", "blockscout": {"key": "<key>", "apiUrl": "https://<chain>.blockscout.com/api"}},
+  "<wormhole-chain-id-3>": { "blockscout": {"key": "<key>", "apiUrl": "https://<chain>.blockscout.com/api"}, "sourcify": ""},
+  "<wormhole-chain-id-4>": { "etherscan": "<key>", "sourcify": ""},
+  "<wormhole-chain-id-5>": { "etherscan": "<key>"}
+}
