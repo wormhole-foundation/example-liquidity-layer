@@ -21,10 +21,25 @@ use matching_engine::{
 };
 use super::super::TestingContext;
 
+pub struct InitializeAddresses {
+    pub custodian_address: Pubkey,
+    pub auction_config_address: Pubkey,
+}
+
 pub struct InitializeFixture {
     pub test_context: Rc<RefCell<ProgramTestContext>>,
     pub custodian: Custodian,
-    pub custodian_address: Pubkey,
+    pub addresses: InitializeAddresses,
+}
+
+impl InitializeFixture {
+    pub fn get_custodian_address(&self) -> Pubkey {
+        self.addresses.custodian_address.clone()
+    }
+
+    pub fn get_auction_config_address(&self) -> Pubkey {
+        self.addresses.auction_config_address.clone()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -132,7 +147,6 @@ pub async fn initialize_program(testing_context: &TestingContext, program_id: Pu
         accounts: accounts.to_account_metas(None),
         data: ix_data.data(),
     };
-
     // Create and sign transaction
     let mut transaction = Transaction::new_with_payer(
         &[instruction],
@@ -151,6 +165,9 @@ pub async fn initialize_program(testing_context: &TestingContext, program_id: Pu
         .unwrap();
     
     let custodian_data = Custodian::try_deserialize(&mut custodian_account.data.as_slice()).unwrap();
-    
-    InitializeFixture { test_context, custodian: custodian_data, custodian_address: custodian }
+    let initialize_addresses = InitializeAddresses {
+        custodian_address: custodian,
+        auction_config_address: auction_config,
+    };
+    InitializeFixture { test_context, custodian: custodian_data, addresses: initialize_addresses }
 }

@@ -81,16 +81,47 @@ impl TestEndpointInfo {
     }
 }
 
+pub struct TestRouterEndpoints {
+    pub arbitrum: TestRouterEndpoint,
+    pub ethereum: TestRouterEndpoint,
+    pub solana: TestRouterEndpoint,
+}
+
+impl TestRouterEndpoints {
+    pub fn new(arbitrum: TestRouterEndpoint, ethereum: TestRouterEndpoint, solana: TestRouterEndpoint) -> Self {
+        Self { arbitrum, ethereum, solana }
+    }
+
+    pub fn get_endpoint_info(&self, chain: Chain) -> TestEndpointInfo {
+        match chain {
+            Chain::Arbitrum => self.arbitrum.info.clone(),
+            Chain::Ethereum => self.ethereum.info.clone(),
+            Chain::Solana => self.solana.info.clone(),
+            _ => panic!("Unsupported chain"),
+        }
+    }
+
+    pub fn get_endpoint_address(&self, chain: Chain) -> Pubkey {
+        match chain {
+            Chain::Arbitrum => self.arbitrum.endpoint_address,
+            Chain::Ethereum => self.ethereum.endpoint_address,
+            Chain::Solana => self.solana.endpoint_address,
+            _ => panic!("Unsupported chain"),
+        }
+    }
+}
+
 /// A struct representing a router endpoint for testing purposes
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct TestRouterEndpoint {
+    pub endpoint_address: Pubkey,
     pub bump: u8,
     pub info: TestEndpointInfo,
 }
 
-impl From<&RouterEndpoint> for TestRouterEndpoint {
-    fn from(router_endpoint: &RouterEndpoint) -> Self {
-        Self { bump: router_endpoint.bump, info: (&router_endpoint.info).into() }
+impl From<(&RouterEndpoint, Pubkey)> for TestRouterEndpoint {
+    fn from((router_endpoint, endpoint_address): (&RouterEndpoint, Pubkey)) -> Self {
+        Self { endpoint_address, bump: router_endpoint.bump, info: (&router_endpoint.info).into() }
     }
 }
 
@@ -99,6 +130,11 @@ impl TestRouterEndpoint {
         let expected_info = TestEndpointInfo::new(chain, address, mint_recipient, protocol);
         assert_eq!(self.info, expected_info);
     }
+}
+
+pub fn get_router_endpoint_address(program_id: Pubkey, encoded_chain: &[u8; 2]) -> Pubkey {
+    let (router_endpoint_address, _bump) = Pubkey::find_program_address(&[RouterEndpoint::SEED_PREFIX, encoded_chain], &program_id);
+    router_endpoint_address
 }
 
 pub async fn add_cctp_router_endpoint_ix(
@@ -114,10 +150,8 @@ pub async fn add_cctp_router_endpoint_ix(
     let admin = generate_admin(admin_owner_or_assistant, admin_custodian);
     let usdc = matching_engine::accounts::Usdc{mint: usdc_mint_address};
     
-    // This should be equivalent to writeUint16BigEndian
     let encoded_chain = (chain.to_chain_id() as u16).to_be_bytes();
-    let (router_endpoint_address, _bump) = Pubkey::find_program_address(&[RouterEndpoint::SEED_PREFIX, &encoded_chain], &program_id);
-    
+    let router_endpoint_address = get_router_endpoint_address(program_id, &encoded_chain);
     
     let local_custody_token_address = Pubkey::find_program_address(&[LOCAL_CUSTODY_TOKEN_SEED_PREFIX, &encoded_chain], &program_id).0;
     
@@ -165,7 +199,7 @@ pub async fn add_cctp_router_endpoint_ix(
 
     let endpoint_data = RouterEndpoint::try_deserialize(&mut endpoint_account.data.as_slice()).unwrap();
 
-    let test_router_endpoint = TestRouterEndpoint::from(&endpoint_data);
+    let test_router_endpoint = TestRouterEndpoint::from((&endpoint_data, router_endpoint_address));
     test_router_endpoint.verify_endpoint_info(chain, &Pubkey::new_from_array(registered_token_router_address), None, matching_engine::state::MessageProtocol::Cctp { domain: CHAIN_TO_DOMAIN[chain as usize].1 });
     test_router_endpoint
 }
@@ -226,7 +260,77 @@ pub async fn add_local_router_endpoint_ix(
 
     let endpoint_data = RouterEndpoint::try_deserialize(&mut endpoint_account.data.as_slice()).unwrap();
 
-    let test_router_endpoint = TestRouterEndpoint::from(&endpoint_data);
+    let test_router_endpoint = TestRouterEndpoint::from((&endpoint_data, router_endpoint_address));
     test_router_endpoint.verify_endpoint_info(chain, &token_router_emitter, Some(&token_router_mint_recipient), matching_engine::state::MessageProtocol::Local { program_id: token_router_program });
     test_router_endpoint
+}
+
+pub async fn create_cctp_router_endpoints_test(
+    test_context: &Rc<RefCell<ProgramTestContext>>,
+    admin_owner_or_assistant: Pubkey,
+    custodian_address: Pubkey,
+    arb_remote_token_messenger: Pubkey,
+    eth_remote_token_messenger: Pubkey,
+    usdc_mint_address: Pubkey,
+    admin_keypair: Rc<Keypair>,
+    program_id: Pubkey,
+) -> [TestRouterEndpoint; 2] {
+    let arb_chain = Chain::Arbitrum;
+    let arbitrum_token_router_endpoint = add_cctp_router_endpoint_ix(
+        test_context,
+        admin_owner_or_assistant,
+        custodian_address,
+        admin_keypair.as_ref(),
+        program_id,
+        arb_remote_token_messenger,
+        usdc_mint_address,
+        arb_chain,
+    ).await;
+
+    let eth_chain = Chain::Ethereum;
+    let ethereum_token_router_endpoint = add_cctp_router_endpoint_ix(
+        test_context,
+        admin_owner_or_assistant,
+        custodian_address,
+        admin_keypair.as_ref(),
+        program_id,
+        eth_remote_token_messenger,
+        usdc_mint_address,
+        eth_chain,
+    ).await;
+
+    [arbitrum_token_router_endpoint, ethereum_token_router_endpoint]
+}
+
+pub async fn create_all_router_endpoints_test(
+    test_context: &Rc<RefCell<ProgramTestContext>>,
+    admin_owner_or_assistant: Pubkey,
+    custodian_address: Pubkey,
+    arb_remote_token_messenger: Pubkey,
+    eth_remote_token_messenger: Pubkey,
+    usdc_mint_address: Pubkey,
+    admin_keypair: Rc<Keypair>,
+    program_id: Pubkey,
+) -> TestRouterEndpoints {
+    let [arbitrum_token_router_endpoint, ethereum_token_router_endpoint] = create_cctp_router_endpoints_test(
+        test_context,
+        admin_owner_or_assistant.clone(),
+        custodian_address.clone(),
+        arb_remote_token_messenger,
+        eth_remote_token_messenger,
+        usdc_mint_address,
+        admin_keypair.clone(),
+        program_id,
+    ).await;
+
+    let local_token_router_endpoint = add_local_router_endpoint_ix(
+        test_context,
+        admin_owner_or_assistant,
+        custodian_address,
+        admin_keypair.as_ref(),
+        program_id,
+        &usdc_mint_address,
+    ).await;
+
+    TestRouterEndpoints::new(arbitrum_token_router_endpoint, ethereum_token_router_endpoint, local_token_router_endpoint)
 }
