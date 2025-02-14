@@ -4,7 +4,7 @@ use anchor_spl::associated_token::spl_associated_token_account;
 use solana_program_test::ProgramTestContext;
 use std::{cell::RefCell, fs, rc::Rc};
 
-
+#[derive(Clone)]
 pub struct TokenAccountFixture {
     pub test_ctx: Rc<RefCell<ProgramTestContext>>,
     pub address: Pubkey,

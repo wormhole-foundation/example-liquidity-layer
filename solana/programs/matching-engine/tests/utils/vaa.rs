@@ -4,7 +4,6 @@ use common::messages::wormhole_io::{WriteableBytes, TypePrefixedPayload};
 use common::wormhole_cctp_solana::wormhole::VaaAccount; // TODO: Remove this if not needed
 use common::wormhole_cctp_solana::messages::Deposit; // Implements to_vec() under PrefixedPayload
 use matching_engine::accounts::{FastOrderPath, LiquidityLayerVaa, LiveRouterPath}; // TODO: Remove this if not needed
-use matching_engine::instruction::PlaceInitialOfferCctp;
 
 use super::constants::Chain;
 use super::CHAIN_TO_DOMAIN;
@@ -31,7 +30,7 @@ pub trait DataDiscriminator {
 #[derive(Debug, Default, BorshSerialize, BorshDeserialize, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PostedVaaData {
     /// Header of the posted VAA
-    pub vaa_version: u8,
+    // pub vaa_version: u8, (This is removed because it is encoded in the discriminator)
 
     /// Level of consistency requested by the emitter
     pub consistency_level: u8,
@@ -75,7 +74,6 @@ impl PostedVaaData {
             .as_secs() as u32;
         let emitter_chain = chain.to_chain_id();
         Self {
-            vaa_version: 1,
             consistency_level: 1,
             vaa_time: timestamp,
             vaa_signature_account: Pubkey::new_unique(),
@@ -98,6 +96,10 @@ impl PostedVaaData {
             &[self.consistency_level],
             self.payload.as_ref(),
         ])
+    }
+
+    pub fn digest(&self) -> [u8; 32] {
+        keccak::hashv(&[self.message_hash().as_ref()]).as_ref().try_into().unwrap()
     }
 
     pub fn create_vaa_account(&self, program_test: &mut ProgramTest) -> Pubkey {
@@ -143,6 +145,25 @@ where
     Ok(data)
 }
 
+#[derive(Clone)]
+pub struct TestVaa {
+    pub kind: TestVaaKind,
+    pub vaa_pubkey: Pubkey,
+    pub vaa_data: PostedVaaData,
+}
+
+impl TestVaa {
+    pub fn get_vaa_pubkey(&self) -> Pubkey {
+        self.vaa_pubkey.clone()
+    }
+}
+
+#[derive(Clone)]
+pub enum TestVaaKind {
+    Deposit,
+    FastTransfer,
+}
+
 pub struct TestFastTransfer {
     pub token_mint: Pubkey,
     pub source_address: ChainAddress,
@@ -150,31 +171,29 @@ pub struct TestFastTransfer {
     pub destination_address: ChainAddress,
     pub cctp_nonce: u32,
     pub sequence: u64,
-    pub deposit_vaa_pubkey: Pubkey,
-    pub fast_transfer_vaa_pubkey: Pubkey,
-    pub deposit_vaa_data: PostedVaaData,
-    pub fast_transfer_vaa_data: PostedVaaData,
+    pub fast_transfer_vaa: TestVaa, // kind: TestVaaKind::FastTransfer
+    pub deposit_vaa: TestVaa, // kind: TestVaaKind::Deposit
 }
 
 impl TestFastTransfer {
     pub fn new(program_test: &mut ProgramTest, start_timestamp: Option<u32>, token_mint: Pubkey, source_address: ChainAddress, refund_address: ChainAddress, destination_address: ChainAddress, cctp_nonce: u64, sequence: u64, cctp_mint_recipient: Pubkey) -> Self {
         let (deposit_vaa_pubkey, deposit_vaa_data) = create_deposit_message(program_test, token_mint, source_address.clone(), destination_address.clone(), cctp_nonce, sequence, cctp_mint_recipient);
         let (fast_transfer_vaa_pubkey, fast_transfer_vaa_data) = create_fast_transfer_message(program_test, start_timestamp, source_address.clone(), refund_address.clone(), destination_address.clone(), cctp_nonce, sequence);
-        Self { token_mint, source_address, refund_address, destination_address, cctp_nonce:cctp_nonce as u32, sequence, deposit_vaa_pubkey, fast_transfer_vaa_pubkey, deposit_vaa_data, fast_transfer_vaa_data }
+        Self { token_mint, source_address, refund_address, destination_address, cctp_nonce:cctp_nonce as u32, sequence, deposit_vaa: TestVaa { kind: TestVaaKind::Deposit, vaa_pubkey: deposit_vaa_pubkey, vaa_data: deposit_vaa_data }, fast_transfer_vaa: TestVaa { kind: TestVaaKind::FastTransfer, vaa_pubkey: fast_transfer_vaa_pubkey, vaa_data: fast_transfer_vaa_data } }
     }
 
     pub async fn verify_vaas(&self, test_context: &Rc<RefCell<ProgramTestContext>>) {
-        let expected_deposit_vaa = self.deposit_vaa_data.clone();
-        let expected_fast_transfer_vaa = self.fast_transfer_vaa_data.clone();
+        let expected_deposit_vaa = self.deposit_vaa.vaa_data.clone();
+        let expected_fast_transfer_vaa = self.fast_transfer_vaa.vaa_data.clone();
         {
-            let deposit_vaa = test_context.borrow_mut().banks_client.get_account(self.deposit_vaa_pubkey.clone()).await.unwrap();
+            let deposit_vaa = test_context.borrow_mut().banks_client.get_account(self.deposit_vaa.vaa_pubkey.clone()).await.unwrap();
             assert!(deposit_vaa.is_some(), "Deposit VAA not found");
             let deposit_vaa = deserialize_with_discriminator::<PostedVaaData>(&deposit_vaa.unwrap().data).unwrap();
             assert_eq!(deposit_vaa, expected_deposit_vaa);
         }
 
         {
-            let fast_transfer_vaa = test_context.borrow_mut().banks_client.get_account(self.fast_transfer_vaa_pubkey.clone()).await.unwrap();
+            let fast_transfer_vaa = test_context.borrow_mut().banks_client.get_account(self.fast_transfer_vaa.vaa_pubkey.clone()).await.unwrap();
             assert!(fast_transfer_vaa.is_some(), "Fast transfer VAA not found");
             let fast_transfer_vaa = deserialize_with_discriminator::<PostedVaaData>(&fast_transfer_vaa.unwrap().data).unwrap();
             assert_eq!(fast_transfer_vaa, expected_fast_transfer_vaa);
@@ -210,13 +229,13 @@ pub fn create_fast_transfer_message(program_test: &mut ProgramTest, start_timest
     let deadline = start_timestamp.map(|timestamp| timestamp + 10).unwrap_or(0);
     // Implements TypePrefixedPayload
     let fast_market_order = FastMarketOrder {
-        amount_in: 100,
-        min_amount_out: 100,
+        amount_in: 1000,
+        min_amount_out: 1000,
         target_chain: destination_address.chain.to_chain_id(),
         redeemer: destination_address.address.to_bytes(),
         sender: source_address.address.to_bytes(),
         refund_address: refund_address.address.to_bytes(), // Not used so can be all zeros
-        max_fee: 100, // USDC max fee
+        max_fee: 1000000000, // USDC max fee
         init_auction_fee: 10, // USDC init auction fee (the first person to verify a vaa and start an auction will get this fee) so at least rent
         deadline, // If dealine is 0 then there is no deadline
         redeemer_message: WriteableBytes::new(vec![]),
@@ -255,13 +274,21 @@ impl TestFastTransfers {
 
 pub fn create_vaas_test(program_test: &mut ProgramTest, mint_address: Pubkey, start_timestamp: Option<u32>, cctp_mint_recipient: Pubkey) -> TestFastTransfers {
     let mut test_fast_transfers = TestFastTransfers::new();
-    let source_address = ChainAddress::new_unique(Chain::Solana);
+    let source_address = ChainAddress::new_unique(Chain::Arbitrum);
     let destination_address = ChainAddress::new_unique(Chain::Ethereum);
     let refund_address = source_address.clone();
     test_fast_transfers.add_ft(program_test, start_timestamp, mint_address.clone(), source_address, refund_address, destination_address, cctp_mint_recipient);
     test_fast_transfers
 }
 
+pub fn create_vaas_test_with_chain_and_address(program_test: &mut ProgramTest, mint_address: Pubkey, start_timestamp: Option<u32>, cctp_mint_recipient: Pubkey, source_chain: Chain, destination_chain: Chain, source_address: [u8; 32], destination_address: [u8; 32]) -> TestFastTransfers {
+    let mut test_fast_transfers = TestFastTransfers::new();
+    let source_address = ChainAddress::new_with_address(source_chain, source_address);
+    let destination_address = ChainAddress::new_with_address(destination_chain, destination_address);
+    let refund_address = source_address.clone();
+    test_fast_transfers.add_ft(program_test, start_timestamp, mint_address.clone(), source_address, refund_address, destination_address, cctp_mint_recipient);
+    test_fast_transfers
+}
 pub trait ToBytes {
     fn to_bytes(&self) ->[u8; 32];
 }
@@ -270,6 +297,7 @@ pub trait ToBytes {
 pub enum TestPubkey {
     Solana(Pubkey),
     Evm(EvmAddress),
+    Bytes([u8; 32]),
 }
 
 impl ToBytes for TestPubkey {
@@ -277,6 +305,7 @@ impl ToBytes for TestPubkey {
         match self {
             TestPubkey::Solana(pubkey) => pubkey.to_bytes(),
             TestPubkey::Evm(evm_address) => evm_address.to_bytes(),
+            TestPubkey::Bytes(bytes) => *bytes,
         }
     }
 }
@@ -347,6 +376,10 @@ impl ChainAddress {
             Chain::Polygon => Self { chain, address: TestPubkey::Evm(EvmAddress::new_unique()) },
             Chain::Base => Self { chain, address: TestPubkey::Evm(EvmAddress::new_unique()) },
         }
+    }
+
+    pub fn new_with_address(chain: Chain, address: [u8; 32]) -> Self {
+        Self { chain, address: TestPubkey::Bytes(address) }
     }
 }
 
