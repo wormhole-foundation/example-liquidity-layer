@@ -93,6 +93,7 @@ pub struct PlaceInitialOfferCctp<'info> {
     )]
     auction: Box<Account<'info, Auction>>,
 
+    #[account(mut)]
     offer_token: Box<Account<'info, token::TokenAccount>>,
 
     #[account(
