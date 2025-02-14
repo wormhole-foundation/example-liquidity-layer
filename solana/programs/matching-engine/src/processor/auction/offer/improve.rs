@@ -42,6 +42,7 @@ pub struct ImproveOffer<'info> {
     active_auction: ActiveAuction<'info>,
 
     #[account(
+        mut,
         constraint = {
             offer_token.key() != active_auction.custody_token.key()
         } @ MatchingEngineError::InvalidOfferToken,
