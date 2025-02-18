@@ -1,7 +1,7 @@
 import {
     Layout,
     LayoutToType,
-    NamedLayoutItem,
+    // NamedLayoutItem,
     RoArray,
     column,
     constMap,
@@ -60,14 +60,14 @@ const switchCase = <P extends PayloadName>(p: P) =>
 
 // prettier-ignore
 export const payloadLayoutSwitch = {
-    name: "data",
+    // name: "data",
     binary: "switch",
     idSize: 1,
     layouts: [
-        switchCase("Fill"), 
+        switchCase("Fill"),
         switchCase("SlowOrderResponse")
     ],
-} as const satisfies NamedLayoutItem;
+} as const satisfies Layout;
 
 export type Fill = PayloadType<"Fill">;
 export type SlowOrderResponse = PayloadType<"SlowOrderResponse">;

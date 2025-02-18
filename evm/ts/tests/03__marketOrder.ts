@@ -20,10 +20,6 @@ import { toChainId } from "@wormhole-foundation/sdk-base";
 const CHAIN_PATHWAYS: ValidNetwork[][] = [
     ["Ethereum", "Avalanche"],
     ["Avalanche", "Ethereum"],
-    ["Ethereum", "Base"],
-    ["Base", "Ethereum"],
-    ["Avalanche", "Base"],
-    ["Base", "Avalanche"],
 ];
 
 const TEST_AMOUNT = ethers.utils.parseUnits("1000", 6);

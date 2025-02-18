@@ -1,6 +1,6 @@
 {
   "name": "@wormhole-foundation/example-liquidity-layer-definitions",
-  "version": "0.0.1",
+  "version": "0.4.0",
   "author": "Wormhole Contributors",
   "license": "Apache-2.0",
   "main": "./dist/cjs/index.js",
@@ -19,8 +19,8 @@
     "clean": "rm -rf node_modules && rm -rf dist"
   },
   "dependencies": {
-    "@wormhole-foundation/sdk-base": "^0.10.9",
-    "@wormhole-foundation/sdk-definitions": "^0.10.9"
+    "@wormhole-foundation/sdk-base": "^1.4.4",
+    "@wormhole-foundation/sdk-definitions": "^1.4.4"
   },
   "devDependencies": {
     "@types/chai": "^4.3.4",

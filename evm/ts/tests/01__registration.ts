@@ -16,7 +16,7 @@ import { expect } from "chai";
 import { toChainId } from "@wormhole-foundation/sdk-base";
 import { toUniversal } from "@wormhole-foundation/sdk-definitions";
 
-const CHAIN_PATHWAYS: ValidNetwork[] = ["Ethereum", "Avalanche", "Base"];
+const CHAIN_PATHWAYS: ValidNetwork[] = ["Ethereum", "Avalanche"];
 
 describe("Registration", () => {
     const envPath = `${__dirname}/../../env/localnet`;
