@@ -1,9 +1,9 @@
 use anchor_lang::prelude::*;
 use common::messages::{FastMarketOrder, SlowOrderResponse};
 use common::messages::wormhole_io::{WriteableBytes, TypePrefixedPayload};
-use common::wormhole_cctp_solana::wormhole::VaaAccount; // TODO: Remove this if not needed
 use common::wormhole_cctp_solana::messages::Deposit; // Implements to_vec() under PrefixedPayload
 use matching_engine::accounts::{FastOrderPath, LiquidityLayerVaa, LiveRouterPath}; // TODO: Remove this if not needed
+use secp256k1::SecretKey as SecpSecretKey;
 
 use super::constants::Chain;
 use super::CHAIN_TO_DOMAIN;
@@ -96,6 +96,12 @@ impl PostedVaaData {
             &[self.consistency_level],
             self.payload.as_ref(),
         ])
+    }
+
+    pub fn sign_with_guardian_set(&self, guardian_secret_key: &SecpSecretKey) -> [u8; 64] {
+        // Sign the message hash with the guardian key
+        let signature = guardian_secret_key.sign_ecdsa(self.message_hash().as_ref());
+        signature.serialize_compact()
     }
 
     pub fn digest(&self) -> [u8; 32] {

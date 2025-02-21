@@ -2,7 +2,7 @@ use solana_program_test::ProgramTest;
 use solana_sdk::pubkey::Pubkey;
 use solana_program::bpf_loader_upgradeable;
 
-use super::{TOKEN_ROUTER_PID, CORE_BRIDGE_PID, CCTP_TOKEN_MESSENGER_MINTER_PID, CCTP_MESSAGE_TRANSMITTER_PID};
+use super::{TOKEN_ROUTER_PID, CORE_BRIDGE_PID, CORE_BRIDGE_CONFIG, CCTP_TOKEN_MESSENGER_MINTER_PID, CCTP_MESSAGE_TRANSMITTER_PID, WORMHOLE_POST_MESSAGE_SHIM_PID, WORMHOLE_VERIFY_VAA_SHIM_PID};
 
 fn get_program_data(owner: Pubkey) -> Vec<u8> {
     let state = solana_sdk::bpf_loader_upgradeable::UpgradeableLoaderState::ProgramData {
@@ -58,4 +58,37 @@ pub fn initialise_cctp_message_transmitter(program_test: &mut ProgramTest) {
 pub fn initialise_local_token_router(program_test: &mut ProgramTest) {
     let program_id = TOKEN_ROUTER_PID;
     program_test.add_program("token_router", program_id, None);
+}
+
+pub fn initialise_post_message_shims(program_test: &mut ProgramTest) {
+    let post_message_program_id = WORMHOLE_POST_MESSAGE_SHIM_PID;
+    program_test.add_program("wormhole_post_message_shim", post_message_program_id, None);
+    let verify_vaa_shim_program_id = WORMHOLE_VERIFY_VAA_SHIM_PID;
+    program_test.add_program("wormhole_verify_vaa_shim", verify_vaa_shim_program_id, None);
+}
+
+pub fn initialise_verify_shims(program_test: &mut ProgramTest) {
+    let verify_vaa_shim_program_id = WORMHOLE_VERIFY_VAA_SHIM_PID;
+    program_test.add_program("wormhole_verify_vaa_shim", verify_vaa_shim_program_id, None);
+    program_test.add_account_with_base64_data(
+        CORE_BRIDGE_CONFIG,
+        1_057_920,
+        CORE_BRIDGE_PID,
+        "BAAAAAQYDQ0AAAAAgFEBAGQAAAAAAAAA",
+    );
+    // Guardian set 4 (active).
+    program_test.add_account_with_base64_data(
+        find_guardian_set_address(u32::to_be_bytes(4), &CORE_BRIDGE_PID).0,
+        3_647_040,
+        CORE_BRIDGE_PID,
+        "BAAAABMAAABYk7WnbD9zlkVkiIW9zMBs1wo80/9suVJYm96GLCXvQ5ITL7nUpCFXEU3oRgGTvfOi/PgfhqCXZfR2L9EQegCGsy16CXeSaiBRMdhzHTnL64yCsv2C+u0nEdWa8PJJnRbnJvayEbOXVsBCRBvm2GULabVOvnFeI0NUzltNNI+3S5WOiWbi7D29SVinzRXnyvB8Tj3I58Rp+SyM2I+4AFogdKO/kTlT1pUmDYi8GqJaTu42PvAACsAHZyezX76i2sKP7lzLD+p2jq9FztE2udniSQNGSuiJ9cinI/wU+TEkt8c4hDy7iehkyGLDjN3Mz5XSzDek3ANqjSMrSPYs3UcxQS9IkNp5j2iWozMfZLSMEtHVf9nL5wgRcaob4dNsr+OGeRD5nAnjR4mcGcOBkrbnOHzNdoJ3wX2rG3pQJ8CzzxeOIa0ud64GcRVJz7sfnHqdgJboXhSH81UV0CqSdTUEqNdUcbn0nttvvryJj0A+R3PpX+sV6Ayamcg0jXiZHmYAAAAA",
+    );
+    // Guardian set 3 (expired).
+    program_test.add_account_with_base64_data(
+        find_guardian_set_address(u32::to_be_bytes(3), &CORE_BRIDGE_PID).0,
+        3_647_040,
+        CORE_BRIDGE_PID,
+        "AwAAABMAAABYzDrlwJeyE848gZeeG5+VcHRqpf9suVJYm96GLCXvQ5ITL7nUpCFXEU3oRgGTvfOi/PgfhqCXZfR2L9EQegCGsy16CXeSaiBRMdhzHTnL64yCsv2C+u0nEdWa8PJJnRbnJvayEbOXVsBCRBvm2GULabVOvnFeI0NUzltNNI+3S5WOiWbi7D29SVinzRXnyvB8Tj3I58Rp+SyM2I+4AFogdKO/kTlT1pUmDYi8GqJaTu42PvAACsAHZyezX76i2sKP7lzLD+p2jq9FztE2udniSQNGSuiJ9cinI/wU+TEkt8c4hDy7iehkyGLDjN3Mz5XSzDek3ANqjSMrSPYs3UcxQS9IkNp5j2iWozMfZLSMEtHVf9nL5wgRcaob4dNsr+OGeRD5nAnjR4mcGcOBkrbnOHzNdoJ3wX2rG3pQJ8CzzxeOIa0ud64GcRVJz7sfnHqdgJboXhSH81UV0CqSdTUEqNdUcbn0nttvvryJj0A+R3PpX+sV6Ayamcg0jUA8xWP46h9m",
+    );
+    program_test.prefer_bpf(true);
 }

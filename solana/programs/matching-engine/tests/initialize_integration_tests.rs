@@ -1,6 +1,7 @@
+use matching_engine::{ID as PROGRAM_ID, CCTP_MINT_RECIPIENT};
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
-
+use secp256k1::SecretKey as SecpSecretKey;
 mod utils;
 use utils::{Chain, REGISTERED_TOKEN_ROUTERS};
 use utils::router::{create_cctp_router_endpoints_test, add_local_router_endpoint_ix, create_all_router_endpoints_test, get_router_endpoint_address};
@@ -9,21 +10,23 @@ use utils::account_fixtures::FixtureAccounts;
 use utils::auction::{AuctionAccounts, place_initial_offer, improve_offer};
 use utils::setup::{PreTestingContext, TestingContext};
 use utils::vaa::{create_vaas_test, create_vaas_test_with_chain_and_address};
+use utils::shims::{set_up_post_message_transaction_test, set_up_verify_shims_test};
+use utils::constants::*;
 // Configures the program ID and CCTP mint recipient based on the environment
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet")] {
-        const PROGRAM_ID : Pubkey = solana_sdk::pubkey!("5BsCKkzuZXLygduw6RorCqEB61AdzNkxp5VzQrFGzYWr");
-        const CCTP_MINT_RECIPIENT: Pubkey = solana_sdk::pubkey!("HUXc7MBf55vWrrkevVbmJN8HAyfFtjLcPLBt9yWngKzm");
+        //const PROGRAM_ID : Pubkey = solana_sdk::pubkey!("5BsCKkzuZXLygduw6RorCqEB61AdzNkxp5VzQrFGzYWr");
+        //const CCTP_MINT_RECIPIENT: Pubkey = solana_sdk::pubkey!("HUXc7MBf55vWrrkevVbmJN8HAyfFtjLcPLBt9yWngKzm");
         const USDC_MINT_ADDRESS: Pubkey = solana_sdk::pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
         const USDC_MINT_FIXTURE_PATH: &str = "tests/fixtures/usdc_mint.json";
     } else if #[cfg(feature = "testnet")] {
-        const PROGRAM_ID : Pubkey = solana_sdk::pubkey!("mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS");
-        const CCTP_MINT_RECIPIENT: Pubkey = solana_sdk::pubkey!("6yKmqWarCry3c8ntYKzM4WiS2fVypxLbENE2fP8onJje");
+        //const PROGRAM_ID : Pubkey = solana_sdk::pubkey!("mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS");
+        //const CCTP_MINT_RECIPIENT: Pubkey = solana_sdk::pubkey!("6yKmqWarCry3c8ntYKzM4WiS2fVypxLbENE2fP8onJje");
         const USDC_MINT_ADDRESS: Pubkey = solana_sdk::pubkey!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
         const USDC_MINT_FIXTURE_PATH: &str = "tests/fixtures/usdc_mint_devnet.json";
     } else if #[cfg(feature = "localnet")] {
-        const PROGRAM_ID : Pubkey = solana_sdk::pubkey!("MatchingEngine11111111111111111111111111111");
-        const CCTP_MINT_RECIPIENT: Pubkey = solana_sdk::pubkey!("35iwWKi7ebFyXNaqpswd1g9e9jrjvqWPV39nCQPaBbX1");
+        //const PROGRAM_ID : Pubkey = solana_sdk::pubkey!("MatchingEngine11111111111111111111111111111");
+        // const CCTP_MINT_RECIPIENT: Pubkey = solana_sdk::pubkey!("35iwWKi7ebFyXNaqpswd1g9e9jrjvqWPV39nCQPaBbX1");
     }
 }
 const OWNER_KEYPAIR_PATH: &str = "tests/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json";
@@ -31,7 +34,6 @@ const OWNER_KEYPAIR_PATH: &str = "tests/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vg
 /// Test that the program is initialised correctly
 #[tokio::test]
 pub async fn test_initialize_program() {
-    
     let pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
     let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
 
@@ -119,8 +121,6 @@ pub async fn test_setup_vaas() {
     ).await;
     let arb_endpoint_address = router_endpoints.arbitrum.endpoint_address;
     let eth_endpoint_address = router_endpoints.ethereum.endpoint_address;
-    let _local_endpoint_address = router_endpoints.solana.endpoint_address;
-    // TODO: Get auction pubkey
 
     let solver = testing_context.testing_actors.solvers[0].clone();
     let auction_accounts = AuctionAccounts::new(
@@ -140,4 +140,69 @@ pub async fn test_setup_vaas() {
 
     let improved_offer_fixture = improve_offer(&testing_context.test_context, initial_offer_fixture, testing_context.testing_actors.owner.keypair(), PROGRAM_ID, solver, auction_config_address).await;
     // improved_offer_fixture.verify_improved_offer(&testing_context.test_context).await;
+}
+
+
+#[tokio::test]
+pub async fn test_post_message_shims() {
+    let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
+    // Add shim programs
+    pre_testing_context.add_post_message_shims();
+    let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
+    let actors = testing_context.testing_actors;
+    let emitter_signer = actors.owner.keypair();
+    let payer_signer = actors.solvers[0].keypair();
+    let recent_blockhash = testing_context.test_context.borrow().last_blockhash;
+    set_up_post_message_transaction_test(&testing_context.test_context, &payer_signer, &emitter_signer, recent_blockhash).await;
+}
+
+#[tokio::test]
+pub async fn test_verify_shims() {
+    let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
+    pre_testing_context.add_verify_shims();
+    // This will create vaas for the arbitrum and ethereum chains and post them to the test context accounts. These vaas will not be needed for the shim test, and shouldn't interact with the program during the test.
+    let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address);
+    let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
+    set_up_verify_shims_test(&testing_context.test_context, &testing_context.testing_actors.owner.keypair()).await;
+    let initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
+    let first_test_ft = vaas_test.0.first().unwrap();
+    // Assume this vaa was not actually posted, but instead we will use it to test the new instruction using a shim
+    
+    // TODO: Load this from a file
+    let guardian_secret_key = SecpSecretKey::load("cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0").expect("Failed to load guardian secret key");
+    let fixture_accounts = testing_context.fixture_accounts.expect("Pre-made fixture accounts not found");
+    // Try making initial offer using the shim instruction
+    let usdc_mint_address = USDC_MINT_ADDRESS;
+    let auction_config_address = initialize_fixture.get_auction_config_address();
+    let router_endpoints = create_all_router_endpoints_test(
+        &testing_context.test_context,
+        testing_context.testing_actors.owner.pubkey(),
+        initialize_fixture.get_custodian_address(),
+        fixture_accounts.arbitrum_remote_token_messenger,
+        fixture_accounts.ethereum_remote_token_messenger,
+        usdc_mint_address,
+        testing_context.testing_actors.owner.keypair(),
+        PROGRAM_ID,
+    ).await;
+    let arb_endpoint_address = router_endpoints.arbitrum.endpoint_address;
+    let eth_endpoint_address = router_endpoints.ethereum.endpoint_address;
+
+    let solver = testing_context.testing_actors.solvers[0].clone();
+    let fast_vaa = Pubkey::new_unique(); // This is only needed in order to be compatible with the AuctionAccounts struct
+    let auction_accounts = AuctionAccounts::new(
+        fast_vaa, // Fast VAA pubkey
+        solver.clone(), // Solver
+        auction_config_address.clone(), // Auction config pubkey
+        arb_endpoint_address, // From router endpoint pubkey
+        eth_endpoint_address, // To router endpoint pubkey
+        initialize_fixture.get_custodian_address(), // Custodian pubkey
+        usdc_mint_address, // USDC mint pubkey
+    );
+
+    let fast_market_order = first_test_ft.fast_transfer_vaa.clone();
+
+    let initial_offer_fixture = place_initial_offer(&testing_context.test_context, &auction_accounts, fast_market_order, testing_context.testing_actors.owner.keypair(), PROGRAM_ID).await;
+
 }

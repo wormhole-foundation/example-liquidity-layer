@@ -57,6 +57,10 @@ cfg_if::cfg_if! {
 pub const TOKEN_ROUTER_PID: Pubkey = solana_program::pubkey!("tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md");
 pub const CCTP_TOKEN_MESSENGER_MINTER_PID: Pubkey = solana_program::pubkey!("CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3");
 pub const CCTP_MESSAGE_TRANSMITTER_PID: Pubkey = solana_program::pubkey!("CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd");
+pub const WORMHOLE_POST_MESSAGE_SHIM_PID: Pubkey = pubkey!("EtZMZM22ViKMo4r5y4Anovs3wKQ2owUmDpjygnMMcdEX");
+pub const WORMHOLE_VERIFY_VAA_SHIM_PID: Pubkey = pubkey!("EFaNWErqAtVWufdNb7yofSHHfWFos843DFpu4JBw24at");
+pub const WORMHOLE_POST_MESSAGE_SHIM_EVENT_AUTHORITY: Pubkey = pubkey!("HQS31aApX3DDkuXgSpV9XyDUNtFgQ31pUn5BNWHG2PSp");
+pub const WORMHOLE_POST_MESSAGE_SHIM_EVENT_AUTHORITY_BUMP: u8 = 255; 
 
 /// Keypairs as base64 strings (taken from consts.ts in ts tests)
 // pub const PAYER_KEYPAIR_B64: &str = "cDfpY+VbRFXPPwouZwAx+ha9HqedkhqUr5vUaFa2ucAMGliG/hCT35/EOMKW+fcnW3cYtrwOFW2NM2xY8IOZbQ==";
