@@ -23,17 +23,17 @@ cfg_if::cfg_if! {
         declare_id!("HtkeCDdYY4i9ncAxXKjYTx8Uu3WM8JbtiLRYjtHwaVXb");
 
         const CUSTODIAN_BUMP: u8 = 254;
-        const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("HUXc7MBf55vWrrkevVbmJN8HAyfFtjLcPLBt9yWngKzm");
+        pub const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("HUXc7MBf55vWrrkevVbmJN8HAyfFtjLcPLBt9yWngKzm");
     } else if #[cfg(feature = "testnet")] {
         declare_id!("mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS");
 
         const CUSTODIAN_BUMP: u8 = 254;
-        const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("6yKmqWarCry3c8ntYKzM4WiS2fVypxLbENE2fP8onJje");
+        pub const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("6yKmqWarCry3c8ntYKzM4WiS2fVypxLbENE2fP8onJje");
     } else if #[cfg(feature = "localnet")] {
         declare_id!("MatchingEngine11111111111111111111111111111");
 
         const CUSTODIAN_BUMP: u8 = 254;
-        const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("35iwWKi7ebFyXNaqpswd1g9e9jrjvqWPV39nCQPaBbX1");
+        pub const CCTP_MINT_RECIPIENT: Pubkey = pubkey!("35iwWKi7ebFyXNaqpswd1g9e9jrjvqWPV39nCQPaBbX1");
     }
 }
 
@@ -252,6 +252,13 @@ pub mod matching_engine {
         offer_price: u64,
     ) -> Result<()> {
         processor::place_initial_offer_cctp(ctx, offer_price)
+    }
+
+    /// This instruction is used to create a new auction given a valid `VaaShim`. 
+    /// This instruction should act in the exact same way as `place_initial_offer_cctp` except that 
+    /// it will check the digest of the vaa directly using a cpi call to the verify shim program.
+    pub fn place_initial_offer_cctp_shim(ctx: Context<PlaceInitialOfferCctpShim>, offer_price: u64, guardian_set_bump: u8, vaa_message: VaaMessage) -> Result<()> {
+        processor::place_initial_offer_cctp_shim(ctx, offer_price, guardian_set_bump, vaa_message)
     }
 
     /// This instruction is used to improve an existing auction offer. The `offer_price` must be

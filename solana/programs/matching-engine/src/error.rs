@@ -87,6 +87,8 @@ pub enum MatchingEngineError {
     CannotCloseAuctionYet = 0x500,
     AuctionHistoryNotFull = 0x502,
     AuctionHistoryFull = 0x504,
+
+    InvalidVerifyVaaShimProgram = 0x600,
 }
 
 #[cfg(test)]

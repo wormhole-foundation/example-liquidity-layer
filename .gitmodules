@@ -10,3 +10,7 @@
     path = evm/lib/wormhole-solidity-sdk
     url = https://github.com/wormhole-foundation/wormhole-solidity-sdk
     branch = 2b7db51f99b49eda99b44f4a044e751cb0b2e8ea
+[submodule "solana/lib/wormhole"]
+	path = solana/lib/wormhole
+	url = https://github.com/wormholelabs-xyz/wormhole.git
+	branch = svm-shims-2

@@ -39,6 +39,11 @@ solana-program.workspace = true
 hex.workspace = true
 ruint.workspace = true
 cfg-if.workspace = true
+wormhole-svm-definitions.workspace = true
+
+
+# wormhole-bridge-solana.workspace = true
+
 
 
 [dev-dependencies]
@@ -53,6 +58,8 @@ lazy_static = "1.4.0"
 bs58 = "0.5.0"
 serde = { version = "1.0.212", features = ["derive"] }
 secp256k1 = {version = "0.30.0", features = ["rand", "hashes", "std", "global-context"] }
+wormhole-svm-shim.workspace = true
+wormhole-svm-definitions.workspace = true
 
 [lints]
 workspace = true

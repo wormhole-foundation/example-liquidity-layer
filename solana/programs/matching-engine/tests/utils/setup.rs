@@ -7,7 +7,7 @@ use std::cell::RefCell;
 use anchor_spl::token::spl_token::{self, instruction::approve};
 use super::{airdrop::airdrop_usdc, token_account::{create_token_account, read_keypair_from_file, TokenAccountFixture}};
 use super::mint::MintFixture;
-use super::program_fixtures::{initialise_upgrade_manager, initialise_cctp_token_messenger_minter, initialise_wormhole_core_bridge, initialise_cctp_message_transmitter, initialise_local_token_router};
+use super::program_fixtures::{initialise_upgrade_manager, initialise_cctp_token_messenger_minter, initialise_wormhole_core_bridge, initialise_cctp_message_transmitter, initialise_local_token_router, initialise_post_message_shims, initialise_verify_shims};
 use super::airdrop::airdrop;
 use super::account_fixtures::FixtureAccounts;
 
@@ -58,6 +58,14 @@ impl PreTestingContext {
         FixtureAccounts::add_lookup_table_hack(&mut program_test);
 
         PreTestingContext { program_test, testing_actors, program_data_pubkey, account_fixtures }
+    }
+
+    pub fn add_post_message_shims(&mut self) {
+        initialise_post_message_shims(&mut self.program_test);
+    }
+
+    pub fn add_verify_shims(&mut self) {
+        initialise_verify_shims(&mut self.program_test);
     }
 }
 

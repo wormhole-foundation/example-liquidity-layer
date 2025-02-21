@@ -14,4 +14,5 @@ pub mod router;
 pub mod vaa;
 pub mod auction;
 pub mod setup;
+pub mod shims;
 pub use constants::*;
