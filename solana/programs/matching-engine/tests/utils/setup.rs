@@ -211,7 +211,7 @@ impl TestingActors {
     async fn create_atas(&mut self, test_context: &Rc<RefCell<ProgramTestContext>>, usdc_mint_address: Pubkey) {
         for actor in self.token_account_actors() {
             let usdc_ata = create_token_account(test_context.clone(), &actor.keypair(), &usdc_mint_address).await;
-            airdrop_usdc(test_context, &usdc_ata.address, &actor.pubkey(), 420_000__000_000).await;
+            airdrop_usdc(test_context, &usdc_ata.address, 420_000__000_000).await;
             actor.token_account = Some(usdc_ata);
         }
     }

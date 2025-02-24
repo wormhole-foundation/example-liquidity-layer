@@ -1,20 +1,14 @@
-use std::str::FromStr;
-
 use matching_engine::{ID as PROGRAM_ID, CCTP_MINT_RECIPIENT};
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
-use secp256k1::SecretKey as SecpSecretKey;
 mod utils;
 use utils::{Chain, REGISTERED_TOKEN_ROUTERS};
-use utils::router::{create_cctp_router_endpoints_test, add_local_router_endpoint_ix, create_all_router_endpoints_test, get_router_endpoint_address};
+use utils::router::{create_cctp_router_endpoints_test, add_local_router_endpoint_ix, create_all_router_endpoints_test};
 use utils::initialize::initialize_program;
-use utils::account_fixtures::FixtureAccounts;
 use utils::auction::{AuctionAccounts, place_initial_offer, improve_offer};
 use utils::setup::{PreTestingContext, TestingContext};
-use utils::vaa::{create_vaas_test, create_vaas_test_with_chain_and_address};
-use utils::shims::{add_guardian_signatures_account, place_initial_offer_shim, set_up_post_message_transaction_test, set_up_verify_shims_test};
-use utils::constants::*;
-use wormhole_svm_definitions::borsh::GuardianSignatures;
+use utils::vaa::create_vaas_test_with_chain_and_address;
+use utils::shims::{place_initial_offer_shim, set_up_post_message_transaction_test};
 use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
 // Configures the program ID and CCTP mint recipient based on the environment
 cfg_if::cfg_if! {
@@ -142,7 +136,7 @@ pub async fn test_setup_vaas() {
     let initial_offer_fixture = place_initial_offer(&testing_context.test_context, &auction_accounts, fast_market_order, testing_context.testing_actors.owner.keypair(), PROGRAM_ID).await;
     initial_offer_fixture.verify_initial_offer(&testing_context.test_context).await;
 
-    let improved_offer_fixture = improve_offer(&testing_context.test_context, initial_offer_fixture, testing_context.testing_actors.owner.keypair(), PROGRAM_ID, solver, auction_config_address).await;
+    let _improved_offer_fixture = improve_offer(&testing_context.test_context, initial_offer_fixture, testing_context.testing_actors.owner.keypair(), PROGRAM_ID, solver, auction_config_address).await;
     // improved_offer_fixture.verify_improved_offer(&testing_context.test_context).await;
 }
 
@@ -176,7 +170,6 @@ pub async fn test_verify_shims() {
     let first_test_ft = vaas_test.0.first().unwrap();
     // Assume this vaa was not actually posted, but instead we will use it to test the new instruction using a shim
     
-    let guardian_secret_key = SecpSecretKey::from_str(GUARDIAN_SECRET_KEY).expect("Failed to load guardian secret key");
     let fixture_accounts = testing_context.fixture_accounts.expect("Pre-made fixture accounts not found");
     // Try making initial offer using the shim instruction
     let usdc_mint_address = USDC_MINT_ADDRESS;
@@ -210,13 +203,13 @@ pub async fn test_verify_shims() {
     
     let solver = testing_context.testing_actors.solvers[0].clone();
 
-    let initial_offer_fixture = place_initial_offer_shim(
+    let _initial_offer_fixture = place_initial_offer_shim(
         &testing_context.test_context,
         &testing_context.testing_actors.owner.keypair(),
         &PROGRAM_ID,
         &CORE_BRIDGE_PROGRAM_ID,
         &vaa_data,
-        testing_context.testing_actors.solvers[0].clone(),
+        solver,
         &auction_accounts,
     ).await.expect("Failed to place initial offer");
 }

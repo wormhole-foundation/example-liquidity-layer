@@ -92,6 +92,7 @@ impl TestRouterEndpoints {
         Self { arbitrum, ethereum, solana }
     }
 
+    #[allow(dead_code)]
     pub fn get_endpoint_info(&self, chain: Chain) -> TestEndpointInfo {
         match chain {
             Chain::Arbitrum => self.arbitrum.info.clone(),
@@ -101,6 +102,7 @@ impl TestRouterEndpoints {
         }
     }
 
+    #[allow(dead_code)]
     pub fn get_endpoint_address(&self, chain: Chain) -> Pubkey {
         match chain {
             Chain::Arbitrum => self.arbitrum.endpoint_address,

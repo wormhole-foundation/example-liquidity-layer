@@ -1,5 +1,3 @@
-use anchor_lang::prelude::*;
-use anchor_lang::ToAccountInfo;
 use anchor_spl::token::spl_token;
 use solana_program_test::ProgramTestContext;
 use std::rc::Rc;
@@ -49,7 +47,6 @@ pub async fn airdrop(
 pub async fn airdrop_usdc(
     test_context: &Rc<RefCell<ProgramTestContext>>,
     recipient_ata: &Pubkey,
-    owner: &Pubkey,
     amount: u64,
 ) {
     let usdc_mint_address = constants::USDC_MINT;

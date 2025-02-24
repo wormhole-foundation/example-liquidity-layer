@@ -26,6 +26,7 @@ use anchor_lang::InstructionData;
 use solana_sdk::instruction::Instruction;
 use wormhole_svm_definitions::borsh::GuardianSignatures;
 
+#[allow(dead_code)]
 struct BumpCosts {
     message: u64,
     sequence: u64,
@@ -35,10 +36,11 @@ fn bump_cu_cost(bump: u8) -> u64 {
     1_500 * (255 - u64::from(bump))
 }
 
+#[allow(dead_code)]
 const EMITTER_SEQUENCE_SEED: &[u8] = b"Sequence";
 
 pub async fn set_up_post_message_transaction_test(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, emitter_signer: &Rc<Keypair>, recent_blockhash: Hash) {
-    let (transaction, bump_costs) = set_up_post_message_transaction(
+    let (transaction, _bump_costs) = set_up_post_message_transaction(
         b"All your base are belong to us",
         &payer_signer.clone().to_owned(),
         &emitter_signer.clone().to_owned(),
@@ -174,12 +176,13 @@ pub async fn add_guardian_signatures_account(test_ctx: &Rc<RefCell<ProgramTestCo
     Ok(signatures_signer.pubkey())
 }
 
+#[allow(dead_code)]
 /// Post signatures before the auction is created.
 pub async fn set_up_verify_shims_test(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>) -> Result<Pubkey> {
     let guardian_signatures_signer = Rc::new(Keypair::new());
     let (transaction, decoded_vaa)= set_up_verify_shims_transaction(test_ctx, payer_signer, &guardian_signatures_signer);
 
-    let details = {
+    let _details = {
         let out = test_ctx.borrow_mut().banks_client
             .simulate_transaction(transaction.clone())
             .await
@@ -226,6 +229,7 @@ pub async fn set_up_verify_shims_test(test_ctx: &Rc<RefCell<ProgramTestContext>>
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 struct DecodedVaa {
     pub guardian_set_index: u32,
     pub total_signatures: u8,
@@ -261,6 +265,7 @@ impl From<&str> for DecodedVaa {
     }
 }
 
+#[allow(dead_code)]
 fn set_up_verify_shims_transaction(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, guardian_signatures_signer: &Rc<Keypair>) -> (VersionedTransaction, DecodedVaa) {
     const VAA: &str = "AQAAAAQNAL1qji7v9KnngyX0VxK+3fCMVscWTLoYX8L48NWquq2WGrcHd4H0wYc0KF4ZOWjLD2okXoBjGQIDJzx4qIrbSzQBAQq69h+neXGb58VfhZgraPVCxJmnTj8JIDq5jqi3Qav1e+IW51mIJlOhSAdCRbEyQLzf6Z3C19WJJqSyt/z1XF0AAvFgDHkseyMZTE5vQjflu4tc5OLPJe2VYCxTJT15LA02YPrWgOM6HhfUhXDhFoG5AI/s2ApjK8jaqi7LGJILAUMBA6cp4vfko8hYyRvogqQWsdk9e20g0O6s60h4ewweapXCQHerQpoJYdDxlCehN4fuYnuudEhW+6FaXLjwNJBdqsoABDg9qXjXB47nBVCZAGns2eosVqpjkyDaCfo/p1x8AEjBA80CyC1/QlbG9L4zlnnDIfZWylsf3keJqx28+fZNC5oABi6XegfozgE8JKqvZLvd7apDhrJ6Qv+fMiynaXASkafeVJOqgFOFbCMXdMKehD38JXvz3JrlnZ92E+I5xOJaDVgABzDSte4mxUMBMJB9UUgJBeAVsokFvK4DOfvh6G3CVqqDJplLwmjUqFB7fAgRfGcA8PWNStRc+YDZiG66YxPnptwACe84S31Kh9voz2xRk1THMpqHQ4fqE7DizXPNWz6Z6ebEXGcd7UP9PBXoNNvjkLWZJZOdbkZyZqztaIiAo4dgWUABCobiuQP92WjTxOZz0KhfWVJ3YBVfsXUwaVQH4/p6khX0HCEVHR9VHmjvrAAGDMdJGWW+zu8mFQc4gPU6m4PZ6swADO7voA5GWZZPiztz22pftwxKINGvOjCPlLpM1Y2+Vq6AQuez/mlUAmaL0NKgs+5VYcM1SGBz0TL3ABRhKQAhUEMADWmiMo0J1Qaj8gElb+9711ZjvAY663GIyG/E6EdPW+nPKJI9iZE180sLct+krHj0J7PlC9BjDiO2y149oCOJ6FgAEcaVkYK43EpN7XqxrdpanX6R6TaqECgZTjvtN3L6AP2ceQr8mJJraYq+qY8pTfFvPKEqmW9CBYvnA5gIMpX59WsAEjIL9Hdnx+zFY0qSPB1hB9AhqWeBP/QfJjqzqafsczaeCN/rWUf6iNBgXI050ywtEp8JQ36rCn8w6dRhUusn+MEAZ32XyAAAAAAAFczO6yk0j3G90i/+9DoqGcH1teF8XMpUEVKRIBgmcq3lAAAAAAAC/1wAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC6Q7dAAAAAAAAAAAAAAAAAAoLhpkcYhizbB0Z1KLp6wzjYG60gAAgAAAAAAAAAAAAAAAInNTEvk5b/1WVF+JawF1smtAdicABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
     let decoded_vaa = DecodedVaa::from(VAA);
@@ -272,7 +277,7 @@ fn set_up_verify_shims_transaction(test_ctx: &Rc<RefCell<ProgramTestContext>>, p
 }
 
 fn post_signatures_transaction(payer_signer: &Rc<Keypair>, guardian_signatures_signer: &Rc<Keypair>, guardian_set_index: u32, total_signatures: u8, guardian_signatures_vec: &Vec<[u8; wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH]>, recent_blockhash: Hash) -> VersionedTransaction {
-    let mut post_signatures_ix = verify_vaa::PostSignatures {
+    let post_signatures_ix = verify_vaa::PostSignatures {
         program_id: &WORMHOLE_VERIFY_VAA_SHIM_PID,
         accounts: verify_vaa::PostSignaturesAccounts {
             payer: &payer_signer.pubkey(),
@@ -306,6 +311,7 @@ fn post_signatures_transaction(payer_signer: &Rc<Keypair>, guardian_signatures_s
     .unwrap()
 }
 
+#[allow(dead_code)]
 fn generate_expected_guardian_signatures_info(
     payer: &Pubkey,
     total_signatures: u8,
@@ -350,12 +356,6 @@ pub async fn place_initial_offer_shim(test_ctx: &Rc<RefCell<ProgramTestContext>>
     let guardian_set_signatures = vaa_data.sign_with_guardian_key(&guardian_secret_key, 0);
     let signatures_signer = Rc::new(Keypair::new());
     let guardian_signatures_pubkey = add_guardian_signatures_account(test_ctx, payer_signer, &signatures_signer, vec![guardian_set_signatures], 0).await.expect("Failed to post guardian signatures");
-
-    let guardian_signatures = GuardianSignatures {
-        refund_recipient: payer_signer.pubkey(),
-        guardian_set_index_be: 0_u32.to_be_bytes(),
-        guardian_signatures: vec![guardian_set_signatures],
-    };
     
     let vaa_message = matching_engine::VaaMessage::from_vec(vaa_data.message_vec());
 

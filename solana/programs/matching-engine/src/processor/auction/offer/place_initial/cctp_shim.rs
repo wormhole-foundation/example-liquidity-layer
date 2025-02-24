@@ -1,16 +1,15 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, MessageProtocol},
+    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus},
     utils,
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{messages::{raw::LiquidityLayerMessage, FastMarketOrder}, wormhole_io::WriteableBytes, TRANSFER_AUTHORITY_SEED_PREFIX};
+use common::{messages::FastMarketOrder, TRANSFER_AUTHORITY_SEED_PREFIX};
 use wormhole_svm_shim::verify_vaa::{GuardianSetPubkey, VerifyHash, VerifyHashAccounts, VerifyHashData};
 use common::wormhole_io::TypePrefixedPayload;
-use solana_program::{keccak, instruction::Instruction, program::invoke_signed, program::invoke_signed_unchecked};
-use wormhole_io::Readable;
+use solana_program::{keccak, program::invoke_signed_unchecked};
 
 
 #[derive(Accounts)]
@@ -140,6 +139,7 @@ impl VaaMessage {
         u32::from_be_bytes(self.0[0..4].try_into().unwrap())
     }
 
+    #[allow(dead_code)]
     fn nonce(&self) -> u32 {
         // nonce is the next 4 bytes of the message
         u32::from_be_bytes(self.0[4..8].try_into().unwrap())
@@ -163,26 +163,6 @@ impl VaaMessage {
 
 }
 
-pub struct Payload(Vec<u8>);
-
-impl Payload {
-    pub fn new(amount_in: u64, min_amount_out: u64, target_chain: u16, redeemer: [u8; 32], sender: [u8; 32], refund_address: [u8; 32], max_fee: u64, init_auction_fee: u64, deadline: u32, redeemer_message: Vec<u8>) -> Self {
-        let fast_market_order = FastMarketOrder {
-            amount_in,
-            min_amount_out,
-            target_chain,
-            redeemer,
-            sender,
-            refund_address,
-            max_fee,
-            init_auction_fee,
-            deadline,
-            redeemer_message: WriteableBytes::new(redeemer_message),
-        };
-        Self(fast_market_order.to_vec())
-    }
-}
-
 /// Just a helper struct to make the code more readable.
 struct VaaMessageBody {
 
@@ -191,12 +171,6 @@ struct VaaMessageBody {
 
     /// Time the vaa was submitted
     pub vaa_time: u32,
-
-    /// Account where signatures are stored
-    pub vaa_signature_account: Pubkey,
-
-    /// Time the posted message was created
-    pub submission_time: u32,
 
     /// Unique nonce for this message
     pub nonce: u32,
@@ -219,8 +193,6 @@ impl VaaMessageBody {
         Self {
             consistency_level,
             vaa_time,
-            vaa_signature_account: Pubkey::new_unique(), // Doesn't matter for the hash
-            submission_time: 0, // Doesn't matter for the hash
             nonce: 0, // Always 0
             sequence,
             emitter_chain, // Can be taken from the live router path
