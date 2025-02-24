@@ -2,9 +2,6 @@ use anchor_lang::prelude::*;
 use common::messages::{FastMarketOrder, SlowOrderResponse};
 use common::messages::wormhole_io::{WriteableBytes, TypePrefixedPayload};
 use common::wormhole_cctp_solana::messages::Deposit; // Implements to_vec() under PrefixedPayload
-use matching_engine::accounts::{FastOrderPath, LiquidityLayerVaa, LiveRouterPath}; use secp256k1::ecdsa::RecoverableSignature;
-// TODO: Remove this if not needed
-use secp256k1::ecdsa::RecoverableSignature as RecovorableSecpSignature;
 use secp256k1::SecretKey as SecpSecretKey;
 
 use super::constants::Chain;
@@ -132,11 +129,7 @@ impl PostedVaaData {
         keccak::hashv(&[self.message_hash().as_ref()]).as_ref().try_into().unwrap()
     }
 
-    pub fn create_vaa_account(&self, program_test: &mut ProgramTest) -> Pubkey {
-        let vaa_hash = self.message_hash();
-        let vaa_hash_as_slice = vaa_hash.as_ref();
-        let vaa_address = Pubkey::find_program_address(&[b"PostedVAA", vaa_hash_as_slice], &CORE_BRIDGE_PID).0;
-        
+    pub fn create_vaa_account(&self, program_test: &mut ProgramTest, vaa_address: Pubkey) {
         let vaa_data_serialized = serialize_with_discriminator(self).unwrap();
         let lamports = solana_sdk::rent::Rent::default().minimum_balance(vaa_data_serialized.len());
         let vaa_account = Account {
@@ -147,7 +140,6 @@ impl PostedVaaData {
             rent_epoch: u64::MAX,
         };
         program_test.add_account(vaa_address, vaa_account);
-        vaa_address
     }
 }
 
@@ -206,10 +198,15 @@ pub struct TestFastTransfer {
 }
 
 impl TestFastTransfer {
-    pub fn new(program_test: &mut ProgramTest, start_timestamp: Option<u32>, token_mint: Pubkey, source_address: ChainAddress, refund_address: ChainAddress, destination_address: ChainAddress, cctp_nonce: u64, sequence: u64, cctp_mint_recipient: Pubkey) -> Self {
-        let (deposit_vaa_pubkey, deposit_vaa_data) = create_deposit_message(program_test, token_mint, source_address.clone(), destination_address.clone(), cctp_nonce, sequence, cctp_mint_recipient);
-        let (fast_transfer_vaa_pubkey, fast_transfer_vaa_data) = create_fast_transfer_message(program_test, start_timestamp, source_address.clone(), refund_address.clone(), destination_address.clone(), cctp_nonce, sequence);
+    pub fn new(start_timestamp: Option<u32>, token_mint: Pubkey, source_address: ChainAddress, refund_address: ChainAddress, destination_address: ChainAddress, cctp_nonce: u64, sequence: u64, cctp_mint_recipient: Pubkey) -> Self {
+        let (deposit_vaa_pubkey, deposit_vaa_data) = create_deposit_message(token_mint, source_address.clone(), destination_address.clone(), cctp_nonce, sequence, cctp_mint_recipient);
+        let (fast_transfer_vaa_pubkey, fast_transfer_vaa_data) = create_fast_transfer_message(start_timestamp, source_address.clone(), refund_address.clone(), destination_address.clone(), cctp_nonce, sequence);
         Self { token_mint, source_address, refund_address, destination_address, cctp_nonce:cctp_nonce as u32, sequence, deposit_vaa: TestVaa { kind: TestVaaKind::Deposit, vaa_pubkey: deposit_vaa_pubkey, vaa_data: deposit_vaa_data }, fast_transfer_vaa: TestVaa { kind: TestVaaKind::FastTransfer, vaa_pubkey: fast_transfer_vaa_pubkey, vaa_data: fast_transfer_vaa_data } }
+    }
+
+    pub fn add_to_test(&self, program_test:&mut ProgramTest) {
+        self.deposit_vaa.vaa_data.create_vaa_account(program_test, self.deposit_vaa.vaa_pubkey.clone());
+        self.fast_transfer_vaa.vaa_data.create_vaa_account(program_test, self.fast_transfer_vaa.vaa_pubkey.clone());
     }
 
     pub async fn verify_vaas(&self, test_context: &Rc<RefCell<ProgramTestContext>>) {
@@ -231,7 +228,7 @@ impl TestFastTransfer {
     }
 }
 
-pub fn create_deposit_message(program_test: &mut ProgramTest, token_mint: Pubkey, source_address: ChainAddress, destination_address: ChainAddress, cctp_nonce: u64, sequence: u64, cctp_mint_recipient: Pubkey) -> (Pubkey, PostedVaaData) {
+pub fn create_deposit_message(token_mint: Pubkey, source_address: ChainAddress, destination_address: ChainAddress, cctp_nonce: u64, sequence: u64, cctp_mint_recipient: Pubkey) -> (Pubkey, PostedVaaData) {
     
     let slow_order_response = SlowOrderResponse {
         base_fee: 0,
@@ -250,11 +247,13 @@ pub fn create_deposit_message(program_test: &mut ProgramTest, token_mint: Pubkey
 
     // Sequece == nonce in this case, since only vaas we are submitting are fast transfers
     let posted_vaa_data = PostedVaaData::new(source_address.chain, deposit.to_vec(), source_address.address, sequence, cctp_nonce as u32);
-    let vaa_address = posted_vaa_data.create_vaa_account(program_test);
+    let vaa_hash = posted_vaa_data.message_hash();
+    let vaa_hash_as_slice = vaa_hash.as_ref();
+    let vaa_address = Pubkey::find_program_address(&[b"PostedVAA", vaa_hash_as_slice], &CORE_BRIDGE_PID).0;
     (vaa_address, posted_vaa_data)
 }
 
-pub fn create_fast_transfer_message(program_test: &mut ProgramTest, start_timestamp: Option<u32>, source_address: ChainAddress, refund_address: ChainAddress, destination_address: ChainAddress, cctp_nonce: u64, sequence: u64) -> (Pubkey, PostedVaaData) {
+pub fn create_fast_transfer_message(start_timestamp: Option<u32>, source_address: ChainAddress, refund_address: ChainAddress, destination_address: ChainAddress, cctp_nonce: u64, sequence: u64) -> (Pubkey, PostedVaaData) {
     // If start timestamp is not provided, set the deadline to 0
     let deadline = start_timestamp.map(|timestamp| timestamp + 10).unwrap_or(0);
     // Implements TypePrefixedPayload
@@ -272,7 +271,9 @@ pub fn create_fast_transfer_message(program_test: &mut ProgramTest, start_timest
     };
 
     let posted_vaa_data = PostedVaaData::new(source_address.chain, fast_market_order.to_vec(), source_address.address, sequence, cctp_nonce as u32);
-    let vaa_address = posted_vaa_data.create_vaa_account(program_test);
+    let vaa_hash = posted_vaa_data.message_hash();
+    let vaa_hash_as_slice = vaa_hash.as_ref();
+    let vaa_address = Pubkey::find_program_address(&[b"PostedVAA", vaa_hash_as_slice], &CORE_BRIDGE_PID).0;
     (vaa_address, posted_vaa_data)
 }
 
@@ -294,21 +295,12 @@ impl TestFastTransfers {
     }
 
     /// Add a fast transfer to the test, the sequence number and cctp nonce are equal to the index of the test fast transfer
-    pub fn add_ft(&mut self, program_test: &mut ProgramTest, start_timestamp: Option<u32>, token_mint: Pubkey, source_address: ChainAddress, refund_address: ChainAddress, destination_address: ChainAddress, cctp_mint_recipient: Pubkey) {
+    pub fn add_ft(&mut self, start_timestamp: Option<u32>, token_mint: Pubkey, source_address: ChainAddress, refund_address: ChainAddress, destination_address: ChainAddress, cctp_mint_recipient: Pubkey) {
         let sequence = self.len() as u64;
         let cctp_nonce = sequence;
-        let test_fast_transfer = TestFastTransfer::new(program_test, start_timestamp, token_mint, source_address, refund_address, destination_address, cctp_nonce, sequence, cctp_mint_recipient);
+        let test_fast_transfer = TestFastTransfer::new(start_timestamp, token_mint, source_address, refund_address, destination_address, cctp_nonce, sequence, cctp_mint_recipient);
         self.0.push(test_fast_transfer);
     }
-}
-
-pub fn create_vaas_test(program_test: &mut ProgramTest, mint_address: Pubkey, start_timestamp: Option<u32>, cctp_mint_recipient: Pubkey) -> TestFastTransfers {
-    let mut test_fast_transfers = TestFastTransfers::new();
-    let source_address = ChainAddress::new_unique(Chain::Arbitrum);
-    let destination_address = ChainAddress::new_unique(Chain::Ethereum);
-    let refund_address = source_address.clone();
-    test_fast_transfers.add_ft(program_test, start_timestamp, mint_address.clone(), source_address, refund_address, destination_address, cctp_mint_recipient);
-    test_fast_transfers
 }
 
 pub fn create_vaas_test_with_chain_and_address(program_test: &mut ProgramTest, mint_address: Pubkey, start_timestamp: Option<u32>, cctp_mint_recipient: Pubkey, source_chain: Chain, destination_chain: Chain, source_address: [u8; 32], destination_address: [u8; 32]) -> TestFastTransfers {
@@ -316,13 +308,17 @@ pub fn create_vaas_test_with_chain_and_address(program_test: &mut ProgramTest, m
     let source_address = ChainAddress::new_with_address(source_chain, source_address);
     let destination_address = ChainAddress::new_with_address(destination_chain, destination_address);
     let refund_address = source_address.clone();
-    test_fast_transfers.add_ft(program_test, start_timestamp, mint_address.clone(), source_address, refund_address, destination_address, cctp_mint_recipient);
+    test_fast_transfers.add_ft(start_timestamp, mint_address.clone(), source_address, refund_address, destination_address, cctp_mint_recipient);
+    for test_fast_transfer in test_fast_transfers.0.iter() {
+        test_fast_transfer.add_to_test(program_test);
+    }
     test_fast_transfers
 }
 pub trait ToBytes {
     fn to_bytes(&self) ->[u8; 32];
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum TestPubkey {
     Solana(Pubkey),
@@ -396,6 +392,7 @@ pub struct ChainAddress {
 }
 
 impl ChainAddress {
+    #[allow(dead_code)]
     pub fn new_unique(chain: Chain) -> Self {
         match chain {
             Chain::Solana => Self { chain, address: TestPubkey::Solana(Pubkey::new_unique()) },
@@ -408,6 +405,7 @@ impl ChainAddress {
         }
     }
 
+    #[allow(dead_code)]
     pub fn new_with_address(chain: Chain, address: [u8; 32]) -> Self {
         Self { chain, address: TestPubkey::Bytes(address) }
     }

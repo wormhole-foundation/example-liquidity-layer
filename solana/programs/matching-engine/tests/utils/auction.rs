@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
-use matching_engine::state::{Auction, AuctionConfig, AuctionInfo};
-use matching_engine::instruction::{CreateNewAuctionHistory, CreateFirstAuctionHistory, PlaceInitialOfferCctp as PlaceInitialOfferCctpIx, ImproveOffer as ImproveOfferIx};
+use matching_engine::state::{Auction, AuctionInfo};
+use matching_engine::instruction::{PlaceInitialOfferCctp as PlaceInitialOfferCctpIx, ImproveOffer as ImproveOfferIx};
 use matching_engine::accounts::{ActiveAuction, CheckedCustodian, FastOrderPath, LiquidityLayerVaa, LiveRouterEndpoint, LiveRouterPath, PlaceInitialOfferCctp as PlaceInitialOfferCctpAccounts, Usdc};
 use matching_engine::accounts::ImproveOffer as ImproveOfferAccounts;
 use solana_sdk::instruction::Instruction;
@@ -12,7 +12,6 @@ use solana_sdk::transaction::Transaction;
 use solana_sdk::signature::{Keypair, Signer};
 use common::TRANSFER_AUTHORITY_SEED_PREFIX;
 use anchor_lang::InstructionData;
-use solana_sdk::program_pack::Pack;
 use super::setup::Solver;
 use super::vaa::TestVaa;
 

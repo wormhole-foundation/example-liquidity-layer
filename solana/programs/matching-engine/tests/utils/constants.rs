@@ -1,9 +1,10 @@
+#![allow(dead_code)]
+
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
 use solana_program::pubkey;
 
 // Program IDs
-
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet")] {
         /// Core Bridge program ID on Solana mainnet.
