@@ -2,7 +2,9 @@ use anchor_lang::prelude::*;
 use common::messages::{FastMarketOrder, SlowOrderResponse};
 use common::messages::wormhole_io::{WriteableBytes, TypePrefixedPayload};
 use common::wormhole_cctp_solana::messages::Deposit; // Implements to_vec() under PrefixedPayload
-use matching_engine::accounts::{FastOrderPath, LiquidityLayerVaa, LiveRouterPath}; // TODO: Remove this if not needed
+use matching_engine::accounts::{FastOrderPath, LiquidityLayerVaa, LiveRouterPath}; use secp256k1::ecdsa::RecoverableSignature;
+// TODO: Remove this if not needed
+use secp256k1::ecdsa::RecoverableSignature as RecovorableSecpSignature;
 use secp256k1::SecretKey as SecpSecretKey;
 
 use super::constants::Chain;
@@ -98,10 +100,32 @@ impl PostedVaaData {
         ])
     }
 
-    pub fn sign_with_guardian_set(&self, guardian_secret_key: &SecpSecretKey) -> [u8; 64] {
+    pub fn message_vec(&self) -> Vec<u8> {
+        vec![
+            self.vaa_time.to_be_bytes().as_ref(),
+            self.nonce.to_be_bytes().as_ref(),
+            self.emitter_chain.to_be_bytes().as_ref(),
+            &self.emitter_address,
+            &self.sequence.to_be_bytes(),
+            &[self.consistency_level],
+            self.payload.as_ref(),
+        ].concat()
+    }
+
+    pub fn sign_with_guardian_key(&self, guardian_secret_key: &SecpSecretKey, index: u8) -> [u8; 66] {
         // Sign the message hash with the guardian key
-        let signature = guardian_secret_key.sign_ecdsa(self.message_hash().as_ref());
-        signature.serialize_compact()
+        let secp = secp256k1::SECP256K1;
+        let msg = secp256k1::Message::from_digest(self.digest());
+        let recoverable_signature = secp.sign_ecdsa_recoverable(&msg, &guardian_secret_key);
+        let mut signature_bytes = [0u8; 66];
+        // First byte is the index
+        signature_bytes[0] = index;
+        // Next 64 bytes are the signature in compact format
+        let (recovery_id, compact_sig) = recoverable_signature.serialize_compact();
+        // Recovery ID goes in byte 65
+        signature_bytes[1..65].copy_from_slice(&compact_sig);
+        signature_bytes[65] = i32::from(recovery_id) as u8;
+        signature_bytes
     }
 
     pub fn digest(&self) -> [u8; 32] {

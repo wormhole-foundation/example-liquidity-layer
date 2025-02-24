@@ -9,6 +9,7 @@ mod events;
 
 mod processor;
 pub use processor::InitializeArgs;
+pub use processor::VaaMessage;
 use processor::*;
 
 pub mod state;

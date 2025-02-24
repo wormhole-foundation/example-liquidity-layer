@@ -17,7 +17,7 @@ use super::setup::Solver;
 use super::vaa::TestVaa;
 
 pub struct AuctionAccounts {
-    pub fast_vaa: Pubkey,
+    pub fast_vaa: Option<Pubkey>,
     pub offer_token: Pubkey,
     pub solver: Solver,
     pub auction_config: Pubkey,
@@ -28,7 +28,7 @@ pub struct AuctionAccounts {
 }
 
 impl AuctionAccounts {
-    pub fn new(fast_vaa: Pubkey, solver: Solver, auction_config: Pubkey, from_router_endpoint: Pubkey, to_router_endpoint: Pubkey, custodian: Pubkey, usdc_mint_address: Pubkey) -> Self {
+    pub fn new(fast_vaa: Option<Pubkey>, solver: Solver, auction_config: Pubkey, from_router_endpoint: Pubkey, to_router_endpoint: Pubkey, custodian: Pubkey, usdc_mint_address: Pubkey) -> Self {
         Self {
             fast_vaa,
             offer_token: solver.token_account_address().unwrap(),

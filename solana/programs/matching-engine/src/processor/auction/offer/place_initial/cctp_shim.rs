@@ -6,15 +6,15 @@ use crate::{
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{messages::{raw::LiquidityLayerMessage, FastMarketOrder}, TRANSFER_AUTHORITY_SEED_PREFIX};
-use solana_sdk::program::invoke_signed_unchecked;
-use wormhole_svm_shim::verify_vaa::{VerifyHash, VerifyHashData};
+use common::{messages::{raw::LiquidityLayerMessage, FastMarketOrder}, wormhole_io::WriteableBytes, TRANSFER_AUTHORITY_SEED_PREFIX};
+use wormhole_svm_shim::verify_vaa::{GuardianSetPubkey, VerifyHash, VerifyHashAccounts, VerifyHashData};
 use common::wormhole_io::TypePrefixedPayload;
-use solana_program::{keccak, instruction::Instruction, program::invoke_signed};
+use solana_program::{keccak, instruction::Instruction, program::invoke_signed, program::invoke_signed_unchecked};
+use wormhole_io::Readable;
 
 
 #[derive(Accounts)]
-#[instruction(offer_price: u64)]
+#[instruction(offer_price: u64, guardian_set_bump: u8, vaa_message: VaaMessage)]
 #[event_cpi]
 pub struct PlaceInitialOfferCctpShim<'info> {
     #[account(mut)]
@@ -61,7 +61,7 @@ pub struct PlaceInitialOfferCctpShim<'info> {
         space = 8 + Auction::INIT_SPACE,
         seeds = [
             Auction::SEED_PREFIX,
-            fast_order_path.fast_vaa.load_unchecked().digest().as_ref(),
+            vaa_message.digest().as_ref(),
         ],
         bump
     )]
@@ -99,20 +99,26 @@ pub struct PlaceInitialOfferCctpShim<'info> {
     token_program: Program<'info, token::Token>,
 }
 
+// TODO: Change this to be PlaceInitialOfferArgs and go from there ... 
 /// A vaa message is the serialised message body of a posted vaa. Only the fields that are required to create the digest are included.
-pub struct VaaMessage(Vec<u8>);
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct VaaMessage(pub Vec<u8>);
 
 impl VaaMessage {
     pub fn new(consistency_level: u8, vaa_time: u32, sequence: u64, emitter_chain: u16, emitter_address: [u8; 32], payload: Vec<u8>) -> Self {
         Self(VaaMessageBody::new(consistency_level, vaa_time, sequence, emitter_chain, emitter_address, payload).to_vec())
     }
 
+    pub fn from_vec(vec: Vec<u8>) -> Self {
+        Self(vec)
+    }
+
     fn message_hash(&self) -> keccak::Hash {
         keccak::hashv(&[self.0.as_ref()])
     }
 
-    pub fn digest(&self) -> [u8; 32] {
-        self.message_hash().as_ref().try_into().unwrap()
+    pub fn digest(&self) -> keccak::Hash {
+        keccak::hashv(&[self.message_hash().as_ref()])
     }
 
     fn payload(&self) -> Vec<u8> {
@@ -171,7 +177,7 @@ impl Payload {
             max_fee,
             init_auction_fee,
             deadline,
-            redeemer_message,
+            redeemer_message: WriteableBytes::new(redeemer_message),
         };
         Self(fast_market_order.to_vec())
     }
@@ -242,44 +248,45 @@ pub fn place_initial_offer_cctp_shim(
     guardian_set_bump: u8,
     vaa_message: VaaMessage,
 ) -> Result<()> {
+    msg!("Placing initial offer with CCTP shim");
     // Extract the guardian set and guardian set signatures accounts from the FastOrderPathShim.
-    let FastOrderPathShim{guardian_set, guardian_set_signatures, live_router_path} = ctx.accounts.fast_order_path_shim;
-    
+    let FastOrderPathShim{guardian_set, guardian_set_signatures, live_router_path} = &ctx.accounts.fast_order_path_shim;
+    msg!("Made fast order path shim");
     // Check that the VAA message corresponds to the accounts in the FastOrderPathShim.
-    let from_endpoint = live_router_path.from_endpoint;
+    let from_endpoint = &live_router_path.from_endpoint;
     assert_eq!(from_endpoint.chain, vaa_message.emitter_chain());
     assert_eq!(from_endpoint.address, vaa_message.emitter_address());
+    msg!("Asserted equal emitter chain and address");
 
     let verify_hash_data = VerifyHashData::new(guardian_set_bump, vaa_message.digest());
 
-    // Call the verify shim program using cpi to verify the hash of the shim.
-    let verify_shim_ix = Instruction {
+    let verify_shim_ix = VerifyHash {
         program_id: &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
-        accounts: vec![
-            AccountMeta::new(guardian_set.key(), false),
-            AccountMeta::new(guardian_set_signatures.key(), false),
-        ],
-        data: verify_hash_data.to_vec(),
-    };
-
+        accounts: VerifyHashAccounts {
+            guardian_set: GuardianSetPubkey::Provided(&guardian_set.key()),
+            guardian_signatures: &guardian_set_signatures.key(),
+        },
+        data: verify_hash_data
+    }.instruction();
+    msg!("Made verify shim ix");
     // Make the cpi call to verify the shim.
     invoke_signed_unchecked(&verify_shim_ix, &[
         guardian_set.to_account_info(),
         guardian_set_signatures.to_account_info(),
-    ], &[&[]])?;
+    ], &[])?;
+    msg!("Verified shim");
+    let payload = vaa_message.payload();
     
-    let order = LiquidityLayerMessage::try_from(vaa_message.payload())
-        .unwrap()
-        .to_fast_market_order_unchecked();
-
+    let order: FastMarketOrder = TypePrefixedPayload::<1>::read_slice(&payload).unwrap();
+    
     // Parse the transfer amount from the VAA.
-    let amount_in = order.amount_in();
+    let amount_in = order.amount_in;
 
     // Saturating to u64::MAX is safe here. If the amount really ends up being this large, the
     // checked addition below will catch it.
     let security_deposit =
         order
-            .max_fee()
+            .max_fee
             .saturating_add(utils::auction::compute_notional_security_deposit(
                 &ctx.accounts.auction_config,
                 amount_in,
@@ -290,7 +297,7 @@ pub fn place_initial_offer_cctp_shim(
     let initial_offer_token = ctx.accounts.offer_token.key();
     ctx.accounts.auction.set_inner(Auction {
         bump: ctx.bumps.auction,
-        vaa_hash: vaa_message.digest(),
+        vaa_hash: vaa_message.digest().as_ref().try_into().unwrap(),
         vaa_timestamp: vaa_message.vaa_time(),
         target_protocol: live_router_path.to_endpoint.protocol,
         status: AuctionStatus::Active,
@@ -306,7 +313,7 @@ pub fn place_initial_offer_cctp_shim(
             amount_in,
             security_deposit,
             offer_price,
-            redeemer_message_len: order.redeemer_message_len(),
+            redeemer_message_len: order.redeemer_message.len() as u16,
             destination_asset_info: Default::default(),
         }
         .into(),

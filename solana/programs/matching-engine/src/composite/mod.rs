@@ -18,10 +18,6 @@ use common::{
         wormhole::{core_bridge_program, VaaAccount},
     },
 };
-use wormhole_svm_bridge::{
-    GuardianSet,
-    GuardianSetSignatures,
-};
 
 #[derive(Accounts)]
 pub struct Usdc<'info> {

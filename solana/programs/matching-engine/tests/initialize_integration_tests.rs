@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use matching_engine::{ID as PROGRAM_ID, CCTP_MINT_RECIPIENT};
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
@@ -10,8 +12,10 @@ use utils::account_fixtures::FixtureAccounts;
 use utils::auction::{AuctionAccounts, place_initial_offer, improve_offer};
 use utils::setup::{PreTestingContext, TestingContext};
 use utils::vaa::{create_vaas_test, create_vaas_test_with_chain_and_address};
-use utils::shims::{set_up_post_message_transaction_test, set_up_verify_shims_test};
+use utils::shims::{add_guardian_signatures_account, place_initial_offer_shim, set_up_post_message_transaction_test, set_up_verify_shims_test};
 use utils::constants::*;
+use wormhole_svm_definitions::borsh::GuardianSignatures;
+use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
 // Configures the program ID and CCTP mint recipient based on the environment
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet")] {
@@ -124,7 +128,7 @@ pub async fn test_setup_vaas() {
 
     let solver = testing_context.testing_actors.solvers[0].clone();
     let auction_accounts = AuctionAccounts::new(
-        fast_vaa, // Fast VAA pubkey
+        Some(fast_vaa), // Fast VAA pubkey
         solver.clone(), // Solver
         auction_config_address.clone(), // Auction config pubkey
         arb_endpoint_address, // From router endpoint pubkey
@@ -156,6 +160,8 @@ pub async fn test_post_message_shims() {
     set_up_post_message_transaction_test(&testing_context.test_context, &payer_signer, &emitter_signer, recent_blockhash).await;
 }
 
+
+// TODO: Check that you cannot execute the order the old way and then place the initial offer using the shim
 #[tokio::test]
 pub async fn test_verify_shims() {
     let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
@@ -165,13 +171,12 @@ pub async fn test_verify_shims() {
     let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
     let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address);
     let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
-    set_up_verify_shims_test(&testing_context.test_context, &testing_context.testing_actors.owner.keypair()).await;
+    // TODO: Change the posting of the signatures to be the actual single guardian signature.
     let initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
     let first_test_ft = vaas_test.0.first().unwrap();
     // Assume this vaa was not actually posted, but instead we will use it to test the new instruction using a shim
     
-    // TODO: Load this from a file
-    let guardian_secret_key = SecpSecretKey::load("cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0").expect("Failed to load guardian secret key");
+    let guardian_secret_key = SecpSecretKey::from_str(GUARDIAN_SECRET_KEY).expect("Failed to load guardian secret key");
     let fixture_accounts = testing_context.fixture_accounts.expect("Pre-made fixture accounts not found");
     // Try making initial offer using the shim instruction
     let usdc_mint_address = USDC_MINT_ADDRESS;
@@ -190,9 +195,8 @@ pub async fn test_verify_shims() {
     let eth_endpoint_address = router_endpoints.ethereum.endpoint_address;
 
     let solver = testing_context.testing_actors.solvers[0].clone();
-    let fast_vaa = Pubkey::new_unique(); // This is only needed in order to be compatible with the AuctionAccounts struct
     let auction_accounts = AuctionAccounts::new(
-        fast_vaa, // Fast VAA pubkey
+        None, // Fast VAA pubkey
         solver.clone(), // Solver
         auction_config_address.clone(), // Auction config pubkey
         arb_endpoint_address, // From router endpoint pubkey
@@ -201,8 +205,18 @@ pub async fn test_verify_shims() {
         usdc_mint_address, // USDC mint pubkey
     );
 
-    let fast_market_order = first_test_ft.fast_transfer_vaa.clone();
+    let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
 
-    let initial_offer_fixture = place_initial_offer(&testing_context.test_context, &auction_accounts, fast_market_order, testing_context.testing_actors.owner.keypair(), PROGRAM_ID).await;
+    
+    let solver = testing_context.testing_actors.solvers[0].clone();
 
+    let initial_offer_fixture = place_initial_offer_shim(
+        &testing_context.test_context,
+        &testing_context.testing_actors.owner.keypair(),
+        &PROGRAM_ID,
+        &CORE_BRIDGE_PROGRAM_ID,
+        &vaa_data,
+        testing_context.testing_actors.solvers[0].clone(),
+        &auction_accounts,
+    ).await.expect("Failed to place initial offer");
 }
