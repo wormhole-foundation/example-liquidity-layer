@@ -54,6 +54,8 @@ cfg_if::cfg_if! {
         pub const USDC_MINT: Pubkey = pubkey!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
     }
 }
+
+pub const GUARDIAN_SECRET_KEY: &str = "cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0";
 pub const TOKEN_ROUTER_PID: Pubkey = solana_program::pubkey!("tD8RmtdcV7bzBeuFgyrFc8wvayj988ChccEzRQzo6md");
 pub const CCTP_TOKEN_MESSENGER_MINTER_PID: Pubkey = solana_program::pubkey!("CCTPiPYPc6AsJuwueEnWgSgucamXDZwBd53dQ11YiKX3");
 pub const CCTP_MESSAGE_TRANSMITTER_PID: Pubkey = solana_program::pubkey!("CCTPmbSD7gX1bxKPAmg77w8oFzNFpaQiQUWD43TKaecd");
@@ -103,8 +105,7 @@ pub fn get_player_one_keypair() -> Keypair {
 // Other constants
 #[allow(dead_code)]
 pub const GOVERNANCE_EMITTER_ADDRESS: Pubkey = solana_program::pubkey!("11111111111111111111111111111115");
-#[allow(dead_code)]
-pub const GUARDIAN_KEY: &str = "cfb12303a19cde580bb4dd771639b0d26bc68353645571a8cff516ab2ee113a0";
+
 #[allow(dead_code)]
 pub const ETHEREUM_USDC_ADDRESS: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 

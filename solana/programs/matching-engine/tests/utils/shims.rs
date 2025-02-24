@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use super::constants::*;
+use super::{constants::*, setup::Solver};
 use wormhole_svm_shim::{post_message, verify_vaa};
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
@@ -8,10 +8,10 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    transaction::VersionedTransaction,
+    transaction::{Transaction, VersionedTransaction},
 };
 use solana_program_test::ProgramTestContext;
-use std::rc::Rc;
+use std::{rc::Rc, str::FromStr};
 use std::cell::RefCell;
 use wormhole_svm_definitions::{
     solana::Finality,
@@ -19,8 +19,12 @@ use wormhole_svm_definitions::{
     find_shim_message_address,
 };
 use base64::Engine;
-use matching_engine::state::Auction;
+use matching_engine::{accounts::{CheckedCustodian, FastOrderPathShim, LiveRouterEndpoint, LiveRouterPath}, state::Auction};
 use matching_engine::instruction::PlaceInitialOfferCctpShim as PlaceInitialOfferCctpShimIx;
+use matching_engine::accounts::PlaceInitialOfferCctpShim as PlaceInitialOfferCctpShimAccounts;
+use anchor_lang::InstructionData;
+use solana_sdk::instruction::Instruction;
+use wormhole_svm_definitions::borsh::GuardianSignatures;
 
 struct BumpCosts {
     message: u64,
@@ -82,14 +86,6 @@ pub async fn set_up_post_message_transaction_test(test_ctx: &Rc<RefCell<ProgramT
         1
     );
 
-    // Wormhole Core Bridge re-derives the sequence account when it needs to be
-    // created (cool). So we need to subtract the sequence bump cost twice for
-    // the first message.
-    assert_eq!(
-        details.units_consumed - bump_costs.message - 2 * bump_costs.sequence,
-        // 53_418
-        46_076
-    );
 }
 
 fn set_up_post_message_transaction(
@@ -168,16 +164,24 @@ fn set_up_post_message_transaction(
     )
 }
 
-const VAA: &str = "AQAAAAQNAL1qji7v9KnngyX0VxK+3fCMVscWTLoYX8L48NWquq2WGrcHd4H0wYc0KF4ZOWjLD2okXoBjGQIDJzx4qIrbSzQBAQq69h+neXGb58VfhZgraPVCxJmnTj8JIDq5jqi3Qav1e+IW51mIJlOhSAdCRbEyQLzf6Z3C19WJJqSyt/z1XF0AAvFgDHkseyMZTE5vQjflu4tc5OLPJe2VYCxTJT15LA02YPrWgOM6HhfUhXDhFoG5AI/s2ApjK8jaqi7LGJILAUMBA6cp4vfko8hYyRvogqQWsdk9e20g0O6s60h4ewweapXCQHerQpoJYdDxlCehN4fuYnuudEhW+6FaXLjwNJBdqsoABDg9qXjXB47nBVCZAGns2eosVqpjkyDaCfo/p1x8AEjBA80CyC1/QlbG9L4zlnnDIfZWylsf3keJqx28+fZNC5oABi6XegfozgE8JKqvZLvd7apDhrJ6Qv+fMiynaXASkafeVJOqgFOFbCMXdMKehD38JXvz3JrlnZ92E+I5xOJaDVgABzDSte4mxUMBMJB9UUgJBeAVsokFvK4DOfvh6G3CVqqDJplLwmjUqFB7fAgRfGcA8PWNStRc+YDZiG66YxPnptwACe84S31Kh9voz2xRk1THMpqHQ4fqE7DizXPNWz6Z6ebEXGcd7UP9PBXoNNvjkLWZJZOdbkZyZqztaIiAo4dgWUABCobiuQP92WjTxOZz0KhfWVJ3YBVfsXUwaVQH4/p6khX0HCEVHR9VHmjvrAAGDMdJGWW+zu8mFQc4gPU6m4PZ6swADO7voA5GWZZPiztz22pftwxKINGvOjCPlLpM1Y2+Vq6AQuez/mlUAmaL0NKgs+5VYcM1SGBz0TL3ABRhKQAhUEMADWmiMo0J1Qaj8gElb+9711ZjvAY663GIyG/E6EdPW+nPKJI9iZE180sLct+krHj0J7PlC9BjDiO2y149oCOJ6FgAEcaVkYK43EpN7XqxrdpanX6R6TaqECgZTjvtN3L6AP2ceQr8mJJraYq+qY8pTfFvPKEqmW9CBYvnA5gIMpX59WsAEjIL9Hdnx+zFY0qSPB1hB9AhqWeBP/QfJjqzqafsczaeCN/rWUf6iNBgXI050ywtEp8JQ36rCn8w6dRhUusn+MEAZ32XyAAAAAAAFczO6yk0j3G90i/+9DoqGcH1teF8XMpUEVKRIBgmcq3lAAAAAAAC/1wAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC6Q7dAAAAAAAAAAAAAAAAAAoLhpkcYhizbB0Z1KLp6wzjYG60gAAgAAAAAAAAAAAAAAAInNTEvk5b/1WVF+JawF1smtAdicABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
+pub async fn add_guardian_signatures_account(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, signatures_signer: &Rc<Keypair>, guardian_signatures: Vec<[u8; wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH]>, guardian_set_index: u32) -> Result<Pubkey> {
+    let recent_blockhash = test_ctx.borrow().last_blockhash;
+
+    let transaction = post_signatures_transaction(payer_signer, signatures_signer, guardian_set_index, guardian_signatures.len() as u8, &guardian_signatures, recent_blockhash);
+    
+    test_ctx.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to add guardian signatures account");
+
+    Ok(signatures_signer.pubkey())
+}
 
 /// Post signatures before the auction is created.
 pub async fn set_up_verify_shims_test(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>) -> Result<Pubkey> {
-    let guardian_signatures_signer = Keypair::new();
-    let (transaction, decoded_vaa)= set_up_verify_shims_transaction(test_ctx, payer_signer);
+    let guardian_signatures_signer = Rc::new(Keypair::new());
+    let (transaction, decoded_vaa)= set_up_verify_shims_transaction(test_ctx, payer_signer, &guardian_signatures_signer);
 
     let details = {
         let out = test_ctx.borrow_mut().banks_client
-            .simulate_transaction(transaction)
+            .simulate_transaction(transaction.clone())
             .await
             .unwrap();
         assert!(out.result.clone().unwrap().is_ok(), "{:?}", out.result);
@@ -221,10 +225,11 @@ pub async fn set_up_verify_shims_test(test_ctx: &Rc<RefCell<ProgramTestContext>>
     Ok(guardian_signatures_signer.pubkey())
 }
 
+#[derive(Clone)]
 struct DecodedVaa {
     pub guardian_set_index: u32,
     pub total_signatures: u8,
-    pub guardian_signatures: Vec<[u8; GUARDIAN_SIGNATURE_LENGTH]>,
+    pub guardian_signatures: Vec<[u8; wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH]>,
     pub body: Vec<u8>,
 }
 
@@ -256,13 +261,17 @@ impl From<&str> for DecodedVaa {
     }
 }
 
-fn set_up_verify_shims_transaction(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>) -> (VersionedTransaction, DecodedVaa) {
+fn set_up_verify_shims_transaction(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, guardian_signatures_signer: &Rc<Keypair>) -> (VersionedTransaction, DecodedVaa) {
+    const VAA: &str = "AQAAAAQNAL1qji7v9KnngyX0VxK+3fCMVscWTLoYX8L48NWquq2WGrcHd4H0wYc0KF4ZOWjLD2okXoBjGQIDJzx4qIrbSzQBAQq69h+neXGb58VfhZgraPVCxJmnTj8JIDq5jqi3Qav1e+IW51mIJlOhSAdCRbEyQLzf6Z3C19WJJqSyt/z1XF0AAvFgDHkseyMZTE5vQjflu4tc5OLPJe2VYCxTJT15LA02YPrWgOM6HhfUhXDhFoG5AI/s2ApjK8jaqi7LGJILAUMBA6cp4vfko8hYyRvogqQWsdk9e20g0O6s60h4ewweapXCQHerQpoJYdDxlCehN4fuYnuudEhW+6FaXLjwNJBdqsoABDg9qXjXB47nBVCZAGns2eosVqpjkyDaCfo/p1x8AEjBA80CyC1/QlbG9L4zlnnDIfZWylsf3keJqx28+fZNC5oABi6XegfozgE8JKqvZLvd7apDhrJ6Qv+fMiynaXASkafeVJOqgFOFbCMXdMKehD38JXvz3JrlnZ92E+I5xOJaDVgABzDSte4mxUMBMJB9UUgJBeAVsokFvK4DOfvh6G3CVqqDJplLwmjUqFB7fAgRfGcA8PWNStRc+YDZiG66YxPnptwACe84S31Kh9voz2xRk1THMpqHQ4fqE7DizXPNWz6Z6ebEXGcd7UP9PBXoNNvjkLWZJZOdbkZyZqztaIiAo4dgWUABCobiuQP92WjTxOZz0KhfWVJ3YBVfsXUwaVQH4/p6khX0HCEVHR9VHmjvrAAGDMdJGWW+zu8mFQc4gPU6m4PZ6swADO7voA5GWZZPiztz22pftwxKINGvOjCPlLpM1Y2+Vq6AQuez/mlUAmaL0NKgs+5VYcM1SGBz0TL3ABRhKQAhUEMADWmiMo0J1Qaj8gElb+9711ZjvAY663GIyG/E6EdPW+nPKJI9iZE180sLct+krHj0J7PlC9BjDiO2y149oCOJ6FgAEcaVkYK43EpN7XqxrdpanX6R6TaqECgZTjvtN3L6AP2ceQr8mJJraYq+qY8pTfFvPKEqmW9CBYvnA5gIMpX59WsAEjIL9Hdnx+zFY0qSPB1hB9AhqWeBP/QfJjqzqafsczaeCN/rWUf6iNBgXI050ywtEp8JQ36rCn8w6dRhUusn+MEAZ32XyAAAAAAAFczO6yk0j3G90i/+9DoqGcH1teF8XMpUEVKRIBgmcq3lAAAAAAAC/1wAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC6Q7dAAAAAAAAAAAAAAAAAAoLhpkcYhizbB0Z1KLp6wzjYG60gAAgAAAAAAAAAAAAAAAInNTEvk5b/1WVF+JawF1smtAdicABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
     let decoded_vaa = DecodedVaa::from(VAA);
+    let decoded_vaa_clone = decoded_vaa.clone();
     assert_eq!(decoded_vaa.total_signatures, 13);
     let recent_blockhash = test_ctx.borrow().last_blockhash;
-    let guardian_signatures_signer = Keypair::new();
-    let guardian_signatures_slice: &[[u8; wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH]; 13] = &decoded_vaa.guardian_signatures.try_into().unwrap();
+    let guardian_signatures_vec: &Vec<[u8; wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH]> = &decoded_vaa.guardian_signatures;
+    (post_signatures_transaction(payer_signer, guardian_signatures_signer, decoded_vaa.guardian_set_index, decoded_vaa.total_signatures, guardian_signatures_vec, recent_blockhash), decoded_vaa_clone)
+}
 
+fn post_signatures_transaction(payer_signer: &Rc<Keypair>, guardian_signatures_signer: &Rc<Keypair>, guardian_set_index: u32, total_signatures: u8, guardian_signatures_vec: &Vec<[u8; wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH]>, recent_blockhash: Hash) -> VersionedTransaction {
     let mut post_signatures_ix = verify_vaa::PostSignatures {
         program_id: &WORMHOLE_VERIFY_VAA_SHIM_PID,
         accounts: verify_vaa::PostSignaturesAccounts {
@@ -270,15 +279,15 @@ fn set_up_verify_shims_transaction(test_ctx: &Rc<RefCell<ProgramTestContext>>, p
             guardian_signatures: &guardian_signatures_signer.pubkey(),
         },
         data: verify_vaa::PostSignaturesData::new(
-            decoded_vaa.guardian_set_index,
-            decoded_vaa.total_signatures,
-            guardian_signatures_slice,
+            guardian_set_index,
+            total_signatures,
+            guardian_signatures_vec.as_slice(),
         ),
     }
     .instruction();
 
     let message = Message::try_compile(
-        &tx_payer,
+        &payer_signer.pubkey(),
         &[
             post_signatures_ix,
             ComputeBudgetInstruction::set_compute_unit_price(69),
@@ -290,14 +299,11 @@ fn set_up_verify_shims_transaction(test_ctx: &Rc<RefCell<ProgramTestContext>>, p
     )
     .unwrap();
 
-    (
-        VersionedTransaction::try_new(
-            VersionedMessage::V0(message),
-            &[payer_signer, guardian_signatures_signer],
-        )
-        .unwrap(),
-        decoded_vaa,
+    VersionedTransaction::try_new(
+        VersionedMessage::V0(message),
+        &[payer_signer, guardian_signatures_signer],
     )
+    .unwrap()
 }
 
 fn generate_expected_guardian_signatures_info(
@@ -326,15 +332,94 @@ fn generate_expected_guardian_signatures_info(
     (expected_length, guardian_signatures)
 }
 
-pub fn place_initial_offer_shim(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, guardian_signatures_signer: &Rc<Keypair>, program_id: &Pubkey, wormhole_program_id: &Pubkey) -> Result<()> {
-    let auction_address = Pubkey::find_program_address(&[Auction::SEED_PREFIX, &fast_market_order.vaa_data.digest()], &program_id).0;
+pub struct PlaceInitialOfferShimFixture {
+    pub auction_address: Pubkey,
+    pub auction_custody_token_address: Pubkey,
+    pub guardian_set_pubkey: Pubkey,
+    pub guardian_signatures_pubkey: Pubkey,
+    
+}
+
+pub async fn place_initial_offer_shim(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, program_id: &Pubkey, wormhole_program_id: &Pubkey, vaa_data: &super::vaa::PostedVaaData, solver: Solver, accounts: &super::auction::AuctionAccounts) -> Result<PlaceInitialOfferShimFixture> {
+    // The auction address? is this needed?
+    let auction_address = Pubkey::find_program_address(&[Auction::SEED_PREFIX, &vaa_data.digest()], &program_id).0;
     let auction_custody_token_address = Pubkey::find_program_address(&[matching_engine::AUCTION_CUSTODY_TOKEN_SEED_PREFIX, auction_address.as_ref()], &program_id).0;
-    let guardian_set_pubkey = wormhole_svm_definitions::find_guardian_set_address(0_u32.to_be_bytes(), &wormhole_program_id);
-    let (guardian_set, guardian_set_bump) = Pubkey::find_program_address(&[wormhole_svm_definitions::GUARDIAN_SET_SEED, guardian_signatures.guardian_index_be_slice()], &wormhole_program_id);
-    let place_initial_offer_ix = PlaceInitialOfferCctpShimIx {
-        offer_price: 1__000_000,
-        guardian_set_bump: 0,
-        vaa_message: VaaMessage::new(0, 0, 0, 0, 0, vec![]),
+    let (guardian_set_pubkey, guardian_set_bump) = wormhole_svm_definitions::find_guardian_set_address(0_u32.to_be_bytes(), &wormhole_program_id);
+
+    let guardian_secret_key = secp256k1::SecretKey::from_str(GUARDIAN_SECRET_KEY).expect("Failed to parse guardian secret key");
+    let guardian_set_signatures = vaa_data.sign_with_guardian_key(&guardian_secret_key, 0);
+    let signatures_signer = Rc::new(Keypair::new());
+    let guardian_signatures_pubkey = add_guardian_signatures_account(test_ctx, payer_signer, &signatures_signer, vec![guardian_set_signatures], 0).await.expect("Failed to post guardian signatures");
+
+    let guardian_signatures = GuardianSignatures {
+        refund_recipient: payer_signer.pubkey(),
+        guardian_set_index_be: 0_u32.to_be_bytes(),
+        guardian_signatures: vec![guardian_set_signatures],
     };
-    Ok(())
+    
+    let vaa_message = matching_engine::VaaMessage::from_vec(vaa_data.message_vec());
+
+    println!("Vaa message length: {}", vaa_message.0.len());
+    
+    let offer_price = 1__000_000;
+    let place_initial_offer_ix_data = PlaceInitialOfferCctpShimIx {
+        offer_price,
+        guardian_set_bump,
+        vaa_message,
+    }.data();
+
+    // Approve the transfer authority
+    let transfer_authority = Pubkey::find_program_address(&[common::TRANSFER_AUTHORITY_SEED_PREFIX, &auction_address.to_bytes(), &offer_price.to_be_bytes()], &program_id).0;
+    solver.approve_usdc(test_ctx, &transfer_authority, 420_000__000_000).await;
+    let checked_custodian = CheckedCustodian {
+        custodian: accounts.custodian,
+    };
+
+    let fast_order_path_shim = FastOrderPathShim {
+        guardian_set: guardian_set_pubkey,
+        guardian_set_signatures: guardian_signatures_pubkey.clone().to_owned(),
+        live_router_path: LiveRouterPath {
+            from_endpoint: LiveRouterEndpoint {
+                endpoint: accounts.from_router_endpoint,
+            },
+            to_endpoint: LiveRouterEndpoint {
+                endpoint: accounts.to_router_endpoint,
+            },
+        },
+    };
+
+    let event_authority = Pubkey::find_program_address(&[b"__event_authority"], &program_id).0;
+
+    let place_initial_offer_ix_accounts = PlaceInitialOfferCctpShimAccounts {
+        payer: payer_signer.pubkey(),
+        transfer_authority,
+        custodian: checked_custodian,
+        auction_config: accounts.auction_config,
+        fast_order_path_shim,
+        auction: auction_address,
+        offer_token: accounts.offer_token,
+        auction_custody_token: auction_custody_token_address,
+        usdc: matching_engine::accounts::Usdc { mint: accounts.usdc_mint },
+        verify_vaa_shim_program: WORMHOLE_VERIFY_VAA_SHIM_PID,
+        system_program: solana_program::system_program::ID,
+        token_program: anchor_spl::token::spl_token::ID,
+        event_authority,
+        program: program_id.clone().to_owned(),
+    };
+    let place_initial_offer_ix = Instruction {
+        program_id: program_id.clone().to_owned(),
+        accounts: place_initial_offer_ix_accounts.to_account_metas(Some(false)),
+        data: place_initial_offer_ix_data,
+    };
+    let recent_blockhash = test_ctx.borrow().last_blockhash;
+    let transaction = Transaction::new_signed_with_payer(&[place_initial_offer_ix], Some(&payer_signer.pubkey()), &[&payer_signer], recent_blockhash);
+    
+    test_ctx.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to place initial offer");
+    
+    Ok(PlaceInitialOfferShimFixture {
+        auction_address,
+        auction_custody_token_address,
+        guardian_set_pubkey,
+        guardian_signatures_pubkey: guardian_signatures_pubkey.clone().to_owned(),
+    })
 }

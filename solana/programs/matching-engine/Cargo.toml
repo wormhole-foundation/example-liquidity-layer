@@ -40,11 +40,8 @@ hex.workspace = true
 ruint.workspace = true
 cfg-if.workspace = true
 wormhole-svm-definitions.workspace = true
-
-
-# wormhole-bridge-solana.workspace = true
-
-
+wormhole-svm-shim.workspace = true
+wormhole-io.workspace = true
 
 [dev-dependencies]
 hex-literal.workspace = true
@@ -57,7 +54,7 @@ base64 = "0.22.1"
 lazy_static = "1.4.0"
 bs58 = "0.5.0"
 serde = { version = "1.0.212", features = ["derive"] }
-secp256k1 = {version = "0.30.0", features = ["rand", "hashes", "std", "global-context"] }
+secp256k1 = {version = "0.30.0", features = ["rand", "hashes", "std", "global-context", "recovery"] }
 wormhole-svm-shim.workspace = true
 wormhole-svm-definitions.workspace = true
 
