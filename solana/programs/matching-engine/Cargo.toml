@@ -37,6 +37,7 @@ anchor-spl.workspace = true
 solana-program.workspace = true
 
 hex.workspace = true
+bytemuck.workspace = true
 ruint.workspace = true
 cfg-if.workspace = true
 wormhole-svm-definitions.workspace = true

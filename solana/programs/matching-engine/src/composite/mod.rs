@@ -267,7 +267,6 @@ pub struct FastOrderPathShim<'info> {
     pub live_router_path: LiveRouterPath<'info>,
 }
 
-
 #[derive(Accounts)]
 pub struct FastOrderPath<'info> {
     #[account(

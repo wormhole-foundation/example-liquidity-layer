@@ -333,6 +333,5 @@ pub async fn create_all_router_endpoints_test(
         program_id,
         &usdc_mint_address,
     ).await;
-
     TestRouterEndpoints::new(arbitrum_token_router_endpoint, ethereum_token_router_endpoint, local_token_router_endpoint)
 }

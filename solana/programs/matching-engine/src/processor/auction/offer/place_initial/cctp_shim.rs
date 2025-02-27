@@ -1,7 +1,7 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus},
+    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, FastMarketOrder as FastMarketOrderState},
     utils,
 };
 use anchor_lang::prelude::*;
@@ -14,7 +14,6 @@ use solana_program::{keccak, program::invoke_signed_unchecked};
 
 #[derive(Accounts)]
 #[instruction(offer_price: u64, guardian_set_bump: u8, vaa_message: VaaMessage)]
-#[event_cpi]
 pub struct PlaceInitialOfferCctpShim<'info> {
     #[account(mut)]
     payer: Signer<'info>,
@@ -51,6 +50,21 @@ pub struct PlaceInitialOfferCctpShim<'info> {
 
     /// The cpi instruction will verify the hash of the fast order path so no account constraints are needed.
     fast_order_path_shim: FastOrderPathShim<'info>,
+
+    #[account(
+        init,
+        payer = payer,
+        space = 8 + std::mem::size_of::<FastMarketOrderState>(),
+        //      │   └─ FastMarketOrderState account data size
+        //      └─ Anchor discriminator (8 bytes)
+        seeds = [
+            FastMarketOrderState::SEED_PREFIX,
+            vaa_message.digest().as_ref(),
+            // TODO: consider different seed
+        ],
+        bump
+    )]
+    fast_market_order: AccountLoader<'info, FastMarketOrderState>,
 
     /// This account should only be created once, and should never be changed to
     /// init_if_needed. Otherwise someone can game an existing auction.
@@ -145,12 +159,12 @@ impl VaaMessage {
         u32::from_be_bytes(self.0[4..8].try_into().unwrap())
     }
 
-    fn emitter_chain(&self) -> u16 {
+    pub fn emitter_chain(&self) -> u16 {
         // emitter_chain is the next 2 bytes of the message
         u16::from_be_bytes(self.0[8..10].try_into().unwrap())
     }
 
-    fn emitter_address(&self) -> [u8; 32] {
+    pub fn emitter_address(&self) -> [u8; 32] {
         // emitter_address is the next 32 bytes of the message
         self.0[10..42].try_into().unwrap()
     }
@@ -220,18 +234,14 @@ pub fn place_initial_offer_cctp_shim(
     guardian_set_bump: u8,
     vaa_message: VaaMessage,
 ) -> Result<()> {
-    msg!("Placing initial offer with CCTP shim");
     // Extract the guardian set and guardian set signatures accounts from the FastOrderPathShim.
     let FastOrderPathShim{guardian_set, guardian_set_signatures, live_router_path} = &ctx.accounts.fast_order_path_shim;
-    msg!("Made fast order path shim");
+    
     // Check that the VAA message corresponds to the accounts in the FastOrderPathShim.
     let from_endpoint = &live_router_path.from_endpoint;
     assert_eq!(from_endpoint.chain, vaa_message.emitter_chain());
     assert_eq!(from_endpoint.address, vaa_message.emitter_address());
-    msg!("Asserted equal emitter chain and address");
-
     let verify_hash_data = VerifyHashData::new(guardian_set_bump, vaa_message.digest());
-
     let verify_shim_ix = VerifyHash {
         program_id: &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
         accounts: VerifyHashAccounts {
@@ -240,16 +250,30 @@ pub fn place_initial_offer_cctp_shim(
         },
         data: verify_hash_data
     }.instruction();
-    msg!("Made verify shim ix");
     // Make the cpi call to verify the shim.
     invoke_signed_unchecked(&verify_shim_ix, &[
         guardian_set.to_account_info(),
         guardian_set_signatures.to_account_info(),
     ], &[])?;
-    msg!("Verified shim");
     let payload = vaa_message.payload();
     
     let order: FastMarketOrder = TypePrefixedPayload::<1>::read_slice(&payload).unwrap();
+    {
+        let mut fast_market_order = ctx.accounts.fast_market_order.load_init()?;
+        let redeemer_message: [u8; 512] = order.redeemer_message.to_vec().try_into().unwrap();
+        // Set fields directly on the loaded account
+        fast_market_order.amount_in = order.amount_in;
+        fast_market_order.min_amount_out = order.min_amount_out;
+        fast_market_order.target_chain = order.target_chain;
+        fast_market_order.redeemer = order.redeemer;
+        fast_market_order.sender = order.sender;
+        fast_market_order.refund_address = order.refund_address;
+        fast_market_order.max_fee = order.max_fee;
+        fast_market_order.init_auction_fee = order.init_auction_fee;
+        fast_market_order.deadline = order.deadline;
+        fast_market_order.redeemer_message_length = order.redeemer_message.len() as u16;
+        fast_market_order.redeemer_message = redeemer_message;
+    }  // fast_market_order is dropped here, releasing the lock
     
     // Parse the transfer amount from the VAA.
     let amount_in = order.amount_in;
@@ -291,24 +315,6 @@ pub fn place_initial_offer_cctp_shim(
         .into(),
     });
 
-    let info = ctx.accounts.auction.info.as_ref().unwrap();
-
-    // Emit event for auction participants to listen to.
-    emit_cpi!(crate::utils::log_emit(crate::events::AuctionUpdated {
-        config_id: info.config_id,
-        fast_vaa_hash: ctx.accounts.auction.vaa_hash,
-        vaa: None,
-        source_chain: info.source_chain,
-        target_protocol: ctx.accounts.auction.target_protocol,
-        redeemer_message_len: info.redeemer_message_len,
-        end_slot: info.auction_end_slot(config),
-        best_offer_token: initial_offer_token,
-        token_balance_before: ctx.accounts.offer_token.amount,
-        amount_in,
-        total_deposit: info.total_deposit(),
-        max_offer_price_allowed: utils::auction::compute_min_allowed_offer(config, info)
-            .checked_sub(1),
-    }));
 
     // Finally transfer tokens from the offer authority's token account to the
     // auction's custody account.
