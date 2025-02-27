@@ -1,4 +1,6 @@
 use anchor_lang::prelude::*;
+use common::messages::FastMarketOrder;
+use wormhole_io::TypePrefixedPayload;
 use super::{constants::*, setup::Solver};
 use wormhole_svm_shim::{post_message, verify_vaa};
 use solana_sdk::{
@@ -19,9 +21,17 @@ use wormhole_svm_definitions::{
     find_shim_message_address,
 };
 use base64::Engine;
-use matching_engine::{accounts::{CheckedCustodian, FastOrderPathShim, LiveRouterEndpoint, LiveRouterPath}, state::Auction};
-use matching_engine::instruction::PlaceInitialOfferCctpShim as PlaceInitialOfferCctpShimIx;
-use matching_engine::accounts::PlaceInitialOfferCctpShim as PlaceInitialOfferCctpShimAccounts;
+use matching_engine::{accounts::{CheckedCustodian, 
+    // FastOrderPathShim, 
+    LiveRouterEndpoint, LiveRouterPath}, state::{Auction, FastMarketOrder as FastMarketOrderState}};
+// use matching_engine::instruction::PlaceInitialOfferCctpShim as PlaceInitialOfferCctpShimIx;
+// use matching_engine::accounts::PlaceInitialOfferCctpShim as PlaceInitialOfferCctpShimAccounts;
+use matching_engine::matching_engine::fallback_process_instruction;
+use matching_engine::fallback::place_initial_offer::{
+    PlaceInitialOfferCctpShim as PlaceInitialOfferCctpShimFallback,
+    PlaceInitialOfferCctpShimAccounts as PlaceInitialOfferCctpShimFallbackAccounts,
+    PlaceInitialOfferCctpShimData as PlaceInitialOfferCctpShimFallbackData,
+};
 use anchor_lang::InstructionData;
 use solana_sdk::instruction::Instruction;
 use wormhole_svm_definitions::borsh::GuardianSignatures;
@@ -346,9 +356,108 @@ pub struct PlaceInitialOfferShimFixture {
     
 }
 
-pub async fn place_initial_offer_shim(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, program_id: &Pubkey, wormhole_program_id: &Pubkey, vaa_data: &super::vaa::PostedVaaData, solver: Solver, accounts: &super::auction::AuctionAccounts) -> Result<PlaceInitialOfferShimFixture> {
-    // The auction address? is this needed?
-    let auction_address = Pubkey::find_program_address(&[Auction::SEED_PREFIX, &vaa_data.digest()], &program_id).0;
+// pub async fn place_initial_offer_shim(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, program_id: &Pubkey, wormhole_program_id: &Pubkey, vaa_data: &super::vaa::PostedVaaData, solver: Solver, accounts: &super::auction::AuctionAccounts) -> Result<PlaceInitialOfferShimFixture> {
+//     // The auction address? is this needed?
+//     let auction_address = Pubkey::find_program_address(&[Auction::SEED_PREFIX, &vaa_data.digest()], &program_id).0;
+//     let auction_custody_token_address = Pubkey::find_program_address(&[matching_engine::AUCTION_CUSTODY_TOKEN_SEED_PREFIX, auction_address.as_ref()], &program_id).0;
+//     let (guardian_set_pubkey, guardian_set_bump) = wormhole_svm_definitions::find_guardian_set_address(0_u32.to_be_bytes(), &wormhole_program_id);
+
+//     let guardian_secret_key = secp256k1::SecretKey::from_str(GUARDIAN_SECRET_KEY).expect("Failed to parse guardian secret key");
+//     let guardian_set_signatures = vaa_data.sign_with_guardian_key(&guardian_secret_key, 0);
+//     let signatures_signer = Rc::new(Keypair::new());
+//     let guardian_signatures_pubkey = add_guardian_signatures_account(test_ctx, payer_signer, &signatures_signer, vec![guardian_set_signatures], 0).await.expect("Failed to post guardian signatures");
+    
+//     let vaa_message = matching_engine::VaaMessage::from_vec(vaa_data.message_vec());
+
+//     let vaa_digest = vaa_message.digest();
+    
+//     let offer_price: u32 = 1__000_000;
+//     let place_initial_offer_ix_data = PlaceInitialOfferCctpShimIx {
+//         offer_price,
+//         guardian_set_bump,
+//         vaa_message,
+//     }.data();
+
+//     // Approve the transfer authority
+//     let transfer_authority = Pubkey::find_program_address(&[common::TRANSFER_AUTHORITY_SEED_PREFIX, &auction_address.to_bytes(), &offer_price.to_be_bytes()], &program_id).0;
+//     solver.approve_usdc(test_ctx, &transfer_authority, 420_000__000_000).await;
+//     let checked_custodian = CheckedCustodian {
+//         custodian: accounts.custodian,
+//     };
+
+//     let fast_order_path_shim = FastOrderPathShim {
+//         guardian_set: guardian_set_pubkey,
+//         guardian_set_signatures: guardian_signatures_pubkey.clone().to_owned(),
+//         live_router_path: LiveRouterPath {
+//             from_endpoint: LiveRouterEndpoint {
+//                 endpoint: accounts.from_router_endpoint,
+//             },
+//             to_endpoint: LiveRouterEndpoint {
+//                 endpoint: accounts.to_router_endpoint,
+//             },
+//         },
+//     };
+
+//     let event_authority = Pubkey::find_program_address(&[b"__event_authority"], &program_id).0;
+//     let fast_market_order_acc = Pubkey::find_program_address(&[FastMarketOrderState::SEED_PREFIX, vaa_digest.as_ref()], program_id).0;
+//     let place_initial_offer_ix_accounts = PlaceInitialOfferCctpShimAccounts {
+//         payer: payer_signer.pubkey(),
+//         transfer_authority,
+//         custodian: checked_custodian,
+//         auction_config: accounts.auction_config,
+//         fast_order_path_shim,
+//         fast_market_order: fast_market_order_acc,
+//         auction: auction_address,
+//         offer_token: accounts.offer_token,
+//         auction_custody_token: auction_custody_token_address,
+//         usdc: matching_engine::accounts::Usdc { mint: accounts.usdc_mint },
+//         verify_vaa_shim_program: WORMHOLE_VERIFY_VAA_SHIM_PID,
+//         system_program: solana_program::system_program::ID,
+//         token_program: anchor_spl::token::spl_token::ID,
+//     };
+//     let place_initial_offer_ix = Instruction {
+//         program_id: program_id.clone().to_owned(),
+//         accounts: place_initial_offer_ix_accounts.to_account_metas(Some(false)),
+//         data: place_initial_offer_ix_data,
+//     };
+//     let recent_blockhash = test_ctx.borrow().last_blockhash;
+//     let transaction = Transaction::new_signed_with_payer(&[place_initial_offer_ix], Some(&payer_signer.pubkey()), &[&payer_signer], recent_blockhash);
+    
+//     test_ctx.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to place initial offer");
+    
+//     Ok(PlaceInitialOfferShimFixture {
+//         auction_address,
+//         auction_custody_token_address,
+//         guardian_set_pubkey,
+//         guardian_signatures_pubkey: guardian_signatures_pubkey.clone().to_owned(),
+//     })
+// }
+
+pub async fn place_initial_offer_fallback(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, program_id: &Pubkey, wormhole_program_id: &Pubkey, vaa_data: &super::vaa::PostedVaaData, solver: Solver, accounts: &super::auction::AuctionAccounts) -> Result<PlaceInitialOfferShimFixture> {
+    
+    // TODO: Make a new clean PostedVaaData struct from scratch and use that. Make sure nonce is 0.
+    let vaa_data = super::vaa::PostedVaaData {
+        consistency_level: vaa_data.consistency_level,
+        vaa_time: vaa_data.vaa_time,
+        sequence: vaa_data.sequence,
+        emitter_chain: vaa_data.emitter_chain,
+        emitter_address: vaa_data.emitter_address,
+        payload: vaa_data.payload.clone(),
+        nonce: 0,
+        vaa_signature_account: vaa_data.vaa_signature_account,
+        submission_time: 0,
+    };
+    let vaa_message = matching_engine::fallback::place_initial_offer::VaaMessageBodyHeader::new(
+        vaa_data.consistency_level,
+        vaa_data.vaa_time,
+        vaa_data.sequence,
+        vaa_data.emitter_chain,
+        vaa_data.emitter_address,
+    );
+
+    let vaa_digest = vaa_data.digest();
+
+    let auction_address = Pubkey::find_program_address(&[Auction::SEED_PREFIX, &vaa_digest], &program_id).0;
     let auction_custody_token_address = Pubkey::find_program_address(&[matching_engine::AUCTION_CUSTODY_TOKEN_SEED_PREFIX, auction_address.as_ref()], &program_id).0;
     let (guardian_set_pubkey, guardian_set_bump) = wormhole_svm_definitions::find_guardian_set_address(0_u32.to_be_bytes(), &wormhole_program_id);
 
@@ -356,66 +465,79 @@ pub async fn place_initial_offer_shim(test_ctx: &Rc<RefCell<ProgramTestContext>>
     let guardian_set_signatures = vaa_data.sign_with_guardian_key(&guardian_secret_key, 0);
     let signatures_signer = Rc::new(Keypair::new());
     let guardian_signatures_pubkey = add_guardian_signatures_account(test_ctx, payer_signer, &signatures_signer, vec![guardian_set_signatures], 0).await.expect("Failed to post guardian signatures");
-    
-    let vaa_message = matching_engine::VaaMessage::from_vec(vaa_data.message_vec());
 
-    println!("Vaa message length: {}", vaa_message.0.len());
-    
-    let offer_price = 1__000_000;
-    let place_initial_offer_ix_data = PlaceInitialOfferCctpShimIx {
-        offer_price,
-        guardian_set_bump,
-        vaa_message,
-    }.data();
-
+    let fast_market_order_account = Pubkey::find_program_address(&[FastMarketOrderState::SEED_PREFIX, vaa_digest.as_ref()], program_id).0;
+    let offer_price: u64 = 1__000_000;
     // Approve the transfer authority
     let transfer_authority = Pubkey::find_program_address(&[common::TRANSFER_AUTHORITY_SEED_PREFIX, &auction_address.to_bytes(), &offer_price.to_be_bytes()], &program_id).0;
+    
     solver.approve_usdc(test_ctx, &transfer_authority, 420_000__000_000).await;
-    let checked_custodian = CheckedCustodian {
-        custodian: accounts.custodian,
+
+    let order: FastMarketOrder = TypePrefixedPayload::<1>::read_slice(&vaa_data.payload).unwrap();
+    
+    let redeemer_message_fixed_length = {
+        let mut fixed_array = [0u8; 512]; // Initialize with zeros (automatic padding)
+        
+        if !order.redeemer_message.is_empty() {
+            // Calculate how many bytes to copy (min of message length and array size)
+            let copy_len = std::cmp::min(order.redeemer_message.len(), 512);
+            
+            // Copy the bytes from the message to the fixed array
+            fixed_array[..copy_len].copy_from_slice(&order.redeemer_message[..copy_len]);
+        }
+        
+        fixed_array
+    };
+    let fast_market_order = FastMarketOrderState {
+        amount_in: order.amount_in,
+        min_amount_out: order.min_amount_out,
+        deadline: order.deadline,
+        target_chain: order.target_chain,
+        redeemer_message_length: order.redeemer_message.len() as u16,
+        redeemer: order.redeemer,
+        sender: order.sender,
+        refund_address: order.refund_address,
+        max_fee: order.max_fee,
+        init_auction_fee: order.init_auction_fee,
+        redeemer_message: redeemer_message_fixed_length,
     };
 
-    let fast_order_path_shim = FastOrderPathShim {
-        guardian_set: guardian_set_pubkey,
-        guardian_set_signatures: guardian_signatures_pubkey.clone().to_owned(),
-        live_router_path: LiveRouterPath {
-            from_endpoint: LiveRouterEndpoint {
-                endpoint: accounts.from_router_endpoint,
-            },
-            to_endpoint: LiveRouterEndpoint {
-                endpoint: accounts.to_router_endpoint,
-            },
-        },
-    };
+    assert_eq!(fast_market_order.redeemer, order.redeemer);
+    assert_eq!(vaa_message.digest(&fast_market_order).as_ref(), vaa_data.digest().as_ref());
 
-    let event_authority = Pubkey::find_program_address(&[b"__event_authority"], &program_id).0;
+    let place_initial_offer_ix_data = PlaceInitialOfferCctpShimFallbackData::new(offer_price, vaa_data.sequence, vaa_data.vaa_time, guardian_set_bump, vaa_data.consistency_level, fast_market_order);
 
-    let place_initial_offer_ix_accounts = PlaceInitialOfferCctpShimAccounts {
-        payer: payer_signer.pubkey(),
-        transfer_authority,
-        custodian: checked_custodian,
-        auction_config: accounts.auction_config,
-        fast_order_path_shim,
-        auction: auction_address,
-        offer_token: accounts.offer_token,
-        auction_custody_token: auction_custody_token_address,
-        usdc: matching_engine::accounts::Usdc { mint: accounts.usdc_mint },
-        verify_vaa_shim_program: WORMHOLE_VERIFY_VAA_SHIM_PID,
-        system_program: solana_program::system_program::ID,
-        token_program: anchor_spl::token::spl_token::ID,
-        event_authority,
-        program: program_id.clone().to_owned(),
+    let place_initial_offer_ix_accounts = PlaceInitialOfferCctpShimFallbackAccounts {
+        signer: &payer_signer.pubkey(),
+        transfer_authority: &transfer_authority,
+        custodian: &accounts.custodian,
+        auction_config: &accounts.auction_config,
+        guardian_set: &guardian_set_pubkey,
+        guardian_set_signatures: &guardian_signatures_pubkey,
+        from_endpoint: &accounts.from_router_endpoint,
+        to_endpoint: &accounts.to_router_endpoint,
+        fast_market_order: &fast_market_order_account,
+        auction: &auction_address,
+        offer_token: &accounts.offer_token,
+        auction_custody_token: &auction_custody_token_address,
+        usdc: &accounts.usdc_mint,
+        verify_vaa_shim_program: &WORMHOLE_VERIFY_VAA_SHIM_PID,
+        system_program: &solana_program::system_program::ID,
+        token_program: &anchor_spl::token::spl_token::ID,
     };
-    let place_initial_offer_ix = Instruction {
-        program_id: program_id.clone().to_owned(),
-        accounts: place_initial_offer_ix_accounts.to_account_metas(Some(false)),
+    let place_initial_offer_ix = PlaceInitialOfferCctpShimFallback {
+        program_id: program_id,
+        accounts: place_initial_offer_ix_accounts,
         data: place_initial_offer_ix_data,
-    };
+    }.instruction();
+
     let recent_blockhash = test_ctx.borrow().last_blockhash;
+
     let transaction = Transaction::new_signed_with_payer(&[place_initial_offer_ix], Some(&payer_signer.pubkey()), &[&payer_signer], recent_blockhash);
     
     test_ctx.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to place initial offer");
     
+
     Ok(PlaceInitialOfferShimFixture {
         auction_address,
         auction_custody_token_address,

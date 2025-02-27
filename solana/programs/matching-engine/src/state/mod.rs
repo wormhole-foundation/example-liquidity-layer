@@ -19,5 +19,8 @@ pub use prepared_order_response::*;
 mod proposal;
 pub use proposal::*;
 
+mod fast_market_order;
+pub use fast_market_order::*;
+
 pub(crate) mod router_endpoint;
 pub use router_endpoint::*;

@@ -8,7 +8,9 @@ use utils::initialize::initialize_program;
 use utils::auction::{AuctionAccounts, place_initial_offer, improve_offer};
 use utils::setup::{PreTestingContext, TestingContext};
 use utils::vaa::create_vaas_test_with_chain_and_address;
-use utils::shims::{place_initial_offer_shim, set_up_post_message_transaction_test};
+use utils::shims::{
+    // place_initial_offer_shim, 
+    place_initial_offer_fallback, set_up_post_message_transaction_test};
 use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
 // Configures the program ID and CCTP mint recipient based on the environment
 cfg_if::cfg_if! {
@@ -155,14 +157,75 @@ pub async fn test_post_message_shims() {
 }
 
 
-// TODO: Check that you cannot execute the order the old way and then place the initial offer using the shim
+// // TODO: Check that you cannot execute the order the old way and then place the initial offer using the shim
+// /// This test should FAIL because of stack overflow issues.
+// #[tokio::test]
+// pub async fn test_verify_shims() {
+//     let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
+//     pre_testing_context.add_verify_shims();
+//     // This will create vaas for the arbitrum and ethereum chains and post them to the test context accounts. These vaas will not be needed for the shim test, and shouldn't interact with the program during the test.
+//     let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+//     let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    
+//     let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address);
+//     let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
+//     // TODO: Change the posting of the signatures to be the actual single guardian signature.
+//     let initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
+//     let first_test_ft = vaas_test.0.first().unwrap();
+//     // Assume this vaa was not actually posted, but instead we will use it to test the new instruction using a shim
+    
+//     let fixture_accounts = testing_context.fixture_accounts.expect("Pre-made fixture accounts not found");
+//     // Try making initial offer using the shim instruction
+//     let usdc_mint_address = USDC_MINT_ADDRESS;
+//     let auction_config_address = initialize_fixture.get_auction_config_address();
+//     let router_endpoints = create_all_router_endpoints_test(
+//         &testing_context.test_context,
+//         testing_context.testing_actors.owner.pubkey(),
+//         initialize_fixture.get_custodian_address(),
+//         fixture_accounts.arbitrum_remote_token_messenger,
+//         fixture_accounts.ethereum_remote_token_messenger,
+//         usdc_mint_address,
+//         testing_context.testing_actors.owner.keypair(),
+//         PROGRAM_ID,
+//     ).await;
+//     let arb_endpoint_address = router_endpoints.arbitrum.endpoint_address;
+//     let eth_endpoint_address = router_endpoints.ethereum.endpoint_address;
+
+//     let solver = testing_context.testing_actors.solvers[0].clone();
+//     let auction_accounts = AuctionAccounts::new(
+//         None, // Fast VAA pubkey
+//         solver.clone(), // Solver
+//         auction_config_address.clone(), // Auction config pubkey
+//         arb_endpoint_address, // From router endpoint pubkey
+//         eth_endpoint_address, // To router endpoint pubkey
+//         initialize_fixture.get_custodian_address(), // Custodian pubkey
+//         usdc_mint_address, // USDC mint pubkey
+//     );
+    
+//     let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
+
+    
+//     let solver = testing_context.testing_actors.solvers[0].clone();
+
+//     let _initial_offer_fixture = place_initial_offer_shim(
+//         &testing_context.test_context,
+//         &testing_context.testing_actors.owner.keypair(),
+//         &PROGRAM_ID,
+//         &CORE_BRIDGE_PROGRAM_ID,
+//         &vaa_data,
+//         solver,
+//         &auction_accounts,
+//     ).await.expect("Failed to place initial offer");
+// }
+
 #[tokio::test]
-pub async fn test_verify_shims() {
+pub async fn test_verify_shims_fallback() {
     let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
     pre_testing_context.add_verify_shims();
     // This will create vaas for the arbitrum and ethereum chains and post them to the test context accounts. These vaas will not be needed for the shim test, and shouldn't interact with the program during the test.
     let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
     let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    
     let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address);
     let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
     // TODO: Change the posting of the signatures to be the actual single guardian signature.
@@ -197,13 +260,13 @@ pub async fn test_verify_shims() {
         initialize_fixture.get_custodian_address(), // Custodian pubkey
         usdc_mint_address, // USDC mint pubkey
     );
-
+    
     let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
 
     
     let solver = testing_context.testing_actors.solvers[0].clone();
 
-    let _initial_offer_fixture = place_initial_offer_shim(
+    let _initial_offer_fixture = place_initial_offer_fallback(
         &testing_context.test_context,
         &testing_context.testing_actors.owner.keypair(),
         &PROGRAM_ID,

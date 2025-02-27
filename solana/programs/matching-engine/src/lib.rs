@@ -3,7 +3,7 @@
 
 mod composite;
 
-mod error;
+pub mod error;
 
 mod events;
 
@@ -13,6 +13,8 @@ pub use processor::VaaMessage;
 use processor::*;
 
 pub mod state;
+
+pub mod fallback;
 
 pub mod utils;
 pub use utils::admin::AddCctpRouterEndpointArgs;
@@ -258,9 +260,9 @@ pub mod matching_engine {
     /// This instruction is used to create a new auction given a valid `VaaShim`. 
     /// This instruction should act in the exact same way as `place_initial_offer_cctp` except that 
     /// it will check the digest of the vaa directly using a cpi call to the verify shim program.
-    pub fn place_initial_offer_cctp_shim(ctx: Context<PlaceInitialOfferCctpShim>, offer_price: u64, guardian_set_bump: u8, vaa_message: VaaMessage) -> Result<()> {
-        processor::place_initial_offer_cctp_shim(ctx, offer_price, guardian_set_bump, vaa_message)
-    }
+    // pub fn place_initial_offer_cctp_shim(ctx: Context<PlaceInitialOfferCctpShim>, offer_price: u64, guardian_set_bump: u8, vaa_message: VaaMessage) -> Result<()> {
+    //     processor::place_initial_offer_cctp_shim(ctx, offer_price, guardian_set_bump, vaa_message)
+    // }
 
     /// This instruction is used to improve an existing auction offer. The `offer_price` must be
     /// greater than the current `offer_price` in the auction. This instruction will revert if the
@@ -481,6 +483,11 @@ pub mod matching_engine {
     /// * `ctx` - `AddAuctionHistoryEntry` context.
     pub fn add_auction_history_entry(_ctx: Context<DeprecatedInstruction>) -> Result<()> {
         err!(ErrorCode::Deprecated)
+    }
+
+    /// Non anchor function for placing an initial offer using the VAA shim.
+    pub fn fallback_process_instruction(program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u8]) -> Result<()> {
+        fallback::process_instruction(program_id, accounts, instruction_data)
     }
 }
 

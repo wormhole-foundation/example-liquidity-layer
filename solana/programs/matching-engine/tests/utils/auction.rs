@@ -54,7 +54,6 @@ impl AuctionOfferFixture {
         let auction_account = testing_context.borrow_mut().banks_client.get_account(self.auction_address).await.unwrap().expect("Failed to get auction account");
         let mut data_ref = auction_account.data.as_ref();
         let auction_account_data : Auction = AccountDeserialize::try_deserialize(&mut data_ref).unwrap();
-        println!("Auction account: {:?}", auction_account_data);
         let auction_info = auction_account_data.info.unwrap();
         let expected_auction_info = AuctionInfo {
             config_id: 0,
@@ -108,11 +107,6 @@ pub async fn place_initial_offer(
             },
         },
     };
-    {
-        let fast_vaa_account = testing_context.borrow_mut().banks_client.get_account(fast_market_order.vaa_pubkey).await.unwrap().expect("Failed to get fast vaa account");
-        println!("Fast VAA Account: {:?}", fast_vaa_account);
-        println!("fast vaa owner: {:?}", fast_vaa_account.owner);
-    }
 
     let event_authority = Pubkey::find_program_address(&[b"__event_authority"], &program_id).0;
     let transfer_authority = Pubkey::find_program_address(&[TRANSFER_AUTHORITY_SEED_PREFIX, &auction_address.to_bytes(), &initial_offer_ix.offer_price.to_be_bytes()], &program_id).0;
