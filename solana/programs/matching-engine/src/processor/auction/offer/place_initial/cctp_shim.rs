@@ -1,15 +1,12 @@
 use crate::{
     composite::*,
     error::MatchingEngineError,
-    state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, FastMarketOrder as FastMarketOrderState},
-    utils,
+    state::{Auction, AuctionConfig, FastMarketOrder as FastMarketOrderState},
 };
 use anchor_lang::prelude::*;
 use anchor_spl::token;
-use common::{messages::FastMarketOrder, TRANSFER_AUTHORITY_SEED_PREFIX};
-use wormhole_svm_shim::verify_vaa::{GuardianSetPubkey, VerifyHash, VerifyHashAccounts, VerifyHashData};
-use common::wormhole_io::TypePrefixedPayload;
-use solana_program::{keccak, program::invoke_signed_unchecked};
+use common::TRANSFER_AUTHORITY_SEED_PREFIX;
+use solana_program::keccak;
 
 
 #[derive(Accounts)]
@@ -134,25 +131,6 @@ impl VaaMessage {
         keccak::hashv(&[self.message_hash().as_ref()])
     }
 
-    fn payload(&self) -> Vec<u8> {
-        // Calculate offset:
-        // vaa_time (u32) = 4 bytes
-        // nonce (u32) = 4 bytes
-        // emitter_chain (u16) = 2 bytes
-        // emitter_address = 32 bytes
-        // sequence (u64) = 8 bytes
-        // consistency_level (u8) = 1 byte
-        // Total offset = 51 bytes
-        
-        // Everything after the offset is the payload
-        self.0[51..].to_vec()
-    }
-
-    fn vaa_time(&self) -> u32 {
-        // vaa_time is the first 4 bytes of the message
-        u32::from_be_bytes(self.0[0..4].try_into().unwrap())
-    }
-
     #[allow(dead_code)]
     fn nonce(&self) -> u32 {
         // nonce is the next 4 bytes of the message
@@ -168,12 +146,6 @@ impl VaaMessage {
         // emitter_address is the next 32 bytes of the message
         self.0[10..42].try_into().unwrap()
     }
-
-    fn sequence(&self) -> u64 {
-        // sequence is the next 8 bytes of the message
-        u64::from_be_bytes(self.0[42..50].try_into().unwrap())
-    }
-        
 
 }
 
@@ -226,115 +198,4 @@ impl VaaMessageBody {
             self.payload.as_ref(),
         ].concat()
     }
-}
-
-pub fn place_initial_offer_cctp_shim(
-    ctx: Context<PlaceInitialOfferCctpShim>,
-    offer_price: u64,
-    guardian_set_bump: u8,
-    vaa_message: VaaMessage,
-) -> Result<()> {
-    // Extract the guardian set and guardian set signatures accounts from the FastOrderPathShim.
-    let FastOrderPathShim{guardian_set, guardian_set_signatures, live_router_path} = &ctx.accounts.fast_order_path_shim;
-    
-    // Check that the VAA message corresponds to the accounts in the FastOrderPathShim.
-    let from_endpoint = &live_router_path.from_endpoint;
-    assert_eq!(from_endpoint.chain, vaa_message.emitter_chain());
-    assert_eq!(from_endpoint.address, vaa_message.emitter_address());
-    let verify_hash_data = VerifyHashData::new(guardian_set_bump, vaa_message.digest());
-    let verify_shim_ix = VerifyHash {
-        program_id: &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
-        accounts: VerifyHashAccounts {
-            guardian_set: GuardianSetPubkey::Provided(&guardian_set.key()),
-            guardian_signatures: &guardian_set_signatures.key(),
-        },
-        data: verify_hash_data
-    }.instruction();
-    // Make the cpi call to verify the shim.
-    invoke_signed_unchecked(&verify_shim_ix, &[
-        guardian_set.to_account_info(),
-        guardian_set_signatures.to_account_info(),
-    ], &[])?;
-    let payload = vaa_message.payload();
-    
-    let order: FastMarketOrder = TypePrefixedPayload::<1>::read_slice(&payload).unwrap();
-    {
-        let mut fast_market_order = ctx.accounts.fast_market_order.load_init()?;
-        let redeemer_message: [u8; 512] = order.redeemer_message.to_vec().try_into().unwrap();
-        // Set fields directly on the loaded account
-        fast_market_order.amount_in = order.amount_in;
-        fast_market_order.min_amount_out = order.min_amount_out;
-        fast_market_order.target_chain = order.target_chain;
-        fast_market_order.redeemer = order.redeemer;
-        fast_market_order.sender = order.sender;
-        fast_market_order.refund_address = order.refund_address;
-        fast_market_order.max_fee = order.max_fee;
-        fast_market_order.init_auction_fee = order.init_auction_fee;
-        fast_market_order.deadline = order.deadline;
-        fast_market_order.redeemer_message_length = order.redeemer_message.len() as u16;
-        fast_market_order.redeemer_message = redeemer_message;
-    }  // fast_market_order is dropped here, releasing the lock
-    
-    // Parse the transfer amount from the VAA.
-    let amount_in = order.amount_in;
-
-    // Saturating to u64::MAX is safe here. If the amount really ends up being this large, the
-    // checked addition below will catch it.
-    let security_deposit =
-        order
-            .max_fee
-            .saturating_add(utils::auction::compute_notional_security_deposit(
-                &ctx.accounts.auction_config,
-                amount_in,
-            ));
-
-    // Set up the Auction account for this auction.
-    let config = &ctx.accounts.auction_config;
-    let initial_offer_token = ctx.accounts.offer_token.key();
-    ctx.accounts.auction.set_inner(Auction {
-        bump: ctx.bumps.auction,
-        vaa_hash: vaa_message.digest().as_ref().try_into().unwrap(),
-        vaa_timestamp: vaa_message.vaa_time(),
-        target_protocol: live_router_path.to_endpoint.protocol,
-        status: AuctionStatus::Active,
-        prepared_by: ctx.accounts.payer.key(),
-        info: AuctionInfo {
-            config_id: config.id,
-            custody_token_bump: ctx.bumps.auction_custody_token,
-            vaa_sequence: vaa_message.sequence(),
-            source_chain: vaa_message.emitter_chain(),
-            best_offer_token: initial_offer_token,
-            initial_offer_token,
-            start_slot: Clock::get().unwrap().slot,
-            amount_in,
-            security_deposit,
-            offer_price,
-            redeemer_message_len: order.redeemer_message.len() as u16,
-            destination_asset_info: Default::default(),
-        }
-        .into(),
-    });
-
-
-    // Finally transfer tokens from the offer authority's token account to the
-    // auction's custody account.
-    token::transfer(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_program.to_account_info(),
-            anchor_spl::token::Transfer {
-                from: ctx.accounts.offer_token.to_account_info(),
-                to: ctx.accounts.auction_custody_token.to_account_info(),
-                authority: ctx.accounts.transfer_authority.to_account_info(),
-            },
-            &[&[
-                TRANSFER_AUTHORITY_SEED_PREFIX,
-                ctx.accounts.auction.key().as_ref(),
-                &offer_price.to_be_bytes(),
-                &[ctx.bumps.transfer_authority],
-            ]],
-        ),
-        amount_in
-            .checked_add(security_deposit)
-            .ok_or_else(|| MatchingEngineError::U64Overflow)?,
-    )
 }
