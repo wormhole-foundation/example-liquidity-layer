@@ -1,15 +1,13 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::spl_token;
 use bytemuck::{Pod, Zeroable};
-use common::messages::FastMarketOrder;
 use solana_program::instruction::Instruction;
 use solana_program::program::invoke_signed_unchecked;
 use super::create_account::create_account_reliably; // TODO: Use this everywhere (but note that there is a bug with index zero on cpi)
 use solana_program::keccak;
 use anchor_lang::Discriminator;
 use solana_program::program_pack::Pack;
-use wormhole_io::TypePrefixedPayload;
-use wormhole_svm_shim::verify_vaa::{GuardianSetPubkey, VerifyHash, VerifyHashAccounts, VerifyHashData};
+use wormhole_svm_shim::verify_vaa::{VerifyHash, VerifyHashAccounts, VerifyHashData};
 use crate::state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian, FastMarketOrder as FastMarketOrderState, MessageProtocol, RouterEndpoint};
 use common::TRANSFER_AUTHORITY_SEED_PREFIX;
 use crate::ID as PROGRAM_ID;
@@ -314,22 +312,7 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
         }
     }
     let fast_market_order_key = fast_market_order_account.key();
-    let redeemer = fast_market_order_zero_copy.redeemer;
-    let sender = fast_market_order_zero_copy.sender;
-    let refund_address = fast_market_order_zero_copy.refund_address;
     
-    let payload = FastMarketOrder {
-        amount_in: fast_market_order_zero_copy.amount_in,
-        min_amount_out: fast_market_order_zero_copy.min_amount_out,
-        target_chain: fast_market_order_zero_copy.target_chain,
-        redeemer,
-        sender,
-        refund_address,
-        max_fee: fast_market_order_zero_copy.max_fee,
-        init_auction_fee: fast_market_order_zero_copy.init_auction_fee,
-        deadline: fast_market_order_zero_copy.deadline,
-        redeemer_message: fast_market_order_zero_copy.redeemer_message[..fast_market_order_zero_copy.redeemer_message_length as usize].to_vec().try_into().unwrap(),
-    }.to_vec();
     // Create the vaa_message struct to get the digest
     let vaa_message = VaaMessageBodyHeader::new(consistency_level, vaa_time, sequence, from_endpoint_account.chain, from_endpoint_account.address);
     let vaa_message_digest = vaa_message.digest(&fast_market_order_zero_copy);
@@ -337,9 +320,7 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
     // Begin of initialisation of auction custody token account
     // ------------------------------------------------------------------------------------------------
     let auction_custody_token_space = spl_token::state::Account::LEN;
-    let rent = Rent::get()?;
-    let lamports = rent.minimum_balance(auction_custody_token_space);
-    
+
     let (auction_custody_token_pda, auction_custody_token_bump) = Pubkey::find_program_address(&[crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX, auction_key.as_ref()], &program_id);
     if auction_custody_token_pda != auction_custody_token.key() {
         msg!("Auction custody token pda is invalid. Passed account: {}, expected: {}", auction_custody_token.key(), auction_custody_token_pda);
@@ -507,7 +488,7 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
     let verify_shim_ix = VerifyHash {
         program_id: &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
         accounts: VerifyHashAccounts {
-            guardian_set: GuardianSetPubkey::Provided(&guardian_set.key()),
+            guardian_set: &guardian_set.key(),
             guardian_signatures: &guardian_set_signatures.key(),
         },
         data: verify_hash_data
