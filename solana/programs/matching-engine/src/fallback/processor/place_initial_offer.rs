@@ -3,7 +3,7 @@ use anchor_spl::token::spl_token;
 use bytemuck::{Pod, Zeroable};
 use solana_program::instruction::Instruction;
 use solana_program::program::invoke_signed_unchecked;
-use super::create_account::create_account_reliably; // TODO: Use this everywhere (but note that there is a bug with index zero on cpi)
+use super::create_account::create_account_reliably;
 use solana_program::keccak;
 use anchor_lang::Discriminator;
 use solana_program::program_pack::Pack;
@@ -114,6 +114,8 @@ impl VaaMessageBodyHeader {
         Self { consistency_level, vaa_time, nonce: 0, sequence, emitter_chain, emitter_address }
     }
 
+    /// This function creates both the message body and the payload. 
+    /// This is all done here just because it's (supposedly?) cheaper in the solana vm.
     pub fn message_body(&self, fast_market_order: &FastMarketOrderState) -> Vec<u8> {
         let mut message_body = vec![];
         message_body.extend_from_slice(&self.vaa_time.to_be_bytes());
