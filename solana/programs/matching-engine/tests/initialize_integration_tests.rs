@@ -2,10 +2,11 @@ use matching_engine::{ID as PROGRAM_ID, CCTP_MINT_RECIPIENT};
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 mod utils;
+use utils::shims_execute_order::{execute_order_fallback, ExecuteOrderFallbackAccounts};
 use utils::{Chain, REGISTERED_TOKEN_ROUTERS};
 use utils::router::{create_cctp_router_endpoints_test, add_local_router_endpoint_ix, create_all_router_endpoints_test};
 use utils::initialize::initialize_program;
-use utils::auction::{AuctionAccounts, place_initial_offer, improve_offer};
+use utils::auction::{improve_offer, place_initial_offer, AuctionAccounts, AuctionOfferFixture};
 use utils::setup::{PreTestingContext, TestingContext};
 use utils::vaa::create_vaas_test_with_chain_and_address;
 use utils::shims::{
@@ -97,7 +98,7 @@ pub async fn test_setup_vaas() {
     let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
     let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
     let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
-    let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address);
+    let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address, None, None, true);
     let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
     let initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
     let first_test_ft = vaas_test.0.first().unwrap();
@@ -157,67 +158,6 @@ pub async fn test_post_message_shims() {
 }
 
 
-// // TODO: Check that you cannot execute the order the old way and then place the initial offer using the shim
-// /// This test should FAIL because of stack overflow issues.
-// #[tokio::test]
-// pub async fn test_verify_shims() {
-//     let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
-//     pre_testing_context.add_verify_shims();
-//     // This will create vaas for the arbitrum and ethereum chains and post them to the test context accounts. These vaas will not be needed for the shim test, and shouldn't interact with the program during the test.
-//     let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
-//     let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
-    
-//     let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address);
-//     let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
-//     // TODO: Change the posting of the signatures to be the actual single guardian signature.
-//     let initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
-//     let first_test_ft = vaas_test.0.first().unwrap();
-//     // Assume this vaa was not actually posted, but instead we will use it to test the new instruction using a shim
-    
-//     let fixture_accounts = testing_context.fixture_accounts.expect("Pre-made fixture accounts not found");
-//     // Try making initial offer using the shim instruction
-//     let usdc_mint_address = USDC_MINT_ADDRESS;
-//     let auction_config_address = initialize_fixture.get_auction_config_address();
-//     let router_endpoints = create_all_router_endpoints_test(
-//         &testing_context.test_context,
-//         testing_context.testing_actors.owner.pubkey(),
-//         initialize_fixture.get_custodian_address(),
-//         fixture_accounts.arbitrum_remote_token_messenger,
-//         fixture_accounts.ethereum_remote_token_messenger,
-//         usdc_mint_address,
-//         testing_context.testing_actors.owner.keypair(),
-//         PROGRAM_ID,
-//     ).await;
-//     let arb_endpoint_address = router_endpoints.arbitrum.endpoint_address;
-//     let eth_endpoint_address = router_endpoints.ethereum.endpoint_address;
-
-//     let solver = testing_context.testing_actors.solvers[0].clone();
-//     let auction_accounts = AuctionAccounts::new(
-//         None, // Fast VAA pubkey
-//         solver.clone(), // Solver
-//         auction_config_address.clone(), // Auction config pubkey
-//         arb_endpoint_address, // From router endpoint pubkey
-//         eth_endpoint_address, // To router endpoint pubkey
-//         initialize_fixture.get_custodian_address(), // Custodian pubkey
-//         usdc_mint_address, // USDC mint pubkey
-//     );
-    
-//     let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
-
-    
-//     let solver = testing_context.testing_actors.solvers[0].clone();
-
-//     let _initial_offer_fixture = place_initial_offer_shim(
-//         &testing_context.test_context,
-//         &testing_context.testing_actors.owner.keypair(),
-//         &PROGRAM_ID,
-//         &CORE_BRIDGE_PROGRAM_ID,
-//         &vaa_data,
-//         solver,
-//         &auction_accounts,
-//     ).await.expect("Failed to place initial offer");
-// }
-
 #[tokio::test]
 pub async fn test_verify_shims_fallback() {
     let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
@@ -226,12 +166,11 @@ pub async fn test_verify_shims_fallback() {
     let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
     let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
     
-    let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address);
+    // This will create the fast transfer and deposit vaas but will not post them. Both will have nonce == 0. Deposit vaa will have sequence == 0, fast transfer vaa will have sequence == 1.
+    let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address, None, Some(0),false);
     let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
-    // TODO: Change the posting of the signatures to be the actual single guardian signature.
     let initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
     let first_test_ft = vaas_test.0.first().unwrap();
-    // Assume this vaa was not actually posted, but instead we will use it to test the new instruction using a shim
     
     let fixture_accounts = testing_context.fixture_accounts.expect("Pre-made fixture accounts not found");
     // Try making initial offer using the shim instruction
@@ -263,16 +202,93 @@ pub async fn test_verify_shims_fallback() {
     
     let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
 
-    
-    let solver = testing_context.testing_actors.solvers[0].clone();
-
-    let _initial_offer_fixture = place_initial_offer_fallback(
+    // Place initial offer using the fallback program
+    let initial_offer_fixture = place_initial_offer_fallback(
         &testing_context.test_context,
         &testing_context.testing_actors.owner.keypair(),
         &PROGRAM_ID,
         &CORE_BRIDGE_PROGRAM_ID,
         &vaa_data,
-        solver,
+        solver.clone(),
         &auction_accounts,
+        1__000_000, // 1 USDC (double underscore for decimal separator)
     ).await.expect("Failed to place initial offer");
+
+    let auction_offer_fixture = AuctionOfferFixture {
+        auction_address: initial_offer_fixture.auction_address,
+        auction_custody_token_address: initial_offer_fixture.auction_custody_token_address,
+        offer_price: 1__000_000,
+        offer_token: auction_accounts.offer_token,
+    };
+    // Attempt to improve the offer using the non-fallback method
+    let _improved_offer_fixture = improve_offer(&testing_context.test_context, auction_offer_fixture, testing_context.testing_actors.owner.keypair(), PROGRAM_ID, solver, auction_config_address).await;
+    // improved_offer_fixture.verify_improved_offer(&testing_context.test_context).await;
+}
+
+#[tokio::test]
+pub async fn test_execute_order_fallback() {
+    let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
+    pre_testing_context.add_verify_shims();
+    let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address, None, Some(0), false);
+    let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
+    let initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
+    let actors = testing_context.testing_actors;
+    let payer_signer = actors.owner.keypair();
+    let first_test_ft = vaas_test.0.first().unwrap();
+    let fixture_accounts = testing_context.fixture_accounts.expect("Pre-made fixture accounts not found");
+    
+    // Try making initial offer using the shim instruction
+    let usdc_mint_address = USDC_MINT_ADDRESS;
+    let auction_config_address = initialize_fixture.get_auction_config_address();
+    let router_endpoints = create_all_router_endpoints_test(
+        &testing_context.test_context,
+        actors.owner.pubkey(),
+        initialize_fixture.get_custodian_address(),
+        fixture_accounts.arbitrum_remote_token_messenger,
+        fixture_accounts.ethereum_remote_token_messenger,
+        usdc_mint_address,
+        actors.owner.keypair(),
+        PROGRAM_ID,
+    ).await;
+    let arb_endpoint_address = router_endpoints.arbitrum.endpoint_address;
+    let eth_endpoint_address = router_endpoints.ethereum.endpoint_address;
+    let solver: utils::setup::Solver = actors.solvers[0].clone();
+
+    let auction_accounts = AuctionAccounts::new(
+        None, // Fast VAA pubkey
+        solver.clone(), // Solver
+        auction_config_address.clone(), // Auction config pubkey
+        arb_endpoint_address, // From router endpoint pubkey
+        eth_endpoint_address, // To router endpoint pubkey
+        initialize_fixture.get_custodian_address(), // Custodian pubkey
+        usdc_mint_address, // USDC mint pubkey
+    );
+
+    let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
+    
+
+    // Place initial offer using the fallback program
+    let initial_offer_fixture = place_initial_offer_fallback(
+        &testing_context.test_context,
+        &payer_signer,
+        &PROGRAM_ID,
+        &CORE_BRIDGE_PROGRAM_ID,
+        &vaa_data,
+        solver.clone(),
+        &auction_accounts,
+        1__000_000, // 1 USDC (double underscore for decimal separator)
+    ).await.expect("Failed to place initial offer");
+    
+    let execute_order_fallback_accounts = ExecuteOrderFallbackAccounts::new(&auction_accounts, &initial_offer_fixture);
+    // Try executing the order using the fallback program
+    let _execute_order_fixture = execute_order_fallback(
+        &testing_context.test_context,
+        &payer_signer,
+        &PROGRAM_ID,
+        solver,
+        &execute_order_fallback_accounts,
+        initial_offer_fixture.fast_market_order,
+    ).await.expect("Failed to execute order");
 }

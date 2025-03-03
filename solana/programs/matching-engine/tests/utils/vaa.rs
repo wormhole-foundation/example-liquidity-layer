@@ -97,18 +97,6 @@ impl PostedVaaData {
         ])
     }
 
-    pub fn message_vec(&self) -> Vec<u8> {
-        vec![
-            self.vaa_time.to_be_bytes().as_ref(),
-            self.nonce.to_be_bytes().as_ref(),
-            self.emitter_chain.to_be_bytes().as_ref(),
-            &self.emitter_address,
-            &self.sequence.to_be_bytes(),
-            &[self.consistency_level],
-            self.payload.as_ref(),
-        ].concat()
-    }
-
     pub fn sign_with_guardian_key(&self, guardian_secret_key: &SecpSecretKey, index: u8) -> [u8; 66] {
         // Sign the message hash with the guardian key
         let secp = secp256k1::SECP256K1;
@@ -295,23 +283,41 @@ impl TestFastTransfers {
     }
 
     /// Add a fast transfer to the test, the sequence number and cctp nonce are equal to the index of the test fast transfer
-    pub fn add_ft(&mut self, start_timestamp: Option<u32>, token_mint: Pubkey, source_address: ChainAddress, refund_address: ChainAddress, destination_address: ChainAddress, cctp_mint_recipient: Pubkey) {
-        let sequence = self.len() as u64;
-        let cctp_nonce = sequence;
+    pub fn add_ft(&mut self, start_timestamp: Option<u32>, token_mint: Pubkey, source_address: ChainAddress, refund_address: ChainAddress, destination_address: ChainAddress, cctp_mint_recipient: Pubkey, sequence: Option<u64>, nonce: Option<u64>) {
+        let sequence = sequence.unwrap_or(self.len() as u64);
+        let cctp_nonce = nonce.unwrap_or(sequence);
         let test_fast_transfer = TestFastTransfer::new(start_timestamp, token_mint, source_address, refund_address, destination_address, cctp_nonce, sequence, cctp_mint_recipient);
         self.0.push(test_fast_transfer);
     }
+
+    pub fn create_vaas_with_chain_and_address(&mut self, program_test: &mut ProgramTest, mint_address: Pubkey, start_timestamp: Option<u32>, cctp_mint_recipient: Pubkey, source_chain: Chain, destination_chain: Chain, source_address: [u8; 32], destination_address: [u8; 32], sequence: Option<u64>, nonce: Option<u64>, add_fast_transfer_to_test: bool) {
+        let source_address = ChainAddress::new_with_address(source_chain, source_address);
+        let destination_address = ChainAddress::new_with_address(destination_chain, destination_address);
+        let refund_address = source_address.clone();
+        self.add_ft(start_timestamp, mint_address.clone(), source_address, refund_address, destination_address, cctp_mint_recipient, sequence, nonce);
+        if add_fast_transfer_to_test {
+            for test_fast_transfer in self.0.iter() {
+                test_fast_transfer.add_to_test(program_test);
+            }
+        }
+    }
 }
 
-pub fn create_vaas_test_with_chain_and_address(program_test: &mut ProgramTest, mint_address: Pubkey, start_timestamp: Option<u32>, cctp_mint_recipient: Pubkey, source_chain: Chain, destination_chain: Chain, source_address: [u8; 32], destination_address: [u8; 32]) -> TestFastTransfers {
+pub fn create_vaas_test_with_chain_and_address(
+    program_test: &mut ProgramTest, 
+    mint_address: Pubkey, 
+    start_timestamp: Option<u32>, 
+    cctp_mint_recipient: Pubkey, 
+    source_chain: Chain, 
+    destination_chain: Chain, 
+    source_address: [u8; 32], 
+    destination_address: [u8; 32],
+    sequence: Option<u64>,
+    nonce: Option<u64>,
+    add_fast_transfer_to_test: bool
+) -> TestFastTransfers {
     let mut test_fast_transfers = TestFastTransfers::new();
-    let source_address = ChainAddress::new_with_address(source_chain, source_address);
-    let destination_address = ChainAddress::new_with_address(destination_chain, destination_address);
-    let refund_address = source_address.clone();
-    test_fast_transfers.add_ft(start_timestamp, mint_address.clone(), source_address, refund_address, destination_address, cctp_mint_recipient);
-    for test_fast_transfer in test_fast_transfers.0.iter() {
-        test_fast_transfer.add_to_test(program_test);
-    }
+    test_fast_transfers.create_vaas_with_chain_and_address(program_test, mint_address, start_timestamp, cctp_mint_recipient, source_chain, destination_chain, source_address, destination_address, sequence, nonce, add_fast_transfer_to_test);
     test_fast_transfers
 }
 pub trait ToBytes {
