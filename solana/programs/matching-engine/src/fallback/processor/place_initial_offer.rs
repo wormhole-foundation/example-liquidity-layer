@@ -49,7 +49,7 @@ pub struct PlaceInitialOfferCctpShimAccounts<'ix> {
     pub guardian_set_signatures: &'ix Pubkey,
     pub from_endpoint: &'ix Pubkey,
     pub to_endpoint: &'ix Pubkey,
-    pub fast_market_order: &'ix Pubkey, // Needs initalising
+    pub fast_market_order: &'ix Pubkey, // Needs initalising. Seeds are [FastMarketOrderState::SEED_PREFIX, auction_address.as_ref()]
     pub auction: &'ix Pubkey, // Needs initalising
     pub offer_token: &'ix Pubkey,
     pub auction_custody_token: &'ix Pubkey,
@@ -62,6 +62,7 @@ pub struct PlaceInitialOfferCctpShimAccounts<'ix> {
 impl<'ix> PlaceInitialOfferCctpShimAccounts<'ix> {
     pub fn to_account_metas(&self) -> Vec<AccountMeta> {
         vec![
+            // TODO: Change some to read only using the new_readonly
             AccountMeta::new(*self.signer, true),
             AccountMeta::new(*self.transfer_authority, false),
             AccountMeta::new(*self.custodian, false),
@@ -367,7 +368,7 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
     let (fast_market_order_pda, fast_market_order_bump) = Pubkey::find_program_address(
         &[
             FastMarketOrderState::SEED_PREFIX,
-            vaa_message_digest.as_ref(),
+            auction_key.as_ref(),
         ],
         &program_id,
     );
@@ -378,7 +379,7 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
     }
     let fast_market_order_seeds = [
         FastMarketOrderState::SEED_PREFIX,
-        vaa_message_digest.as_ref(),
+        auction_key.as_ref(),
         &[fast_market_order_bump],
     ];
     let fast_market_order_signer_seeds = &[&fast_market_order_seeds[..]];

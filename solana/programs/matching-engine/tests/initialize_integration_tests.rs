@@ -2,6 +2,7 @@ use matching_engine::{ID as PROGRAM_ID, CCTP_MINT_RECIPIENT};
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 mod utils;
+use solana_sdk::signer::Signer;
 use utils::shims_execute_order::{execute_order_fallback, ExecuteOrderFallbackAccounts};
 use utils::{Chain, REGISTERED_TOKEN_ROUTERS};
 use utils::router::{create_cctp_router_endpoints_test, add_local_router_endpoint_ix, create_all_router_endpoints_test};
@@ -92,6 +93,7 @@ pub async fn test_local_token_router_endpoint_creation() {
 }
 
 // Test setting up vaas
+// Vaa is from arbitrum to ethereum
 // - The payload of the vaa should be the .to_vec() of the FastMarketOrder under universal/rs/messages/src/fast_market_order.rs
 #[tokio::test]
 pub async fn test_setup_vaas() {
@@ -159,6 +161,8 @@ pub async fn test_post_message_shims() {
 
 
 #[tokio::test]
+// Testing a initial offer from arbitrum to ethereum
+// TODO: Make a test that checks that the auction account and maybe some other accounts are exactly the same as when using the fallback instruction
 pub async fn test_verify_shims_fallback() {
     let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
     pre_testing_context.add_verify_shims();
@@ -225,10 +229,14 @@ pub async fn test_verify_shims_fallback() {
     // improved_offer_fixture.verify_improved_offer(&testing_context.test_context).await;
 }
 
+
 #[tokio::test]
+// Testing an execute order from arbitrum to ethereum
+// TODO: Flesh out this test to see if the message was posted correctly
 pub async fn test_execute_order_fallback() {
     let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
     pre_testing_context.add_verify_shims();
+    pre_testing_context.add_post_message_shims();
     let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
     let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
     let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address, None, Some(0), false);
@@ -267,8 +275,9 @@ pub async fn test_execute_order_fallback() {
     );
 
     let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
-    
 
+    println!("Solver balance before placing initial offer: {:?}", solver.get_balance(&testing_context.test_context).await);
+    
     // Place initial offer using the fallback program
     let initial_offer_fixture = place_initial_offer_fallback(
         &testing_context.test_context,
@@ -280,15 +289,18 @@ pub async fn test_execute_order_fallback() {
         &auction_accounts,
         1__000_000, // 1 USDC (double underscore for decimal separator)
     ).await.expect("Failed to place initial offer");
+
+    println!("Solver balance after placing initial offer: {:?}", solver.get_balance(&testing_context.test_context).await);
     
-    let execute_order_fallback_accounts = ExecuteOrderFallbackAccounts::new(&auction_accounts, &initial_offer_fixture);
+    let execute_order_fallback_accounts = ExecuteOrderFallbackAccounts::new(&auction_accounts, &initial_offer_fixture, &payer_signer.pubkey(), &fixture_accounts);
     // Try executing the order using the fallback program
     let _execute_order_fixture = execute_order_fallback(
         &testing_context.test_context,
         &payer_signer,
         &PROGRAM_ID,
-        solver,
+        solver.clone(),
         &execute_order_fallback_accounts,
-        initial_offer_fixture.fast_market_order,
     ).await.expect("Failed to execute order");
+
+    println!("Solver balance after executing order: {:?}", solver.get_balance(&testing_context.test_context).await);
 }

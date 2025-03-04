@@ -63,8 +63,8 @@ impl AuctionOfferFixture {
             best_offer_token: pubkey!("3f3mimemFUZg6o7UuR7AXzt2B5Nh15beCczRPWg8oWnc"), // TODO: Figure this out, I think its the solver's ata
             initial_offer_token: pubkey!("3f3mimemFUZg6o7UuR7AXzt2B5Nh15beCczRPWg8oWnc"), // TODO: Figure this out, I think its the solver's ata
             start_slot: 1,
-            amount_in: 1000,
-            security_deposit: 1_004__200_005,
+            amount_in: 69000000,
+            security_deposit: 10545000,
             offer_price: 1__000_000,
             redeemer_message_len: 0,
             destination_asset_info: None,

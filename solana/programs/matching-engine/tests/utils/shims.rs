@@ -21,7 +21,7 @@ use wormhole_svm_definitions::{
     find_shim_message_address,
 };
 use base64::Engine;
-use matching_engine::{state::{Auction, FastMarketOrder as FastMarketOrderState}};
+use matching_engine::state::{Auction, FastMarketOrder as FastMarketOrderState};
 use matching_engine::fallback::place_initial_offer::{
     PlaceInitialOfferCctpShim as PlaceInitialOfferCctpShimFallback,
     PlaceInitialOfferCctpShimAccounts as PlaceInitialOfferCctpShimFallbackAccounts,
@@ -383,7 +383,7 @@ pub async fn place_initial_offer_fallback(test_ctx: &Rc<RefCell<ProgramTestConte
     let signatures_signer = Rc::new(Keypair::new());
     let guardian_signatures_pubkey = add_guardian_signatures_account(test_ctx, payer_signer, &signatures_signer, vec![guardian_set_signatures], 0).await.expect("Failed to post guardian signatures");
 
-    let fast_market_order_account = Pubkey::find_program_address(&[FastMarketOrderState::SEED_PREFIX, vaa_digest.as_ref()], program_id).0;
+    let fast_market_order_account = Pubkey::find_program_address(&[FastMarketOrderState::SEED_PREFIX, auction_address.as_ref()], program_id).0;
     // Approve the transfer authority
     let transfer_authority = Pubkey::find_program_address(&[common::TRANSFER_AUTHORITY_SEED_PREFIX, &auction_address.to_bytes(), &offer_price.to_be_bytes()], &program_id).0;
     
