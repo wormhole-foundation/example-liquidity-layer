@@ -4,6 +4,8 @@ use wormhole_svm_shim::post_message;
 use wormhole_svm_definitions::solana::{CORE_BRIDGE_CONFIG, CORE_BRIDGE_FEE_COLLECTOR, CORE_BRIDGE_PROGRAM_ID, POST_MESSAGE_SHIM_EVENT_AUTHORITY, POST_MESSAGE_SHIM_PROGRAM_ID};
 use anchor_lang::prelude::*;
 use wormhole_svm_definitions::{solana::Finality, find_emitter_sequence_address, find_shim_message_address};
+use crate::state::Custodian;
+
 
 // This is a helper struct to make it easier to pass in the accounts for the post_message instruction.
 pub struct PostMessageAccounts {
@@ -69,8 +71,8 @@ pub fn burn_and_post<'info>(
         .unwrap(),
     }
     .instruction();
-
-    invoke_signed_unchecked(&post_message_ix, account_infos, &[])?;
+    
+    invoke_signed_unchecked(&post_message_ix, account_infos, &[Custodian::SIGNER_SEEDS])?;
 
     deposit_for_burn_with_caller(
         cctp_ctx,

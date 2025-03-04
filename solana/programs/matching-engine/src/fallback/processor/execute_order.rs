@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::spl_token;
-use bytemuck::{Pod, Zeroable};
 use common::messages::Fill;
+use solana_program::program::invoke_signed_unchecked;
 use crate::utils;
 use solana_program::instruction::Instruction;
 use crate::state::{Auction, AuctionConfig, AuctionStatus, Custodian, FastMarketOrder as FastMarketOrderState, MessageProtocol, RouterEndpoint};
@@ -14,57 +14,42 @@ use super::errors::FallbackError;
 use crate::error::MatchingEngineError;
 
 
-#[derive(Debug, Copy, Clone, Pod, Zeroable)]
-#[repr(C)]
-pub struct ExecuteOrderCctpShimData {
-    pub destination_cctp_domain: u32,
-    _padding: [u8; 4],
-}
-
-impl ExecuteOrderCctpShimData {
-    pub fn new(destination_cctp_domain: u32) -> Self {
-        Self {
-            destination_cctp_domain,
-            _padding: [0; 4],
-        }
-    }
-
-    pub fn from_bytes(data: &[u8]) -> Option<&Self> {
-        bytemuck::try_from_bytes::<Self>(data).ok()
-     }
-}
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct ExecuteOrderShimAccounts<'ix> {
     pub signer: &'ix Pubkey, // 0
-    pub cctp_message: &'ix Pubkey, // 2
-    pub custodian: &'ix Pubkey, // 3
-    pub fast_market_order: &'ix Pubkey, // 4
-    pub active_auction: &'ix Pubkey, // 5
-    pub active_auction_custody_token: &'ix Pubkey, // 6
-    pub active_auction_config: &'ix Pubkey, // 7
-    pub active_auction_best_offer_token: &'ix Pubkey, // 8
-    pub executor_token: &'ix Pubkey, // 9
-    pub initial_offer_token: &'ix Pubkey, // 10
-    pub initial_participant: &'ix Pubkey, // 11
-    pub to_router_endpoint: &'ix Pubkey, // 12
+    pub cctp_message: &'ix Pubkey, // 1
+    pub custodian: &'ix Pubkey, // 2
+    pub fast_market_order: &'ix Pubkey, // 3
+    pub active_auction: &'ix Pubkey, // 4
+    pub active_auction_custody_token: &'ix Pubkey, // 5
+    pub active_auction_config: &'ix Pubkey, // 6
+    pub active_auction_best_offer_token: &'ix Pubkey, // 7
+    pub executor_token: &'ix Pubkey, // 8
+    pub initial_offer_token: &'ix Pubkey, // 9
+    pub initial_participant: &'ix Pubkey, // 10
+    pub to_router_endpoint: &'ix Pubkey, // 11
     // Add shim post message accounts. TODO: Ask about if these are needed at all, or if they can just be imported/derived
-    pub post_message_shim_program: &'ix Pubkey, // 13
-    pub post_message_sequence: &'ix Pubkey, // 14
-    pub post_message_message: &'ix Pubkey, // 15
-    pub cctp_deposit_for_burn_mint: &'ix Pubkey, // 16
-    pub cctp_deposit_for_burn_token_messenger_minter_sender_authority: &'ix Pubkey, // 17
-    pub cctp_deposit_for_burn_message_transmitter_config: &'ix Pubkey, // 18
-    pub cctp_deposit_for_burn_token_messenger: &'ix Pubkey, // 19
-    pub cctp_deposit_for_burn_remote_token_messenger: &'ix Pubkey, // 20
-    pub cctp_deposit_for_burn_token_minter: &'ix Pubkey, // 21
-    pub cctp_deposit_for_burn_local_token: &'ix Pubkey, // 22
-    pub cctp_deposit_for_burn_token_messenger_minter_event_authority: &'ix Pubkey, // 23
-    pub cctp_deposit_for_burn_token_messenger_minter_program: &'ix Pubkey, // 24
-    pub cctp_deposit_for_burn_message_transmitter_program: &'ix Pubkey, // 25
-    pub system_program: &'ix Pubkey, // 26
-    pub token_program: &'ix Pubkey, // 27
-    pub clock: &'ix Pubkey, // 28
-    pub rent: &'ix Pubkey, // 29
+    pub post_message_shim_program: &'ix Pubkey, // 12
+    pub post_message_sequence: &'ix Pubkey, // 13
+    pub post_message_message: &'ix Pubkey, // 14
+    pub cctp_deposit_for_burn_mint: &'ix Pubkey, // 15
+    pub cctp_deposit_for_burn_token_messenger_minter_sender_authority: &'ix Pubkey, // 16
+    pub cctp_deposit_for_burn_message_transmitter_config: &'ix Pubkey, // 17
+    pub cctp_deposit_for_burn_token_messenger: &'ix Pubkey, // 18
+    pub cctp_deposit_for_burn_remote_token_messenger: &'ix Pubkey, // 19
+    pub cctp_deposit_for_burn_token_minter: &'ix Pubkey, // 20
+    pub cctp_deposit_for_burn_local_token: &'ix Pubkey, // 21
+    pub cctp_deposit_for_burn_token_messenger_minter_event_authority: &'ix Pubkey, // 22
+    pub cctp_deposit_for_burn_token_messenger_minter_program: &'ix Pubkey, // 23
+    pub cctp_deposit_for_burn_message_transmitter_program: &'ix Pubkey, // 24
+    // Core bridge program accounts
+    pub core_bridge_program: &'ix Pubkey, // 25
+    pub core_bridge_config: &'ix Pubkey, // 26
+    pub core_bridge_fee_collector: &'ix Pubkey, // 27
+    pub post_message_shim_event_authority: &'ix Pubkey, // 28
+    pub system_program: &'ix Pubkey, // 29
+    pub token_program: &'ix Pubkey, // 30
+    pub clock: &'ix Pubkey, // 31
 }
 
 impl<'ix> ExecuteOrderShimAccounts<'ix> {
@@ -95,11 +80,13 @@ impl<'ix> ExecuteOrderShimAccounts<'ix> {
             AccountMeta::new(*self.cctp_deposit_for_burn_token_messenger_minter_event_authority, false),
             AccountMeta::new(*self.cctp_deposit_for_burn_token_messenger_minter_program, false),
             AccountMeta::new(*self.cctp_deposit_for_burn_message_transmitter_program, false),
-            AccountMeta::new(*self.post_message_shim_program, false),
+            AccountMeta::new(*self.core_bridge_program, false),
+            AccountMeta::new(*self.core_bridge_config, false),
+            AccountMeta::new(*self.core_bridge_fee_collector, false),
+            AccountMeta::new(*self.post_message_shim_event_authority, false),
             AccountMeta::new(*self.system_program, false),
             AccountMeta::new(*self.token_program, false),
             AccountMeta::new(*self.clock, false),
-            AccountMeta::new(*self.rent, false),
         ]
     }
 }
@@ -107,7 +94,6 @@ impl<'ix> ExecuteOrderShimAccounts<'ix> {
 pub struct ExecuteOrderCctpShim<'ix> {
     pub program_id: &'ix Pubkey,
     pub accounts: ExecuteOrderShimAccounts<'ix>,
-    pub data: ExecuteOrderCctpShimData,
 }
 
 impl ExecuteOrderCctpShim<'_> {
@@ -115,49 +101,48 @@ impl ExecuteOrderCctpShim<'_> {
         Instruction {
             program_id: *self.program_id,
             accounts: self.accounts.to_account_metas(),
-            data: FallbackMatchingEngineInstruction::ExecuteOrderCctpShim(&self.data).to_vec(),
+            data: FallbackMatchingEngineInstruction::ExecuteOrderCctpShim.to_vec(),
         }
     }
 }
-pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCctpShimData) -> Result<()> {
+pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     let program_id = &crate::ID;
 
     // Get the accounts
     let signer_account = &accounts[0];
-    let cctp_message_account = &accounts[2];
-    let custodian_account = &accounts[3];
-    let fast_market_order_account = &accounts[4];
-    let active_auction_account = &accounts[5];
-    let active_auction_custody_token_account = &accounts[6];
-    let active_auction_config_account = &accounts[7];
-    let active_auction_best_offer_token_account = &accounts[8];
-    let executor_token_account = &accounts[9];
-    let initial_offer_token_account = &accounts[10];
-    let initial_participant_account = &accounts[11];
-    let to_router_endpoint_account = &accounts[12];
+    let cctp_message_account = &accounts[1];
+    let custodian_account = &accounts[2];
+    let fast_market_order_account = &accounts[3];
+    let active_auction_account = &accounts[4];
+    let active_auction_custody_token_account = &accounts[5];
+    let active_auction_config_account = &accounts[6];
+    let active_auction_best_offer_token_account = &accounts[7];
+    let executor_token_account = &accounts[8];
+    let initial_offer_token_account = &accounts[9];
+    let initial_participant_account = &accounts[10];
+    let to_router_endpoint_account = &accounts[11];
     // TODO: These are not used, so can I just ignore them?
-    let post_message_shim_program_account = &accounts[13];
-    let post_message_sequence_account = &accounts[14];
-    let post_message_message_account = &accounts[15];
-    let cctp_deposit_for_burn_mint_account = &accounts[16];
-    let cctp_deposit_for_burn_token_messenger_minter_sender_authority_account = &accounts[17];
-    let cctp_deposit_for_burn_message_transmitter_config_account = &accounts[18];
-    let cctp_deposit_for_burn_token_messenger_account = &accounts[19];
-    let cctp_deposit_for_burn_remote_token_messenger_account = &accounts[20];
-    let cctp_deposit_for_burn_token_minter_account = &accounts[21];
-    let cctp_deposit_for_burn_local_token_account = &accounts[22];
-    let cctp_deposit_for_burn_token_messenger_minter_event_authority_account = &accounts[23];
-    let cctp_deposit_for_burn_token_messenger_minter_program_account = &accounts[24];
-    let cctp_deposit_for_burn_message_transmitter_program_account = &accounts[25];
-    let system_program_account = &accounts[26];
-    let token_program_account = &accounts[27];
-    let _clock_account = &accounts[28];
-    let _rent_account = &accounts[29];
+    // TODO: Check that this is the correct program id for the post message shim program
+    let _post_message_shim_program_account = &accounts[12];
+    let _post_message_sequence_account = &accounts[13];
+    let _post_message_message_account = &accounts[14];
+    let cctp_deposit_for_burn_mint_account = &accounts[15];
+    let cctp_deposit_for_burn_token_messenger_minter_sender_authority_account = &accounts[16];
+    let cctp_deposit_for_burn_message_transmitter_config_account = &accounts[17];
+    let cctp_deposit_for_burn_token_messenger_account = &accounts[18];
+    let cctp_deposit_for_burn_remote_token_messenger_account = &accounts[19];
+    let cctp_deposit_for_burn_token_minter_account = &accounts[20];
+    let cctp_deposit_for_burn_local_token_account = &accounts[21];
+    let cctp_deposit_for_burn_token_messenger_minter_event_authority_account = &accounts[22];
+    let cctp_deposit_for_burn_token_messenger_minter_program_account = &accounts[23];
+    let cctp_deposit_for_burn_message_transmitter_program_account = &accounts[24];
+    let _core_bridge_program_account = &accounts[25];
+    let _core_bridge_config_account = &accounts[26];
+    let _core_bridge_fee_collector_account = &accounts[27];
+    let _post_message_shim_event_authority_account = &accounts[28];
+    let system_program_account = &accounts[29];
+    let token_program_account = &accounts[30];
 
-    let ExecuteOrderCctpShimData {
-        destination_cctp_domain,
-        _padding,
-    } = data;
 
     // Do checks
     // ------------------------------------------------------------------------------------------------
@@ -177,6 +162,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCc
         common::CCTP_MESSAGE_SEED_PREFIX,
         active_auction_key.as_ref(),
     ];
+    
     let (cctp_message_pda, cctp_message_bump) = Pubkey::find_program_address(&cctp_message_seeds, program_id);
     if cctp_message_pda != cctp_message_account.key() {
         msg!("Cctp message seeds are invalid");
@@ -204,6 +190,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCc
         FastMarketOrderState::SEED_PREFIX,
         active_auction_key.as_ref(),
     ];
+
     let (fast_market_order_pda, _fast_market_order_bump) = Pubkey::find_program_address(&fast_market_order_seeds, program_id);
     if fast_market_order_pda != fast_market_order_account.key() {
         msg!("Fast market order seeds are invalid");
@@ -287,11 +274,10 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCc
     };
     
     // TODO: Done with auction checks, now on to executor token checks
-    let executor_token = anchor_spl::token::TokenAccount::try_deserialize(&mut &executor_token_account.data.borrow()[..])?;
-    if executor_token.mint != active_auction.info.as_ref().unwrap().best_offer_token {
-        msg!("Executor token mint is invalid");
+    if executor_token_account.key() != active_auction.info.as_ref().unwrap().best_offer_token {
+        msg!("Executor token is not equal to best offer token");
         return Err(ErrorCode::ConstraintAddress.into())
-            .map_err(|e: Error| e.with_pubkeys((executor_token.mint, active_auction.info.as_ref().unwrap().best_offer_token)));
+            .map_err(|e: Error| e.with_pubkeys((executor_token_account.key(), active_auction.info.as_ref().unwrap().best_offer_token)));
     };
 
     // Check initial offer token address
@@ -315,7 +301,12 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCc
             .map_err(|e: Error| e.with_account_name("to_router_endpoint"));
     };
 
-    // TODO: Ask about seeds for wormhole publish message accounts
+    let destination_cctp_domain = match to_router_endpoint.protocol {
+        MessageProtocol::Cctp { domain } => domain,
+        _ => return Err(MatchingEngineError::InvalidCctpEndpoint.into())
+            .map_err(|e: Error| e.with_account_name("to_router_endpoint")),
+    };
+
 
     // Check cctp deposit for burn token messenger minter program address
     if cctp_deposit_for_burn_token_messenger_minter_program_account.key() != common::wormhole_cctp_solana::cctp::token_messenger_minter_program::id() {
@@ -334,7 +325,8 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCc
     // End of checks
     // ------------------------------------------------------------------------------------------------
 
-    let fast_market_order_data = &fast_market_order_account.data.borrow()[..];
+    // Get the fast market order data, without the discriminator
+    let fast_market_order_data = &fast_market_order_account.data.borrow()[8..];
     // Deserialise fast market order. Unwrap is safe because the account is owned by the matching engine program.
     let fast_market_order = bytemuck::try_from_bytes::<FastMarketOrderState>(
         &fast_market_order_data[..]
@@ -367,7 +359,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCc
     );
 
     let init_auction_fee = fast_market_order.init_auction_fee;
-
+    
     let user_amount = active_auction_info
         .amount_in
         .saturating_sub(active_auction_info.offer_price)
@@ -420,7 +412,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCc
     }
 
     // Return the security deposit and the fee to the highest bidder.
-    //
     if active_auction_best_offer_token_account.key() == executor_token_account.key() {
         // If the best offer token is equal to the executor token, just send whatever remains in
         // the custody token account.
@@ -470,7 +461,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCc
 
     // Set the authority of the custody token account to the custodian. He will take over from
     // here.
-    spl_token::instruction::set_authority(
+    let set_authority_ix = spl_token::instruction::set_authority(
         &spl_token::ID,
         &active_auction_custody_token_account.key(),
         Some(&custodian_account.key()),
@@ -478,6 +469,13 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCc
         &active_auction_account.key(),
         &[],
     ).unwrap();
+
+    let auction_signer_seeds = &[
+        Auction::SEED_PREFIX,
+        active_auction.vaa_hash.as_ref(),
+        &[active_auction.bump],
+    ];
+    invoke_signed_unchecked(&set_authority_ix, accounts, &[auction_signer_seeds])?;
 
     // Set the active auction status
     active_auction.status = AuctionStatus::Completed {
@@ -493,7 +491,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCc
     };
 
     let post_message_accounts = PostMessageAccounts::new(custodian_account.key(), signer_account.key());
-
     burn_and_post(
         CpiContext::new_with_signer(
             cctp_deposit_for_burn_token_messenger_minter_program_account.to_account_info(),
@@ -527,7 +524,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo], data: &ExecuteOrderCc
         common::wormhole_cctp_solana::cpi::BurnAndPublishArgs {
             burn_source: None,
             destination_caller: to_router_endpoint.address,
-            destination_cctp_domain: *destination_cctp_domain,
+            destination_cctp_domain: destination_cctp_domain,
             amount: user_amount,
             mint_recipient: to_router_endpoint.mint_recipient,
             wormhole_message_nonce: common::WORMHOLE_MESSAGE_NONCE,

@@ -4,7 +4,6 @@ use anchor_lang::prelude::*;
 use wormhole_svm_definitions::make_anchor_discriminator;
 use super::place_initial_offer::PlaceInitialOfferCctpShimData;
 use super::place_initial_offer::place_initial_offer_cctp_shim;
-use super::execute_order::ExecuteOrderCctpShimData;
 use super::execute_order::handle_execute_order_shim;
 
 
@@ -16,7 +15,7 @@ impl<'ix> FallbackMatchingEngineInstruction<'ix> {
 
 pub enum FallbackMatchingEngineInstruction<'ix> {
     PlaceInitialOfferCctpShim(&'ix PlaceInitialOfferCctpShimData),
-    ExecuteOrderCctpShim(&'ix ExecuteOrderCctpShimData),
+    ExecuteOrderCctpShim,
 }
 
 pub fn process_instruction(program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u8]) -> Result<()> {
@@ -29,8 +28,8 @@ pub fn process_instruction(program_id: &Pubkey, accounts: &[AccountInfo], instru
         FallbackMatchingEngineInstruction::PlaceInitialOfferCctpShim(data) => {
             place_initial_offer_cctp_shim(accounts, &data)
         },
-        FallbackMatchingEngineInstruction::ExecuteOrderCctpShim(data) => {
-            handle_execute_order_shim(accounts, &data)
+        FallbackMatchingEngineInstruction::ExecuteOrderCctpShim => {
+            handle_execute_order_shim(accounts)
         }
     }
 }
@@ -46,7 +45,7 @@ impl<'ix> FallbackMatchingEngineInstruction<'ix> {
                 Some(Self::PlaceInitialOfferCctpShim(&PlaceInitialOfferCctpShimData::from_bytes(&instruction_data[8..]).unwrap()))
             },
             FallbackMatchingEngineInstruction::EXECUTE_ORDER_CCTP_SHIM_SELECTOR => {
-                Some(Self::ExecuteOrderCctpShim(&ExecuteOrderCctpShimData::from_bytes(&instruction_data[8..]).unwrap()))
+                Some(Self::ExecuteOrderCctpShim)
             },
             _ => None,
         }
@@ -72,14 +71,13 @@ impl FallbackMatchingEngineInstruction<'_> {
 
                 out
             },
-            Self::ExecuteOrderCctpShim(data) => {
-                let data_slice = bytemuck::bytes_of(*data);
-                let total_capacity = 8 + data_slice.len(); // 8 for the selector, plus the data length
+            Self::ExecuteOrderCctpShim => {
+                let total_capacity = 8; // 8 for the selector (no data)
 
                 let mut out = Vec::with_capacity(total_capacity);
 
                 out.extend_from_slice(&FallbackMatchingEngineInstruction::EXECUTE_ORDER_CCTP_SHIM_SELECTOR);
-                out.extend_from_slice(data_slice);
+                
 
                 out
             }

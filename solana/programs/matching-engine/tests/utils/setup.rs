@@ -1,10 +1,11 @@
+use anchor_lang::AccountDeserialize;
 use solana_program_test::{ProgramTest, ProgramTestContext};
 use solana_sdk::{
-    pubkey::Pubkey, signature::{Keypair, Signer}, transaction::Transaction,
+    pubkey::Pubkey, signature::{Keypair, Signer}, transaction::Transaction
 };
 use std::rc::Rc;
 use std::cell::RefCell;
-use anchor_spl::token::spl_token::{self, instruction::approve};
+use anchor_spl::token::{spl_token::{self, instruction::approve}, TokenAccount};
 use super::{airdrop::airdrop_usdc, token_account::{create_token_account, read_keypair_from_file, TokenAccountFixture}};
 use super::mint::MintFixture;
 use super::program_fixtures::{initialise_upgrade_manager, initialise_cctp_token_messenger_minter, initialise_wormhole_core_bridge, initialise_cctp_message_transmitter, initialise_local_token_router, initialise_post_message_shims, initialise_verify_shims};
@@ -127,6 +128,10 @@ impl Solver {
         );
         test_context.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to approve USDC");
     }
+
+    pub async fn get_balance(&self, test_context: &Rc<RefCell<ProgramTestContext>>) -> u64 {
+        self.actor.get_balance(test_context).await
+    }
 }
 
 #[derive(Clone)]
@@ -154,6 +159,17 @@ impl TestingActor {
 
     pub fn token_account_address(&self) -> Option<Pubkey> {
         self.token_account.as_ref().map(|t| t.address)
+    }
+
+    pub async fn get_balance(&self, test_context: &Rc<RefCell<ProgramTestContext>>) -> u64 {
+        if let Some(token_account) = self.token_account_address() {
+            let account = test_context.borrow_mut().banks_client.get_account(token_account).await.unwrap().unwrap();
+            let token_account = TokenAccount::try_deserialize(&mut &account.data[..]).unwrap();
+            token_account.amount
+        }
+        else {
+            0
+        }
     }
 }
 
@@ -226,4 +242,41 @@ impl TestingActors {
             self.solvers.push(Solver::new(keypair.clone(), Some(usdc_ata)));
         }
     }
+}
+
+pub async fn fast_forward_slots(test_context: &Rc<RefCell<ProgramTestContext>>, num_slots: u64) {
+    // Get the current slot
+    let mut current_slot = test_context
+        .borrow_mut()
+        .banks_client
+        .get_root_slot()
+        .await
+        .unwrap();
+
+    let target_slot = current_slot + num_slots;
+    while current_slot < target_slot {
+        // Warp to the next slot - note we need to borrow_mut() here
+        test_context
+            .borrow_mut()
+            .warp_to_slot(current_slot + 1)
+            .expect("Failed to warp to slot");
+        current_slot += 1;
+    }
+        
+    // Optionally, process a transaction to ensure the new slot is recognized
+    let recent_blockhash = test_context.borrow().last_blockhash;
+    let payer = test_context.borrow().payer.pubkey();
+    let tx = Transaction::new_signed_with_payer(
+        &[],
+        Some(&payer),
+        &[&test_context.borrow().payer],
+        recent_blockhash,
+    );
+    
+    test_context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .expect("Failed to process transaction after warping");
 }
