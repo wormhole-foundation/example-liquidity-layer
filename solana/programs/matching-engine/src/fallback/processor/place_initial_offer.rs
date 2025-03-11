@@ -7,7 +7,6 @@ use super::create_account::create_account_reliably;
 use solana_program::keccak;
 use anchor_lang::Discriminator;
 use solana_program::program_pack::Pack;
-use wormhole_svm_shim::verify_vaa::{VerifyHash, VerifyHashAccounts, VerifyHashData};
 use crate::state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian, FastMarketOrder as FastMarketOrderState, MessageProtocol, RouterEndpoint};
 use common::TRANSFER_AUTHORITY_SEED_PREFIX;
 use crate::ID as PROGRAM_ID;
@@ -22,16 +21,14 @@ pub struct PlaceInitialOfferCctpShimData {
     pub offer_price: u64,
     pub sequence: u64,
     pub vaa_time: u32,
-    pub guardian_set_bump: u8,
     pub consistency_level: u8,
-    _padding: [u8; 2],
-    pub fast_market_order: FastMarketOrderState,
+    _padding: [u8; 3],
 }
 
 impl PlaceInitialOfferCctpShimData {
 
-    pub fn new(offer_price: u64, sequence: u64, vaa_time: u32, guardian_set_bump: u8, consistency_level: u8, fast_market_order: FastMarketOrderState) -> Self {
-        Self { offer_price, sequence, vaa_time, guardian_set_bump, consistency_level, _padding: [0_u8; 2], fast_market_order }
+    pub fn new(offer_price: u64, sequence: u64, vaa_time: u32, consistency_level: u8) -> Self {
+        Self { offer_price, sequence, vaa_time, consistency_level, _padding: [0_u8; 3] }
     }
 
     pub fn from_bytes(data: &[u8]) -> Option<&Self> {
@@ -45,8 +42,6 @@ pub struct PlaceInitialOfferCctpShimAccounts<'ix> {
     pub transfer_authority: &'ix Pubkey,
     pub custodian: &'ix Pubkey,
     pub auction_config: &'ix Pubkey,
-    pub guardian_set: &'ix Pubkey,
-    pub guardian_set_signatures: &'ix Pubkey,
     pub from_endpoint: &'ix Pubkey,
     pub to_endpoint: &'ix Pubkey,
     pub fast_market_order: &'ix Pubkey, // Needs initalising. Seeds are [FastMarketOrderState::SEED_PREFIX, auction_address.as_ref()]
@@ -54,7 +49,6 @@ pub struct PlaceInitialOfferCctpShimAccounts<'ix> {
     pub offer_token: &'ix Pubkey,
     pub auction_custody_token: &'ix Pubkey,
     pub usdc: &'ix Pubkey,
-    pub verify_vaa_shim_program: &'ix Pubkey,
     pub system_program: &'ix Pubkey,
     pub token_program: &'ix Pubkey,
 }
@@ -62,23 +56,19 @@ pub struct PlaceInitialOfferCctpShimAccounts<'ix> {
 impl<'ix> PlaceInitialOfferCctpShimAccounts<'ix> {
     pub fn to_account_metas(&self) -> Vec<AccountMeta> {
         vec![
-            // TODO: Change some to read only using the new_readonly
             AccountMeta::new(*self.signer, true),
-            AccountMeta::new(*self.transfer_authority, false),
-            AccountMeta::new(*self.custodian, false),
-            AccountMeta::new(*self.auction_config, false),
-            AccountMeta::new(*self.guardian_set, false),
-            AccountMeta::new(*self.guardian_set_signatures, false),
-            AccountMeta::new(*self.from_endpoint, false),
-            AccountMeta::new(*self.to_endpoint, false),
+            AccountMeta::new_readonly(*self.transfer_authority, false),
+            AccountMeta::new_readonly(*self.custodian, false),
+            AccountMeta::new_readonly(*self.auction_config, false),
+            AccountMeta::new_readonly(*self.from_endpoint, false),
+            AccountMeta::new_readonly(*self.to_endpoint, false),
             AccountMeta::new(*self.fast_market_order, false),
             AccountMeta::new(*self.auction, false),
             AccountMeta::new(*self.offer_token, false),
             AccountMeta::new(*self.auction_custody_token, false),
-            AccountMeta::new(*self.usdc, false),
-            AccountMeta::new(*self.verify_vaa_shim_program, false),
-            AccountMeta::new(*self.system_program, false),
-            AccountMeta::new(*self.token_program, false),
+            AccountMeta::new_readonly(*self.usdc, false),
+            AccountMeta::new_readonly(*self.system_program, false),
+            AccountMeta::new_readonly(*self.token_program, false),
         ]
     }
 }
@@ -170,38 +160,36 @@ impl VaaMessageBodyHeader {
 pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -> Result<()> {
     // Check account owners
     let program_id = &crate::ID; // Your program ID
+    
     // Check all accounts are valid
-    if accounts.len() < 16 {
+    if accounts.len() < 11 {
         return Err(ErrorCode::AccountNotEnoughKeys.into());
     }
     // Extract data fields
+    // TODO: Remove sequence, vaa_time because they are in the fast market order state
     let PlaceInitialOfferCctpShimData {
         offer_price,
-        guardian_set_bump,
         sequence,
         vaa_time,
         consistency_level,
         _padding,
-        fast_market_order: fast_market_order_zero_copy,
     } = *data;
 
     let signer = &accounts[0];
     let transfer_authority = &accounts[1];
     let custodian = &accounts[2];
     let auction_config = &accounts[3];
-    let guardian_set = &accounts[4];
-    let guardian_set_signatures = &accounts[5];
-    let from_endpoint = &accounts[6];
-    let to_endpoint = &accounts[7];
-    let fast_market_order_account = &accounts[8];
-    let auction_account = &accounts[9];
+    let from_endpoint = &accounts[4];
+    let to_endpoint = &accounts[5];
+    let fast_market_order_account = &accounts[6];
+    let auction_account = &accounts[7];
     let auction_key = auction_account.key();
-    let offer_token = &accounts[10];
-    let auction_custody_token = &accounts[11];
-    let usdc = &accounts[12];
-    // let verify_vaa_shim_program = &accounts[13];
-    // let system_program = &accounts[14];
-    // let token_program = &accounts[15];
+    let offer_token = &accounts[8];
+    let auction_custody_token = &accounts[9];
+    let usdc = &accounts[10];
+    
+
+    let fast_market_order_zero_copy = FastMarketOrderState::try_deserialize(&mut &fast_market_order_account.data.borrow()[..])?;
 
     // Check pda of the transfer authority is valid
     let transfer_authority_seeds = [
@@ -292,12 +280,6 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
         msg!("To endpoint chain is not equal to the fast_market_order target_chain");
         return Err(MatchingEngineError::InvalidTargetRouter.into());
     }
-    
-    // Check if the fast_market_order account is already initialized
-    if !fast_market_order_account.data_is_empty() {
-        msg!("Fast market order account is already initialized");
-        return Err(FallbackError::AccountAlreadyInitialized.into());
-    }
 
     // Check contents of fast_market_order
     {
@@ -314,7 +296,6 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
             return Err(MatchingEngineError::OfferPriceTooHigh.into());
         }
     }
-    let fast_market_order_key = fast_market_order_account.key();
     
     // Create the vaa_message struct to get the digest
     let vaa_message = VaaMessageBodyHeader::new(consistency_level, vaa_time, sequence, from_endpoint_account.chain, from_endpoint_account.address);
@@ -336,7 +317,6 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
         &[auction_custody_token_bump],
     ];
     let auction_custody_token_signer_seeds = &[&auction_custody_token_seeds[..]];
-    // TODO: Must use create_account_reliably
     create_account_reliably(
         &signer.key(),
         &auction_custody_token_pda,
@@ -362,56 +342,6 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
     // ------------------------------------------------------------------------------------------------
     // End of initialisation of auction custody token account
 
-    // Begin of initialisation of fast_market_order account
-    // ------------------------------------------------------------------------------------------------
-    let space = 8 + std::mem::size_of::<FastMarketOrderState>();
-    let (fast_market_order_pda, fast_market_order_bump) = Pubkey::find_program_address(
-        &[
-            FastMarketOrderState::SEED_PREFIX,
-            auction_key.as_ref(),
-        ],
-        &program_id,
-    );
-
-    if fast_market_order_pda != fast_market_order_key {
-        msg!("Fast market order pda is invalid");
-        return Err(FallbackError::InvalidPda.into()).map_err(|e: Error| e.with_pubkeys((fast_market_order_key, fast_market_order_pda)));
-    }
-    let fast_market_order_seeds = [
-        FastMarketOrderState::SEED_PREFIX,
-        auction_key.as_ref(),
-        &[fast_market_order_bump],
-    ];
-    let fast_market_order_signer_seeds = &[&fast_market_order_seeds[..]];
-    // Create the account using the system program
-    create_account_reliably(
-        &signer.key(),
-        &fast_market_order_key,
-        fast_market_order_account.lamports(),
-        space,
-        accounts,
-        &program_id,
-        fast_market_order_signer_seeds,
-    )?;
-    // Borrow the account data mutably
-    let mut data = fast_market_order_account.try_borrow_mut_data()?;
-    
-    // Write the discriminator to the first 8 bytes
-    let discriminator = FastMarketOrderState::discriminator();
-    data[0..8].copy_from_slice(&discriminator);
-
-    let fast_market_order_bytes = bytemuck::bytes_of(&fast_market_order_zero_copy);
-
-    // Ensure the destination has enough space
-    if data.len() < 8 + fast_market_order_bytes.len() {
-        msg!("Account data buffer too small");
-        return Err(FallbackError::AccountDataTooSmall.into());
-    }
-
-    // Write the fast_market_order struct to the account
-    data[8..8 + fast_market_order_bytes.len()].copy_from_slice(fast_market_order_bytes);
-    // ------------------------------------------------------------------------------------------------
-    // End of initialisation of fast_market_order account
 
     // Begin of initialisation of auction account
     // ------------------------------------------------------------------------------------------------
@@ -484,25 +414,6 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
     data[8..8 + auction_bytes.len()].copy_from_slice(&auction_bytes);
     // ------------------------------------------------------------------------------------------------
     // End of initialisation of auction account
-
-    // Start of cpi call to verify the shim.
-    // ------------------------------------------------------------------------------------------------
-    let verify_hash_data = VerifyHashData::new(guardian_set_bump, vaa_message_digest.clone());
-    let verify_shim_ix = VerifyHash {
-        program_id: &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
-        accounts: VerifyHashAccounts {
-            guardian_set: &guardian_set.key(),
-            guardian_signatures: &guardian_set_signatures.key(),
-        },
-        data: verify_hash_data
-    }.instruction();
-    // Make the cpi call to verify the shim.
-    invoke_signed_unchecked(&verify_shim_ix, &[
-        guardian_set.to_account_info(),
-        guardian_set_signatures.to_account_info(),
-    ], &[])?;
-    // ------------------------------------------------------------------------------------------------
-    // End of cpi call to verify the shim.
     
     // Start of token transfer from offer token to auction custody token
     // ------------------------------------------------------------------------------------------------
@@ -534,19 +445,26 @@ mod tests {
 
     #[test]
     fn test_bytemuck() {
-        let test_fast_market_order = FastMarketOrderState {
-            amount_in: 1000000000000000000,
-            min_amount_out: 1000000000000000000,
-            deadline: 1000000000,
-            target_chain: 1,
-            redeemer_message_length: 0,
-            redeemer: [0_u8; 32],
-            sender: [0_u8; 32],
-            refund_address: [0_u8; 32],
-            max_fee: 0,
-            init_auction_fee: 0,
-            redeemer_message: [0_u8; 512],
-        };
+        let test_fast_market_order = FastMarketOrderState::new(
+            1000000000000000000,
+            1000000000000000000,
+            1000000000,
+            1,
+            0,
+            [0_u8; 32],
+            [0_u8; 32],
+            [0_u8; 32],
+            0,
+            0,
+            [0_u8; 512],
+            [0_u8; 32],
+            [0_u8; 32],
+            0,
+            0,
+            0,
+            [0_u8; 32],
+           
+        );
         let bytes = bytemuck::bytes_of(&test_fast_market_order);
         assert!(bytes.len() == std::mem::size_of::<FastMarketOrderState>());
     }

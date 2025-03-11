@@ -33,6 +33,7 @@ impl PreTestingContext {
         );
         program_test.set_compute_max_units(1000000000);
         program_test.set_transaction_account_lock_limit(1000);
+        
 
         // Setup Testing Actors
         let testing_actors = TestingActors::new(owner_keypair_path);
@@ -119,12 +120,13 @@ impl Solver {
 
     pub async fn approve_usdc(&self, test_context: &Rc<RefCell<ProgramTestContext>>, delegate: &Pubkey, amount: u64) {
         // If signer pubkeys are empty, it means that the owner is the signer
-        let approve_ix = approve(&spl_token::ID, &self.token_account_address().unwrap(), delegate, &self.actor.pubkey(), &[], amount).expect("Failed to approve USDC");
+        let last_blockhash = test_context.borrow_mut().get_new_latest_blockhash().await.expect("Failed to get new blockhash");
+        let approve_ix = approve(&spl_token::ID, &self.token_account_address().unwrap(), delegate, &self.actor.pubkey(), &[], amount).expect("Failed to create approve USDC instruction");
         let transaction = Transaction::new_signed_with_payer(
             &[approve_ix],
             Some(&self.actor.pubkey()),
             &[&self.actor.keypair()],
-            test_context.borrow().last_blockhash,
+            last_blockhash,
         );
         test_context.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to approve USDC");
     }

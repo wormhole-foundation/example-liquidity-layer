@@ -27,5 +27,8 @@ pub enum FallbackError {
     #[msg("Token transfer failed")]
     TokenTransferFailed,
 
+    #[msg("Invalid CCTP message")]
+    InvalidCctpMessage,
+
     // Add more error variants as needed
 }

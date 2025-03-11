@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::spl_token;
+use anchor_spl::token::{spl_token, TokenAccount};
 use common::messages::Fill;
 use solana_program::program::invoke_signed_unchecked;
 use crate::utils;
@@ -16,39 +16,70 @@ use crate::error::MatchingEngineError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct ExecuteOrderShimAccounts<'ix> {
+    /// The signer account
     pub signer: &'ix Pubkey, // 0
+    /// The cctp message account. CHECK: Seeds must be \["cctp-msg", auction_address.as_ref()\].
     pub cctp_message: &'ix Pubkey, // 1
+    /// The custodian account of the auction (holds the best offer amount)
     pub custodian: &'ix Pubkey, // 2
+    /// The fast market order account created from the place initial offer instruction
+    /// CHECK: Seeds must be \["fast_market_order", auction_address.as_ref()\].
     pub fast_market_order: &'ix Pubkey, // 3
+    /// The auction account created from the place initial offer instruction
     pub active_auction: &'ix Pubkey, // 4
+    /// The associated token address of the auction's custody token
     pub active_auction_custody_token: &'ix Pubkey, // 5
+    /// The auction config account created from the place initial offer instruction
     pub active_auction_config: &'ix Pubkey, // 6
+    /// The token account of the auction's best offer
     pub active_auction_best_offer_token: &'ix Pubkey, // 7
+    /// ??? 
     pub executor_token: &'ix Pubkey, // 8
+    /// The token account of the auction's initial offer
     pub initial_offer_token: &'ix Pubkey, // 9
+    /// The account that signed the creation of the auction when placing the initial offer.
     pub initial_participant: &'ix Pubkey, // 10
+    /// The router endpoint account of the auction's target chain
     pub to_router_endpoint: &'ix Pubkey, // 11
-    // Add shim post message accounts. TODO: Ask about if these are needed at all, or if they can just be imported/derived
+    /// The program id of the post message shim program
     pub post_message_shim_program: &'ix Pubkey, // 12
+    /// The sequence account of the post message shim program (can be derived)
     pub post_message_sequence: &'ix Pubkey, // 13
+    /// The message account of the post message shim program (can be derived)
     pub post_message_message: &'ix Pubkey, // 14
+    /// The mint account of the CCTP token to be burned
     pub cctp_deposit_for_burn_mint: &'ix Pubkey, // 15
+    /// The token messenger minter sender authority account of the CCTP token to be burned
     pub cctp_deposit_for_burn_token_messenger_minter_sender_authority: &'ix Pubkey, // 16
+    /// The message transmitter config account of the CCTP token to be burned
     pub cctp_deposit_for_burn_message_transmitter_config: &'ix Pubkey, // 17
+    /// The token messenger account of the CCTP token to be burned
     pub cctp_deposit_for_burn_token_messenger: &'ix Pubkey, // 18
+    /// The remote token messenger account of the CCTP token to be burned
     pub cctp_deposit_for_burn_remote_token_messenger: &'ix Pubkey, // 19
+    /// The token minter account of the CCTP token to be burned
     pub cctp_deposit_for_burn_token_minter: &'ix Pubkey, // 20
+    /// The local token account of the CCTP token to be burned
     pub cctp_deposit_for_burn_local_token: &'ix Pubkey, // 21
+    /// The token messenger minter event authority account of the CCTP token to be burned
     pub cctp_deposit_for_burn_token_messenger_minter_event_authority: &'ix Pubkey, // 22
+    /// The token messenger minter program account of the CCTP token to be burned
     pub cctp_deposit_for_burn_token_messenger_minter_program: &'ix Pubkey, // 23
+    /// The message transmitter program account of the CCTP token to be burned
     pub cctp_deposit_for_burn_message_transmitter_program: &'ix Pubkey, // 24
-    // Core bridge program accounts
+    /// The program id of the core bridge program
     pub core_bridge_program: &'ix Pubkey, // 25
+    /// The config account of the core bridge program
     pub core_bridge_config: &'ix Pubkey, // 26
+    /// The fee collector account of the core bridge program
     pub core_bridge_fee_collector: &'ix Pubkey, // 27
+    /// The event authority account of the post message shim program
     pub post_message_shim_event_authority: &'ix Pubkey, // 28
+    /// The program id of the system program
     pub system_program: &'ix Pubkey, // 29
+    /// The program id of the token program
     pub token_program: &'ix Pubkey, // 30
+    /// The clock account
     pub clock: &'ix Pubkey, // 31
 }
 
@@ -58,35 +89,35 @@ impl<'ix> ExecuteOrderShimAccounts<'ix> {
             AccountMeta::new(*self.signer, true),
             AccountMeta::new(*self.cctp_message, false),
             AccountMeta::new(*self.custodian, false),
-            AccountMeta::new(*self.fast_market_order, false),
+            AccountMeta::new_readonly(*self.fast_market_order, false),
             AccountMeta::new(*self.active_auction, false),
             AccountMeta::new(*self.active_auction_custody_token, false),
-            AccountMeta::new(*self.active_auction_config, false),
+            AccountMeta::new_readonly(*self.active_auction_config, false),
             AccountMeta::new(*self.active_auction_best_offer_token, false),
             AccountMeta::new(*self.executor_token, false),
             AccountMeta::new(*self.initial_offer_token, false),
             AccountMeta::new(*self.initial_participant, false),
-            AccountMeta::new(*self.to_router_endpoint, false),
-            AccountMeta::new(*self.post_message_shim_program, false),
+            AccountMeta::new_readonly(*self.to_router_endpoint, false),
+            AccountMeta::new_readonly(*self.post_message_shim_program, false),
             AccountMeta::new(*self.post_message_sequence, false),
             AccountMeta::new(*self.post_message_message, false),
             AccountMeta::new(*self.cctp_deposit_for_burn_mint, false),
-            AccountMeta::new(*self.cctp_deposit_for_burn_token_messenger_minter_sender_authority, false),
+            AccountMeta::new_readonly(*self.cctp_deposit_for_burn_token_messenger_minter_sender_authority, false),
             AccountMeta::new(*self.cctp_deposit_for_burn_message_transmitter_config, false),
-            AccountMeta::new(*self.cctp_deposit_for_burn_token_messenger, false),
-            AccountMeta::new(*self.cctp_deposit_for_burn_remote_token_messenger, false),
-            AccountMeta::new(*self.cctp_deposit_for_burn_token_minter, false),
+            AccountMeta::new_readonly(*self.cctp_deposit_for_burn_token_messenger, false),
+            AccountMeta::new_readonly(*self.cctp_deposit_for_burn_remote_token_messenger, false),
+            AccountMeta::new_readonly(*self.cctp_deposit_for_burn_token_minter, false),
             AccountMeta::new(*self.cctp_deposit_for_burn_local_token, false),
-            AccountMeta::new(*self.cctp_deposit_for_burn_token_messenger_minter_event_authority, false),
-            AccountMeta::new(*self.cctp_deposit_for_burn_token_messenger_minter_program, false),
-            AccountMeta::new(*self.cctp_deposit_for_burn_message_transmitter_program, false),
-            AccountMeta::new(*self.core_bridge_program, false),
+            AccountMeta::new_readonly(*self.cctp_deposit_for_burn_token_messenger_minter_event_authority, false),
+            AccountMeta::new_readonly(*self.cctp_deposit_for_burn_token_messenger_minter_program, false),
+            AccountMeta::new_readonly(*self.cctp_deposit_for_burn_message_transmitter_program, false),
+            AccountMeta::new_readonly(*self.core_bridge_program, false),
             AccountMeta::new(*self.core_bridge_config, false),
             AccountMeta::new(*self.core_bridge_fee_collector, false),
             AccountMeta::new(*self.post_message_shim_event_authority, false),
-            AccountMeta::new(*self.system_program, false),
-            AccountMeta::new(*self.token_program, false),
-            AccountMeta::new(*self.clock, false),
+            AccountMeta::new_readonly(*self.system_program, false),
+            AccountMeta::new_readonly(*self.token_program, false),
+            AccountMeta::new_readonly(*self.clock, false),
         ]
     }
 }
@@ -368,7 +399,9 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
 
     // Keep track of the remaining amount in the custody token account. Whatever remains will go
     // to the executor.
-    let mut remaining_custodied_amount = active_auction_info.amount_in.saturating_sub(user_amount);
+    
+    let custody_token = TokenAccount::try_deserialize(&mut &active_auction_custody_token_account.data.borrow()[..])?;
+    let mut remaining_custodied_amount = custody_token.amount.saturating_sub(user_amount);
 
     // Offer price + security deposit was checked in placing the initial offer.
     let mut deposit_and_fee = active_auction_info
@@ -376,11 +409,20 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         .saturating_add(active_auction_info.security_deposit)
         .saturating_sub(user_reward);
 
+    msg!("Security deposit: {}", active_auction_info.security_deposit);
+
     let penalized = penalty > 0;
 
     if penalized && active_auction_best_offer_token_account.key() != executor_token_account.key() {
         deposit_and_fee = deposit_and_fee.saturating_sub(penalty);
     }
+
+    // Need these seeds in order to transfer tokens and then set authority of auction custody token account to the custodian
+    let auction_signer_seeds = &[
+            Auction::SEED_PREFIX,
+            active_auction.vaa_hash.as_ref(),
+            &[active_auction.bump],
+    ];
 
     // If the initial offer token account doesn't exist anymore, we have nowhere to send the
     // init auction fee. The executor will get these funds instead.
@@ -389,9 +431,10 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     if utils::checked_deserialize_token_account(initial_offer_token_account, &common::USDC_MINT)
         .is_some()
     {
+        msg!("Initial offer token account exists");
         if active_auction_best_offer_token_account.key() != initial_offer_token_account.key() {
             // Pay the auction initiator their fee.
-            spl_token::instruction::transfer(
+            let transfer_ix = spl_token::instruction::transfer(
                 &spl_token::ID,
                 &active_auction_custody_token_account.key(),
                 &initial_offer_token_account.key(),
@@ -399,7 +442,8 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
                 &[],
                 init_auction_fee,
             ).unwrap();
-
+            msg!("Sending init auction fee {} to initial offer token account", init_auction_fee);
+            invoke_signed_unchecked(&transfer_ix, accounts, &[auction_signer_seeds])?;
             // Because the initial offer token was paid this fee, we account for it here.
             remaining_custodied_amount =
                 remaining_custodied_amount.saturating_sub(init_auction_fee);
@@ -408,6 +452,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             deposit_and_fee = deposit_and_fee
                 .checked_add(init_auction_fee)
                 .ok_or_else(|| MatchingEngineError::U64Overflow)?;
+            msg!("New deposit and fee: {}", deposit_and_fee);
         }
     }
 
@@ -419,14 +464,16 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         // NOTE: This will revert if the best offer token does not exist. But this will present
         // an opportunity for another executor to execute this order and take what the best
         // offer token would have received.
-        spl_token::instruction::transfer(
+        let transfer_ix = spl_token::instruction::transfer(
             &spl_token::ID,
             &active_auction_custody_token_account.key(),
             &active_auction_best_offer_token_account.key(),
             &active_auction_account.key(),
             &[],
-            remaining_custodied_amount,
+            deposit_and_fee,
         ).unwrap();
+        msg!("Sending deposit and fee amount {} to best offer token account", deposit_and_fee);
+        invoke_signed_unchecked(&transfer_ix, accounts, &[auction_signer_seeds])?;
     } else {
         // Otherwise, send the deposit and fee to the best offer token. If the best offer token
         // doesn't exist at this point (which would be unusual), we will reserve these funds
@@ -434,7 +481,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         if utils::checked_deserialize_token_account(active_auction_best_offer_token_account, &common::USDC_MINT)
             .is_some()
         {
-            spl_token::instruction::transfer(
+            let transfer_ix = spl_token::instruction::transfer(
                 &spl_token::ID,
                 &active_auction_custody_token_account.key(),
                 &active_auction_best_offer_token_account.key(),
@@ -442,13 +489,15 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
                 &[],
                 deposit_and_fee,
             ).unwrap();
+            msg!("Sending deposit and fee {} to best offer token account", deposit_and_fee);
+            invoke_signed_unchecked(&transfer_ix, accounts, &[auction_signer_seeds])?;
             remaining_custodied_amount =
                 remaining_custodied_amount.saturating_sub(deposit_and_fee);
         }
 
         // And pay the executor whatever remains in the auction custody token account.
         if remaining_custodied_amount > 0 {
-            spl_token::instruction::transfer(
+            let instruction = spl_token::instruction::transfer(
                 &spl_token::ID,
                 &active_auction_custody_token_account.key(),
                 &executor_token_account.key(),
@@ -456,6 +505,8 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
                 &[],
                 remaining_custodied_amount,
             ).unwrap();
+            msg!("Sending remaining custodied amount {} to executor token account", remaining_custodied_amount);
+            invoke_signed_unchecked(&instruction, accounts, &[auction_signer_seeds])?;
         }
     }
 
@@ -470,11 +521,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         &[],
     ).unwrap();
 
-    let auction_signer_seeds = &[
-        Auction::SEED_PREFIX,
-        active_auction.vaa_hash.as_ref(),
-        &[active_auction.bump],
-    ];
     invoke_signed_unchecked(&set_authority_ix, accounts, &[auction_signer_seeds])?;
 
     // Set the active auction status
@@ -491,6 +537,8 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     };
 
     let post_message_accounts = PostMessageAccounts::new(custodian_account.key(), signer_account.key());
+    // Lets print the auction account balance
+
     burn_and_post(
         CpiContext::new_with_signer(
             cctp_deposit_for_burn_token_messenger_minter_program_account.to_account_info(),
@@ -537,13 +585,15 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     // Skip emitting the order executed event because we're using a shim
 
     // Finally close the account since it is no longer needed.
-    spl_token::instruction::close_account(
+    let instruction = spl_token::instruction::close_account(
         &spl_token::ID,
         &active_auction_custody_token_account.key(),
         &initial_participant_account.key(),
         &custodian_account.key(),
         &[],
     ).unwrap();
+
+    invoke_signed_unchecked(&instruction, accounts, &[Custodian::SIGNER_SEEDS])?;
 
     Ok(())
 }

@@ -49,6 +49,7 @@ pub fn burn_and_post<'info>(
         payload,
     } = burn_and_publish_args;
 
+    // Post message to the shim program
     let post_message_ix = post_message::PostMessage {
         program_id: &POST_MESSAGE_SHIM_PROGRAM_ID,
         accounts: post_message::PostMessageAccounts {
@@ -74,6 +75,7 @@ pub fn burn_and_post<'info>(
     
     invoke_signed_unchecked(&post_message_ix, account_infos, &[Custodian::SIGNER_SEEDS])?;
 
+    // Deposit for burn
     deposit_for_burn_with_caller(
         cctp_ctx,
         DepositForBurnWithCallerParams {

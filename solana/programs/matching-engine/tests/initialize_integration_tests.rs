@@ -12,8 +12,9 @@ use utils::setup::{PreTestingContext, TestingContext};
 use utils::vaa::create_vaas_test_with_chain_and_address;
 use utils::shims::{
     // place_initial_offer_shim, 
-    place_initial_offer_fallback, set_up_post_message_transaction_test};
+    place_initial_offer_fallback, set_up_post_message_transaction_test, initialise_fast_market_order_fallback_instruction};
 use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
+
 // Configures the program ID and CCTP mint recipient based on the environment
 cfg_if::cfg_if! {
     if #[cfg(feature = "mainnet")] {
@@ -159,11 +160,40 @@ pub async fn test_post_message_shims() {
     set_up_post_message_transaction_test(&testing_context.test_context, &payer_signer, &emitter_signer, recent_blockhash).await;
 }
 
+#[tokio::test]
+pub async fn test_initialise_fast_market_order_fallback() {
+    let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
+    pre_testing_context.add_verify_shims();
+    let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    
+    // This will create the fast transfer and deposit vaas but will not post them. Both will have nonce == 0. Deposit vaa will have sequence == 0, fast transfer vaa will have sequence == 1.
+    let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address, None, Some(0),false);
+    let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
+    let first_test_ft = vaas_test.0.first().unwrap();
+    let solver = testing_context.testing_actors.solvers[0].clone();
+    
+    let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
+    let (fast_market_order, vaa_data) = utils::shims::create_fast_market_order_state_from_vaa_data(&vaa_data, solver.pubkey());
+    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &testing_context.testing_actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, Some(&solver.keypair())).await;
+    
+    let initialise_fast_market_order_ix = initialise_fast_market_order_fallback_instruction(
+        &testing_context.testing_actors.owner.keypair(),
+        &PROGRAM_ID,
+        fast_market_order,
+        guardian_set_pubkey,
+        guardian_signatures_pubkey,
+        guardian_set_bump,
+    );
+    let recent_blockhash = testing_context.test_context.borrow().last_blockhash;
+    let transaction = solana_sdk::transaction::Transaction::new_signed_with_payer(&[initialise_fast_market_order_ix], Some(&testing_context.testing_actors.owner.pubkey()), &[&testing_context.testing_actors.owner.keypair()], recent_blockhash);
+    testing_context.test_context.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to initialise fast market order");
+}
 
 #[tokio::test]
 // Testing a initial offer from arbitrum to ethereum
 // TODO: Make a test that checks that the auction account and maybe some other accounts are exactly the same as when using the fallback instruction
-pub async fn test_verify_shims_fallback() {
+pub async fn test_place_initial_offer_fallback() {
     let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
     pre_testing_context.add_verify_shims();
     // This will create vaas for the arbitrum and ethereum chains and post them to the test context accounts. These vaas will not be needed for the shim test, and shouldn't interact with the program during the test.
@@ -174,12 +204,14 @@ pub async fn test_verify_shims_fallback() {
     let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address, None, Some(0),false);
     let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
     let initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
+
     let first_test_ft = vaas_test.0.first().unwrap();
     
     let fixture_accounts = testing_context.fixture_accounts.expect("Pre-made fixture accounts not found");
     // Try making initial offer using the shim instruction
     let usdc_mint_address = USDC_MINT_ADDRESS;
     let auction_config_address = initialize_fixture.get_auction_config_address();
+    println!("Creating router endpoints");
     let router_endpoints = create_all_router_endpoints_test(
         &testing_context.test_context,
         testing_context.testing_actors.owner.pubkey(),
@@ -190,6 +222,7 @@ pub async fn test_verify_shims_fallback() {
         testing_context.testing_actors.owner.keypair(),
         PROGRAM_ID,
     ).await;
+    println!("Router endpoints created");
     let arb_endpoint_address = router_endpoints.arbitrum.endpoint_address;
     let eth_endpoint_address = router_endpoints.ethereum.endpoint_address;
 
@@ -207,6 +240,7 @@ pub async fn test_verify_shims_fallback() {
     let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
 
     // Place initial offer using the fallback program
+    println!("Placing initial offer");
     let initial_offer_fixture = place_initial_offer_fallback(
         &testing_context.test_context,
         &testing_context.testing_actors.owner.keypair(),
@@ -217,7 +251,7 @@ pub async fn test_verify_shims_fallback() {
         &auction_accounts,
         1__000_000, // 1 USDC (double underscore for decimal separator)
     ).await.expect("Failed to place initial offer");
-
+    println!("Initial offer placed");
     let auction_offer_fixture = AuctionOfferFixture {
         auction_address: initial_offer_fixture.auction_address,
         auction_custody_token_address: initial_offer_fixture.auction_custody_token_address,
@@ -225,7 +259,9 @@ pub async fn test_verify_shims_fallback() {
         offer_token: auction_accounts.offer_token,
     };
     // Attempt to improve the offer using the non-fallback method
+    println!("Improving offer");
     let _improved_offer_fixture = improve_offer(&testing_context.test_context, auction_offer_fixture, testing_context.testing_actors.owner.keypair(), PROGRAM_ID, solver, auction_config_address).await;
+    println!("Offer improved");
     // improved_offer_fixture.verify_improved_offer(&testing_context.test_context).await;
 }
 
@@ -302,5 +338,6 @@ pub async fn test_execute_order_fallback() {
         &execute_order_fallback_accounts,
     ).await.expect("Failed to execute order");
 
+    // Figure out why the solver balance is not increased here
     println!("Solver balance after executing order: {:?}", solver.get_balance(&testing_context.test_context).await);
 }

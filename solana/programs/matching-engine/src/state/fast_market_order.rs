@@ -15,9 +15,20 @@ pub struct FastMarketOrder {
     pub max_fee: u64,
     pub init_auction_fee: u64,
     pub redeemer_message: [u8; 512],
+    pub digest: [u8; 32],
+    pub refund_recipient: [u8; 32],
+    pub vaa_sequence: u64,
+    pub vaa_timestamp: u32,
+    pub vaa_emitter_chain: u16,
+    pub vaa_emitter_address: [u8; 32],
+    _padding: [u8; 2],
 }
 
 impl FastMarketOrder {
+    pub fn new(amount_in: u64, min_amount_out: u64, deadline: u32, target_chain: u16, redeemer_message_length: u16, redeemer: [u8; 32], sender: [u8; 32], refund_address: [u8; 32], max_fee: u64, init_auction_fee: u64, redeemer_message: [u8; 512], digest: [u8; 32], refund_recipient: [u8; 32], vaa_sequence: u64, vaa_timestamp: u32, vaa_emitter_chain: u16, vaa_emitter_address: [u8; 32]) -> Self {
+        Self { amount_in, min_amount_out, deadline, target_chain, redeemer_message_length, redeemer, sender, refund_address, max_fee, init_auction_fee, redeemer_message, digest, refund_recipient, vaa_sequence, vaa_timestamp, vaa_emitter_chain, vaa_emitter_address, _padding: [0_u8; 2], }
+    }
+
     pub const SEED_PREFIX: &'static [u8] = b"fast_market_order";
 
     pub fn to_vec(&self) -> Vec<u8> {

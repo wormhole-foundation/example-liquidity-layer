@@ -47,7 +47,13 @@ impl ExecuteOrderFallbackAccounts {
     }
 }
 
-pub async fn execute_order_fallback(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, program_id: &Pubkey, solver: Solver, execute_order_fallback_accounts: &ExecuteOrderFallbackAccounts) -> Result<()> {
+pub struct ExecuteOrderFallbackFixture {
+    pub cctp_message: Pubkey,
+    pub post_message_sequence: Pubkey,
+    pub post_message_message: Pubkey,
+}
+
+pub async fn execute_order_fallback(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, program_id: &Pubkey, solver: Solver, execute_order_fallback_accounts: &ExecuteOrderFallbackAccounts) -> Result<ExecuteOrderFallbackFixture> {
 
     // Get target chain and use as remote address
     let cctp_message = Pubkey::find_program_address(&[common::CCTP_MESSAGE_SEED_PREFIX, &execute_order_fallback_accounts.active_auction.to_bytes()], program_id).0;
@@ -105,10 +111,14 @@ pub async fn execute_order_fallback(test_ctx: &Rc<RefCell<ProgramTestContext>>, 
 
     // Considering fast forwarding blocks here for deadline to be reached
     let recent_blockhash = test_ctx.borrow().last_blockhash;
-    super::setup::fast_forward_slots(test_ctx, 20).await;
-    println!("Fast forwarded 20 slots");
+    super::setup::fast_forward_slots(test_ctx, 1).await;
+    println!("Fast forwarded 1 slots");
     let transaction = Transaction::new_signed_with_payer(&[execute_order_ix], Some(&payer_signer.pubkey()), &[&payer_signer], recent_blockhash);
     test_ctx.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to execute order");
 
-    Ok(())
+    Ok(ExecuteOrderFallbackFixture {
+        cctp_message,
+        post_message_sequence,
+        post_message_message,
+    })
 }
