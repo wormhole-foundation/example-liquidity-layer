@@ -1,7 +1,7 @@
 use anchor_lang::AccountDeserialize;
 use solana_program_test::{ProgramTest, ProgramTestContext};
 use solana_sdk::{
-    pubkey::Pubkey, signature::{Keypair, Signer}, transaction::Transaction
+    pubkey::Pubkey, signature::{Keypair, Signer}, transaction::{Transaction, VersionedTransaction}
 };
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -128,7 +128,8 @@ impl Solver {
             &[&self.actor.keypair()],
             last_blockhash,
         );
-        test_context.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to approve USDC");
+        let versioned_transaction = VersionedTransaction::try_from(transaction).expect("Failed to convert transaction to versioned transaction");
+        test_context.borrow_mut().banks_client.process_transaction(versioned_transaction).await.expect("Failed to approve USDC");
     }
 
     pub async fn get_balance(&self, test_context: &Rc<RefCell<ProgramTestContext>>) -> u64 {

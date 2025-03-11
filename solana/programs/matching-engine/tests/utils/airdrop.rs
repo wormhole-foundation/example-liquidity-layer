@@ -7,7 +7,7 @@ use solana_sdk::{
     system_instruction,
     signature::Signer,
 };
-use solana_sdk::transaction::Transaction;
+use solana_sdk::transaction::{Transaction, VersionedTransaction};
 
 use super::constants;
 
@@ -49,6 +49,7 @@ pub async fn airdrop_usdc(
     recipient_ata: &Pubkey,
     amount: u64,
 ) {
+    let new_blockhash = test_context.borrow_mut().get_new_latest_blockhash().await.expect("Failed to get new blockhash");
     let usdc_mint_address = constants::USDC_MINT;
     let mint_to_ix = spl_token::instruction::mint_to(
         &spl_token::ID,
@@ -62,8 +63,10 @@ pub async fn airdrop_usdc(
         &[mint_to_ix.clone()],
         Some(&test_context.borrow().payer.pubkey()),
         &[&test_context.borrow().payer],
-        test_context.borrow().last_blockhash,
+        new_blockhash,
     );
 
-    test_context.borrow_mut().banks_client.process_transaction(tx).await.unwrap();
+    let versioned_transaction = VersionedTransaction::try_from(tx).expect("Failed to convert transaction to versioned transaction");
+
+    test_context.borrow_mut().banks_client.process_transaction(versioned_transaction).await.unwrap();
 }

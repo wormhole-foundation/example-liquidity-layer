@@ -8,6 +8,7 @@ use matching_engine::state::Custodian;
 use matching_engine::state::EndpointInfo;
 use matching_engine::LOCAL_CUSTODY_TOKEN_SEED_PREFIX;
 use solana_program_test::ProgramTestContext;
+use solana_sdk::transaction::VersionedTransaction;
 use std::rc::Rc;
 use std::cell::RefCell;
 use matching_engine::instruction::{AddCctpRouterEndpoint, AddLocalRouterEndpoint};
@@ -189,9 +190,11 @@ pub async fn add_cctp_router_endpoint_ix(
         Some(&test_context.borrow().payer.pubkey()),
     );
     // TODO: Figure out who the signers are
-    transaction.sign(&[&test_context.borrow().payer, &admin_keypair], test_context.borrow().last_blockhash);
+    let new_blockhash = test_context.borrow_mut().get_new_latest_blockhash().await.expect("Failed to get new blockhash");
+    transaction.sign(&[&test_context.borrow().payer, &admin_keypair], new_blockhash);
 
-    test_context.borrow_mut().banks_client.process_transaction(transaction).await.unwrap();
+    let versioned_transaction = VersionedTransaction::try_from(transaction).expect("Failed to convert transaction to versioned transaction");
+    test_context.borrow_mut().banks_client.process_transaction(versioned_transaction).await.unwrap();
 
     let endpoint_account = test_context.borrow_mut().banks_client
         .get_account(router_endpoint_address)
@@ -250,9 +253,11 @@ pub async fn add_local_router_endpoint_ix(
         &[instruction],
         Some(&test_context.borrow().payer.pubkey()),
     );
-    transaction.sign(&[&test_context.borrow().payer, &admin_keypair], test_context.borrow().last_blockhash);
+    let new_blockhash = test_context.borrow_mut().get_new_latest_blockhash().await.expect("Failed to get new blockhash");
+    transaction.sign(&[&test_context.borrow().payer, &admin_keypair], new_blockhash);
 
-    test_context.borrow_mut().banks_client.process_transaction(transaction).await.unwrap();
+    let versioned_transaction = VersionedTransaction::try_from(transaction).expect("Failed to convert transaction to versioned transaction");
+    test_context.borrow_mut().banks_client.process_transaction(versioned_transaction).await.unwrap();
     
     let endpoint_account = test_context.borrow_mut().banks_client
         .get_account(router_endpoint_address)

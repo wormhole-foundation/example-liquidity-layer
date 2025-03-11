@@ -1,6 +1,6 @@
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
-    instruction::Instruction, pubkey::Pubkey, signature::Signer, transaction::Transaction
+    instruction::Instruction, pubkey::Pubkey, signature::Signer, transaction::{Transaction, VersionedTransaction}
 };
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -152,10 +152,12 @@ pub async fn initialize_program(testing_context: &TestingContext, program_id: Pu
         &[instruction],
         Some(&test_context.borrow().payer.pubkey()),
     );
-    transaction.sign(&[&test_context.borrow().payer, &testing_context.testing_actors.owner.keypair()], test_context.borrow().last_blockhash);
+    let new_blockhash = test_context.borrow_mut().get_new_latest_blockhash().await.expect("Failed to get new blockhash");
+    transaction.sign(&[&test_context.borrow().payer, &testing_context.testing_actors.owner.keypair()], new_blockhash);
 
     // Process transaction
-    test_context.borrow_mut().banks_client.process_transaction(transaction).await.unwrap();
+    let versioned_transaction = VersionedTransaction::try_from(transaction).expect("Failed to convert transaction to versioned transaction");
+    test_context.borrow_mut().banks_client.process_transaction(versioned_transaction).await.unwrap();
 
     // Verify the results
     let custodian_account = test_context.borrow_mut().banks_client
