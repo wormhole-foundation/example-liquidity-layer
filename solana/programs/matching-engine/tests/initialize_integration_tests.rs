@@ -214,13 +214,14 @@ pub async fn test_approve_usdc() {
     let offer_price: u64 = 1__000_000;
     let program_id = PROGRAM_ID;
     let new_pubkey = Pubkey::new_unique();
-    
-    // Warp to a new slot
-    utils::setup::fast_forward_slots(&testing_context.test_context, 1).await;
-    let (_guardian_set_pubkey, _guardian_signatures_pubkey, _guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, Some(&solver.keypair())).await;
 
+    // TODO: Figure out why if this is placed before the approve_usdc call, the test fails ...
+    let second_solver = actors.solvers[1].clone();
+    let (_guardian_set_pubkey, _guardian_signatures_pubkey, _guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, Some(&second_solver.keypair())).await;
+    
     let transfer_authority = Pubkey::find_program_address(&[common::TRANSFER_AUTHORITY_SEED_PREFIX, &new_pubkey.to_bytes(), &offer_price.to_be_bytes()], &program_id).0;
     solver.approve_usdc(&testing_context.test_context, &transfer_authority, offer_price).await;
+    
     let usdc_balance = solver.get_balance(&testing_context.test_context).await;
     
     println!("Solver USDC balance: {:?}", usdc_balance);
@@ -295,9 +296,10 @@ pub async fn test_place_initial_offer_fallback() {
         offer_price: 1__000_000,
         offer_token: auction_accounts.offer_token,
     };
-    // Attempt to improve the offer using the non-fallback method
+    // Attempt to improve the offer using the non-fallback method with another solver making the improved offer
     println!("Improving offer");
-    let _improved_offer_fixture = improve_offer(&testing_context.test_context, auction_offer_fixture, testing_context.testing_actors.owner.keypair(), PROGRAM_ID, solver, auction_config_address).await;
+    let second_solver = testing_context.testing_actors.solvers[1].clone();
+    let _improved_offer_fixture = improve_offer(&testing_context.test_context, auction_offer_fixture, testing_context.testing_actors.owner.keypair(), PROGRAM_ID, second_solver, auction_config_address).await;
     println!("Offer improved");
     // improved_offer_fixture.verify_improved_offer(&testing_context.test_context).await;
 }
