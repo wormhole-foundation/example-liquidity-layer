@@ -176,8 +176,6 @@ fn set_up_post_message_transaction(
 
 pub async fn add_guardian_signatures_account(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, signatures_signer: &Rc<Keypair>, guardian_signatures: Vec<[u8; wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH]>, guardian_set_index: u32) -> Result<Pubkey> {
     let new_blockhash = test_ctx.borrow_mut().get_new_latest_blockhash().await.expect("Failed to get new blockhash");
-    let current_blockhash = test_ctx.borrow().last_blockhash;
-    assert_eq!(new_blockhash, current_blockhash);
     let transaction = post_signatures_transaction(payer_signer, signatures_signer, guardian_set_index, guardian_signatures.len() as u8, &guardian_signatures, new_blockhash);
     test_ctx.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to add guardian signatures account");
     
@@ -362,16 +360,17 @@ pub async fn place_initial_offer_fallback(test_ctx: &Rc<RefCell<ProgramTestConte
     let auction_address = Pubkey::find_program_address(&[Auction::SEED_PREFIX, &fast_market_order.digest], &program_id).0;
     let auction_custody_token_address = Pubkey::find_program_address(&[matching_engine::AUCTION_CUSTODY_TOKEN_SEED_PREFIX, auction_address.as_ref()], &program_id).0;
     
-    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) = create_guardian_signatures(test_ctx, payer_signer, &vaa_data, wormhole_program_id, Some(&solver.keypair())).await;
-    
-
     // Approve the transfer authority
     let transfer_authority = Pubkey::find_program_address(&[common::TRANSFER_AUTHORITY_SEED_PREFIX, &auction_address.to_bytes(), &offer_price.to_be_bytes()], &program_id).0;
-    super::setup::fast_forward_slots(test_ctx, 5).await;
+    {
+        solver.approve_usdc(test_ctx, &transfer_authority, 420_000__000_000).await;
+    }
     let solver_usdc_balance = solver.get_balance(test_ctx).await;
     println!("Solver USDC balance: {:?}", solver_usdc_balance);
-    solver.approve_usdc(test_ctx, &transfer_authority, 420_000__000_000).await;
 
+    // Create the guardian set and signatures
+    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) = create_guardian_signatures(test_ctx, payer_signer, &vaa_data, wormhole_program_id, Some(&solver.keypair())).await;
+    
     // Create the fast market order account
     let fast_market_order_account = Pubkey::find_program_address(&[FastMarketOrderState::SEED_PREFIX, &fast_market_order.digest, &fast_market_order.refund_recipient], program_id).0;
 
