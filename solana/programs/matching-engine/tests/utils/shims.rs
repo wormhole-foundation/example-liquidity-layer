@@ -27,6 +27,11 @@ use matching_engine::fallback::place_initial_offer::{
     PlaceInitialOfferCctpShimAccounts as PlaceInitialOfferCctpShimFallbackAccounts,
     PlaceInitialOfferCctpShimData as PlaceInitialOfferCctpShimFallbackData,
 };
+use matching_engine::fallback::initialise_fast_market_order::{
+    InitialiseFastMarketOrder as InitialiseFastMarketOrderFallback,
+    InitialiseFastMarketOrderAccounts as InitialiseFastMarketOrderFallbackAccounts,
+    InitialiseFastMarketOrderData as InitialiseFastMarketOrderFallbackData,
+};
 use wormhole_svm_definitions::borsh::GuardianSignatures;
 
 #[allow(dead_code)]
@@ -170,12 +175,12 @@ fn set_up_post_message_transaction(
 }
 
 pub async fn add_guardian_signatures_account(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, signatures_signer: &Rc<Keypair>, guardian_signatures: Vec<[u8; wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH]>, guardian_set_index: u32) -> Result<Pubkey> {
-    let recent_blockhash = test_ctx.borrow().last_blockhash;
+    let new_blockhash = test_ctx.borrow_mut().get_new_latest_blockhash().await.expect("Failed to get new blockhash");
 
-    let transaction = post_signatures_transaction(payer_signer, signatures_signer, guardian_set_index, guardian_signatures.len() as u8, &guardian_signatures, recent_blockhash);
+    let transaction = post_signatures_transaction(payer_signer, signatures_signer, guardian_set_index, guardian_signatures.len() as u8, &guardian_signatures, new_blockhash);
     
     test_ctx.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to add guardian signatures account");
-
+    
     Ok(signatures_signer.pubkey())
 }
 
@@ -352,7 +357,86 @@ pub struct PlaceInitialOfferShimFixture {
 
 /// Places an initial offer using the fallback program. The vaa is constructed from a passed in PostedVaaData struct. The nonce is forced to 0. 
 pub async fn place_initial_offer_fallback(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, program_id: &Pubkey, wormhole_program_id: &Pubkey, vaa_data: &super::vaa::PostedVaaData, solver: Solver, auction_accounts: &super::auction::AuctionAccounts, offer_price: u64) -> Result<PlaceInitialOfferShimFixture> {
+    let (fast_market_order, vaa_data) = create_fast_market_order_state_from_vaa_data(vaa_data, solver.pubkey());
+
+    let auction_address = Pubkey::find_program_address(&[Auction::SEED_PREFIX, &fast_market_order.digest], &program_id).0;
+    let auction_custody_token_address = Pubkey::find_program_address(&[matching_engine::AUCTION_CUSTODY_TOKEN_SEED_PREFIX, auction_address.as_ref()], &program_id).0;
     
+    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) = create_guardian_signatures(test_ctx, payer_signer, &vaa_data, wormhole_program_id, Some(&solver.keypair())).await;
+    
+
+    // Approve the transfer authority
+    let transfer_authority = Pubkey::find_program_address(&[common::TRANSFER_AUTHORITY_SEED_PREFIX, &auction_address.to_bytes(), &offer_price.to_be_bytes()], &program_id).0;
+    super::setup::fast_forward_slots(test_ctx, 5).await;
+    let solver_usdc_balance = solver.get_balance(test_ctx).await;
+    println!("Solver USDC balance: {:?}", solver_usdc_balance);
+    solver.approve_usdc(test_ctx, &transfer_authority, 420_000__000_000).await;
+
+    // Create the fast market order account
+    let fast_market_order_account = Pubkey::find_program_address(&[FastMarketOrderState::SEED_PREFIX, &fast_market_order.digest, &fast_market_order.refund_recipient], program_id).0;
+
+    let create_fast_market_order_ix = initialise_fast_market_order_fallback_instruction(payer_signer, program_id, fast_market_order, guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump);
+
+    let place_initial_offer_ix_data = PlaceInitialOfferCctpShimFallbackData::new(offer_price, vaa_data.sequence, vaa_data.vaa_time,  vaa_data.consistency_level);
+
+    let place_initial_offer_ix_accounts = PlaceInitialOfferCctpShimFallbackAccounts {
+        signer: &payer_signer.pubkey(),
+        transfer_authority: &transfer_authority,
+        custodian: &auction_accounts.custodian,
+        auction_config: &auction_accounts.auction_config,
+        from_endpoint: &auction_accounts.from_router_endpoint,
+        to_endpoint: &auction_accounts.to_router_endpoint,
+        fast_market_order: &fast_market_order_account,
+        auction: &auction_address,
+        offer_token: &auction_accounts.offer_token,
+        auction_custody_token: &auction_custody_token_address,
+        usdc: &auction_accounts.usdc_mint,
+        system_program: &solana_program::system_program::ID,
+        token_program: &anchor_spl::token::spl_token::ID,
+    };
+    let place_initial_offer_ix = PlaceInitialOfferCctpShimFallback {
+        program_id: program_id,
+        accounts: place_initial_offer_ix_accounts,
+        data: place_initial_offer_ix_data,
+    }.instruction();
+
+    let recent_blockhash = test_ctx.borrow().last_blockhash;
+
+    let transaction = Transaction::new_signed_with_payer(&[create_fast_market_order_ix, place_initial_offer_ix], Some(&payer_signer.pubkey()), &[&payer_signer], recent_blockhash);
+    
+    test_ctx.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to place initial offer");
+    
+
+    Ok(PlaceInitialOfferShimFixture {
+        auction_address,
+        auction_custody_token_address,
+        guardian_set_pubkey,
+        guardian_signatures_pubkey: guardian_signatures_pubkey.clone().to_owned(),
+        fast_market_order_address: fast_market_order_account,
+        fast_market_order,
+    })
+}
+
+pub fn initialise_fast_market_order_fallback_instruction(payer_signer: &Rc<Keypair>, program_id: &Pubkey, fast_market_order: FastMarketOrderState, guardian_set_pubkey: Pubkey, guardian_signatures_pubkey: Pubkey, guardian_set_bump: u8) -> solana_program::instruction::Instruction {
+    let fast_market_order_account = Pubkey::find_program_address(&[FastMarketOrderState::SEED_PREFIX, &fast_market_order.digest, &fast_market_order.refund_recipient], program_id).0;
+    
+    let create_fast_market_order_accounts = InitialiseFastMarketOrderFallbackAccounts {
+        signer: &payer_signer.pubkey(),
+        fast_market_order_account: &fast_market_order_account,
+        guardian_set: &guardian_set_pubkey,
+        guardian_set_signatures: &guardian_signatures_pubkey,
+        verify_vaa_shim_program: &WORMHOLE_VERIFY_VAA_SHIM_PID,
+        system_program: &solana_program::system_program::ID,
+    };
+
+    InitialiseFastMarketOrderFallback {
+        program_id: program_id,
+        accounts: create_fast_market_order_accounts,
+        data: InitialiseFastMarketOrderFallbackData::new(fast_market_order, guardian_set_bump),
+    }.instruction()
+}
+
+pub fn create_fast_market_order_state_from_vaa_data(vaa_data: &super::vaa::PostedVaaData, refund_recipient: Pubkey) -> (FastMarketOrderState, super::vaa::PostedVaaData) {
     let vaa_data = super::vaa::PostedVaaData {
         consistency_level: vaa_data.consistency_level,
         vaa_time: vaa_data.vaa_time,
@@ -372,23 +456,6 @@ pub async fn place_initial_offer_fallback(test_ctx: &Rc<RefCell<ProgramTestConte
         vaa_data.emitter_address,
     );
 
-    let vaa_digest = vaa_data.digest();
-
-    let auction_address = Pubkey::find_program_address(&[Auction::SEED_PREFIX, &vaa_digest], &program_id).0;
-    let auction_custody_token_address = Pubkey::find_program_address(&[matching_engine::AUCTION_CUSTODY_TOKEN_SEED_PREFIX, auction_address.as_ref()], &program_id).0;
-    let (guardian_set_pubkey, guardian_set_bump) = wormhole_svm_definitions::find_guardian_set_address(0_u32.to_be_bytes(), &wormhole_program_id);
-
-    let guardian_secret_key = secp256k1::SecretKey::from_str(GUARDIAN_SECRET_KEY).expect("Failed to parse guardian secret key");
-    let guardian_set_signatures = vaa_data.sign_with_guardian_key(&guardian_secret_key, 0);
-    let signatures_signer = Rc::new(Keypair::new());
-    let guardian_signatures_pubkey = add_guardian_signatures_account(test_ctx, payer_signer, &signatures_signer, vec![guardian_set_signatures], 0).await.expect("Failed to post guardian signatures");
-
-    let fast_market_order_account = Pubkey::find_program_address(&[FastMarketOrderState::SEED_PREFIX, auction_address.as_ref()], program_id).0;
-    // Approve the transfer authority
-    let transfer_authority = Pubkey::find_program_address(&[common::TRANSFER_AUTHORITY_SEED_PREFIX, &auction_address.to_bytes(), &offer_price.to_be_bytes()], &program_id).0;
-    
-    solver.approve_usdc(test_ctx, &transfer_authority, 420_000__000_000).await;
-
     let order: FastMarketOrder = TypePrefixedPayload::<1>::read_slice(&vaa_data.payload).unwrap();
     
     let redeemer_message_fixed_length = {
@@ -404,62 +471,38 @@ pub async fn place_initial_offer_fallback(test_ctx: &Rc<RefCell<ProgramTestConte
         
         fixed_array
     };
-    let fast_market_order = FastMarketOrderState {
-        amount_in: order.amount_in,
-        min_amount_out: order.min_amount_out,
-        deadline: order.deadline,
-        target_chain: order.target_chain,
-        redeemer_message_length: order.redeemer_message.len() as u16,
-        redeemer: order.redeemer,
-        sender: order.sender,
-        refund_address: order.refund_address,
-        max_fee: order.max_fee,
-        init_auction_fee: order.init_auction_fee,
-        redeemer_message: redeemer_message_fixed_length,
-    };
+    let fast_market_order = FastMarketOrderState::new(
+        order.amount_in,
+        order.min_amount_out,
+        order.deadline,
+        order.target_chain,
+        order.redeemer_message.len() as u16,
+        order.redeemer,
+        order.sender,
+        order.refund_address,
+        order.max_fee,
+        order.init_auction_fee,
+        redeemer_message_fixed_length,
+        vaa_data.digest(),
+        refund_recipient.to_bytes(),
+        vaa_data.sequence,
+        vaa_data.vaa_time,
+        vaa_data.emitter_chain,
+        vaa_data.emitter_address,
+    );
 
     assert_eq!(fast_market_order.redeemer, order.redeemer);
     assert_eq!(vaa_message.digest(&fast_market_order).as_ref(), vaa_data.digest().as_ref());
 
-    let place_initial_offer_ix_data = PlaceInitialOfferCctpShimFallbackData::new(offer_price, vaa_data.sequence, vaa_data.vaa_time, guardian_set_bump, vaa_data.consistency_level, fast_market_order);
+    (fast_market_order, vaa_data)
+}
 
-    let place_initial_offer_ix_accounts = PlaceInitialOfferCctpShimFallbackAccounts {
-        signer: &payer_signer.pubkey(),
-        transfer_authority: &transfer_authority,
-        custodian: &auction_accounts.custodian,
-        auction_config: &auction_accounts.auction_config,
-        guardian_set: &guardian_set_pubkey,
-        guardian_set_signatures: &guardian_signatures_pubkey,
-        from_endpoint: &auction_accounts.from_router_endpoint,
-        to_endpoint: &auction_accounts.to_router_endpoint,
-        fast_market_order: &fast_market_order_account,
-        auction: &auction_address,
-        offer_token: &auction_accounts.offer_token,
-        auction_custody_token: &auction_custody_token_address,
-        usdc: &auction_accounts.usdc_mint,
-        verify_vaa_shim_program: &WORMHOLE_VERIFY_VAA_SHIM_PID,
-        system_program: &solana_program::system_program::ID,
-        token_program: &anchor_spl::token::spl_token::ID,
-    };
-    let place_initial_offer_ix = PlaceInitialOfferCctpShimFallback {
-        program_id: program_id,
-        accounts: place_initial_offer_ix_accounts,
-        data: place_initial_offer_ix_data,
-    }.instruction();
-
-    let recent_blockhash = test_ctx.borrow().last_blockhash;
-
-    let transaction = Transaction::new_signed_with_payer(&[place_initial_offer_ix], Some(&payer_signer.pubkey()), &[&payer_signer], recent_blockhash);
-    
-    test_ctx.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to place initial offer");
-    
-
-    Ok(PlaceInitialOfferShimFixture {
-        auction_address,
-        auction_custody_token_address,
-        guardian_set_pubkey,
-        guardian_signatures_pubkey: guardian_signatures_pubkey.clone().to_owned(),
-        fast_market_order_address: fast_market_order_account,
-        fast_market_order,
-    })
+pub async fn create_guardian_signatures(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, vaa_data: &super::vaa::PostedVaaData, wormhole_program_id: &Pubkey, guardian_signature_signer: Option<&Rc<Keypair>>) -> (Pubkey, Pubkey, u8) {
+    let new_keypair = Rc::new(Keypair::new());
+    let guardian_signature_signer = guardian_signature_signer.unwrap_or(&new_keypair);
+    let (guardian_set_pubkey, guardian_set_bump) = wormhole_svm_definitions::find_guardian_set_address(0_u32.to_be_bytes(), &wormhole_program_id);
+    let guardian_secret_key = secp256k1::SecretKey::from_str(GUARDIAN_SECRET_KEY).expect("Failed to parse guardian secret key");
+    let guardian_set_signatures = vaa_data.sign_with_guardian_key(&guardian_secret_key, 0);
+    let guardian_signatures_pubkey = add_guardian_signatures_account(test_ctx, payer_signer, guardian_signature_signer, vec![guardian_set_signatures], 0).await.expect("Failed to post guardian signatures");
+    (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump)
 }
