@@ -176,9 +176,9 @@ fn set_up_post_message_transaction(
 
 pub async fn add_guardian_signatures_account(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, signatures_signer: &Rc<Keypair>, guardian_signatures: Vec<[u8; wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH]>, guardian_set_index: u32) -> Result<Pubkey> {
     let new_blockhash = test_ctx.borrow_mut().get_new_latest_blockhash().await.expect("Failed to get new blockhash");
-
+    let current_blockhash = test_ctx.borrow().last_blockhash;
+    assert_eq!(new_blockhash, current_blockhash);
     let transaction = post_signatures_transaction(payer_signer, signatures_signer, guardian_set_index, guardian_signatures.len() as u8, &guardian_signatures, new_blockhash);
-    
     test_ctx.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to add guardian signatures account");
     
     Ok(signatures_signer.pubkey())
