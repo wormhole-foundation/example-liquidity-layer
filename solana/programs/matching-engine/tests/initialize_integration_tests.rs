@@ -1,3 +1,5 @@
+use anchor_lang::AccountDeserialize;
+use anchor_spl::token::TokenAccount;
 use matching_engine::{ID as PROGRAM_ID, CCTP_MINT_RECIPIENT};
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
@@ -176,7 +178,7 @@ pub async fn test_initialise_fast_market_order_fallback() {
     let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
     let (fast_market_order, vaa_data) = utils::shims::create_fast_market_order_state_from_vaa_data(&vaa_data, solver.pubkey());
     let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &testing_context.testing_actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, Some(&solver.keypair())).await;
-    
+
     let initialise_fast_market_order_ix = initialise_fast_market_order_fallback_instruction(
         &testing_context.testing_actors.owner.keypair(),
         &PROGRAM_ID,
@@ -188,6 +190,38 @@ pub async fn test_initialise_fast_market_order_fallback() {
     let recent_blockhash = testing_context.test_context.borrow().last_blockhash;
     let transaction = solana_sdk::transaction::Transaction::new_signed_with_payer(&[initialise_fast_market_order_ix], Some(&testing_context.testing_actors.owner.pubkey()), &[&testing_context.testing_actors.owner.keypair()], recent_blockhash);
     testing_context.test_context.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to initialise fast market order");
+}
+
+#[tokio::test]
+pub async fn test_approve_usdc() {
+    let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
+    let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    // This will create the fast transfer and deposit vaas but will not post them. Both will have nonce == 0. Deposit vaa will have sequence == 0, fast transfer vaa will have sequence == 1.
+    let vaa_data = {
+        let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address, None, Some(0),false);
+        let first_test_ft = vaas_test.0.first().unwrap();
+        first_test_ft.fast_transfer_vaa.clone().vaa_data
+    };
+    let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
+
+    let actors = testing_context.testing_actors;
+    let solver = actors.solvers[0].clone();
+    let offer_price: u64 = 1__000_000;
+    let program_id = PROGRAM_ID;
+    let new_pubkey = Pubkey::new_unique();
+   
+    let (_guardian_set_pubkey, _guardian_signatures_pubkey, _guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, Some(&solver.keypair())).await;
+
+    let transfer_authority = Pubkey::find_program_address(&[common::TRANSFER_AUTHORITY_SEED_PREFIX, &new_pubkey.to_bytes(), &offer_price.to_be_bytes()], &program_id).0;
+    solver.approve_usdc(&testing_context.test_context, &transfer_authority, offer_price).await;
+    let usdc_balance = solver.get_balance(&testing_context.test_context).await;
+    
+    println!("Solver USDC balance: {:?}", usdc_balance);
+    let solver_token_account_address = solver.token_account_address().unwrap();
+    let solver_token_account_info = testing_context.test_context.borrow_mut().banks_client.get_account(solver_token_account_address).await.expect("Failed to query banks client for solver token account info").expect("Failed to get solver token account info");
+    let solver_token_account = TokenAccount::try_deserialize(&mut solver_token_account_info.data.as_ref()).unwrap();
+    assert!(solver_token_account.delegate.is_some());
 }
 
 #[tokio::test]
