@@ -214,15 +214,14 @@ pub async fn test_approve_usdc() {
     let offer_price: u64 = 1__000_000;
     let program_id = PROGRAM_ID;
     let new_pubkey = Pubkey::new_unique();
-
-    // TODO: Figure out why if this is placed before the approve_usdc call, the test fails ...
-    let second_solver = actors.solvers[1].clone();
-    let (_guardian_set_pubkey, _guardian_signatures_pubkey, _guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, Some(&second_solver.keypair())).await;
     
     let transfer_authority = Pubkey::find_program_address(&[common::TRANSFER_AUTHORITY_SEED_PREFIX, &new_pubkey.to_bytes(), &offer_price.to_be_bytes()], &program_id).0;
     solver.approve_usdc(&testing_context.test_context, &transfer_authority, offer_price).await;
     
     let usdc_balance = solver.get_balance(&testing_context.test_context).await;
+
+    // TODO: Figure out why if this is placed before the approve_usdc call, the test fails ...
+    let (_guardian_set_pubkey, _guardian_signatures_pubkey, _guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, Some(&solver.keypair())).await;
     
     println!("Solver USDC balance: {:?}", usdc_balance);
     let solver_token_account_address = solver.token_account_address().unwrap();
