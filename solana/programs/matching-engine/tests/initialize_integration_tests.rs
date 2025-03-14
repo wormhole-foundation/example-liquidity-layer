@@ -1,5 +1,7 @@
 use anchor_lang::AccountDeserialize;
 use anchor_spl::token::TokenAccount;
+use common::wormhole_cctp_solana::cctp::token_messenger_minter_program::RemoteTokenMessenger;
+use matching_engine::state::FastMarketOrder;
 use matching_engine::{ID as PROGRAM_ID, CCTP_MINT_RECIPIENT};
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
@@ -7,6 +9,7 @@ mod utils;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::VersionedTransaction;
 use utils::shims_execute_order::{execute_order_fallback, ExecuteOrderFallbackAccounts};
+use utils::shims_prepare_order_response::{PrepareOrderResponseShimAccountsFixture, PrepareOrderResponseShimDataFixture};
 use utils::{Chain, REGISTERED_TOKEN_ROUTERS};
 use utils::router::{create_cctp_router_endpoints_test, add_local_router_endpoint_ix, create_all_router_endpoints_test};
 use utils::initialize::initialize_program;
@@ -178,7 +181,7 @@ pub async fn test_initialise_fast_market_order_fallback() {
     
     let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
     let (fast_market_order, vaa_data) = utils::shims::create_fast_market_order_state_from_vaa_data(&vaa_data, solver.pubkey());
-    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &testing_context.testing_actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, Some(&solver.keypair())).await;
+    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &testing_context.testing_actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, None).await;
 
     let initialise_fast_market_order_ix = initialise_fast_market_order_fallback_instruction(
         &testing_context.testing_actors.owner.keypair(),
@@ -192,6 +195,43 @@ pub async fn test_initialise_fast_market_order_fallback() {
     let transaction = solana_sdk::transaction::Transaction::new_signed_with_payer(&[initialise_fast_market_order_ix], Some(&testing_context.testing_actors.owner.pubkey()), &[&testing_context.testing_actors.owner.keypair()], recent_blockhash);
     let versioned_transaction = VersionedTransaction::try_from(transaction).expect("Failed to convert transaction to versioned transaction");
     testing_context.test_context.borrow_mut().banks_client.process_transaction(versioned_transaction).await.expect("Failed to initialise fast market order");
+}
+
+#[tokio::test]
+pub async fn test_close_fast_market_order_fallback() {
+    let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
+    pre_testing_context.add_verify_shims();
+    let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    
+    // This will create the fast transfer and deposit vaas but will not post them. Both will have nonce == 0. Deposit vaa will have sequence == 0, fast transfer vaa will have sequence == 1.
+    let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address, None, Some(0),false);
+    let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
+    let first_test_ft = vaas_test.0.first().unwrap();
+    let solver = testing_context.testing_actors.solvers[0].clone();
+    
+    let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
+    let (fast_market_order, vaa_data) = utils::shims::create_fast_market_order_state_from_vaa_data(&vaa_data, solver.pubkey());
+    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &testing_context.testing_actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, None).await;
+
+    let initialise_fast_market_order_ix = initialise_fast_market_order_fallback_instruction(
+        &testing_context.testing_actors.owner.keypair(),
+        &PROGRAM_ID,
+        fast_market_order,
+        guardian_set_pubkey,
+        guardian_signatures_pubkey,
+        guardian_set_bump,
+    );
+    let recent_blockhash = testing_context.test_context.borrow().last_blockhash;
+    // Get balance of solver before initialising fast market order
+    let solver_balance_before = testing_context.test_context.borrow_mut().banks_client.get_balance(solver.pubkey()).await.expect("Failed to get balance of solver");
+    let transaction = solana_sdk::transaction::Transaction::new_signed_with_payer(&[initialise_fast_market_order_ix], Some(&testing_context.testing_actors.owner.pubkey()), &[&testing_context.testing_actors.owner.keypair()], recent_blockhash);
+    let versioned_transaction = VersionedTransaction::try_from(transaction).expect("Failed to convert transaction to versioned transaction");
+    testing_context.test_context.borrow_mut().banks_client.process_transaction(versioned_transaction).await.expect("Failed to initialise fast market order");
+    let fast_market_order_account = Pubkey::find_program_address(&[FastMarketOrder::SEED_PREFIX, &fast_market_order.digest, &fast_market_order.refund_recipient], &PROGRAM_ID).0;
+    utils::shims::close_fast_market_order_fallback(&testing_context.test_context, &solver.keypair(), &PROGRAM_ID, &fast_market_order_account).await;
+    let solver_balance_after = testing_context.test_context.borrow_mut().banks_client.get_balance(solver.pubkey()).await.expect("Failed to get balance of solver");
+    assert!(solver_balance_after > solver_balance_before, "Solver balance before initialising fast market order was {:?}, but after closing it was {:?}, though it should have been greater", solver_balance_before, solver_balance_after);
 }
 
 #[tokio::test]
@@ -220,8 +260,8 @@ pub async fn test_approve_usdc() {
     
     let usdc_balance = solver.get_balance(&testing_context.test_context).await;
 
-    // TODO: Figure out why if this is placed before the approve_usdc call, the test fails ...
-    let (_guardian_set_pubkey, _guardian_signatures_pubkey, _guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, Some(&solver.keypair())).await;
+    // TODO: Create an issue based on this bug. So this function will transfer the ownership of whatever the guardian signatures signer is set to to the verify shim program. This means that the argument to this function MUST be ephemeral and cannot be used until the close signatures instruction has been executed.
+    let (_guardian_set_pubkey, _guardian_signatures_pubkey, _guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &actors.owner.keypair(), &vaa_data, &CORE_BRIDGE_PROGRAM_ID, None).await;
     
     println!("Solver USDC balance: {:?}", usdc_balance);
     let solver_token_account_address = solver.token_account_address().unwrap();
@@ -303,7 +343,6 @@ pub async fn test_place_initial_offer_fallback() {
     // improved_offer_fixture.verify_improved_offer(&testing_context.test_context).await;
 }
 
-
 #[tokio::test]
 // Testing an execute order from arbitrum to ethereum
 // TODO: Flesh out this test to see if the message was posted correctly
@@ -349,8 +388,6 @@ pub async fn test_execute_order_fallback() {
     );
 
     let vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
-
-    println!("Solver balance before placing initial offer: {:?}", solver.get_balance(&testing_context.test_context).await);
     
     // Place initial offer using the fallback program
     let initial_offer_fixture = place_initial_offer_fallback(
@@ -378,4 +415,83 @@ pub async fn test_execute_order_fallback() {
 
     // Figure out why the solver balance is not increased here
     println!("Solver balance after executing order: {:?}", solver.get_balance(&testing_context.test_context).await);
+}
+
+#[tokio::test]
+pub async fn test_prepare_order_shim_fallback() {
+    let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
+    pre_testing_context.add_verify_shims();
+    pre_testing_context.add_post_message_shims();
+    let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum].clone().try_into().expect("Failed to convert registered token router address to bytes [u8; 32]");
+    let vaas_test = create_vaas_test_with_chain_and_address(&mut pre_testing_context.program_test, USDC_MINT_ADDRESS, None, CCTP_MINT_RECIPIENT, Chain::Arbitrum, Chain::Ethereum, arbitrum_emitter_address, ethereum_emitter_address, None, Some(0), false);
+    let testing_context = TestingContext::new(pre_testing_context, USDC_MINT_FIXTURE_PATH, USDC_MINT_ADDRESS).await;
+    let initialize_fixture = initialize_program(&testing_context, PROGRAM_ID, USDC_MINT_ADDRESS, CCTP_MINT_RECIPIENT).await;
+    let actors = testing_context.testing_actors;
+    let payer_signer = actors.owner.keypair();
+    let first_test_ft = vaas_test.0.first().unwrap();
+    let fixture_accounts = testing_context.fixture_accounts.expect("Pre-made fixture accounts not found");
+    
+    // Try making initial offer using the shim instruction
+    let usdc_mint_address = USDC_MINT_ADDRESS;
+    let auction_config_address = initialize_fixture.get_auction_config_address();
+    let router_endpoints = create_all_router_endpoints_test(
+        &testing_context.test_context,
+        actors.owner.pubkey(),
+        initialize_fixture.get_custodian_address(),
+        fixture_accounts.arbitrum_remote_token_messenger,
+        fixture_accounts.ethereum_remote_token_messenger,
+        usdc_mint_address,
+        actors.owner.keypair(),
+        PROGRAM_ID,
+    ).await;
+    let arb_endpoint_address = router_endpoints.arbitrum.endpoint_address;
+    let eth_endpoint_address = router_endpoints.ethereum.endpoint_address;
+    let solver: utils::setup::Solver = actors.solvers[0].clone();
+
+    let auction_accounts = AuctionAccounts::new(
+        None, // Fast VAA pubkey
+        solver.clone(), // Solver
+        auction_config_address.clone(), // Auction config pubkey
+        arb_endpoint_address, // From router endpoint pubkey
+        eth_endpoint_address, // To router endpoint pubkey
+        initialize_fixture.get_custodian_address(), // Custodian pubkey
+        usdc_mint_address, // USDC mint pubkey
+    );
+
+    let ft_vaa_data = first_test_ft.fast_transfer_vaa.clone().vaa_data;
+    
+    // Place initial offer using the fallback program
+    let initial_offer_fixture = place_initial_offer_fallback(
+        &testing_context.test_context,
+        &payer_signer,
+        &PROGRAM_ID,
+        &CORE_BRIDGE_PROGRAM_ID,
+        &ft_vaa_data,
+        solver.clone(),
+        &auction_accounts,
+        1__000_000, // 1 USDC (double underscore for decimal separator)
+    ).await.expect("Failed to place initial offer");
+
+    let deposit_vaa_data = first_test_ft.deposit_vaa.clone().vaa_data;
+    
+    let execute_order_fallback_accounts = ExecuteOrderFallbackAccounts::new(&auction_accounts, &initial_offer_fixture, &payer_signer.pubkey(), &fixture_accounts);
+    // Try executing the order using the fallback program
+    let execute_order_fixture = execute_order_fallback(
+        &testing_context.test_context,
+        &payer_signer,
+        &PROGRAM_ID,
+        solver.clone(),
+        &execute_order_fallback_accounts,
+    ).await.expect("Failed to execute order");
+
+    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) = utils::shims::create_guardian_signatures(&testing_context.test_context, &payer_signer, &deposit_vaa_data, &CORE_BRIDGE_PROGRAM_ID, None).await;
+    let arbitrum_token_messenger_data = testing_context.test_context.borrow_mut().banks_client.get_account(fixture_accounts.arbitrum_remote_token_messenger).await.unwrap().unwrap().data;
+    let ethereum_token_messenger_data = testing_context.test_context.borrow_mut().banks_client.get_account(fixture_accounts.ethereum_remote_token_messenger).await.unwrap().unwrap().data;
+    let source_remote_token_messenger = RemoteTokenMessenger::try_deserialize(&mut arbitrum_token_messenger_data.as_ref()).unwrap();
+    let destination_remote_token_messenger = RemoteTokenMessenger::try_deserialize(&mut ethereum_token_messenger_data.as_ref()).unwrap();
+    let prepare_order_response_cctp_shim_data = PrepareOrderResponseShimDataFixture::new(encoded_cctp_message, cctp_attestation)
+    let prepare_order_response_cctp_shim_accounts = PrepareOrderResponseShimAccountsFixture::new(&payer_signer, &fixture_accounts, &execute_order_fallback_accounts, &initial_offer_fixture, &initialize_fixture, &arb_endpoint_address, &eth_endpoint_address, &usdc_mint_address, &cctp_message_decoded, &guardian_set_pubkey, &guardian_signatures_pubkey);
+    prepare_order_response_cctp_shim(&testing_context.test_context, &payer_signer, prepare_order_response_cctp_shim_accounts, prepare_order_response_cctp_shim_data, &PROGRAM_ID).await;
+
 }

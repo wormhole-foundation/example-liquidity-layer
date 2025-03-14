@@ -30,5 +30,6 @@ pub enum FallbackError {
     #[msg("Invalid CCTP message")]
     InvalidCctpMessage,
 
-    // Add more error variants as needed
+    #[msg("Invalid program")]
+    InvalidProgram,
 }

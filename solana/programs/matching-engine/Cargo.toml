@@ -56,6 +56,7 @@ lazy_static = "1.4.0"
 bs58 = "0.5.0"
 serde = { version = "1.0.212", features = ["derive"] }
 secp256k1 = {version = "0.30.0", features = ["rand", "hashes", "std", "global-context", "recovery"] }
+num-traits = "0.2.16"
 wormhole-svm-shim.workspace = true
 wormhole-svm-definitions.workspace = true
 

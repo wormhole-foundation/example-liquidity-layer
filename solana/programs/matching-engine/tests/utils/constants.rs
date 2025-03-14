@@ -107,7 +107,6 @@ pub fn get_player_one_keypair() -> Keypair {
 #[allow(dead_code)]
 pub const GOVERNANCE_EMITTER_ADDRESS: Pubkey = solana_program::pubkey!("11111111111111111111111111111115");
 
-#[allow(dead_code)]
 pub const ETHEREUM_USDC_ADDRESS: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
 // Chain to cctp domain mapping
