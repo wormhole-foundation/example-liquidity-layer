@@ -3,6 +3,8 @@ use solana_program::program_error::ProgramError;
 use solana_program::instruction::Instruction;
 use crate::state::FastMarketOrder;
 
+use super::FallbackMatchingEngineInstruction;
+
 pub struct CloseFastMarketOrderAccounts<'ix> {
     pub fast_market_order: &'ix Pubkey,
     pub refund_recipient: &'ix Pubkey,
@@ -11,8 +13,8 @@ pub struct CloseFastMarketOrderAccounts<'ix> {
 impl<'ix> CloseFastMarketOrderAccounts<'ix> {
     pub fn to_account_metas(&self) -> Vec<AccountMeta> {
         vec![
-            AccountMeta::new_readonly(*self.fast_market_order, false),
-            AccountMeta::new_readonly(*self.refund_recipient, false),
+            AccountMeta::new(*self.fast_market_order, false),
+            AccountMeta::new(*self.refund_recipient, false),
         ]
     }
 }
@@ -27,7 +29,7 @@ impl CloseFastMarketOrder<'_> {
         Instruction {
             program_id: *self.program_id,
             accounts: self.accounts.to_account_metas(),
-            data: vec![],
+            data: FallbackMatchingEngineInstruction::CloseFastMarketOrder.to_vec(),
         }
     }
 }

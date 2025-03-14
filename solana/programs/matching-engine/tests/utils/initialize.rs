@@ -24,6 +24,7 @@ use super::super::TestingContext;
 pub struct InitializeAddresses {
     pub custodian_address: Pubkey,
     pub auction_config_address: Pubkey,
+    pub cctp_mint_recipient: Pubkey,
 }
 
 pub struct InitializeFixture {
@@ -170,6 +171,7 @@ pub async fn initialize_program(testing_context: &TestingContext, program_id: Pu
     let initialize_addresses = InitializeAddresses {
         custodian_address: custodian,
         auction_config_address: auction_config,
+        cctp_mint_recipient: cctp_mint_recipient,
     };
     InitializeFixture { test_context, custodian: custodian_data, addresses: initialize_addresses }
 }

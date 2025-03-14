@@ -69,6 +69,9 @@ impl<'ix> FallbackMatchingEngineInstruction<'ix> {
             FallbackMatchingEngineInstruction::INITIALISE_FAST_MARKET_ORDER_SELECTOR => {
                 Some(Self::InitialiseFastMarketOrder(&bytemuck::from_bytes(&instruction_data[8..])))
             },
+            FallbackMatchingEngineInstruction::CLOSE_FAST_MARKET_ORDER_SELECTOR => {
+                Some(Self::CloseFastMarketOrder)
+            },
             _ => None,
         }
     }

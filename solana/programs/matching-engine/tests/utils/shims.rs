@@ -32,6 +32,10 @@ use matching_engine::fallback::initialise_fast_market_order::{
     InitialiseFastMarketOrderAccounts as InitialiseFastMarketOrderFallbackAccounts,
     InitialiseFastMarketOrderData as InitialiseFastMarketOrderFallbackData,
 };
+use matching_engine::fallback::close_fast_market_order::{
+    CloseFastMarketOrder as CloseFastMarketOrderFallback,
+    CloseFastMarketOrderAccounts as CloseFastMarketOrderFallbackAccounts,
+};
 use wormhole_svm_definitions::borsh::GuardianSignatures;
 
 #[allow(dead_code)]
@@ -362,14 +366,14 @@ pub async fn place_initial_offer_fallback(test_ctx: &Rc<RefCell<ProgramTestConte
     
     // Approve the transfer authority
     let transfer_authority = Pubkey::find_program_address(&[common::TRANSFER_AUTHORITY_SEED_PREFIX, &auction_address.to_bytes(), &offer_price.to_be_bytes()], &program_id).0;
-    {
-        solver.approve_usdc(test_ctx, &transfer_authority, 420_000__000_000).await;
-    }
+    
+    solver.approve_usdc(test_ctx, &transfer_authority, 420_000__000_000).await;
+    
     let solver_usdc_balance = solver.get_balance(test_ctx).await;
     println!("Solver USDC balance: {:?}", solver_usdc_balance);
 
     // Create the guardian set and signatures
-    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) = create_guardian_signatures(test_ctx, payer_signer, &vaa_data, wormhole_program_id, Some(&solver.keypair())).await;
+    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) = create_guardian_signatures(test_ctx, payer_signer, &vaa_data, wormhole_program_id, None).await;
     
     // Create the fast market order account
     let fast_market_order_account = Pubkey::find_program_address(&[FastMarketOrderState::SEED_PREFIX, &fast_market_order.digest, &fast_market_order.refund_recipient], program_id).0;
@@ -433,6 +437,20 @@ pub fn initialise_fast_market_order_fallback_instruction(payer_signer: &Rc<Keypa
         accounts: create_fast_market_order_accounts,
         data: InitialiseFastMarketOrderFallbackData::new(fast_market_order, guardian_set_bump),
     }.instruction()
+}
+
+pub async fn close_fast_market_order_fallback(test_ctx: &Rc<RefCell<ProgramTestContext>>, refund_recipient_keypair: &Rc<Keypair>, program_id: &Pubkey, fast_market_order_address: &Pubkey) {
+    let recent_blockhash = test_ctx.borrow_mut().get_new_latest_blockhash().await.expect("Failed to get new blockhash");
+    let close_fast_market_order_ix = CloseFastMarketOrderFallback {
+        program_id: program_id,
+        accounts: CloseFastMarketOrderFallbackAccounts {
+            fast_market_order: fast_market_order_address,
+            refund_recipient: &refund_recipient_keypair.pubkey(),
+        },
+    }.instruction();
+
+    let transaction = Transaction::new_signed_with_payer(&[close_fast_market_order_ix], Some(&refund_recipient_keypair.pubkey()), &[refund_recipient_keypair], recent_blockhash);
+    test_ctx.borrow_mut().banks_client.process_transaction(transaction).await.expect("Failed to close fast market order");
 }
 
 pub fn create_fast_market_order_state_from_vaa_data(vaa_data: &super::vaa::PostedVaaData, refund_recipient: Pubkey) -> (FastMarketOrderState, super::vaa::PostedVaaData) {

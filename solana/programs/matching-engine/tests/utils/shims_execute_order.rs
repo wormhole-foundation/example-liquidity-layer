@@ -51,6 +51,15 @@ pub struct ExecuteOrderFallbackFixture {
     pub cctp_message: Pubkey,
     pub post_message_sequence: Pubkey,
     pub post_message_message: Pubkey,
+    pub accounts: ExecuteOrderFallbackFixtureAccounts,
+}
+
+pub struct ExecuteOrderFallbackFixtureAccounts {
+    pub local_token: Pubkey,
+    pub token_messenger: Pubkey,
+    pub remote_token_messenger: Pubkey,
+    pub token_messenger_minter_sender_authority: Pubkey,
+    pub token_messenger_minter_event_authority: Pubkey,
 }
 
 pub async fn execute_order_fallback(test_ctx: &Rc<RefCell<ProgramTestContext>>, payer_signer: &Rc<Keypair>, program_id: &Pubkey, solver: Solver, execute_order_fallback_accounts: &ExecuteOrderFallbackAccounts) -> Result<ExecuteOrderFallbackFixture> {
@@ -120,5 +129,12 @@ pub async fn execute_order_fallback(test_ctx: &Rc<RefCell<ProgramTestContext>>, 
         cctp_message,
         post_message_sequence,
         post_message_message,
+        accounts: ExecuteOrderFallbackFixtureAccounts {
+            local_token,
+            token_messenger,
+            remote_token_messenger,
+            token_messenger_minter_sender_authority,
+            token_messenger_minter_event_authority : *token_messenger_minter_event_authority,
+        },
     })
 }
