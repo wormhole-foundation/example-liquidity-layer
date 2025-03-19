@@ -1,12 +1,12 @@
+use anchor_spl::token::spl_token;
+use solana_cli_output::CliAccount;
+use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     account::{AccountSharedData, ReadableAccount, WritableAccount},
     program_pack::Pack,
-    signer::Signer,
     pubkey::Pubkey,
+    signer::Signer,
 };
-use solana_program_test::ProgramTestContext;
-use solana_cli_output::CliAccount;
-use anchor_spl::token::spl_token;
 use spl_token::state::Mint;
 
 use std::{cell::RefCell, fs::File, io::Read, path::PathBuf, rc::Rc, str::FromStr};
@@ -20,7 +20,6 @@ pub struct MintFixture {
 }
 
 impl MintFixture {
-
     /// Creates a new MintFixture from a file
     ///
     /// # Arguments
@@ -29,7 +28,7 @@ impl MintFixture {
     /// * `relative_path` - The relative path to the mint file
     ///
     /// # Returns
-    /// 
+    ///
     /// A new MintFixture
     pub fn new_from_file(
         ctx: &Rc<RefCell<ProgramTestContext>>,

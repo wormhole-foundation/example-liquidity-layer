@@ -1,14 +1,14 @@
 use anchor_lang::prelude::*;
-use bytemuck::{Pod, Zeroable};
 use anchor_lang::Discriminator;
-use solana_program::program::invoke_signed_unchecked;
+use bytemuck::{Pod, Zeroable};
 use solana_program::instruction::Instruction;
+use solana_program::program::invoke_signed_unchecked;
 
 use super::create_account::create_account_reliably;
 
+use super::errors::FallbackError;
 use super::FallbackMatchingEngineInstruction;
 use crate::state::FastMarketOrder as FastMarketOrderState;
-use super::errors::FallbackError;
 
 pub struct InitialiseFastMarketOrderAccounts<'ix> {
     pub signer: &'ix Pubkey,
@@ -41,7 +41,11 @@ pub struct InitialiseFastMarketOrderData {
 }
 impl InitialiseFastMarketOrderData {
     pub fn new(fast_market_order: FastMarketOrderState, guardian_set_bump: u8) -> Self {
-        Self { fast_market_order, guardian_set_bump, _padding: [0_u8; 7] }
+        Self {
+            fast_market_order,
+            guardian_set_bump,
+            _padding: [0_u8; 7],
+        }
     }
 
     pub fn from_bytes(data: &[u8]) -> Option<&Self> {
@@ -65,7 +69,10 @@ impl InitialiseFastMarketOrder<'_> {
     }
 }
 
-pub fn initialise_fast_market_order(accounts: &[AccountInfo], data: &InitialiseFastMarketOrderData) -> Result<()> {
+pub fn initialise_fast_market_order(
+    accounts: &[AccountInfo],
+    data: &InitialiseFastMarketOrderData,
+) -> Result<()> {
     if accounts.len() < 6 {
         return Err(ErrorCode::AccountNotEnoughKeys.into());
     }
@@ -76,16 +83,22 @@ pub fn initialise_fast_market_order(accounts: &[AccountInfo], data: &InitialiseF
     let _verify_vaa_shim_program = &accounts[4];
     let _system_program = &accounts[5];
 
-    let InitialiseFastMarketOrderData { fast_market_order, guardian_set_bump, _padding: _ } = *data;
+    let InitialiseFastMarketOrderData {
+        fast_market_order,
+        guardian_set_bump,
+        _padding: _,
+    } = *data;
     // Start of cpi call to verify the shim.
     // ------------------------------------------------------------------------------------------------
-    
+    let fast_market_order_digest = fast_market_order.digest();
     // Did not want to pass in the vaa hash here. So recreated it.
     let verify_hash_data = {
         let mut data = vec![];
-        data.extend_from_slice(&wormhole_svm_shim::verify_vaa::VerifyVaaShimInstruction::<false>::VERIFY_HASH_SELECTOR);
+        data.extend_from_slice(
+            &wormhole_svm_shim::verify_vaa::VerifyVaaShimInstruction::<false>::VERIFY_HASH_SELECTOR,
+        );
         data.push(guardian_set_bump);
-        data.extend_from_slice(&fast_market_order.digest);
+        data.extend_from_slice(&fast_market_order_digest);
         data
     };
     let verify_shim_ix = Instruction {
@@ -97,10 +110,14 @@ pub fn initialise_fast_market_order(accounts: &[AccountInfo], data: &InitialiseF
         data: verify_hash_data,
     };
     // Make the cpi call to verify the shim.
-    invoke_signed_unchecked(&verify_shim_ix, &[
-        guardian_set.to_account_info(),
-        guardian_set_signatures.to_account_info(),
-    ], &[])?;
+    invoke_signed_unchecked(
+        &verify_shim_ix,
+        &[
+            guardian_set.to_account_info(),
+            guardian_set_signatures.to_account_info(),
+        ],
+        &[],
+    )?;
     // ------------------------------------------------------------------------------------------------
     // End of cpi call to verify the shim.
 
@@ -111,7 +128,7 @@ pub fn initialise_fast_market_order(accounts: &[AccountInfo], data: &InitialiseF
     let (fast_market_order_pda, fast_market_order_bump) = Pubkey::find_program_address(
         &[
             FastMarketOrderState::SEED_PREFIX,
-            fast_market_order.digest.as_ref(),
+            fast_market_order_digest.as_ref(),
             fast_market_order.refund_recipient.as_ref(),
         ],
         &program_id,
@@ -119,11 +136,12 @@ pub fn initialise_fast_market_order(accounts: &[AccountInfo], data: &InitialiseF
 
     if fast_market_order_pda != fast_market_order_key {
         msg!("Fast market order pda is invalid");
-        return Err(FallbackError::InvalidPda.into()).map_err(|e: Error| e.with_pubkeys((fast_market_order_key, fast_market_order_pda)));
+        return Err(FallbackError::InvalidPda.into())
+            .map_err(|e: Error| e.with_pubkeys((fast_market_order_key, fast_market_order_pda)));
     }
     let fast_market_order_seeds = [
         FastMarketOrderState::SEED_PREFIX,
-        fast_market_order.digest.as_ref(),
+        fast_market_order_digest.as_ref(),
         fast_market_order.refund_recipient.as_ref(),
         &[fast_market_order_bump],
     ];
@@ -141,7 +159,7 @@ pub fn initialise_fast_market_order(accounts: &[AccountInfo], data: &InitialiseF
 
     // Borrow the account data mutably
     let mut fast_market_order_account_data = fast_market_order_account.try_borrow_mut_data()?;
-    
+
     // Write the discriminator to the first 8 bytes
     let discriminator = FastMarketOrderState::discriminator();
     fast_market_order_account_data[0..8].copy_from_slice(&discriminator);
@@ -154,7 +172,8 @@ pub fn initialise_fast_market_order(accounts: &[AccountInfo], data: &InitialiseF
     }
 
     // Write the fast_market_order struct to the account
-    fast_market_order_account_data[8..8 + fast_market_order_bytes.len()].copy_from_slice(fast_market_order_bytes);
+    fast_market_order_account_data[8..8 + fast_market_order_bytes.len()]
+        .copy_from_slice(fast_market_order_bytes);
 
     Ok(())
 }

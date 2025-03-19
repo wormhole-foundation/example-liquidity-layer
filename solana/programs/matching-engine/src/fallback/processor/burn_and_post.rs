@@ -1,11 +1,20 @@
-use common::wormhole_cctp_solana::{cctp::token_messenger_minter_program::cpi::{DepositForBurnWithCallerParams, DepositForBurnWithCaller, deposit_for_burn_with_caller}, cpi::BurnAndPublishArgs};
-use solana_program::program::invoke_signed_unchecked;
-use wormhole_svm_shim::post_message;
-use wormhole_svm_definitions::solana::{CORE_BRIDGE_CONFIG, CORE_BRIDGE_FEE_COLLECTOR, CORE_BRIDGE_PROGRAM_ID, POST_MESSAGE_SHIM_EVENT_AUTHORITY, POST_MESSAGE_SHIM_PROGRAM_ID};
-use anchor_lang::prelude::*;
-use wormhole_svm_definitions::{solana::Finality, find_emitter_sequence_address, find_shim_message_address};
 use crate::state::Custodian;
-
+use anchor_lang::prelude::*;
+use common::wormhole_cctp_solana::{
+    cctp::token_messenger_minter_program::cpi::{
+        deposit_for_burn_with_caller, DepositForBurnWithCaller, DepositForBurnWithCallerParams,
+    },
+    cpi::BurnAndPublishArgs,
+};
+use solana_program::program::invoke_signed_unchecked;
+use wormhole_svm_definitions::solana::{
+    CORE_BRIDGE_CONFIG, CORE_BRIDGE_FEE_COLLECTOR, CORE_BRIDGE_PROGRAM_ID,
+    POST_MESSAGE_SHIM_EVENT_AUTHORITY, POST_MESSAGE_SHIM_PROGRAM_ID,
+};
+use wormhole_svm_definitions::{
+    find_emitter_sequence_address, find_shim_message_address, solana::Finality,
+};
+use wormhole_svm_shim::post_message;
 
 // This is a helper struct to make it easier to pass in the accounts for the post_message instruction.
 pub struct PostMessageAccounts {
@@ -37,8 +46,10 @@ pub struct PostMessageDerivedAccounts {
 
 pub fn burn_and_post<'info>(
     cctp_ctx: CpiContext<'_, '_, '_, 'info, DepositForBurnWithCaller<'info>>,
-    burn_and_publish_args: BurnAndPublishArgs, post_message_accounts: PostMessageAccounts,
-    account_infos: &[AccountInfo]) -> Result<()> {
+    burn_and_publish_args: BurnAndPublishArgs,
+    post_message_accounts: PostMessageAccounts,
+    account_infos: &[AccountInfo],
+) -> Result<()> {
     let BurnAndPublishArgs {
         burn_source: _,
         destination_caller,
@@ -72,7 +83,7 @@ pub fn burn_and_post<'info>(
         .unwrap(),
     }
     .instruction();
-    
+
     invoke_signed_unchecked(&post_message_ix, account_infos, &[Custodian::SIGNER_SEEDS])?;
 
     // Deposit for burn

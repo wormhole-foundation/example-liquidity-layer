@@ -1,13 +1,9 @@
 use anchor_spl::token::spl_token;
 use solana_program_test::ProgramTestContext;
-use std::rc::Rc;
-use std::cell::RefCell;
-use solana_sdk::{
-    pubkey::Pubkey,
-    system_instruction,
-    signature::Signer,
-};
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
+use solana_sdk::{pubkey::Pubkey, signature::Signer, system_instruction};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use super::constants;
 
@@ -25,13 +21,9 @@ pub async fn airdrop(
     amount: u64,
 ) {
     let mut ctx = test_context.borrow_mut();
-    
+
     // Create the transfer instruction with values from the context
-    let transfer_ix = system_instruction::transfer(
-        &ctx.payer.pubkey(),
-        recipient,
-        amount,
-    );
+    let transfer_ix = system_instruction::transfer(&ctx.payer.pubkey(), recipient, amount);
 
     // Create and send transaction
     let tx = Transaction::new_signed_with_payer(
@@ -49,7 +41,11 @@ pub async fn airdrop_usdc(
     recipient_ata: &Pubkey,
     amount: u64,
 ) {
-    let new_blockhash = test_context.borrow_mut().get_new_latest_blockhash().await.expect("Failed to get new blockhash");
+    let new_blockhash = test_context
+        .borrow_mut()
+        .get_new_latest_blockhash()
+        .await
+        .expect("Failed to get new blockhash");
     let usdc_mint_address = constants::USDC_MINT;
     let mint_to_ix = spl_token::instruction::mint_to(
         &spl_token::ID,
@@ -57,8 +53,9 @@ pub async fn airdrop_usdc(
         recipient_ata,
         &test_context.borrow().payer.pubkey(),
         &[],
-        amount
-    ).expect("Failed to create mint to instruction");
+        amount,
+    )
+    .expect("Failed to create mint to instruction");
     let tx = Transaction::new_signed_with_payer(
         &[mint_to_ix.clone()],
         Some(&test_context.borrow().payer.pubkey()),
@@ -66,7 +63,13 @@ pub async fn airdrop_usdc(
         new_blockhash,
     );
 
-    let versioned_transaction = VersionedTransaction::try_from(tx).expect("Failed to convert transaction to versioned transaction");
+    let versioned_transaction = VersionedTransaction::try_from(tx)
+        .expect("Failed to convert transaction to versioned transaction");
 
-    test_context.borrow_mut().banks_client.process_transaction(versioned_transaction).await.unwrap();
+    test_context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(versioned_transaction)
+        .await
+        .unwrap();
 }

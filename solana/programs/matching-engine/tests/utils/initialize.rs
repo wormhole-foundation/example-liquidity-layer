@@ -1,25 +1,24 @@
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
-    instruction::Instruction, pubkey::Pubkey, signature::Signer, transaction::{Transaction, VersionedTransaction}
+    instruction::Instruction,
+    pubkey::Pubkey,
+    signature::Signer,
+    transaction::{Transaction, VersionedTransaction},
 };
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
-use solana_program::{bpf_loader_upgradeable, system_program};
-use anchor_spl::{associated_token::spl_associated_token_account, token::spl_token};
 use anchor_lang::AccountDeserialize;
+use anchor_spl::{associated_token::spl_associated_token_account, token::spl_token};
+use solana_program::{bpf_loader_upgradeable, system_program};
 
+use super::super::TestingContext;
 use anchor_lang::{InstructionData, ToAccountMetas};
 use matching_engine::{
     accounts::Initialize,
+    state::{AuctionConfig, AuctionParameters, Custodian},
     InitializeArgs,
-    state::{
-        AuctionParameters, 
-        Custodian, 
-        AuctionConfig
-    },
 };
-use super::super::TestingContext;
 
 pub struct InitializeAddresses {
     pub custodian_address: Pubkey,
@@ -71,7 +70,12 @@ impl From<&Custodian> for TestCustodian {
 }
 
 impl InitializeFixture {
-    pub fn verify_custodian(&self, owner: Pubkey, owner_assistant: Pubkey, fee_recipient_token: Pubkey) {
+    pub fn verify_custodian(
+        &self,
+        owner: Pubkey,
+        owner_assistant: Pubkey,
+        fee_recipient_token: Pubkey,
+    ) {
         let expected_custodian = TestCustodian {
             owner,
             pending_owner: None,
@@ -88,26 +92,23 @@ impl InitializeFixture {
     }
 }
 
-pub async fn initialize_program(testing_context: &TestingContext, program_id: Pubkey, usdc_mint_address: Pubkey, cctp_mint_recipient: Pubkey) -> InitializeFixture {
+pub async fn initialize_program(testing_context: &TestingContext) -> InitializeFixture {
     let test_context = testing_context.test_context.clone();
-    
-    let (custodian, _custodian_bump) = Pubkey::find_program_address(
-        &[Custodian::SEED_PREFIX],
+    let program_id = testing_context.get_matching_engine_program_id();
+    let usdc_mint_address = testing_context.get_usdc_mint_address();
+    let cctp_mint_recipient = testing_context.get_cctp_mint_recipient();
+    let (custodian, _custodian_bump) =
+        Pubkey::find_program_address(&[Custodian::SEED_PREFIX], &program_id);
+
+    let (auction_config, _auction_config_bump) = Pubkey::find_program_address(
+        &[AuctionConfig::SEED_PREFIX, &0u32.to_be_bytes()],
         &program_id,
     );
 
-    let (auction_config, _auction_config_bump) = Pubkey::find_program_address(
-        &[
-            AuctionConfig::SEED_PREFIX,
-            &0u32.to_be_bytes(),
-        ],
-        &program_id,
-    );
-    
     // Create AuctionParameters
     let auction_params = AuctionParameters {
         user_penalty_reward_bps: 250_000, // 25%
-        initial_penalty_bps: 250_000, // 25%
+        initial_penalty_bps: 250_000,     // 25%
         duration: 2,
         grace_period: 5,
         penalty_period: 10,
@@ -118,11 +119,9 @@ pub async fn initialize_program(testing_context: &TestingContext, program_id: Pu
 
     // Create the instruction data
     let ix_data = matching_engine::instruction::Initialize {
-        args: InitializeArgs {
-            auction_params,
-        },
+        args: InitializeArgs { auction_params },
     };
-    
+
     // Get account metas
     let accounts = Initialize {
         owner: testing_context.testing_actors.owner.pubkey(),
@@ -130,9 +129,15 @@ pub async fn initialize_program(testing_context: &TestingContext, program_id: Pu
         auction_config,
         owner_assistant: testing_context.testing_actors.owner_assistant.pubkey(),
         fee_recipient: testing_context.testing_actors.fee_recipient.pubkey(),
-        fee_recipient_token: testing_context.testing_actors.fee_recipient.token_account_address().unwrap(),
+        fee_recipient_token: testing_context
+            .testing_actors
+            .fee_recipient
+            .token_account_address()
+            .unwrap(),
         cctp_mint_recipient: cctp_mint_recipient,
-        usdc: matching_engine::accounts::Usdc{mint: usdc_mint_address},
+        usdc: matching_engine::accounts::Usdc {
+            mint: usdc_mint_address,
+        },
         program_data: testing_context.program_data_account,
         upgrade_manager_authority: common::UPGRADE_MANAGER_AUTHORITY,
         upgrade_manager_program: common::UPGRADE_MANAGER_PROGRAM_ID,
@@ -141,7 +146,7 @@ pub async fn initialize_program(testing_context: &TestingContext, program_id: Pu
         token_program: spl_token::id(),
         associated_token_program: spl_associated_token_account::id(),
     };
-    
+
     // Create the instruction
     let instruction = Instruction {
         program_id: program_id,
@@ -149,29 +154,50 @@ pub async fn initialize_program(testing_context: &TestingContext, program_id: Pu
         data: ix_data.data(),
     };
     // Create and sign transaction
-    let mut transaction = Transaction::new_with_payer(
-        &[instruction],
-        Some(&test_context.borrow().payer.pubkey()),
+    let mut transaction =
+        Transaction::new_with_payer(&[instruction], Some(&test_context.borrow().payer.pubkey()));
+    let new_blockhash = test_context
+        .borrow_mut()
+        .get_new_latest_blockhash()
+        .await
+        .expect("Failed to get new blockhash");
+    transaction.sign(
+        &[
+            &test_context.borrow().payer,
+            &testing_context.testing_actors.owner.keypair(),
+        ],
+        new_blockhash,
     );
-    let new_blockhash = test_context.borrow_mut().get_new_latest_blockhash().await.expect("Failed to get new blockhash");
-    transaction.sign(&[&test_context.borrow().payer, &testing_context.testing_actors.owner.keypair()], new_blockhash);
 
     // Process transaction
-    let versioned_transaction = VersionedTransaction::try_from(transaction).expect("Failed to convert transaction to versioned transaction");
-    test_context.borrow_mut().banks_client.process_transaction(versioned_transaction).await.unwrap();
+    let versioned_transaction = VersionedTransaction::try_from(transaction)
+        .expect("Failed to convert transaction to versioned transaction");
+    test_context
+        .borrow_mut()
+        .banks_client
+        .process_transaction(versioned_transaction)
+        .await
+        .unwrap();
 
     // Verify the results
-    let custodian_account = test_context.borrow_mut().banks_client
+    let custodian_account = test_context
+        .borrow_mut()
+        .banks_client
         .get_account(custodian.clone())
         .await
         .unwrap()
         .unwrap();
-    
-    let custodian_data = Custodian::try_deserialize(&mut custodian_account.data.as_slice()).unwrap();
+
+    let custodian_data =
+        Custodian::try_deserialize(&mut custodian_account.data.as_slice()).unwrap();
     let initialize_addresses = InitializeAddresses {
         custodian_address: custodian,
         auction_config_address: auction_config,
         cctp_mint_recipient: cctp_mint_recipient,
     };
-    InitializeFixture { test_context, custodian: custodian_data, addresses: initialize_addresses }
+    InitializeFixture {
+        test_context,
+        custodian: custodian_data,
+        addresses: initialize_addresses,
+    }
 }

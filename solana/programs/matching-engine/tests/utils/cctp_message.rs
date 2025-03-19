@@ -1,18 +1,21 @@
-use anchor_lang::prelude::*;
-use common::wormhole_cctp_solana::cctp::message_transmitter_program::MessageTransmitterConfig;
-use num_traits::FromBytes;
-use solana_sdk::keccak;
-use std::fmt::Display;
-use solana_program::keccak::{Hash, Hasher};
-use secp256k1::SecretKey as SecpSecretKey;
-use std::str::FromStr;
-use std::rc::Rc;
-use std::cell::RefCell;
-use solana_program_test::ProgramTestContext;
-use common::wormhole_cctp_solana::cctp::{MESSAGE_TRANSMITTER_PROGRAM_ID, TOKEN_MESSENGER_MINTER_PROGRAM_ID};
-
-
 use crate::utils::ETHEREUM_USDC_ADDRESS;
+use anchor_lang::prelude::*;
+use common::wormhole_cctp_solana::cctp::TOKEN_MESSENGER_MINTER_PROGRAM_ID;
+use common::wormhole_cctp_solana::cctp::{
+    message_transmitter_program::MessageTransmitterConfig,
+    token_messenger_minter_program::RemoteTokenMessenger,
+};
+use matching_engine::state::FastMarketOrder;
+use num_traits::FromBytes;
+use ruint::Uint;
+use secp256k1::SecretKey as SecpSecretKey;
+use solana_program::keccak::{Hash, Hasher};
+use solana_program_test::ProgramTestContext;
+use solana_sdk::keccak;
+use std::cell::RefCell;
+use std::fmt::Display;
+use std::rc::Rc;
+use std::str::FromStr;
 
 use super::{Chain, CHAIN_TO_DOMAIN, GUARDIAN_SECRET_KEY};
 
@@ -133,16 +136,12 @@ pub struct CctpRemoteTokenMessenger {
     pub token_messenger: Pubkey,
 }
 
-impl CctpRemoteTokenMessenger {
-    pub fn new(domain: u32, token_messenger: Pubkey) -> Self {
-        Self { domain, token_messenger }
-    }
-
-    pub fn try_deserialize(data: &[u8]) -> Result<Self> {
-        require_eq!(data.len(), 36, TokenMessengerError::MalformedMessage);
-        let domain = u32::from_be_bytes(data[0..4].try_into().unwrap());
-        let token_messenger = Pubkey::try_from(&data[4..36]).unwrap();
-        Ok(Self { domain, token_messenger })
+impl From<&RemoteTokenMessenger> for CctpRemoteTokenMessenger {
+    fn from(value: &RemoteTokenMessenger) -> Self {
+        Self {
+            domain: value.domain,
+            token_messenger: Pubkey::from(value.token_messenger),
+        }
     }
 }
 
@@ -164,6 +163,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 impl<'a> Message<'a> {
     // Indices of each field in the message
     const VERSION_INDEX: usize = 0;
@@ -177,17 +177,11 @@ impl<'a> Message<'a> {
 
     /// Validates source array size and returns a new message
     pub fn new(expected_version: u32, message_bytes: &'a [u8]) -> Result<Self> {
-        require_gte!(
-            message_bytes.len(),
-            Self::MESSAGE_BODY_INDEX        
-        );
+        require_gte!(message_bytes.len(), Self::MESSAGE_BODY_INDEX);
         let message = Self {
             data: message_bytes,
         };
-        require_eq!(
-            expected_version,
-            message.version()?,
-        );
+        require_eq!(expected_version, message.version()?,);
         Ok(message)
     }
 
@@ -293,10 +287,10 @@ impl<'a> Message<'a> {
 
     /// Reads pubkey field at the given offset
     fn read_pubkey(&self, index: usize) -> Result<Pubkey> {
-        Ok(Pubkey::try_from(
-            &self.data[index..checked_add(index, std::mem::size_of::<Pubkey>())?],
+        Ok(
+            Pubkey::try_from(&self.data[index..checked_add(index, std::mem::size_of::<Pubkey>())?])
+                .map_err(|_| MessageTransmitterError::MalformedMessage)?,
         )
-        .map_err(|_| MessageTransmitterError::MalformedMessage)?)
     }
 }
 
@@ -316,10 +310,9 @@ impl<'a> BurnMessage<'a> {
     // 4 byte version + 32 bytes burnToken + 32 bytes mintRecipient + 32 bytes amount + 32 bytes messageSender
     const BURN_MESSAGE_LEN: usize = 132;
     // EVM amount is 32 bytes while we use only 8 bytes on Solana
-    const AMOUNT_OFFSET: usize = 24;
 
     /// Validates source array size and returns a new message
-    pub fn new(expected_version: u32, message_bytes: &'a [u8]) -> Result<Self> {
+    pub fn new(message_bytes: &'a [u8]) -> Result<Self> {
         require_eq!(
             message_bytes.len(),
             Self::BURN_MESSAGE_LEN,
@@ -328,11 +321,7 @@ impl<'a> BurnMessage<'a> {
         let message = Self {
             data: message_bytes,
         };
-        require_eq!(
-            expected_version,
-            message.version()?,
-            TokenMessengerError::InvalidMessageBodyVersion
-        );
+
         Ok(message)
     }
 
@@ -342,7 +331,7 @@ impl<'a> BurnMessage<'a> {
         version: u32,
         burn_token: &Pubkey,
         mint_recipient: &Pubkey,
-        amount: u64,
+        amount: Uint<256, 4>,
         message_sender: &Pubkey,
     ) -> Result<Vec<u8>> {
         let mut output = vec![0; Self::BURN_MESSAGE_LEN];
@@ -352,17 +341,12 @@ impl<'a> BurnMessage<'a> {
             .copy_from_slice(burn_token.as_ref());
         output[Self::MINT_RECIPIENT_INDEX..Self::AMOUNT_INDEX]
             .copy_from_slice(mint_recipient.as_ref());
-        output[(Self::AMOUNT_INDEX + Self::AMOUNT_OFFSET)..Self::MSG_SENDER_INDEX]
-            .copy_from_slice(&amount.to_be_bytes());
+        output[Self::AMOUNT_INDEX..Self::MSG_SENDER_INDEX]
+            .copy_from_slice(&amount.to_be_bytes::<32>());
         output[Self::MSG_SENDER_INDEX..Self::BURN_MESSAGE_LEN]
             .copy_from_slice(message_sender.as_ref());
 
         Ok(output)
-    }
-
-    /// Returns version field
-    pub fn version(&self) -> Result<u32> {
-        self.read_integer::<u32>(Self::VERSION_INDEX)
     }
 
     /// Returns burn_token field
@@ -376,14 +360,12 @@ impl<'a> BurnMessage<'a> {
     }
 
     /// Returns amount field
-    pub fn amount(&self) -> Result<u64> {
-        require!(
-            self.data[Self::AMOUNT_INDEX..(Self::AMOUNT_INDEX + Self::AMOUNT_OFFSET)]
-                .iter()
-                .all(|&x| x == 0),
-            TokenMessengerError::MalformedMessage
-        );
-        self.read_integer::<u64>(Self::AMOUNT_INDEX + Self::AMOUNT_OFFSET)
+    pub fn amount(&self) -> Result<Uint<256, 4>> {
+        Ok(Uint::from_be_bytes::<32>(
+            self.data[Self::AMOUNT_INDEX..Self::AMOUNT_INDEX + 32]
+                .try_into()
+                .unwrap(),
+        ))
     }
 
     /// Returns message_sender field
@@ -394,35 +376,21 @@ impl<'a> BurnMessage<'a> {
     ////////////////////
     // private helpers
 
-    /// Reads integer field at the given offset
-    fn read_integer<T>(&self, index: usize) -> Result<T>
-    where
-        T: num_traits::PrimInt + FromBytes + Display,
-        &'a <T as FromBytes>::Bytes: TryFrom<&'a [u8]> + 'a,
-    {
-        Ok(T::from_be_bytes(
-            self.data[index..checked_add(index, std::mem::size_of::<T>())?]
-                .try_into()
-                .map_err(|_| TokenMessengerError::MalformedMessage)?,
-        ))
-    }
-
     /// Reads pubkey field at the given offset
     fn read_pubkey(&self, index: usize) -> Result<Pubkey> {
-        Ok(Pubkey::try_from(
-            &self.data[index..checked_add(index, std::mem::size_of::<Pubkey>())?],
+        Ok(
+            Pubkey::try_from(&self.data[index..checked_add(index, std::mem::size_of::<Pubkey>())?])
+                .map_err(|_| TokenMessengerError::MalformedMessage)?,
         )
-        .map_err(|_| TokenMessengerError::MalformedMessage)?)
     }
 }
 
 pub struct CircleAttester {
-    // You'll need to define a private key constant similar to GUARDIAN_KEY in TypeScript
+    // Default implements this to be the guardian key from file
     guardian_secret_key: SecpSecretKey,
 }
 
 impl CircleAttester {
-
     pub fn create_attestation(&self, message: &[u8]) -> [u8; 65] {
         // Sign the message hash with the guardian key
         let secp = secp256k1::SECP256K1;
@@ -434,15 +402,24 @@ impl CircleAttester {
         let (recovery_id, compact_sig) = recoverable_signature.serialize_compact();
         // Recovery ID goes in byte 65
         signature_bytes[0..64].copy_from_slice(&compact_sig);
-        signature_bytes[64] = i32::from(recovery_id) as u8;
+        let recovery_id_try = i32::from(recovery_id) as u8;
+        let recovery_id_true = if recovery_id_try < 27 {
+            recovery_id_try + 27
+        } else {
+            recovery_id_try
+        };
+        signature_bytes[64] = recovery_id_true; // This is only ever 0..4
         signature_bytes
     }
 }
 
 impl Default for CircleAttester {
     fn default() -> Self {
-        let guardian_secret_key = secp256k1::SecretKey::from_str(GUARDIAN_SECRET_KEY).expect("Failed to parse guardian secret key");
-        Self { guardian_secret_key }
+        let guardian_secret_key = secp256k1::SecretKey::from_str(GUARDIAN_SECRET_KEY)
+            .expect("Failed to parse guardian secret key");
+        Self {
+            guardian_secret_key,
+        }
     }
 }
 
@@ -451,6 +428,14 @@ pub struct CctpTokenBurnMessage {
     pub cctp_message: CctpMessage,
     pub encoded_cctp_burn_message: Vec<u8>,
     pub cctp_attestation: Vec<u8>,
+}
+
+impl CctpTokenBurnMessage {
+    pub fn verify_cctp_message(&self, fast_market_order: &FastMarketOrder) -> Result<()> {
+        self.cctp_message.body.verify(fast_market_order)?;
+        self.cctp_message.header.verify(fast_market_order)?;
+        Ok(())
+    }
 }
 
 pub struct CctpMessageHeader {
@@ -466,49 +451,71 @@ pub struct CctpMessageHeader {
 impl CctpMessageHeader {
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(116);
-        buf[0..4].copy_from_slice(&self.version.to_be_bytes());
-        buf[4..8].copy_from_slice(&self.source_domain.to_be_bytes());
-        buf[8..12].copy_from_slice(&self.destination_domain.to_be_bytes());
-        buf[12..20].copy_from_slice(&self.nonce.to_be_bytes());
-        buf[20..52].copy_from_slice(&self.sender);
-        buf[52..84].copy_from_slice(&self.recipient);
-        buf[84..116].copy_from_slice(&self.destination_caller);
+        buf.extend_from_slice(&self.version.to_be_bytes());
+        buf.extend_from_slice(&self.source_domain.to_be_bytes());
+        buf.extend_from_slice(&self.destination_domain.to_be_bytes());
+        buf.extend_from_slice(&self.nonce.to_be_bytes());
+        buf.extend_from_slice(&self.sender);
+        buf.extend_from_slice(&self.recipient);
+        buf.extend_from_slice(&self.destination_caller);
+        assert_eq!(buf.len(), 116, "Cctp message header length mismatch");
         buf
     }
-}
 
+    // TODO: Add actual checks or remove if not needed
+    pub fn verify(&self, _fast_market_order: &FastMarketOrder) -> Result<()> {
+        Ok(())
+    }
+}
 
 pub struct CctpMessageBody {
     pub version: u32,
     pub burn_token_address: [u8; 32],
     pub mint_recipient: [u8; 32],
-    pub amount: [u8; 32], // EVM amount as uint256 now in big endian byte format
+    pub amount: Uint<256, 4>, // EVM amount as uint256 now in big endian byte format
     pub message_sender: [u8; 32],
 }
 
 impl CctpMessageBody {
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(132);
-        buf[0..4].copy_from_slice(&self.version.to_be_bytes());
-        buf[4..36].copy_from_slice(&self.burn_token_address);
-        buf[36..68].copy_from_slice(&self.mint_recipient);
-        buf[68..100].copy_from_slice(&self.amount);
-        buf[100..132].copy_from_slice(&self.message_sender);
+        buf.extend_from_slice(&self.version.to_be_bytes());
+        buf.extend_from_slice(&self.burn_token_address);
+        buf.extend_from_slice(&self.mint_recipient);
+        buf.extend_from_slice(&self.amount.to_be_bytes::<32>());
+        buf.extend_from_slice(&self.message_sender);
+        assert_eq!(buf.len(), 132, "Cctp message body length mismatch");
         buf
+    }
+
+    pub fn verify(&self, fast_market_order: &FastMarketOrder) -> Result<()> {
+        assert_eq!(
+            fast_market_order.amount_in,
+            self.amount.as_limbs()[0], // Since it is be encoded, the first limb will contain the u64 amount
+            "Cctp message amount mismatch"
+        );
+        Ok(())
     }
 }
 impl From<&BurnMessage<'_>> for CctpMessageBody {
-
     fn from(value: &BurnMessage) -> Self {
-        Self { version: value.version().expect("Version not found"), burn_token_address: value.burn_token().expect("Burn token address not found").to_bytes(), mint_recipient: value.mint_recipient().expect("Mint recipient not found").to_bytes(), amount: to_uint256_bytes(value.amount().expect("Amount not found")), message_sender: value.message_sender().expect("Message sender not found").to_bytes() }
+        Self {
+            version: 0,
+            burn_token_address: value
+                .burn_token()
+                .expect("Burn token address not found")
+                .to_bytes(),
+            mint_recipient: value
+                .mint_recipient()
+                .expect("Mint recipient not found")
+                .to_bytes(),
+            amount: value.amount().expect("Amount not found"),
+            message_sender: value
+                .message_sender()
+                .expect("Message sender not found")
+                .to_bytes(),
+        }
     }
-
-}
-
-fn to_uint256_bytes(amount: u64) -> [u8; 32] {
-    let mut buf = [0u8; 32];
-    buf[32-8..].copy_from_slice(&amount.to_be_bytes());
-    buf
 }
 
 pub struct CctpMessage {
@@ -519,35 +526,41 @@ pub struct CctpMessage {
 impl CctpMessage {
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(116 + 132);
-        buf[0..116].copy_from_slice(&self.header.encode());
-        buf[116..].copy_from_slice(&self.body.encode());
+        buf.extend_from_slice(&self.header.encode());
+        buf.extend_from_slice(&self.body.encode());
+        assert_eq!(buf.len(), 116 + 132, "Cctp message length mismatch");
         buf
     }
 }
-
 
 pub async fn craft_cctp_token_burn_message(
     test_ctx: &Rc<RefCell<ProgramTestContext>>,
     source_cctp_domain: u32,
     cctp_nonce: u64,
-    amount: u64, // Only allows for 8 byte amounts for now. If we want larger amount support, we can change this to uint256.
+    amount: Uint<256, 4>, // Only allows for 8 byte amounts for now. If we want larger amount support, we can change this to uint256.
     message_transmitter_config_pubkey: &Pubkey,
-    remote_token_messenger_pubkey: &Pubkey,
+    remote_token_messenger: &CctpRemoteTokenMessenger,
     cctp_mint_recipient: &Pubkey,
     custodian_address: &Pubkey,
 ) -> Result<CctpTokenBurnMessage> {
-    let destination_cctp_domain =  CHAIN_TO_DOMAIN[Chain::Solana as usize].1; // Hard code solana as destination domain
+    let destination_cctp_domain = CHAIN_TO_DOMAIN[Chain::Solana as usize].1; // Hard code solana as destination domain
     assert_eq!(destination_cctp_domain, 5);
-    let message_transmitter_config_data = test_ctx.borrow_mut().banks_client.get_account(*message_transmitter_config_pubkey).await.expect("Failed to fetch account").expect("Account not found").data;
-    let message_transmitter_config = MessageTransmitterConfig::try_deserialize(&mut &message_transmitter_config_data[..]).expect("Failed to deserialize message transmitter config");
+    let message_transmitter_config_data = test_ctx
+        .borrow_mut()
+        .banks_client
+        .get_account(*message_transmitter_config_pubkey)
+        .await
+        .expect("Failed to fetch account")
+        .expect("Account not found")
+        .data;
+    let message_transmitter_config =
+        MessageTransmitterConfig::try_deserialize(&mut &message_transmitter_config_data[..])
+            .expect("Failed to deserialize message transmitter config");
     let cctp_header_version = message_transmitter_config.version;
     let local_domain = message_transmitter_config.local_domain;
     assert_eq!(local_domain, destination_cctp_domain);
-    let remote_token_messenger_data = test_ctx.borrow_mut().banks_client.get_account(*remote_token_messenger_pubkey).await.expect("Failed to fetch account").expect("Account not found").data;
-    let remote_token_messenger = CctpRemoteTokenMessenger::try_deserialize(&mut &remote_token_messenger_data[..]).expect("Could not deserialize remote token messenger");
     let source_token_messenger = remote_token_messenger.token_messenger;
     let burn_token_address = ethereum_address_to_universal(ETHEREUM_USDC_ADDRESS);
-    
     let burn_message_vec = BurnMessage::format_message(
         0,
         &Pubkey::try_from_slice(&burn_token_address).unwrap(),
@@ -556,7 +569,7 @@ pub async fn craft_cctp_token_burn_message(
         &Pubkey::try_from_slice(&[0u8; 32]).unwrap(),
     )?;
 
-    let burn_message = BurnMessage::new(0, &burn_message_vec).unwrap();
+    let burn_message = BurnMessage::new(&burn_message_vec).unwrap();
 
     let cctp_message_body = CctpMessageBody::from(&burn_message);
 
@@ -569,9 +582,16 @@ pub async fn craft_cctp_token_burn_message(
         recipient: TOKEN_MESSENGER_MINTER_PROGRAM_ID.to_bytes(),
         destination_caller: custodian_address.to_bytes(),
     };
-
-    assert_eq!(cctp_message_body.encode().len(), burn_message_vec.len(), "CCTP message body length mismatch");
-    assert_eq!(cctp_message_body.encode(), burn_message_vec, "CCTP message body mismatch");
+    assert_eq!(
+        cctp_message_body.encode().len(),
+        burn_message_vec.len(),
+        "CCTP message body length mismatch"
+    );
+    assert_eq!(
+        cctp_message_body.encode(),
+        burn_message_vec,
+        "CCTP message body mismatch"
+    );
 
     let cctp_message = CctpMessage {
         header: cctp_message_header,
@@ -581,7 +601,7 @@ pub async fn craft_cctp_token_burn_message(
     let encoded_cctp_message = cctp_message.encode();
 
     let cctp_attestation = CircleAttester::default().create_attestation(&encoded_cctp_message);
-    
+
     Ok(CctpTokenBurnMessage {
         destination_cctp_domain,
         cctp_message,
@@ -593,15 +613,15 @@ pub async fn craft_cctp_token_burn_message(
 pub fn ethereum_address_to_universal(eth_address: &str) -> [u8; 32] {
     // Remove '0x' prefix if present
     let address_str = eth_address.strip_prefix("0x").unwrap_or(eth_address);
-    
+
     // Decode the hex string to bytes
     let mut address_bytes = [0u8; 20]; // Ethereum addresses are 20 bytes
     hex::decode_to_slice(address_str, &mut address_bytes as &mut [u8])
         .expect("Invalid Ethereum address format");
-    
+
     // Create a 32-byte array with leading zeros (Ethereum addresses are padded with zeros on the left)
     let mut universal_address = [0u8; 32];
     universal_address[12..32].copy_from_slice(&address_bytes);
-    
+
     universal_address
 }
