@@ -1,8 +1,12 @@
+use solana_program::bpf_loader_upgradeable;
 use solana_program_test::ProgramTest;
 use solana_sdk::pubkey::Pubkey;
-use solana_program::bpf_loader_upgradeable;
 
-use super::{TOKEN_ROUTER_PID, CORE_BRIDGE_PID, CORE_BRIDGE_CONFIG, CCTP_TOKEN_MESSENGER_MINTER_PID, CCTP_MESSAGE_TRANSMITTER_PID, WORMHOLE_POST_MESSAGE_SHIM_PID, WORMHOLE_VERIFY_VAA_SHIM_PID};
+use super::{
+    CCTP_MESSAGE_TRANSMITTER_PID, CCTP_TOKEN_MESSENGER_MINTER_PID, CORE_BRIDGE_CONFIG,
+    CORE_BRIDGE_PID, TOKEN_ROUTER_PID, WORMHOLE_POST_MESSAGE_SHIM_PID,
+    WORMHOLE_VERIFY_VAA_SHIM_PID,
+};
 
 fn get_program_data(owner: Pubkey) -> Vec<u8> {
     let state = solana_sdk::bpf_loader_upgradeable::UpgradeableLoaderState::ProgramData {
@@ -13,13 +17,15 @@ fn get_program_data(owner: Pubkey) -> Vec<u8> {
 }
 
 /// Initialise the upgrade manager program
-/// 
+///
 /// Returns the program data pubkey
-pub fn initialise_upgrade_manager(program_test: &mut ProgramTest, program_id: &Pubkey, owner_pubkey: Pubkey) -> Pubkey {
-    let program_data_pubkey = Pubkey::find_program_address(
-        &[program_id.as_ref()],
-        &bpf_loader_upgradeable::id(),
-    ).0;
+pub fn initialise_upgrade_manager(
+    program_test: &mut ProgramTest,
+    program_id: &Pubkey,
+    owner_pubkey: Pubkey,
+) -> Pubkey {
+    let program_data_pubkey =
+        Pubkey::find_program_address(&[program_id.as_ref()], &bpf_loader_upgradeable::id()).0;
 
     // Add the program data to the program test
     // Compute lamports from length of program data

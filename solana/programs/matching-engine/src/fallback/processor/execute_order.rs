@@ -1,18 +1,20 @@
+use crate::state::{
+    Auction, AuctionConfig, AuctionStatus, Custodian, FastMarketOrder as FastMarketOrderState,
+    MessageProtocol, RouterEndpoint,
+};
+use crate::utils;
+use crate::utils::auction::DepositPenalty;
 use anchor_lang::prelude::*;
 use anchor_spl::token::{spl_token, TokenAccount};
 use common::messages::Fill;
-use solana_program::program::invoke_signed_unchecked;
-use crate::utils;
-use solana_program::instruction::Instruction;
-use crate::state::{Auction, AuctionConfig, AuctionStatus, Custodian, FastMarketOrder as FastMarketOrderState, MessageProtocol, RouterEndpoint};
-use crate::utils::auction::DepositPenalty;
 use common::wormhole_io::TypePrefixedPayload;
+use solana_program::instruction::Instruction;
+use solana_program::program::invoke_signed_unchecked;
 
-use super::burn_and_post::{PostMessageAccounts, burn_and_post};
-use super::FallbackMatchingEngineInstruction;
+use super::burn_and_post::{burn_and_post, PostMessageAccounts};
 use super::errors::FallbackError;
+use super::FallbackMatchingEngineInstruction;
 use crate::error::MatchingEngineError;
-
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct ExecuteOrderShimAccounts<'ix> {
@@ -33,7 +35,7 @@ pub struct ExecuteOrderShimAccounts<'ix> {
     pub active_auction_config: &'ix Pubkey, // 6
     /// The token account of the auction's best offer
     pub active_auction_best_offer_token: &'ix Pubkey, // 7
-    /// ??? 
+    /// ???
     pub executor_token: &'ix Pubkey, // 8
     /// The token account of the auction's initial offer
     pub initial_offer_token: &'ix Pubkey, // 9
@@ -102,15 +104,30 @@ impl<'ix> ExecuteOrderShimAccounts<'ix> {
             AccountMeta::new(*self.post_message_sequence, false),
             AccountMeta::new(*self.post_message_message, false),
             AccountMeta::new(*self.cctp_deposit_for_burn_mint, false),
-            AccountMeta::new_readonly(*self.cctp_deposit_for_burn_token_messenger_minter_sender_authority, false),
-            AccountMeta::new(*self.cctp_deposit_for_burn_message_transmitter_config, false),
+            AccountMeta::new_readonly(
+                *self.cctp_deposit_for_burn_token_messenger_minter_sender_authority,
+                false,
+            ),
+            AccountMeta::new(
+                *self.cctp_deposit_for_burn_message_transmitter_config,
+                false,
+            ),
             AccountMeta::new_readonly(*self.cctp_deposit_for_burn_token_messenger, false),
             AccountMeta::new_readonly(*self.cctp_deposit_for_burn_remote_token_messenger, false),
             AccountMeta::new_readonly(*self.cctp_deposit_for_burn_token_minter, false),
             AccountMeta::new(*self.cctp_deposit_for_burn_local_token, false),
-            AccountMeta::new_readonly(*self.cctp_deposit_for_burn_token_messenger_minter_event_authority, false),
-            AccountMeta::new_readonly(*self.cctp_deposit_for_burn_token_messenger_minter_program, false),
-            AccountMeta::new_readonly(*self.cctp_deposit_for_burn_message_transmitter_program, false),
+            AccountMeta::new_readonly(
+                *self.cctp_deposit_for_burn_token_messenger_minter_event_authority,
+                false,
+            ),
+            AccountMeta::new_readonly(
+                *self.cctp_deposit_for_burn_token_messenger_minter_program,
+                false,
+            ),
+            AccountMeta::new_readonly(
+                *self.cctp_deposit_for_burn_message_transmitter_program,
+                false,
+            ),
             AccountMeta::new_readonly(*self.core_bridge_program, false),
             AccountMeta::new(*self.core_bridge_config, false),
             AccountMeta::new(*self.core_bridge_fee_collector, false),
@@ -174,11 +191,11 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     let system_program_account = &accounts[29];
     let token_program_account = &accounts[30];
 
-
     // Do checks
     // ------------------------------------------------------------------------------------------------
 
-    let fast_market_order_zero_copy = FastMarketOrderState::try_deserialize(&mut &fast_market_order_account.data.borrow()[..])?;
+    let fast_market_order_zero_copy =
+        FastMarketOrderState::try_deserialize(&mut &fast_market_order_account.data.borrow()[..])?;
     // Bind value for compiler (needed for pda seeds)
     let active_auction_key = active_auction_account.key();
 
@@ -194,8 +211,9 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         common::CCTP_MESSAGE_SEED_PREFIX,
         active_auction_key.as_ref(),
     ];
-    
-    let (cctp_message_pda, cctp_message_bump) = Pubkey::find_program_address(&cctp_message_seeds, program_id);
+
+    let (cctp_message_pda, cctp_message_bump) =
+        Pubkey::find_program_address(&cctp_message_seeds, program_id);
     if cctp_message_pda != cctp_message_account.key() {
         msg!("Cctp message seeds are invalid");
         return Err(ErrorCode::ConstraintSeeds.into())
@@ -204,7 +222,11 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
 
     // Check custodian owner
     if custodian_account.owner != program_id {
-        msg!("Custodian owner is invalid: expected {}, got {}", program_id, custodian_account.owner);
+        msg!(
+            "Custodian owner is invalid: expected {}, got {}",
+            program_id,
+            custodian_account.owner
+        );
         return Err(ErrorCode::ConstraintOwner.into())
             .map_err(|e: Error| e.with_account_name("custodian"));
     };
@@ -217,18 +239,21 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             .map_err(|e: Error| e.with_account_name("custodian"));
     };
 
+    let fast_market_order_digest = fast_market_order_zero_copy.digest();
     // Check fast market order seeds
     let fast_market_order_seeds = [
         FastMarketOrderState::SEED_PREFIX,
-        fast_market_order_zero_copy.digest.as_ref(),
+        fast_market_order_digest.as_ref(),
         fast_market_order_zero_copy.refund_recipient.as_ref(),
     ];
 
-    let (fast_market_order_pda, _fast_market_order_bump) = Pubkey::find_program_address(&fast_market_order_seeds, program_id);
+    let (fast_market_order_pda, _fast_market_order_bump) =
+        Pubkey::find_program_address(&fast_market_order_seeds, program_id);
     if fast_market_order_pda != fast_market_order_account.key() {
         msg!("Fast market order seeds are invalid");
-        return Err(ErrorCode::ConstraintSeeds.into())
-            .map_err(|e: Error| e.with_pubkeys((fast_market_order_pda, fast_market_order_account.key())));
+        return Err(ErrorCode::ConstraintSeeds.into()).map_err(|e: Error| {
+            e.with_pubkeys((fast_market_order_pda, fast_market_order_account.key()))
+        });
     };
 
     // Check fast market order is owned by the matching engine program
@@ -244,9 +269,10 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         return Err(ErrorCode::ConstraintOwner.into())
             .map_err(|e: Error| e.with_account_name("active_auction"));
     };
-    
+
     // Check active auction pda
-    let mut active_auction = Auction::try_deserialize(&mut &active_auction_account.data.borrow()[..])?;
+    let mut active_auction =
+        Auction::try_deserialize(&mut &active_auction_account.data.borrow()[..])?;
 
     // Correct way to use create_program_address with existing seeds and bump
     let active_auction_pda = Pubkey::create_program_address(
@@ -255,15 +281,17 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             active_auction.vaa_hash.as_ref(),
             &[active_auction.bump],
         ],
-        program_id
-    ).map_err(|_| {
+        program_id,
+    )
+    .map_err(|_| {
         msg!("Failed to create program address with known bump");
         FallbackError::InvalidPda
     })?;
     if active_auction_pda != active_auction_account.key() {
         msg!("Active auction pda is invalid");
-        return Err(ErrorCode::ConstraintSeeds.into())
-            .map_err(|e: Error| e.with_pubkeys((active_auction_pda, active_auction_account.key())));
+        return Err(ErrorCode::ConstraintSeeds.into()).map_err(|e: Error| {
+            e.with_pubkeys((active_auction_pda, active_auction_account.key()))
+        });
     };
 
     // Check active auction is active
@@ -272,7 +300,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         return Err(ErrorCode::ConstraintRaw.into())
             .map_err(|e: Error| e.with_account_name("active_auction"));
     };
-    
+
     // Check active auction custody token pda
     let active_auction_custody_token_pda = Pubkey::create_program_address(
         &[
@@ -280,19 +308,25 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             active_auction_account.key().as_ref(),
             &[active_auction.info.as_ref().unwrap().custody_token_bump],
         ],
-        program_id
-    ).map_err(|_| {
+        program_id,
+    )
+    .map_err(|_| {
         msg!("Failed to create program address with known bump");
         FallbackError::InvalidPda
     })?;
     if active_auction_custody_token_pda != active_auction_custody_token_account.key() {
         msg!("Active auction custody token pda is invalid");
-        return Err(ErrorCode::ConstraintSeeds.into())
-            .map_err(|e: Error| e.with_pubkeys((active_auction_custody_token_pda, active_auction_custody_token_account.key())));
+        return Err(ErrorCode::ConstraintSeeds.into()).map_err(|e: Error| {
+            e.with_pubkeys((
+                active_auction_custody_token_pda,
+                active_auction_custody_token_account.key(),
+            ))
+        });
     };
-    
+
     // Check active auction config id
-    let active_auction_config = AuctionConfig::try_deserialize(&mut &active_auction_config_account.data.borrow()[..])?;
+    let active_auction_config =
+        AuctionConfig::try_deserialize(&mut &active_auction_config_account.data.borrow()[..])?;
     if active_auction_config.id != active_auction.info.as_ref().unwrap().config_id {
         msg!("Active auction config id is invalid");
         return Err(MatchingEngineError::AuctionConfigMismatch.into())
@@ -300,34 +334,55 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     };
 
     // Check active auction best offer token address
-    if active_auction_best_offer_token_account.key() != active_auction.info.as_ref().unwrap().best_offer_token {
+    if active_auction_best_offer_token_account.key()
+        != active_auction.info.as_ref().unwrap().best_offer_token
+    {
         msg!("Active auction best offer token address is invalid");
-        return Err(ErrorCode::ConstraintAddress.into())
-            .map_err(|e: Error| e.with_pubkeys((active_auction_best_offer_token_account.key(), active_auction.info.as_ref().unwrap().best_offer_token)));
+        return Err(ErrorCode::ConstraintAddress.into()).map_err(|e: Error| {
+            e.with_pubkeys((
+                active_auction_best_offer_token_account.key(),
+                active_auction.info.as_ref().unwrap().best_offer_token,
+            ))
+        });
     };
-    
+
     // TODO: Done with auction checks, now on to executor token checks
     if executor_token_account.key() != active_auction.info.as_ref().unwrap().best_offer_token {
         msg!("Executor token is not equal to best offer token");
-        return Err(ErrorCode::ConstraintAddress.into())
-            .map_err(|e: Error| e.with_pubkeys((executor_token_account.key(), active_auction.info.as_ref().unwrap().best_offer_token)));
+        return Err(ErrorCode::ConstraintAddress.into()).map_err(|e: Error| {
+            e.with_pubkeys((
+                executor_token_account.key(),
+                active_auction.info.as_ref().unwrap().best_offer_token,
+            ))
+        });
     };
 
     // Check initial offer token address
-    if initial_offer_token_account.key() != active_auction.info.as_ref().unwrap().initial_offer_token {
+    if initial_offer_token_account.key()
+        != active_auction.info.as_ref().unwrap().initial_offer_token
+    {
         msg!("Initial offer token address is invalid");
-        return Err(ErrorCode::ConstraintAddress.into())
-            .map_err(|e: Error| e.with_pubkeys((initial_offer_token_account.key(), active_auction.info.as_ref().unwrap().initial_offer_token)));
+        return Err(ErrorCode::ConstraintAddress.into()).map_err(|e: Error| {
+            e.with_pubkeys((
+                initial_offer_token_account.key(),
+                active_auction.info.as_ref().unwrap().initial_offer_token,
+            ))
+        });
     };
-    
+
     // Check initial participant address
     if initial_participant_account.key() != active_auction.prepared_by {
         msg!("Initial participant address is invalid");
-        return Err(ErrorCode::ConstraintAddress.into())
-            .map_err(|e: Error| e.with_pubkeys((initial_participant_account.key(), active_auction.prepared_by)));
+        return Err(ErrorCode::ConstraintAddress.into()).map_err(|e: Error| {
+            e.with_pubkeys((
+                initial_participant_account.key(),
+                active_auction.prepared_by,
+            ))
+        });
     };
 
-    let to_router_endpoint = RouterEndpoint::try_deserialize(&mut &to_router_endpoint_account.data.borrow()[..])?;
+    let to_router_endpoint =
+        RouterEndpoint::try_deserialize(&mut &to_router_endpoint_account.data.borrow()[..])?;
     if to_router_endpoint.protocol != active_auction.target_protocol {
         msg!("To router endpoint protocol is invalid");
         return Err(MatchingEngineError::InvalidEndpoint.into())
@@ -336,35 +391,46 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
 
     let destination_cctp_domain = match to_router_endpoint.protocol {
         MessageProtocol::Cctp { domain } => domain,
-        _ => return Err(MatchingEngineError::InvalidCctpEndpoint.into())
-            .map_err(|e: Error| e.with_account_name("to_router_endpoint")),
+        _ => {
+            return Err(MatchingEngineError::InvalidCctpEndpoint.into())
+                .map_err(|e: Error| e.with_account_name("to_router_endpoint"))
+        }
     };
-
 
     // Check cctp deposit for burn token messenger minter program address
-    if cctp_deposit_for_burn_token_messenger_minter_program_account.key() != common::wormhole_cctp_solana::cctp::token_messenger_minter_program::id() {
+    if cctp_deposit_for_burn_token_messenger_minter_program_account.key()
+        != common::wormhole_cctp_solana::cctp::token_messenger_minter_program::id()
+    {
         msg!("Cctp deposit for burn token messenger minter program address is invalid");
-        return Err(ErrorCode::ConstraintAddress.into())
-            .map_err(|e: Error| e.with_pubkeys((cctp_deposit_for_burn_token_messenger_minter_program_account.key(), common::wormhole_cctp_solana::cctp::token_messenger_minter_program::id())));
+        return Err(ErrorCode::ConstraintAddress.into()).map_err(|e: Error| {
+            e.with_pubkeys((
+                cctp_deposit_for_burn_token_messenger_minter_program_account.key(),
+                common::wormhole_cctp_solana::cctp::token_messenger_minter_program::id(),
+            ))
+        });
     };
-    
+
     // Check cctp deposit for burn message transmitter program address
-    if cctp_deposit_for_burn_message_transmitter_program_account.key() != common::wormhole_cctp_solana::cctp::message_transmitter_program::id() {
+    if cctp_deposit_for_burn_message_transmitter_program_account.key()
+        != common::wormhole_cctp_solana::cctp::message_transmitter_program::id()
+    {
         msg!("Cctp deposit for burn message transmitter program address is invalid");
-        return Err(ErrorCode::ConstraintAddress.into())
-            .map_err(|e: Error| e.with_pubkeys((cctp_deposit_for_burn_message_transmitter_program_account.key(), common::wormhole_cctp_solana::cctp::message_transmitter_program::id())));
+        return Err(ErrorCode::ConstraintAddress.into()).map_err(|e: Error| {
+            e.with_pubkeys((
+                cctp_deposit_for_burn_message_transmitter_program_account.key(),
+                common::wormhole_cctp_solana::cctp::message_transmitter_program::id(),
+            ))
+        });
     };
-    
+
     // End of checks
     // ------------------------------------------------------------------------------------------------
 
     // Get the fast market order data, without the discriminator
     let fast_market_order_data = &fast_market_order_account.data.borrow()[8..];
     // Deserialise fast market order. Unwrap is safe because the account is owned by the matching engine program.
-    let fast_market_order = bytemuck::try_from_bytes::<FastMarketOrderState>(
-        &fast_market_order_data[..]
-    )
-    .unwrap();
+    let fast_market_order =
+        bytemuck::try_from_bytes::<FastMarketOrderState>(&fast_market_order_data[..]).unwrap();
 
     // Prepare the execute order (get the user amount, fill, and order executed event)
     let active_auction_info = active_auction.info.as_ref().unwrap();
@@ -392,7 +458,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     );
 
     let init_auction_fee = fast_market_order.init_auction_fee;
-    
+
     let user_amount = active_auction_info
         .amount_in
         .saturating_sub(active_auction_info.offer_price)
@@ -401,8 +467,10 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
 
     // Keep track of the remaining amount in the custody token account. Whatever remains will go
     // to the executor.
-    
-    let custody_token = TokenAccount::try_deserialize(&mut &active_auction_custody_token_account.data.borrow()[..])?;
+
+    let custody_token = TokenAccount::try_deserialize(
+        &mut &active_auction_custody_token_account.data.borrow()[..],
+    )?;
     let mut remaining_custodied_amount = custody_token.amount.saturating_sub(user_amount);
 
     // Offer price + security deposit was checked in placing the initial offer.
@@ -421,9 +489,9 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
 
     // Need these seeds in order to transfer tokens and then set authority of auction custody token account to the custodian
     let auction_signer_seeds = &[
-            Auction::SEED_PREFIX,
-            active_auction.vaa_hash.as_ref(),
-            &[active_auction.bump],
+        Auction::SEED_PREFIX,
+        active_auction.vaa_hash.as_ref(),
+        &[active_auction.bump],
     ];
 
     // If the initial offer token account doesn't exist anymore, we have nowhere to send the
@@ -443,8 +511,12 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
                 &active_auction_account.key(),
                 &[],
                 init_auction_fee,
-            ).unwrap();
-            msg!("Sending init auction fee {} to initial offer token account", init_auction_fee);
+            )
+            .unwrap();
+            msg!(
+                "Sending init auction fee {} to initial offer token account",
+                init_auction_fee
+            );
             invoke_signed_unchecked(&transfer_ix, accounts, &[auction_signer_seeds])?;
             // Because the initial offer token was paid this fee, we account for it here.
             remaining_custodied_amount =
@@ -473,15 +545,22 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             &active_auction_account.key(),
             &[],
             deposit_and_fee,
-        ).unwrap();
-        msg!("Sending deposit and fee amount {} to best offer token account", deposit_and_fee);
+        )
+        .unwrap();
+        msg!(
+            "Sending deposit and fee amount {} to best offer token account",
+            deposit_and_fee
+        );
         invoke_signed_unchecked(&transfer_ix, accounts, &[auction_signer_seeds])?;
     } else {
         // Otherwise, send the deposit and fee to the best offer token. If the best offer token
         // doesn't exist at this point (which would be unusual), we will reserve these funds
         // for the executor token.
-        if utils::checked_deserialize_token_account(active_auction_best_offer_token_account, &common::USDC_MINT)
-            .is_some()
+        if utils::checked_deserialize_token_account(
+            active_auction_best_offer_token_account,
+            &common::USDC_MINT,
+        )
+        .is_some()
         {
             let transfer_ix = spl_token::instruction::transfer(
                 &spl_token::ID,
@@ -490,11 +569,14 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
                 &active_auction_account.key(),
                 &[],
                 deposit_and_fee,
-            ).unwrap();
-            msg!("Sending deposit and fee {} to best offer token account", deposit_and_fee);
+            )
+            .unwrap();
+            msg!(
+                "Sending deposit and fee {} to best offer token account",
+                deposit_and_fee
+            );
             invoke_signed_unchecked(&transfer_ix, accounts, &[auction_signer_seeds])?;
-            remaining_custodied_amount =
-                remaining_custodied_amount.saturating_sub(deposit_and_fee);
+            remaining_custodied_amount = remaining_custodied_amount.saturating_sub(deposit_and_fee);
         }
 
         // And pay the executor whatever remains in the auction custody token account.
@@ -506,8 +588,12 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
                 &active_auction_account.key(),
                 &[],
                 remaining_custodied_amount,
-            ).unwrap();
-            msg!("Sending remaining custodied amount {} to executor token account", remaining_custodied_amount);
+            )
+            .unwrap();
+            msg!(
+                "Sending remaining custodied amount {} to executor token account",
+                remaining_custodied_amount
+            );
             invoke_signed_unchecked(&instruction, accounts, &[auction_signer_seeds])?;
         }
     }
@@ -521,7 +607,8 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         spl_token::instruction::AuthorityType::AccountOwner,
         &active_auction_account.key(),
         &[],
-    ).unwrap();
+    )
+    .unwrap();
 
     invoke_signed_unchecked(&set_authority_ix, accounts, &[auction_signer_seeds])?;
 
@@ -531,14 +618,23 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         execute_penalty: if penalized { penalty.into() } else { None },
     };
 
+    let active_auction_data: &mut [u8] = &mut active_auction_account.data.borrow_mut();
+    let mut cursor = std::io::Cursor::new(active_auction_data);
+    active_auction.try_serialize(&mut cursor).unwrap();
+
     let fill = Fill {
         source_chain: active_auction_info.source_chain,
         order_sender: fast_market_order.sender,
         redeemer: fast_market_order.redeemer,
-        redeemer_message: fast_market_order.redeemer_message[..fast_market_order.redeemer_message_length as usize].to_vec().try_into().unwrap(),
+        redeemer_message: fast_market_order.redeemer_message
+            [..fast_market_order.redeemer_message_length as usize]
+            .to_vec()
+            .try_into()
+            .unwrap(),
     };
 
-    let post_message_accounts = PostMessageAccounts::new(custodian_account.key(), signer_account.key());
+    let post_message_accounts =
+        PostMessageAccounts::new(custodian_account.key(), signer_account.key());
     // Lets print the auction account balance
 
     burn_and_post(
@@ -547,20 +643,28 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             common::wormhole_cctp_solana::cpi::DepositForBurnWithCaller {
                 burn_token_owner: custodian_account.to_account_info(),
                 payer: signer_account.to_account_info(),
-                token_messenger_minter_sender_authority: cctp_deposit_for_burn_token_messenger_minter_sender_authority_account.to_account_info(),
+                token_messenger_minter_sender_authority:
+                    cctp_deposit_for_burn_token_messenger_minter_sender_authority_account
+                        .to_account_info(),
                 burn_token: active_auction_custody_token_account.to_account_info(),
-                message_transmitter_config: cctp_deposit_for_burn_message_transmitter_config_account.to_account_info(),
+                message_transmitter_config:
+                    cctp_deposit_for_burn_message_transmitter_config_account.to_account_info(),
                 token_messenger: cctp_deposit_for_burn_token_messenger_account.to_account_info(),
-                remote_token_messenger: cctp_deposit_for_burn_remote_token_messenger_account.to_account_info(),
+                remote_token_messenger: cctp_deposit_for_burn_remote_token_messenger_account
+                    .to_account_info(),
                 token_minter: cctp_deposit_for_burn_token_minter_account.to_account_info(),
                 local_token: cctp_deposit_for_burn_local_token_account.to_account_info(),
                 mint: cctp_deposit_for_burn_mint_account.to_account_info(),
                 cctp_message: cctp_message_account.to_account_info(),
-                message_transmitter_program: cctp_deposit_for_burn_message_transmitter_program_account.to_account_info(),
-                token_messenger_minter_program: cctp_deposit_for_burn_token_messenger_minter_program_account.to_account_info(),
+                message_transmitter_program:
+                    cctp_deposit_for_burn_message_transmitter_program_account.to_account_info(),
+                token_messenger_minter_program:
+                    cctp_deposit_for_burn_token_messenger_minter_program_account.to_account_info(),
                 token_program: token_program_account.to_account_info(),
                 system_program: system_program_account.to_account_info(),
-                event_authority: cctp_deposit_for_burn_token_messenger_minter_event_authority_account.to_account_info(),
+                event_authority:
+                    cctp_deposit_for_burn_token_messenger_minter_event_authority_account
+                        .to_account_info(),
             },
             &[
                 Custodian::SIGNER_SEEDS,
@@ -581,7 +685,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             payload: fill.to_vec(),
         },
         post_message_accounts,
-        accounts
+        accounts,
     )?;
 
     // Skip emitting the order executed event because we're using a shim
@@ -593,7 +697,8 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         &initial_participant_account.key(),
         &custodian_account.key(),
         &[],
-    ).unwrap();
+    )
+    .unwrap();
 
     invoke_signed_unchecked(&instruction, accounts, &[Custodian::SIGNER_SEEDS])?;
 

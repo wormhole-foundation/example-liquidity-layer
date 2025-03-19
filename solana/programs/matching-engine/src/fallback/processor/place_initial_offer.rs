@@ -1,18 +1,21 @@
+use super::create_account::create_account_reliably;
+use crate::state::{
+    Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian,
+    FastMarketOrder as FastMarketOrderState, MessageProtocol, RouterEndpoint,
+};
+use crate::ID as PROGRAM_ID;
 use anchor_lang::prelude::*;
+use anchor_lang::Discriminator;
 use anchor_spl::token::spl_token;
 use bytemuck::{Pod, Zeroable};
-use solana_program::instruction::Instruction;
-use solana_program::program::invoke_signed_unchecked;
-use super::create_account::create_account_reliably;
-use solana_program::keccak;
-use anchor_lang::Discriminator;
-use solana_program::program_pack::Pack;
-use crate::state::{Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian, FastMarketOrder as FastMarketOrderState, MessageProtocol, RouterEndpoint};
 use common::TRANSFER_AUTHORITY_SEED_PREFIX;
-use crate::ID as PROGRAM_ID;
+use solana_program::instruction::Instruction;
+use solana_program::keccak;
+use solana_program::program::invoke_signed_unchecked;
+use solana_program::program_pack::Pack;
 
-use super::FallbackMatchingEngineInstruction;
 use super::errors::FallbackError;
+use super::FallbackMatchingEngineInstruction;
 use crate::error::MatchingEngineError;
 
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
@@ -26,13 +29,18 @@ pub struct PlaceInitialOfferCctpShimData {
 }
 
 impl PlaceInitialOfferCctpShimData {
-
     pub fn new(offer_price: u64, sequence: u64, vaa_time: u32, consistency_level: u8) -> Self {
-        Self { offer_price, sequence, vaa_time, consistency_level, _padding: [0_u8; 3] }
+        Self {
+            offer_price,
+            sequence,
+            vaa_time,
+            consistency_level,
+            _padding: [0_u8; 3],
+        }
     }
 
     pub fn from_bytes(data: &[u8]) -> Option<&Self> {
-       bytemuck::try_from_bytes::<Self>(data).ok()
+        bytemuck::try_from_bytes::<Self>(data).ok()
     }
 }
 
@@ -45,7 +53,7 @@ pub struct PlaceInitialOfferCctpShimAccounts<'ix> {
     pub from_endpoint: &'ix Pubkey,
     pub to_endpoint: &'ix Pubkey,
     pub fast_market_order: &'ix Pubkey, // Needs initalising. Seeds are [FastMarketOrderState::SEED_PREFIX, auction_address.as_ref()]
-    pub auction: &'ix Pubkey, // Needs initalising
+    pub auction: &'ix Pubkey,           // Needs initalising
     pub offer_token: &'ix Pubkey,
     pub auction_custody_token: &'ix Pubkey,
     pub usdc: &'ix Pubkey,
@@ -101,11 +109,24 @@ pub struct VaaMessageBodyHeader {
 }
 
 impl VaaMessageBodyHeader {
-    pub fn new(consistency_level: u8, vaa_time: u32, sequence: u64, emitter_chain: u16, emitter_address: [u8; 32]) -> Self {
-        Self { consistency_level, vaa_time, nonce: 0, sequence, emitter_chain, emitter_address }
+    pub fn new(
+        consistency_level: u8,
+        vaa_time: u32,
+        sequence: u64,
+        emitter_chain: u16,
+        emitter_address: [u8; 32],
+    ) -> Self {
+        Self {
+            consistency_level,
+            vaa_time,
+            nonce: 0,
+            sequence,
+            emitter_chain,
+            emitter_address,
+        }
     }
 
-    /// This function creates both the message body and the payload. 
+    /// This function creates both the message body and the payload.
     /// This is all done here just because it's (supposedly?) cheaper in the solana vm.
     pub fn message_body(&self, fast_market_order: &FastMarketOrderState) -> Vec<u8> {
         let mut message_body = vec![];
@@ -128,16 +149,17 @@ impl VaaMessageBodyHeader {
         payload.extend_from_slice(&fast_market_order.deadline.to_be_bytes());
         payload.extend_from_slice(&fast_market_order.redeemer_message_length.to_be_bytes());
         if fast_market_order.redeemer_message_length > 0 {
-            payload.extend_from_slice(&fast_market_order.redeemer_message[..fast_market_order.redeemer_message_length as usize]);
+            payload.extend_from_slice(
+                &fast_market_order.redeemer_message
+                    [..fast_market_order.redeemer_message_length as usize],
+            );
         }
         message_body.extend_from_slice(&payload);
         message_body
     }
 
     pub fn message_hash(&self, fast_market_order: &FastMarketOrderState) -> keccak::Hash {
-        keccak::hashv(&[
-            self.message_body(fast_market_order).as_ref()
-        ])
+        keccak::hashv(&[self.message_body(fast_market_order).as_ref()])
     }
 
     pub fn digest(&self, fast_market_order: &FastMarketOrderState) -> keccak::Hash {
@@ -157,10 +179,13 @@ impl VaaMessageBodyHeader {
     }
 }
 
-pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceInitialOfferCctpShimData) -> Result<()> {
+pub fn place_initial_offer_cctp_shim(
+    accounts: &[AccountInfo],
+    data: &PlaceInitialOfferCctpShimData,
+) -> Result<()> {
     // Check account owners
     let program_id = &crate::ID; // Your program ID
-    
+
     // Check all accounts are valid
     if accounts.len() < 11 {
         return Err(ErrorCode::AccountNotEnoughKeys.into());
@@ -187,26 +212,32 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
     let offer_token = &accounts[8];
     let auction_custody_token = &accounts[9];
     let usdc = &accounts[10];
-    
 
-    let fast_market_order_zero_copy = FastMarketOrderState::try_deserialize(&mut &fast_market_order_account.data.borrow()[..])?;
+    let fast_market_order_zero_copy =
+        FastMarketOrderState::try_deserialize(&mut &fast_market_order_account.data.borrow()[..])?;
 
     // Check pda of the transfer authority is valid
     let transfer_authority_seeds = [
         TRANSFER_AUTHORITY_SEED_PREFIX,
         auction_key.as_ref(),
-        &offer_price.to_be_bytes()
+        &offer_price.to_be_bytes(),
     ];
-    let (transfer_authority_pda, transfer_authority_bump) = Pubkey::find_program_address(&transfer_authority_seeds, &PROGRAM_ID);
+    let (transfer_authority_pda, transfer_authority_bump) =
+        Pubkey::find_program_address(&transfer_authority_seeds, &PROGRAM_ID);
     if transfer_authority_pda != transfer_authority.key() {
         msg!("Transfer authority pda is invalid");
-        return Err(ErrorCode::ConstraintSeeds.into())
-            .map_err(|e: Error| e.with_pubkeys((transfer_authority_pda, transfer_authority.key())));
+        return Err(ErrorCode::ConstraintSeeds.into()).map_err(|e: Error| {
+            e.with_pubkeys((transfer_authority_pda, transfer_authority.key()))
+        });
     }
 
     // Check custodian owner
     if custodian.owner != program_id {
-        msg!("Custodian owner is invalid: expected {}, got {}", program_id, custodian.owner);
+        msg!(
+            "Custodian owner is invalid: expected {}, got {}",
+            program_id,
+            custodian.owner
+        );
         return Err(ErrorCode::ConstraintOwner.into())
             .map_err(|e: Error| e.with_account_name("custodian"));
     }
@@ -219,56 +250,70 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
     }
     // Check auction_config owner
     if auction_config.owner != program_id {
-        msg!("Auction config owner is invalid: expected {}, got {}", program_id, auction_config.owner);
+        msg!(
+            "Auction config owner is invalid: expected {}, got {}",
+            program_id,
+            auction_config.owner
+        );
         return Err(ErrorCode::ConstraintOwner.into())
             .map_err(|e: Error| e.with_account_name("auction_config"));
     }
 
     // Check auction config id is correct corresponding to the custodian
-    let auction_config_account = AuctionConfig::try_deserialize(&mut &auction_config.data.borrow()[..])?;
+    let auction_config_account =
+        AuctionConfig::try_deserialize(&mut &auction_config.data.borrow()[..])?;
     if auction_config_account.id != checked_custodian.auction_config_id {
         msg!("Auction config id is invalid");
         return Err(ErrorCode::ConstraintRaw.into())
             .map_err(|e: Error| e.with_account_name("auction_config"));
     }
-    
+
     // Check usdc mint
     if usdc.key() != common::USDC_MINT {
         msg!("Usdc mint is invalid");
         return Err(FallbackError::InvalidMint.into());
     }
-    
+
     // Check from_endpoint owner
     if from_endpoint.owner != program_id {
-        msg!("From endpoint owner is invalid: expected {}, got {}", program_id, from_endpoint.owner);
+        msg!(
+            "From endpoint owner is invalid: expected {}, got {}",
+            program_id,
+            from_endpoint.owner
+        );
         return Err(ErrorCode::ConstraintOwner.into())
             .map_err(|e: Error| e.with_account_name("from_endpoint"));
     }
-    
+
     // Deserialise the from_endpoint account
-    let from_endpoint_account = RouterEndpoint::try_deserialize(&mut &from_endpoint.data.borrow()[..])?;
-    
+    let from_endpoint_account =
+        RouterEndpoint::try_deserialize(&mut &from_endpoint.data.borrow()[..])?;
+
     // Check to_endpoint owner
     if to_endpoint.owner != program_id {
-        msg!("To endpoint owner is invalid: expected {}, got {}", program_id, to_endpoint.owner);
+        msg!(
+            "To endpoint owner is invalid: expected {}, got {}",
+            program_id,
+            to_endpoint.owner
+        );
         return Err(ErrorCode::ConstraintOwner.into())
             .map_err(|e: Error| e.with_account_name("to_endpoint"));
     }
-    
+
     // Deserialise the to_endpoint account
     let to_endpoint_account = RouterEndpoint::try_deserialize(&mut &to_endpoint.data.borrow()[..])?;
-    
+
     // Check that the from and to endpoints are different
     if from_endpoint_account.chain == to_endpoint_account.chain {
         return Err(MatchingEngineError::SameEndpoint.into());
     }
-    
+
     // Check that the to endpoint protocol is cctp or local
     match to_endpoint_account.protocol {
         MessageProtocol::Cctp { .. } | MessageProtocol::Local { .. } => (),
         _ => return Err(MatchingEngineError::InvalidEndpoint.into()),
     }
-    
+
     // Check that the from endpoint protocol is cctp or local
     match from_endpoint_account.protocol {
         MessageProtocol::Cctp { .. } | MessageProtocol::Local { .. } => (),
@@ -296,21 +341,37 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
             return Err(MatchingEngineError::OfferPriceTooHigh.into());
         }
     }
-    
+
     // Create the vaa_message struct to get the digest
-    let vaa_message = VaaMessageBodyHeader::new(consistency_level, vaa_time, sequence, from_endpoint_account.chain, from_endpoint_account.address);
+    let vaa_message = VaaMessageBodyHeader::new(
+        consistency_level,
+        vaa_time,
+        sequence,
+        from_endpoint_account.chain,
+        from_endpoint_account.address,
+    );
     let vaa_message_digest = vaa_message.digest(&fast_market_order_zero_copy);
 
     // Begin of initialisation of auction custody token account
     // ------------------------------------------------------------------------------------------------
     let auction_custody_token_space = spl_token::state::Account::LEN;
 
-    let (auction_custody_token_pda, auction_custody_token_bump) = Pubkey::find_program_address(&[crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX, auction_key.as_ref()], &program_id);
+    let (auction_custody_token_pda, auction_custody_token_bump) = Pubkey::find_program_address(
+        &[
+            crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
+            auction_key.as_ref(),
+        ],
+        &program_id,
+    );
     if auction_custody_token_pda != auction_custody_token.key() {
-        msg!("Auction custody token pda is invalid. Passed account: {}, expected: {}", auction_custody_token.key(), auction_custody_token_pda);
+        msg!(
+            "Auction custody token pda is invalid. Passed account: {}, expected: {}",
+            auction_custody_token.key(),
+            auction_custody_token_pda
+        );
         return Err(FallbackError::InvalidPda.into());
     }
-    
+
     let auction_custody_token_seeds = [
         crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
         auction_key.as_ref(),
@@ -332,25 +393,19 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
         &auction_custody_token_pda,
         &usdc.key(),
         &auction_account.key(),
-    ).unwrap();
-    
-    solana_program::program::invoke(
-        &init_token_account_ix,
-        accounts,
-    ).unwrap();
-    
+    )
+    .unwrap();
+
+    solana_program::program::invoke(&init_token_account_ix, accounts).unwrap();
+
     // ------------------------------------------------------------------------------------------------
     // End of initialisation of auction custody token account
-
 
     // Begin of initialisation of auction account
     // ------------------------------------------------------------------------------------------------
     let auction_space = 8 + Auction::INIT_SPACE;
     let (pda, bump) = Pubkey::find_program_address(
-        &[
-            Auction::SEED_PREFIX,
-            vaa_message_digest.as_ref(),
-        ],
+        &[Auction::SEED_PREFIX, vaa_message_digest.as_ref()],
         &program_id,
     );
 
@@ -358,11 +413,7 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
         msg!("Auction pda is invalid");
         return Err(FallbackError::InvalidPda.into());
     }
-    let auction_seeds = [
-        Auction::SEED_PREFIX,
-        vaa_message_digest.as_ref(),
-        &[bump],
-    ];
+    let auction_seeds = [Auction::SEED_PREFIX, vaa_message_digest.as_ref(), &[bump]];
     let auction_signer_seeds = &[&auction_seeds[..]];
     create_account_reliably(
         &signer.key(),
@@ -374,21 +425,28 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
         auction_signer_seeds,
     )?;
     // Borrow the account data mutably
-    let mut data = auction_account.try_borrow_mut_data().map_err(|_| FallbackError::AccountNotWritable)?;
+    let mut data = auction_account
+        .try_borrow_mut_data()
+        .map_err(|_| FallbackError::AccountNotWritable)?;
 
     // Write the discriminator to the first 8 bytes
     let discriminator = Auction::discriminator();
     data[0..8].copy_from_slice(&discriminator);
 
-    let security_deposit = fast_market_order_zero_copy.max_fee
-            .saturating_add(crate::utils::auction::compute_notional_security_deposit(
-                &auction_config_account.parameters,
-                fast_market_order_zero_copy.amount_in,
-            ));
+    let security_deposit = fast_market_order_zero_copy.max_fee.saturating_add(
+        crate::utils::auction::compute_notional_security_deposit(
+            &auction_config_account.parameters,
+            fast_market_order_zero_copy.amount_in,
+        ),
+    );
 
     let auction_to_write = Auction {
         bump,
-        vaa_hash: vaa_message.digest(&fast_market_order_zero_copy).as_ref().try_into().unwrap(),
+        vaa_hash: vaa_message
+            .digest(&fast_market_order_zero_copy)
+            .as_ref()
+            .try_into()
+            .unwrap(),
         vaa_timestamp: vaa_message.vaa_time(),
         target_protocol: to_endpoint_account.protocol,
         status: AuctionStatus::Active,
@@ -410,11 +468,13 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
         .into(),
     };
     // Write the auction struct to the account
-    let auction_bytes = auction_to_write.try_to_vec().map_err(|_| FallbackError::BorshDeserializationError)?;
+    let auction_bytes = auction_to_write
+        .try_to_vec()
+        .map_err(|_| FallbackError::BorshDeserializationError)?;
     data[8..8 + auction_bytes.len()].copy_from_slice(&auction_bytes);
     // ------------------------------------------------------------------------------------------------
     // End of initialisation of auction account
-    
+
     // Start of token transfer from offer token to auction custody token
     // ------------------------------------------------------------------------------------------------
 
@@ -424,16 +484,23 @@ pub fn place_initial_offer_cctp_shim(accounts: &[AccountInfo], data: &PlaceIniti
         &auction_custody_token.key(),
         &transfer_authority.key(),
         &[], // Apparently this is only for multi-sig accounts
-        fast_market_order_zero_copy.amount_in
+        fast_market_order_zero_copy
+            .amount_in
             .checked_add(security_deposit)
-            .ok_or_else(|| MatchingEngineError::U64Overflow)?
-    ).unwrap();
-    invoke_signed_unchecked(&transfer_ix, accounts, &[&[
-        TRANSFER_AUTHORITY_SEED_PREFIX,
-        auction_key.as_ref(),
-        &offer_price.to_be_bytes(),
-        &[transfer_authority_bump],
-    ]]).map_err(|_| FallbackError::TokenTransferFailed)?;
+            .ok_or_else(|| MatchingEngineError::U64Overflow)?,
+    )
+    .unwrap();
+    invoke_signed_unchecked(
+        &transfer_ix,
+        accounts,
+        &[&[
+            TRANSFER_AUTHORITY_SEED_PREFIX,
+            auction_key.as_ref(),
+            &offer_price.to_be_bytes(),
+            &[transfer_authority_bump],
+        ]],
+    )
+    .map_err(|_| FallbackError::TokenTransferFailed)?;
     // ------------------------------------------------------------------------------------------------
     // End of token transfer from offer token to auction custody token
     Ok(())
@@ -458,15 +525,14 @@ mod tests {
             0,
             [0_u8; 512],
             [0_u8; 32],
+            0,
+            0,
+            0,
+            0,
+            0,
             [0_u8; 32],
-            0,
-            0,
-            0,
-            [0_u8; 32],
-           
         );
         let bytes = bytemuck::bytes_of(&test_fast_market_order);
         assert!(bytes.len() == std::mem::size_of::<FastMarketOrderState>());
     }
-    
 }

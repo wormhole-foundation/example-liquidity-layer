@@ -257,8 +257,8 @@ pub mod matching_engine {
         processor::place_initial_offer_cctp(ctx, offer_price)
     }
 
-    /// This instruction is used to create a new auction given a valid `VaaShim`. 
-    /// This instruction should act in the exact same way as `place_initial_offer_cctp` except that 
+    /// This instruction is used to create a new auction given a valid `VaaShim`.
+    /// This instruction should act in the exact same way as `place_initial_offer_cctp` except that
     /// it will check the digest of the vaa directly using a cpi call to the verify shim program.
     // pub fn place_initial_offer_cctp_shim(ctx: Context<PlaceInitialOfferCctpShim>, offer_price: u64, guardian_set_bump: u8, vaa_message: VaaMessage) -> Result<()> {
     //     processor::place_initial_offer_cctp_shim(ctx, offer_price, guardian_set_bump, vaa_message)
@@ -486,10 +486,13 @@ pub mod matching_engine {
     }
 
     /// Non anchor function for placing an initial offer using the VAA shim.
-    pub fn fallback_process_instruction(program_id: &Pubkey, accounts: &[AccountInfo], instruction_data: &[u8]) -> Result<()> {
+    pub fn fallback_process_instruction(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        instruction_data: &[u8],
+    ) -> Result<()> {
         fallback::process_instruction(program_id, accounts, instruction_data)
     }
-
 }
 
 #[derive(Accounts)]

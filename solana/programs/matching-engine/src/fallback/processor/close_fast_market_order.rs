@@ -1,7 +1,7 @@
-use anchor_lang::prelude::*;
-use solana_program::program_error::ProgramError;
-use solana_program::instruction::Instruction;
 use crate::state::FastMarketOrder;
+use anchor_lang::prelude::*;
+use solana_program::instruction::Instruction;
+use solana_program::program_error::ProgramError;
 
 use super::FallbackMatchingEngineInstruction;
 
@@ -47,7 +47,8 @@ pub fn close_fast_market_order(accounts: &[AccountInfo]) -> Result<()> {
         return Err(ProgramError::InvalidAccountData.into());
     }
 
-    let fast_market_order_data = FastMarketOrder::try_deserialize(&mut &fast_market_order.data.borrow()[..])?;
+    let fast_market_order_data =
+        FastMarketOrder::try_deserialize(&mut &fast_market_order.data.borrow()[..])?;
     if fast_market_order_data.refund_recipient != refund_recipient.key().as_ref() {
         msg!("Refund recipient (account #2) mismatch");
         msg!("Actual:");

@@ -8,7 +8,6 @@ use anchor_spl::token;
 use common::TRANSFER_AUTHORITY_SEED_PREFIX;
 use solana_program::keccak;
 
-
 #[derive(Accounts)]
 #[instruction(offer_price: u64, guardian_set_bump: u8, vaa_message: VaaMessage)]
 pub struct PlaceInitialOfferCctpShim<'info> {
@@ -94,7 +93,7 @@ pub struct PlaceInitialOfferCctpShim<'info> {
     auction_custody_token: Box<Account<'info, token::TokenAccount>>,
 
     usdc: Usdc<'info>,
-    
+
     #[account(constraint = {
         require_eq!(
             verify_vaa_shim_program.key(),
@@ -109,14 +108,31 @@ pub struct PlaceInitialOfferCctpShim<'info> {
     token_program: Program<'info, token::Token>,
 }
 
-// TODO: Change this to be PlaceInitialOfferArgs and go from there ... 
+// TODO: Change this to be PlaceInitialOfferArgs and go from there ...
 /// A vaa message is the serialised message body of a posted vaa. Only the fields that are required to create the digest are included.
 #[derive(AnchorSerialize, AnchorDeserialize)]
 pub struct VaaMessage(pub Vec<u8>);
 
 impl VaaMessage {
-    pub fn new(consistency_level: u8, vaa_time: u32, sequence: u64, emitter_chain: u16, emitter_address: [u8; 32], payload: Vec<u8>) -> Self {
-        Self(VaaMessageBody::new(consistency_level, vaa_time, sequence, emitter_chain, emitter_address, payload).to_vec())
+    pub fn new(
+        consistency_level: u8,
+        vaa_time: u32,
+        sequence: u64,
+        emitter_chain: u16,
+        emitter_address: [u8; 32],
+        payload: Vec<u8>,
+    ) -> Self {
+        Self(
+            VaaMessageBody::new(
+                consistency_level,
+                vaa_time,
+                sequence,
+                emitter_chain,
+                emitter_address,
+                payload,
+            )
+            .to_vec(),
+        )
     }
 
     pub fn from_vec(vec: Vec<u8>) -> Self {
@@ -146,12 +162,10 @@ impl VaaMessage {
         // emitter_address is the next 32 bytes of the message
         self.0[10..42].try_into().unwrap()
     }
-
 }
 
 /// Just a helper struct to make the code more readable.
 struct VaaMessageBody {
-
     /// Level of consistency requested by the emitter
     pub consistency_level: u8,
 
@@ -175,13 +189,20 @@ struct VaaMessageBody {
 }
 
 impl VaaMessageBody {
-    pub fn new(consistency_level: u8, vaa_time: u32, sequence: u64, emitter_chain: u16, emitter_address: [u8; 32], payload: Vec<u8>) -> Self {
+    pub fn new(
+        consistency_level: u8,
+        vaa_time: u32,
+        sequence: u64,
+        emitter_chain: u16,
+        emitter_address: [u8; 32],
+        payload: Vec<u8>,
+    ) -> Self {
         Self {
             consistency_level,
             vaa_time,
             nonce: 0, // Always 0
             sequence,
-            emitter_chain, // Can be taken from the live router path
+            emitter_chain,   // Can be taken from the live router path
             emitter_address, // Can be taken from the live router path
             payload,
         }
@@ -196,6 +217,7 @@ impl VaaMessageBody {
             &self.sequence.to_be_bytes(),
             &[self.consistency_level],
             self.payload.as_ref(),
-        ].concat()
+        ]
+        .concat()
     }
 }
