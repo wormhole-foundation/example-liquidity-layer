@@ -274,6 +274,8 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     let mut active_auction =
         Auction::try_deserialize(&mut &active_auction_account.data.borrow()[..])?;
 
+    // TODO: Check that the auction has reached its deadline
+
     // Correct way to use create_program_address with existing seeds and bump
     let active_auction_pda = Pubkey::create_program_address(
         &[

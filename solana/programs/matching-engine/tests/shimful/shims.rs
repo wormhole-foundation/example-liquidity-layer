@@ -1,5 +1,6 @@
-use super::setup::TestingContext;
-use super::{constants::*, setup::Solver};
+use super::super::utils;
+use super::super::utils::setup::TestingContext;
+use super::super::utils::{constants::*, setup::Solver};
 use anchor_lang::prelude::*;
 use base64::Engine;
 use common::messages::FastMarketOrder;
@@ -410,12 +411,39 @@ fn generate_expected_guardian_signatures_info(
     (expected_length, guardian_signatures)
 }
 
+// TODO: Separate this into a different file
 pub struct PlaceInitialOfferShimFixture {
-    pub auction_state: Rc<RefCell<super::auction::ActiveAuctionState>>,
+    pub auction_state: Rc<RefCell<utils::auction::ActiveAuctionState>>,
     pub guardian_set_pubkey: Pubkey,
     pub guardian_signatures_pubkey: Pubkey,
     pub fast_market_order_address: Pubkey,
     pub fast_market_order: FastMarketOrderState,
+    pub auction_accounts: utils::auction::AuctionAccounts,
+}
+
+pub async fn place_initial_offer_fallback_test(
+    testing_context: &mut TestingContext,
+    auction_accounts: &utils::auction::AuctionAccounts,
+    expected_to_pass: bool,
+) -> Option<PlaceInitialOfferShimFixture> {
+    let first_test_ft = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
+    let solver = testing_context.testing_actors.solvers[0].clone();
+    let vaa_data = first_test_ft.vaa_data;
+
+    // Place initial offer using the fallback program
+    let payer_signer = testing_context.testing_actors.owner.keypair();
+    place_initial_offer_fallback(
+        testing_context,
+        &payer_signer,
+        &testing_context.get_matching_engine_program_id(),
+        &testing_context.get_wormhole_program_id(),
+        &vaa_data,
+        solver.clone(),
+        auction_accounts,
+        1__000_000, // 1 USDC (double underscore for decimal separator)
+        expected_to_pass,
+    )
+    .await
 }
 
 /// Places an initial offer using the fallback program. The vaa is constructed from a passed in PostedVaaData struct. The nonce is forced to 0.
@@ -424,11 +452,12 @@ pub async fn place_initial_offer_fallback(
     payer_signer: &Rc<Keypair>,
     program_id: &Pubkey,
     wormhole_program_id: &Pubkey,
-    vaa_data: &super::vaa::PostedVaaData,
+    vaa_data: &utils::vaa::PostedVaaData,
     solver: Solver,
-    auction_accounts: &super::auction::AuctionAccounts,
+    auction_accounts: &utils::auction::AuctionAccounts,
     offer_price: u64,
-) -> Result<PlaceInitialOfferShimFixture> {
+    expected_to_pass: bool,
+) -> Option<PlaceInitialOfferShimFixture> {
     let test_ctx = &testing_context.test_context;
     let (fast_market_order, vaa_data) =
         create_fast_market_order_state_from_vaa_data(vaa_data, solver.pubkey());
@@ -528,36 +557,38 @@ pub async fn place_initial_offer_fallback(
         recent_blockhash,
     );
 
-    test_ctx
+    let tx_result = test_ctx
         .borrow_mut()
         .banks_client
         .process_transaction(transaction)
-        .await
-        .expect("Failed to place initial offer");
-
-    testing_context.testing_state.auction_state =
-        super::auction::AuctionState::Active(super::auction::ActiveAuctionState {
+        .await;
+    assert_eq!(tx_result.is_ok(), expected_to_pass);
+    if tx_result.is_ok() {
+        let new_active_auction_state = utils::auction::ActiveAuctionState {
             auction_address,
             auction_custody_token_address,
-            best_offer: super::auction::AuctionOffer {
-                best_offer_token: auction_accounts.offer_token,
-                best_offer_price: offer_price,
+            initial_offer: utils::auction::AuctionOffer {
+                offer_token: auction_accounts.offer_token,
+                offer_price,
             },
-        });
-    Ok(PlaceInitialOfferShimFixture {
-        auction_state: Rc::new(RefCell::new(super::auction::ActiveAuctionState {
-            auction_address,
-            auction_custody_token_address,
-            best_offer: super::auction::AuctionOffer {
-                best_offer_token: auction_accounts.offer_token,
-                best_offer_price: offer_price,
+            best_offer: utils::auction::AuctionOffer {
+                offer_token: auction_accounts.offer_token,
+                offer_price,
             },
-        })),
-        guardian_set_pubkey,
-        guardian_signatures_pubkey: guardian_signatures_pubkey.clone().to_owned(),
-        fast_market_order_address: fast_market_order_account,
-        fast_market_order,
-    })
+        };
+        testing_context.testing_state.auction_state =
+            utils::auction::AuctionState::Active(new_active_auction_state.clone());
+        Some(PlaceInitialOfferShimFixture {
+            auction_state: Rc::new(RefCell::new(new_active_auction_state)),
+            guardian_set_pubkey,
+            guardian_signatures_pubkey: guardian_signatures_pubkey.clone().to_owned(),
+            fast_market_order_address: fast_market_order_account,
+            fast_market_order,
+            auction_accounts: auction_accounts.clone(),
+        })
+    } else {
+        None
+    }
 }
 
 pub fn initialise_fast_market_order_fallback_instruction(
@@ -630,10 +661,10 @@ pub async fn close_fast_market_order_fallback(
 }
 
 pub fn create_fast_market_order_state_from_vaa_data(
-    vaa_data: &super::vaa::PostedVaaData,
+    vaa_data: &utils::vaa::PostedVaaData,
     refund_recipient: Pubkey,
-) -> (FastMarketOrderState, super::vaa::PostedVaaData) {
-    let vaa_data = super::vaa::PostedVaaData {
+) -> (FastMarketOrderState, utils::vaa::PostedVaaData) {
+    let vaa_data = utils::vaa::PostedVaaData {
         consistency_level: vaa_data.consistency_level,
         vaa_time: vaa_data.vaa_time,
         sequence: vaa_data.sequence,
@@ -700,7 +731,7 @@ pub fn create_fast_market_order_state_from_vaa_data(
 pub async fn create_guardian_signatures(
     test_ctx: &Rc<RefCell<ProgramTestContext>>,
     payer_signer: &Rc<Keypair>,
-    vaa_data: &super::vaa::PostedVaaData,
+    vaa_data: &utils::vaa::PostedVaaData,
     wormhole_program_id: &Pubkey,
     guardian_signature_signer: Option<&Rc<Keypair>>,
 ) -> (Pubkey, Pubkey, u8) {

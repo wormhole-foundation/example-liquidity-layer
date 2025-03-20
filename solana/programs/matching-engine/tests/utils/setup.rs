@@ -211,6 +211,10 @@ impl TestingContext {
     pub fn get_cctp_mint_recipient(&self) -> Pubkey {
         CCTP_MINT_RECIPIENT
     }
+
+    pub fn get_wormhole_program_id(&self) -> Pubkey {
+        wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID
+    }
 }
 
 #[derive(Clone)]
@@ -456,6 +460,8 @@ pub async fn fast_forward_slots(test_context: &Rc<RefCell<ProgramTestContext>>, 
         .process_transaction(tx)
         .await
         .expect("Failed to process transaction after warping");
+
+    println!("Fast forwarded {} slots", num_slots);
 }
 
 pub enum ShimMode {
