@@ -1,3 +1,7 @@
+use super::super::shimless::initialize::InitializeFixture;
+use super::super::utils;
+use super::shims::PlaceInitialOfferShimFixture;
+use super::shims_execute_order::ExecuteOrderFallbackFixture;
 use anchor_lang::prelude::*;
 use anchor_spl::token::spl_token;
 use common::messages::raw::LiquidityLayerDepositMessage;
@@ -17,12 +21,8 @@ use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
 use std::cell::RefCell;
 use std::rc::Rc;
+use utils::account_fixtures::FixtureAccounts;
 use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
-
-use super::account_fixtures::FixtureAccounts;
-use super::initialize::InitializeFixture;
-use super::shims::PlaceInitialOfferShimFixture;
-use super::shims_execute_order::ExecuteOrderFallbackFixture;
 
 pub struct PrepareOrderResponseShimAccountsFixture {
     pub signer: Pubkey,
@@ -157,7 +157,7 @@ impl PrepareOrderResponseShimDataFixture {
     pub fn new(
         encoded_cctp_message: Vec<u8>,
         cctp_attestation: Vec<u8>,
-        deposit_vaa_data: &super::vaa::PostedVaaData,
+        deposit_vaa_data: &utils::vaa::PostedVaaData,
         deposit: &Deposit,
         deposit_base_fee: u64,
         fast_market_order: &FastMarketOrderState,
@@ -300,7 +300,7 @@ pub fn get_deposit_base_fee(deposit: &Deposit) -> u64 {
 pub async fn prepare_order_response_test(
     test_ctx: &Rc<RefCell<ProgramTestContext>>,
     payer_signer: &Rc<Keypair>,
-    deposit_vaa_data: &super::vaa::PostedVaaData,
+    deposit_vaa_data: &utils::vaa::PostedVaaData,
     core_bridge_program_id: &Pubkey,
     matching_engine_program_id: &Pubkey,
     fixture_accounts: &FixtureAccounts,
@@ -324,7 +324,7 @@ pub async fn prepare_order_response_test(
         )
         .await;
 
-    let source_remote_token_messenger = super::router::get_remote_token_messenger(
+    let source_remote_token_messenger = utils::router::get_remote_token_messenger(
         test_ctx,
         fixture_accounts.ethereum_remote_token_messenger,
     )
@@ -335,7 +335,7 @@ pub async fn prepare_order_response_test(
     let message_transmitter_config_pubkey = fixture_accounts.message_transmitter_config;
     let fast_market_order_state = initial_offer_fixture.fast_market_order;
     // TODO: Make checks to see if fast market order sender matches cctp message sender ...
-    let cctp_message_decoded = super::cctp_message::craft_cctp_token_burn_message(
+    let cctp_message_decoded = utils::cctp_message::craft_cctp_token_burn_message(
         test_ctx,
         source_remote_token_messenger.domain,
         cctp_nonce,

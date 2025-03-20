@@ -2,23 +2,26 @@ use anchor_lang::AccountDeserialize;
 use anchor_spl::token::TokenAccount;
 use matching_engine::state::FastMarketOrder;
 use matching_engine::{CCTP_MINT_RECIPIENT, ID as PROGRAM_ID};
+use shimless::execute_order::execute_order_shimless_test;
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
+mod shimful;
+mod shimless;
 mod utils;
-use solana_sdk::signer::Signer;
+use shimful::shims::{
+    initialise_fast_market_order_fallback_instruction, place_initial_offer_fallback,
+    place_initial_offer_fallback_test, set_up_post_message_transaction_test,
+};
+use shimful::shims_execute_order::execute_order_fallback_test;
+use shimless::initialize::initialize_program;
+use shimless::make_offer::{improve_offer, place_initial_offer_shimless};
 use solana_sdk::transaction::VersionedTransaction;
-use utils::auction::{improve_offer, place_initial_offer, AuctionAccounts};
-use utils::initialize::initialize_program;
+use utils::auction::AuctionAccounts;
 use utils::router::{
     add_local_router_endpoint_ix, create_all_router_endpoints_test,
     create_cctp_router_endpoints_test,
 };
 use utils::setup::{setup_environment, ShimMode, TestingContext, TransferDirection};
-use utils::shims::{
-    initialise_fast_market_order_fallback_instruction, place_initial_offer_fallback,
-    set_up_post_message_transaction_test,
-};
-use utils::shims_execute_order::{execute_order_fallback, ExecuteOrderFallbackAccounts};
 use utils::vaa::VaaArgs;
 use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
 
@@ -132,7 +135,14 @@ pub async fn test_setup_vaas() {
         transfer_direction,
     );
 
-    place_initial_offer(&mut testing_context, auction_accounts, fast_vaa, PROGRAM_ID).await;
+    place_initial_offer_shimless(
+        &mut testing_context,
+        &auction_accounts,
+        fast_vaa,
+        PROGRAM_ID,
+        true, // Expected to pass
+    )
+    .await;
     let auction_state = testing_context
         .testing_state
         .auction_state
@@ -193,9 +203,9 @@ pub async fn test_initialise_fast_market_order_fallback() {
 
     let vaa_data = first_test_ft.vaa_data;
     let (fast_market_order, vaa_data) =
-        utils::shims::create_fast_market_order_state_from_vaa_data(&vaa_data, solver.pubkey());
+        shimful::shims::create_fast_market_order_state_from_vaa_data(&vaa_data, solver.pubkey());
     let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) =
-        utils::shims::create_guardian_signatures(
+        shimful::shims::create_guardian_signatures(
             &testing_context.test_context,
             &testing_context.testing_actors.owner.keypair(),
             &vaa_data,
@@ -247,9 +257,9 @@ pub async fn test_close_fast_market_order_fallback() {
 
     let vaa_data = first_test_ft.vaa_data;
     let (fast_market_order, vaa_data) =
-        utils::shims::create_fast_market_order_state_from_vaa_data(&vaa_data, solver.pubkey());
+        shimful::shims::create_fast_market_order_state_from_vaa_data(&vaa_data, solver.pubkey());
     let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) =
-        utils::shims::create_guardian_signatures(
+        shimful::shims::create_guardian_signatures(
             &testing_context.test_context,
             &testing_context.testing_actors.owner.keypair(),
             &vaa_data,
@@ -299,7 +309,7 @@ pub async fn test_close_fast_market_order_fallback() {
         &PROGRAM_ID,
     )
     .0;
-    utils::shims::close_fast_market_order_fallback(
+    shimful::shims::close_fast_market_order_fallback(
         &testing_context.test_context,
         &solver.keypair(),
         &PROGRAM_ID,
@@ -358,7 +368,7 @@ pub async fn test_approve_usdc() {
 
     // TODO: Create an issue based on this bug. So this function will transfer the ownership of whatever the guardian signatures signer is set to to the verify shim program. This means that the argument to this function MUST be ephemeral and cannot be used until the close signatures instruction has been executed.
     let (_guardian_set_pubkey, _guardian_signatures_pubkey, _guardian_set_bump) =
-        utils::shims::create_guardian_signatures(
+        shimful::shims::create_guardian_signatures(
             &testing_context.test_context,
             &actors.owner.keypair(),
             &vaa_data,
@@ -399,47 +409,20 @@ pub async fn test_place_initial_offer_fallback() {
     .await;
 
     let initialize_fixture = initialize_program(&testing_context).await;
-
-    let first_test_ft = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
-
-    // Try making initial offer using the shim instruction
-    let usdc_mint_address = testing_context.get_usdc_mint_address();
     let auction_config_address = initialize_fixture.get_auction_config_address();
-    let router_endpoints = create_all_router_endpoints_test(
-        &testing_context,
-        testing_context.testing_actors.owner.pubkey(),
-        initialize_fixture.get_custodian_address(),
-        testing_context.testing_actors.owner.keypair(),
+    let auction_accounts = utils::auction::AuctionAccounts::create_auction_accounts(
+        &mut testing_context,
+        &initialize_fixture,
+        transfer_direction,
+        None,
     )
     .await;
-
-    let solver = testing_context.testing_actors.solvers[0].clone();
-    let auction_accounts = AuctionAccounts::new(
-        None,                                       // Fast VAA pubkey
-        solver.clone(),                             // Solver
-        auction_config_address.clone(),             // Auction config pubkey
-        &router_endpoints,                          // Router endpoints
-        initialize_fixture.get_custodian_address(), // Custodian pubkey
-        usdc_mint_address,                          // USDC mint pubkey
-        transfer_direction,
-    );
-
-    let vaa_data = first_test_ft.vaa_data;
-
-    // Place initial offer using the fallback program
-    let payer_signer = testing_context.testing_actors.owner.keypair();
-    let _initial_offer_fixture = place_initial_offer_fallback(
+    let _initial_offer_fixture = place_initial_offer_fallback_test(
         &mut testing_context,
-        &payer_signer,
-        &PROGRAM_ID,
-        &CORE_BRIDGE_PROGRAM_ID,
-        &vaa_data,
-        solver.clone(),
         &auction_accounts,
-        1__000_000, // 1 USDC (double underscore for decimal separator)
+        true, // Expected to pass
     )
-    .await
-    .expect("Failed to place initial offer");
+    .await;
     // Attempt to improve the offer using the non-fallback method with another solver making the improved offer
     println!("Improving offer");
     let second_solver = testing_context.testing_actors.solvers[1].clone();
@@ -452,6 +435,91 @@ pub async fn test_place_initial_offer_fallback() {
     .await;
     println!("Offer improved");
     // improved_offer_fixture.verify_improved_offer(&testing_context.test_context).await;
+}
+
+#[tokio::test]
+pub async fn test_place_initial_offer_shim_blocks_non_shim() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: true,
+        ..VaaArgs::default()
+    };
+    let mut testing_context = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+
+    let initialize_fixture = initialize_program(&testing_context).await;
+    let auction_accounts = utils::auction::AuctionAccounts::create_auction_accounts(
+        &mut testing_context,
+        &initialize_fixture,
+        transfer_direction,
+        None,
+    )
+    .await;
+    let initial_offer_fallback_fixture = place_initial_offer_fallback_test(
+        &mut testing_context,
+        &auction_accounts, // Auction accounts have not been created yet
+        true,              // Expected to pass
+    )
+    .await
+    .expect("Should have been able to place initial offer");
+    let first_test_ft = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
+    // Now test without the fallback program
+    let mut auction_accounts = initial_offer_fallback_fixture.auction_accounts;
+    auction_accounts.fast_vaa = Some(first_test_ft.get_vaa_pubkey());
+    place_initial_offer_shimless(
+        &mut testing_context,
+        &auction_accounts,
+        first_test_ft,
+        PROGRAM_ID,
+        false, // Expected to fail
+    )
+    .await;
+}
+
+#[tokio::test]
+pub async fn test_place_initial_offer_non_shim_blocks_shim() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: true,
+        ..VaaArgs::default()
+    };
+    let mut testing_context = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+
+    let initialize_fixture = initialize_program(&testing_context).await;
+    let first_test_ft = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
+    let auction_accounts = utils::auction::AuctionAccounts::create_auction_accounts(
+        &mut testing_context,
+        &initialize_fixture,
+        transfer_direction,
+        Some(first_test_ft.get_vaa_pubkey()),
+    )
+    .await;
+    // Place initial offer using the shimless instruction
+    place_initial_offer_shimless(
+        &mut testing_context,
+        &auction_accounts,
+        first_test_ft,
+        PROGRAM_ID,
+        true, // Expected to pass
+    )
+    .await;
+    // Now test with the fallback program (shims) and expect it to fail
+    let none_initial_offer_fallback_fixture = place_initial_offer_fallback_test(
+        &mut testing_context,
+        &auction_accounts,
+        false, // Expected to fail
+    )
+    .await;
+    assert!(none_initial_offer_fallback_fixture.is_none());
 }
 
 #[tokio::test]
@@ -471,80 +539,128 @@ pub async fn test_execute_order_fallback() {
     .await;
 
     let initialize_fixture = initialize_program(&testing_context).await;
-
-    let first_test_ft = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
-
-    let fixture_accounts = testing_context
-        .get_fixture_accounts()
-        .expect("Pre-made fixture accounts not found");
-    // Try making initial offer using the shim instruction
-    let usdc_mint_address = testing_context.get_usdc_mint_address();
-    let auction_config_address = initialize_fixture.get_auction_config_address();
-    let router_endpoints = create_all_router_endpoints_test(
-        &testing_context,
-        testing_context.testing_actors.owner.pubkey(),
-        initialize_fixture.get_custodian_address(),
-        testing_context.testing_actors.owner.keypair(),
+    let auction_accounts = utils::auction::AuctionAccounts::create_auction_accounts(
+        &mut testing_context,
+        &initialize_fixture,
+        transfer_direction,
+        None,
     )
     .await;
-
-    let solver = testing_context.testing_actors.solvers[0].clone();
-    let auction_accounts = AuctionAccounts::new(
-        None,                                       // Fast VAA pubkey
-        solver.clone(),                             // Solver
-        auction_config_address.clone(),             // Auction config pubkey
-        &router_endpoints,                          // Router endpoints
-        initialize_fixture.get_custodian_address(), // Custodian pubkey
-        usdc_mint_address,                          // USDC mint pubkey
-        transfer_direction,
-    );
-
-    let vaa_data = first_test_ft.vaa_data;
-
-    let payer_signer = testing_context.testing_actors.owner.keypair();
-
-    // Place initial offer using the fallback program
-    let initial_offer_fixture = place_initial_offer_fallback(
+    let initial_offer_fallback_fixture = place_initial_offer_fallback_test(
         &mut testing_context,
-        &payer_signer,
-        &PROGRAM_ID,
-        &CORE_BRIDGE_PROGRAM_ID,
-        &vaa_data,
-        solver.clone(),
         &auction_accounts,
-        1__000_000, // 1 USDC (double underscore for decimal separator)
+        true, // Expected to pass
     )
     .await
-    .expect("Failed to place initial offer");
+    .expect("Should have been able to place initial offer");
 
+    let solver = testing_context.testing_actors.solvers[0].clone();
+    let balance_before_execute_order = solver.get_balance(&testing_context.test_context).await;
     println!(
         "Solver balance after placing initial offer: {:?}",
-        solver.get_balance(&testing_context.test_context).await
+        balance_before_execute_order
     );
 
-    let execute_order_fallback_accounts = ExecuteOrderFallbackAccounts::new(
+    let _execute_order_fixture = execute_order_fallback_test(
+        &mut testing_context,
         &auction_accounts,
-        &initial_offer_fixture,
-        &payer_signer.pubkey(),
-        &fixture_accounts,
-        transfer_direction,
-    );
-    // Try executing the order using the fallback program
-    let _execute_order_fixture = execute_order_fallback(
-        &testing_context.test_context,
-        &payer_signer,
-        &PROGRAM_ID,
+        &initial_offer_fallback_fixture,
         solver.clone(),
-        &execute_order_fallback_accounts,
+        true, // Expected to pass
     )
     .await
     .expect("Failed to execute order");
 
-    // Figure out why the solver balance is not increased here
-    println!(
-        "Solver balance after executing order: {:?}",
-        solver.get_balance(&testing_context.test_context).await
+    let balance_after_execute_order = solver.get_balance(&testing_context.test_context).await;
+    assert!(
+        balance_after_execute_order > balance_before_execute_order,
+        "Solver balance after executing order was {:?}, but should have been greater",
+        balance_after_execute_order
     );
+}
+
+#[tokio::test]
+pub async fn test_execute_order_shimless() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: true,
+        ..VaaArgs::default()
+    };
+    let mut testing_context = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+    let initialize_fixture = initialize_program(&testing_context).await;
+
+    let first_test_fast_transfer = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
+    let first_test_fast_transfer_pubkey = first_test_fast_transfer.get_vaa_pubkey();
+    let auction_accounts = utils::auction::AuctionAccounts::create_auction_accounts(
+        &mut testing_context,
+        &initialize_fixture,
+        transfer_direction,
+        Some(first_test_fast_transfer_pubkey),
+    )
+    .await;
+    place_initial_offer_shimless(
+        &mut testing_context,
+        &auction_accounts,
+        first_test_fast_transfer,
+        PROGRAM_ID,
+        true, // Expected to pass
+    )
+    .await;
+
+    let execute_order_fixture =
+        execute_order_shimless_test(&mut testing_context, &auction_accounts, true).await;
+    assert!(execute_order_fixture.is_some());
+}
+pub async fn test_execute_order_fallback_blocks_shimless() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: true,
+        ..VaaArgs::default()
+    };
+    let mut testing_context = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+    let first_test_fast_transfer = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
+    let initialize_fixture = initialize_program(&testing_context).await;
+    let auction_accounts = utils::auction::AuctionAccounts::create_auction_accounts(
+        &mut testing_context,
+        &initialize_fixture,
+        transfer_direction,
+        Some(first_test_fast_transfer.get_vaa_pubkey()),
+    )
+    .await;
+    let initial_offer_fallback_fixture = place_initial_offer_fallback_test(
+        &mut testing_context,
+        &auction_accounts,
+        true, // Expected to pass
+    )
+    .await
+    .expect("Should have been able to place initial offer");
+
+    let solver = testing_context.testing_actors.solvers[0].clone();
+
+    // Try executing the order using the fallback program
+    let _shim_execute_order_fixture = execute_order_fallback_test(
+        &mut testing_context,
+        &auction_accounts,
+        &initial_offer_fallback_fixture,
+        solver.clone(),
+        true, // Expected to pass
+    )
+    .await
+    .expect("Failed to execute order");
+
+    let shimless_execute_order_fixture =
+        execute_order_shimless_test(&mut testing_context, &auction_accounts, false).await;
+    assert!(shimless_execute_order_fixture.is_none());
 }
 
 // From ethereum to arbitrum
@@ -561,7 +677,6 @@ pub async fn test_prepare_order_shim_fallback() {
         Some(vaa_args),
     )
     .await;
-
     let initialize_fixture = initialize_program(&testing_context).await;
 
     let first_vaa_pair = testing_context.get_vaa_pair(0).unwrap();
@@ -575,71 +690,43 @@ pub async fn test_prepare_order_shim_fallback() {
     let fixture_accounts = testing_context
         .get_fixture_accounts()
         .expect("Pre-made fixture accounts not found");
+
     // Try making initial offer using the shim instruction
     let usdc_mint_address = testing_context.get_usdc_mint_address();
-    let auction_config_address = initialize_fixture.get_auction_config_address();
-    let router_endpoints = create_all_router_endpoints_test(
-        &testing_context,
-        testing_context.testing_actors.owner.pubkey(),
-        initialize_fixture.get_custodian_address(),
-        testing_context.testing_actors.owner.keypair(),
+    let auction_accounts = AuctionAccounts::create_auction_accounts(
+        &mut testing_context,
+        &initialize_fixture,
+        transfer_direction,
+        None,
     )
     .await;
 
-    let solver = testing_context.testing_actors.solvers[0].clone();
-    let auction_accounts = AuctionAccounts::new(
-        None,                                       // Fast VAA pubkey
-        solver.clone(),                             // Solver
-        auction_config_address.clone(),             // Auction config pubkey
-        &router_endpoints,                          // Router endpoints
-        initialize_fixture.get_custodian_address(), // Custodian pubkey
-        usdc_mint_address,                          // USDC mint pubkey
-        transfer_direction,
-    );
-
-    let fast_transfer_vaa_data = first_vaa_pair.fast_transfer_vaa.vaa_data;
-    let deposit_vaa_data = first_vaa_pair.deposit_vaa.vaa_data;
-
-    let payer_signer = testing_context.testing_actors.owner.keypair();
-
     // Place initial offer using the fallback program
-    let initial_offer_fixture = place_initial_offer_fallback(
+    let initial_offer_fixture = place_initial_offer_fallback_test(
         &mut testing_context,
-        &payer_signer,
-        &PROGRAM_ID,
-        &CORE_BRIDGE_PROGRAM_ID,
-        &fast_transfer_vaa_data,
-        solver.clone(),
         &auction_accounts,
-        1__000_000, // 1 USDC (double underscore for decimal separator)
+        true, // Expected to pass
     )
     .await
     .expect("Failed to place initial offer");
 
-    println!(
-        "Solver balance after placing initial offer: {:?}",
-        solver.get_balance(&testing_context.test_context).await
-    );
+    let solver = testing_context.testing_actors.solvers[0].clone();
 
-    let execute_order_fallback_accounts = ExecuteOrderFallbackAccounts::new(
+    let deposit_vaa_data = first_vaa_pair.deposit_vaa.vaa_data;
+
+    let payer_signer = testing_context.testing_actors.owner.keypair();
+
+    let execute_order_fixture = execute_order_fallback_test(
+        &mut testing_context,
         &auction_accounts,
         &initial_offer_fixture,
-        &payer_signer.pubkey(),
-        &fixture_accounts,
-        transfer_direction,
-    );
-    // Try executing the order using the fallback program
-    let execute_order_fixture = execute_order_fallback(
-        &testing_context.test_context,
-        &payer_signer,
-        &PROGRAM_ID,
         solver.clone(),
-        &execute_order_fallback_accounts,
+        true, // Expected to pass
     )
     .await
     .expect("Failed to execute order");
 
-    utils::shims_prepare_order_response::prepare_order_response_test(
+    shimful::shims_prepare_order_response::prepare_order_response_test(
         &testing_context.test_context,
         &payer_signer,
         &deposit_vaa_data,
@@ -649,8 +736,8 @@ pub async fn test_prepare_order_shim_fallback() {
         &execute_order_fixture,
         &initial_offer_fixture,
         &initialize_fixture,
-        &router_endpoints.ethereum.endpoint_address,
-        &router_endpoints.arbitrum.endpoint_address,
+        &auction_accounts.to_router_endpoint,
+        &auction_accounts.from_router_endpoint,
         &usdc_mint_address,
         &CCTP_MINT_RECIPIENT,
         &initialize_fixture.get_custodian_address(),
@@ -725,6 +812,7 @@ pub async fn test_settle_auction_complete() {
         solver.clone(),
         &auction_accounts,
         1__000_000, // 1 USDC (double underscore for decimal separator)
+        true,
     )
     .await
     .expect("Failed to place initial offer");
@@ -734,26 +822,17 @@ pub async fn test_settle_auction_complete() {
         solver.get_balance(&testing_context.test_context).await
     );
 
-    let execute_order_fallback_accounts = ExecuteOrderFallbackAccounts::new(
+    let execute_order_fixture = execute_order_fallback_test(
+        &mut testing_context,
         &auction_accounts,
         &initial_offer_fixture,
-        &payer_signer.pubkey(),
-        &fixture_accounts,
-        transfer_direction,
-    );
-    // Try executing the order using the fallback program
-    let execute_order_fixture = execute_order_fallback(
-        &testing_context.test_context,
-        &payer_signer,
-        &PROGRAM_ID,
         solver.clone(),
-        &execute_order_fallback_accounts,
+        true, // Expected to pass
     )
     .await
     .expect("Failed to execute order");
-
     let prepare_order_response_shim_fixture =
-        utils::shims_prepare_order_response::prepare_order_response_test(
+        shimful::shims_prepare_order_response::prepare_order_response_test(
             &testing_context.test_context,
             &payer_signer,
             &deposit_vaa_data,
@@ -773,7 +852,7 @@ pub async fn test_settle_auction_complete() {
         .await
         .expect("Failed to prepare order response");
     let auction_state = initial_offer_fixture.auction_state;
-    utils::settle_auction::settle_auction_complete(
+    shimless::settle_auction::settle_auction_complete(
         &testing_context.test_context,
         &payer_signer,
         &usdc_mint_address,

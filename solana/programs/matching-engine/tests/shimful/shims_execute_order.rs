@@ -1,6 +1,7 @@
-use super::setup::TransferDirection;
-use super::{constants::*, setup::Solver};
-use anchor_lang::prelude::*;
+use crate::utils::setup::TestingContext;
+
+use super::super::utils;
+use super::shims;
 use anchor_spl::token::spl_token;
 use common::wormhole_cctp_solana::cctp::{
     MESSAGE_TRANSMITTER_PROGRAM_ID, TOKEN_MESSENGER_MINTER_PROGRAM_ID,
@@ -12,6 +13,8 @@ use solana_sdk::{
 };
 use std::cell::RefCell;
 use std::rc::Rc;
+use utils::setup::TransferDirection;
+use utils::{constants::*, setup::Solver};
 use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
 use wormhole_svm_definitions::{
     solana::{
@@ -22,6 +25,7 @@ use wormhole_svm_definitions::{
 };
 
 pub struct ExecuteOrderFallbackAccounts {
+    pub signer: Pubkey,
     pub custodian: Pubkey,
     pub fast_market_order_address: Pubkey,
     pub active_auction: Pubkey,
@@ -37,10 +41,10 @@ pub struct ExecuteOrderFallbackAccounts {
 
 impl ExecuteOrderFallbackAccounts {
     pub fn new(
-        auction_accounts: &super::auction::AuctionAccounts,
-        place_initial_offer_fixture: &super::shims::PlaceInitialOfferShimFixture,
+        auction_accounts: &utils::auction::AuctionAccounts,
+        place_initial_offer_fixture: &shims::PlaceInitialOfferShimFixture, // Does not need to be place initial offer fixture, can just be fast market order address. Auction state and transfer direction can be taken from testing context
         signer: &Pubkey,
-        fixture_accounts: &super::account_fixtures::FixtureAccounts,
+        fixture_accounts: &utils::account_fixtures::FixtureAccounts,
         transfer_direction: TransferDirection,
     ) -> Self {
         let remote_token_messenger = match transfer_direction {
@@ -52,6 +56,7 @@ impl ExecuteOrderFallbackAccounts {
             }
         };
         Self {
+            signer: signer.clone(),
             custodian: auction_accounts.custodian,
             fast_market_order_address: place_initial_offer_fixture.fast_market_order_address,
             active_auction: place_initial_offer_fixture
@@ -94,7 +99,8 @@ pub async fn execute_order_fallback(
     program_id: &Pubkey,
     solver: Solver,
     execute_order_fallback_accounts: &ExecuteOrderFallbackAccounts,
-) -> Result<ExecuteOrderFallbackFixture> {
+    expected_to_pass: bool,
+) -> Option<ExecuteOrderFallbackFixture> {
     // Get target chain and use as remote address
     let cctp_message = Pubkey::find_program_address(
         &[
@@ -179,31 +185,68 @@ pub async fn execute_order_fallback(
 
     // Considering fast forwarding blocks here for deadline to be reached
     let recent_blockhash = test_ctx.borrow().last_blockhash;
-    super::setup::fast_forward_slots(test_ctx, 1).await;
-    println!("Fast forwarded 1 slots");
+    utils::setup::fast_forward_slots(test_ctx, 1).await;
     let transaction = Transaction::new_signed_with_payer(
         &[execute_order_ix],
         Some(&payer_signer.pubkey()),
         &[&payer_signer],
         recent_blockhash,
     );
-    test_ctx
+    let transaction_result = test_ctx
         .borrow_mut()
         .banks_client
         .process_transaction(transaction)
-        .await
-        .expect("Failed to execute order");
+        .await;
+    if expected_to_pass {
+        assert!(
+            transaction_result.is_ok(),
+            "Transaction should have been successful"
+        );
+        Some(ExecuteOrderFallbackFixture {
+            cctp_message,
+            post_message_sequence,
+            post_message_message,
+            accounts: ExecuteOrderFallbackFixtureAccounts {
+                local_token,
+                token_messenger,
+                remote_token_messenger,
+                token_messenger_minter_sender_authority,
+                token_messenger_minter_event_authority: *token_messenger_minter_event_authority,
+            },
+        })
+    } else {
+        assert!(
+            transaction_result.is_err(),
+            "Transaction should have been unsuccessful"
+        );
+        None
+    }
+}
 
-    Ok(ExecuteOrderFallbackFixture {
-        cctp_message,
-        post_message_sequence,
-        post_message_message,
-        accounts: ExecuteOrderFallbackFixtureAccounts {
-            local_token,
-            token_messenger,
-            remote_token_messenger,
-            token_messenger_minter_sender_authority,
-            token_messenger_minter_event_authority: *token_messenger_minter_event_authority,
-        },
-    })
+pub async fn execute_order_fallback_test(
+    testing_context: &mut TestingContext,
+    auction_accounts: &utils::auction::AuctionAccounts,
+    place_initial_offer_fixture: &shims::PlaceInitialOfferShimFixture,
+    solver: Solver,
+    expected_to_pass: bool,
+) -> Option<ExecuteOrderFallbackFixture> {
+    let fixture_accounts = testing_context
+        .get_fixture_accounts()
+        .expect("Pre-made fixture accounts not found");
+    let execute_order_fallback_accounts = ExecuteOrderFallbackAccounts::new(
+        auction_accounts,
+        place_initial_offer_fixture,
+        &testing_context.testing_actors.owner.pubkey(),
+        &fixture_accounts,
+        testing_context.testing_state.transfer_direction,
+    );
+    execute_order_fallback(
+        &testing_context.test_context,
+        &testing_context.testing_actors.owner.keypair(),
+        &testing_context.get_matching_engine_program_id(),
+        solver,
+        &execute_order_fallback_accounts,
+        expected_to_pass,
+    )
+    .await
 }

@@ -1,3 +1,5 @@
+use super::super::shimful::*;
+use super::super::utils;
 use anchor_lang::prelude::*;
 use anchor_lang::InstructionData;
 use anchor_spl::token::spl_token;
@@ -15,8 +17,8 @@ pub async fn settle_auction_complete(
     test_ctx: &Rc<RefCell<ProgramTestContext>>,
     payer_signer: &Rc<Keypair>,
     usdc_mint_address: &Pubkey,
-    prepare_order_response_shim_fixture: &super::shims_prepare_order_response::PrepareOrderResponseShimFixture,
-    auction_state: &Rc<RefCell<super::auction::ActiveAuctionState>>,
+    prepare_order_response_shim_fixture: &shims_prepare_order_response::PrepareOrderResponseShimFixture,
+    auction_state: &Rc<RefCell<utils::auction::ActiveAuctionState>>,
     matching_engine_program_id: &Pubkey,
 ) -> Result<()> {
     let base_fee_token = usdc_mint_address.clone();
@@ -29,7 +31,7 @@ pub async fn settle_auction_complete(
         prepared_order_response: prepare_order_response_shim_fixture.prepared_order_response,
         prepared_custody_token: prepare_order_response_shim_fixture.prepared_custody_token,
         auction: auction_state.borrow().auction_address,
-        best_offer_token: auction_state.borrow().best_offer.best_offer_token,
+        best_offer_token: auction_state.borrow().best_offer.offer_token,
         token_program: spl_token::ID,
         event_authority: event_authority,
         program: *matching_engine_program_id,
