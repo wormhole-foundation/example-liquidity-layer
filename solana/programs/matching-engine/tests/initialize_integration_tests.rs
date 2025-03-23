@@ -1,5 +1,6 @@
 use anchor_lang::AccountDeserialize;
 use anchor_spl::token::TokenAccount;
+use matching_engine::error::MatchingEngineError;
 use matching_engine::state::FastMarketOrder;
 use matching_engine::{CCTP_MINT_RECIPIENT, ID as PROGRAM_ID};
 use shimless::execute_order::execute_order_shimless_test;
@@ -7,20 +8,23 @@ use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 mod shimful;
 mod shimless;
+mod testing_engine;
 mod utils;
+use crate::testing_engine::config::{
+    ExpectedError, ImproveOfferInstructionConfig, InitializeInstructionConfig,
+    PlaceInitialOfferInstructionConfig,
+};
+use crate::testing_engine::engine::{InstructionTrigger, TestingEngine};
 use shimful::shims::{
     initialise_fast_market_order_fallback_instruction, place_initial_offer_fallback,
     place_initial_offer_fallback_test, set_up_post_message_transaction_test,
 };
 use shimful::shims_execute_order::execute_order_fallback_test;
-use shimless::initialize::initialize_program;
+use shimless::initialize::{initialize_program, AuctionParametersConfig};
 use shimless::make_offer::{improve_offer, place_initial_offer_shimless};
 use solana_sdk::transaction::VersionedTransaction;
 use utils::auction::AuctionAccounts;
-use utils::router::{
-    add_local_router_endpoint_ix, create_all_router_endpoints_test,
-    create_cctp_router_endpoints_test,
-};
+use utils::router::{add_local_router_endpoint_ix, create_all_router_endpoints_test};
 use utils::setup::{setup_environment, ShimMode, TestingContext, TransferDirection};
 use utils::vaa::VaaArgs;
 use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
@@ -31,23 +35,19 @@ pub async fn test_initialize_program() {
     let testing_context = setup_environment(
         ShimMode::None,
         TransferDirection::FromArbitrumToEthereum,
-        None,
+        None, // Vaa args for creating vaas
     )
     .await;
 
-    let initialize_fixture = initialize_program(&testing_context).await;
+    let initialize_config = InitializeInstructionConfig::default();
 
-    // Check that custodian data corresponds to the expected values
-    initialize_fixture.verify_custodian(
-        testing_context.testing_actors.owner.pubkey(),
-        testing_context.testing_actors.owner_assistant.pubkey(),
-        testing_context
-            .testing_actors
-            .fee_recipient
-            .token_account
-            .unwrap()
-            .address,
-    );
+    let testing_engine = TestingEngine::new(
+        testing_context,
+        vec![InstructionTrigger::InitializeProgram(initialize_config)],
+    )
+    .await;
+
+    testing_engine.execute().await;
 }
 
 /// Test that a CCTP token router endpoint is created for the arbitrum and ethereum chains
@@ -60,17 +60,18 @@ pub async fn test_cctp_token_router_endpoint_creation() {
     )
     .await;
 
-    let initialize_fixture = initialize_program(&testing_context).await;
+    let initialize_config = InitializeInstructionConfig::default();
 
-    let token_router_endpoints = create_cctp_router_endpoints_test(
-        &testing_context,
-        testing_context.testing_actors.owner.pubkey(),
-        initialize_fixture.get_custodian_address(),
-        testing_context.testing_actors.owner.keypair(),
+    let testing_engine = TestingEngine::new(
+        testing_context,
+        vec![
+            InstructionTrigger::InitializeProgram(initialize_config),
+            InstructionTrigger::CreateCctpRouterEndpoints,
+        ],
     )
     .await;
 
-    assert_eq!(token_router_endpoints.len(), 2);
+    testing_engine.execute().await;
 }
 
 #[tokio::test]
@@ -82,7 +83,10 @@ pub async fn test_local_token_router_endpoint_creation() {
     )
     .await;
 
-    let initialize_fixture = initialize_program(&testing_context).await;
+    let initialize_fixture =
+        initialize_program(&testing_context, AuctionParametersConfig::default(), None)
+            .await
+            .expect("Failed to initialize program");
 
     let _local_token_router_endpoint = add_local_router_endpoint_ix(
         &testing_context,
@@ -103,67 +107,24 @@ pub async fn test_setup_vaas() {
         post_vaa: true,
         ..VaaArgs::default()
     };
-    let mut testing_context =
+    let testing_context =
         setup_environment(ShimMode::PostVaa, transfer_direction, Some(vaa_args)).await;
 
     testing_context.verify_vaas().await;
-    let initialize_fixture = initialize_program(&testing_context).await;
 
-    // Try making initial offer
-    let fast_vaa = testing_context
-        .get_vaa_pair(0)
-        .expect("Failed to get vaa pair")
-        .fast_transfer_vaa;
-    let fast_vaa_pubkey = fast_vaa.get_vaa_pubkey();
-    let auction_config_address = initialize_fixture.get_auction_config_address();
-    let router_endpoints = create_all_router_endpoints_test(
-        &testing_context,
-        testing_context.testing_actors.owner.pubkey(),
-        initialize_fixture.get_custodian_address(),
-        testing_context.testing_actors.owner.keypair(),
+    let testing_engine = TestingEngine::new(
+        testing_context,
+        vec![
+            InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+            InstructionTrigger::CreateCctpRouterEndpoints,
+            InstructionTrigger::PlaceInitialOfferShimless(
+                PlaceInitialOfferInstructionConfig::default(),
+            ),
+            InstructionTrigger::ImproveOfferShimless(ImproveOfferInstructionConfig::default()),
+        ],
     )
     .await;
-
-    let solver = testing_context.testing_actors.solvers[0].clone();
-    let auction_accounts = AuctionAccounts::new(
-        Some(fast_vaa_pubkey),                      // Fast VAA pubkey
-        solver.clone(),                             // Solver
-        auction_config_address.clone(),             // Auction config pubkey
-        &router_endpoints,                          // Router endpoints
-        initialize_fixture.get_custodian_address(), // Custodian pubkey
-        testing_context.get_usdc_mint_address(),    // USDC mint pubkey
-        transfer_direction,
-    );
-
-    place_initial_offer_shimless(
-        &mut testing_context,
-        &auction_accounts,
-        fast_vaa,
-        PROGRAM_ID,
-        true, // Expected to pass
-    )
-    .await;
-    let auction_state = testing_context
-        .testing_state
-        .auction_state
-        .get_active_auction()
-        .unwrap();
-    auction_state
-        .verify_initial_offer(&testing_context.test_context)
-        .await;
-
-    improve_offer(
-        &mut testing_context,
-        PROGRAM_ID,
-        solver,
-        auction_config_address,
-    )
-    .await;
-    // TODO: Implement check on improved offer auction state
-    // auction_state
-    //     .borrow()
-    //     .verify_improved_offer(&testing_context.test_context)
-    //     .await;
+    testing_engine.execute().await;
 }
 
 #[tokio::test]
@@ -304,7 +265,7 @@ pub async fn test_close_fast_market_order_fallback() {
         &[
             FastMarketOrder::SEED_PREFIX,
             &fast_market_order.digest(),
-            &fast_market_order.refund_recipient,
+            &fast_market_order.close_account_refund_recipient,
         ],
         &PROGRAM_ID,
     )
@@ -408,8 +369,10 @@ pub async fn test_place_initial_offer_fallback() {
     )
     .await;
 
-    let initialize_fixture = initialize_program(&testing_context).await;
-    let auction_config_address = initialize_fixture.get_auction_config_address();
+    let initialize_fixture =
+        initialize_program(&testing_context, AuctionParametersConfig::default(), None)
+            .await
+            .expect("Failed to initialize program");
     let auction_accounts = utils::auction::AuctionAccounts::create_auction_accounts(
         &mut testing_context,
         &initialize_fixture,
@@ -423,6 +386,8 @@ pub async fn test_place_initial_offer_fallback() {
         true, // Expected to pass
     )
     .await;
+    let auction_config_address = initialize_fixture.get_auction_config_address();
+
     // Attempt to improve the offer using the non-fallback method with another solver making the improved offer
     println!("Improving offer");
     let second_solver = testing_context.testing_actors.solvers[1].clone();
@@ -431,6 +396,8 @@ pub async fn test_place_initial_offer_fallback() {
         PROGRAM_ID,
         second_solver,
         auction_config_address,
+        500_000,
+        None,
     )
     .await;
     println!("Offer improved");
@@ -451,7 +418,10 @@ pub async fn test_place_initial_offer_shim_blocks_non_shim() {
     )
     .await;
 
-    let initialize_fixture = initialize_program(&testing_context).await;
+    let initialize_fixture =
+        initialize_program(&testing_context, AuctionParametersConfig::default(), None)
+            .await
+            .expect("Failed to initialize program");
     let auction_accounts = utils::auction::AuctionAccounts::create_auction_accounts(
         &mut testing_context,
         &initialize_fixture,
@@ -475,7 +445,10 @@ pub async fn test_place_initial_offer_shim_blocks_non_shim() {
         &auction_accounts,
         first_test_ft,
         PROGRAM_ID,
-        false, // Expected to fail
+        Some(&ExpectedError {
+            instruction_index: 0,
+            error: MatchingEngineError::AccountAlreadyInitialized,
+        }), // Expected to fail
     )
     .await;
 }
@@ -494,7 +467,10 @@ pub async fn test_place_initial_offer_non_shim_blocks_shim() {
     )
     .await;
 
-    let initialize_fixture = initialize_program(&testing_context).await;
+    let initialize_fixture =
+        initialize_program(&testing_context, AuctionParametersConfig::default(), None)
+            .await
+            .expect("Failed to initialize program");
     let first_test_ft = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
     let auction_accounts = utils::auction::AuctionAccounts::create_auction_accounts(
         &mut testing_context,
@@ -509,7 +485,7 @@ pub async fn test_place_initial_offer_non_shim_blocks_shim() {
         &auction_accounts,
         first_test_ft,
         PROGRAM_ID,
-        true, // Expected to pass
+        None, // Expected to pass
     )
     .await;
     // Now test with the fallback program (shims) and expect it to fail
@@ -538,7 +514,10 @@ pub async fn test_execute_order_fallback() {
     )
     .await;
 
-    let initialize_fixture = initialize_program(&testing_context).await;
+    let initialize_fixture =
+        initialize_program(&testing_context, AuctionParametersConfig::default(), None)
+            .await
+            .expect("Failed to initialize program");
     let auction_accounts = utils::auction::AuctionAccounts::create_auction_accounts(
         &mut testing_context,
         &initialize_fixture,
@@ -592,7 +571,10 @@ pub async fn test_execute_order_shimless() {
         Some(vaa_args),
     )
     .await;
-    let initialize_fixture = initialize_program(&testing_context).await;
+    let initialize_fixture =
+        initialize_program(&testing_context, AuctionParametersConfig::default(), None)
+            .await
+            .expect("Failed to initialize program");
 
     let first_test_fast_transfer = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
     let first_test_fast_transfer_pubkey = first_test_fast_transfer.get_vaa_pubkey();
@@ -608,7 +590,7 @@ pub async fn test_execute_order_shimless() {
         &auction_accounts,
         first_test_fast_transfer,
         PROGRAM_ID,
-        true, // Expected to pass
+        None, // Expected to pass
     )
     .await;
 
@@ -629,7 +611,10 @@ pub async fn test_execute_order_fallback_blocks_shimless() {
     )
     .await;
     let first_test_fast_transfer = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
-    let initialize_fixture = initialize_program(&testing_context).await;
+    let initialize_fixture =
+        initialize_program(&testing_context, AuctionParametersConfig::default(), None)
+            .await
+            .expect("Failed to initialize program");
     let auction_accounts = utils::auction::AuctionAccounts::create_auction_accounts(
         &mut testing_context,
         &initialize_fixture,
@@ -677,7 +662,10 @@ pub async fn test_prepare_order_shim_fallback() {
         Some(vaa_args),
     )
     .await;
-    let initialize_fixture = initialize_program(&testing_context).await;
+    let initialize_fixture =
+        initialize_program(&testing_context, AuctionParametersConfig::default(), None)
+            .await
+            .expect("Failed to initialize program");
 
     let first_vaa_pair = testing_context.get_vaa_pair(0).unwrap();
     let payload_deserialized: utils::vaa::PayloadDeserialized = first_vaa_pair
@@ -761,7 +749,10 @@ pub async fn test_settle_auction_complete() {
     )
     .await;
 
-    let initialize_fixture = initialize_program(&testing_context).await;
+    let initialize_fixture =
+        initialize_program(&testing_context, AuctionParametersConfig::default(), None)
+            .await
+            .expect("Failed to initialize program");
 
     let first_vaa_pair = testing_context.get_vaa_pair(0).unwrap();
 

@@ -3,18 +3,22 @@ use anchor_lang::prelude::*;
 use solana_program::instruction::Instruction;
 use solana_program::program_error::ProgramError;
 
+use super::helpers::check_account_length;
 use super::FallbackMatchingEngineInstruction;
 
 pub struct CloseFastMarketOrderAccounts<'ix> {
+    /// The fast market order account created from the initialise fast market order instruction
     pub fast_market_order: &'ix Pubkey,
-    pub refund_recipient: &'ix Pubkey,
+    /// The account that will receive the refund. CHECK: Must be a signer.
+    /// CHECK: Must match the close account refund recipient in the fast market order account
+    pub close_account_refund_recipient: &'ix Pubkey,
 }
 
 impl<'ix> CloseFastMarketOrderAccounts<'ix> {
     pub fn to_account_metas(&self) -> Vec<AccountMeta> {
         vec![
             AccountMeta::new(*self.fast_market_order, false),
-            AccountMeta::new(*self.refund_recipient, false),
+            AccountMeta::new(*self.close_account_refund_recipient, true),
         ]
     }
 }
@@ -34,32 +38,43 @@ impl CloseFastMarketOrder<'_> {
     }
 }
 
+/// Closes the fast market order and transfers the lamports from the fast market order to the close account refund recipient
+///
+/// # Arguments
+///
+/// * `accounts` - The accounts of the fast market order and the close account refund recipient
+///
+/// # Returns
+///
+/// Result<()>
 pub fn close_fast_market_order(accounts: &[AccountInfo]) -> Result<()> {
-    if accounts.len() < 2 {
-        return Err(ProgramError::NotEnoughAccountKeys.into());
-    }
+    check_account_length(accounts, 2)?;
 
     let fast_market_order = &accounts[0];
-    let refund_recipient = &accounts[1];
+    let close_account_refund_recipient = &accounts[1];
 
-    if !refund_recipient.is_signer {
+    if !close_account_refund_recipient.is_signer {
         msg!("Refund recipient (account #2) is not a signer");
         return Err(ProgramError::InvalidAccountData.into());
     }
 
     let fast_market_order_data =
         FastMarketOrder::try_deserialize(&mut &fast_market_order.data.borrow()[..])?;
-    if fast_market_order_data.refund_recipient != refund_recipient.key().as_ref() {
-        msg!("Refund recipient (account #2) mismatch");
-        msg!("Actual:");
-        msg!("{:?}", refund_recipient.key.as_ref());
-        msg!("Expected:");
-        msg!("{:?}", fast_market_order_data.refund_recipient);
-        return Err(ProgramError::InvalidAccountData.into());
+    if fast_market_order_data.close_account_refund_recipient
+        != close_account_refund_recipient.key().as_ref()
+    {
+        return Err(ProgramError::InvalidAccountData.into()).map_err(|e: Error| {
+            e.with_pubkeys((
+                Pubkey::try_from(fast_market_order_data.close_account_refund_recipient)
+                    .expect("Failed to convert close account refund recipient to pubkey"),
+                close_account_refund_recipient.key(),
+            ))
+        });
     }
 
+    // Transfer the lamports from the fast market order to the close account refund recipient
     let mut fast_market_order_lamports = fast_market_order.lamports.borrow_mut();
-    **refund_recipient.lamports.borrow_mut() += **fast_market_order_lamports;
+    **close_account_refund_recipient.lamports.borrow_mut() += **fast_market_order_lamports;
     **fast_market_order_lamports = 0;
 
     Ok(())

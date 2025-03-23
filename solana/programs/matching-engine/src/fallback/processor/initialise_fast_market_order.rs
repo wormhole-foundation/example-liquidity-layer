@@ -4,18 +4,25 @@ use bytemuck::{Pod, Zeroable};
 use solana_program::instruction::Instruction;
 use solana_program::program::invoke_signed_unchecked;
 
-use super::create_account::create_account_reliably;
+use super::helpers::create_account_reliably;
 
-use super::errors::FallbackError;
+use super::helpers::check_account_length;
 use super::FallbackMatchingEngineInstruction;
+use crate::error::MatchingEngineError;
 use crate::state::FastMarketOrder as FastMarketOrderState;
 
 pub struct InitialiseFastMarketOrderAccounts<'ix> {
+    /// The signer of the transaction
     pub signer: &'ix Pubkey,
+    /// The fast market order account pubkey (that is created by the instruction)
     pub fast_market_order_account: &'ix Pubkey,
+    /// The guardian set account pubkey
     pub guardian_set: &'ix Pubkey,
+    /// The guardian set signatures account pubkey (created by the post verify vaa shim program)
     pub guardian_set_signatures: &'ix Pubkey,
+    /// The verify vaa shim program pubkey
     pub verify_vaa_shim_program: &'ix Pubkey,
+    /// The system program account pubkey
     pub system_program: &'ix Pubkey,
 }
 
@@ -35,11 +42,15 @@ impl<'ix> InitialiseFastMarketOrderAccounts<'ix> {
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 pub struct InitialiseFastMarketOrderData {
+    /// The fast market order as the bytemuck struct
     pub fast_market_order: FastMarketOrderState,
+    /// The guardian set bump
     pub guardian_set_bump: u8,
+    /// Padding to ensure bytemuck deserialization works
     _padding: [u8; 7],
 }
 impl InitialiseFastMarketOrderData {
+    // Adds the padding to the InitialiseFastMarketOrderData
     pub fn new(fast_market_order: FastMarketOrderState, guardian_set_bump: u8) -> Self {
         Self {
             fast_market_order,
@@ -48,6 +59,15 @@ impl InitialiseFastMarketOrderData {
         }
     }
 
+    /// Deserializes the InitialiseFastMarketOrderData from a byte slice
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - A byte slice containing the InitialiseFastMarketOrderData
+    ///
+    /// # Returns
+    ///
+    /// Option<&Self> - The deserialized InitialiseFastMarketOrderData or None if the byte slice is not the correct length
     pub fn from_bytes(data: &[u8]) -> Option<&Self> {
         bytemuck::try_from_bytes::<Self>(data).ok()
     }
@@ -69,13 +89,27 @@ impl InitialiseFastMarketOrder<'_> {
     }
 }
 
+/// Initialises the fast market order account
+///
+/// The verify shim program first checks that the digest of the fast market order is correct, and that the guardian signature is correct and recoverable.
+/// If this is the case, the fast market order account is created. The fast market order account is owned by the matching engine program. It can be closed
+/// by the close fast market order instruction, which returns the lamports to the close account refund recipient.
+///
+/// # Arguments
+///
+/// * `accounts` - The accounts of the fast market order and the guardian set
+///
+/// # Returns
+///
+/// Result<()>
 pub fn initialise_fast_market_order(
     accounts: &[AccountInfo],
     data: &InitialiseFastMarketOrderData,
 ) -> Result<()> {
-    if accounts.len() < 6 {
-        return Err(ErrorCode::AccountNotEnoughKeys.into());
-    }
+    check_account_length(accounts, 6)?;
+
+    let program_id = crate::ID;
+
     let signer = &accounts[0];
     let fast_market_order_account = &accounts[1];
     let guardian_set = &accounts[2];
@@ -88,6 +122,7 @@ pub fn initialise_fast_market_order(
         guardian_set_bump,
         _padding: _,
     } = *data;
+
     // Start of cpi call to verify the shim.
     // ------------------------------------------------------------------------------------------------
     let fast_market_order_digest = fast_market_order.digest();
@@ -121,32 +156,32 @@ pub fn initialise_fast_market_order(
     // ------------------------------------------------------------------------------------------------
     // End of cpi call to verify the shim.
 
+    // Start of fast market order account creation
+    // ------------------------------------------------------------------------------------------------
     let fast_market_order_key = fast_market_order_account.key();
-    // Create the fast market order account
-    let program_id = crate::ID;
     let space = 8 + std::mem::size_of::<FastMarketOrderState>();
     let (fast_market_order_pda, fast_market_order_bump) = Pubkey::find_program_address(
         &[
             FastMarketOrderState::SEED_PREFIX,
             fast_market_order_digest.as_ref(),
-            fast_market_order.refund_recipient.as_ref(),
+            fast_market_order.close_account_refund_recipient.as_ref(),
         ],
         &program_id,
     );
 
     if fast_market_order_pda != fast_market_order_key {
         msg!("Fast market order pda is invalid");
-        return Err(FallbackError::InvalidPda.into())
+        return Err(MatchingEngineError::InvalidPda.into())
             .map_err(|e: Error| e.with_pubkeys((fast_market_order_key, fast_market_order_pda)));
     }
     let fast_market_order_seeds = [
         FastMarketOrderState::SEED_PREFIX,
         fast_market_order_digest.as_ref(),
-        fast_market_order.refund_recipient.as_ref(),
+        fast_market_order.close_account_refund_recipient.as_ref(),
         &[fast_market_order_bump],
     ];
     let fast_market_order_signer_seeds = &[&fast_market_order_seeds[..]];
-    // Create the account using the system program
+    // Create the account using the system program. The create account reliably ensures that the account creation cannot be raced.
     create_account_reliably(
         &signer.key(),
         &fast_market_order_key,
@@ -168,12 +203,14 @@ pub fn initialise_fast_market_order(
     // Ensure the destination has enough space
     if fast_market_order_account_data.len() < 8 + fast_market_order_bytes.len() {
         msg!("Account data buffer too small");
-        return Err(FallbackError::AccountDataTooSmall.into());
+        return Err(MatchingEngineError::AccountDataTooSmall.into());
     }
 
     // Write the fast_market_order struct to the account
     fast_market_order_account_data[8..8 + fast_market_order_bytes.len()]
         .copy_from_slice(fast_market_order_bytes);
+    // End of fast market order account creation
+    // ------------------------------------------------------------------------------------------------
 
     Ok(())
 }

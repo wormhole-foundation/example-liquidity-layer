@@ -185,7 +185,7 @@ pub async fn execute_order_fallback(
 
     // Considering fast forwarding blocks here for deadline to be reached
     let recent_blockhash = test_ctx.borrow().last_blockhash;
-    utils::setup::fast_forward_slots(test_ctx, 1).await;
+    utils::setup::fast_forward_slots(test_ctx, 3).await;
     let transaction = Transaction::new_signed_with_payer(
         &[execute_order_ix],
         Some(&payer_signer.pubkey()),

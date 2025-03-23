@@ -13,13 +13,16 @@ use super::{
     token_account::{create_token_account, read_keypair_from_file, TokenAccountFixture},
 };
 use super::{Chain, REGISTERED_TOKEN_ROUTERS};
+use crate::testing_engine::config::ExpectedError;
 use anchor_lang::AccountDeserialize;
 use anchor_spl::token::{
     spl_token::{self, instruction::approve},
     TokenAccount,
 };
 use matching_engine::{CCTP_MINT_RECIPIENT, ID as PROGRAM_ID};
-use solana_program_test::{ProgramTest, ProgramTestContext};
+use solana_program_test::{BanksClientError, ProgramTest, ProgramTestContext};
+use solana_sdk::instruction::InstructionError;
+use solana_sdk::transaction::{TransactionError, VersionedTransaction};
 use solana_sdk::{
     pubkey::Pubkey,
     signature::{Keypair, Signer},
@@ -114,23 +117,8 @@ impl PreTestingContext {
     }
 }
 
-pub struct TestingState {
-    pub auction_state: AuctionState,
-    pub vaas: TestVaaPairs,
-    pub transfer_direction: TransferDirection,
-}
-
-impl Default for TestingState {
-    fn default() -> Self {
-        Self {
-            auction_state: AuctionState::Inactive,
-            vaas: TestVaaPairs::new(),
-            transfer_direction: TransferDirection::FromEthereumToArbitrum,
-        }
-    }
-}
 pub struct TestingContext {
-    pub program_data_account: Pubkey, // Move this into something smarter
+    pub program_data_account: Pubkey, // TODO: Move this into something smarter
     pub testing_actors: TestingActors,
     pub test_context: Rc<RefCell<ProgramTestContext>>,
     pub fixture_accounts: Option<FixtureAccounts>,
@@ -214,6 +202,58 @@ impl TestingContext {
 
     pub fn get_wormhole_program_id(&self) -> Pubkey {
         wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID
+    }
+
+    // TODO: Edit to handle multiple instructions in a single transaction
+    pub async fn execute_and_verify_transaction(
+        &self,
+        transaction: impl Into<VersionedTransaction>,
+        expected_error: Option<&ExpectedError>,
+    ) {
+        let tx_result = self
+            .test_context
+            .borrow_mut()
+            .banks_client
+            .process_transaction(transaction)
+            .await;
+        if let Some(expected_error) = expected_error {
+            let tx_error = tx_result.expect_err(&format!(
+                "Expected error {:?}, but transaction succeeded",
+                expected_error.error
+            ));
+
+            match tx_error {
+                BanksClientError::TransactionError(TransactionError::InstructionError(
+                    instruction_index,
+                    InstructionError::Custom(error_code),
+                )) => {
+                    assert_eq!(
+                        instruction_index, expected_error.instruction_index,
+                        "Expected error on instruction {}, but got: {:?}",
+                        expected_error.instruction_index, tx_error
+                    );
+                    let expected_error_code = u32::from(expected_error.error);
+
+                    assert_eq!(
+                        error_code, expected_error_code,
+                        "Program returned error code {}, expected {} ({:?})",
+                        error_code, expected_error_code, expected_error.error
+                    );
+                }
+                _ => {
+                    panic!(
+                        "Expected program error {:?}, but got: {:?}",
+                        expected_error.error, tx_error
+                    );
+                }
+            }
+        } else {
+            assert!(
+                tx_result.is_ok(),
+                "Transaction failed but no error was expected: {:?}",
+                tx_result.err().unwrap()
+            );
+        }
     }
 }
 
@@ -464,6 +504,48 @@ pub async fn fast_forward_slots(test_context: &Rc<RefCell<ProgramTestContext>>, 
     println!("Fast forwarded {} slots", num_slots);
 }
 
+#[derive(Clone)]
+pub enum ProgramState {
+    Initialized(ProgramAddresses),
+    Uninitialized,
+}
+
+impl ProgramState {
+    pub fn initialize(&mut self, custodian_address: Pubkey) {
+        *self = ProgramState::Initialized(ProgramAddresses { custodian_address });
+    }
+
+    pub fn get_custodian_address(&self) -> Pubkey {
+        match self {
+            ProgramState::Initialized(addresses) => addresses.custodian_address,
+            ProgramState::Uninitialized => panic!("Program is not initialized"),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct ProgramAddresses {
+    pub custodian_address: Pubkey,
+}
+
+pub struct TestingState {
+    pub program_state: ProgramState,
+    pub auction_state: AuctionState,
+    pub vaas: TestVaaPairs,
+    pub transfer_direction: TransferDirection,
+}
+
+impl Default for TestingState {
+    fn default() -> Self {
+        Self {
+            program_state: ProgramState::Uninitialized,
+            auction_state: AuctionState::Inactive,
+            vaas: TestVaaPairs::new(),
+            transfer_direction: TransferDirection::FromEthereumToArbitrum,
+        }
+    }
+}
+
 pub enum ShimMode {
     None,
     PostVaa,
@@ -477,6 +559,27 @@ pub enum TransferDirection {
     FromEthereumToArbitrum,
 }
 
+impl Default for TransferDirection {
+    fn default() -> Self {
+        Self::FromArbitrumToEthereum
+    }
+}
+
+/// Setup the environment for the tests
+///
+/// This function first creates a PreTestingContext struct, which allows setting up the program test context, and load in accounts before starting the test context.
+/// Then it starts the test context and returns a TestingContext struct.
+///
+/// # Arguments
+///
+/// * `shim_mode` - The mode of the shim
+/// * `transfer_direction` - The direction of the transfer
+/// * `vaa_args` - The arguments for the VAA
+///
+/// # Returns
+///
+/// A TestingContext struct containing the testing actors, test context, loaded fixture accounts,
+/// and testing state (which includes the auction state and the VAAs)
 pub async fn setup_environment(
     shim_mode: ShimMode,
     transfer_direction: TransferDirection,

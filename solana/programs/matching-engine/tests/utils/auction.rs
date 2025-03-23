@@ -44,6 +44,7 @@ impl AuctionState {
 pub struct ActiveAuctionState {
     pub auction_address: Pubkey,
     pub auction_custody_token_address: Pubkey,
+    pub auction_config_address: Pubkey,
     pub initial_offer: AuctionOffer,
     pub best_offer: AuctionOffer,
 }
@@ -117,8 +118,8 @@ impl AuctionAccounts {
 
 impl ActiveAuctionState {
     // TODO: Figure this out
-    pub async fn verify_initial_offer(&self, testing_context: &Rc<RefCell<ProgramTestContext>>) {
-        let auction_account = testing_context
+    pub async fn verify_initial_offer(&self, test_ctx: &Rc<RefCell<ProgramTestContext>>) {
+        let auction_account = test_ctx
             .borrow_mut()
             .banks_client
             .get_account(self.auction_address)

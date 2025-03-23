@@ -1,10 +1,20 @@
 use anchor_lang::prelude::*;
+
 use solana_program::{
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
     program::invoke_signed_unchecked,
     system_instruction,
 };
+
+#[inline(always)]
+pub fn check_account_length(accounts: &[AccountInfo], len: usize) -> Result<()> {
+    if accounts.len() < len {
+        return Err(ErrorCode::AccountNotEnoughKeys.into());
+    }
+    Ok(())
+}
+
 pub fn create_account_reliably(
     payer_key: &Pubkey,
     account_key: &Pubkey,

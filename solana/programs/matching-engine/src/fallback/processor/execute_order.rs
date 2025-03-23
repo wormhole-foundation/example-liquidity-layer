@@ -1,3 +1,4 @@
+use super::helpers::check_account_length;
 use crate::state::{
     Auction, AuctionConfig, AuctionStatus, Custodian, FastMarketOrder as FastMarketOrderState,
     MessageProtocol, RouterEndpoint,
@@ -12,7 +13,6 @@ use solana_program::instruction::Instruction;
 use solana_program::program::invoke_signed_unchecked;
 
 use super::burn_and_post::{burn_and_post, PostMessageAccounts};
-use super::errors::FallbackError;
 use super::FallbackMatchingEngineInstruction;
 use crate::error::MatchingEngineError;
 
@@ -153,7 +153,11 @@ impl ExecuteOrderCctpShim<'_> {
         }
     }
 }
+
 pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
+    // This saves stack space whereas having that in the body does not
+    check_account_length(accounts, 31)?;
+
     let program_id = &crate::ID;
 
     // Get the accounts
@@ -169,8 +173,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     let initial_offer_token_account = &accounts[9];
     let initial_participant_account = &accounts[10];
     let to_router_endpoint_account = &accounts[11];
-    // TODO: These are not used, so can I just ignore them?
-    // TODO: Check that this is the correct program id for the post message shim program
     let _post_message_shim_program_account = &accounts[12];
     let _post_message_sequence_account = &accounts[13];
     let _post_message_message_account = &accounts[14];
@@ -202,7 +204,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     // Check cctp message is mutable
     if !cctp_message_account.is_writable {
         msg!("Cctp message is not writable");
-        return Err(FallbackError::AccountNotWritable.into())
+        return Err(MatchingEngineError::AccountNotWritable.into())
             .map_err(|e: Error| e.with_account_name("cctp_message"));
     }
 
@@ -244,7 +246,9 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     let fast_market_order_seeds = [
         FastMarketOrderState::SEED_PREFIX,
         fast_market_order_digest.as_ref(),
-        fast_market_order_zero_copy.refund_recipient.as_ref(),
+        fast_market_order_zero_copy
+            .close_account_refund_recipient
+            .as_ref(),
     ];
 
     let (fast_market_order_pda, _fast_market_order_bump) =
@@ -274,8 +278,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     let mut active_auction =
         Auction::try_deserialize(&mut &active_auction_account.data.borrow()[..])?;
 
-    // TODO: Check that the auction has reached its deadline
-
     // Correct way to use create_program_address with existing seeds and bump
     let active_auction_pda = Pubkey::create_program_address(
         &[
@@ -287,7 +289,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     )
     .map_err(|_| {
         msg!("Failed to create program address with known bump");
-        FallbackError::InvalidPda
+        MatchingEngineError::InvalidPda
     })?;
     if active_auction_pda != active_auction_account.key() {
         msg!("Active auction pda is invalid");
@@ -314,7 +316,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     )
     .map_err(|_| {
         msg!("Failed to create program address with known bump");
-        FallbackError::InvalidPda
+        MatchingEngineError::InvalidPda
     })?;
     if active_auction_custody_token_pda != active_auction_custody_token_account.key() {
         msg!("Active auction custody token pda is invalid");
@@ -334,6 +336,14 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         return Err(MatchingEngineError::AuctionConfigMismatch.into())
             .map_err(|e: Error| e.with_account_name("active_auction_config"));
     };
+
+    // Check that the auction has reached its deadline
+    let auction_info = active_auction.info.as_ref().unwrap();
+    if auction_info.within_auction_duration(&active_auction_config.parameters) {
+        msg!("Auction has not reached its deadline");
+        return Err(MatchingEngineError::AuctionPeriodNotExpired.into())
+            .map_err(|e: Error| e.with_account_name("active_auction"));
+    }
 
     // Check active auction best offer token address
     if active_auction_best_offer_token_account.key()

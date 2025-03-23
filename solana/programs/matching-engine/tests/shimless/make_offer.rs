@@ -1,3 +1,5 @@
+use crate::testing_engine::config::ExpectedError;
+
 use super::super::utils;
 use anchor_lang::prelude::*;
 use anchor_lang::InstructionData;
@@ -24,7 +26,7 @@ pub async fn place_initial_offer_shimless(
     accounts: &AuctionAccounts,
     fast_market_order: TestVaa,
     program_id: Pubkey,
-    expected_to_pass: bool,
+    expected_error: Option<&ExpectedError>,
 ) {
     let test_ctx = &testing_context.test_context;
     let owner_keypair = testing_context.testing_actors.owner.keypair();
@@ -140,16 +142,16 @@ pub async fn place_initial_offer_shimless(
         test_ctx.borrow().last_blockhash,
     );
 
-    let tx_result = test_ctx
-        .borrow_mut()
-        .banks_client
-        .process_transaction(tx)
+    testing_context
+        .execute_and_verify_transaction(tx, expected_error)
         .await;
-    assert_eq!(tx_result.is_ok(), expected_to_pass);
-    if tx_result.is_ok() {
+
+    // If the transaction failed and we expected it to pass, we would not get here
+    if expected_error.is_none() {
         testing_context.testing_state.auction_state = AuctionState::Active(ActiveAuctionState {
             auction_address,
             auction_custody_token_address,
+            auction_config_address: accounts.auction_config,
             initial_offer: AuctionOffer {
                 offer_token: accounts.offer_token,
                 offer_price: initial_offer_ix.offer_price,
@@ -167,21 +169,20 @@ pub async fn improve_offer(
     program_id: Pubkey,
     solver: Solver,
     auction_config: Pubkey,
+    offer_price: u64,
+    expected_error: Option<&ExpectedError>,
 ) {
     let test_ctx = &testing_context.test_context;
     let owner_keypair = testing_context.testing_actors.owner.keypair();
-    let auction_state = &mut testing_context
+    let auction_state = testing_context
         .testing_state
         .auction_state
-        .get_active_auction_mut()
+        .get_active_auction()
         .unwrap();
     let auction_address = auction_state.auction_address;
     let auction_custody_token_address = auction_state.auction_custody_token_address;
 
-    // Decrease the offer by 0.5 usdc
-    let improve_offer_ix = ImproveOfferIx {
-        offer_price: auction_state.best_offer.offer_price - 500_000,
-    };
+    let improve_offer_ix = ImproveOfferIx { offer_price };
 
     let event_authority = Pubkey::find_program_address(&[b"__event_authority"], &program_id).0;
     let transfer_authority = Pubkey::find_program_address(
@@ -234,15 +235,20 @@ pub async fn improve_offer(
         test_ctx.borrow().last_blockhash,
     );
 
-    test_ctx
-        .borrow_mut()
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .expect("Failed to improve offer");
+    testing_context
+        .execute_and_verify_transaction(tx, expected_error)
+        .await;
 
-    auction_state.best_offer = AuctionOffer {
-        offer_token,
-        offer_price: improve_offer_ix.offer_price,
-    };
+    // If the transaction failed and we expected it to pass, we would not get here
+    if expected_error.is_none() {
+        let auction_state = testing_context
+            .testing_state
+            .auction_state
+            .get_active_auction_mut()
+            .unwrap();
+        auction_state.best_offer = AuctionOffer {
+            offer_token,
+            offer_price: improve_offer_ix.offer_price,
+        };
+    }
 }

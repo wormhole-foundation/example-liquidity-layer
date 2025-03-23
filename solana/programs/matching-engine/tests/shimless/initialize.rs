@@ -1,16 +1,15 @@
-use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     instruction::Instruction,
     pubkey::Pubkey,
     signature::Signer,
     transaction::{Transaction, VersionedTransaction},
 };
-use std::cell::RefCell;
-use std::rc::Rc;
 
 use anchor_lang::AccountDeserialize;
 use anchor_spl::{associated_token::spl_associated_token_account, token::spl_token};
 use solana_program::{bpf_loader_upgradeable, system_program};
+
+use crate::testing_engine::config::ExpectedError;
 
 use super::super::TestingContext;
 use anchor_lang::{InstructionData, ToAccountMetas};
@@ -27,7 +26,6 @@ pub struct InitializeAddresses {
 }
 
 pub struct InitializeFixture {
-    pub test_context: Rc<RefCell<ProgramTestContext>>,
     pub custodian: Custodian,
     pub addresses: InitializeAddresses,
 }
@@ -92,30 +90,75 @@ impl InitializeFixture {
     }
 }
 
-pub async fn initialize_program(testing_context: &TestingContext) -> InitializeFixture {
-    let test_context = testing_context.test_context.clone();
+#[derive(Clone)]
+pub struct AuctionParametersConfig {
+    // Auction config iid used for seeding the auction config account
+    pub config_id: u32,
+    // Fields in the auction parameters account
+    pub user_penalty_reward_bps: u32,
+    pub initial_penalty_bps: u32,
+    pub duration: u16,
+    pub grace_period: u16,
+    pub penalty_period: u16,
+    pub min_offer_delta_bps: u32,
+    pub security_deposit_base: u64,
+    pub security_deposit_bps: u32,
+}
+
+impl Default for AuctionParametersConfig {
+    fn default() -> Self {
+        Self {
+            config_id: 0,
+            user_penalty_reward_bps: 250_000, // 25%
+            initial_penalty_bps: 250_000,     // 25%
+            duration: 2,
+            grace_period: 5,
+            penalty_period: 10,
+            min_offer_delta_bps: 20_000, // 2%
+            security_deposit_base: 4_200_000,
+            security_deposit_bps: 5_000, // 0.5%
+        }
+    }
+}
+
+impl Into<AuctionParameters> for AuctionParametersConfig {
+    fn into(self) -> AuctionParameters {
+        AuctionParameters {
+            user_penalty_reward_bps: self.user_penalty_reward_bps,
+            initial_penalty_bps: self.initial_penalty_bps,
+            duration: self.duration,
+            grace_period: self.grace_period,
+            penalty_period: self.penalty_period,
+            min_offer_delta_bps: self.min_offer_delta_bps,
+            security_deposit_base: self.security_deposit_base,
+            security_deposit_bps: self.security_deposit_bps,
+        }
+    }
+}
+
+pub async fn initialize_program(
+    testing_context: &TestingContext,
+    auction_parameters_config: AuctionParametersConfig,
+    expected_error: Option<&ExpectedError>,
+) -> Option<InitializeFixture> {
+    let test_context = &testing_context.test_context;
     let program_id = testing_context.get_matching_engine_program_id();
     let usdc_mint_address = testing_context.get_usdc_mint_address();
     let cctp_mint_recipient = testing_context.get_cctp_mint_recipient();
     let (custodian, _custodian_bump) =
         Pubkey::find_program_address(&[Custodian::SEED_PREFIX], &program_id);
 
+    // TODO: Figure out this seed? Where does the 0u32 come from?
     let (auction_config, _auction_config_bump) = Pubkey::find_program_address(
-        &[AuctionConfig::SEED_PREFIX, &0u32.to_be_bytes()],
+        &[
+            AuctionConfig::SEED_PREFIX,
+            &auction_parameters_config.config_id.to_be_bytes(),
+        ],
         &program_id,
     );
 
     // Create AuctionParameters
-    let auction_params = AuctionParameters {
-        user_penalty_reward_bps: 250_000, // 25%
-        initial_penalty_bps: 250_000,     // 25%
-        duration: 2,
-        grace_period: 5,
-        penalty_period: 10,
-        min_offer_delta_bps: 20_000, // 2%
-        security_deposit_base: 4_200_000,
-        security_deposit_bps: 5_000, // 0.5%
-    };
+    let auction_params: AuctionParameters = auction_parameters_config.into();
 
     // Create the instruction data
     let ix_data = matching_engine::instruction::Initialize {
@@ -172,32 +215,33 @@ pub async fn initialize_program(testing_context: &TestingContext) -> InitializeF
     // Process transaction
     let versioned_transaction = VersionedTransaction::try_from(transaction)
         .expect("Failed to convert transaction to versioned transaction");
-    test_context
-        .borrow_mut()
-        .banks_client
-        .process_transaction(versioned_transaction)
-        .await
-        .unwrap();
 
-    // Verify the results
-    let custodian_account = test_context
-        .borrow_mut()
-        .banks_client
-        .get_account(custodian.clone())
-        .await
-        .unwrap()
-        .unwrap();
+    testing_context
+        .execute_and_verify_transaction(versioned_transaction, expected_error)
+        .await;
 
-    let custodian_data =
-        Custodian::try_deserialize(&mut custodian_account.data.as_slice()).unwrap();
-    let initialize_addresses = InitializeAddresses {
-        custodian_address: custodian,
-        auction_config_address: auction_config,
-        cctp_mint_recipient: cctp_mint_recipient,
-    };
-    InitializeFixture {
-        test_context,
-        custodian: custodian_data,
-        addresses: initialize_addresses,
+    if expected_error.is_none() {
+        // Verify the results
+        let custodian_account = test_context
+            .borrow_mut()
+            .banks_client
+            .get_account(custodian.clone())
+            .await
+            .expect("Failed to get custodian account")
+            .expect("Custodian account not found");
+
+        let custodian_data =
+            Custodian::try_deserialize(&mut custodian_account.data.as_slice()).unwrap();
+        let initialize_addresses = InitializeAddresses {
+            custodian_address: custodian,
+            auction_config_address: auction_config,
+            cctp_mint_recipient: cctp_mint_recipient,
+        };
+        Some(InitializeFixture {
+            custodian: custodian_data,
+            addresses: initialize_addresses,
+        })
+    } else {
+        None
     }
 }

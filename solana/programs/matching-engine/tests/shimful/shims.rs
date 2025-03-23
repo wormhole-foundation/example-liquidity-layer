@@ -504,7 +504,7 @@ pub async fn place_initial_offer_fallback(
         &[
             FastMarketOrderState::SEED_PREFIX,
             &fast_market_order.digest(),
-            &fast_market_order.refund_recipient,
+            &fast_market_order.close_account_refund_recipient,
         ],
         program_id,
     )
@@ -567,6 +567,7 @@ pub async fn place_initial_offer_fallback(
         let new_active_auction_state = utils::auction::ActiveAuctionState {
             auction_address,
             auction_custody_token_address,
+            auction_config_address: auction_accounts.auction_config,
             initial_offer: utils::auction::AuctionOffer {
                 offer_token: auction_accounts.offer_token,
                 offer_price,
@@ -603,7 +604,7 @@ pub fn initialise_fast_market_order_fallback_instruction(
         &[
             FastMarketOrderState::SEED_PREFIX,
             &fast_market_order.digest(),
-            &fast_market_order.refund_recipient,
+            &fast_market_order.close_account_refund_recipient,
         ],
         program_id,
     )
@@ -641,7 +642,7 @@ pub async fn close_fast_market_order_fallback(
         program_id: program_id,
         accounts: CloseFastMarketOrderFallbackAccounts {
             fast_market_order: fast_market_order_address,
-            refund_recipient: &refund_recipient_keypair.pubkey(),
+            close_account_refund_recipient: &refund_recipient_keypair.pubkey(),
         },
     }
     .instruction();

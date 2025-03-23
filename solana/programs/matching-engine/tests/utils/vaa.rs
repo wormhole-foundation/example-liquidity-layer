@@ -293,13 +293,13 @@ impl TestVaaPair {
         vaa_nonce: u32,
         sequence: u64,
         cctp_mint_recipient: Pubkey,
-        create_deposit_and_fast_transfer_params: CreateDepositAndFastTransferParams,
+        create_deposit_and_fast_transfer_params: &CreateDepositAndFastTransferParams,
         is_posted: bool,
     ) -> Self {
         create_deposit_and_fast_transfer_params.verify();
-        let deposit_params = create_deposit_and_fast_transfer_params.deposit_params;
+        let deposit_params = &create_deposit_and_fast_transfer_params.deposit_params;
         let create_fast_transfer_params =
-            create_deposit_and_fast_transfer_params.fast_transfer_params;
+            &create_deposit_and_fast_transfer_params.fast_transfer_params;
         let (deposit_vaa_pubkey, deposit_vaa_data, deposit) = create_deposit_message(
             token_mint,
             source_address.clone(),
@@ -509,12 +509,13 @@ impl TestVaaPairs {
         destination_address: ChainAddress,
         cctp_mint_recipient: Pubkey,
         vaa_args: &VaaArgs,
-        create_deposit_and_fast_transfer_params: CreateDepositAndFastTransferParams,
     ) {
         let sequence = vaa_args.sequence.unwrap_or(self.len() as u64);
         let cctp_nonce = vaa_args.cctp_nonce.unwrap_or(sequence + 1);
         let vaa_nonce = vaa_args.vaa_nonce.unwrap_or(0);
         let is_posted = vaa_args.post_vaa;
+        let create_deposit_and_fast_transfer_params =
+            &vaa_args.create_deposit_and_fast_transfer_params;
         let test_fast_transfer = TestVaaPair::new(
             vaa_args.start_timestamp,
             token_mint,
@@ -541,7 +542,6 @@ impl TestVaaPairs {
         source_address: [u8; 32],
         destination_address: [u8; 32],
         vaa_args: &VaaArgs,
-        create_deposit_and_fast_transfer_params: CreateDepositAndFastTransferParams,
     ) {
         let source_address = ChainAddress::new_with_address(source_chain, source_address);
         let destination_address =
@@ -554,7 +554,6 @@ impl TestVaaPairs {
             destination_address,
             cctp_mint_recipient,
             vaa_args,
-            create_deposit_and_fast_transfer_params,
         );
         if vaa_args.post_vaa {
             for test_fast_transfer in self.0.iter() {
@@ -578,6 +577,7 @@ pub struct VaaArgs {
     pub vaa_nonce: Option<u32>,
     pub start_timestamp: Option<u32>,
     pub post_vaa: bool,
+    pub create_deposit_and_fast_transfer_params: CreateDepositAndFastTransferParams,
 }
 
 impl Default for VaaArgs {
@@ -588,6 +588,7 @@ impl Default for VaaArgs {
             vaa_nonce: None,
             start_timestamp: None,
             post_vaa: false,
+            create_deposit_and_fast_transfer_params: CreateDepositAndFastTransferParams::default(),
         }
     }
 }
@@ -603,7 +604,6 @@ pub fn create_vaas_test_with_chain_and_address(
     vaa_args: VaaArgs,
 ) -> TestVaaPairs {
     let mut test_fast_transfers = TestVaaPairs::new();
-    let create_deposit_and_fast_transfer_params = CreateDepositAndFastTransferParams::default();
     test_fast_transfers.create_vaas_with_chain_and_address(
         program_test,
         mint_address,
@@ -613,7 +613,6 @@ pub fn create_vaas_test_with_chain_and_address(
         source_address,
         destination_address,
         &vaa_args,
-        create_deposit_and_fast_transfer_params,
     );
     test_fast_transfers
 }
