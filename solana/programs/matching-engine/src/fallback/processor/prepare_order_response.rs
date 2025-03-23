@@ -1,7 +1,8 @@
 use std::io::Cursor;
 
-use super::create_account::create_account_reliably;
+use super::helpers::create_account_reliably;
 use super::FallbackMatchingEngineInstruction;
+use crate::fallback::helpers::check_account_length;
 use crate::state::PreparedOrderResponseInfo;
 use crate::state::PreparedOrderResponseSeeds;
 use crate::state::{
@@ -19,7 +20,6 @@ use solana_program::keccak;
 use solana_program::program::invoke_signed_unchecked;
 use solana_program::program_pack::Pack;
 
-use super::errors::FallbackError;
 use crate::error::MatchingEngineError;
 
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize)]
@@ -193,9 +193,7 @@ pub fn prepare_order_response_cctp_shim(
     data: PrepareOrderResponseCctpShimData,
 ) -> Result<()> {
     let program_id = &crate::ID;
-    if accounts.len() < 27 {
-        return Err(ErrorCode::AccountNotEnoughKeys.into());
-    }
+    check_account_length(accounts, 27)?;
 
     let signer = &accounts[0];
     let custodian = &accounts[1];
@@ -242,8 +240,6 @@ pub fn prepare_order_response_cctp_shim(
         let finalised_vaa_emitter_address = fast_market_order_zero_copy.vaa_emitter_address;
         let finalised_vaa_nonce = fast_market_order_zero_copy.vaa_nonce;
         let finalised_vaa_consistency_level = fast_market_order_zero_copy.vaa_consistency_level;
-        msg!("Finalised vaa sequence: {:?}", finalised_vaa_sequence);
-        msg!("Finalised vaa nonce: {:?}", finalised_vaa_nonce);
         &finalized_vaa_message.digest(
             finalised_vaa_sequence,
             finalised_vaa_timestamp,
@@ -254,21 +250,11 @@ pub fn prepare_order_response_cctp_shim(
         )
     };
 
-    msg!(
-        "Finalized VAA message digest: {:?}",
-        finalized_vaa_message_digest
-    );
-
     // Check that fast market order is owned by the program
-    if fast_market_order.owner != program_id {
-        msg!(
-            "Fast market order owner is invalid: expected {}, got {}",
-            program_id,
-            fast_market_order.owner
-        );
-        return Err(ErrorCode::ConstraintOwner.into())
-            .map_err(|e: Error| e.with_account_name("fast_market_order"));
-    }
+    require!(
+        fast_market_order.owner == program_id,
+        ErrorCode::ConstraintOwner
+    );
 
     let checked_custodian =
         Custodian::try_deserialize(&mut &custodian.data.borrow()[..]).map(Box::new)?;
@@ -309,111 +295,85 @@ pub fn prepare_order_response_cctp_shim(
         Pubkey::find_program_address(&prepared_custody_token_seeds, program_id);
 
     // Check custodian account
-    if custodian.owner != program_id {
-        msg!(
-            "Custodian owner is invalid: expected {}, got {}",
-            program_id,
-            custodian.owner
-        );
-        return Err(ErrorCode::ConstraintOwner.into())
-            .map_err(|e: Error| e.with_account_name("custodian"));
-    }
+    require!(custodian.owner == program_id, ErrorCode::ConstraintOwner);
 
-    if checked_custodian.paused {
-        msg!("Custodian is paused");
-        return Err(ErrorCode::ConstraintRaw.into())
-            .map_err(|e: Error| e.with_account_name("custodian"));
-    }
+    require!(!checked_custodian.paused, MatchingEngineError::Paused);
 
     // Check usdc mint
-    if usdc.key() != common::USDC_MINT {
-        msg!("Usdc mint is invalid");
-        return Err(FallbackError::InvalidMint.into());
-    }
+    require!(
+        usdc.key() == common::USDC_MINT,
+        MatchingEngineError::InvalidMint
+    );
 
     // Check from_endpoint owner
-    if from_endpoint.owner != program_id {
-        msg!(
-            "From endpoint owner is invalid: expected {}, got {}",
-            program_id,
-            from_endpoint.owner
-        );
-        return Err(ErrorCode::ConstraintOwner.into())
-            .map_err(|e: Error| e.with_account_name("from_endpoint"));
-    }
+    require!(
+        from_endpoint.owner == program_id,
+        ErrorCode::ConstraintOwner
+    );
 
     // Check to_endpoint owner
-    if to_endpoint.owner != program_id {
-        msg!(
-            "To endpoint owner is invalid: expected {}, got {}",
-            program_id,
-            to_endpoint.owner
-        );
-        return Err(ErrorCode::ConstraintOwner.into())
-            .map_err(|e: Error| e.with_account_name("to_endpoint"));
-    }
+    require!(to_endpoint.owner == program_id, ErrorCode::ConstraintOwner);
 
     // Check that the from and to endpoints are different
-    if from_endpoint_account.chain == to_endpoint_account.chain {
-        return Err(MatchingEngineError::SameEndpoint.into());
-    }
+    require!(
+        from_endpoint_account.chain != to_endpoint_account.chain,
+        MatchingEngineError::SameEndpoint
+    );
 
     // Check that the to endpoint protocol is cctp or local
-    match to_endpoint_account.protocol {
-        MessageProtocol::Cctp { .. } | MessageProtocol::Local { .. } => (),
-        _ => return Err(MatchingEngineError::InvalidEndpoint.into()),
-    }
+    require!(
+        matches!(
+            to_endpoint_account.protocol,
+            MessageProtocol::Cctp { .. } | MessageProtocol::Local { .. }
+        ),
+        MatchingEngineError::InvalidEndpoint
+    );
 
     // Check that the from endpoint protocol is cctp or local
-    match from_endpoint_account.protocol {
-        MessageProtocol::Cctp { .. } | MessageProtocol::Local { .. } => (),
-        _ => return Err(MatchingEngineError::InvalidEndpoint.into()),
-    }
+    require!(
+        matches!(
+            from_endpoint_account.protocol,
+            MessageProtocol::Cctp { .. } | MessageProtocol::Local { .. }
+        ),
+        MatchingEngineError::InvalidEndpoint
+    );
 
     // Check that to endpoint chain is equal to the fast_market_order target_chain
-    if to_endpoint_account.chain != fast_market_order_zero_copy.target_chain {
-        msg!("To endpoint chain is not equal to the fast_market_order target_chain. Expected {}, got {}", fast_market_order_zero_copy.target_chain, to_endpoint_account.chain);
-        return Err(MatchingEngineError::InvalidTargetRouter.into());
-    }
+    require!(
+        to_endpoint_account.chain == fast_market_order_zero_copy.target_chain,
+        MatchingEngineError::InvalidTargetRouter
+    );
 
-    if prepared_order_response_pda != prepared_order_response.key() {
-        msg!("Prepared order response pda is invalid");
-        return Err(FallbackError::InvalidPda.into()).map_err(|e: Error| {
-            e.with_pubkeys((prepared_order_response_pda, prepared_order_response.key()))
-        });
-    }
+    require!(
+        prepared_order_response_pda == prepared_order_response.key(),
+        MatchingEngineError::InvalidPda
+    );
 
-    if prepared_custody_token_pda != prepared_custody_token.key() {
-        msg!("Prepared custody token pda is invalid");
-        return Err(FallbackError::InvalidPda.into()).map_err(|e: Error| {
-            e.with_pubkeys((prepared_custody_token_pda, prepared_custody_token.key()))
-        });
-    }
+    require!(
+        prepared_custody_token_pda == prepared_custody_token.key(),
+        MatchingEngineError::InvalidPda
+    );
 
     // Check the base token fee key is not equal to the prepared custody token key
-    if base_fee_token.key() == prepared_custody_token.key() {
-        msg!("Base token fee key is equal to the prepared custody token key");
-        return Err(MatchingEngineError::InvalidBaseFeeToken.into())
-            .map_err(|e: Error| e.with_account_name("base_fee_token"));
-    }
+    require!(
+        base_fee_token.key() != prepared_custody_token.key(),
+        MatchingEngineError::InvalidBaseFeeToken
+    );
 
-    if token_program.key() != spl_token::ID {
-        msg!("Token program is invalid");
-        return Err(FallbackError::InvalidProgram.into())
-            .map_err(|e: Error| e.with_account_name("token_program"));
-    }
+    require!(
+        token_program.key() == spl_token::ID,
+        MatchingEngineError::InvalidProgram
+    );
 
-    if _verify_shim_program.key() != wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID {
-        msg!("Verify shim program is invalid");
-        return Err(FallbackError::InvalidProgram.into())
-            .map_err(|e: Error| e.with_account_name("verify_shim_program"));
-    }
+    require!(
+        _verify_shim_program.key() == wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
+        MatchingEngineError::InvalidProgram
+    );
 
-    if system_program.key() != solana_program::system_program::ID {
-        msg!("System program is invalid");
-        return Err(FallbackError::InvalidProgram.into())
-            .map_err(|e: Error| e.with_account_name("system_program"));
-    }
+    require!(
+        system_program.key() == solana_program::system_program::ID,
+        MatchingEngineError::InvalidProgram
+    );
 
     // Verify deposit message shim using verify shim program
 
@@ -493,11 +453,11 @@ pub fn prepare_order_response_cctp_shim(
     // Use cursor in order to write the prepared order response account data
     let prepared_order_response_data: &mut [u8] = &mut prepared_order_response
         .try_borrow_mut_data()
-        .map_err(|_| FallbackError::AccountNotWritable)?;
+        .map_err(|_| MatchingEngineError::AccountNotWritable)?;
     let mut cursor = Cursor::new(prepared_order_response_data);
     prepared_order_response_account_to_write
         .try_serialize(&mut cursor)
-        .map_err(|_| FallbackError::BorshDeserializationError)?;
+        .map_err(|_| MatchingEngineError::BorshDeserializationError)?;
     // End create prepared order response account
     // ------------------------------------------------------------------------------------------------
 
@@ -574,7 +534,7 @@ pub fn prepare_order_response_cctp_shim(
     .unwrap();
 
     invoke_signed_unchecked(&transfer_ix, accounts, &[Custodian::SIGNER_SEEDS])
-        .map_err(|_| FallbackError::TokenTransferFailed)?;
+        .map_err(|_| MatchingEngineError::TokenTransferFailed)?;
 
     Ok(())
 }

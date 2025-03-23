@@ -12,23 +12,23 @@ use anchor_lang::prelude::*;
 use wormhole_svm_definitions::make_anchor_discriminator;
 
 impl<'ix> FallbackMatchingEngineInstruction<'ix> {
-    pub const PLACE_INITIAL_OFFER_CCTP_SHIM_SELECTOR: [u8; 8] =
-        make_anchor_discriminator(b"global:place_initial_offer_cctp_shim");
-    pub const EXECUTE_ORDER_CCTP_SHIM_SELECTOR: [u8; 8] =
-        make_anchor_discriminator(b"global:execute_order_cctp_shim");
     pub const INITIALISE_FAST_MARKET_ORDER_SELECTOR: [u8; 8] =
         make_anchor_discriminator(b"global:initialise_fast_market_order");
     pub const CLOSE_FAST_MARKET_ORDER_SELECTOR: [u8; 8] =
         make_anchor_discriminator(b"global:close_fast_market_order");
+    pub const PLACE_INITIAL_OFFER_CCTP_SHIM_SELECTOR: [u8; 8] =
+        make_anchor_discriminator(b"global:place_initial_offer_cctp_shim");
+    pub const EXECUTE_ORDER_CCTP_SHIM_SELECTOR: [u8; 8] =
+        make_anchor_discriminator(b"global:execute_order_cctp_shim");
     pub const PREPARE_ORDER_RESPONSE_CCTP_SHIM_SELECTOR: [u8; 8] =
         make_anchor_discriminator(b"global:prepare_order_response_cctp_shim");
 }
 
 pub enum FallbackMatchingEngineInstruction<'ix> {
-    PlaceInitialOfferCctpShim(&'ix PlaceInitialOfferCctpShimData),
-    ExecuteOrderCctpShim,
     InitialiseFastMarketOrder(&'ix InitialiseFastMarketOrderData),
     CloseFastMarketOrder,
+    PlaceInitialOfferCctpShim(&'ix PlaceInitialOfferCctpShimData),
+    ExecuteOrderCctpShim,
     PrepareOrderResponseCctpShim(PrepareOrderResponseCctpShimData),
 }
 
@@ -43,17 +43,17 @@ pub fn process_instruction(
 
     let instruction = FallbackMatchingEngineInstruction::deserialize(instruction_data).unwrap();
     match instruction {
-        FallbackMatchingEngineInstruction::PlaceInitialOfferCctpShim(data) => {
-            place_initial_offer_cctp_shim(accounts, &data)
-        }
-        FallbackMatchingEngineInstruction::ExecuteOrderCctpShim => {
-            handle_execute_order_shim(accounts)
-        }
         FallbackMatchingEngineInstruction::InitialiseFastMarketOrder(data) => {
             initialise_fast_market_order(accounts, &data)
         }
         FallbackMatchingEngineInstruction::CloseFastMarketOrder => {
             close_fast_market_order(accounts)
+        }
+        FallbackMatchingEngineInstruction::PlaceInitialOfferCctpShim(data) => {
+            place_initial_offer_cctp_shim(accounts, &data)
+        }
+        FallbackMatchingEngineInstruction::ExecuteOrderCctpShim => {
+            handle_execute_order_shim(accounts)
         }
         FallbackMatchingEngineInstruction::PrepareOrderResponseCctpShim(data) => {
             prepare_order_response_cctp_shim(accounts, data)

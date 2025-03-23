@@ -89,6 +89,20 @@ pub enum MatchingEngineError {
     AuctionHistoryFull = 0x504,
 
     InvalidVerifyVaaShimProgram = 0x600,
+
+    // Fallback matching engine errors
+    AccountAlreadyInitialized = 0x700,
+    AccountNotWritable = 0x702,
+    BorshDeserializationError = 0x704,
+    InvalidPda = 0x706,
+    AccountDataTooSmall = 0x708,
+    InvalidProgram = 0x70a,
+    TokenTransferFailed = 0x70c,
+    InvalidMint = 0x70e,
+
+    #[msg("From and to router endpoints are the same")]
+    SameEndpoints = 0x800,
+    InvalidCctpMessage = 0x802,
 }
 
 #[cfg(test)]

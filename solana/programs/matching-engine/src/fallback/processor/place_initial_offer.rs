@@ -1,4 +1,5 @@
-use super::create_account::create_account_reliably;
+use super::helpers::check_account_length;
+use super::helpers::create_account_reliably;
 use crate::state::{
     Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian,
     FastMarketOrder as FastMarketOrderState, MessageProtocol, RouterEndpoint,
@@ -14,7 +15,6 @@ use solana_program::keccak;
 use solana_program::program::invoke_signed_unchecked;
 use solana_program::program_pack::Pack;
 
-use super::errors::FallbackError;
 use super::FallbackMatchingEngineInstruction;
 use crate::error::MatchingEngineError;
 
@@ -187,9 +187,7 @@ pub fn place_initial_offer_cctp_shim(
     let program_id = &crate::ID; // Your program ID
 
     // Check all accounts are valid
-    if accounts.len() < 11 {
-        return Err(ErrorCode::AccountNotEnoughKeys.into());
-    }
+    check_account_length(accounts, 11)?;
     // Extract data fields
     // TODO: Remove sequence, vaa_time because they are in the fast market order state
     let PlaceInitialOfferCctpShimData {
@@ -271,7 +269,7 @@ pub fn place_initial_offer_cctp_shim(
     // Check usdc mint
     if usdc.key() != common::USDC_MINT {
         msg!("Usdc mint is invalid");
-        return Err(FallbackError::InvalidMint.into());
+        return Err(MatchingEngineError::InvalidMint.into());
     }
 
     // Check from_endpoint owner
@@ -369,7 +367,7 @@ pub fn place_initial_offer_cctp_shim(
             auction_custody_token.key(),
             auction_custody_token_pda
         );
-        return Err(FallbackError::InvalidPda.into());
+        return Err(MatchingEngineError::InvalidPda.into());
     }
 
     let auction_custody_token_seeds = [
@@ -411,7 +409,7 @@ pub fn place_initial_offer_cctp_shim(
 
     if pda != auction_key {
         msg!("Auction pda is invalid");
-        return Err(FallbackError::InvalidPda.into());
+        return Err(MatchingEngineError::InvalidPda.into());
     }
     let auction_seeds = [Auction::SEED_PREFIX, vaa_message_digest.as_ref(), &[bump]];
     let auction_signer_seeds = &[&auction_seeds[..]];
@@ -427,7 +425,7 @@ pub fn place_initial_offer_cctp_shim(
     // Borrow the account data mutably
     let mut data = auction_account
         .try_borrow_mut_data()
-        .map_err(|_| FallbackError::AccountNotWritable)?;
+        .map_err(|_| MatchingEngineError::AccountNotWritable)?;
 
     // Write the discriminator to the first 8 bytes
     let discriminator = Auction::discriminator();
@@ -470,7 +468,7 @@ pub fn place_initial_offer_cctp_shim(
     // Write the auction struct to the account
     let auction_bytes = auction_to_write
         .try_to_vec()
-        .map_err(|_| FallbackError::BorshDeserializationError)?;
+        .map_err(|_| MatchingEngineError::BorshDeserializationError)?;
     data[8..8 + auction_bytes.len()].copy_from_slice(&auction_bytes);
     // ------------------------------------------------------------------------------------------------
     // End of initialisation of auction account
@@ -500,7 +498,7 @@ pub fn place_initial_offer_cctp_shim(
             &[transfer_authority_bump],
         ]],
     )
-    .map_err(|_| FallbackError::TokenTransferFailed)?;
+    .map_err(|_| MatchingEngineError::TokenTransferFailed)?;
     // ------------------------------------------------------------------------------------------------
     // End of token transfer from offer token to auction custody token
     Ok(())
