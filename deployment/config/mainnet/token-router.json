@@ -4,7 +4,7 @@
     "ownerAssistant": "DNuVesmYQizpEVXYJZGECSeshqAxHB4fbqX2UC6ehpK4",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
+      "maxAmount": "1000000000000",
       "baseFee": "10000",
       "initAuctionFee": "60000"
     },
@@ -15,7 +15,7 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
+      "maxAmount": "1000000000000",
       "baseFee": "10000",
       "initAuctionFee": "60000"
     },
@@ -26,7 +26,7 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
+      "maxAmount": "1000000000000",
       "baseFee": "10000",
       "initAuctionFee": "60000"
     },
@@ -37,7 +37,7 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
+      "maxAmount": "1000000000000",
       "baseFee": "10000",
       "initAuctionFee": "60000"
     },
@@ -48,7 +48,7 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
+      "maxAmount": "1000000000000",
       "baseFee": "10000",
       "initAuctionFee": "60000"
     },
@@ -59,7 +59,7 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
+      "maxAmount": "1000000000000",
       "baseFee": "10000",
       "initAuctionFee": "60000"
     },
@@ -70,7 +70,7 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
+      "maxAmount": "1000000000000",
       "baseFee": "10000",
       "initAuctionFee": "60000"
     },
