@@ -6,6 +6,8 @@ use matching_engine::{CCTP_MINT_RECIPIENT, ID as PROGRAM_ID};
 use shimless::execute_order::execute_order_shimless_test;
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
+use testing_engine::config::CreateCctpRouterEndpointsInstructionConfig;
+use utils::constants;
 mod shimful;
 mod shimless;
 mod testing_engine;
@@ -22,7 +24,7 @@ use shimful::shims::{
 use shimful::shims_execute_order::execute_order_fallback_test;
 use shimless::initialize::{initialize_program, AuctionParametersConfig};
 use shimless::make_offer::{improve_offer, place_initial_offer_shimless};
-use solana_sdk::transaction::VersionedTransaction;
+use solana_sdk::transaction::{TransactionError, VersionedTransaction};
 use utils::auction::AuctionAccounts;
 use utils::router::{add_local_router_endpoint_ix, create_all_router_endpoints_test};
 use utils::setup::{setup_environment, ShimMode, TestingContext, TransferDirection};
@@ -41,13 +43,13 @@ pub async fn test_initialize_program() {
 
     let initialize_config = InitializeInstructionConfig::default();
 
-    let testing_engine = TestingEngine::new(
-        testing_context,
-        vec![InstructionTrigger::InitializeProgram(initialize_config)],
-    )
-    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
 
-    testing_engine.execute().await;
+    testing_engine
+        .execute(vec![InstructionTrigger::InitializeProgram(
+            initialize_config,
+        )])
+        .await;
 }
 
 /// Test that a CCTP token router endpoint is created for the arbitrum and ethereum chains
@@ -62,16 +64,13 @@ pub async fn test_cctp_token_router_endpoint_creation() {
 
     let initialize_config = InitializeInstructionConfig::default();
 
-    let testing_engine = TestingEngine::new(
-        testing_context,
-        vec![
-            InstructionTrigger::InitializeProgram(initialize_config),
-            InstructionTrigger::CreateCctpRouterEndpoints,
-        ],
-    )
-    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
 
-    testing_engine.execute().await;
+    testing_engine
+        .execute(vec![InstructionTrigger::InitializeProgram(
+            initialize_config,
+        )])
+        .await;
 }
 
 #[tokio::test]
@@ -112,19 +111,19 @@ pub async fn test_setup_vaas() {
 
     testing_context.verify_vaas().await;
 
-    let testing_engine = TestingEngine::new(
-        testing_context,
-        vec![
+    let testing_engine = TestingEngine::new(testing_context).await;
+    testing_engine
+        .execute(vec![
             InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
-            InstructionTrigger::CreateCctpRouterEndpoints,
+            InstructionTrigger::CreateCctpRouterEndpoints(
+                CreateCctpRouterEndpointsInstructionConfig::default(),
+            ),
             InstructionTrigger::PlaceInitialOfferShimless(
                 PlaceInitialOfferInstructionConfig::default(),
             ),
             InstructionTrigger::ImproveOfferShimless(ImproveOfferInstructionConfig::default()),
-        ],
-    )
-    .await;
-    testing_engine.execute().await;
+        ])
+        .await;
 }
 
 #[tokio::test]
@@ -380,7 +379,7 @@ pub async fn test_place_initial_offer_fallback() {
         None,
     )
     .await;
-    let _initial_offer_fixture = place_initial_offer_fallback_test(
+    let initial_offer_fixture = place_initial_offer_fallback_test(
         &mut testing_context,
         &auction_accounts,
         true, // Expected to pass
@@ -390,6 +389,9 @@ pub async fn test_place_initial_offer_fallback() {
 
     // Attempt to improve the offer using the non-fallback method with another solver making the improved offer
     println!("Improving offer");
+    let auction_state = initial_offer_fixture
+        .expect("Failed to get initial offer fixture")
+        .auction_state;
     let second_solver = testing_context.testing_actors.solvers[1].clone();
     improve_offer(
         &mut testing_context,
@@ -397,6 +399,7 @@ pub async fn test_place_initial_offer_fallback() {
         second_solver,
         auction_config_address,
         500_000,
+        &auction_state,
         None,
     )
     .await;
@@ -440,14 +443,19 @@ pub async fn test_place_initial_offer_shim_blocks_non_shim() {
     // Now test without the fallback program
     let mut auction_accounts = initial_offer_fallback_fixture.auction_accounts;
     auction_accounts.fast_vaa = Some(first_test_ft.get_vaa_pubkey());
+
+    let offer_price = 1__000_000;
+    let transaction_error = TransactionError::AccountInUse;
     place_initial_offer_shimless(
         &mut testing_context,
         &auction_accounts,
-        first_test_ft,
+        &first_test_ft,
+        offer_price,
         PROGRAM_ID,
         Some(&ExpectedError {
             instruction_index: 0,
-            error: MatchingEngineError::AccountAlreadyInitialized,
+            error_code: 0, // This is the error code for account in use
+            error_string: transaction_error.to_string(),
         }), // Expected to fail
     )
     .await;
@@ -480,10 +488,12 @@ pub async fn test_place_initial_offer_non_shim_blocks_shim() {
     )
     .await;
     // Place initial offer using the shimless instruction
+    let offer_price = 1__000_000;
     place_initial_offer_shimless(
         &mut testing_context,
         &auction_accounts,
-        first_test_ft,
+        &first_test_ft,
+        offer_price,
         PROGRAM_ID,
         None, // Expected to pass
     )
@@ -585,17 +595,23 @@ pub async fn test_execute_order_shimless() {
         Some(first_test_fast_transfer_pubkey),
     )
     .await;
-    place_initial_offer_shimless(
+    let offer_price = 1__000_000;
+    let auction_state = place_initial_offer_shimless(
         &mut testing_context,
         &auction_accounts,
-        first_test_fast_transfer,
+        &first_test_fast_transfer,
+        offer_price,
         PROGRAM_ID,
         None, // Expected to pass
     )
     .await;
-
-    let execute_order_fixture =
-        execute_order_shimless_test(&mut testing_context, &auction_accounts, true).await;
+    let execute_order_fixture = execute_order_shimless_test(
+        &mut testing_context,
+        &auction_accounts,
+        &auction_state,
+        None,
+    )
+    .await;
     assert!(execute_order_fixture.is_some());
 }
 pub async fn test_execute_order_fallback_blocks_shimless() {
@@ -642,9 +658,19 @@ pub async fn test_execute_order_fallback_blocks_shimless() {
     )
     .await
     .expect("Failed to execute order");
-
-    let shimless_execute_order_fixture =
-        execute_order_shimless_test(&mut testing_context, &auction_accounts, false).await;
+    let auction_state = initial_offer_fallback_fixture.auction_state;
+    let expected_error = Some(ExpectedError {
+        instruction_index: 0,
+        error_code: MatchingEngineError::AccountAlreadyInitialized.into(),
+        error_string: MatchingEngineError::AccountAlreadyInitialized.to_string(),
+    });
+    let shimless_execute_order_fixture = execute_order_shimless_test(
+        &mut testing_context,
+        &auction_accounts,
+        &auction_state,
+        expected_error,
+    )
+    .await;
     assert!(shimless_execute_order_fixture.is_none());
 }
 
@@ -713,7 +739,6 @@ pub async fn test_prepare_order_shim_fallback() {
     )
     .await
     .expect("Failed to execute order");
-
     shimful::shims_prepare_order_response::prepare_order_response_test(
         &testing_context.test_context,
         &payer_signer,
@@ -769,11 +794,13 @@ pub async fn test_settle_auction_complete() {
     // Try making initial offer using the shim instruction
     let usdc_mint_address = testing_context.get_usdc_mint_address();
     let auction_config_address = initialize_fixture.get_auction_config_address();
+    let router_config = CreateCctpRouterEndpointsInstructionConfig::default();
     let router_endpoints = create_all_router_endpoints_test(
         &testing_context,
         testing_context.testing_actors.owner.pubkey(),
         initialize_fixture.get_custodian_address(),
         testing_context.testing_actors.owner.keypair(),
+        router_config.chains,
     )
     .await;
 
@@ -833,8 +860,8 @@ pub async fn test_settle_auction_complete() {
             &execute_order_fixture,
             &initial_offer_fixture,
             &initialize_fixture,
-            &router_endpoints.ethereum.endpoint_address,
-            &router_endpoints.arbitrum.endpoint_address,
+            &auction_accounts.to_router_endpoint,
+            &auction_accounts.from_router_endpoint,
             &usdc_mint_address,
             &CCTP_MINT_RECIPIENT,
             &initialize_fixture.get_custodian_address(),

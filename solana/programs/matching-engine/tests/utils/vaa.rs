@@ -479,6 +479,7 @@ pub fn create_fast_transfer_message(
     (vaa_address, posted_vaa_data, fast_market_order)
 }
 
+#[derive(Clone)]
 pub struct TestVaaPairs(pub Vec<TestVaaPair>);
 
 impl Deref for TestVaaPairs {

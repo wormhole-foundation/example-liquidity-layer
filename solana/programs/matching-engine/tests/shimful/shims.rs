@@ -1,3 +1,5 @@
+use crate::utils::auction::AuctionState;
+
 use super::super::utils;
 use super::super::utils::setup::TestingContext;
 use super::super::utils::{constants::*, setup::Solver};
@@ -413,7 +415,7 @@ fn generate_expected_guardian_signatures_info(
 
 // TODO: Separate this into a different file
 pub struct PlaceInitialOfferShimFixture {
-    pub auction_state: Rc<RefCell<utils::auction::ActiveAuctionState>>,
+    pub auction_state: AuctionState,
     pub guardian_set_pubkey: Pubkey,
     pub guardian_signatures_pubkey: Pubkey,
     pub fast_market_order_address: Pubkey,
@@ -577,10 +579,9 @@ pub async fn place_initial_offer_fallback(
                 offer_price,
             },
         };
-        testing_context.testing_state.auction_state =
-            utils::auction::AuctionState::Active(new_active_auction_state.clone());
+        let new_auction_state = utils::auction::AuctionState::Active(new_active_auction_state);
         Some(PlaceInitialOfferShimFixture {
-            auction_state: Rc::new(RefCell::new(new_active_auction_state)),
+            auction_state: new_auction_state,
             guardian_set_pubkey,
             guardian_signatures_pubkey: guardian_signatures_pubkey.clone().to_owned(),
             fast_market_order_address: fast_market_order_account,
@@ -663,7 +664,7 @@ pub async fn close_fast_market_order_fallback(
 
 pub fn create_fast_market_order_state_from_vaa_data(
     vaa_data: &utils::vaa::PostedVaaData,
-    refund_recipient: Pubkey,
+    close_account_refund_recipient: Pubkey,
 ) -> (FastMarketOrderState, utils::vaa::PostedVaaData) {
     let vaa_data = utils::vaa::PostedVaaData {
         consistency_level: vaa_data.consistency_level,
@@ -711,7 +712,7 @@ pub fn create_fast_market_order_state_from_vaa_data(
         order.max_fee,
         order.init_auction_fee,
         redeemer_message_fixed_length,
-        refund_recipient.to_bytes(),
+        close_account_refund_recipient.to_bytes(),
         vaa_data.sequence,
         vaa_data.vaa_time,
         vaa_data.nonce,

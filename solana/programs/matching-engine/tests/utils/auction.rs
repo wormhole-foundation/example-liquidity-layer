@@ -3,9 +3,11 @@ use anchor_lang::prelude::*;
 use super::super::shimless;
 use super::router::TestRouterEndpoints;
 use super::setup::{Solver, TransferDirection};
+use super::Chain;
 use matching_engine::state::{Auction, AuctionInfo};
 use solana_program_test::ProgramTestContext;
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::rc::Rc;
 
 #[derive(Clone)]
@@ -20,6 +22,7 @@ pub struct AuctionAccounts {
     pub usdc_mint: Pubkey,
 }
 
+#[derive(Clone)]
 pub enum AuctionState {
     Active(ActiveAuctionState),
     Inactive,
@@ -27,13 +30,6 @@ pub enum AuctionState {
 
 impl AuctionState {
     pub fn get_active_auction(&self) -> Option<&ActiveAuctionState> {
-        match self {
-            AuctionState::Active(auction) => Some(auction),
-            AuctionState::Inactive => None,
-        }
-    }
-
-    pub fn get_active_auction_mut(&mut self) -> Option<&mut ActiveAuctionState> {
         match self {
             AuctionState::Active(auction) => Some(auction),
             AuctionState::Inactive => None,
@@ -67,12 +63,12 @@ impl AuctionAccounts {
     ) -> Self {
         let (from_router_endpoint, to_router_endpoint) = match direction {
             TransferDirection::FromEthereumToArbitrum => (
-                router_endpoints.ethereum.endpoint_address,
-                router_endpoints.arbitrum.endpoint_address,
+                router_endpoints.get_endpoint_address(Chain::Ethereum),
+                router_endpoints.get_endpoint_address(Chain::Arbitrum),
             ),
             TransferDirection::FromArbitrumToEthereum => (
-                router_endpoints.arbitrum.endpoint_address,
-                router_endpoints.ethereum.endpoint_address,
+                router_endpoints.get_endpoint_address(Chain::Arbitrum),
+                router_endpoints.get_endpoint_address(Chain::Ethereum),
             ),
         };
         Self {
@@ -100,6 +96,7 @@ impl AuctionAccounts {
             testing_context.testing_actors.owner.pubkey(),
             initialize_fixture.get_custodian_address(),
             testing_context.testing_actors.owner.keypair(),
+            HashSet::from([Chain::Ethereum, Chain::Arbitrum, Chain::Solana]),
         )
         .await;
 

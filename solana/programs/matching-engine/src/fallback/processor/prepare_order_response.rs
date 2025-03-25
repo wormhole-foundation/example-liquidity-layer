@@ -227,7 +227,8 @@ pub fn prepare_order_response_cctp_shim(
     let finalized_vaa_message = data.finalized_vaa_message;
     // Load accounts
     let fast_market_order_zero_copy =
-        FastMarketOrderState::try_deserialize(&mut &fast_market_order.data.borrow()[..])?;
+        FastMarketOrderState::try_deserialize(&mut &fast_market_order.data.borrow()[..])
+            .map(Box::new)?;
     // Create pdas for addresses that need to be created
     // Check the prepared order response account is valid
     // TODO: Pass the digest so it isn't recomputed
@@ -240,7 +241,7 @@ pub fn prepare_order_response_cctp_shim(
         let finalised_vaa_emitter_address = fast_market_order_zero_copy.vaa_emitter_address;
         let finalised_vaa_nonce = fast_market_order_zero_copy.vaa_nonce;
         let finalised_vaa_consistency_level = fast_market_order_zero_copy.vaa_consistency_level;
-        &finalized_vaa_message.digest(
+        finalized_vaa_message.digest(
             finalised_vaa_sequence,
             finalised_vaa_timestamp,
             finalised_vaa_emitter_chain,
@@ -277,7 +278,6 @@ pub fn prepare_order_response_cctp_shim(
     let slow_order_response = liquidity_layer_message
         .slow_order_response()
         .ok_or_else(|| MatchingEngineError::InvalidDepositPayloadId)?;
-
     let prepared_order_response_seeds = [
         PreparedOrderResponse::SEED_PREFIX,
         &fast_market_order_digest,
@@ -385,7 +385,7 @@ pub fn prepare_order_response_cctp_shim(
             &wormhole_svm_shim::verify_vaa::VerifyVaaShimInstruction::<false>::VERIFY_HASH_SELECTOR,
         );
         data.push(guardian_set_bump);
-        data.extend_from_slice(finalized_vaa_message_digest);
+        data.extend_from_slice(&finalized_vaa_message_digest);
         data
     };
 

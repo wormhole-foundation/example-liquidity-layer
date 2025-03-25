@@ -61,11 +61,13 @@ impl ExecuteOrderFallbackAccounts {
             fast_market_order_address: place_initial_offer_fixture.fast_market_order_address,
             active_auction: place_initial_offer_fixture
                 .auction_state
-                .borrow()
+                .get_active_auction()
+                .unwrap()
                 .auction_address,
             active_auction_custody_token: place_initial_offer_fixture
                 .auction_state
-                .borrow()
+                .get_active_auction()
+                .unwrap()
                 .auction_custody_token_address,
             active_auction_config: auction_accounts.auction_config,
             active_auction_best_offer_token: auction_accounts.offer_token,
