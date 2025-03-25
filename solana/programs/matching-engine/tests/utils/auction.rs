@@ -1,18 +1,16 @@
 use anchor_lang::prelude::*;
 
-use super::super::shimless;
 use super::router::TestRouterEndpoints;
 use super::setup::{Solver, TransferDirection};
 use super::Chain;
 use matching_engine::state::{Auction, AuctionInfo};
 use solana_program_test::ProgramTestContext;
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct AuctionAccounts {
-    pub fast_vaa: Option<Pubkey>,
+    pub posted_fast_vaa: Option<Pubkey>,
     pub offer_token: Pubkey,
     pub solver: Solver,
     pub auction_config: Pubkey,
@@ -25,6 +23,7 @@ pub struct AuctionAccounts {
 #[derive(Clone)]
 pub enum AuctionState {
     Active(ActiveAuctionState),
+    Settled,
     Inactive,
 }
 
@@ -33,6 +32,7 @@ impl AuctionState {
         match self {
             AuctionState::Active(auction) => Some(auction),
             AuctionState::Inactive => None,
+            AuctionState::Settled => None,
         }
     }
 }
@@ -47,13 +47,14 @@ pub struct ActiveAuctionState {
 
 #[derive(Clone)]
 pub struct AuctionOffer {
+    pub participant: Pubkey,
     pub offer_token: Pubkey,
     pub offer_price: u64,
 }
 
 impl AuctionAccounts {
     pub fn new(
-        fast_vaa: Option<Pubkey>,
+        posted_fast_vaa: Option<Pubkey>,
         solver: Solver,
         auction_config: Pubkey,
         router_endpoints: &TestRouterEndpoints,
@@ -72,7 +73,7 @@ impl AuctionAccounts {
             ),
         };
         Self {
-            fast_vaa,
+            posted_fast_vaa,
             offer_token: solver.token_account_address().unwrap(),
             solver,
             auction_config,
@@ -81,35 +82,6 @@ impl AuctionAccounts {
             custodian,
             usdc_mint,
         }
-    }
-
-    pub async fn create_auction_accounts(
-        testing_context: &mut super::setup::TestingContext,
-        initialize_fixture: &shimless::initialize::InitializeFixture,
-        transfer_direction: TransferDirection,
-        fast_vaa_pubkey: Option<Pubkey>,
-    ) -> Self {
-        let usdc_mint_address = testing_context.get_usdc_mint_address();
-        let auction_config_address = initialize_fixture.get_auction_config_address();
-        let router_endpoints = super::router::create_all_router_endpoints_test(
-            &testing_context,
-            testing_context.testing_actors.owner.pubkey(),
-            initialize_fixture.get_custodian_address(),
-            testing_context.testing_actors.owner.keypair(),
-            HashSet::from([Chain::Ethereum, Chain::Arbitrum, Chain::Solana]),
-        )
-        .await;
-
-        let solver = testing_context.testing_actors.solvers[0].clone();
-        Self::new(
-            fast_vaa_pubkey,                            // Fast VAA pubkey
-            solver.clone(),                             // Solver
-            auction_config_address.clone(),             // Auction config pubkey
-            &router_endpoints,                          // Router endpoints
-            initialize_fixture.get_custodian_address(), // Custodian pubkey
-            usdc_mint_address,                          // USDC mint pubkey
-            transfer_direction,
-        )
     }
 }
 

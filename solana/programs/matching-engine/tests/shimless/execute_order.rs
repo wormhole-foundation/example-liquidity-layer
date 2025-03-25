@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::testing_engine::config::ExpectedError;
 use crate::utils::account_fixtures::FixtureAccounts;
 use crate::utils::auction::{AuctionAccounts, AuctionState};
@@ -14,16 +16,20 @@ use matching_engine::accounts::{
 };
 use matching_engine::instruction::ExecuteFastOrderCctp as ExecuteOrderShimlessInstruction;
 use solana_sdk::instruction::Instruction;
+use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::sysvar::SysvarId;
 use solana_sdk::transaction::Transaction;
 use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 
-pub struct ExecuteOrderShimlessFixture {}
+pub struct ExecuteOrderShimlessFixture {
+    pub cctp_message: Pubkey,
+}
 
 pub fn create_execute_order_shimless_accounts(
-    testing_context: &mut TestingContext,
+    testing_context: &TestingContext,
     fixture_accounts: &FixtureAccounts,
     auction_accounts: &AuctionAccounts,
+    payer_signer: &Rc<Keypair>,
     auction_state: &AuctionState,
 ) -> ExecuteOrderShimlessAccounts {
     let active_auction_state = auction_state.get_active_auction().unwrap();
@@ -56,7 +62,7 @@ pub fn create_execute_order_shimless_accounts(
         core_bridge_program: wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID,
     };
     let fast_vaa = LiquidityLayerVaa {
-        vaa: auction_accounts.fast_vaa.unwrap(),
+        vaa: auction_accounts.posted_fast_vaa.unwrap(),
     };
     let active_auction = matching_engine::accounts::ActiveAuction {
         auction: active_auction_address,
@@ -68,7 +74,7 @@ pub fn create_execute_order_shimless_accounts(
         fast_vaa,
         active_auction,
         executor_token: active_auction_state.best_offer.offer_token, // TODO: Is this correct?
-        initial_participant: testing_context.testing_actors.owner.pubkey(),
+        initial_participant: active_auction_state.initial_offer.participant,
         initial_offer_token: active_auction_state.initial_offer.offer_token,
     };
     let core_message = Pubkey::find_program_address(
@@ -128,7 +134,7 @@ pub fn create_execute_order_shimless_accounts(
     )
     .0;
     ExecuteOrderShimlessAccounts {
-        payer: testing_context.testing_actors.owner.pubkey(),
+        payer: payer_signer.pubkey(),
         core_message,
         cctp_message,
         to_router_endpoint,
@@ -145,10 +151,11 @@ pub fn create_execute_order_shimless_accounts(
 }
 
 pub async fn execute_order_shimless_test(
-    testing_context: &mut TestingContext,
+    testing_context: &TestingContext,
     auction_accounts: &AuctionAccounts,
     auction_state: &AuctionState,
-    expected_error: Option<ExpectedError>,
+    payer_signer: &Rc<Keypair>,
+    expected_error: Option<&ExpectedError>,
 ) -> Option<ExecuteOrderShimlessFixture> {
     crate::utils::setup::fast_forward_slots(&testing_context.test_context, 3).await;
     let fixture_accounts = testing_context
@@ -159,6 +166,7 @@ pub async fn execute_order_shimless_test(
             testing_context,
             &fixture_accounts,
             auction_accounts,
+            payer_signer,
             auction_state,
         );
     let execute_order_instruction_data = ExecuteOrderShimlessInstruction {}.data();
@@ -169,8 +177,8 @@ pub async fn execute_order_shimless_test(
     };
     let tx = Transaction::new_signed_with_payer(
         &[execute_order_ix],
-        Some(&testing_context.testing_actors.owner.pubkey()),
-        &[&testing_context.testing_actors.owner.keypair()],
+        Some(&payer_signer.pubkey()),
+        &[payer_signer],
         testing_context
             .test_context
             .borrow_mut()
@@ -178,17 +186,14 @@ pub async fn execute_order_shimless_test(
             .await
             .unwrap(),
     );
-    let tx_result = testing_context
-        .test_context
-        .borrow_mut()
-        .banks_client
-        .process_transaction(tx)
+    testing_context
+        .execute_and_verify_transaction(tx, expected_error)
         .await;
     if expected_error.is_none() {
-        assert!(tx_result.is_ok());
-        Some(ExecuteOrderShimlessFixture {})
+        Some(ExecuteOrderShimlessFixture {
+            cctp_message: execute_order_accounts.cctp_message,
+        })
     } else {
-        assert!(tx_result.is_err());
         None
     }
 }

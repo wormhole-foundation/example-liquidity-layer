@@ -1,4 +1,5 @@
-use crate::utils::auction::AuctionState;
+use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::state::InitialOfferPlacedState;
 
 use super::super::utils;
 use super::super::utils::setup::TestingContext;
@@ -413,53 +414,18 @@ fn generate_expected_guardian_signatures_info(
     (expected_length, guardian_signatures)
 }
 
-// TODO: Separate this into a different file
-pub struct PlaceInitialOfferShimFixture {
-    pub auction_state: AuctionState,
-    pub guardian_set_pubkey: Pubkey,
-    pub guardian_signatures_pubkey: Pubkey,
-    pub fast_market_order_address: Pubkey,
-    pub fast_market_order: FastMarketOrderState,
-    pub auction_accounts: utils::auction::AuctionAccounts,
-}
-
-pub async fn place_initial_offer_fallback_test(
-    testing_context: &mut TestingContext,
-    auction_accounts: &utils::auction::AuctionAccounts,
-    expected_to_pass: bool,
-) -> Option<PlaceInitialOfferShimFixture> {
-    let first_test_ft = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
-    let solver = testing_context.testing_actors.solvers[0].clone();
-    let vaa_data = first_test_ft.vaa_data;
-
-    // Place initial offer using the fallback program
-    let payer_signer = testing_context.testing_actors.owner.keypair();
-    place_initial_offer_fallback(
-        testing_context,
-        &payer_signer,
-        &testing_context.get_matching_engine_program_id(),
-        &testing_context.get_wormhole_program_id(),
-        &vaa_data,
-        solver.clone(),
-        auction_accounts,
-        1__000_000, // 1 USDC (double underscore for decimal separator)
-        expected_to_pass,
-    )
-    .await
-}
-
 /// Places an initial offer using the fallback program. The vaa is constructed from a passed in PostedVaaData struct. The nonce is forced to 0.
 pub async fn place_initial_offer_fallback(
-    testing_context: &mut TestingContext,
+    testing_context: &TestingContext,
     payer_signer: &Rc<Keypair>,
-    program_id: &Pubkey,
-    wormhole_program_id: &Pubkey,
     vaa_data: &utils::vaa::PostedVaaData,
     solver: Solver,
+    fast_market_order_account: &Pubkey,
     auction_accounts: &utils::auction::AuctionAccounts,
     offer_price: u64,
-    expected_to_pass: bool,
-) -> Option<PlaceInitialOfferShimFixture> {
+    expected_error: Option<&ExpectedError>,
+) -> Option<InitialOfferPlacedState> {
+    let program_id = testing_context.get_matching_engine_program_id();
     let test_ctx = &testing_context.test_context;
     let (fast_market_order, vaa_data) =
         create_fast_market_order_state_from_vaa_data(vaa_data, solver.pubkey());
@@ -496,31 +462,6 @@ pub async fn place_initial_offer_fallback(
     let solver_usdc_balance = solver.get_balance(test_ctx).await;
     println!("Solver USDC balance: {:?}", solver_usdc_balance);
 
-    // Create the guardian set and signatures
-    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) =
-        create_guardian_signatures(test_ctx, payer_signer, &vaa_data, wormhole_program_id, None)
-            .await;
-
-    // Create the fast market order account
-    let fast_market_order_account = Pubkey::find_program_address(
-        &[
-            FastMarketOrderState::SEED_PREFIX,
-            &fast_market_order.digest(),
-            &fast_market_order.close_account_refund_recipient,
-        ],
-        program_id,
-    )
-    .0;
-
-    let create_fast_market_order_ix = initialise_fast_market_order_fallback_instruction(
-        payer_signer,
-        program_id,
-        fast_market_order,
-        guardian_set_pubkey,
-        guardian_signatures_pubkey,
-        guardian_set_bump,
-    );
-
     let place_initial_offer_ix_data = PlaceInitialOfferCctpShimFallbackData::new(
         offer_price,
         vaa_data.sequence,
@@ -535,7 +476,7 @@ pub async fn place_initial_offer_fallback(
         auction_config: &auction_accounts.auction_config,
         from_endpoint: &auction_accounts.from_router_endpoint,
         to_endpoint: &auction_accounts.to_router_endpoint,
-        fast_market_order: &fast_market_order_account,
+        fast_market_order: fast_market_order_account,
         auction: &auction_address,
         offer_token: &auction_accounts.offer_token,
         auction_custody_token: &auction_custody_token_address,
@@ -544,7 +485,7 @@ pub async fn place_initial_offer_fallback(
         token_program: &anchor_spl::token::spl_token::ID,
     };
     let place_initial_offer_ix = PlaceInitialOfferCctpShimFallback {
-        program_id: program_id,
+        program_id: &program_id,
         accounts: place_initial_offer_ix_accounts,
         data: place_initial_offer_ix_data,
     }
@@ -553,40 +494,34 @@ pub async fn place_initial_offer_fallback(
     let recent_blockhash = test_ctx.borrow().last_blockhash;
 
     let transaction = Transaction::new_signed_with_payer(
-        &[create_fast_market_order_ix, place_initial_offer_ix],
+        &[place_initial_offer_ix],
         Some(&payer_signer.pubkey()),
         &[&payer_signer],
         recent_blockhash,
     );
 
-    let tx_result = test_ctx
-        .borrow_mut()
-        .banks_client
-        .process_transaction(transaction)
+    testing_context
+        .execute_and_verify_transaction(transaction, expected_error)
         .await;
-    assert_eq!(tx_result.is_ok(), expected_to_pass);
-    if tx_result.is_ok() {
+    if expected_error.is_none() {
         let new_active_auction_state = utils::auction::ActiveAuctionState {
             auction_address,
             auction_custody_token_address,
             auction_config_address: auction_accounts.auction_config,
             initial_offer: utils::auction::AuctionOffer {
+                participant: payer_signer.pubkey(),
                 offer_token: auction_accounts.offer_token,
                 offer_price,
             },
             best_offer: utils::auction::AuctionOffer {
+                participant: payer_signer.pubkey(),
                 offer_token: auction_accounts.offer_token,
                 offer_price,
             },
         };
         let new_auction_state = utils::auction::AuctionState::Active(new_active_auction_state);
-        Some(PlaceInitialOfferShimFixture {
+        Some(InitialOfferPlacedState {
             auction_state: new_auction_state,
-            guardian_set_pubkey,
-            guardian_signatures_pubkey: guardian_signatures_pubkey.clone().to_owned(),
-            fast_market_order_address: fast_market_order_account,
-            fast_market_order,
-            auction_accounts: auction_accounts.clone(),
         })
     } else {
         None
@@ -629,11 +564,13 @@ pub fn initialise_fast_market_order_fallback_instruction(
 }
 
 pub async fn close_fast_market_order_fallback(
-    test_ctx: &Rc<RefCell<ProgramTestContext>>,
+    testing_context: &TestingContext,
     refund_recipient_keypair: &Rc<Keypair>,
     program_id: &Pubkey,
     fast_market_order_address: &Pubkey,
+    expected_error: Option<&ExpectedError>,
 ) {
+    let test_ctx = &testing_context.test_context;
     let recent_blockhash = test_ctx
         .borrow_mut()
         .get_new_latest_blockhash()
@@ -654,12 +591,9 @@ pub async fn close_fast_market_order_fallback(
         &[refund_recipient_keypair],
         recent_blockhash,
     );
-    test_ctx
-        .borrow_mut()
-        .banks_client
-        .process_transaction(transaction)
-        .await
-        .expect("Failed to close fast market order");
+    testing_context
+        .execute_and_verify_transaction(transaction, expected_error)
+        .await;
 }
 
 pub fn create_fast_market_order_state_from_vaa_data(

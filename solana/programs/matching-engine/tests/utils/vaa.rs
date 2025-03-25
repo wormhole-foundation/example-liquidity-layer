@@ -202,6 +202,10 @@ impl TestVaa {
     pub fn get_vaa_pubkey(&self) -> Pubkey {
         self.vaa_pubkey.clone()
     }
+
+    pub fn get_vaa_data(&self) -> &PostedVaaData {
+        &self.vaa_data
+    }
 }
 
 #[derive(Clone)]

@@ -1,7 +1,8 @@
-use super::super::shimless::initialize::InitializeFixture;
+use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::state::TestingEngineState;
+use crate::utils::setup::{TestingContext, TransferDirection};
+
 use super::super::utils;
-use super::shims::PlaceInitialOfferShimFixture;
-use super::shims_execute_order::ExecuteOrderFallbackFixture;
 use anchor_lang::prelude::*;
 use anchor_spl::token::spl_token;
 use common::messages::raw::LiquidityLayerDepositMessage;
@@ -15,11 +16,10 @@ use matching_engine::fallback::prepare_order_response::{
     PrepareOrderResponseCctpShimAccounts, PrepareOrderResponseCctpShimData,
 };
 use matching_engine::state::{FastMarketOrder as FastMarketOrderState, PreparedOrderResponse};
-use solana_program_test::ProgramTestContext;
+use matching_engine::CCTP_MINT_RECIPIENT;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
-use std::cell::RefCell;
 use std::rc::Rc;
 use utils::account_fixtures::FixtureAccounts;
 use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
@@ -77,9 +77,8 @@ impl PrepareOrderResponseShimAccountsFixture {
     pub fn new(
         signer: &Pubkey,
         fixture_accounts: &FixtureAccounts,
-        execute_order_fixture: &ExecuteOrderFallbackFixture,
-        initial_offer_fixture: &PlaceInitialOfferShimFixture,
-        initialize_fixture: &InitializeFixture,
+        custodian_address: &Pubkey,
+        fast_market_order_address: &Pubkey,
         from_router_endpoint: &Pubkey,
         to_router_endpoint: &Pubkey,
         usdc_mint_address: &Pubkey,
@@ -98,19 +97,24 @@ impl PrepareOrderResponseShimAccountsFixture {
             &MESSAGE_TRANSMITTER_PROGRAM_ID,
         )
         .0;
+        let token_messenger_minter_event_authority = &Pubkey::find_program_address(
+            &[EVENT_AUTHORITY_SEED],
+            &TOKEN_MESSENGER_MINTER_PROGRAM_ID,
+        )
+        .0;
         let (cctp_used_nonces_pda, _cctp_used_nonces_bump) = UsedNonces::address(
             cctp_message_decoded.source_domain,
             cctp_message_decoded.nonce,
         );
         Self {
             signer: signer.clone(),
-            custodian: initialize_fixture.get_custodian_address(),
-            fast_market_order: initial_offer_fixture.fast_market_order_address,
+            custodian: custodian_address.clone(),
+            fast_market_order: fast_market_order_address.clone(),
             from_endpoint: from_router_endpoint.clone(),
             to_endpoint: to_router_endpoint.clone(),
             base_fee_token: usdc_mint_address.clone(), // Change this to the solver's address?
             usdc: usdc_mint_address.clone(),
-            cctp_mint_recipient: initialize_fixture.addresses.cctp_mint_recipient.clone(),
+            cctp_mint_recipient: CCTP_MINT_RECIPIENT,
             cctp_message_transmitter_authority: cctp_message_transmitter_authority.clone(),
             cctp_message_transmitter_config: fixture_accounts.message_transmitter_config.clone(),
             cctp_used_nonces: cctp_used_nonces_pda.clone(),
@@ -124,9 +128,7 @@ impl PrepareOrderResponseShimAccountsFixture {
             cctp_token_messenger_minter_custody_token: fixture_accounts.usdc_custody_token.clone(),
             cctp_token_messenger_minter_program: TOKEN_MESSENGER_MINTER_PROGRAM_ID,
             cctp_message_transmitter_program: MESSAGE_TRANSMITTER_PROGRAM_ID,
-            cctp_token_messenger_minter_event_authority: execute_order_fixture
-                .accounts
-                .token_messenger_minter_event_authority
+            cctp_token_messenger_minter_event_authority: token_messenger_minter_event_authority
                 .clone(),
             guardian_set: guardian_set.clone(),
             guardian_set_signatures: guardian_set_signatures.clone(),
@@ -187,12 +189,14 @@ impl PrepareOrderResponseShimDataFixture {
 }
 
 pub async fn prepare_order_response_cctp_shim(
-    test_ctx: &Rc<RefCell<ProgramTestContext>>,
+    testing_context: &TestingContext,
     payer_signer: &Rc<Keypair>,
     accounts: PrepareOrderResponseShimAccountsFixture,
     data: PrepareOrderResponseShimDataFixture,
     matching_engine_program_id: &Pubkey,
-) -> Result<PrepareOrderResponseShimFixture> {
+    expected_error: Option<&ExpectedError>,
+) -> Option<PrepareOrderResponseShimFixture> {
+    let test_ctx = &testing_context.test_context;
     let fast_market_order_digest = data.fast_market_order.digest();
     let prepared_order_response_seeds = [
         PreparedOrderResponse::SEED_PREFIX,
@@ -274,16 +278,17 @@ pub async fn prepare_order_response_cctp_shim(
         &[&payer_signer],
         recent_blockhash,
     );
-    test_ctx
-        .borrow_mut()
-        .banks_client
-        .process_transaction(transaction)
-        .await
-        .expect("Failed to process prepare order response cctp shim");
-    Ok(PrepareOrderResponseShimFixture {
-        prepared_order_response: prepared_order_response_pda,
-        prepared_custody_token: prepared_custody_token_pda,
-    })
+    testing_context
+        .execute_and_verify_transaction(transaction, expected_error)
+        .await;
+    if expected_error.is_none() {
+        Some(PrepareOrderResponseShimFixture {
+            prepared_order_response: prepared_order_response_pda,
+            prepared_custody_token: prepared_custody_token_pda,
+        })
+    } else {
+        None
+    }
 }
 
 pub fn get_deposit_base_fee(deposit: &Deposit) -> u64 {
@@ -298,22 +303,26 @@ pub fn get_deposit_base_fee(deposit: &Deposit) -> u64 {
 }
 
 pub async fn prepare_order_response_test(
-    test_ctx: &Rc<RefCell<ProgramTestContext>>,
+    testing_context: &TestingContext,
     payer_signer: &Rc<Keypair>,
     deposit_vaa_data: &utils::vaa::PostedVaaData,
-    core_bridge_program_id: &Pubkey,
-    matching_engine_program_id: &Pubkey,
-    fixture_accounts: &FixtureAccounts,
-    execute_order_fixture: &ExecuteOrderFallbackFixture,
-    initial_offer_fixture: &PlaceInitialOfferShimFixture,
-    initialize_fixture: &InitializeFixture,
+    testing_engine_state: &TestingEngineState,
     to_endpoint_address: &Pubkey,
     from_endpoint_address: &Pubkey,
-    usdc_mint_address: &Pubkey,
-    cctp_mint_recipient: &Pubkey,
-    custodian_address: &Pubkey,
     deposit: &Deposit,
-) -> Result<PrepareOrderResponseShimFixture> {
+    expected_error: Option<&ExpectedError>,
+) -> Option<PrepareOrderResponseShimFixture> {
+    let test_ctx = &testing_context.test_context;
+    let core_bridge_program_id = &testing_context.get_wormhole_program_id();
+    let matching_engine_program_id = &testing_context.get_matching_engine_program_id();
+    let usdc_mint_address = &testing_context.get_usdc_mint_address();
+    let cctp_mint_recipient = &testing_context.get_cctp_mint_recipient();
+
+    let fixture_accounts = testing_context
+        .fixture_accounts
+        .clone()
+        .expect("Fixture accounts not found");
+
     let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) =
         super::shims::create_guardian_signatures(
             test_ctx,
@@ -324,16 +333,26 @@ pub async fn prepare_order_response_test(
         )
         .await;
 
-    let source_remote_token_messenger = utils::router::get_remote_token_messenger(
-        test_ctx,
-        fixture_accounts.ethereum_remote_token_messenger,
-    )
-    .await;
+    let source_remote_token_messenger = match testing_context.testing_state.transfer_direction {
+        TransferDirection::FromEthereumToArbitrum => {
+            utils::router::get_remote_token_messenger(
+                test_ctx,
+                fixture_accounts.ethereum_remote_token_messenger,
+            )
+            .await
+        }
+        _ => panic!("Unsupported transfer direction"),
+    };
     let cctp_nonce = deposit.cctp_nonce;
-    println!("cctp nonce: {:?}", cctp_nonce);
 
     let message_transmitter_config_pubkey = fixture_accounts.message_transmitter_config;
-    let fast_market_order_state = initial_offer_fixture.fast_market_order;
+    let fast_market_order_state = testing_engine_state
+        .fast_market_order()
+        .expect("could not find fast market order")
+        .fast_market_order;
+    let custodian_address = testing_engine_state
+        .custodian_address()
+        .expect("Custodian address not found");
     // TODO: Make checks to see if fast market order sender matches cctp message sender ...
     let cctp_message_decoded = utils::cctp_message::craft_cctp_token_burn_message(
         test_ctx,
@@ -343,7 +362,7 @@ pub async fn prepare_order_response_test(
         &message_transmitter_config_pubkey,
         &(&source_remote_token_messenger).into(),
         cctp_mint_recipient,
-        custodian_address,
+        &custodian_address,
     )
     .await
     .unwrap();
@@ -361,13 +380,16 @@ pub async fn prepare_order_response_test(
         &fast_market_order_state,
         guardian_set_bump,
     );
+    let fast_market_order_address = testing_engine_state
+        .fast_market_order()
+        .expect("could not find fast market order")
+        .fast_market_order_address;
     let cctp_message_decoded = prepare_order_response_cctp_shim_data.decode_cctp_message();
     let prepare_order_response_cctp_shim_accounts = PrepareOrderResponseShimAccountsFixture::new(
         &payer_signer.pubkey(),
         &fixture_accounts,
-        &execute_order_fixture,
-        &initial_offer_fixture,
-        &initialize_fixture,
+        &custodian_address,
+        &fast_market_order_address,
         &from_endpoint_address,
         &to_endpoint_address,
         &usdc_mint_address,
@@ -375,16 +397,15 @@ pub async fn prepare_order_response_test(
         &guardian_set_pubkey,
         &guardian_signatures_pubkey,
     );
-    let result = super::shims_prepare_order_response::prepare_order_response_cctp_shim(
-        test_ctx,
+    super::shims_prepare_order_response::prepare_order_response_cctp_shim(
+        testing_context,
         payer_signer,
         prepare_order_response_cctp_shim_accounts,
         prepare_order_response_cctp_shim_data,
-        matching_engine_program_id,
+        &matching_engine_program_id,
+        expected_error,
     )
-    .await;
-    assert!(result.is_ok());
-    result
+    .await
 }
 
 pub struct PrepareOrderResponseShimFixture {
