@@ -4,9 +4,9 @@
     "ownerAssistant": "DNuVesmYQizpEVXYJZGECSeshqAxHB4fbqX2UC6ehpK4",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
-      "baseFee": "1250000",
-      "initAuctionFee": "950000"
+      "maxAmount": "1000000000000",
+      "baseFee": "10000",
+      "initAuctionFee": "60000"
     },
     "cctpAllowance": "18446744073709551615"
   },
@@ -15,9 +15,9 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
-      "baseFee": "1250000",
-      "initAuctionFee": "950000"
+      "maxAmount": "1000000000000",
+      "baseFee": "10000",
+      "initAuctionFee": "60000"
     },
     "cctpAllowance": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
   },
@@ -26,9 +26,9 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
-      "baseFee": "1250000",
-      "initAuctionFee": "950000"
+      "maxAmount": "1000000000000",
+      "baseFee": "10000",
+      "initAuctionFee": "60000"
     },
     "cctpAllowance": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
   },
@@ -37,9 +37,9 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
-      "baseFee": "1250000",
-      "initAuctionFee": "950000"
+      "maxAmount": "1000000000000",
+      "baseFee": "10000",
+      "initAuctionFee": "60000"
     },
     "cctpAllowance": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
   },
@@ -48,9 +48,9 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
-      "baseFee": "1250000",
-      "initAuctionFee": "950000"
+      "maxAmount": "1000000000000",
+      "baseFee": "10000",
+      "initAuctionFee": "60000"
     },
     "cctpAllowance": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
   },
@@ -59,9 +59,9 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
-      "baseFee": "1250000",
-      "initAuctionFee": "950000"
+      "maxAmount": "1000000000000",
+      "baseFee": "10000",
+      "initAuctionFee": "60000"
     },
     "cctpAllowance": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
   },
@@ -70,9 +70,9 @@
     "ownerAssistant": "0x420E8AA32c31626F7F31D6fcC154eeccd6E6e9cB",
     "fastTransferParameters": {
       "enabled": true,
-      "maxAmount": "1000000000",
-      "baseFee": "1250000",
-      "initAuctionFee": "950000"
+      "maxAmount": "1000000000000",
+      "baseFee": "10000",
+      "initAuctionFee": "60000"
     },
     "cctpAllowance": "115792089237316195423570985008687907853269984665640564039457584007913129639935"
   }
