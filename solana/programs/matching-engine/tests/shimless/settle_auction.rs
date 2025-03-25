@@ -1,27 +1,29 @@
+use crate::testing_engine::config::ExpectedError;
 use crate::utils::auction::AuctionState;
+use crate::utils::setup::TestingContext;
 
-use super::super::shimful::*;
 use anchor_lang::prelude::*;
 use anchor_lang::InstructionData;
 use anchor_spl::token::spl_token;
 use matching_engine::accounts::SettleAuctionComplete as SettleAuctionCompleteCpiAccounts;
 use matching_engine::instruction::SettleAuctionComplete;
-use solana_program_test::*;
 use solana_sdk::instruction::Instruction;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::transaction::Transaction;
-use std::cell::RefCell;
 use std::rc::Rc;
 use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 
 pub async fn settle_auction_complete(
-    test_ctx: &Rc<RefCell<ProgramTestContext>>,
+    testing_context: &TestingContext,
     payer_signer: &Rc<Keypair>,
-    usdc_mint_address: &Pubkey,
-    prepare_order_response_shim_fixture: &shims_prepare_order_response::PrepareOrderResponseShimFixture,
     auction_state: &AuctionState,
+    prepare_order_response_address: &Pubkey,
+    prepared_custody_token: &Pubkey,
     matching_engine_program_id: &Pubkey,
-) -> Result<()> {
+    expected_error: Option<&ExpectedError>,
+) -> AuctionState {
+    let test_ctx = &testing_context.test_context;
+    let usdc_mint_address = &testing_context.get_usdc_mint_address();
     let active_auction = auction_state
         .get_active_auction()
         .expect("Failed to get active auction");
@@ -32,8 +34,8 @@ pub async fn settle_auction_complete(
     let settle_auction_accounts = SettleAuctionCompleteCpiAccounts {
         beneficiary: payer_signer.pubkey(),
         base_fee_token: base_fee_token,
-        prepared_order_response: prepare_order_response_shim_fixture.prepared_order_response,
-        prepared_custody_token: prepare_order_response_shim_fixture.prepared_custody_token,
+        prepared_order_response: prepare_order_response_address.clone(),
+        prepared_custody_token: prepared_custody_token.clone(),
         auction: active_auction.auction_address,
         best_offer_token: active_auction.best_offer.offer_token,
         token_program: spl_token::ID,
@@ -56,12 +58,12 @@ pub async fn settle_auction_complete(
         test_ctx.borrow().last_blockhash,
     );
 
-    test_ctx
-        .borrow_mut()
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .expect("Failed to settle auction");
-
-    Ok(())
+    testing_context
+        .execute_and_verify_transaction(tx, expected_error)
+        .await;
+    if expected_error.is_none() {
+        AuctionState::Settled
+    } else {
+        auction_state.clone()
+    }
 }

@@ -1,17 +1,16 @@
+use crate::testing_engine::config::ExpectedError;
+use crate::utils::auction::ActiveAuctionState;
 use crate::utils::setup::TestingContext;
 
 use super::super::utils;
-use super::shims;
 use anchor_spl::token::spl_token;
 use common::wormhole_cctp_solana::cctp::{
     MESSAGE_TRANSMITTER_PROGRAM_ID, TOKEN_MESSENGER_MINTER_PROGRAM_ID,
 };
 use matching_engine::fallback::execute_order::{ExecuteOrderCctpShim, ExecuteOrderShimAccounts};
-use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     pubkey::Pubkey, signature::Keypair, signer::Signer, sysvar::SysvarId, transaction::Transaction,
 };
-use std::cell::RefCell;
 use std::rc::Rc;
 use utils::setup::TransferDirection;
 use utils::{constants::*, setup::Solver};
@@ -42,7 +41,8 @@ pub struct ExecuteOrderFallbackAccounts {
 impl ExecuteOrderFallbackAccounts {
     pub fn new(
         auction_accounts: &utils::auction::AuctionAccounts,
-        place_initial_offer_fixture: &shims::PlaceInitialOfferShimFixture, // Does not need to be place initial offer fixture, can just be fast market order address. Auction state and transfer direction can be taken from testing context
+        fast_market_order_address: &Pubkey,
+        active_auction_state: &ActiveAuctionState,
         signer: &Pubkey,
         fixture_accounts: &utils::account_fixtures::FixtureAccounts,
         transfer_direction: TransferDirection,
@@ -55,20 +55,13 @@ impl ExecuteOrderFallbackAccounts {
                 fixture_accounts.ethereum_remote_token_messenger
             }
         };
+
         Self {
             signer: signer.clone(),
             custodian: auction_accounts.custodian,
-            fast_market_order_address: place_initial_offer_fixture.fast_market_order_address,
-            active_auction: place_initial_offer_fixture
-                .auction_state
-                .get_active_auction()
-                .unwrap()
-                .auction_address,
-            active_auction_custody_token: place_initial_offer_fixture
-                .auction_state
-                .get_active_auction()
-                .unwrap()
-                .auction_custody_token_address,
+            fast_market_order_address: fast_market_order_address.clone(),
+            active_auction: active_auction_state.auction_address,
+            active_auction_custody_token: active_auction_state.auction_custody_token_address,
             active_auction_config: auction_accounts.auction_config,
             active_auction_best_offer_token: auction_accounts.offer_token,
             initial_offer_token: auction_accounts.offer_token,
@@ -96,14 +89,15 @@ pub struct ExecuteOrderFallbackFixtureAccounts {
 }
 
 pub async fn execute_order_fallback(
-    test_ctx: &Rc<RefCell<ProgramTestContext>>,
+    testing_context: &TestingContext,
     payer_signer: &Rc<Keypair>,
     program_id: &Pubkey,
     solver: Solver,
     execute_order_fallback_accounts: &ExecuteOrderFallbackAccounts,
-    expected_to_pass: bool,
+    expected_error: Option<&ExpectedError>,
 ) -> Option<ExecuteOrderFallbackFixture> {
     // Get target chain and use as remote address
+    let test_ctx = &testing_context.test_context;
     let cctp_message = Pubkey::find_program_address(
         &[
             common::CCTP_MESSAGE_SEED_PREFIX,
@@ -194,16 +188,10 @@ pub async fn execute_order_fallback(
         &[&payer_signer],
         recent_blockhash,
     );
-    let transaction_result = test_ctx
-        .borrow_mut()
-        .banks_client
-        .process_transaction(transaction)
+    testing_context
+        .execute_and_verify_transaction(transaction, expected_error)
         .await;
-    if expected_to_pass {
-        assert!(
-            transaction_result.is_ok(),
-            "Transaction should have been successful"
-        );
+    if expected_error.is_none() {
         Some(ExecuteOrderFallbackFixture {
             cctp_message,
             post_message_sequence,
@@ -217,38 +205,36 @@ pub async fn execute_order_fallback(
             },
         })
     } else {
-        assert!(
-            transaction_result.is_err(),
-            "Transaction should have been unsuccessful"
-        );
         None
     }
 }
 
 pub async fn execute_order_fallback_test(
-    testing_context: &mut TestingContext,
+    testing_context: &TestingContext,
     auction_accounts: &utils::auction::AuctionAccounts,
-    place_initial_offer_fixture: &shims::PlaceInitialOfferShimFixture,
+    fast_market_order_address: &Pubkey,
+    active_auction_state: &ActiveAuctionState,
     solver: Solver,
-    expected_to_pass: bool,
+    expected_error: Option<&ExpectedError>,
 ) -> Option<ExecuteOrderFallbackFixture> {
     let fixture_accounts = testing_context
         .get_fixture_accounts()
         .expect("Pre-made fixture accounts not found");
     let execute_order_fallback_accounts = ExecuteOrderFallbackAccounts::new(
         auction_accounts,
-        place_initial_offer_fixture,
+        fast_market_order_address,
+        active_auction_state,
         &testing_context.testing_actors.owner.pubkey(),
         &fixture_accounts,
         testing_context.testing_state.transfer_direction,
     );
     execute_order_fallback(
-        &testing_context.test_context,
+        &testing_context,
         &testing_context.testing_actors.owner.keypair(),
         &testing_context.get_matching_engine_program_id(),
         solver,
         &execute_order_fallback_accounts,
-        expected_to_pass,
+        expected_error,
     )
     .await
 }

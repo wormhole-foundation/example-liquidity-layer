@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::testing_engine::config::ExpectedError;
 
 use super::super::utils;
@@ -15,6 +17,7 @@ use matching_engine::instruction::{
 };
 use matching_engine::state::Auction;
 use solana_sdk::instruction::Instruction;
+use solana_sdk::signature::Keypair;
 use solana_sdk::signature::Signer;
 use solana_sdk::transaction::Transaction;
 use utils::auction::{ActiveAuctionState, AuctionAccounts, AuctionOffer, AuctionState};
@@ -26,11 +29,11 @@ pub async fn place_initial_offer_shimless(
     accounts: &AuctionAccounts,
     fast_market_order: &TestVaa,
     offer_price: u64,
+    payer_signer: &Rc<Keypair>,
     program_id: Pubkey,
     expected_error: Option<&ExpectedError>,
 ) -> AuctionState {
     let test_ctx = &testing_context.test_context;
-    let owner_keypair = testing_context.testing_actors.owner.keypair();
     let auction_address = Pubkey::find_program_address(
         &[Auction::SEED_PREFIX, &fast_market_order.vaa_data.digest()],
         &program_id,
@@ -104,7 +107,7 @@ pub async fn place_initial_offer_shimless(
         custodian: accounts.custodian,
     };
     let initial_offer_accounts = PlaceInitialOfferCctpAccounts {
-        payer: owner_keypair.pubkey(),
+        payer: payer_signer.pubkey(),
         transfer_authority,
         custodian,
         auction_config: accounts.auction_config,
@@ -136,8 +139,8 @@ pub async fn place_initial_offer_shimless(
 
     let tx = Transaction::new_signed_with_payer(
         &[initial_offer_ix_anchor],
-        Some(&owner_keypair.pubkey()),
-        &[&owner_keypair],
+        Some(&payer_signer.pubkey()),
+        &[payer_signer],
         test_ctx.borrow().last_blockhash,
     );
 
@@ -152,10 +155,12 @@ pub async fn place_initial_offer_shimless(
             auction_custody_token_address,
             auction_config_address: accounts.auction_config,
             initial_offer: AuctionOffer {
+                participant: payer_signer.pubkey(),
                 offer_token: accounts.offer_token,
                 offer_price: initial_offer_ix.offer_price,
             },
             best_offer: AuctionOffer {
+                participant: payer_signer.pubkey(),
                 offer_token: accounts.offer_token,
                 offer_price: initial_offer_ix.offer_price,
             },
@@ -171,11 +176,11 @@ pub async fn improve_offer(
     solver: Solver,
     auction_config: Pubkey,
     offer_price: u64,
+    payer_signer: &Rc<Keypair>,
     initial_auction_state: &AuctionState,
     expected_error: Option<&ExpectedError>,
 ) -> Option<AuctionState> {
     let test_ctx = &testing_context.test_context;
-    let owner_keypair = testing_context.testing_actors.owner.keypair();
     let active_auction_state = initial_auction_state.get_active_auction().unwrap();
     let auction_address = active_auction_state.auction_address;
     let auction_custody_token_address = active_auction_state.auction_custody_token_address;
@@ -228,8 +233,8 @@ pub async fn improve_offer(
 
     let tx = Transaction::new_signed_with_payer(
         &[improve_offer_ix_anchor],
-        Some(&owner_keypair.pubkey()),
-        &[&owner_keypair],
+        Some(&payer_signer.pubkey()),
+        &[payer_signer],
         test_ctx.borrow().last_blockhash,
     );
 
@@ -249,6 +254,7 @@ pub async fn improve_offer(
             auction_config_address: auction_config,
             initial_offer: initial_offer.clone(),
             best_offer: AuctionOffer {
+                participant: payer_signer.pubkey(),
                 offer_token,
                 offer_price,
             },

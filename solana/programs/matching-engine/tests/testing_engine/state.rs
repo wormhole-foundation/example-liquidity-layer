@@ -1,13 +1,12 @@
 use crate::utils::{
     account_fixtures::FixtureAccounts,
-    auction::AuctionState,
+    auction::{AuctionAccounts, AuctionState},
     router::TestRouterEndpoints,
     setup::TransferDirection,
     vaa::{TestVaaPair, TestVaaPairs},
 };
 use anchor_lang::prelude::*;
-use matching_engine::{CCTP_MINT_RECIPIENT, ID as PROGRAM_ID};
-use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
+use matching_engine::state::FastMarketOrder;
 
 // Base state containing common data
 #[derive(Clone)]
@@ -15,15 +14,6 @@ pub struct BaseState {
     pub fixture_accounts: FixtureAccounts,
     pub vaas: TestVaaPairs,
     pub transfer_direction: TransferDirection,
-}
-
-impl BaseState {
-    pub const CCTP_MINT_RECIPIENT: Pubkey = CCTP_MINT_RECIPIENT;
-    pub const CORE_BRIDGE_PROGRAM_ID: Pubkey = CORE_BRIDGE_PROGRAM_ID;
-
-    pub fn get_matching_engine_program_id(&self) -> Pubkey {
-        PROGRAM_ID
-    }
 }
 
 // Each state contains its specific data
@@ -42,6 +32,7 @@ pub struct RouterEndpointsState {
 pub struct FastMarketOrderAccountCreatedState {
     pub fast_market_order_address: Pubkey,
     pub fast_market_order_bump: u8,
+    pub fast_market_order: FastMarketOrder,
 }
 
 #[derive(Clone)]
@@ -56,12 +47,21 @@ pub struct OfferImprovedState {
 
 #[derive(Clone)]
 pub struct OrderExecutedState {
-    pub auction_state: AuctionState,
+    pub cctp_message: Pubkey,
+    pub post_message_sequence: Option<Pubkey>, // Only set if shimful execution
+    pub post_message_message: Option<Pubkey>,  // Only set if shimful execution
 }
 
 #[derive(Clone)]
 pub struct OrderPreparedState {
     pub prepared_order_address: Pubkey,
+    pub prepared_custody_token: Pubkey,
+}
+
+#[derive(Clone)]
+pub struct GuardianSetState {
+    pub guardian_set_address: Pubkey,
+    pub guardian_signatures_address: Pubkey,
 }
 
 // The main state enum that reflects all possible instruction states
@@ -80,8 +80,9 @@ pub enum TestingEngineState {
     FastMarketOrderAccountCreated {
         base: BaseState,
         initialized: InitializedState,
-        router_endpoints: RouterEndpointsState,
+        router_endpoints: Option<RouterEndpointsState>,
         fast_market_order: FastMarketOrderAccountCreatedState,
+        guardian_set_state: GuardianSetState,
     },
     InitialOfferPlaced {
         base: BaseState,
@@ -89,6 +90,7 @@ pub enum TestingEngineState {
         router_endpoints: RouterEndpointsState,
         fast_market_order: Option<FastMarketOrderAccountCreatedState>,
         auction_state: AuctionState,
+        auction_accounts: AuctionAccounts,
     },
     OfferImproved {
         base: BaseState,
@@ -96,6 +98,7 @@ pub enum TestingEngineState {
         router_endpoints: RouterEndpointsState,
         fast_market_order: Option<FastMarketOrderAccountCreatedState>,
         auction_state: AuctionState,
+        auction_accounts: Option<AuctionAccounts>,
     },
     OrderExecuted {
         base: BaseState,
@@ -103,6 +106,8 @@ pub enum TestingEngineState {
         router_endpoints: RouterEndpointsState,
         fast_market_order: Option<FastMarketOrderAccountCreatedState>,
         auction_state: AuctionState,
+        order_executed: OrderExecutedState,
+        auction_accounts: AuctionAccounts,
     },
     OrderPrepared {
         base: BaseState,
@@ -111,6 +116,7 @@ pub enum TestingEngineState {
         fast_market_order: Option<FastMarketOrderAccountCreatedState>,
         auction_state: AuctionState,
         order_prepared: OrderPreparedState,
+        auction_accounts: AuctionAccounts,
     },
     AuctionSettled {
         base: BaseState,
@@ -119,14 +125,16 @@ pub enum TestingEngineState {
         auction_state: AuctionState,
         fast_market_order: Option<FastMarketOrderAccountCreatedState>,
         order_prepared: OrderPreparedState,
+        auction_accounts: Option<AuctionAccounts>,
     },
     FastMarketOrderClosed {
         base: BaseState,
         initialized: InitializedState,
-        router_endpoints: RouterEndpointsState,
+        router_endpoints: Option<RouterEndpointsState>,
         auction_state: AuctionState,
         fast_market_order: Option<FastMarketOrderAccountCreatedState>,
         order_prepared: Option<OrderPreparedState>,
+        auction_accounts: Option<AuctionAccounts>,
     },
 }
 
@@ -173,7 +181,7 @@ impl TestingEngineState {
             } => Some(router_endpoints),
             Self::FastMarketOrderAccountCreated {
                 router_endpoints, ..
-            } => Some(router_endpoints),
+            } => router_endpoints.as_ref(),
             Self::InitialOfferPlaced {
                 router_endpoints, ..
             } => Some(router_endpoints),
@@ -191,7 +199,7 @@ impl TestingEngineState {
             } => Some(router_endpoints),
             Self::FastMarketOrderClosed {
                 router_endpoints, ..
-            } => Some(router_endpoints),
+            } => router_endpoints.as_ref(),
         }
     }
 
@@ -229,8 +237,32 @@ impl TestingEngineState {
         }
     }
 
+    pub fn auction_accounts(&self) -> Option<&AuctionAccounts> {
+        match self {
+            Self::InitialOfferPlaced {
+                auction_accounts, ..
+            } => Some(auction_accounts),
+            Self::OfferImproved {
+                auction_accounts, ..
+            } => auction_accounts.as_ref(),
+            Self::OrderExecuted {
+                auction_accounts, ..
+            } => Some(auction_accounts),
+            Self::OrderPrepared {
+                auction_accounts, ..
+            } => Some(auction_accounts),
+            Self::AuctionSettled {
+                auction_accounts, ..
+            } => auction_accounts.as_ref(),
+            Self::FastMarketOrderClosed {
+                auction_accounts, ..
+            } => auction_accounts.as_ref(),
+            _ => None,
+        }
+    }
+
     // Prepared order accessor
-    pub fn prepared_order(&self) -> Option<&OrderPreparedState> {
+    pub fn order_prepared(&self) -> Option<&OrderPreparedState> {
         match self {
             Self::OrderPrepared { order_prepared, .. } => Some(order_prepared),
             Self::AuctionSettled { order_prepared, .. } => Some(order_prepared),
