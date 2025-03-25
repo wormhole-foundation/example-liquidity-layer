@@ -22,12 +22,13 @@ use utils::setup::{Solver, TestingContext};
 use utils::vaa::TestVaa;
 
 pub async fn place_initial_offer_shimless(
-    testing_context: &mut TestingContext,
+    testing_context: &TestingContext,
     accounts: &AuctionAccounts,
-    fast_market_order: TestVaa,
+    fast_market_order: &TestVaa,
+    offer_price: u64,
     program_id: Pubkey,
     expected_error: Option<&ExpectedError>,
-) {
+) -> AuctionState {
     let test_ctx = &testing_context.test_context;
     let owner_keypair = testing_context.testing_actors.owner.keypair();
     let auction_address = Pubkey::find_program_address(
@@ -43,9 +44,7 @@ pub async fn place_initial_offer_shimless(
         &program_id,
     )
     .0;
-    let initial_offer_ix = PlaceInitialOfferCctpIx {
-        offer_price: 1__000_000,
-    };
+    let initial_offer_ix = PlaceInitialOfferCctpIx { offer_price };
 
     let fast_order_path = FastOrderPath {
         fast_vaa: LiquidityLayerVaa {
@@ -148,7 +147,7 @@ pub async fn place_initial_offer_shimless(
 
     // If the transaction failed and we expected it to pass, we would not get here
     if expected_error.is_none() {
-        testing_context.testing_state.auction_state = AuctionState::Active(ActiveAuctionState {
+        AuctionState::Active(ActiveAuctionState {
             auction_address,
             auction_custody_token_address,
             auction_config_address: accounts.auction_config,
@@ -160,27 +159,26 @@ pub async fn place_initial_offer_shimless(
                 offer_token: accounts.offer_token,
                 offer_price: initial_offer_ix.offer_price,
             },
-        });
-    };
+        })
+    } else {
+        AuctionState::Inactive
+    }
 }
 
 pub async fn improve_offer(
-    testing_context: &mut TestingContext,
+    testing_context: &TestingContext,
     program_id: Pubkey,
     solver: Solver,
     auction_config: Pubkey,
     offer_price: u64,
+    initial_auction_state: &AuctionState,
     expected_error: Option<&ExpectedError>,
-) {
+) -> Option<AuctionState> {
     let test_ctx = &testing_context.test_context;
     let owner_keypair = testing_context.testing_actors.owner.keypair();
-    let auction_state = testing_context
-        .testing_state
-        .auction_state
-        .get_active_auction()
-        .unwrap();
-    let auction_address = auction_state.auction_address;
-    let auction_custody_token_address = auction_state.auction_custody_token_address;
+    let active_auction_state = initial_auction_state.get_active_auction().unwrap();
+    let auction_address = active_auction_state.auction_address;
+    let auction_custody_token_address = active_auction_state.auction_custody_token_address;
 
     let improve_offer_ix = ImproveOfferIx { offer_price };
 
@@ -203,7 +201,7 @@ pub async fn improve_offer(
         auction: auction_address,
         custody_token: auction_custody_token_address,
         config: auction_config,
-        best_offer_token: auction_state.best_offer.offer_token,
+        best_offer_token: active_auction_state.best_offer.offer_token,
     };
     let improve_offer_accounts = ImproveOfferAccounts {
         transfer_authority,
@@ -216,7 +214,7 @@ pub async fn improve_offer(
 
     let mut account_metas = improve_offer_accounts.to_account_metas(None);
     for meta in account_metas.iter_mut() {
-        if meta.pubkey == auction_state.best_offer.offer_token {
+        if meta.pubkey == active_auction_state.best_offer.offer_token {
             meta.is_writable = true;
         }
     }
@@ -241,14 +239,21 @@ pub async fn improve_offer(
 
     // If the transaction failed and we expected it to pass, we would not get here
     if expected_error.is_none() {
-        let auction_state = testing_context
-            .testing_state
-            .auction_state
-            .get_active_auction_mut()
-            .unwrap();
-        auction_state.best_offer = AuctionOffer {
-            offer_token,
-            offer_price: improve_offer_ix.offer_price,
-        };
+        let initial_offer = &initial_auction_state
+            .get_active_auction()
+            .unwrap()
+            .initial_offer;
+        Some(AuctionState::Active(ActiveAuctionState {
+            auction_address,
+            auction_custody_token_address,
+            auction_config_address: auction_config,
+            initial_offer: initial_offer.clone(),
+            best_offer: AuctionOffer {
+                offer_token,
+                offer_price,
+            },
+        }))
+    } else {
+        None
     }
 }

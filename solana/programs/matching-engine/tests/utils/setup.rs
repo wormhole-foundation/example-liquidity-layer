@@ -219,7 +219,7 @@ impl TestingContext {
         if let Some(expected_error) = expected_error {
             let tx_error = tx_result.expect_err(&format!(
                 "Expected error {:?}, but transaction succeeded",
-                expected_error.error
+                expected_error.error_string
             ));
 
             match tx_error {
@@ -232,18 +232,16 @@ impl TestingContext {
                         "Expected error on instruction {}, but got: {:?}",
                         expected_error.instruction_index, tx_error
                     );
-                    let expected_error_code = u32::from(expected_error.error);
-
                     assert_eq!(
-                        error_code, expected_error_code,
+                        error_code, expected_error.error_code,
                         "Program returned error code {}, expected {} ({:?})",
-                        error_code, expected_error_code, expected_error.error
+                        error_code, expected_error.error_code, expected_error.error_string
                     );
                 }
                 _ => {
                     panic!(
                         "Expected program error {:?}, but got: {:?}",
-                        expected_error.error, tx_error
+                        expected_error.error_string, tx_error
                     );
                 }
             }
@@ -505,31 +503,11 @@ pub async fn fast_forward_slots(test_context: &Rc<RefCell<ProgramTestContext>>, 
 }
 
 #[derive(Clone)]
-pub enum ProgramState {
-    Initialized(ProgramAddresses),
-    Uninitialized,
-}
-
-impl ProgramState {
-    pub fn initialize(&mut self, custodian_address: Pubkey) {
-        *self = ProgramState::Initialized(ProgramAddresses { custodian_address });
-    }
-
-    pub fn get_custodian_address(&self) -> Pubkey {
-        match self {
-            ProgramState::Initialized(addresses) => addresses.custodian_address,
-            ProgramState::Uninitialized => panic!("Program is not initialized"),
-        }
-    }
-}
-
-#[derive(Clone)]
 pub struct ProgramAddresses {
     pub custodian_address: Pubkey,
 }
 
 pub struct TestingState {
-    pub program_state: ProgramState,
     pub auction_state: AuctionState,
     pub vaas: TestVaaPairs,
     pub transfer_direction: TransferDirection,
@@ -538,7 +516,6 @@ pub struct TestingState {
 impl Default for TestingState {
     fn default() -> Self {
         Self {
-            program_state: ProgramState::Uninitialized,
             auction_state: AuctionState::Inactive,
             vaas: TestVaaPairs::new(),
             transfer_direction: TransferDirection::FromEthereumToArbitrum,

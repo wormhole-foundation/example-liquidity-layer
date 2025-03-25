@@ -1,5 +1,6 @@
+use crate::utils::auction::AuctionState;
+
 use super::super::shimful::*;
-use super::super::utils;
 use anchor_lang::prelude::*;
 use anchor_lang::InstructionData;
 use anchor_spl::token::spl_token;
@@ -18,9 +19,12 @@ pub async fn settle_auction_complete(
     payer_signer: &Rc<Keypair>,
     usdc_mint_address: &Pubkey,
     prepare_order_response_shim_fixture: &shims_prepare_order_response::PrepareOrderResponseShimFixture,
-    auction_state: &Rc<RefCell<utils::auction::ActiveAuctionState>>,
+    auction_state: &AuctionState,
     matching_engine_program_id: &Pubkey,
 ) -> Result<()> {
+    let active_auction = auction_state
+        .get_active_auction()
+        .expect("Failed to get active auction");
     let base_fee_token = usdc_mint_address.clone();
     let event_seeds = EVENT_AUTHORITY_SEED;
     let event_authority =
@@ -30,8 +34,8 @@ pub async fn settle_auction_complete(
         base_fee_token: base_fee_token,
         prepared_order_response: prepare_order_response_shim_fixture.prepared_order_response,
         prepared_custody_token: prepare_order_response_shim_fixture.prepared_custody_token,
-        auction: auction_state.borrow().auction_address,
-        best_offer_token: auction_state.borrow().best_offer.offer_token,
+        auction: active_auction.auction_address,
+        best_offer_token: active_auction.best_offer.offer_token,
         token_program: spl_token::ID,
         event_authority: event_authority,
         program: *matching_engine_program_id,

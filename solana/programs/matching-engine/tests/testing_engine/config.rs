@@ -1,10 +1,13 @@
-use crate::shimless::initialize::AuctionParametersConfig;
-use matching_engine::error::MatchingEngineError;
+use std::collections::HashSet;
+
+use crate::{shimless::initialize::AuctionParametersConfig, utils::Chain};
+use anchor_lang::prelude::*;
 
 #[derive(Clone)]
 pub struct ExpectedError {
     pub instruction_index: u8,
-    pub error: MatchingEngineError,
+    pub error_code: u32,
+    pub error_string: String,
 }
 
 #[derive(Clone)]
@@ -22,16 +25,31 @@ impl Default for InitializeInstructionConfig {
     }
 }
 
+pub struct CreateCctpRouterEndpointsInstructionConfig {
+    pub chains: HashSet<Chain>,
+    pub expected_error: Option<ExpectedError>,
+}
+
+impl Default for CreateCctpRouterEndpointsInstructionConfig {
+    fn default() -> Self {
+        Self {
+            chains: HashSet::from([Chain::Ethereum, Chain::Arbitrum, Chain::Solana]),
+            expected_error: None,
+        }
+    }
+}
 #[derive(Clone)]
 pub struct InitializeFastMarketOrderShimInstructionConfig {
-    pub fast_market_order_config: FastMarketOrderConfig,
+    pub fast_market_order_id: u32,
+    pub close_account_refund_recipient: Pubkey,
     pub expected_error: Option<ExpectedError>,
 }
 
 impl Default for InitializeFastMarketOrderShimInstructionConfig {
     fn default() -> Self {
         Self {
-            fast_market_order_config: FastMarketOrderConfig::default(),
+            fast_market_order_id: 0,
+            close_account_refund_recipient: Pubkey::new_unique(),
             expected_error: None,
         }
     }
@@ -65,18 +83,6 @@ impl Default for ImproveOfferInstructionConfig {
             solver_index: 0,
             offer_price: 500_000,
             expected_error: None,
-        }
-    }
-}
-#[derive(Clone)]
-pub struct FastMarketOrderConfig {
-    pub fast_market_order_id: u32,
-}
-
-impl Default for FastMarketOrderConfig {
-    fn default() -> Self {
-        Self {
-            fast_market_order_id: 0,
         }
     }
 }

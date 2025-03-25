@@ -24,6 +24,9 @@ use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::transaction::Transaction;
 use solana_sdk::transaction::VersionedTransaction;
 use std::cell::RefCell;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::ops::Deref;
 use std::rc::Rc;
 
 fn generate_admin(owner_or_assistant: Pubkey, custodian: Pubkey) -> Admin {
@@ -107,41 +110,29 @@ impl TestEndpointInfo {
     }
 }
 
-pub struct TestRouterEndpoints {
-    pub arbitrum: TestRouterEndpoint,
-    pub ethereum: TestRouterEndpoint,
-    pub solana: TestRouterEndpoint,
+#[derive(Clone)]
+pub struct TestRouterEndpoints(HashMap<Chain, TestRouterEndpoint>);
+
+impl Deref for TestRouterEndpoints {
+    type Target = HashMap<Chain, TestRouterEndpoint>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 impl TestRouterEndpoints {
-    pub fn new(
-        arbitrum: TestRouterEndpoint,
-        ethereum: TestRouterEndpoint,
-        solana: TestRouterEndpoint,
-    ) -> Self {
-        Self {
-            arbitrum,
-            ethereum,
-            solana,
-        }
-    }
-
     #[allow(dead_code)]
     pub fn get_endpoint_info(&self, chain: Chain) -> TestEndpointInfo {
-        match chain {
-            Chain::Arbitrum => self.arbitrum.info.clone(),
-            Chain::Ethereum => self.ethereum.info.clone(),
-            Chain::Solana => self.solana.info.clone(),
-            _ => panic!("Unsupported chain"),
-        }
+        self.get(&chain).unwrap().info.clone()
     }
 
     #[allow(dead_code)]
     pub fn get_endpoint_address(&self, chain: Chain) -> Pubkey {
         match chain {
-            Chain::Arbitrum => self.arbitrum.endpoint_address,
-            Chain::Ethereum => self.ethereum.endpoint_address,
-            Chain::Solana => self.solana.endpoint_address,
+            Chain::Arbitrum => self.get(&Chain::Arbitrum).unwrap().endpoint_address,
+            Chain::Ethereum => self.get(&Chain::Ethereum).unwrap().endpoint_address,
+            Chain::Solana => self.get(&Chain::Solana).unwrap().endpoint_address,
             _ => panic!("Unsupported chain"),
         }
     }
@@ -372,48 +363,36 @@ pub async fn add_local_router_endpoint_ix(
     test_router_endpoint
 }
 
-pub async fn create_cctp_router_endpoints_test(
+pub async fn create_cctp_router_endpoint(
     testing_context: &TestingContext,
     admin_owner_or_assistant: Pubkey,
     custodian_address: Pubkey,
     admin_keypair: Rc<Keypair>,
-) -> [TestRouterEndpoint; 2] {
+    chain: Chain,
+) -> TestRouterEndpoint {
     let fixture_accounts = testing_context.get_fixture_accounts().unwrap();
     let usdc_mint_address = testing_context.get_usdc_mint_address();
     let program_id = testing_context.get_matching_engine_program_id();
-    let arb_remote_token_messenger = fixture_accounts.arbitrum_remote_token_messenger;
     let test_context = &testing_context.test_context;
-    let arb_chain = Chain::Arbitrum;
-    let arbitrum_token_router_endpoint = add_cctp_router_endpoint_ix(
+    let token_messenger = match chain {
+        Chain::Arbitrum => fixture_accounts.arbitrum_remote_token_messenger,
+        Chain::Ethereum => fixture_accounts.ethereum_remote_token_messenger,
+        _ => {
+            panic!("Unsupported chain");
+        }
+    };
+    let token_router_endpoint = add_cctp_router_endpoint_ix(
         test_context,
         admin_owner_or_assistant,
         custodian_address,
         admin_keypair.as_ref(),
         program_id,
-        arb_remote_token_messenger,
+        token_messenger,
         usdc_mint_address,
-        arb_chain,
+        chain,
     )
     .await;
-
-    let eth_chain = Chain::Ethereum;
-    let eth_remote_token_messenger = fixture_accounts.ethereum_remote_token_messenger;
-    let ethereum_token_router_endpoint = add_cctp_router_endpoint_ix(
-        test_context,
-        admin_owner_or_assistant,
-        custodian_address,
-        admin_keypair.as_ref(),
-        program_id,
-        eth_remote_token_messenger,
-        usdc_mint_address,
-        eth_chain,
-    )
-    .await;
-
-    [
-        arbitrum_token_router_endpoint,
-        ethereum_token_router_endpoint,
-    ]
+    token_router_endpoint
 }
 
 pub async fn create_all_router_endpoints_test(
@@ -421,28 +400,38 @@ pub async fn create_all_router_endpoints_test(
     admin_owner_or_assistant: Pubkey,
     custodian_address: Pubkey,
     admin_keypair: Rc<Keypair>,
+    chains: HashSet<Chain>,
 ) -> TestRouterEndpoints {
-    let [arbitrum_token_router_endpoint, ethereum_token_router_endpoint] =
-        create_cctp_router_endpoints_test(
-            testing_context,
-            admin_owner_or_assistant.clone(),
-            custodian_address.clone(),
-            admin_keypair.clone(),
-        )
-        .await;
-
-    let local_token_router_endpoint = add_local_router_endpoint_ix(
-        testing_context,
-        admin_owner_or_assistant,
-        custodian_address,
-        admin_keypair.as_ref(),
-    )
-    .await;
-    TestRouterEndpoints::new(
-        arbitrum_token_router_endpoint,
-        ethereum_token_router_endpoint,
-        local_token_router_endpoint,
-    )
+    let mut endpoints: HashMap<Chain, TestRouterEndpoint> = HashMap::new();
+    for chain in chains {
+        match chain {
+            Chain::Solana => {
+                let local_token_router_endpoint = add_local_router_endpoint_ix(
+                    testing_context,
+                    admin_owner_or_assistant,
+                    custodian_address,
+                    admin_keypair.as_ref(),
+                )
+                .await;
+                endpoints.insert(chain, local_token_router_endpoint);
+            }
+            Chain::Arbitrum | Chain::Ethereum => {
+                let cctp_router_endpoint = create_cctp_router_endpoint(
+                    testing_context,
+                    admin_owner_or_assistant,
+                    custodian_address,
+                    admin_keypair.clone(),
+                    chain,
+                )
+                .await;
+                endpoints.insert(chain, cctp_router_endpoint);
+            }
+            _ => {
+                panic!("Unsupported chain");
+            }
+        }
+    }
+    TestRouterEndpoints(endpoints)
 }
 
 pub async fn get_remote_token_messenger(

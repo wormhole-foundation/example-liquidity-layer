@@ -1,5 +1,6 @@
+use crate::testing_engine::config::ExpectedError;
 use crate::utils::account_fixtures::FixtureAccounts;
-use crate::utils::auction::AuctionAccounts;
+use crate::utils::auction::{AuctionAccounts, AuctionState};
 use crate::utils::setup::{TestingContext, TransferDirection};
 use anchor_lang::prelude::*;
 use anchor_lang::{InstructionData, ToAccountMetas};
@@ -23,12 +24,9 @@ pub fn create_execute_order_shimless_accounts(
     testing_context: &mut TestingContext,
     fixture_accounts: &FixtureAccounts,
     auction_accounts: &AuctionAccounts,
+    auction_state: &AuctionState,
 ) -> ExecuteOrderShimlessAccounts {
-    let active_auction_state = testing_context
-        .testing_state
-        .auction_state
-        .get_active_auction()
-        .unwrap();
+    let active_auction_state = auction_state.get_active_auction().unwrap();
     let active_auction_address = active_auction_state.auction_address;
     let active_auction_custody_token = active_auction_state.auction_custody_token_address;
     let cctp_message = Pubkey::find_program_address(
@@ -149,7 +147,8 @@ pub fn create_execute_order_shimless_accounts(
 pub async fn execute_order_shimless_test(
     testing_context: &mut TestingContext,
     auction_accounts: &AuctionAccounts,
-    expected_to_pass: bool,
+    auction_state: &AuctionState,
+    expected_error: Option<ExpectedError>,
 ) -> Option<ExecuteOrderShimlessFixture> {
     crate::utils::setup::fast_forward_slots(&testing_context.test_context, 3).await;
     let fixture_accounts = testing_context
@@ -160,6 +159,7 @@ pub async fn execute_order_shimless_test(
             testing_context,
             &fixture_accounts,
             auction_accounts,
+            auction_state,
         );
     let execute_order_instruction_data = ExecuteOrderShimlessInstruction {}.data();
     let execute_order_ix = Instruction {
@@ -184,7 +184,7 @@ pub async fn execute_order_shimless_test(
         .banks_client
         .process_transaction(tx)
         .await;
-    if expected_to_pass {
+    if expected_error.is_none() {
         assert!(tx_result.is_ok());
         Some(ExecuteOrderShimlessFixture {})
     } else {
