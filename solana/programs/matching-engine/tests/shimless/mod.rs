@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used)]
+
 // pub mod execute_order;
 pub mod initialize;
 pub mod make_offer;

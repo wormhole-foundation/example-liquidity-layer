@@ -389,7 +389,8 @@ impl TestingEngine {
                 .get_active_auction()
                 .unwrap()
                 .verify_auction(&self.testing_context)
-                .await;
+                .await
+                .expect("Could not verify auction state");
             return TestingEngineState::InitialOfferPlaced {
                 base: current_state.base().clone(),
                 initialized: current_state.initialized().unwrap().clone(),
@@ -505,7 +506,8 @@ impl TestingEngine {
                 .unwrap();
             active_auction_state
                 .verify_auction(&self.testing_context)
-                .await;
+                .await
+                .expect("Could not verify auction");
             return TestingEngineState::InitialOfferPlaced {
                 base: current_state.base().clone(),
                 initialized: current_state.initialized().unwrap().clone(),

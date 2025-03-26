@@ -1,3 +1,4 @@
+#![allow(clippy::expect_used)]
 pub mod fast_market_order_shim;
 pub mod post_message;
 // pub mod shims_execute_order;

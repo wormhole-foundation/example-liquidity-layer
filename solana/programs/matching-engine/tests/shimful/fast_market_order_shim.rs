@@ -62,8 +62,7 @@ pub async fn initialise_fast_market_order_fallback(
         &[payer_signer],
         recent_blockhash,
     );
-    let versioned_transaction = VersionedTransaction::try_from(transaction)
-        .expect("Failed to convert transaction to versioned transaction");
+    let versioned_transaction = VersionedTransaction::from(transaction);
     testing_context
         .execute_and_verify_transaction(versioned_transaction, expected_error)
         .await;

@@ -1,3 +1,8 @@
+#![allow(clippy::expect_used)]
+#![allow(dead_code)]
+#![allow(clippy::panic)]
+#![allow(clippy::await_holding_refcell_ref)]
+
 use anchor_lang::AccountDeserialize;
 use anchor_spl::token::TokenAccount;
 use matching_engine::ID as PROGRAM_ID;

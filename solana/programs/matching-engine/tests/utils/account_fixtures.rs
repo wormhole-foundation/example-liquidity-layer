@@ -124,7 +124,7 @@ fn read_account_from_file(filename: &str) -> AnyhowResult<AccountFixture> {
     // Extract the lamports value
     let lamports = json["account"]["lamports"]
         .as_u64()
-        .expect(&format!("lamports field not found or invalid {}", filename));
+        .unwrap_or_else(|| panic!("lamports field not found or invalid {}", filename));
 
     // Extract the address value
     let address: Pubkey = solana_sdk::pubkey::Pubkey::from_str(

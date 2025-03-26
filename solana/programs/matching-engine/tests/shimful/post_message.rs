@@ -1,5 +1,5 @@
 use crate::utils::{constants::*, setup::TestingContext};
-use solana_program_test::ProgramTestContext;
+
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
     hash::Hash,
@@ -7,7 +7,7 @@ use solana_sdk::{
     signature::{Keypair, Signer},
     transaction::VersionedTransaction,
 };
-use std::cell::RefCell;
+
 use std::rc::Rc;
 use wormhole_svm_definitions::{
     find_emitter_sequence_address, find_shim_message_address, solana::Finality,
@@ -36,7 +36,7 @@ impl BumpCosts {
     }
 
     fn bump_cu_cost(bump: u8) -> u64 {
-        1_500 * (255_u64.saturating_sub(u64::from(bump)))
+        1_500_u64.saturating_mul(255_u64.saturating_sub(u64::from(bump)))
     }
 }
 

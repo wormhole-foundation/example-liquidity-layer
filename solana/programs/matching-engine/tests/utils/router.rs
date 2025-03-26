@@ -18,12 +18,12 @@ use matching_engine::state::EndpointInfo;
 use matching_engine::state::RouterEndpoint;
 use matching_engine::AddCctpRouterEndpointArgs;
 use matching_engine::LOCAL_CUSTODY_TOKEN_SEED_PREFIX;
-use solana_program_test::ProgramTestContext;
+
 use solana_sdk::instruction::Instruction;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::transaction::Transaction;
 use solana_sdk::transaction::VersionedTransaction;
-use std::cell::RefCell;
+
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::ops::Deref;
@@ -154,9 +154,9 @@ pub async fn add_cctp_router_endpoint_ix(
     admin_keypair: &Keypair,
     program_id: Pubkey,
     remote_token_messenger: Pubkey,
-    usdc_mint_address: Pubkey,
     chain: Chain,
 ) -> TestRouterEndpoint {
+    let usdc_mint_address = testing_context.get_usdc_mint_address();
     let admin = generate_admin(admin_owner_or_assistant, admin_custodian);
     let usdc = matching_engine::accounts::Usdc {
         mint: usdc_mint_address,
@@ -333,7 +333,6 @@ pub async fn create_cctp_router_endpoint(
     chain: Chain,
 ) -> TestRouterEndpoint {
     let fixture_accounts = testing_context.get_fixture_accounts().unwrap();
-    let usdc_mint_address = testing_context.get_usdc_mint_address();
     let program_id = testing_context.get_matching_engine_program_id();
     let token_messenger = match chain {
         Chain::Arbitrum => fixture_accounts.arbitrum_remote_token_messenger,
@@ -350,7 +349,6 @@ pub async fn create_cctp_router_endpoint(
         admin_keypair.as_ref(),
         program_id,
         token_messenger,
-        usdc_mint_address,
         chain,
     )
     .await
@@ -395,15 +393,11 @@ pub async fn create_all_router_endpoints_test(
     TestRouterEndpoints(endpoints)
 }
 
-// TODO: Remove this allow once all instructions are implemented
-#[allow(dead_code)]
 pub async fn get_remote_token_messenger(
-    test_context: &Rc<RefCell<ProgramTestContext>>,
+    testing_context: &TestingContext,
     address: Pubkey,
 ) -> RemoteTokenMessenger {
-    let remote_token_messenger_data = test_context
-        .borrow_mut()
-        .banks_client
+    let remote_token_messenger_data = testing_context
         .get_account(address)
         .await
         .unwrap()

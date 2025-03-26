@@ -13,11 +13,10 @@ use super::constants::CORE_BRIDGE_PID;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use solana_program::keccak;
-use solana_program_test::{ProgramTest};
+use solana_program_test::ProgramTest;
 use solana_sdk::account::Account;
 
 use std::ops::{Deref, DerefMut};
-
 
 pub trait DataDiscriminator {
     const DISCRIMINATOR: &'static [u8];
@@ -70,10 +69,13 @@ impl PostedVaaData {
         sequence: u64,
         nonce: u32,
     ) -> Self {
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as u32;
+        let timestamp = u32::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+        )
+        .unwrap();
         let emitter_chain = chain.as_chain_id();
         Self {
             consistency_level: 1,
@@ -116,7 +118,7 @@ impl PostedVaaData {
         let (recovery_id, compact_sig) = recoverable_signature.serialize_compact();
         // Recovery ID goes in byte 65
         signature_bytes[1..65].copy_from_slice(&compact_sig);
-        signature_bytes[65] = i32::from(recovery_id) as u8;
+        signature_bytes[65] = u8::try_from(i32::from(recovery_id)).unwrap();
         signature_bytes
     }
 
@@ -149,8 +151,8 @@ pub fn deserialize_with_discriminator<T: BorshDeserialize + DataDiscriminator>(
     if discriminant != T::DISCRIMINATOR {
         return None;
     }
-    let mut data = data[4..].to_vec();
-    let message = T::try_from_slice(&mut data);
+    let data = data[4..].to_vec();
+    let message = T::try_from_slice(&data);
     match message {
         Ok(message) => Some(message),
         Err(_) => None,
@@ -181,7 +183,6 @@ impl PayloadDeserialized {
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_fast_transfer(&self) -> Option<FastMarketOrder> {
         match self {
             Self::FastTransfer(fast_transfer) => Some(fast_transfer.clone()),
@@ -225,7 +226,10 @@ impl CreateDepositAndFastTransferParams {
     pub fn verify(&self) {
         assert!(
             self.fast_transfer_params.max_fee
-                > self.deposit_params.base_fee + self.fast_transfer_params.init_auction_fee,
+                > self
+                    .deposit_params
+                    .base_fee
+                    .saturating_add(self.fast_transfer_params.init_auction_fee),
             "Max fee must be greater than the sum of the base fee and the init auction fee"
         );
         assert!(
@@ -280,6 +284,7 @@ pub struct TestVaaPair {
 }
 
 impl TestVaaPair {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         start_timestamp: Option<u32>,
         token_mint: Pubkey,
@@ -315,7 +320,7 @@ impl TestVaaPair {
                 refund_address.clone(),
                 destination_address.clone(),
                 vaa_nonce,
-                sequence + 1,
+                sequence.saturating_add(1),
                 create_fast_transfer_params.amount_in,
                 create_fast_transfer_params.min_amount_out,
                 create_fast_transfer_params.max_fee,
@@ -444,7 +449,7 @@ pub fn create_fast_transfer_message(
 ) -> (Pubkey, PostedVaaData, FastMarketOrder) {
     // If start timestamp is not provided, set the deadline to 0
     let deadline = start_timestamp
-        .map(|timestamp| timestamp + 10)
+        .map(|timestamp| timestamp.saturating_add(10))
         .unwrap_or_default();
     // Implements TypePrefixedPayload
     let fast_market_order = FastMarketOrder {
@@ -511,7 +516,9 @@ impl TestVaaPairs {
         let sequence = vaa_args
             .sequence
             .unwrap_or_else(|| u64::try_from(self.len()).unwrap());
-        let cctp_nonce = vaa_args.cctp_nonce.unwrap_or_else(|| sequence + 1);
+        let cctp_nonce = vaa_args
+            .cctp_nonce
+            .unwrap_or_else(|| sequence.saturating_add(1));
         let vaa_nonce = vaa_args.vaa_nonce.unwrap_or_default();
         let is_posted = vaa_args.post_vaa;
         let create_deposit_and_fast_transfer_params =
@@ -537,15 +544,18 @@ impl TestVaaPairs {
         program_test: &mut ProgramTest,
         mint_address: Pubkey,
         cctp_mint_recipient: Pubkey,
-        source_chain: Chain,
-        destination_chain: Chain,
-        source_address: [u8; 32],
-        destination_address: [u8; 32],
+        source_chain_and_address: ChainAndAddress,
+        destination_chain_and_address: ChainAndAddress,
         vaa_args: &VaaArgs,
     ) {
-        let source_address = ChainAddress::new_with_address(source_chain, source_address);
-        let destination_address =
-            ChainAddress::new_with_address(destination_chain, destination_address);
+        let source_address = ChainAddress::new_with_address(
+            source_chain_and_address.chain,
+            source_chain_and_address.address,
+        );
+        let destination_address = ChainAddress::new_with_address(
+            destination_chain_and_address.chain,
+            destination_chain_and_address.address,
+        );
         let refund_address = source_address.clone();
         self.add_ft(
             mint_address,
@@ -581,14 +591,17 @@ pub struct VaaArgs {
     pub create_deposit_and_fast_transfer_params: CreateDepositAndFastTransferParams,
 }
 
+pub struct ChainAndAddress {
+    pub chain: Chain,
+    pub address: [u8; 32],
+}
+
 pub fn create_vaas_test_with_chain_and_address(
     program_test: &mut ProgramTest,
     mint_address: Pubkey,
     cctp_mint_recipient: Pubkey,
-    source_chain: Chain,
-    destination_chain: Chain,
-    source_address: [u8; 32],
-    destination_address: [u8; 32],
+    source_chain_and_address: ChainAndAddress,
+    destination_chain_and_address: ChainAndAddress,
     vaa_args: VaaArgs,
 ) -> TestVaaPairs {
     let mut test_fast_transfers = TestVaaPairs::new();
@@ -596,10 +609,8 @@ pub fn create_vaas_test_with_chain_and_address(
         program_test,
         mint_address,
         cctp_mint_recipient,
-        source_chain,
-        destination_chain,
-        source_address,
-        destination_address,
+        source_chain_and_address,
+        destination_chain_and_address,
         &vaa_args,
     );
     test_fast_transfers
@@ -636,7 +647,7 @@ impl EvmAddress {
     }
 
     pub fn from_hex(hex: &str) -> Option<Self> {
-        let hex = hex.strip_prefix("0x").unwrap_or(hex);
+        let hex = hex.strip_prefix("0x").unwrap_or_else(|| hex);
         let bytes = hex::decode(hex).ok()?;
         if bytes.len() != 20 {
             return None;

@@ -7,7 +7,9 @@ use super::program_fixtures::{
     initialise_local_token_router, initialise_post_message_shims, initialise_upgrade_manager,
     initialise_verify_shims, initialise_wormhole_core_bridge,
 };
-use super::vaa::{create_vaas_test_with_chain_and_address, TestVaaPair, TestVaaPairs, VaaArgs};
+use super::vaa::{
+    create_vaas_test_with_chain_and_address, ChainAndAddress, TestVaaPair, TestVaaPairs, VaaArgs,
+};
 use super::{
     airdrop::airdrop_usdc,
     token_account::{create_token_account, read_keypair_from_file, TokenAccountFixture},
@@ -206,8 +208,8 @@ impl TestingContext {
 
     pub async fn get_new_latest_blockhash(&self) -> AnyhowResult<solana_program::hash::Hash> {
         let mut ctx = self.test_context.borrow_mut();
-        let hash = ctx.get_new_latest_blockhash().await?;
-        drop(ctx);
+        let handle = ctx.get_new_latest_blockhash();
+        let hash = handle.await?;
         Ok(hash)
     }
 
@@ -216,9 +218,8 @@ impl TestingContext {
         transaction: impl Into<VersionedTransaction>,
     ) -> Result<(), BanksClientError> {
         let mut ctx = self.test_context.borrow_mut();
-        ctx.banks_client.process_transaction(transaction).await?;
-        drop(ctx);
-        Ok(())
+        let handle = ctx.banks_client.process_transaction(transaction);
+        handle.await
     }
 
     pub async fn get_account(
@@ -310,8 +311,7 @@ impl TestingContext {
                     );
                 }
                 _ => {
-                    assert!(
-                        false,
+                    panic!(
                         "Expected program error {:?}, but got: {:?}",
                         expected_error.error_string, tx_error
                     );
@@ -535,25 +535,26 @@ impl TestingActors {
     }
 }
 
-// TODO: Remove this allow once all instructions are implemented
-#[allow(dead_code)]
-pub async fn fast_forward_slots(test_context: &Rc<RefCell<ProgramTestContext>>, num_slots: u64) {
+pub async fn fast_forward_slots(testing_context: &TestingContext, num_slots: u64) {
     // Get the current slot
-    let mut current_slot = test_context
+    let mut current_slot = testing_context
+        .test_context
         .borrow_mut()
         .banks_client
         .get_root_slot()
         .await
         .unwrap();
 
-    let target_slot = current_slot + num_slots;
+    let test_context = &testing_context.test_context;
+
+    let target_slot = current_slot.saturating_add(num_slots);
     while current_slot < target_slot {
         // Warp to the next slot - note we need to borrow_mut() here
         test_context
             .borrow_mut()
-            .warp_to_slot(current_slot + 1)
+            .warp_to_slot(current_slot.saturating_add(1))
             .expect("Failed to warp to slot");
-        current_slot += 1;
+        current_slot = current_slot.saturating_add(1);
     }
 
     // Optionally, process a transaction to ensure the new slot is recognized
@@ -655,10 +656,14 @@ pub async fn setup_environment(
                         &mut pre_testing_context.program_test,
                         USDC_MINT_ADDRESS,
                         CCTP_MINT_RECIPIENT,
-                        Chain::Arbitrum,
-                        Chain::Ethereum,
-                        arbitrum_emitter_address,
-                        ethereum_emitter_address,
+                        ChainAndAddress {
+                            chain: Chain::Arbitrum,
+                            address: arbitrum_emitter_address,
+                        },
+                        ChainAndAddress {
+                            chain: Chain::Ethereum,
+                            address: ethereum_emitter_address,
+                        },
                         vaa_args,
                     ))
                 }
@@ -667,10 +672,14 @@ pub async fn setup_environment(
                         &mut pre_testing_context.program_test,
                         USDC_MINT_ADDRESS,
                         CCTP_MINT_RECIPIENT,
-                        Chain::Ethereum,
-                        Chain::Arbitrum,
-                        ethereum_emitter_address,
-                        arbitrum_emitter_address,
+                        ChainAndAddress {
+                            chain: Chain::Ethereum,
+                            address: ethereum_emitter_address,
+                        },
+                        ChainAndAddress {
+                            chain: Chain::Arbitrum,
+                            address: arbitrum_emitter_address,
+                        },
                         vaa_args,
                     ))
                 }
