@@ -292,7 +292,7 @@ pub async fn prepare_order_response_test(
         .expect("Fixture accounts not found");
 
     let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) =
-        super::shims::create_guardian_signatures(
+        super::verify_shim::create_guardian_signatures(
             test_ctx,
             payer_signer,
             deposit_vaa_data,

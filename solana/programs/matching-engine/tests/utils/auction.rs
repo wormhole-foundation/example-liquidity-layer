@@ -4,9 +4,6 @@ use super::router::TestRouterEndpoints;
 use super::setup::{Solver, TestingContext, TransferDirection};
 use super::Chain;
 use matching_engine::state::{Auction, AuctionInfo};
-use solana_program_test::ProgramTestContext;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 #[derive(Clone)]
 pub struct AuctionAccounts {
@@ -87,7 +84,6 @@ impl AuctionAccounts {
 }
 
 impl ActiveAuctionState {
-    // TODO: Figure this out
     pub async fn verify_auction(&self, testing_context: &TestingContext) {
         let test_ctx = &testing_context.test_context;
         let auction_account = test_ctx
