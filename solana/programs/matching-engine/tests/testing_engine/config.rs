@@ -63,16 +63,20 @@ impl Default for InitializeFastMarketOrderShimInstructionConfig {
 #[derive(Clone)]
 pub struct PrepareOrderInstructionConfig {
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>,
+    pub solver_index: usize,
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
+    pub expected_log_message: Option<String>,
 }
 
 impl Default for PrepareOrderInstructionConfig {
     fn default() -> Self {
         Self {
             fast_market_order_address: None,
+            solver_index: 0,
             payer_signer: None,
             expected_error: None,
+            expected_log_message: None,
         }
     }
 }

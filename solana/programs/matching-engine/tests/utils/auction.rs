@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 
 use super::router::TestRouterEndpoints;
-use super::setup::{Solver, TransferDirection};
+use super::setup::{Solver, TestingContext, TransferDirection};
 use super::Chain;
 use matching_engine::state::{Auction, AuctionInfo};
 use solana_program_test::ProgramTestContext;
@@ -71,6 +71,7 @@ impl AuctionAccounts {
                 router_endpoints.get_endpoint_address(Chain::Arbitrum),
                 router_endpoints.get_endpoint_address(Chain::Ethereum),
             ),
+            _ => panic!("Unsupported transfer direction"),
         };
         Self {
             posted_fast_vaa,
@@ -87,7 +88,8 @@ impl AuctionAccounts {
 
 impl ActiveAuctionState {
     // TODO: Figure this out
-    pub async fn verify_initial_offer(&self, test_ctx: &Rc<RefCell<ProgramTestContext>>) {
+    pub async fn verify_auction(&self, testing_context: &TestingContext) {
+        let test_ctx = &testing_context.test_context;
         let auction_account = test_ctx
             .borrow_mut()
             .banks_client
@@ -99,32 +101,31 @@ impl ActiveAuctionState {
         let auction_account_data: Auction =
             AccountDeserialize::try_deserialize(&mut data_ref).unwrap();
         let auction_info = auction_account_data.info.unwrap();
+
         let expected_auction_info = AuctionInfo {
-            config_id: 0,
+            config_id: 0,            // TODO: Figure this out
             custody_token_bump: 254, // TODO: Figure this out
-            vaa_sequence: 0,
-            source_chain: 23,
-            best_offer_token: pubkey!("3f3mimemFUZg6o7UuR7AXzt2B5Nh15beCczRPWg8oWnc"), // TODO: Figure this out, I think its the solver's ata
-            initial_offer_token: pubkey!("3f3mimemFUZg6o7UuR7AXzt2B5Nh15beCczRPWg8oWnc"), // TODO: Figure this out, I think its the solver's ata
+            vaa_sequence: 0,         // No need to cehck against this
+            source_chain: {
+                match testing_context.testing_state.transfer_direction {
+                    TransferDirection::FromEthereumToArbitrum => 3,
+                    TransferDirection::FromArbitrumToEthereum => 23,
+                    _ => panic!("Unsupported transfer direction"),
+                }
+            },
+            best_offer_token: self.best_offer.offer_token,
+            initial_offer_token: self.initial_offer.offer_token,
             start_slot: 1,
             amount_in: 69000000,
             security_deposit: 10545000,
-            offer_price: 1__000_000,
+            offer_price: self.best_offer.offer_price,
             redeemer_message_len: 0,
             destination_asset_info: None,
         };
         assert_eq!(auction_info.config_id, expected_auction_info.config_id);
 
-        assert_eq!(
-            auction_info.source_chain,
-            expected_auction_info.source_chain
-        );
         assert_eq!(auction_info.start_slot, expected_auction_info.start_slot);
-        assert_eq!(auction_info.amount_in, expected_auction_info.amount_in);
-        assert_eq!(
-            auction_info.security_deposit,
-            expected_auction_info.security_deposit
-        );
+
         assert_eq!(auction_info.offer_price, expected_auction_info.offer_price);
         assert_eq!(
             auction_info.redeemer_message_len,

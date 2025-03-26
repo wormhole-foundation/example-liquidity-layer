@@ -12,9 +12,11 @@ use crate::state::{
 use anchor_lang::prelude::*;
 use anchor_spl::token::spl_token;
 use common::messages::raw::LiquidityLayerDepositMessage;
+use common::messages::raw::LiquidityLayerMessage;
 use common::messages::raw::SlowOrderResponse;
 use common::wormhole_cctp_solana::cctp::message_transmitter_program;
 use common::wormhole_cctp_solana::cpi::ReceiveMessageArgs;
+use common::wormhole_cctp_solana::utils::CctpMessage;
 use solana_program::instruction::Instruction;
 use solana_program::keccak;
 use solana_program::program::invoke_signed_unchecked;
@@ -225,6 +227,29 @@ pub fn prepare_order_response_cctp_shim(
     let system_program = &accounts[27];
     let receive_message_args = data.to_receive_message_args();
     let finalized_vaa_message = data.finalized_vaa_message;
+
+    let deposit_option = LiquidityLayerMessage::parse(&finalized_vaa_message.vaa_payload)
+        .map_err(|_| MatchingEngineError::InvalidDeposit)?;
+    let deposit = deposit_option
+        .deposit()
+        .ok_or(MatchingEngineError::InvalidDepositPayloadId)?;
+    let cctp_message = CctpMessage::parse(&receive_message_args.encoded_message)
+        .map_err(|_| MatchingEngineError::InvalidCctpMessage)?;
+    require_eq!(
+        cctp_message.source_domain(),
+        deposit.source_cctp_domain(),
+        MatchingEngineError::InvalidCctpMessage
+    );
+    require_eq!(
+        cctp_message.destination_domain(),
+        deposit.destination_cctp_domain(),
+        MatchingEngineError::InvalidCctpMessage
+    );
+    require_eq!(
+        cctp_message.nonce(),
+        deposit.cctp_nonce(),
+        MatchingEngineError::InvalidCctpMessage
+    );
     // Load accounts
     let fast_market_order_account_data = fast_market_order.data.borrow();
     let fast_market_order_zero_copy =
@@ -295,28 +320,27 @@ pub fn prepare_order_response_cctp_shim(
         Pubkey::find_program_address(&prepared_custody_token_seeds, program_id);
 
     // Check custodian account
-    require!(custodian.owner == program_id, ErrorCode::ConstraintOwner);
+    require_eq!(custodian.owner, program_id, ErrorCode::ConstraintOwner);
 
     require!(!checked_custodian.paused, MatchingEngineError::Paused);
 
     // Check usdc mint
-    require!(
-        usdc.key() == common::USDC_MINT,
+    require_eq!(
+        usdc.key(),
+        common::USDC_MINT,
         MatchingEngineError::InvalidMint
     );
 
     // Check from_endpoint owner
-    require!(
-        from_endpoint.owner == program_id,
-        ErrorCode::ConstraintOwner
-    );
+    require_eq!(from_endpoint.owner, program_id, ErrorCode::ConstraintOwner);
 
     // Check to_endpoint owner
-    require!(to_endpoint.owner == program_id, ErrorCode::ConstraintOwner);
+    require_eq!(to_endpoint.owner, program_id, ErrorCode::ConstraintOwner);
 
     // Check that the from and to endpoints are different
-    require!(
-        from_endpoint_account.chain != to_endpoint_account.chain,
+    require_neq!(
+        from_endpoint_account.chain,
+        to_endpoint_account.chain,
         MatchingEngineError::SameEndpoint
     );
 
@@ -339,39 +363,47 @@ pub fn prepare_order_response_cctp_shim(
     );
 
     // Check that to endpoint chain is equal to the fast_market_order target_chain
-    require!(
-        to_endpoint_account.chain == fast_market_order_zero_copy.target_chain,
+    require_eq!(
+        to_endpoint_account.chain,
+        fast_market_order_zero_copy.target_chain,
         MatchingEngineError::InvalidTargetRouter
     );
 
-    require!(
-        prepared_order_response_pda == prepared_order_response.key(),
+    require_eq!(
+        prepared_order_response_pda,
+        prepared_order_response.key(),
         MatchingEngineError::InvalidPda
     );
 
-    require!(
-        prepared_custody_token_pda == prepared_custody_token.key(),
+    require_eq!(
+        prepared_custody_token_pda,
+        prepared_custody_token.key(),
         MatchingEngineError::InvalidPda
     );
 
     // Check the base token fee key is not equal to the prepared custody token key
-    require!(
-        base_fee_token.key() != prepared_custody_token.key(),
+    // TODO: Check that base fee token is actually a token account
+    require_neq!(
+        base_fee_token.key(),
+        prepared_custody_token.key(),
         MatchingEngineError::InvalidBaseFeeToken
     );
 
-    require!(
-        token_program.key() == spl_token::ID,
+    require_eq!(
+        token_program.key(),
+        spl_token::ID,
         MatchingEngineError::InvalidProgram
     );
 
-    require!(
-        _verify_shim_program.key() == wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
+    require_eq!(
+        _verify_shim_program.key(),
+        wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
         MatchingEngineError::InvalidProgram
     );
 
-    require!(
-        system_program.key() == solana_program::system_program::ID,
+    require_eq!(
+        system_program.key(),
+        solana_program::system_program::ID,
         MatchingEngineError::InvalidProgram
     );
 

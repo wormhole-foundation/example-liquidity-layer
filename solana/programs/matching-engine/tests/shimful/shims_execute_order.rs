@@ -54,6 +54,7 @@ impl ExecuteOrderFallbackAccounts {
             TransferDirection::FromArbitrumToEthereum => {
                 fixture_accounts.ethereum_remote_token_messenger
             }
+            _ => panic!("Unsupported transfer direction"),
         };
 
         Self {
