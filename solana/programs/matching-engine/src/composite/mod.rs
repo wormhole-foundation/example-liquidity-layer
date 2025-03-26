@@ -258,15 +258,6 @@ pub struct LiveRouterPath<'info> {
     pub to_endpoint: LiveRouterEndpoint<'info>,
 }
 
-// TODO: Add a composite called FastOrderPathShim with two accounts: Guardian Set and Guardian Set Signatures
-// Call verify hash on the instruction on the verify shim program
-#[derive(Accounts)]
-pub struct FastOrderPathShim<'info> {
-    pub guardian_set: UncheckedAccount<'info>,
-    pub guardian_set_signatures: UncheckedAccount<'info>,
-    pub live_router_path: LiveRouterPath<'info>,
-}
-
 #[derive(Accounts)]
 pub struct FastOrderPath<'info> {
     #[account(

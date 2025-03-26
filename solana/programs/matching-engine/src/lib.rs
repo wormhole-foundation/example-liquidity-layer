@@ -11,7 +11,6 @@ mod events;
 mod processor;
 pub use processor::CctpMessageArgs;
 pub use processor::InitializeArgs;
-pub use processor::VaaMessage;
 use processor::*;
 
 pub mod state;
