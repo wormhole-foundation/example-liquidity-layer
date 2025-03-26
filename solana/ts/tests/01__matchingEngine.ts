@@ -3972,12 +3972,11 @@ describe("Matching Engine", function () {
                         if (!ix.programId.equals(engine.ID) || !("data" in ix)) {
                             continue;
                         }
-
                         const data = utils.bytes.bs58.decode(ix.data);
                         if (!data.subarray(0, 8).equals(CPI_EVENT_IX_SELECTOR)) {
                             continue;
                         }
-
+                        console.log("data", data);
                         const decoded = engine.program.coder.events.decode(
                             utils.bytes.base64.encode(data.subarray(8)),
                         );
