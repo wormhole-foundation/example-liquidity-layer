@@ -1,12 +1,11 @@
 use super::close_fast_market_order::close_fast_market_order;
-use super::execute_order::handle_execute_order_shim;
+// use super::execute_order::handle_execute_order_shim;
 use super::initialise_fast_market_order::{
     initialise_fast_market_order, InitialiseFastMarketOrderData,
 };
-use super::place_initial_offer::place_initial_offer_cctp_shim;
-use super::place_initial_offer::PlaceInitialOfferCctpShimData;
-use super::prepare_order_response::prepare_order_response_cctp_shim;
-use super::prepare_order_response::PrepareOrderResponseCctpShimData;
+use super::place_initial_offer::{place_initial_offer_cctp_shim, PlaceInitialOfferCctpShimData};
+// use super::prepare_order_response::prepare_order_response_cctp_shim;
+// use super::prepare_order_response::PrepareOrderResponseCctpShimData;
 use crate::ID;
 use anchor_lang::prelude::*;
 use wormhole_svm_definitions::make_anchor_discriminator;
@@ -28,8 +27,8 @@ pub enum FallbackMatchingEngineInstruction<'ix> {
     InitialiseFastMarketOrder(&'ix InitialiseFastMarketOrderData),
     CloseFastMarketOrder,
     PlaceInitialOfferCctpShim(&'ix PlaceInitialOfferCctpShimData),
-    ExecuteOrderCctpShim,
-    PrepareOrderResponseCctpShim(PrepareOrderResponseCctpShimData),
+    // ExecuteOrderCctpShim,
+    // PrepareOrderResponseCctpShim(PrepareOrderResponseCctpShimData),
 }
 
 pub fn process_instruction(
@@ -51,13 +50,12 @@ pub fn process_instruction(
         }
         FallbackMatchingEngineInstruction::PlaceInitialOfferCctpShim(data) => {
             place_initial_offer_cctp_shim(accounts, &data)
-        }
-        FallbackMatchingEngineInstruction::ExecuteOrderCctpShim => {
-            handle_execute_order_shim(accounts)
-        }
-        FallbackMatchingEngineInstruction::PrepareOrderResponseCctpShim(data) => {
-            prepare_order_response_cctp_shim(accounts, data)
-        }
+        } // FallbackMatchingEngineInstruction::ExecuteOrderCctpShim => {
+          //     handle_execute_order_shim(accounts)
+          // }
+          // FallbackMatchingEngineInstruction::PrepareOrderResponseCctpShim(data) => {
+          //     prepare_order_response_cctp_shim(accounts, data)
+          // }
     }
 }
 
@@ -73,20 +71,21 @@ impl<'ix> FallbackMatchingEngineInstruction<'ix> {
                     &PlaceInitialOfferCctpShimData::from_bytes(&instruction_data[8..]).unwrap(),
                 ))
             }
-            FallbackMatchingEngineInstruction::EXECUTE_ORDER_CCTP_SHIM_SELECTOR => {
-                Some(Self::ExecuteOrderCctpShim)
-            }
+
             FallbackMatchingEngineInstruction::INITIALISE_FAST_MARKET_ORDER_SELECTOR => Some(
                 Self::InitialiseFastMarketOrder(&bytemuck::from_bytes(&instruction_data[8..])),
             ),
             FallbackMatchingEngineInstruction::CLOSE_FAST_MARKET_ORDER_SELECTOR => {
                 Some(Self::CloseFastMarketOrder)
             }
-            FallbackMatchingEngineInstruction::PREPARE_ORDER_RESPONSE_CCTP_SHIM_SELECTOR => {
-                Some(Self::PrepareOrderResponseCctpShim(
-                    PrepareOrderResponseCctpShimData::from_bytes(&instruction_data[8..]).unwrap(),
-                ))
-            }
+            // FallbackMatchingEngineInstruction::EXECUTE_ORDER_CCTP_SHIM_SELECTOR => {
+            //     Some(Self::ExecuteOrderCctpShim)
+            // }
+            // FallbackMatchingEngineInstruction::PREPARE_ORDER_RESPONSE_CCTP_SHIM_SELECTOR => {
+            //     Some(Self::PrepareOrderResponseCctpShim(
+            //         PrepareOrderResponseCctpShimData::from_bytes(&instruction_data[8..]).unwrap(),
+            //     ))
+            // }
             _ => None,
         }
     }
@@ -113,17 +112,17 @@ impl FallbackMatchingEngineInstruction<'_> {
 
                 out
             }
-            Self::ExecuteOrderCctpShim => {
-                let total_capacity = 8; // 8 for the selector (no data)
+            // Self::ExecuteOrderCctpShim => {
+            //     let total_capacity = 8; // 8 for the selector (no data)
 
-                let mut out = Vec::with_capacity(total_capacity);
+            //     let mut out = Vec::with_capacity(total_capacity);
 
-                out.extend_from_slice(
-                    &FallbackMatchingEngineInstruction::EXECUTE_ORDER_CCTP_SHIM_SELECTOR,
-                );
+            //     out.extend_from_slice(
+            //         &FallbackMatchingEngineInstruction::EXECUTE_ORDER_CCTP_SHIM_SELECTOR,
+            //     );
 
-                out
-            }
+            //     out
+            // }
             Self::InitialiseFastMarketOrder(data) => {
                 let data_slice = bytemuck::bytes_of(*data);
                 let total_capacity = 8 + data_slice.len(); // 8 for the selector, plus the data length
@@ -147,21 +146,19 @@ impl FallbackMatchingEngineInstruction<'_> {
                 );
 
                 out
-            }
+            } // Self::PrepareOrderResponseCctpShim(data) => {
+              //     let data_slice = data.to_bytes();
+              //     let total_capacity = 8 + data_slice.len(); // 8 for the selector, plus the data length
 
-            Self::PrepareOrderResponseCctpShim(data) => {
-                let data_slice = data.to_bytes();
-                let total_capacity = 8 + data_slice.len(); // 8 for the selector, plus the data length
+              //     let mut out = Vec::with_capacity(total_capacity);
 
-                let mut out = Vec::with_capacity(total_capacity);
+              //     out.extend_from_slice(
+              //         &FallbackMatchingEngineInstruction::PREPARE_ORDER_RESPONSE_CCTP_SHIM_SELECTOR,
+              //     );
+              //     out.extend_from_slice(&data_slice);
 
-                out.extend_from_slice(
-                    &FallbackMatchingEngineInstruction::PREPARE_ORDER_RESPONSE_CCTP_SHIM_SELECTOR,
-                );
-                out.extend_from_slice(&data_slice);
-
-                out
-            }
+              //     out
+              // }
         }
     }
 }

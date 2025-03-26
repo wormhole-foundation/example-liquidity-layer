@@ -16,6 +16,26 @@ use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer, transaction
 use std::rc::Rc;
 
 /// Places an initial offer using the fallback program. The vaa is constructed from a passed in PostedVaaData struct. The nonce is forced to 0.
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `payer_signer` - The payer signer
+/// * `vaa_data` - The vaa data (not posted)
+/// * `solver` - The solver actor that will place the initial offer
+/// * `fast_market_order_account` - The fast market order account pubkey created by the create fast market order shim instruction
+/// * `auction_accounts` - The auction accounts (see utils/auction.rs)
+/// * `offer_price` - The offer price in the units of the offer token
+/// * `expected_error` - The expected error (None if no error is expected)
+///
+/// # Returns
+///
+/// * `Option<InitialOfferPlacedState>` - An auction state with the initial offer placed. None if an error is expected.
+///
+/// # Asserts
+///
+/// * The expected error is reached
+/// * If successful, the solver's USDC balance should decrease by the offer price
 pub async fn place_initial_offer_fallback(
     testing_context: &TestingContext,
     payer_signer: &Rc<Keypair>,
@@ -28,8 +48,7 @@ pub async fn place_initial_offer_fallback(
 ) -> Option<InitialOfferPlacedState> {
     let program_id = testing_context.get_matching_engine_program_id();
     let test_ctx = &testing_context.test_context;
-    let (fast_market_order, vaa_data) =
-        create_fast_market_order_state_from_vaa_data(vaa_data, solver.pubkey());
+    let fast_market_order = create_fast_market_order_state_from_vaa_data(vaa_data, solver.pubkey());
 
     let auction_address = Pubkey::find_program_address(
         &[Auction::SEED_PREFIX, &fast_market_order.digest()],
@@ -60,8 +79,7 @@ pub async fn place_initial_offer_fallback(
         .approve_usdc(test_ctx, &transfer_authority, 420_000__000_000)
         .await;
 
-    let solver_usdc_balance = solver.get_balance(test_ctx).await;
-    println!("Solver USDC balance: {:?}", solver_usdc_balance);
+    let solver_usdc_balance_before = solver.get_balance(test_ctx).await;
 
     let place_initial_offer_ix_data = PlaceInitialOfferCctpShimFallbackData::new(
         offer_price,
@@ -105,6 +123,11 @@ pub async fn place_initial_offer_fallback(
         .execute_and_verify_transaction(transaction, expected_error)
         .await;
     if expected_error.is_none() {
+        let solver_usdc_balance_after = solver.get_balance(test_ctx).await;
+        assert!(
+            solver_usdc_balance_after < solver_usdc_balance_before,
+            "Solver USDC balance should have decreased"
+        );
         let new_active_auction_state = utils::auction::ActiveAuctionState {
             auction_address,
             auction_custody_token_address,

@@ -1,7 +1,7 @@
 pub mod account_fixtures;
 pub mod airdrop;
 pub mod auction;
-pub mod cctp_message;
+// pub mod cctp_message;
 pub mod constants;
 pub mod mint;
 pub mod program_fixtures;

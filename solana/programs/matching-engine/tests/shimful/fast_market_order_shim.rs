@@ -15,11 +15,77 @@ use matching_engine::fallback::initialise_fast_market_order::{
 };
 
 use matching_engine::state::FastMarketOrder as FastMarketOrderState;
+use solana_sdk::transaction::VersionedTransaction;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer, transaction::Transaction};
 use std::rc::Rc;
 use wormhole_io::TypePrefixedPayload;
 
-pub fn initialise_fast_market_order_fallback_instruction(
+/// Initialise the fast market order account
+///
+/// This function initialises the fast market order account
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `payer_signer` - The payer signer keypair
+/// * `fast_market_order` - The fast market order state
+/// * `guardian_set_pubkey` - The guardian set pubkey
+/// * `guardian_signatures_pubkey` - The guardian signatures pubkey
+/// * `guardian_set_bump` - The guardian set bump
+/// * `expected_error` - The expected error
+///
+/// # Asserts
+///
+/// * The expected error, if any, is reached when executing the instruction
+pub async fn initialise_fast_market_order_fallback(
+    testing_context: &TestingContext,
+    payer_signer: &Rc<Keypair>,
+    fast_market_order: FastMarketOrderState,
+    guardian_set_pubkey: Pubkey,
+    guardian_signatures_pubkey: Pubkey,
+    guardian_set_bump: u8,
+    expected_error: Option<&ExpectedError>,
+) {
+    let program_id = &testing_context.get_matching_engine_program_id();
+    let initialise_fast_market_order_ix = initialise_fast_market_order_fallback_instruction(
+        payer_signer,
+        program_id,
+        fast_market_order,
+        guardian_set_pubkey,
+        guardian_signatures_pubkey,
+        guardian_set_bump,
+    );
+    let recent_blockhash = testing_context.test_context.borrow().last_blockhash;
+    let transaction = solana_sdk::transaction::Transaction::new_signed_with_payer(
+        &[initialise_fast_market_order_ix],
+        Some(&payer_signer.pubkey()),
+        &[payer_signer],
+        recent_blockhash,
+    );
+    let versioned_transaction = VersionedTransaction::try_from(transaction)
+        .expect("Failed to convert transaction to versioned transaction");
+    testing_context
+        .execute_and_verify_transaction(versioned_transaction, expected_error)
+        .await;
+}
+
+/// Creates the initialise fast market order fallback instruction
+///
+/// This function creates the initialise fast market order fallback instruction
+///
+/// # Arguments
+///
+/// * `payer_signer` - The payer signer keypair
+/// * `program_id` - The program id
+/// * `fast_market_order` - The fast market order state
+/// * `guardian_set_pubkey` - The guardian set pubkey
+/// * `guardian_signatures_pubkey` - The guardian signatures pubkey
+/// * `guardian_set_bump` - The guardian set bump
+///
+/// # Returns
+///
+/// * `Instruction` - The initialise fast market order fallback instruction
+fn initialise_fast_market_order_fallback_instruction(
     payer_signer: &Rc<Keypair>,
     program_id: &Pubkey,
     fast_market_order: FastMarketOrderState,
@@ -54,13 +120,27 @@ pub fn initialise_fast_market_order_fallback_instruction(
     .instruction()
 }
 
+/// Close the fast market order account
+///
+/// This function closes the fast market order account
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `refund_recipient_keypair` - The refund recipient keypair that will receive the refund after closing the fast market order account
+/// * `fast_market_order_address` - The fast market order account address
+/// * `expected_error` - The expected error
+///
+/// # Asserts
+///
+/// * The expected error, if any, is reached when executing the instruction
 pub async fn close_fast_market_order_fallback(
     testing_context: &TestingContext,
     refund_recipient_keypair: &Rc<Keypair>,
-    program_id: &Pubkey,
     fast_market_order_address: &Pubkey,
     expected_error: Option<&ExpectedError>,
 ) {
+    let program_id = &testing_context.get_matching_engine_program_id();
     let test_ctx = &testing_context.test_context;
     let recent_blockhash = test_ctx
         .borrow_mut()
@@ -87,21 +167,22 @@ pub async fn close_fast_market_order_fallback(
         .await;
 }
 
+/// Create the fast market order state from the vaa data
+///
+/// This function creates the fast market order state from the vaa data
+///
+/// # Arguments
+///
+/// * `vaa_data` - The vaa data
+/// * `close_account_refund_recipient` - The close account refund recipient
+///
+/// # Returns
+///
+/// * `fast_market_order_state` - The fast market order state
 pub fn create_fast_market_order_state_from_vaa_data(
     vaa_data: &utils::vaa::PostedVaaData,
     close_account_refund_recipient: Pubkey,
-) -> (FastMarketOrderState, utils::vaa::PostedVaaData) {
-    let vaa_data = utils::vaa::PostedVaaData {
-        consistency_level: vaa_data.consistency_level,
-        vaa_time: vaa_data.vaa_time,
-        sequence: vaa_data.sequence,
-        emitter_chain: vaa_data.emitter_chain,
-        emitter_address: vaa_data.emitter_address,
-        payload: vaa_data.payload.clone(),
-        nonce: vaa_data.nonce,
-        vaa_signature_account: vaa_data.vaa_signature_account,
-        submission_time: 0,
-    };
+) -> FastMarketOrderState {
     let vaa_message = matching_engine::fallback::place_initial_offer::VaaMessageBodyHeader::new(
         vaa_data.consistency_level,
         vaa_data.vaa_time,
@@ -152,5 +233,5 @@ pub fn create_fast_market_order_state_from_vaa_data(
         vaa_data.digest().as_ref()
     );
 
-    (fast_market_order, vaa_data)
+    fast_market_order
 }

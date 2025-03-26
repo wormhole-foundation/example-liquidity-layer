@@ -12,7 +12,6 @@ The `TestingEngine` is initialised with a `TestingContext`. The `TestingContext`
 
 The `TestingEngine` is used to execute the instruction triggers in the order they are provided. See the `testing_engine/engine.rs` file for more details.
 
-
 ## Integration Tests
 
 ### Initialize program
@@ -20,6 +19,12 @@ The `TestingEngine` is used to execute the instruction triggers in the order the
 What is expected:
 - Program is initialised
 - Router endpoints are created
+
+
+### Create CCTP router endpoints
+
+What is expected:
+- CCTP router endpoints are created
 
 ### Create fast market order
 

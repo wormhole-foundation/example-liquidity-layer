@@ -1,5 +1,6 @@
 use anchor_lang::AccountDeserialize;
 use anchor_spl::token::TokenAccount;
+use matching_engine::error::MatchingEngineError;
 use matching_engine::ID as PROGRAM_ID;
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
@@ -8,10 +9,14 @@ mod shimful;
 mod shimless;
 mod testing_engine;
 mod utils;
-use crate::testing_engine::config::InitializeInstructionConfig;
+use crate::testing_engine::config::{
+    ExpectedError, ImproveOfferInstructionConfig, InitializeInstructionConfig,
+    PlaceInitialOfferInstructionConfig,
+};
 use crate::testing_engine::engine::{InstructionTrigger, TestingEngine};
 use shimful::post_message::set_up_post_message_transaction_test;
 use shimless::initialize::{initialize_program, AuctionParametersConfig};
+use solana_sdk::transaction::TransactionError;
 use utils::router::add_local_router_endpoint_ix;
 use utils::setup::{setup_environment, ShimMode, TestingContext, TransferDirection};
 use utils::vaa::VaaArgs;
@@ -240,3 +245,370 @@ pub async fn test_approve_usdc() {
         TokenAccount::try_deserialize(&mut solver_token_account_info.data.as_ref()).unwrap();
     assert!(solver_token_account.delegate.is_some());
 }
+
+#[tokio::test]
+// Testing a initial offer from arbitrum to ethereum
+// TODO: Make a test that checks that the auction account and maybe some other accounts are exactly the same as when using the fallback instruction
+pub async fn test_place_initial_offer_fallback() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: false,
+        ..VaaArgs::default()
+    };
+    let testing_context = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+
+    let testing_engine = TestingEngine::new(testing_context).await;
+
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
+        InstructionTrigger::ImproveOfferShimless(ImproveOfferInstructionConfig {
+            solver_index: 1,
+            ..ImproveOfferInstructionConfig::default()
+        }),
+    ];
+
+    testing_engine.execute(instruction_triggers).await;
+}
+
+#[tokio::test]
+pub async fn test_place_initial_offer_shim_blocks_non_shim() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: true,
+        ..VaaArgs::default()
+    };
+    let testing_context = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig {
+            solver_index: 0,
+            ..PlaceInitialOfferInstructionConfig::default()
+        }),
+        InstructionTrigger::PlaceInitialOfferShimless(PlaceInitialOfferInstructionConfig {
+            solver_index: 1,
+            expected_error: Some(ExpectedError {
+                instruction_index: 0,
+                error_code: 0,
+                error_string: TransactionError::AccountInUse.to_string(),
+            }),
+            ..PlaceInitialOfferInstructionConfig::default()
+        }),
+    ];
+
+    testing_engine.execute(instruction_triggers).await;
+}
+
+#[tokio::test]
+pub async fn test_place_initial_offer_non_shim_blocks_shim() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: true,
+        ..VaaArgs::default()
+    };
+    let testing_context = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::PlaceInitialOfferShimless(PlaceInitialOfferInstructionConfig {
+            solver_index: 0,
+            ..PlaceInitialOfferInstructionConfig::default()
+        }),
+        InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig {
+            solver_index: 1,
+            expected_error: Some(ExpectedError {
+                instruction_index: 0,
+                error_code: 0,
+                error_string: TransactionError::AccountInUse.to_string(),
+            }),
+            ..PlaceInitialOfferInstructionConfig::default()
+        }),
+    ];
+    testing_engine.execute(instruction_triggers).await;
+}
+
+// #[tokio::test]
+// // Testing an execute order from arbitrum to ethereum
+// // TODO: Flesh out this test to see if the message was posted correctly
+// pub async fn test_execute_order_fallback() {
+//     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+//     let vaa_args = VaaArgs {
+//         post_vaa: false,
+//         ..VaaArgs::default()
+//     };
+//     let testing_context = setup_environment(
+//         ShimMode::VerifyAndPostSignature,
+//         transfer_direction,
+//         Some(vaa_args),
+//     )
+//     .await;
+//     let testing_engine = TestingEngine::new(testing_context).await;
+//     let instruction_triggers = vec![
+//         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+//         InstructionTrigger::CreateCctpRouterEndpoints(
+//             CreateCctpRouterEndpointsInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::InitializeFastMarketOrderShim(
+//             InitializeFastMarketOrderShimInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
+//         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
+//     ];
+//     testing_engine.execute(instruction_triggers).await;
+// }
+
+// #[tokio::test]
+// pub async fn test_execute_order_shimless() {
+//     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+//     let vaa_args = VaaArgs {
+//         post_vaa: true,
+//         ..VaaArgs::default()
+//     };
+//     let testing_context = setup_environment(
+//         ShimMode::VerifyAndPostSignature,
+//         transfer_direction,
+//         Some(vaa_args),
+//     )
+//     .await;
+//     let testing_engine = TestingEngine::new(testing_context).await;
+//     let instruction_triggers = vec![
+//         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+//         InstructionTrigger::CreateCctpRouterEndpoints(
+//             CreateCctpRouterEndpointsInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::PlaceInitialOfferShimless(PlaceInitialOfferInstructionConfig::default()),
+//         InstructionTrigger::ExecuteOrderShimless(ExecuteOrderInstructionConfig::default()),
+//     ];
+//     testing_engine.execute(instruction_triggers).await;
+// }
+// pub async fn test_execute_order_fallback_blocks_shimless() {
+//     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+//     let vaa_args = VaaArgs {
+//         post_vaa: true,
+//         ..VaaArgs::default()
+//     };
+//     let testing_context = setup_environment(
+//         ShimMode::VerifyAndPostSignature,
+//         transfer_direction,
+//         Some(vaa_args),
+//     )
+//     .await;
+//     let testing_engine = TestingEngine::new(testing_context).await;
+//     let instruction_triggers = vec![
+//         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+//         InstructionTrigger::CreateCctpRouterEndpoints(
+//             CreateCctpRouterEndpointsInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::InitializeFastMarketOrderShim(
+//             InitializeFastMarketOrderShimInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
+//         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
+//         InstructionTrigger::ExecuteOrderShimless(ExecuteOrderInstructionConfig {
+//             expected_error: Some(ExpectedError {
+//                 instruction_index: 0,
+//                 error_code: MatchingEngineError::AccountAlreadyInitialized.into(),
+//                 error_string: MatchingEngineError::AccountAlreadyInitialized.to_string(),
+//             }),
+//             ..ExecuteOrderInstructionConfig::default()
+//         }),
+//     ];
+//     testing_engine.execute(instruction_triggers).await;
+// }
+
+// // From ethereum to arbitrum
+// #[tokio::test]
+// pub async fn test_prepare_order_shim_fallback() {
+//     let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+//     let vaa_args = VaaArgs {
+//         post_vaa: false,
+//         ..VaaArgs::default()
+//     };
+//     let testing_context = setup_environment(
+//         ShimMode::VerifyAndPostSignature,
+//         transfer_direction,
+//         Some(vaa_args),
+//     )
+//     .await;
+//     let testing_engine = TestingEngine::new(testing_context).await;
+//     let instruction_triggers = vec![
+//         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+//         InstructionTrigger::CreateCctpRouterEndpoints(
+//             CreateCctpRouterEndpointsInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::InitializeFastMarketOrderShim(
+//             InitializeFastMarketOrderShimInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
+//         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
+//         InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig::default()),
+//     ];
+//     testing_engine.execute(instruction_triggers).await;
+// }
+
+// // Prepare order response from ethereum to arbitrum (shimless)
+// #[tokio::test]
+// pub async fn test_prepare_order_shimless() {
+//     let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+//     let vaa_args = VaaArgs {
+//         post_vaa: true,
+//         ..VaaArgs::default()
+//     };
+//     let testing_context = setup_environment(
+//         ShimMode::VerifyAndPostSignature,
+//         transfer_direction,
+//         Some(vaa_args),
+//     )
+//     .await;
+//     let testing_engine = TestingEngine::new(testing_context).await;
+//     let instruction_triggers = vec![
+//         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+//         InstructionTrigger::CreateCctpRouterEndpoints(
+//             CreateCctpRouterEndpointsInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::InitializeFastMarketOrderShim(
+//             InitializeFastMarketOrderShimInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::PlaceInitialOfferShimless(PlaceInitialOfferInstructionConfig::default()),
+//         InstructionTrigger::ExecuteOrderShimless(ExecuteOrderInstructionConfig::default()),
+//         InstructionTrigger::PrepareOrderShimless(PrepareOrderInstructionConfig::default()),
+//     ];
+//     testing_engine.execute(instruction_triggers).await;
+// }
+
+// #[tokio::test]
+// pub async fn test_prepare_order_response_shimful_blocks_shimless() {
+//     let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+//     let vaa_args = VaaArgs {
+//         post_vaa: true,
+//         ..VaaArgs::default()
+//     };
+//     let testing_context = setup_environment(
+//         ShimMode::VerifyAndPostSignature,
+//         transfer_direction,
+//         Some(vaa_args),
+//     )
+//     .await;
+//     let testing_engine = TestingEngine::new(testing_context).await;
+//     let instruction_triggers = vec![
+//         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+//         InstructionTrigger::CreateCctpRouterEndpoints(
+//             CreateCctpRouterEndpointsInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::InitializeFastMarketOrderShim(
+//             InitializeFastMarketOrderShimInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
+//         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
+//         InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig::default()),
+//         //TODO: This does not currently work, but the logs are as expected, I just don't know how to capture and test them
+//         InstructionTrigger::PrepareOrderShimless(PrepareOrderInstructionConfig {
+//             // expected_log_message: Some("Already prepared".to_string()),
+//             ..PrepareOrderInstructionConfig::default()
+//         }),
+//     ];
+//     testing_engine.execute(instruction_triggers).await;
+// }
+
+// #[tokio::test]
+// pub async fn test_prepare_order_response_shimless_blocks_shimful() {
+//     let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+//     let vaa_args = VaaArgs {
+//         post_vaa: true,
+//         ..VaaArgs::default()
+//     };
+//     let testing_context = setup_environment(
+//         ShimMode::VerifyAndPostSignature,
+//         transfer_direction,
+//         Some(vaa_args),
+//     )
+//     .await;
+//     let testing_engine = TestingEngine::new(testing_context).await;
+//     let instruction_triggers = vec![
+//         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+//         InstructionTrigger::CreateCctpRouterEndpoints(
+//             CreateCctpRouterEndpointsInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::InitializeFastMarketOrderShim(
+//             InitializeFastMarketOrderShimInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::PlaceInitialOfferShimless(PlaceInitialOfferInstructionConfig::default()),
+//         InstructionTrigger::ExecuteOrderShimless(ExecuteOrderInstructionConfig::default()),
+//         InstructionTrigger::PrepareOrderShimless(PrepareOrderInstructionConfig::default()),
+//         // TODO: Figure out why this is failing on account already in use rather than the what happens the other way around above
+//         InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig {
+//             expected_error: Some(ExpectedError {
+//                 instruction_index: 0,
+//                 error_code: 0,
+//                 error_string: TransactionError::AccountInUse.to_string(),
+//             }),
+//             ..PrepareOrderInstructionConfig::default()
+//         }),
+//     ];
+//     testing_engine.execute(instruction_triggers).await;
+// }
+
+// #[tokio::test]
+// pub async fn test_settle_auction_complete() {
+//     let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+//     let vaa_args = VaaArgs {
+//         post_vaa: false,
+//         ..VaaArgs::default()
+//     };
+//     let testing_context = setup_environment(
+//         ShimMode::VerifyAndPostSignature,
+//         transfer_direction,
+//         Some(vaa_args),
+//     )
+//     .await;
+
+//     let testing_engine = TestingEngine::new(testing_context).await;
+//     let instruction_triggers = vec![
+//         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+//         InstructionTrigger::CreateCctpRouterEndpoints(
+//             CreateCctpRouterEndpointsInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::InitializeFastMarketOrderShim(
+//             InitializeFastMarketOrderShimInstructionConfig::default(),
+//         ),
+//         InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
+//         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
+//         InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig::default()),
+//         InstructionTrigger::SettleAuction(SettleAuctionInstructionConfig::default()),
+//     ];
+//     testing_engine.execute(instruction_triggers).await;
+// }

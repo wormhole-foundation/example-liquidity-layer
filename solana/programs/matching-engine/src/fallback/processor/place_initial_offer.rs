@@ -98,6 +98,9 @@ impl PlaceInitialOfferCctpShim<'_> {
     }
 }
 
+/// VaaMessageBodyHeader for the digest calculation
+///
+/// This is the header of the vaa message body. It is used to calculate the digest of the fast market order.
 #[derive(Debug)]
 pub struct VaaMessageBodyHeader {
     pub consistency_level: u8,
