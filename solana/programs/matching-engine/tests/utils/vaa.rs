@@ -130,7 +130,7 @@ impl PostedVaaData {
         let vaa_data_serialized = serialize_with_discriminator(self).unwrap();
         let lamports = solana_sdk::rent::Rent::default().minimum_balance(vaa_data_serialized.len());
         let vaa_account = Account {
-            lamports: lamports,
+            lamports,
             data: vaa_data_serialized,
             owner: CORE_BRIDGE_PID,
             executable: false,

@@ -177,7 +177,7 @@ pub async fn initialize_program(
             .fee_recipient
             .token_account_address()
             .unwrap(),
-        cctp_mint_recipient: cctp_mint_recipient,
+        cctp_mint_recipient,
         usdc: matching_engine::accounts::Usdc {
             mint: usdc_mint_address,
         },
@@ -192,7 +192,7 @@ pub async fn initialize_program(
 
     // Create the instruction
     let instruction = Instruction {
-        program_id: program_id,
+        program_id,
         accounts: accounts.to_account_metas(None),
         data: ix_data.data(),
     };
@@ -235,7 +235,7 @@ pub async fn initialize_program(
         let initialize_addresses = InitializeAddresses {
             custodian_address: custodian,
             auction_config_address: auction_config,
-            cctp_mint_recipient: cctp_mint_recipient,
+            cctp_mint_recipient,
         };
         Some(InitializeFixture {
             custodian: custodian_data,

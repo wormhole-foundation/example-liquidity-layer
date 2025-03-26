@@ -144,6 +144,20 @@ pub enum Chain {
     Polygon,
 }
 
+impl Chain {
+    pub fn to_index(&self) -> usize {
+        match self {
+            Chain::Solana => 0,
+            Chain::Ethereum => 1,
+            Chain::Avalanche => 2,
+            Chain::Optimism => 3,
+            Chain::Arbitrum => 4,
+            Chain::Base => 5,
+            Chain::Polygon => 6,
+        }
+    }
+}
+
 // Registered Token Routers
 lazy_static::lazy_static! {
     pub static ref REGISTERED_TOKEN_ROUTERS: std::collections::HashMap<Chain, Vec<u8>> = {

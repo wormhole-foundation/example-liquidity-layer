@@ -132,7 +132,7 @@ pub async fn place_initial_offer_shimless(
     }
 
     let initial_offer_ix_anchor = Instruction {
-        program_id: program_id,
+        program_id,
         accounts: account_metas,
         data: initial_offer_ix.data(),
     };
@@ -226,7 +226,7 @@ pub async fn improve_offer(
 
     // TODO: Figure out better name for this
     let improve_offer_ix_anchor = Instruction {
-        program_id: program_id,
+        program_id,
         accounts: account_metas,
         data: improve_offer_ix.data(),
     };

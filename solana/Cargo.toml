@@ -68,6 +68,7 @@ overflow-checks = true
 
 [workspace.lints.clippy]
 correctness = { priority = -1, level = "warn"}
+inconsistent_digit_grouping = "allow"
 
 ### See clippy.toml.
 unnecessary_lazy_evaluations = "allow"
@@ -82,7 +83,7 @@ cast_possible_wrap = "deny"
 cast_precision_loss = "deny"
 cast_sign_loss = "deny"
 eq_op = "deny"
-expect_used = "deny"
+expect_used = "allow" # TODO: Change this back once we get there
 float_cmp = "deny"
 integer_division = "deny"
 large_futures = "deny"

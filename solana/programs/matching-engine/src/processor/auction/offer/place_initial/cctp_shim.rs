@@ -50,8 +50,8 @@ pub struct PlaceInitialOfferCctpShim<'info> {
     #[account(
         init,
         payer = payer,
-        space = 8 + std::mem::size_of::<FastMarketOrderState>(),
-        //      │   └─ FastMarketOrderState account data size
+        space = 8_usize.saturating_add(std::mem::size_of::<FastMarketOrderState>()),
+        //      │                       └─ FastMarketOrderState account data size
         //      └─ Anchor discriminator (8 bytes)
         seeds = [
             FastMarketOrderState::SEED_PREFIX,
@@ -209,7 +209,7 @@ impl VaaMessageBody {
     }
 
     fn to_vec(&self) -> Vec<u8> {
-        vec![
+        [
             self.vaa_time.to_be_bytes().as_ref(),
             self.nonce.to_be_bytes().as_ref(),
             self.emitter_chain.to_be_bytes().as_ref(),

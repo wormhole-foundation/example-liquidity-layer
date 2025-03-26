@@ -48,46 +48,48 @@ pub struct FastMarketOrder {
     _padding: [u8; 5],
 }
 
+pub struct FastMarketOrderParams {
+    pub amount_in: u64,
+    pub min_amount_out: u64,
+    pub deadline: u32,
+    pub target_chain: u16,
+    pub redeemer_message_length: u16,
+    pub redeemer: [u8; 32],
+    pub sender: [u8; 32],
+    pub refund_address: [u8; 32],
+    pub max_fee: u64,
+    pub init_auction_fee: u64,
+    pub redeemer_message: [u8; 512],
+    pub close_account_refund_recipient: [u8; 32],
+    pub vaa_sequence: u64,
+    pub vaa_timestamp: u32,
+    pub vaa_nonce: u32,
+    pub vaa_emitter_chain: u16,
+    pub vaa_consistency_level: u8,
+    pub vaa_emitter_address: [u8; 32],
+}
+
 impl FastMarketOrder {
-    pub fn new(
-        amount_in: u64,
-        min_amount_out: u64,
-        deadline: u32,
-        target_chain: u16,
-        redeemer_message_length: u16,
-        redeemer: [u8; 32],
-        sender: [u8; 32],
-        refund_address: [u8; 32],
-        max_fee: u64,
-        init_auction_fee: u64,
-        redeemer_message: [u8; 512],
-        close_account_refund_recipient: [u8; 32],
-        vaa_sequence: u64,
-        vaa_timestamp: u32,
-        vaa_nonce: u32,
-        vaa_emitter_chain: u16,
-        vaa_consistency_level: u8,
-        vaa_emitter_address: [u8; 32],
-    ) -> Self {
+    pub fn new(params: FastMarketOrderParams) -> Self {
         Self {
-            amount_in,
-            min_amount_out,
-            deadline,
-            target_chain,
-            redeemer_message_length,
-            redeemer,
-            sender,
-            refund_address,
-            max_fee,
-            init_auction_fee,
-            redeemer_message,
-            close_account_refund_recipient,
-            vaa_sequence,
-            vaa_timestamp,
-            vaa_nonce,
-            vaa_emitter_chain,
-            vaa_consistency_level,
-            vaa_emitter_address,
+            amount_in: params.amount_in,
+            min_amount_out: params.min_amount_out,
+            deadline: params.deadline,
+            target_chain: params.target_chain,
+            redeemer_message_length: params.redeemer_message_length,
+            redeemer: params.redeemer,
+            sender: params.sender,
+            refund_address: params.refund_address,
+            max_fee: params.max_fee,
+            init_auction_fee: params.init_auction_fee,
+            redeemer_message: params.redeemer_message,
+            close_account_refund_recipient: params.close_account_refund_recipient,
+            vaa_sequence: params.vaa_sequence,
+            vaa_timestamp: params.vaa_timestamp,
+            vaa_nonce: params.vaa_nonce,
+            vaa_emitter_chain: params.vaa_emitter_chain,
+            vaa_consistency_level: params.vaa_consistency_level,
+            vaa_emitter_address: params.vaa_emitter_address,
             _padding: [0_u8; 5],
         }
     }
@@ -117,8 +119,10 @@ impl FastMarketOrder {
         payload.extend_from_slice(&self.deadline.to_be_bytes());
         payload.extend_from_slice(&self.redeemer_message_length.to_be_bytes());
         if self.redeemer_message_length > 0 {
-            payload
-                .extend_from_slice(&self.redeemer_message[..self.redeemer_message_length as usize]);
+            payload.extend_from_slice(
+                // uisize try from should never fail
+                &self.redeemer_message[..usize::from(self.redeemer_message_length)],
+            );
         }
         payload
     }

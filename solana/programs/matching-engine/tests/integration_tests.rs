@@ -1,6 +1,5 @@
 use anchor_lang::AccountDeserialize;
 use anchor_spl::token::TokenAccount;
-use matching_engine::error::MatchingEngineError;
 use matching_engine::ID as PROGRAM_ID;
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
@@ -195,7 +194,7 @@ pub async fn test_approve_usdc() {
     let first_test_ft = testing_context.get_vaa_pair(0).unwrap().fast_transfer_vaa;
     let vaa_data = first_test_ft.vaa_data;
 
-    let actors = testing_context.testing_actors;
+    let actors = &testing_context.testing_actors;
     let solver = actors.solvers[0].clone();
     let offer_price: u64 = 1__000_000;
     let program_id = PROGRAM_ID;
@@ -234,9 +233,6 @@ pub async fn test_approve_usdc() {
     println!("Solver USDC balance: {:?}", usdc_balance);
     let solver_token_account_address = solver.token_account_address().unwrap();
     let solver_token_account_info = testing_context
-        .test_context
-        .borrow_mut()
-        .banks_client
         .get_account(solver_token_account_address)
         .await
         .expect("Failed to query banks client for solver token account info")

@@ -159,7 +159,7 @@ pub fn initialise_fast_market_order(
     // Start of fast market order account creation
     // ------------------------------------------------------------------------------------------------
     let fast_market_order_key = fast_market_order_account.key();
-    let space = 8 + std::mem::size_of::<FastMarketOrderState>();
+    let space = 8_usize.saturating_add(std::mem::size_of::<FastMarketOrderState>());
     let (fast_market_order_pda, fast_market_order_bump) = Pubkey::find_program_address(
         &[
             FastMarketOrderState::SEED_PREFIX,
@@ -201,13 +201,14 @@ pub fn initialise_fast_market_order(
 
     let fast_market_order_bytes = bytemuck::bytes_of(&data.fast_market_order);
     // Ensure the destination has enough space
-    if fast_market_order_account_data.len() < 8 + fast_market_order_bytes.len() {
+    if fast_market_order_account_data.len() < 8_usize.saturating_add(fast_market_order_bytes.len())
+    {
         msg!("Account data buffer too small");
         return Err(MatchingEngineError::AccountDataTooSmall.into());
     }
 
     // Write the fast_market_order struct to the account
-    fast_market_order_account_data[8..8 + fast_market_order_bytes.len()]
+    fast_market_order_account_data[8..8_usize.saturating_add(fast_market_order_bytes.len())]
         .copy_from_slice(fast_market_order_bytes);
     // End of fast market order account creation
     // ------------------------------------------------------------------------------------------------

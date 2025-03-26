@@ -14,7 +14,7 @@ use matching_engine::fallback::initialise_fast_market_order::{
     InitialiseFastMarketOrderData as InitialiseFastMarketOrderFallbackData,
 };
 
-use matching_engine::state::FastMarketOrder as FastMarketOrderState;
+use matching_engine::state::{FastMarketOrder as FastMarketOrderState, FastMarketOrderParams};
 use solana_sdk::transaction::VersionedTransaction;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer, transaction::Transaction};
 use std::rc::Rc;
@@ -113,7 +113,7 @@ fn initialise_fast_market_order_fallback_instruction(
     };
 
     InitialiseFastMarketOrderFallback {
-        program_id: program_id,
+        program_id,
         accounts: create_fast_market_order_accounts,
         data: InitialiseFastMarketOrderFallbackData::new(fast_market_order, guardian_set_bump),
     }
@@ -148,7 +148,7 @@ pub async fn close_fast_market_order_fallback(
         .await
         .expect("Failed to get new blockhash");
     let close_fast_market_order_ix = CloseFastMarketOrderFallback {
-        program_id: program_id,
+        program_id,
         accounts: CloseFastMarketOrderFallbackAccounts {
             fast_market_order: fast_market_order_address,
             close_account_refund_recipient: &refund_recipient_keypair.pubkey(),
@@ -206,26 +206,26 @@ pub fn create_fast_market_order_state_from_vaa_data(
 
         fixed_array
     };
-    let fast_market_order = FastMarketOrderState::new(
-        order.amount_in,
-        order.min_amount_out,
-        order.deadline,
-        order.target_chain,
-        order.redeemer_message.len() as u16,
-        order.redeemer,
-        order.sender,
-        order.refund_address,
-        order.max_fee,
-        order.init_auction_fee,
-        redeemer_message_fixed_length,
-        close_account_refund_recipient.to_bytes(),
-        vaa_data.sequence,
-        vaa_data.vaa_time,
-        vaa_data.nonce,
-        vaa_data.emitter_chain,
-        vaa_data.consistency_level,
-        vaa_data.emitter_address,
-    );
+    let fast_market_order = FastMarketOrderState::new(FastMarketOrderParams {
+        amount_in: order.amount_in,
+        min_amount_out: order.min_amount_out,
+        deadline: order.deadline,
+        target_chain: order.target_chain,
+        redeemer_message_length: order.redeemer_message.len() as u16,
+        redeemer: order.redeemer,
+        sender: order.sender,
+        refund_address: order.refund_address,
+        max_fee: order.max_fee,
+        init_auction_fee: order.init_auction_fee,
+        redeemer_message: redeemer_message_fixed_length,
+        close_account_refund_recipient: close_account_refund_recipient.to_bytes(),
+        vaa_sequence: vaa_data.sequence,
+        vaa_timestamp: vaa_data.vaa_time,
+        vaa_nonce: vaa_data.nonce,
+        vaa_emitter_chain: vaa_data.emitter_chain,
+        vaa_consistency_level: vaa_data.consistency_level,
+        vaa_emitter_address: vaa_data.emitter_address,
+    });
 
     assert_eq!(fast_market_order.redeemer, order.redeemer);
     assert_eq!(

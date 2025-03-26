@@ -43,13 +43,13 @@ pub fn process_instruction(
     let instruction = FallbackMatchingEngineInstruction::deserialize(instruction_data).unwrap();
     match instruction {
         FallbackMatchingEngineInstruction::InitialiseFastMarketOrder(data) => {
-            initialise_fast_market_order(accounts, &data)
+            initialise_fast_market_order(accounts, data)
         }
         FallbackMatchingEngineInstruction::CloseFastMarketOrder => {
             close_fast_market_order(accounts)
         }
         FallbackMatchingEngineInstruction::PlaceInitialOfferCctpShim(data) => {
-            place_initial_offer_cctp_shim(accounts, &data)
+            place_initial_offer_cctp_shim(accounts, data)
         } // FallbackMatchingEngineInstruction::ExecuteOrderCctpShim => {
           //     handle_execute_order_shim(accounts)
           // }
@@ -68,12 +68,12 @@ impl<'ix> FallbackMatchingEngineInstruction<'ix> {
         match instruction_data[..8].try_into().unwrap() {
             FallbackMatchingEngineInstruction::PLACE_INITIAL_OFFER_CCTP_SHIM_SELECTOR => {
                 Some(Self::PlaceInitialOfferCctpShim(
-                    &PlaceInitialOfferCctpShimData::from_bytes(&instruction_data[8..]).unwrap(),
+                    PlaceInitialOfferCctpShimData::from_bytes(&instruction_data[8..]).unwrap(),
                 ))
             }
 
             FallbackMatchingEngineInstruction::INITIALISE_FAST_MARKET_ORDER_SELECTOR => Some(
-                Self::InitialiseFastMarketOrder(&bytemuck::from_bytes(&instruction_data[8..])),
+                Self::InitialiseFastMarketOrder(bytemuck::from_bytes(&instruction_data[8..])),
             ),
             FallbackMatchingEngineInstruction::CLOSE_FAST_MARKET_ORDER_SELECTOR => {
                 Some(Self::CloseFastMarketOrder)
@@ -97,7 +97,7 @@ impl FallbackMatchingEngineInstruction<'_> {
             Self::PlaceInitialOfferCctpShim(data) => {
                 // Calculate the total capacity needed
                 let data_slice = bytemuck::bytes_of(*data);
-                let total_capacity = 8 + data_slice.len(); // 8 for the selector, plus the data length
+                let total_capacity = 8_usize.saturating_add(data_slice.len()); // 8 for the selector, plus the data length
 
                 // Create a vector with the calculated capacity
                 let mut out = Vec::with_capacity(total_capacity);
@@ -125,7 +125,7 @@ impl FallbackMatchingEngineInstruction<'_> {
             // }
             Self::InitialiseFastMarketOrder(data) => {
                 let data_slice = bytemuck::bytes_of(*data);
-                let total_capacity = 8 + data_slice.len(); // 8 for the selector, plus the data length
+                let total_capacity = 8_usize.saturating_add(data_slice.len()); // 8 for the selector, plus the data length
 
                 let mut out = Vec::with_capacity(total_capacity);
 

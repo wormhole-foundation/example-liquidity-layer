@@ -154,7 +154,7 @@ impl VaaMessageBodyHeader {
         if fast_market_order.redeemer_message_length > 0 {
             payload.extend_from_slice(
                 &fast_market_order.redeemer_message
-                    [..fast_market_order.redeemer_message_length as usize],
+                    [..usize::from(fast_market_order.redeemer_message_length)],
             );
         }
         message_body.extend_from_slice(&payload);
@@ -329,7 +329,7 @@ pub fn place_initial_offer_cctp_shim(
 
     // Check contents of fast_market_order
     {
-        let deadline = fast_market_order_zero_copy.deadline as i64;
+        let deadline = i64::from(fast_market_order_zero_copy.deadline);
         let expiration = i64::from(vaa_time).saturating_add(crate::VAA_AUCTION_EXPIRATION_TIME);
         let current_time = Clock::get().unwrap().unix_timestamp;
         if !((deadline == 0 || current_time < deadline) && current_time < expiration) {
@@ -362,7 +362,7 @@ pub fn place_initial_offer_cctp_shim(
             crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
             auction_key.as_ref(),
         ],
-        &program_id,
+        program_id,
     );
     if auction_custody_token_pda != auction_custody_token.key() {
         msg!(
@@ -407,7 +407,7 @@ pub fn place_initial_offer_cctp_shim(
     let auction_space = 8 + Auction::INIT_SPACE;
     let (pda, bump) = Pubkey::find_program_address(
         &[Auction::SEED_PREFIX, vaa_message_digest.as_ref()],
-        &program_id,
+        program_id,
     );
 
     if pda != auction_key {
@@ -422,7 +422,7 @@ pub fn place_initial_offer_cctp_shim(
         auction_account.lamports(),
         auction_space,
         accounts,
-        &program_id,
+        program_id,
         auction_signer_seeds,
     )?;
     // Borrow the account data mutably
@@ -472,7 +472,7 @@ pub fn place_initial_offer_cctp_shim(
     let auction_bytes = auction_to_write
         .try_to_vec()
         .map_err(|_| MatchingEngineError::BorshDeserializationError)?;
-    data[8..8 + auction_bytes.len()].copy_from_slice(&auction_bytes);
+    data[8..8_usize.saturating_add(auction_bytes.len())].copy_from_slice(&auction_bytes);
     // ------------------------------------------------------------------------------------------------
     // End of initialisation of auction account
 
@@ -509,30 +509,32 @@ pub fn place_initial_offer_cctp_shim(
 
 #[cfg(test)]
 mod tests {
+    use crate::state::FastMarketOrderParams;
+
     use super::*;
 
     #[test]
     fn test_bytemuck() {
-        let test_fast_market_order = FastMarketOrderState::new(
-            1000000000000000000,
-            1000000000000000000,
-            1000000000,
-            1,
-            0,
-            [0_u8; 32],
-            [0_u8; 32],
-            [0_u8; 32],
-            0,
-            0,
-            [0_u8; 512],
-            [0_u8; 32],
-            0,
-            0,
-            0,
-            0,
-            0,
-            [0_u8; 32],
-        );
+        let test_fast_market_order = FastMarketOrderState::new(FastMarketOrderParams {
+            amount_in: 1000000000000000000,
+            min_amount_out: 1000000000000000000,
+            deadline: 1000000000,
+            target_chain: 1,
+            redeemer_message_length: 0,
+            redeemer: [0_u8; 32],
+            sender: [0_u8; 32],
+            refund_address: [0_u8; 32],
+            max_fee: 0,
+            init_auction_fee: 0,
+            redeemer_message: [0_u8; 512],
+            close_account_refund_recipient: [0_u8; 32],
+            vaa_sequence: 0,
+            vaa_timestamp: 0,
+            vaa_nonce: 0,
+            vaa_emitter_chain: 0,
+            vaa_consistency_level: 0,
+            vaa_emitter_address: [0_u8; 32],
+        });
         let bytes = bytemuck::bytes_of(&test_fast_market_order);
         assert!(bytes.len() == std::mem::size_of::<FastMarketOrderState>());
     }

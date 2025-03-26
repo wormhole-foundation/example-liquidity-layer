@@ -76,9 +76,7 @@ pub struct TestingEngine {
 
 impl TestingEngine {
     pub async fn new(testing_context: TestingContext) -> Self {
-        Self {
-            testing_context: testing_context,
-        }
+        Self { testing_context }
     }
 
     pub async fn execute(&self, instruction_chain: Vec<InstructionTrigger>) {
@@ -280,8 +278,8 @@ impl TestingEngine {
                 router_endpoints: current_state.router_endpoints().cloned(),
                 fast_market_order: FastMarketOrderAccountCreatedState {
                     fast_market_order_address: fast_market_order_account,
-                    fast_market_order_bump: fast_market_order_bump,
-                    fast_market_order: fast_market_order,
+                    fast_market_order_bump,
+                    fast_market_order,
                 },
                 guardian_set_state: GuardianSetState {
                     guardian_set_address: guardian_set_pubkey,

@@ -31,7 +31,7 @@ pub fn create_account_reliably(
             payer_key,
             account_key,
             lamports,
-            data_len as u64,
+            u64::try_from(data_len).unwrap(), // lol it won't do ::from
             program_id,
         );
 
@@ -105,8 +105,9 @@ pub fn create_account_reliably(
             let cpi_data = &mut cpi_ix.data;
 
             cpi_data[0] = 8; // allocate selector
-            cpi_data[4..12].copy_from_slice(&(data_len as u64).to_le_bytes());
-
+            cpi_data[4..12].copy_from_slice(&u64::try_from(data_len).unwrap().to_le_bytes());
+            //                                         ↑
+            //                              It won't do ::from but it'll do ::try_from
             invoke_signed_unchecked(&cpi_ix, accounts, signer_seeds)?;
         }
 

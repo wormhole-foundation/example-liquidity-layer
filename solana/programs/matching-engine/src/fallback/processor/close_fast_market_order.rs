@@ -65,8 +65,7 @@ pub fn close_fast_market_order(accounts: &[AccountInfo]) -> Result<()> {
     {
         return Err(ProgramError::InvalidAccountData.into()).map_err(|e: Error| {
             e.with_pubkeys((
-                Pubkey::try_from(fast_market_order_data.close_account_refund_recipient)
-                    .expect("Failed to convert close account refund recipient to pubkey"),
+                Pubkey::from(fast_market_order_data.close_account_refund_recipient),
                 close_account_refund_recipient.key(),
             ))
         });
@@ -74,7 +73,9 @@ pub fn close_fast_market_order(accounts: &[AccountInfo]) -> Result<()> {
 
     // Transfer the lamports from the fast market order to the close account refund recipient
     let mut fast_market_order_lamports = fast_market_order.lamports.borrow_mut();
-    **close_account_refund_recipient.lamports.borrow_mut() += **fast_market_order_lamports;
+    **close_account_refund_recipient.lamports.borrow_mut() =
+        (**close_account_refund_recipient.lamports.borrow())
+            .saturating_add(**fast_market_order_lamports);
     **fast_market_order_lamports = 0;
 
     Ok(())

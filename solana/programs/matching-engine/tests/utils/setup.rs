@@ -47,6 +47,8 @@ cfg_if::cfg_if! {
     } else if #[cfg(feature = "localnet")] {
         //const PROGRAM_ID : Pubkey = solana_sdk::pubkey!("MatchingEngine11111111111111111111111111111");
         // const CCTP_MINT_RECIPIENT: Pubkey = solana_sdk::pubkey!("35iwWKi7ebFyXNaqpswd1g9e9jrjvqWPV39nCQPaBbX1");
+        const USDC_MINT_ADDRESS: Pubkey = solana_sdk::pubkey!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+        const USDC_MINT_FIXTURE_PATH: &str = "tests/fixtures/usdc_mint_devnet.json";
     }
 }
 const OWNER_KEYPAIR_PATH: &str = "tests/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json";
@@ -205,6 +207,36 @@ impl TestingContext {
         wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID
     }
 
+    pub async fn get_new_latest_blockhash(&self) -> solana_program::hash::Hash {
+        let mut ctx = self.test_context.borrow_mut();
+        let hash = ctx
+            .get_new_latest_blockhash()
+            .await
+            .expect("Failed to get new blockhash");
+        drop(ctx);
+        hash
+    }
+
+    pub async fn process_transaction(
+        &self,
+        transaction: impl Into<VersionedTransaction>,
+    ) -> Result<(), BanksClientError> {
+        let mut ctx = self.test_context.borrow_mut();
+        ctx.banks_client.process_transaction(transaction).await?;
+        drop(ctx);
+        Ok(())
+    }
+
+    pub async fn get_account(
+        &self,
+        address: Pubkey,
+    ) -> Result<Option<solana_sdk::account::Account>, BanksClientError> {
+        let mut ctx = self.test_context.borrow_mut();
+        let account = ctx.banks_client.get_account(address).await?;
+        drop(ctx);
+        Ok(account)
+    }
+
     pub async fn execute_and_verify_logs(
         &self,
         transaction: impl Into<VersionedTransaction>,
@@ -212,10 +244,7 @@ impl TestingContext {
     ) {
         tracing::init_tracing();
         tracing::clear_logs();
-        self.test_context
-            .borrow_mut()
-            .banks_client
-            .process_transaction(transaction)
+        self.process_transaction(transaction)
             .await
             .expect("Transaction should not fail");
         let logs = tracing::get_logs();
@@ -233,12 +262,7 @@ impl TestingContext {
         transaction: impl Into<VersionedTransaction>,
         expected_error: Option<&ExpectedError>,
     ) {
-        let tx_result = self
-            .test_context
-            .borrow_mut()
-            .banks_client
-            .process_transaction(transaction)
-            .await;
+        let tx_result = self.process_transaction(transaction).await;
         if let Some(expected_error) = expected_error {
             let tx_error = tx_result.expect_err(&format!(
                 "Expected error {:?}, but transaction succeeded",
