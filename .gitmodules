@@ -13,4 +13,4 @@
 [submodule "solana/lib/wormhole"]
 	path = solana/lib/wormhole
 	url = https://github.com/wormholelabs-xyz/wormhole.git
-	branch = svm-shims-2
+	branch = f69b3ae366211276fe15554f83a2d76abee0535c
