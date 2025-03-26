@@ -968,34 +968,8 @@ export type MatchingEngine = {
       "args": []
     },
     {
-      "name": "getCctpMintRecipient",
-      "docs": [
-        "UNUSED. This instruction does not exist anymore. It just reverts and exist to expose an account lol."
-      ],
-      "discriminator": [
-        244,
-        239,
-        207,
-        186,
-        19,
-        125,
-        44,
-        181
-      ],
-      "accounts": [
-        {
-          "name": "mintRecipient",
-          "writable": true
-        }
-      ],
-      "args": []
-    },
-    {
       "name": "improveOffer",
       "docs": [
-        "This instruction is used to create a new auction given a valid `VaaShim`.",
-        "This instruction should act in the exact same way as `place_initial_offer_cctp` except that",
-        "it will check the digest of the vaa directly using a cpi call to the verify shim program.",
         "This instruction is used to improve an existing auction offer. The `offer_price` must be",
         "greater than the current `offer_price` in the auction. This instruction will revert if the",
         "`offer_price` is less than the current `offer_price`. This instruction can be called by",

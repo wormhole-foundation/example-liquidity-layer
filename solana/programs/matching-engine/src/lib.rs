@@ -2,7 +2,7 @@
 #![allow(clippy::result_large_err)]
 
 mod composite;
-use composite::*;
+// use composite::*;
 
 pub mod error;
 
@@ -258,13 +258,6 @@ pub mod matching_engine {
         processor::place_initial_offer_cctp(ctx, offer_price)
     }
 
-    /// This instruction is used to create a new auction given a valid `VaaShim`.
-    /// This instruction should act in the exact same way as `place_initial_offer_cctp` except that
-    /// it will check the digest of the vaa directly using a cpi call to the verify shim program.
-    // pub fn place_initial_offer_cctp_shim(ctx: Context<PlaceInitialOfferCctpShim>, offer_price: u64, guardian_set_bump: u8, vaa_message: VaaMessage) -> Result<()> {
-    //     processor::place_initial_offer_cctp_shim(ctx, offer_price, guardian_set_bump, vaa_message)
-    // }
-
     /// This instruction is used to improve an existing auction offer. The `offer_price` must be
     /// greater than the current `offer_price` in the auction. This instruction will revert if the
     /// `offer_price` is less than the current `offer_price`. This instruction can be called by
@@ -486,10 +479,10 @@ pub mod matching_engine {
         err!(ErrorCode::Deprecated)
     }
 
-    /// UNUSED. This instruction does not exist anymore. It just reverts and exist to expose an account lol.
-    pub fn get_cctp_mint_recipient(_ctx: Context<CctpMintRecipientMut>) -> Result<()> {
-        err!(ErrorCode::InstructionMissing)
-    }
+    /// UNUSED. This instruction does not exist and has never existed. It just reverts and exist to expose an account lol.
+    // pub fn get_cctp_mint_recipient(_ctx: Context<CctpMintRecipientMut>) -> Result<()> {
+    //     err!(ErrorCode::InstructionMissing)
+    // }
 
     /// Non anchor function for placing an initial offer using the VAA shim.
     pub fn fallback_process_instruction(
