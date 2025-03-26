@@ -145,7 +145,7 @@ pub enum Chain {
 }
 
 impl Chain {
-    pub fn to_index(&self) -> usize {
+    pub fn as_index(&self) -> usize {
         match self {
             Chain::Solana => 0,
             Chain::Ethereum => 1,
@@ -174,7 +174,7 @@ lazy_static::lazy_static! {
 
 // Chain ID mapping
 impl Chain {
-    pub fn to_chain_id(&self) -> u16 {
+    pub fn as_chain_id(&self) -> u16 {
         match self {
             Chain::Solana => 1,
             Chain::Ethereum => 2,

@@ -13,19 +13,15 @@ pub struct ExpectedError {
     pub error_string: String,
 }
 
-#[derive(Clone)]
+pub struct ExpectedLog {
+    pub log_message: String,
+    pub count: usize,
+}
+
+#[derive(Clone, Default)]
 pub struct InitializeInstructionConfig {
     pub auction_parameters_config: AuctionParametersConfig,
     pub expected_error: Option<ExpectedError>,
-}
-
-impl Default for InitializeInstructionConfig {
-    fn default() -> Self {
-        Self {
-            auction_parameters_config: AuctionParametersConfig::default(),
-            expected_error: None,
-        }
-    }
 }
 
 pub struct CreateCctpRouterEndpointsInstructionConfig {
@@ -41,7 +37,7 @@ impl Default for CreateCctpRouterEndpointsInstructionConfig {
         }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct InitializeFastMarketOrderShimInstructionConfig {
     pub fast_market_order_id: u32,
     pub close_account_refund_recipient: Option<Pubkey>, // If none defaults to solver 0 pubkey,
@@ -49,18 +45,7 @@ pub struct InitializeFastMarketOrderShimInstructionConfig {
     pub expected_error: Option<ExpectedError>,
 }
 
-impl Default for InitializeFastMarketOrderShimInstructionConfig {
-    fn default() -> Self {
-        Self {
-            fast_market_order_id: 0,
-            close_account_refund_recipient: None,
-            payer_signer: None,
-            expected_error: None,
-        }
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct PrepareOrderInstructionConfig {
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>,
     pub solver_index: usize,
@@ -69,18 +54,7 @@ pub struct PrepareOrderInstructionConfig {
     pub expected_log_message: Option<String>,
 }
 
-impl Default for PrepareOrderInstructionConfig {
-    fn default() -> Self {
-        Self {
-            fast_market_order_address: None,
-            solver_index: 0,
-            payer_signer: None,
-            expected_error: None,
-            expected_log_message: None,
-        }
-    }
-}
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ExecuteOrderInstructionConfig {
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>,
     pub solver_index: usize,
@@ -88,46 +62,17 @@ pub struct ExecuteOrderInstructionConfig {
     pub expected_error: Option<ExpectedError>,
 }
 
-impl Default for ExecuteOrderInstructionConfig {
-    fn default() -> Self {
-        Self {
-            fast_market_order_address: None,
-            solver_index: 0,
-            payer_signer: None,
-            expected_error: None,
-        }
-    }
-}
-
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct SettleAuctionInstructionConfig {
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
 }
 
-impl Default for SettleAuctionInstructionConfig {
-    fn default() -> Self {
-        Self {
-            payer_signer: None,
-            expected_error: None,
-        }
-    }
-}
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct CloseFastMarketOrderShimInstructionConfig {
     pub close_account_refund_recipient_keypair: Option<Rc<Keypair>>, // If none, will use the solver 0 keypair
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>, // If none, will use the fast market order address from the current state
     pub expected_error: Option<ExpectedError>,
-}
-
-impl Default for CloseFastMarketOrderShimInstructionConfig {
-    fn default() -> Self {
-        Self {
-            close_account_refund_recipient_keypair: None,
-            fast_market_order_address: None,
-            expected_error: None,
-        }
-    }
 }
 
 pub struct PlaceInitialOfferInstructionConfig {

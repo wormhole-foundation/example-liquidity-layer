@@ -34,6 +34,7 @@ pub async fn airdrop(
     );
 
     ctx.banks_client.process_transaction(tx).await.unwrap();
+    drop(ctx);
 }
 
 pub async fn airdrop_usdc(
@@ -63,13 +64,11 @@ pub async fn airdrop_usdc(
         new_blockhash,
     );
 
-    let versioned_transaction = VersionedTransaction::try_from(tx)
-        .expect("Failed to convert transaction to versioned transaction");
-
-    test_context
-        .borrow_mut()
-        .banks_client
+    let versioned_transaction = VersionedTransaction::from(tx);
+    let mut ctx = test_context.borrow_mut();
+    ctx.banks_client
         .process_transaction(versioned_transaction)
         .await
         .unwrap();
+    drop(ctx);
 }

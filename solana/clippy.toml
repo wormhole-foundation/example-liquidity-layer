@@ -5,3 +5,6 @@ disallowed-methods = [
     { path = "std::option::Option::ok_or", reason = "prefer `ok_or_else` for lazy evaluation" },
     { path = "std::option::Option::unwrap_or", reason = "prefer `unwrap_or_else` for lazy evaluation" },
 ]
+
+[expect_used]
+ignore-tests = true

@@ -76,9 +76,7 @@ pub async fn place_initial_offer_shimless(
     {
         // Check if solver has already approved usdc
         let usdc_account = accounts.solver.token_account_address().unwrap();
-        let usdc_account_info = test_ctx
-            .borrow_mut()
-            .banks_client
+        let usdc_account_info = testing_context
             .get_account(usdc_account)
             .await
             .unwrap()
@@ -150,7 +148,7 @@ pub async fn place_initial_offer_shimless(
 
     // If the transaction failed and we expected it to pass, we would not get here
     if expected_error.is_none() {
-        AuctionState::Active(ActiveAuctionState {
+        AuctionState::Active(Box::new(ActiveAuctionState {
             auction_address,
             auction_custody_token_address,
             auction_config_address: accounts.auction_config,
@@ -164,12 +162,13 @@ pub async fn place_initial_offer_shimless(
                 offer_token: accounts.offer_token,
                 offer_price: initial_offer_ix.offer_price,
             },
-        })
+        }))
     } else {
         AuctionState::Inactive
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn improve_offer(
     testing_context: &TestingContext,
     program_id: Pubkey,
@@ -248,7 +247,7 @@ pub async fn improve_offer(
             .get_active_auction()
             .unwrap()
             .initial_offer;
-        Some(AuctionState::Active(ActiveAuctionState {
+        Some(AuctionState::Active(Box::new(ActiveAuctionState {
             auction_address,
             auction_custody_token_address,
             auction_config_address: auction_config,
@@ -258,7 +257,7 @@ pub async fn improve_offer(
                 offer_token,
                 offer_price,
             },
-        }))
+        })))
     } else {
         None
     }

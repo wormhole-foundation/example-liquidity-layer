@@ -7,19 +7,19 @@ use super::program_fixtures::{
     initialise_local_token_router, initialise_post_message_shims, initialise_upgrade_manager,
     initialise_verify_shims, initialise_wormhole_core_bridge,
 };
-use super::tracing;
 use super::vaa::{create_vaas_test_with_chain_and_address, TestVaaPair, TestVaaPairs, VaaArgs};
 use super::{
     airdrop::airdrop_usdc,
     token_account::{create_token_account, read_keypair_from_file, TokenAccountFixture},
 };
 use super::{Chain, REGISTERED_TOKEN_ROUTERS};
-use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::config::{ExpectedError, ExpectedLog};
 use anchor_lang::AccountDeserialize;
 use anchor_spl::token::{
     spl_token::{self, instruction::approve},
     TokenAccount,
 };
+use anyhow::Result as AnyhowResult;
 use matching_engine::{CCTP_MINT_RECIPIENT, ID as PROGRAM_ID};
 use solana_program_test::{BanksClientError, ProgramTest, ProgramTestContext};
 use solana_sdk::instruction::InstructionError;
@@ -173,10 +173,7 @@ impl TestingContext {
     }
 
     pub async fn verify_vaas(&self) {
-        self.testing_state
-            .vaas
-            .verify_posted_vaas(&self.test_context)
-            .await;
+        self.testing_state.vaas.verify_posted_vaas(self).await;
     }
 
     pub fn get_vaa_pair(&self, index: usize) -> Option<TestVaaPair> {
@@ -207,14 +204,11 @@ impl TestingContext {
         wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID
     }
 
-    pub async fn get_new_latest_blockhash(&self) -> solana_program::hash::Hash {
+    pub async fn get_new_latest_blockhash(&self) -> AnyhowResult<solana_program::hash::Hash> {
         let mut ctx = self.test_context.borrow_mut();
-        let hash = ctx
-            .get_new_latest_blockhash()
-            .await
-            .expect("Failed to get new blockhash");
+        let hash = ctx.get_new_latest_blockhash().await?;
         drop(ctx);
-        hash
+        Ok(hash)
     }
 
     pub async fn process_transaction(
@@ -237,23 +231,53 @@ impl TestingContext {
         Ok(account)
     }
 
-    pub async fn execute_and_verify_logs(
+    /// Simulates a transaction and verifies that the logs contain the expected lines
+    ///
+    /// # Arguments
+    ///
+    /// * `transaction` - The transaction to simulate
+    /// * `expected_logs` - A vector of strings that should be present in the logs
+    ///
+    /// # Returns
+    ///
+    /// The simulation details if the transaction was successful and all expected logs were found
+    #[allow(dead_code)]
+    pub async fn simulate_and_verify_logs(
         &self,
         transaction: impl Into<VersionedTransaction>,
-        expected_log: &String,
-    ) {
-        tracing::init_tracing();
-        tracing::clear_logs();
-        self.process_transaction(transaction)
-            .await
-            .expect("Transaction should not fail");
-        let logs = tracing::get_logs();
+        expected_logs: Vec<ExpectedLog>,
+    ) -> AnyhowResult<()> {
+        let mut ctx = self.test_context.borrow_mut();
+        let simulation_result = ctx.banks_client.simulate_transaction(transaction).await?;
+        drop(ctx);
+
+        // Verify the transaction succeeded
         assert!(
-            logs.contains(expected_log),
-            "Expected log {:?} not found in {:?}",
-            expected_log,
-            logs
+            simulation_result.result.clone().unwrap().is_ok(),
+            "Transaction simulation failed: {:?}",
+            simulation_result.result
         );
+
+        let details = simulation_result
+            .simulation_details
+            .expect("No simulation details available");
+
+        // Verify all expected logs are present
+        for expected_log in expected_logs {
+            let expected_log_count = expected_log.count;
+            let expected_log_message = &expected_log.log_message;
+            let found = details
+                .logs
+                .iter()
+                .filter(|log| log.contains(expected_log_message))
+                .count();
+            assert!(
+                found == expected_log_count,
+                "Expected log {} not found in program logs",
+                expected_log.log_message
+            );
+        }
+        Ok(())
     }
 
     // TODO: Edit to handle multiple instructions in a single transaction
@@ -286,7 +310,8 @@ impl TestingContext {
                     );
                 }
                 _ => {
-                    panic!(
+                    assert!(
+                        false,
                         "Expected program error {:?}, but got: {:?}",
                         expected_error.error_string, tx_error
                     );
@@ -333,11 +358,12 @@ impl Solver {
         amount: u64,
     ) {
         // If signer pubkeys are empty, it means that the owner is the signer
-        let last_blockhash = test_context
-            .borrow_mut()
+        let mut ctx = test_context.borrow_mut();
+        let last_blockhash = ctx
             .get_new_latest_blockhash()
             .await
             .expect("Failed to get new blockhash");
+        drop(ctx);
         let approve_ix = approve(
             &spl_token::ID,
             &self.token_account_address().unwrap(),
@@ -353,13 +379,12 @@ impl Solver {
             &[&self.actor.keypair()],
             last_blockhash,
         );
-
-        test_context
-            .borrow_mut()
-            .banks_client
+        let mut ctx = test_context.borrow_mut();
+        ctx.banks_client
             .process_transaction(transaction)
             .await
             .expect("Failed to approve USDC");
+        drop(ctx);
     }
 
     pub async fn get_balance(&self, test_context: &Rc<RefCell<ProgramTestContext>>) -> u64 {
@@ -510,6 +535,8 @@ impl TestingActors {
     }
 }
 
+// TODO: Remove this allow once all instructions are implemented
+#[allow(dead_code)]
 pub async fn fast_forward_slots(test_context: &Rc<RefCell<ProgramTestContext>>, num_slots: u64) {
     // Get the current slot
     let mut current_slot = test_context

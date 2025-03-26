@@ -3,8 +3,8 @@ use anchor_lang::prelude::*;
 use super::router::TestRouterEndpoints;
 use super::setup::{Solver, TestingContext, TransferDirection};
 use super::Chain;
+use anyhow::{anyhow, Result as AnyhowResult};
 use matching_engine::state::{Auction, AuctionInfo};
-
 #[derive(Clone)]
 pub struct AuctionAccounts {
     pub posted_fast_vaa: Option<Pubkey>,
@@ -17,9 +17,10 @@ pub struct AuctionAccounts {
     pub usdc_mint: Pubkey,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub enum AuctionState {
-    Active(ActiveAuctionState),
+    Active(Box<ActiveAuctionState>),
     Settled,
     Inactive,
 }
@@ -68,7 +69,13 @@ impl AuctionAccounts {
                 router_endpoints.get_endpoint_address(Chain::Arbitrum),
                 router_endpoints.get_endpoint_address(Chain::Ethereum),
             ),
-            _ => panic!("Unsupported transfer direction"),
+            TransferDirection::Other => {
+                println!("Unsupported transfer direction, defaulting to FromEthereumToArbitrum");
+                (
+                    router_endpoints.get_endpoint_address(Chain::Ethereum),
+                    router_endpoints.get_endpoint_address(Chain::Arbitrum),
+                )
+            }
         };
         Self {
             posted_fast_vaa,
@@ -84,29 +91,26 @@ impl AuctionAccounts {
 }
 
 impl ActiveAuctionState {
-    pub async fn verify_auction(&self, testing_context: &TestingContext) {
-        let test_ctx = &testing_context.test_context;
-        let auction_account = test_ctx
-            .borrow_mut()
-            .banks_client
+    pub async fn verify_auction(&self, testing_context: &TestingContext) -> AnyhowResult<()> {
+        let auction_account = testing_context
             .get_account(self.auction_address)
-            .await
-            .unwrap()
+            .await?
             .expect("Failed to get auction account");
         let mut data_ref = auction_account.data.as_ref();
-        let auction_account_data: Auction =
-            AccountDeserialize::try_deserialize(&mut data_ref).unwrap();
+        let auction_account_data: Auction = AccountDeserialize::try_deserialize(&mut data_ref)?;
         let auction_info = auction_account_data.info.unwrap();
 
         let expected_auction_info = AuctionInfo {
-            config_id: 0,            // TODO: Figure this out
+            config_id: 0,
             custody_token_bump: 254, // TODO: Figure this out
             vaa_sequence: 0,         // No need to cehck against this
             source_chain: {
                 match testing_context.testing_state.transfer_direction {
                     TransferDirection::FromEthereumToArbitrum => 3,
                     TransferDirection::FromArbitrumToEthereum => 23,
-                    _ => panic!("Unsupported transfer direction"),
+                    TransferDirection::Other => {
+                        return Err(anyhow!("Unsupported transfer direction"));
+                    }
                 }
             },
             best_offer_token: self.best_offer.offer_token,
@@ -127,5 +131,6 @@ impl ActiveAuctionState {
             auction_info.redeemer_message_len,
             expected_auction_info.redeemer_message_len
         );
+        Ok(())
     }
 }

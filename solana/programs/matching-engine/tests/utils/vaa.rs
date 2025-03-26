@@ -6,17 +6,18 @@ use secp256k1::SecretKey as SecpSecretKey;
 use wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH;
 
 use super::constants::Chain;
+use super::setup::TestingContext;
 use super::CHAIN_TO_DOMAIN;
 
 use super::constants::CORE_BRIDGE_PID;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use solana_program::keccak;
-use solana_program_test::{ProgramTest, ProgramTestContext};
+use solana_program_test::{ProgramTest};
 use solana_sdk::account::Account;
-use std::cell::RefCell;
+
 use std::ops::{Deref, DerefMut};
-use std::rc::Rc;
+
 
 pub trait DataDiscriminator {
     const DISCRIMINATOR: &'static [u8];
@@ -73,7 +74,7 @@ impl PostedVaaData {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs() as u32;
-        let emitter_chain = chain.to_chain_id();
+        let emitter_chain = chain.as_chain_id();
         Self {
             consistency_level: 1,
             vaa_time: timestamp,
@@ -107,7 +108,7 @@ impl PostedVaaData {
         // Sign the message hash with the guardian key
         let secp = secp256k1::SECP256K1;
         let msg = secp256k1::Message::from_digest(self.digest());
-        let recoverable_signature = secp.sign_ecdsa_recoverable(&msg, &guardian_secret_key);
+        let recoverable_signature = secp.sign_ecdsa_recoverable(&msg, guardian_secret_key);
         let mut signature_bytes = [0u8; GUARDIAN_SIGNATURE_LENGTH];
         // First byte is the index
         signature_bytes[0] = index;
@@ -200,7 +201,7 @@ pub struct TestVaa {
 
 impl TestVaa {
     pub fn get_vaa_pubkey(&self) -> Pubkey {
-        self.vaa_pubkey.clone()
+        self.vaa_pubkey
     }
 
     pub fn get_vaa_data(&self) -> &PostedVaaData {
@@ -214,18 +215,10 @@ pub enum TestVaaKind {
     FastTransfer,
 }
 
+#[derive(Default)]
 pub struct CreateDepositAndFastTransferParams {
     pub deposit_params: CreateDepositParams,
     pub fast_transfer_params: CreateFastTransferParams,
-}
-
-impl Default for CreateDepositAndFastTransferParams {
-    fn default() -> Self {
-        Self {
-            deposit_params: CreateDepositParams::default(),
-            fast_transfer_params: CreateFastTransferParams::default(),
-        }
-    }
 }
 
 impl CreateDepositAndFastTransferParams {
@@ -333,7 +326,7 @@ impl TestVaaPair {
             source_address,
             refund_address,
             destination_address,
-            cctp_nonce: cctp_nonce as u32,
+            cctp_nonce: u32::try_from(cctp_nonce).unwrap(),
             sequence,
             deposit_vaa: TestVaa {
                 kind: TestVaaKind::Deposit,
@@ -355,20 +348,18 @@ impl TestVaaPair {
     pub fn add_to_test(&self, program_test: &mut ProgramTest) {
         self.deposit_vaa
             .vaa_data
-            .create_vaa_account(program_test, self.deposit_vaa.vaa_pubkey.clone());
+            .create_vaa_account(program_test, self.deposit_vaa.vaa_pubkey);
         self.fast_transfer_vaa
             .vaa_data
-            .create_vaa_account(program_test, self.fast_transfer_vaa.vaa_pubkey.clone());
+            .create_vaa_account(program_test, self.fast_transfer_vaa.vaa_pubkey);
     }
 
-    pub async fn verify_posted_vaa_pair(&self, test_context: &Rc<RefCell<ProgramTestContext>>) {
+    pub async fn verify_posted_vaa_pair(&self, testing_context: &TestingContext) {
         let expected_deposit_vaa = self.deposit_vaa.vaa_data.clone();
         let expected_fast_transfer_vaa = self.fast_transfer_vaa.vaa_data.clone();
         {
-            let deposit_vaa = test_context
-                .borrow_mut()
-                .banks_client
-                .get_account(self.deposit_vaa.vaa_pubkey.clone())
+            let deposit_vaa = testing_context
+                .get_account(self.deposit_vaa.vaa_pubkey)
                 .await
                 .unwrap();
             assert!(deposit_vaa.is_some(), "Deposit VAA not found");
@@ -379,10 +370,8 @@ impl TestVaaPair {
         }
 
         {
-            let fast_transfer_vaa = test_context
-                .borrow_mut()
-                .banks_client
-                .get_account(self.fast_transfer_vaa.vaa_pubkey.clone())
+            let fast_transfer_vaa = testing_context
+                .get_account(self.fast_transfer_vaa.vaa_pubkey)
                 .await
                 .unwrap();
             assert!(fast_transfer_vaa.is_some(), "Fast transfer VAA not found");
@@ -398,6 +387,7 @@ impl TestVaaPair {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_deposit_message(
     token_mint: Pubkey,
     source_address: ChainAddress,
@@ -414,8 +404,8 @@ pub fn create_deposit_message(
     let deposit = Deposit {
         token_address: token_mint.to_bytes(),
         amount: ruint::aliases::U256::from(amount),
-        source_cctp_domain: CHAIN_TO_DOMAIN[source_address.chain as usize].1,
-        destination_cctp_domain: CHAIN_TO_DOMAIN[Chain::Solana as usize].1, // Hardcode solana as destination domain
+        source_cctp_domain: CHAIN_TO_DOMAIN[source_address.chain.as_index()].1,
+        destination_cctp_domain: CHAIN_TO_DOMAIN[Chain::Solana.as_index()].1, // Hardcode solana as destination domain
         cctp_nonce,
         burn_source: source_address.address.to_bytes(), // Token router address
         mint_recipient: cctp_mint_recipient.to_bytes(), // Mint recipient program id
@@ -430,7 +420,7 @@ pub fn create_deposit_message(
         deposit.to_vec(),
         source_address.address,
         sequence,
-        vaa_nonce as u32,
+        vaa_nonce,
     );
     let vaa_hash = posted_vaa_data.message_hash();
     let vaa_hash_as_slice = vaa_hash.as_ref();
@@ -439,6 +429,7 @@ pub fn create_deposit_message(
     (vaa_address, posted_vaa_data, deposit)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn create_fast_transfer_message(
     start_timestamp: Option<u32>,
     source_address: ChainAddress,
@@ -452,12 +443,14 @@ pub fn create_fast_transfer_message(
     init_auction_fee: u64,
 ) -> (Pubkey, PostedVaaData, FastMarketOrder) {
     // If start timestamp is not provided, set the deadline to 0
-    let deadline = start_timestamp.map(|timestamp| timestamp + 10).unwrap_or(0);
+    let deadline = start_timestamp
+        .map(|timestamp| timestamp + 10)
+        .unwrap_or_default();
     // Implements TypePrefixedPayload
     let fast_market_order = FastMarketOrder {
         amount_in,
         min_amount_out,
-        target_chain: destination_address.chain.to_chain_id(),
+        target_chain: destination_address.chain.as_chain_id(),
         redeemer: destination_address.address.to_bytes(),
         sender: source_address.address.to_bytes(),
         refund_address: refund_address.address.to_bytes(), // Not used so can be all zeros
@@ -515,9 +508,11 @@ impl TestVaaPairs {
         cctp_mint_recipient: Pubkey,
         vaa_args: &VaaArgs,
     ) {
-        let sequence = vaa_args.sequence.unwrap_or(self.len() as u64);
-        let cctp_nonce = vaa_args.cctp_nonce.unwrap_or(sequence + 1);
-        let vaa_nonce = vaa_args.vaa_nonce.unwrap_or(0);
+        let sequence = vaa_args
+            .sequence
+            .unwrap_or_else(|| u64::try_from(self.len()).unwrap());
+        let cctp_nonce = vaa_args.cctp_nonce.unwrap_or_else(|| sequence + 1);
+        let vaa_nonce = vaa_args.vaa_nonce.unwrap_or_default();
         let is_posted = vaa_args.post_vaa;
         let create_deposit_and_fast_transfer_params =
             &vaa_args.create_deposit_and_fast_transfer_params;
@@ -553,7 +548,7 @@ impl TestVaaPairs {
             ChainAddress::new_with_address(destination_chain, destination_address);
         let refund_address = source_address.clone();
         self.add_ft(
-            mint_address.clone(),
+            mint_address,
             source_address,
             refund_address,
             destination_address,
@@ -567,15 +562,16 @@ impl TestVaaPairs {
         }
     }
 
-    pub async fn verify_posted_vaas(&self, test_context: &Rc<RefCell<ProgramTestContext>>) {
+    pub async fn verify_posted_vaas(&self, testing_context: &TestingContext) {
         for vaa_pair in self.0.iter() {
             if vaa_pair.is_posted() {
-                vaa_pair.verify_posted_vaa_pair(test_context).await;
+                vaa_pair.verify_posted_vaa_pair(testing_context).await;
             }
         }
     }
 }
 
+#[derive(Default)]
 pub struct VaaArgs {
     pub sequence: Option<u64>,
     pub cctp_nonce: Option<u64>,
@@ -583,19 +579,6 @@ pub struct VaaArgs {
     pub start_timestamp: Option<u32>,
     pub post_vaa: bool,
     pub create_deposit_and_fast_transfer_params: CreateDepositAndFastTransferParams,
-}
-
-impl Default for VaaArgs {
-    fn default() -> Self {
-        Self {
-            sequence: None,
-            cctp_nonce: None,
-            vaa_nonce: None,
-            start_timestamp: None,
-            post_vaa: false,
-            create_deposit_and_fast_transfer_params: CreateDepositAndFastTransferParams::default(),
-        }
-    }
 }
 
 pub fn create_vaas_test_with_chain_and_address(

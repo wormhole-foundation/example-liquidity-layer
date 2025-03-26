@@ -141,9 +141,7 @@ pub async fn close_fast_market_order_fallback(
     expected_error: Option<&ExpectedError>,
 ) {
     let program_id = &testing_context.get_matching_engine_program_id();
-    let test_ctx = &testing_context.test_context;
-    let recent_blockhash = test_ctx
-        .borrow_mut()
+    let recent_blockhash = testing_context
         .get_new_latest_blockhash()
         .await
         .expect("Failed to get new blockhash");
@@ -211,7 +209,7 @@ pub fn create_fast_market_order_state_from_vaa_data(
         min_amount_out: order.min_amount_out,
         deadline: order.deadline,
         target_chain: order.target_chain,
-        redeemer_message_length: order.redeemer_message.len() as u16,
+        redeemer_message_length: u16::try_from(order.redeemer_message.len()).unwrap(),
         redeemer: order.redeemer,
         sender: order.sender,
         refund_address: order.refund_address,

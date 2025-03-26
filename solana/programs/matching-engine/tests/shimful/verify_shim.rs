@@ -1,7 +1,8 @@
-use crate::utils;
 use crate::utils::constants::*;
+use crate::utils::{self, setup::TestingContext};
 use anchor_lang::prelude::*;
-use solana_program_test::ProgramTestContext;
+use anyhow::Result as AnyhowResult;
+
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
     hash::Hash,
@@ -9,7 +10,7 @@ use solana_sdk::{
     signature::{Keypair, Signer},
     transaction::VersionedTransaction,
 };
-use std::cell::RefCell;
+
 use std::rc::Rc;
 use std::str::FromStr;
 use wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH;
@@ -31,36 +32,34 @@ use wormhole_svm_shim::verify_vaa;
 ///
 /// * `(guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump)` - The guardian set pubkey, the guardian signatures pubkey and the guardian set bump
 pub async fn create_guardian_signatures(
-    test_ctx: &Rc<RefCell<ProgramTestContext>>,
+    testing_context: &TestingContext,
     payer_signer: &Rc<Keypair>,
     vaa_data: &utils::vaa::PostedVaaData,
     wormhole_program_id: &Pubkey,
     guardian_signature_signer: Option<&Rc<Keypair>>,
-) -> (Pubkey, Pubkey, u8) {
+) -> AnyhowResult<(Pubkey, Pubkey, u8)> {
     let new_keypair = Rc::new(Keypair::new());
-    let guardian_signature_signer = guardian_signature_signer.unwrap_or(&new_keypair);
+    let guardian_signature_signer = guardian_signature_signer.unwrap_or_else(|| &new_keypair);
     let (guardian_set_pubkey, guardian_set_bump) =
         wormhole_svm_definitions::find_guardian_set_address(
             0_u32.to_be_bytes(),
-            &wormhole_program_id,
+            wormhole_program_id,
         );
-    let guardian_secret_key = secp256k1::SecretKey::from_str(GUARDIAN_SECRET_KEY)
-        .expect("Failed to parse guardian secret key");
+    let guardian_secret_key = secp256k1::SecretKey::from_str(GUARDIAN_SECRET_KEY)?;
     let guardian_set_signatures = vaa_data.sign_with_guardian_key(&guardian_secret_key, 0);
     let guardian_signatures_pubkey = add_guardian_signatures_account(
-        test_ctx,
+        testing_context,
         payer_signer,
         guardian_signature_signer,
         vec![guardian_set_signatures],
         0,
     )
-    .await
-    .expect("Failed to post guardian signatures");
-    (
+    .await?;
+    Ok((
         guardian_set_pubkey,
         guardian_signatures_pubkey,
         guardian_set_bump,
-    )
+    ))
 }
 
 /// Add a guardian signatures account
@@ -79,31 +78,22 @@ pub async fn create_guardian_signatures(
 ///
 /// * `guardian_signatures_pubkey` - The guardian signatures pubkey
 async fn add_guardian_signatures_account(
-    test_ctx: &Rc<RefCell<ProgramTestContext>>,
+    testing_context: &TestingContext,
     payer_signer: &Rc<Keypair>,
     signatures_signer: &Rc<Keypair>,
     guardian_signatures: Vec<[u8; GUARDIAN_SIGNATURE_LENGTH]>,
     guardian_set_index: u32,
-) -> Result<Pubkey> {
-    let new_blockhash = test_ctx
-        .borrow_mut()
-        .get_new_latest_blockhash()
-        .await
-        .expect("Failed to get new blockhash");
+) -> AnyhowResult<Pubkey> {
+    let new_blockhash = testing_context.get_new_latest_blockhash().await?;
     let transaction = post_signatures_transaction(
         payer_signer,
         signatures_signer,
         guardian_set_index,
-        guardian_signatures.len() as u8,
+        u8::try_from(guardian_signatures.len())?,
         &guardian_signatures,
         new_blockhash,
     );
-    test_ctx
-        .borrow_mut()
-        .banks_client
-        .process_transaction(transaction)
-        .await
-        .expect("Failed to add guardian signatures account");
+    testing_context.process_transaction(transaction).await?;
 
     Ok(signatures_signer.pubkey())
 }

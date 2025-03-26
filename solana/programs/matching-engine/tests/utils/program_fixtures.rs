@@ -29,7 +29,7 @@ pub fn initialise_upgrade_manager(
 
     // Add the program data to the program test
     // Compute lamports from length of program data
-    let program_data_data = get_program_data(owner_pubkey.clone());
+    let program_data_data = get_program_data(owner_pubkey);
 
     let lamports = solana_sdk::rent::Rent::default().minimum_balance(program_data_data.len());
     let account = solana_sdk::account::Account {

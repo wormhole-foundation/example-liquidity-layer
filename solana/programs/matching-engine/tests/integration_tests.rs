@@ -119,15 +119,10 @@ pub async fn test_post_message_shims() {
         None,
     )
     .await;
-    let actors = testing_context.testing_actors;
+    let actors = &testing_context.testing_actors;
     let emitter_signer = actors.owner.keypair();
     let payer_signer = actors.solvers[0].keypair();
-    set_up_post_message_transaction_test(
-        &testing_context.test_context,
-        &payer_signer,
-        &emitter_signer,
-    )
-    .await;
+    set_up_post_message_transaction_test(&testing_context, &payer_signer, &emitter_signer).await;
 }
 
 #[tokio::test]
@@ -222,13 +217,14 @@ pub async fn test_approve_usdc() {
     // TODO: Create an issue based on this bug. So this function will transfer the ownership of whatever the guardian signatures signer is set to to the verify shim program. This means that the argument to this function MUST be ephemeral and cannot be used until the close signatures instruction has been executed.
     let (_guardian_set_pubkey, _guardian_signatures_pubkey, _guardian_set_bump) =
         shimful::verify_shim::create_guardian_signatures(
-            &testing_context.test_context,
+            &testing_context,
             &actors.owner.keypair(),
             &vaa_data,
             &CORE_BRIDGE_PROGRAM_ID,
             None,
         )
-        .await;
+        .await
+        .expect("Failed to create guardian signatures");
 
     println!("Solver USDC balance: {:?}", usdc_balance);
     let solver_token_account_address = solver.token_account_address().unwrap();

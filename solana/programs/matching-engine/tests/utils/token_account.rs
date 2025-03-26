@@ -88,7 +88,7 @@ pub async fn create_token_account_for_pda(
     let mut ctx = test_context.borrow_mut();
 
     // Get the ATA address
-    let ata = anchor_spl::associated_token::get_associated_token_address(&pda, mint);
+    let ata = anchor_spl::associated_token::get_associated_token_address(pda, mint);
 
     // Create the create_ata instruction
     let create_ata_ix = spl_associated_token_account::instruction::create_associated_token_account(

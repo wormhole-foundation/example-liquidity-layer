@@ -65,6 +65,7 @@ pub struct GuardianSetState {
 }
 
 // The main state enum that reflects all possible instruction states
+#[allow(dead_code)]
 #[derive(Clone)]
 pub enum TestingEngineState {
     Uninitialized(BaseState),
@@ -278,7 +279,7 @@ impl TestingEngineState {
     }
 
     pub fn get_first_test_vaa_pair(&self) -> &TestVaaPair {
-        self.base().vaas.get(0).unwrap()
+        self.base().vaas.first().unwrap()
     }
 
     // Convenience methods for common fields

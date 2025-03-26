@@ -32,11 +32,11 @@ pub struct InitializeFixture {
 
 impl InitializeFixture {
     pub fn get_custodian_address(&self) -> Pubkey {
-        self.addresses.custodian_address.clone()
+        self.addresses.custodian_address
     }
 
     pub fn get_auction_config_address(&self) -> Pubkey {
-        self.addresses.auction_config_address.clone()
+        self.addresses.auction_config_address
     }
 }
 
@@ -121,17 +121,17 @@ impl Default for AuctionParametersConfig {
     }
 }
 
-impl Into<AuctionParameters> for AuctionParametersConfig {
-    fn into(self) -> AuctionParameters {
+impl From<AuctionParametersConfig> for AuctionParameters {
+    fn from(val: AuctionParametersConfig) -> Self {
         AuctionParameters {
-            user_penalty_reward_bps: self.user_penalty_reward_bps,
-            initial_penalty_bps: self.initial_penalty_bps,
-            duration: self.duration,
-            grace_period: self.grace_period,
-            penalty_period: self.penalty_period,
-            min_offer_delta_bps: self.min_offer_delta_bps,
-            security_deposit_base: self.security_deposit_base,
-            security_deposit_bps: self.security_deposit_bps,
+            user_penalty_reward_bps: val.user_penalty_reward_bps,
+            initial_penalty_bps: val.initial_penalty_bps,
+            duration: val.duration,
+            grace_period: val.grace_period,
+            penalty_period: val.penalty_period,
+            min_offer_delta_bps: val.min_offer_delta_bps,
+            security_deposit_base: val.security_deposit_base,
+            security_deposit_bps: val.security_deposit_bps,
         }
     }
 }
@@ -199,11 +199,10 @@ pub async fn initialize_program(
     // Create and sign transaction
     let mut transaction =
         Transaction::new_with_payer(&[instruction], Some(&test_context.borrow().payer.pubkey()));
-    let new_blockhash = test_context
-        .borrow_mut()
+    let new_blockhash = testing_context
         .get_new_latest_blockhash()
         .await
-        .expect("Failed to get new blockhash");
+        .expect("Could not get new blockhash");
     transaction.sign(
         &[
             &test_context.borrow().payer,
@@ -213,19 +212,15 @@ pub async fn initialize_program(
     );
 
     // Process transaction
-    let versioned_transaction = VersionedTransaction::try_from(transaction)
-        .expect("Failed to convert transaction to versioned transaction");
-
+    let versioned_transaction = VersionedTransaction::from(transaction);
     testing_context
         .execute_and_verify_transaction(versioned_transaction, expected_error)
         .await;
 
     if expected_error.is_none() {
         // Verify the results
-        let custodian_account = test_context
-            .borrow_mut()
-            .banks_client
-            .get_account(custodian.clone())
+        let custodian_account = testing_context
+            .get_account(custodian)
             .await
             .expect("Failed to get custodian account")
             .expect("Custodian account not found");

@@ -36,6 +36,7 @@ use std::rc::Rc;
 ///
 /// * The expected error is reached
 /// * If successful, the solver's USDC balance should decrease by the offer price
+#[allow(clippy::too_many_arguments)]
 pub async fn place_initial_offer_fallback(
     testing_context: &TestingContext,
     payer_signer: &Rc<Keypair>,
@@ -143,7 +144,8 @@ pub async fn place_initial_offer_fallback(
                 offer_price,
             },
         };
-        let new_auction_state = utils::auction::AuctionState::Active(new_active_auction_state);
+        let new_auction_state =
+            utils::auction::AuctionState::Active(Box::new(new_active_auction_state));
         Some(InitialOfferPlacedState {
             auction_state: new_auction_state,
         })

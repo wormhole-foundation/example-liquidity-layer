@@ -1,4 +1,5 @@
 use anchor_lang::prelude::{pubkey, Pubkey};
+use anyhow::Result as AnyhowResult;
 use serde_json::Value;
 use solana_program_test::ProgramTest;
 use std::{fs, str::FromStr};
@@ -64,7 +65,7 @@ impl FixtureAccounts {
     /// * `program_test` - The program test instance
     pub fn add_lookup_table_hack(program_test: &mut ProgramTest) {
         let filename = "tests/fixtures/lup.json";
-        let account_fixture = read_account_from_file(filename);
+        let account_fixture = read_account_from_file(filename).unwrap();
         program_test.add_account_with_file_data(
             account_fixture.address,
             account_fixture.lamports,
@@ -84,7 +85,7 @@ impl FixtureAccounts {
 /// * `filename` - The path to the JSON fixture file
 fn add_account_from_file(program_test: &mut ProgramTest, filename: &str) -> AccountFixture {
     // Parse the JSON file to an AccountFixture struct
-    let account_fixture = read_account_from_file(filename);
+    let account_fixture = read_account_from_file(filename).unwrap();
     // Add the account to the program test
     program_test.add_account_with_base64_data(
         account_fixture.address,
@@ -102,8 +103,6 @@ struct AccountFixture {
     pub base_64_data: String,
 }
 
-// FIXME: This code is not being used, remove it
-
 /// Reads an account from a JSON fixture file
 ///
 /// Reads the JSON file and parses it into a Value object that is used to extract the lamports, address, and owner values.
@@ -115,13 +114,12 @@ struct AccountFixture {
 /// # Returns
 ///
 /// An AccountFixture struct containing the address, owner, lamports, and filename.
-fn read_account_from_file(filename: &str) -> AccountFixture {
+fn read_account_from_file(filename: &str) -> AnyhowResult<AccountFixture> {
     // Read the JSON file
-    let data = fs::read_to_string(filename).expect(&format!("Unable to read file {}", filename));
+    let data = fs::read_to_string(filename)?;
 
     // Parse the JSON
-    let json: Value =
-        serde_json::from_str(&data).expect(&format!("Unable to parse JSON {}", filename));
+    let json: Value = serde_json::from_str(&data)?;
 
     // Extract the lamports value
     let lamports = json["account"]["lamports"]
@@ -146,10 +144,10 @@ fn read_account_from_file(filename: &str) -> AccountFixture {
     let base_64_data = json["account"]["data"][0]
         .as_str()
         .expect("data field not found or invalid");
-    AccountFixture {
+    Ok(AccountFixture {
         address,
         owner,
         lamports,
         base_64_data: base_64_data.to_string(),
-    }
+    })
 }

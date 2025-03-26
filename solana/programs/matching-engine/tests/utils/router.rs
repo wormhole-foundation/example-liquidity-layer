@@ -4,7 +4,7 @@ use super::constants::*;
 use super::setup::TestingContext;
 use super::token_account::create_token_account_for_pda;
 use anchor_lang::prelude::*;
-use anchor_lang::Discriminator;
+
 use anchor_lang::{InstructionData, ToAccountMetas};
 use common::wormhole_cctp_solana::cctp::token_messenger_minter_program::RemoteTokenMessenger;
 use matching_engine::accounts::{
@@ -37,34 +37,6 @@ fn generate_admin(owner_or_assistant: Pubkey, custodian: Pubkey) -> Admin {
     }
 }
 
-#[allow(dead_code)]
-async fn print_account_discriminator(
-    test_context: &Rc<RefCell<ProgramTestContext>>,
-    address: &Pubkey,
-) {
-    println!("Printing account discriminator for address: {:?}", address);
-    let account = test_context
-        .borrow_mut()
-        .banks_client
-        .get_account(*address)
-        .await
-        .unwrap()
-        .expect("Account not found");
-
-    println!("Account data: {:?}", account.data);
-
-    let account_owner = account.owner;
-    println!("Account owner: {:?}", account_owner);
-
-    // Get first 8 bytes (discriminator)
-    let discriminator = &account.data[..8];
-    println!("Account discriminator: {:?}", discriminator);
-
-    // Compare with expected discriminator (WARNING: ASSUMPTION)
-    let expected = RemoteTokenMessenger::discriminator();
-    println!("Expected discriminator: {:?}", expected);
-}
-
 /// A struct representing an endpoint info for testing purposes
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct TestEndpointInfo {
@@ -94,14 +66,14 @@ impl TestEndpointInfo {
     ) -> Self {
         if let Some(mint_recipient) = mint_recipient {
             Self {
-                chain: chain.to_chain_id(),
+                chain: chain.as_chain_id(),
                 address: address.to_bytes(),
                 mint_recipient: mint_recipient.to_bytes(),
                 protocol,
             }
         } else {
             Self {
-                chain: chain.to_chain_id(),
+                chain: chain.as_chain_id(),
                 address: address.to_bytes(),
                 mint_recipient: address.to_bytes(),
                 protocol,
@@ -190,7 +162,7 @@ pub async fn add_cctp_router_endpoint_ix(
         mint: usdc_mint_address,
     };
 
-    let encoded_chain = (chain.to_chain_id()).to_be_bytes();
+    let encoded_chain = (chain.as_chain_id()).to_be_bytes();
     let router_endpoint_address = get_router_endpoint_address(program_id, &encoded_chain);
 
     let local_custody_token_address = Pubkey::find_program_address(
@@ -216,8 +188,8 @@ pub async fn add_cctp_router_endpoint_ix(
         .expect("Failed to convert registered token router address to bytes [u8; 32]");
     let ix_data = AddCctpRouterEndpoint {
         args: AddCctpRouterEndpointArgs {
-            chain: chain.to_chain_id(),
-            cctp_domain: CHAIN_TO_DOMAIN[chain.to_index()].1,
+            chain: chain.as_chain_id(),
+            cctp_domain: CHAIN_TO_DOMAIN[chain.as_index()].1,
             address: registered_token_router_address,
             mint_recipient: None,
         },
@@ -235,7 +207,10 @@ pub async fn add_cctp_router_endpoint_ix(
         Some(&testing_context.test_context.borrow().payer.pubkey()),
     );
     // TODO: Figure out who the signers are
-    let new_blockhash = testing_context.get_new_latest_blockhash().await;
+    let new_blockhash = testing_context
+        .get_new_latest_blockhash()
+        .await
+        .expect("Failed to get new blockhash");
     transaction.sign(
         &[&testing_context.test_context.borrow().payer, &admin_keypair],
         new_blockhash,
@@ -253,8 +228,8 @@ pub async fn add_cctp_router_endpoint_ix(
         .unwrap()
         .unwrap();
 
-    let endpoint_data =
-        RouterEndpoint::try_deserialize(&mut endpoint_account.data.as_slice()).unwrap();
+    let endpoint_data = RouterEndpoint::try_deserialize(&mut endpoint_account.data.as_slice())
+        .expect("Failed to deserialize endpoint data");
 
     let test_router_endpoint = TestRouterEndpoint::from((&endpoint_data, router_endpoint_address));
     test_router_endpoint.verify_endpoint_info(
@@ -262,7 +237,7 @@ pub async fn add_cctp_router_endpoint_ix(
         &Pubkey::new_from_array(registered_token_router_address),
         None,
         matching_engine::state::MessageProtocol::Cctp {
-            domain: CHAIN_TO_DOMAIN[chain.to_index()].1,
+            domain: CHAIN_TO_DOMAIN[chain.as_index()].1,
         },
     );
     test_router_endpoint
@@ -291,7 +266,7 @@ pub async fn add_local_router_endpoint_ix(
         token_router_mint_recipient,
     };
     let chain = Chain::Solana;
-    let encoded_chain = (chain.to_chain_id()).to_be_bytes();
+    let encoded_chain = (chain.as_chain_id()).to_be_bytes();
     let (router_endpoint_address, _bump) =
         Pubkey::find_program_address(&[RouterEndpoint::SEED_PREFIX, &encoded_chain], &program_id);
 
@@ -314,7 +289,10 @@ pub async fn add_local_router_endpoint_ix(
 
     let mut transaction =
         Transaction::new_with_payer(&[instruction], Some(&test_context.borrow().payer.pubkey()));
-    let new_blockhash = testing_context.get_new_latest_blockhash().await;
+    let new_blockhash = testing_context
+        .get_new_latest_blockhash()
+        .await
+        .expect("Could not get new blockhash");
     transaction.sign(
         &[&test_context.borrow().payer, &admin_keypair],
         new_blockhash,
@@ -364,7 +342,8 @@ pub async fn create_cctp_router_endpoint(
             panic!("Unsupported chain");
         }
     };
-    let token_router_endpoint = add_cctp_router_endpoint_ix(
+
+    add_cctp_router_endpoint_ix(
         testing_context,
         admin_owner_or_assistant,
         custodian_address,
@@ -374,8 +353,7 @@ pub async fn create_cctp_router_endpoint(
         usdc_mint_address,
         chain,
     )
-    .await;
-    token_router_endpoint
+    .await
 }
 
 pub async fn create_all_router_endpoints_test(
@@ -417,6 +395,8 @@ pub async fn create_all_router_endpoints_test(
     TestRouterEndpoints(endpoints)
 }
 
+// TODO: Remove this allow once all instructions are implemented
+#[allow(dead_code)]
 pub async fn get_remote_token_messenger(
     test_context: &Rc<RefCell<ProgramTestContext>>,
     address: Pubkey,

@@ -235,21 +235,22 @@ impl TestingEngine {
             &fast_transfer_vaa.vaa_data,
             config
                 .close_account_refund_recipient
-                .unwrap_or(self.testing_context.testing_actors.solvers[0].pubkey()),
+                .unwrap_or_else(|| self.testing_context.testing_actors.solvers[0].pubkey()),
         );
         let payer_signer = config
             .payer_signer
             .clone()
-            .unwrap_or(self.testing_context.testing_actors.owner.keypair());
+            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
         let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) =
             create_guardian_signatures(
-                &self.testing_context.test_context,
+                &self.testing_context,
                 &payer_signer,
                 &fast_transfer_vaa.vaa_data,
                 &self.testing_context.get_wormhole_program_id(),
                 None,
             )
-            .await;
+            .await
+            .expect("Failed to create guardian signatures");
 
         let (fast_market_order_account, fast_market_order_bump) = Pubkey::find_program_address(
             &[
@@ -297,16 +298,16 @@ impl TestingEngine {
         config: &CloseFastMarketOrderShimInstructionConfig,
     ) -> TestingEngineState {
         // Get the fast market order account from the current state. If it is not present, panic
-        let fast_market_order_account = config.fast_market_order_address.unwrap_or(
+        let fast_market_order_account = config.fast_market_order_address.unwrap_or_else(|| {
             current_state
                 .fast_market_order()
                 .expect("Fast market order account not found")
-                .fast_market_order_address,
-        );
+                .fast_market_order_address
+        });
         let close_account_refund_recipient = config
             .close_account_refund_recipient_keypair
             .clone()
-            .unwrap_or(self.testing_context.testing_actors.solvers[0].keypair());
+            .unwrap_or_else(|| self.testing_context.testing_actors.solvers[0].keypair());
 
         shimful::fast_market_order_shim::close_fast_market_order_fallback(
             &self.testing_context,
@@ -338,7 +339,7 @@ impl TestingEngine {
         let payer_signer = config
             .payer_signer
             .clone()
-            .unwrap_or(self.testing_context.testing_actors.owner.keypair());
+            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
         let solver = self
             .testing_context
             .testing_actors
@@ -349,7 +350,7 @@ impl TestingEngine {
         let fast_vaa = &current_state
             .base()
             .vaas
-            .get(0)
+            .first()
             .expect("Failed to get vaa pair")
             .fast_transfer_vaa;
         let fast_vaa_pubkey = fast_vaa.get_vaa_pubkey();
@@ -420,7 +421,7 @@ impl TestingEngine {
         let payer_signer = config
             .payer_signer
             .clone()
-            .unwrap_or(self.testing_context.testing_actors.owner.keypair());
+            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
         let new_auction_state = shimless::make_offer::improve_offer(
             &self.testing_context,
             self.testing_context.get_matching_engine_program_id(),
@@ -451,12 +452,12 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &PlaceInitialOfferInstructionConfig,
     ) -> TestingEngineState {
-        let fast_market_order_address = config.fast_market_order_address.unwrap_or(
+        let fast_market_order_address = config.fast_market_order_address.unwrap_or_else(|| {
             current_state
                 .fast_market_order()
                 .expect("Fast market order is not created")
-                .fast_market_order_address,
-        );
+                .fast_market_order_address
+        });
         let router_endpoints = current_state
             .router_endpoints()
             .expect("Router endpoints are not created");
@@ -464,7 +465,7 @@ impl TestingEngine {
         let payer_signer = config
             .payer_signer
             .clone()
-            .unwrap_or(self.testing_context.testing_actors.owner.keypair());
+            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
         let auction_config_address = current_state
             .auction_config_address()
             .expect("Auction config address not found");
@@ -488,7 +489,7 @@ impl TestingEngine {
             shimful::shims_make_offer::place_initial_offer_fallback(
                 &self.testing_context,
                 &payer_signer,
-                &fast_vaa_data,
+                fast_vaa_data,
                 solver,
                 &fast_market_order_address,
                 &auction_accounts,
