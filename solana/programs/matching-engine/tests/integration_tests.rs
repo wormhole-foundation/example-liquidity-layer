@@ -14,7 +14,7 @@ use crate::testing_engine::config::{
     PlaceInitialOfferInstructionConfig,
 };
 use crate::testing_engine::engine::{InstructionTrigger, TestingEngine};
-use shimful::shims::set_up_post_message_transaction_test;
+use shimful::post_message::set_up_post_message_transaction_test;
 use shimless::initialize::{initialize_program, AuctionParametersConfig};
 use solana_sdk::transaction::TransactionError;
 use utils::router::add_local_router_endpoint_ix;
@@ -87,9 +87,8 @@ pub async fn test_local_token_router_endpoint_creation() {
     .await;
 }
 
-// Test setting up vaas
-// Vaa is from arbitrum to ethereum
-// - The payload of the vaa should be the .to_vec() of the FastMarketOrder under universal/rs/messages/src/fast_market_order.rs
+/// Test setting up vaas
+/// Vaa is from arbitrum to ethereum
 #[tokio::test]
 pub async fn test_setup_vaas() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
@@ -227,7 +226,7 @@ pub async fn test_approve_usdc() {
 
     // TODO: Create an issue based on this bug. So this function will transfer the ownership of whatever the guardian signatures signer is set to to the verify shim program. This means that the argument to this function MUST be ephemeral and cannot be used until the close signatures instruction has been executed.
     let (_guardian_set_pubkey, _guardian_signatures_pubkey, _guardian_set_bump) =
-        shimful::shims::create_guardian_signatures(
+        shimful::verify_shim::create_guardian_signatures(
             &testing_context.test_context,
             &actors.owner.keypair(),
             &vaa_data,

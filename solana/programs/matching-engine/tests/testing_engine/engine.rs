@@ -3,15 +3,17 @@ use solana_sdk::transaction::VersionedTransaction;
 
 use super::{config::*, state::*};
 use crate::shimful;
-use crate::shimful::shims::{
-    create_fast_market_order_state_from_vaa_data, create_guardian_signatures,
-    initialise_fast_market_order_fallback_instruction,
+use crate::shimful::fast_market_order_shim::{
+    create_fast_market_order_state_from_vaa_data, initialise_fast_market_order_fallback_instruction,
 };
-use crate::utils::auction::AuctionState;
+use crate::shimful::verify_shim::create_guardian_signatures;
+use crate::shimless;
+use crate::utils::vaa::TestVaaPairs;
 use crate::utils::{
-    auction::AuctionAccounts, router::create_all_router_endpoints_test, setup::TestingContext,
+    auction::{AuctionAccounts, AuctionState},
+    router::create_all_router_endpoints_test,
+    setup::TestingContext,
 };
-use crate::{shimless, utils::vaa::TestVaaPairs};
 use anchor_lang::prelude::*;
 
 #[allow(dead_code)]
@@ -98,16 +100,20 @@ impl TestingEngine {
                 self.create_cctp_router_endpoints(current_state, config)
                     .await
             }
+            InstructionTrigger::InitializeFastMarketOrderShim(config) => {
+                self.create_fast_market_order_account(current_state, config)
+                    .await
+            }
+            InstructionTrigger::CloseFastMarketOrderShim(config) => {
+                self.close_fast_market_order_account(current_state, config)
+                    .await
+            }
             InstructionTrigger::PlaceInitialOfferShimless(config) => {
                 self.place_initial_offer_shimless(current_state, config)
                     .await
             }
             InstructionTrigger::PlaceInitialOfferShim(config) => {
                 self.place_initial_offer_shim(current_state, config).await
-            }
-            InstructionTrigger::InitializeFastMarketOrderShim(config) => {
-                self.create_fast_market_order_account(current_state, config)
-                    .await
             }
             InstructionTrigger::ImproveOfferShimless(config) => {
                 self.improve_offer_shimless(current_state, config).await
@@ -126,10 +132,6 @@ impl TestingEngine {
             }
             InstructionTrigger::SettleAuction(config) => {
                 self.settle_auction(current_state, config).await
-            }
-            InstructionTrigger::CloseFastMarketOrderShim(config) => {
-                self.close_fast_market_order_account(current_state, config)
-                    .await
             }
         }
     }
@@ -317,7 +319,7 @@ impl TestingEngine {
             .clone()
             .unwrap_or(self.testing_context.testing_actors.solvers[0].keypair());
 
-        shimful::shims::close_fast_market_order_fallback(
+        shimful::fast_market_order_shim::close_fast_market_order_fallback(
             &self.testing_context,
             &close_account_refund_recipient,
             &self.testing_context.get_matching_engine_program_id(),
@@ -494,17 +496,18 @@ impl TestingEngine {
             .get_first_test_vaa_pair()
             .fast_transfer_vaa
             .get_vaa_data();
-        let place_initial_offer_shim_fixture = shimful::shims::place_initial_offer_fallback(
-            &self.testing_context,
-            &payer_signer,
-            &fast_vaa_data,
-            solver,
-            &fast_market_order_address,
-            &auction_accounts,
-            config.offer_price,
-            config.expected_error.as_ref(),
-        )
-        .await;
+        let place_initial_offer_shim_fixture =
+            shimful::shims_make_offer::place_initial_offer_fallback(
+                &self.testing_context,
+                &payer_signer,
+                &fast_vaa_data,
+                solver,
+                &fast_market_order_address,
+                &auction_accounts,
+                config.offer_price,
+                config.expected_error.as_ref(),
+            )
+            .await;
         if config.expected_error.is_none() {
             let initial_offer_placed_state = place_initial_offer_shim_fixture.unwrap();
             let active_auction_state = initial_offer_placed_state

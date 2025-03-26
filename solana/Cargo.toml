@@ -49,22 +49,22 @@ ruint = "1.9.0"
 cfg-if = "1.0"
 hex-literal = "0.4.1"
 bytemuck = "1.13.0"
-wormhole-svm-shim = { git = "https://github.com/wormholelabs-xyz/wormhole.git", rev = "f69b3ae3" }
-wormhole-svm-definitions = { git = "https://github.com/wormholelabs-xyz/wormhole.git", rev = "f69b3ae3", features = ["borsh"] }
+wormhole-svm-shim = { git = "https://github.com/wormholelabs-xyz/wormhole.git", rev = "32cb65dd9ae11547f0e57d106b6974dc8ed5f52d" }
+wormhole-svm-definitions = { git = "https://github.com/wormholelabs-xyz/wormhole.git", rev = "32cb65dd9ae11547f0e57d106b6974dc8ed5f52d", features = ["borsh"] }
 
 [patch."https://github.com/wormholelabs-xyz/wormhole.git"]
 wormhole-svm-shim = { path = "lib/wormhole/svm/wormhole-core-shims/crates/shim" }
 wormhole-svm-definitions = { path = "lib/wormhole/svm/wormhole-core-shims/crates/definitions" }
 
-[profile.release]
-overflow-checks = true
-lto = "fat"
-codegen-units = 1
+# [profile.release]
+# overflow-checks = true
+# lto = "fat"
+# codegen-units = 1
 
-[profile.release.build-override]
-opt-level = 3
-incremental = false
-codegen-units = 1
+# [profile.release.build-override]
+# opt-level = 3
+# incremental = false
+# codegen-units = 1
 
 [workspace.lints.clippy]
 correctness = { priority = -1, level = "warn"}
