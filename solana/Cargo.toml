@@ -56,8 +56,8 @@ wormhole-svm-definitions = { git = "https://github.com/wormholelabs-xyz/wormhole
 wormhole-svm-shim = { path = "lib/wormhole/svm/wormhole-core-shims/crates/shim" }
 wormhole-svm-definitions = { path = "lib/wormhole/svm/wormhole-core-shims/crates/definitions" }
 
-# [profile.release]
-# overflow-checks = true
+[profile.release]
+overflow-checks = true
 # lto = "fat"
 # codegen-units = 1
 

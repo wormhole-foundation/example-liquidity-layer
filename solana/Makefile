@@ -30,7 +30,7 @@ node_modules:
 
 .PHONY: cargo-test
 cargo-test:
-	cargo test --workspace --all-targets --features $(NETWORK)
+	cargo test --lib --workspace --features $(NETWORK)
 
 .PHONY: cargo-test-all
 cargo-test-all:
