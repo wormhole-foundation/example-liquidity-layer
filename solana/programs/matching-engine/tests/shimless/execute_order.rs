@@ -112,6 +112,7 @@ pub fn create_execute_order_shimless_accounts(
         TransferDirection::FromArbitrumToEthereum => {
             fixture_accounts.ethereum_remote_token_messenger
         }
+        _ => panic!("Unsupported transfer direction"),
     };
     let token_minter =
         Pubkey::find_program_address(&[b"token_minter"], &TOKEN_MESSENGER_MINTER_PROGRAM_ID).0;

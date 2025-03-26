@@ -5,7 +5,6 @@ use crate::utils::setup::{TestingContext, TransferDirection};
 use super::super::utils;
 use anchor_lang::prelude::*;
 use anchor_spl::token::spl_token;
-use common::messages::raw::LiquidityLayerDepositMessage;
 use common::wormhole_cctp_solana::cctp::{
     MESSAGE_TRANSMITTER_PROGRAM_ID, TOKEN_MESSENGER_MINTER_PROGRAM_ID,
 };
@@ -22,6 +21,7 @@ use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
 use std::rc::Rc;
 use utils::account_fixtures::FixtureAccounts;
+use utils::cctp_message::{CctpMessageDecoded, UsedNonces};
 use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 
 pub struct PrepareOrderResponseShimAccountsFixture {
@@ -50,29 +50,6 @@ pub struct PrepareOrderResponseShimAccountsFixture {
     pub guardian_set_signatures: Pubkey,
 }
 
-struct UsedNonces;
-
-impl UsedNonces {
-    pub const MAX_NONCES: u64 = 6400;
-    pub fn address(remote_domain: u32, nonce: u64) -> (Pubkey, u8) {
-        let first_nonce = if nonce == 0 {
-            0
-        } else {
-            (nonce - 1) / Self::MAX_NONCES * Self::MAX_NONCES + 1
-        }; // Could potentially use a more efficient algorithm, but this finds the first nonce in a bucket
-        let remote_domain_converted = remote_domain.to_string();
-        let first_nonce_converted = first_nonce.to_string();
-        Pubkey::find_program_address(
-            &[
-                b"used_nonces",
-                remote_domain_converted.as_bytes(),
-                first_nonce_converted.as_bytes(),
-            ],
-            &MESSAGE_TRANSMITTER_PROGRAM_ID,
-        )
-    }
-}
-
 impl PrepareOrderResponseShimAccountsFixture {
     pub fn new(
         signer: &Pubkey,
@@ -85,6 +62,7 @@ impl PrepareOrderResponseShimAccountsFixture {
         cctp_message_decoded: &CctpMessageDecoded,
         guardian_set: &Pubkey,
         guardian_set_signatures: &Pubkey,
+        transfer_direction: &TransferDirection,
     ) -> Self {
         let cctp_message_transmitter_event_authority =
             Pubkey::find_program_address(&[EVENT_AUTHORITY_SEED], &MESSAGE_TRANSMITTER_PROGRAM_ID)
@@ -97,7 +75,7 @@ impl PrepareOrderResponseShimAccountsFixture {
             &MESSAGE_TRANSMITTER_PROGRAM_ID,
         )
         .0;
-        let token_messenger_minter_event_authority = &Pubkey::find_program_address(
+        let token_messenger_minter_event_authority = Pubkey::find_program_address(
             &[EVENT_AUTHORITY_SEED],
             &TOKEN_MESSENGER_MINTER_PROGRAM_ID,
         )
@@ -106,39 +84,41 @@ impl PrepareOrderResponseShimAccountsFixture {
             cctp_message_decoded.source_domain,
             cctp_message_decoded.nonce,
         );
+        let cctp_remote_token_messenger = match transfer_direction {
+            TransferDirection::FromEthereumToArbitrum => {
+                fixture_accounts.ethereum_remote_token_messenger
+            }
+            TransferDirection::FromArbitrumToEthereum => {
+                fixture_accounts.arbitrum_remote_token_messenger
+            }
+            _ => panic!("Unsupported transfer direction"),
+        };
         Self {
-            signer: signer.clone(),
-            custodian: custodian_address.clone(),
-            fast_market_order: fast_market_order_address.clone(),
-            from_endpoint: from_router_endpoint.clone(),
-            to_endpoint: to_router_endpoint.clone(),
-            base_fee_token: usdc_mint_address.clone(), // Change this to the solver's address?
-            usdc: usdc_mint_address.clone(),
+            signer: *signer,
+            custodian: *custodian_address,
+            fast_market_order: *fast_market_order_address,
+            from_endpoint: *from_router_endpoint,
+            to_endpoint: *to_router_endpoint,
+            base_fee_token: *usdc_mint_address, // Change this to the solver's address?
+            usdc: *usdc_mint_address,
             cctp_mint_recipient: CCTP_MINT_RECIPIENT,
-            cctp_message_transmitter_authority: cctp_message_transmitter_authority.clone(),
-            cctp_message_transmitter_config: fixture_accounts.message_transmitter_config.clone(),
-            cctp_used_nonces: cctp_used_nonces_pda.clone(),
-            cctp_message_transmitter_event_authority: cctp_message_transmitter_event_authority
-                .clone(),
-            cctp_token_messenger: fixture_accounts.token_messenger.clone(),
-            cctp_remote_token_messenger: fixture_accounts.ethereum_remote_token_messenger.clone(),
-            cctp_token_minter: fixture_accounts.token_minter.clone(),
-            cctp_local_token: fixture_accounts.usdc_local_token.clone(),
-            cctp_token_pair: fixture_accounts.usdc_token_pair.clone(),
-            cctp_token_messenger_minter_custody_token: fixture_accounts.usdc_custody_token.clone(),
+            cctp_message_transmitter_authority,
+            cctp_message_transmitter_config: fixture_accounts.message_transmitter_config,
+            cctp_used_nonces: cctp_used_nonces_pda,
+            cctp_message_transmitter_event_authority,
+            cctp_token_messenger: fixture_accounts.token_messenger,
+            cctp_remote_token_messenger,
+            cctp_token_minter: fixture_accounts.token_minter,
+            cctp_local_token: fixture_accounts.usdc_local_token,
+            cctp_token_pair: fixture_accounts.usdc_token_pair,
+            cctp_token_messenger_minter_custody_token: fixture_accounts.usdc_custody_token,
             cctp_token_messenger_minter_program: TOKEN_MESSENGER_MINTER_PROGRAM_ID,
             cctp_message_transmitter_program: MESSAGE_TRANSMITTER_PROGRAM_ID,
-            cctp_token_messenger_minter_event_authority: token_messenger_minter_event_authority
-                .clone(),
-            guardian_set: guardian_set.clone(),
-            guardian_set_signatures: guardian_set_signatures.clone(),
+            cctp_token_messenger_minter_event_authority: token_messenger_minter_event_authority,
+            guardian_set: *guardian_set,
+            guardian_set_signatures: *guardian_set_signatures,
         }
     }
-}
-
-pub struct CctpMessageDecoded {
-    pub nonce: u64,
-    pub source_domain: u32,
 }
 
 pub struct PrepareOrderResponseShimDataFixture {
@@ -253,7 +233,6 @@ pub async fn prepare_order_response_cctp_shim(
         deposit_payload: data.deposit_payload,
         guardian_set_bump: data.guardian_set_bump,
     };
-
     let data = PrepareOrderResponseCctpShimData {
         encoded_cctp_message: data.encoded_cctp_message,
         cctp_attestation: data.cctp_attestation,
@@ -289,17 +268,6 @@ pub async fn prepare_order_response_cctp_shim(
     } else {
         None
     }
-}
-
-pub fn get_deposit_base_fee(deposit: &Deposit) -> u64 {
-    // TODO: Fix this
-    let payload = deposit.payload.clone();
-    let liquidity_layer_message = LiquidityLayerDepositMessage::parse(&payload).unwrap();
-    let slow_order_response = liquidity_layer_message
-        .slow_order_response()
-        .expect("Failed to get slow order response");
-    let base_fee = slow_order_response.base_fee();
-    base_fee
 }
 
 pub async fn prepare_order_response_test(
@@ -354,7 +322,7 @@ pub async fn prepare_order_response_test(
         .custodian_address()
         .expect("Custodian address not found");
     // TODO: Make checks to see if fast market order sender matches cctp message sender ...
-    let cctp_message_decoded = utils::cctp_message::craft_cctp_token_burn_message(
+    let cctp_token_burn_message = utils::cctp_message::craft_cctp_token_burn_message(
         test_ctx,
         source_remote_token_messenger.domain,
         cctp_nonce,
@@ -366,14 +334,14 @@ pub async fn prepare_order_response_test(
     )
     .await
     .unwrap();
-    cctp_message_decoded
+    cctp_token_burn_message
         .verify_cctp_message(&fast_market_order_state)
         .unwrap();
 
-    let deposit_base_fee = super::shims_prepare_order_response::get_deposit_base_fee(&deposit);
+    let deposit_base_fee = utils::cctp_message::get_deposit_base_fee(&deposit);
     let prepare_order_response_cctp_shim_data = PrepareOrderResponseShimDataFixture::new(
-        cctp_message_decoded.encoded_cctp_burn_message,
-        cctp_message_decoded.cctp_attestation,
+        cctp_token_burn_message.encoded_cctp_burn_message,
+        cctp_token_burn_message.cctp_attestation,
         &deposit_vaa_data,
         &deposit,
         deposit_base_fee,
@@ -396,6 +364,7 @@ pub async fn prepare_order_response_test(
         &cctp_message_decoded,
         &guardian_set_pubkey,
         &guardian_signatures_pubkey,
+        &testing_context.testing_state.transfer_direction,
     );
     super::shims_prepare_order_response::prepare_order_response_cctp_shim(
         testing_context,

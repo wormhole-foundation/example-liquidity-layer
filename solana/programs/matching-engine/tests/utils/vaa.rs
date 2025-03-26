@@ -401,7 +401,7 @@ impl TestVaaPair {
 pub fn create_deposit_message(
     token_mint: Pubkey,
     source_address: ChainAddress,
-    destination_address: ChainAddress,
+    _destination_address: ChainAddress,
     cctp_nonce: u64,
     sequence: u64,
     cctp_mint_recipient: Pubkey,
@@ -415,7 +415,7 @@ pub fn create_deposit_message(
         token_address: token_mint.to_bytes(),
         amount: ruint::aliases::U256::from(amount),
         source_cctp_domain: CHAIN_TO_DOMAIN[source_address.chain as usize].1,
-        destination_cctp_domain: CHAIN_TO_DOMAIN[destination_address.chain as usize].1,
+        destination_cctp_domain: CHAIN_TO_DOMAIN[Chain::Solana as usize].1, // Hardcode solana as destination domain
         cctp_nonce,
         burn_source: source_address.address.to_bytes(), // Token router address
         mint_recipient: cctp_mint_recipient.to_bytes(), // Mint recipient program id

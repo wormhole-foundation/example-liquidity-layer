@@ -221,6 +221,12 @@ impl TestingEngineState {
             Self::AuctionSettled {
                 fast_market_order, ..
             } => fast_market_order.as_ref(),
+            Self::OrderPrepared {
+                fast_market_order, ..
+            } => fast_market_order.as_ref(),
+            Self::FastMarketOrderClosed {
+                fast_market_order, ..
+            } => fast_market_order.as_ref(),
             _ => None,
         }
     }

@@ -7,6 +7,7 @@ use super::program_fixtures::{
     initialise_local_token_router, initialise_post_message_shims, initialise_upgrade_manager,
     initialise_verify_shims, initialise_wormhole_core_bridge,
 };
+use super::tracing;
 use super::vaa::{create_vaas_test_with_chain_and_address, TestVaaPair, TestVaaPairs, VaaArgs};
 use super::{
     airdrop::airdrop_usdc,
@@ -202,6 +203,28 @@ impl TestingContext {
 
     pub fn get_wormhole_program_id(&self) -> Pubkey {
         wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID
+    }
+
+    pub async fn execute_and_verify_logs(
+        &self,
+        transaction: impl Into<VersionedTransaction>,
+        expected_log: &String,
+    ) {
+        tracing::init_tracing();
+        tracing::clear_logs();
+        self.test_context
+            .borrow_mut()
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .expect("Transaction should not fail");
+        let logs = tracing::get_logs();
+        assert!(
+            logs.contains(expected_log),
+            "Expected log {:?} not found in {:?}",
+            expected_log,
+            logs
+        );
     }
 
     // TODO: Edit to handle multiple instructions in a single transaction
@@ -530,10 +553,12 @@ pub enum ShimMode {
     VerifyAndPostSignature,
 }
 
+#[allow(dead_code)]
 #[derive(Copy, Clone)]
 pub enum TransferDirection {
     FromArbitrumToEthereum,
     FromEthereumToArbitrum,
+    Other, // TODO: Add other transfer directions
 }
 
 impl Default for TransferDirection {
@@ -598,6 +623,7 @@ pub async fn setup_environment(
                         vaa_args,
                     ))
                 }
+                TransferDirection::Other => panic!("Unsupported transfer direction"),
             }
         }
         None => None,

@@ -1,10 +1,14 @@
 use crate::utils::ETHEREUM_USDC_ADDRESS;
 use anchor_lang::prelude::*;
-use common::wormhole_cctp_solana::cctp::TOKEN_MESSENGER_MINTER_PROGRAM_ID;
+use common::messages::raw::LiquidityLayerDepositMessage;
 use common::wormhole_cctp_solana::cctp::{
     message_transmitter_program::MessageTransmitterConfig,
     token_messenger_minter_program::RemoteTokenMessenger,
 };
+use common::wormhole_cctp_solana::cctp::{
+    MESSAGE_TRANSMITTER_PROGRAM_ID, TOKEN_MESSENGER_MINTER_PROGRAM_ID,
+};
+use common::wormhole_cctp_solana::messages::Deposit;
 use matching_engine::state::FastMarketOrder;
 use num_traits::FromBytes;
 use ruint::Uint;
@@ -624,4 +628,43 @@ pub fn ethereum_address_to_universal(eth_address: &str) -> [u8; 32] {
     universal_address[12..32].copy_from_slice(&address_bytes);
 
     universal_address
+}
+
+pub fn get_deposit_base_fee(deposit: &Deposit) -> u64 {
+    let payload = deposit.payload.clone();
+    let liquidity_layer_message = LiquidityLayerDepositMessage::parse(&payload).unwrap();
+    let slow_order_response = liquidity_layer_message
+        .slow_order_response()
+        .expect("Failed to get slow order response");
+    let base_fee = slow_order_response.base_fee();
+    base_fee
+}
+
+pub struct UsedNonces;
+
+impl UsedNonces {
+    pub const MAX_NONCES: u64 = 6400;
+    pub fn address(remote_domain: u32, nonce: u64) -> (Pubkey, u8) {
+        let first_nonce = if nonce == 0 {
+            0
+        } else {
+            (nonce - 1) / Self::MAX_NONCES * Self::MAX_NONCES + 1
+        }; // Could potentially use a more efficient algorithm, but this finds the first nonce in a bucket
+        let remote_domain_converted = remote_domain.to_string();
+        let first_nonce_converted = first_nonce.to_string();
+        Pubkey::find_program_address(
+            &[
+                b"used_nonces",
+                remote_domain_converted.as_bytes(),
+                first_nonce_converted.as_bytes(),
+            ],
+            &MESSAGE_TRANSMITTER_PROGRAM_ID,
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct CctpMessageDecoded {
+    pub nonce: u64,
+    pub source_domain: u32,
 }

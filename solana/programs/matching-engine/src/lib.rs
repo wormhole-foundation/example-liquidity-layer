@@ -2,12 +2,14 @@
 #![allow(clippy::result_large_err)]
 
 mod composite;
+use composite::*;
 
 pub mod error;
 
 mod events;
 
 mod processor;
+pub use processor::CctpMessageArgs;
 pub use processor::InitializeArgs;
 pub use processor::VaaMessage;
 use processor::*;
@@ -483,6 +485,11 @@ pub mod matching_engine {
     /// * `ctx` - `AddAuctionHistoryEntry` context.
     pub fn add_auction_history_entry(_ctx: Context<DeprecatedInstruction>) -> Result<()> {
         err!(ErrorCode::Deprecated)
+    }
+
+    /// UNUSED. This instruction does not exist anymore. It just reverts and exist to expose an account lol.
+    pub fn get_cctp_mint_recipient(_ctx: Context<CctpMintRecipientMut>) -> Result<()> {
+        err!(ErrorCode::InstructionMissing)
     }
 
     /// Non anchor function for placing an initial offer using the VAA shim.
