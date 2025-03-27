@@ -536,21 +536,21 @@ impl TestingEngine {
         let auction_accounts = current_state
             .auction_accounts()
             .expect("Auction accounts not found");
-        let fast_market_order_address = config.fast_market_order_address.unwrap_or(
+        let fast_market_order_address = config.fast_market_order_address.unwrap_or_else(|| {
             current_state
                 .fast_market_order()
                 .expect("Fast market order is not created")
-                .fast_market_order_address,
-        );
+                .fast_market_order_address
+        });
         let active_auction_state = current_state
             .auction_state()
             .get_active_auction()
             .expect("Active auction not found");
         let result = shimful::shims_execute_order::execute_order_fallback_test(
             &self.testing_context,
-            &auction_accounts,
+            auction_accounts,
             &fast_market_order_address,
-            &active_auction_state,
+            active_auction_state,
             solver,
             config.expected_error.as_ref(),
         )
@@ -584,7 +584,7 @@ impl TestingEngine {
         let payer_signer = config
             .payer_signer
             .clone()
-            .unwrap_or(self.testing_context.testing_actors.owner.keypair());
+            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
         let auction_config_address = current_state
             .auction_config_address()
             .expect("Auction config address not found");

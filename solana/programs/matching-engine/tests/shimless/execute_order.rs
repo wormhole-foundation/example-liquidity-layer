@@ -57,7 +57,7 @@ pub fn create_execute_order_shimless_accounts(
     };
     let wormhole_publish_message = WormholePublishMessage {
         config: wormhole_svm_definitions::solana::CORE_BRIDGE_CONFIG,
-        emitter_sequence: emitter_sequence,
+        emitter_sequence,
         fee_collector: wormhole_svm_definitions::solana::CORE_BRIDGE_FEE_COLLECTOR,
         core_bridge_program: wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID,
     };
@@ -158,7 +158,7 @@ pub async fn execute_order_shimless_test(
     payer_signer: &Rc<Keypair>,
     expected_error: Option<&ExpectedError>,
 ) -> Option<ExecuteOrderShimlessFixture> {
-    crate::utils::setup::fast_forward_slots(&testing_context, 3).await;
+    crate::utils::setup::fast_forward_slots(testing_context, 3).await;
     let fixture_accounts = testing_context
         .get_fixture_accounts()
         .expect("Fixture accounts not found");

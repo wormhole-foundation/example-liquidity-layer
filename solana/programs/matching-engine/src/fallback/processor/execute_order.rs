@@ -442,7 +442,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     let fast_market_order_data = &fast_market_order_account.data.borrow()[8..];
     // Deserialise fast market order. Unwrap is safe because the account is owned by the matching engine program.
     let fast_market_order =
-        bytemuck::try_from_bytes::<FastMarketOrderState>(&fast_market_order_data[..]).unwrap();
+        bytemuck::try_from_bytes::<FastMarketOrderState>(fast_market_order_data).unwrap();
 
     // Prepare the execute order (get the user amount, fill, and order executed event)
     let active_auction_info = active_auction.info.as_ref().unwrap();
@@ -639,7 +639,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         order_sender: fast_market_order.sender,
         redeemer: fast_market_order.redeemer,
         redeemer_message: fast_market_order.redeemer_message
-            [..fast_market_order.redeemer_message_length as usize]
+            [..usize::from(fast_market_order.redeemer_message_length)]
             .to_vec()
             .try_into()
             .unwrap(),
@@ -690,7 +690,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         common::wormhole_cctp_solana::cpi::BurnAndPublishArgs {
             burn_source: None,
             destination_caller: to_router_endpoint.address,
-            destination_cctp_domain: destination_cctp_domain,
+            destination_cctp_domain,
             amount: user_amount,
             mint_recipient: to_router_endpoint.mint_recipient,
             wormhole_message_nonce: common::WORMHOLE_MESSAGE_NONCE,

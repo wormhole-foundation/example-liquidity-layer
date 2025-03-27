@@ -58,15 +58,15 @@ impl ExecuteOrderFallbackAccounts {
         };
 
         Self {
-            signer: signer.clone(),
+            signer: *signer,
             custodian: auction_accounts.custodian,
-            fast_market_order_address: fast_market_order_address.clone(),
+            fast_market_order_address: *fast_market_order_address,
             active_auction: active_auction_state.auction_address,
             active_auction_custody_token: active_auction_state.auction_custody_token_address,
             active_auction_config: auction_accounts.auction_config,
             active_auction_best_offer_token: auction_accounts.offer_token,
             initial_offer_token: auction_accounts.offer_token,
-            initial_participant: signer.clone(),
+            initial_participant: *signer,
             to_router_endpoint: auction_accounts.to_router_endpoint,
             remote_token_messenger,
             token_messenger: fixture_accounts.token_messenger,
@@ -162,7 +162,7 @@ pub async fn execute_order_fallback(
         cctp_deposit_for_burn_token_minter: &token_minter,                             // 20
         cctp_deposit_for_burn_local_token: &local_token,                               // 21
         cctp_deposit_for_burn_token_messenger_minter_event_authority:
-            &token_messenger_minter_event_authority, // 22
+            token_messenger_minter_event_authority, // 22
         cctp_deposit_for_burn_token_messenger_minter_program: &TOKEN_MESSENGER_MINTER_PROGRAM_ID, // 23
         cctp_deposit_for_burn_message_transmitter_program: &MESSAGE_TRANSMITTER_PROGRAM_ID, // 24
         core_bridge_program: &CORE_BRIDGE_PROGRAM_ID,                                       // 25
@@ -175,14 +175,14 @@ pub async fn execute_order_fallback(
     };
 
     let execute_order_ix = ExecuteOrderCctpShim {
-        program_id: program_id,
+        program_id,
         accounts: execute_order_ix_accounts,
     }
     .instruction();
 
     // Considering fast forwarding blocks here for deadline to be reached
     let recent_blockhash = test_ctx.borrow().last_blockhash;
-    utils::setup::fast_forward_slots(&testing_context, 3).await;
+    utils::setup::fast_forward_slots(testing_context, 3).await;
     let transaction = Transaction::new_signed_with_payer(
         &[execute_order_ix],
         Some(&payer_signer.pubkey()),
@@ -230,7 +230,7 @@ pub async fn execute_order_fallback_test(
         testing_context.testing_state.transfer_direction,
     );
     execute_order_fallback(
-        &testing_context,
+        testing_context,
         &testing_context.testing_actors.owner.keypair(),
         &testing_context.get_matching_engine_program_id(),
         solver,
