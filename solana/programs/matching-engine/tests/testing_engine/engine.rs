@@ -27,8 +27,8 @@ pub enum InstructionTrigger {
     PlaceInitialOfferShimless(PlaceInitialOfferInstructionConfig),
     PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig),
     ImproveOfferShimless(ImproveOfferInstructionConfig),
-    // ExecuteOrderShimless(ExecuteOrderInstructionConfig),
-    // ExecuteOrderShim(ExecuteOrderInstructionConfig),
+    ExecuteOrderShimless(ExecuteOrderInstructionConfig),
+    ExecuteOrderShim(ExecuteOrderInstructionConfig),
     // PrepareOrderShimless(PrepareOrderInstructionConfig),
     // PrepareOrderShim(PrepareOrderInstructionConfig),
     // SettleAuction(SettleAuctionInstructionConfig),
@@ -118,13 +118,13 @@ impl TestingEngine {
             }
             InstructionTrigger::ImproveOfferShimless(config) => {
                 self.improve_offer_shimless(current_state, config).await
-            } // InstructionTrigger::ExecuteOrderShim(config) => {
-              //     self.execute_order_shim(current_state, config).await
-              // }
-              // InstructionTrigger::ExecuteOrderShimless(config) => {
-              //     self.execute_order_shimless(current_state, config).await
-              // }
-              // InstructionTrigger::PrepareOrderShim(config) => {
+            }
+            InstructionTrigger::ExecuteOrderShim(config) => {
+                self.execute_order_shim(current_state, config).await
+            }
+            InstructionTrigger::ExecuteOrderShimless(config) => {
+                self.execute_order_shimless(current_state, config).await
+            } // InstructionTrigger::PrepareOrderShim(config) => {
               //     self.prepare_order_shim(current_state, config).await
               // }
               // InstructionTrigger::PrepareOrderShimless(config) => {
@@ -525,118 +525,118 @@ impl TestingEngine {
         current_state.clone()
     }
 
-    // async fn execute_order_shim(
-    //     &self,
-    //     current_state: &TestingEngineState,
-    //     config: &ExecuteOrderInstructionConfig,
-    // ) -> TestingEngineState {
-    //     let solver = self.testing_context.testing_actors.solvers[config.solver_index].clone();
+    async fn execute_order_shim(
+        &self,
+        current_state: &TestingEngineState,
+        config: &ExecuteOrderInstructionConfig,
+    ) -> TestingEngineState {
+        let solver = self.testing_context.testing_actors.solvers[config.solver_index].clone();
 
-    //     // TODO: Change to get auction accounts from current state
-    //     let auction_accounts = current_state
-    //         .auction_accounts()
-    //         .expect("Auction accounts not found");
-    //     let fast_market_order_address = config.fast_market_order_address.unwrap_or(
-    //         current_state
-    //             .fast_market_order()
-    //             .expect("Fast market order is not created")
-    //             .fast_market_order_address,
-    //     );
-    //     let active_auction_state = current_state
-    //         .auction_state()
-    //         .get_active_auction()
-    //         .expect("Active auction not found");
-    //     let result = shimful::shims_execute_order::execute_order_fallback_test(
-    //         &self.testing_context,
-    //         &auction_accounts,
-    //         &fast_market_order_address,
-    //         &active_auction_state,
-    //         solver,
-    //         config.expected_error.as_ref(),
-    //     )
-    //     .await;
-    //     if config.expected_error.is_none() {
-    //         let order_executed_fallback_fixture = result.unwrap();
-    //         let order_executed_state = OrderExecutedState {
-    //             cctp_message: order_executed_fallback_fixture.cctp_message,
-    //             post_message_sequence: Some(order_executed_fallback_fixture.post_message_sequence),
-    //             post_message_message: Some(order_executed_fallback_fixture.post_message_message),
-    //         };
-    //         TestingEngineState::OrderExecuted {
-    //             base: current_state.base().clone(),
-    //             initialized: current_state.initialized().unwrap().clone(),
-    //             router_endpoints: current_state.router_endpoints().unwrap().clone(),
-    //             fast_market_order: current_state.fast_market_order().cloned(),
-    //             auction_state: current_state.auction_state().clone(),
-    //             order_executed: order_executed_state,
-    //             auction_accounts: auction_accounts.clone(),
-    //         }
-    //     } else {
-    //         current_state.clone()
-    //     }
-    // }
+        // TODO: Change to get auction accounts from current state
+        let auction_accounts = current_state
+            .auction_accounts()
+            .expect("Auction accounts not found");
+        let fast_market_order_address = config.fast_market_order_address.unwrap_or(
+            current_state
+                .fast_market_order()
+                .expect("Fast market order is not created")
+                .fast_market_order_address,
+        );
+        let active_auction_state = current_state
+            .auction_state()
+            .get_active_auction()
+            .expect("Active auction not found");
+        let result = shimful::shims_execute_order::execute_order_fallback_test(
+            &self.testing_context,
+            &auction_accounts,
+            &fast_market_order_address,
+            &active_auction_state,
+            solver,
+            config.expected_error.as_ref(),
+        )
+        .await;
+        if config.expected_error.is_none() {
+            let order_executed_fallback_fixture = result.unwrap();
+            let order_executed_state = OrderExecutedState {
+                cctp_message: order_executed_fallback_fixture.cctp_message,
+                post_message_sequence: Some(order_executed_fallback_fixture.post_message_sequence),
+                post_message_message: Some(order_executed_fallback_fixture.post_message_message),
+            };
+            TestingEngineState::OrderExecuted {
+                base: current_state.base().clone(),
+                initialized: current_state.initialized().unwrap().clone(),
+                router_endpoints: current_state.router_endpoints().unwrap().clone(),
+                fast_market_order: current_state.fast_market_order().cloned(),
+                auction_state: current_state.auction_state().clone(),
+                order_executed: order_executed_state,
+                auction_accounts: auction_accounts.clone(),
+            }
+        } else {
+            current_state.clone()
+        }
+    }
 
-    // async fn execute_order_shimless(
-    //     &self,
-    //     current_state: &TestingEngineState,
-    //     config: &ExecuteOrderInstructionConfig,
-    // ) -> TestingEngineState {
-    //     let payer_signer = config
-    //         .payer_signer
-    //         .clone()
-    //         .unwrap_or(self.testing_context.testing_actors.owner.keypair());
-    //     let auction_config_address = current_state
-    //         .auction_config_address()
-    //         .expect("Auction config address not found");
-    //     let router_endpoints = current_state
-    //         .router_endpoints()
-    //         .expect("Router endpoints are not created");
-    //     let solver = self.testing_context.testing_actors.solvers[config.solver_index].clone();
-    //     let custodian_address = current_state
-    //         .custodian_address()
-    //         .expect("Custodian address not found");
-    //     let auction_accounts = AuctionAccounts::new(
-    //         Some(
-    //             current_state
-    //                 .get_first_test_vaa_pair()
-    //                 .fast_transfer_vaa
-    //                 .get_vaa_pubkey(),
-    //         ),
-    //         solver.clone(),
-    //         auction_config_address,
-    //         &router_endpoints.endpoints,
-    //         custodian_address,
-    //         self.testing_context.get_usdc_mint_address(),
-    //         self.testing_context.testing_state.transfer_direction,
-    //     );
-    //     let result = shimless::execute_order::execute_order_shimless_test(
-    //         &self.testing_context,
-    //         &auction_accounts,
-    //         current_state.auction_state(),
-    //         &payer_signer,
-    //         config.expected_error.as_ref(),
-    //     )
-    //     .await;
-    //     if config.expected_error.is_none() {
-    //         let execute_order_fixture = result.unwrap();
-    //         let order_executed_state = OrderExecutedState {
-    //             cctp_message: execute_order_fixture.cctp_message,
-    //             post_message_sequence: None,
-    //             post_message_message: None,
-    //         };
-    //         TestingEngineState::OrderExecuted {
-    //             base: current_state.base().clone(),
-    //             initialized: current_state.initialized().unwrap().clone(),
-    //             router_endpoints: current_state.router_endpoints().unwrap().clone(),
-    //             fast_market_order: current_state.fast_market_order().cloned(),
-    //             auction_state: current_state.auction_state().clone(),
-    //             order_executed: order_executed_state,
-    //             auction_accounts: auction_accounts.clone(),
-    //         }
-    //     } else {
-    //         current_state.clone()
-    //     }
-    // }
+    async fn execute_order_shimless(
+        &self,
+        current_state: &TestingEngineState,
+        config: &ExecuteOrderInstructionConfig,
+    ) -> TestingEngineState {
+        let payer_signer = config
+            .payer_signer
+            .clone()
+            .unwrap_or(self.testing_context.testing_actors.owner.keypair());
+        let auction_config_address = current_state
+            .auction_config_address()
+            .expect("Auction config address not found");
+        let router_endpoints = current_state
+            .router_endpoints()
+            .expect("Router endpoints are not created");
+        let solver = self.testing_context.testing_actors.solvers[config.solver_index].clone();
+        let custodian_address = current_state
+            .custodian_address()
+            .expect("Custodian address not found");
+        let auction_accounts = AuctionAccounts::new(
+            Some(
+                current_state
+                    .get_first_test_vaa_pair()
+                    .fast_transfer_vaa
+                    .get_vaa_pubkey(),
+            ),
+            solver.clone(),
+            auction_config_address,
+            &router_endpoints.endpoints,
+            custodian_address,
+            self.testing_context.get_usdc_mint_address(),
+            self.testing_context.testing_state.transfer_direction,
+        );
+        let result = shimless::execute_order::execute_order_shimless_test(
+            &self.testing_context,
+            &auction_accounts,
+            current_state.auction_state(),
+            &payer_signer,
+            config.expected_error.as_ref(),
+        )
+        .await;
+        if config.expected_error.is_none() {
+            let execute_order_fixture = result.unwrap();
+            let order_executed_state = OrderExecutedState {
+                cctp_message: execute_order_fixture.cctp_message,
+                post_message_sequence: None,
+                post_message_message: None,
+            };
+            TestingEngineState::OrderExecuted {
+                base: current_state.base().clone(),
+                initialized: current_state.initialized().unwrap().clone(),
+                router_endpoints: current_state.router_endpoints().unwrap().clone(),
+                fast_market_order: current_state.fast_market_order().cloned(),
+                auction_state: current_state.auction_state().clone(),
+                order_executed: order_executed_state,
+                auction_accounts: auction_accounts.clone(),
+            }
+        } else {
+            current_state.clone()
+        }
+    }
 
     // async fn prepare_order_shim(
     //     &self,

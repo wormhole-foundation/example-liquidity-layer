@@ -158,7 +158,7 @@ pub async fn execute_order_shimless_test(
     payer_signer: &Rc<Keypair>,
     expected_error: Option<&ExpectedError>,
 ) -> Option<ExecuteOrderShimlessFixture> {
-    crate::utils::setup::fast_forward_slots(&testing_context.test_context, 3).await;
+    crate::utils::setup::fast_forward_slots(&testing_context, 3).await;
     let fixture_accounts = testing_context
         .get_fixture_accounts()
         .expect("Fixture accounts not found");

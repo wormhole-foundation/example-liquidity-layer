@@ -358,60 +358,60 @@ pub async fn test_place_initial_offer_non_shim_blocks_shim() {
     testing_engine.execute(instruction_triggers).await;
 }
 
-// #[tokio::test]
-// // Testing an execute order from arbitrum to ethereum
-// // TODO: Flesh out this test to see if the message was posted correctly
-// pub async fn test_execute_order_fallback() {
-//     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-//     let vaa_args = VaaArgs {
-//         post_vaa: false,
-//         ..VaaArgs::default()
-//     };
-//     let testing_context = setup_environment(
-//         ShimMode::VerifyAndPostSignature,
-//         transfer_direction,
-//         Some(vaa_args),
-//     )
-//     .await;
-//     let testing_engine = TestingEngine::new(testing_context).await;
-//     let instruction_triggers = vec![
-//         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
-//         InstructionTrigger::CreateCctpRouterEndpoints(
-//             CreateCctpRouterEndpointsInstructionConfig::default(),
-//         ),
-//         InstructionTrigger::InitializeFastMarketOrderShim(
-//             InitializeFastMarketOrderShimInstructionConfig::default(),
-//         ),
-//         InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
-//         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
-//     ];
-//     testing_engine.execute(instruction_triggers).await;
-// }
+#[tokio::test]
+// Testing an execute order from arbitrum to ethereum
+// TODO: Flesh out this test to see if the message was posted correctly
+pub async fn test_execute_order_fallback() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: false,
+        ..VaaArgs::default()
+    };
+    let testing_context = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
+        InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
+    ];
+    testing_engine.execute(instruction_triggers).await;
+}
 
-// #[tokio::test]
-// pub async fn test_execute_order_shimless() {
-//     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-//     let vaa_args = VaaArgs {
-//         post_vaa: true,
-//         ..VaaArgs::default()
-//     };
-//     let testing_context = setup_environment(
-//         ShimMode::VerifyAndPostSignature,
-//         transfer_direction,
-//         Some(vaa_args),
-//     )
-//     .await;
-//     let testing_engine = TestingEngine::new(testing_context).await;
-//     let instruction_triggers = vec![
-//         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
-//         InstructionTrigger::CreateCctpRouterEndpoints(
-//             CreateCctpRouterEndpointsInstructionConfig::default(),
-//         ),
-//         InstructionTrigger::PlaceInitialOfferShimless(PlaceInitialOfferInstructionConfig::default()),
-//         InstructionTrigger::ExecuteOrderShimless(ExecuteOrderInstructionConfig::default()),
-//     ];
-//     testing_engine.execute(instruction_triggers).await;
-// }
+#[tokio::test]
+pub async fn test_execute_order_shimless() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: true,
+        ..VaaArgs::default()
+    };
+    let testing_context = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+        InstructionTrigger::PlaceInitialOfferShimless(PlaceInitialOfferInstructionConfig::default()),
+        InstructionTrigger::ExecuteOrderShimless(ExecuteOrderInstructionConfig::default()),
+    ];
+    testing_engine.execute(instruction_triggers).await;
+}
 // pub async fn test_execute_order_fallback_blocks_shimless() {
 //     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
 //     let vaa_args = VaaArgs {
