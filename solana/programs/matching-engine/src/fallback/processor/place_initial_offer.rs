@@ -22,21 +22,11 @@ use crate::error::MatchingEngineError;
 #[repr(C)]
 pub struct PlaceInitialOfferCctpShimData {
     pub offer_price: u64,
-    pub sequence: u64,
-    pub vaa_time: u32,
-    pub consistency_level: u8,
-    _padding: [u8; 3],
 }
 
 impl PlaceInitialOfferCctpShimData {
-    pub fn new(offer_price: u64, sequence: u64, vaa_time: u32, consistency_level: u8) -> Self {
-        Self {
-            offer_price,
-            sequence,
-            vaa_time,
-            consistency_level,
-            _padding: [0_u8; 3],
-        }
+    pub fn new(offer_price: u64) -> Self {
+        Self { offer_price }
     }
 
     pub fn from_bytes(data: &[u8]) -> Option<&Self> {
@@ -193,13 +183,7 @@ pub fn place_initial_offer_cctp_shim(
     check_account_length(accounts, 11)?;
     // Extract data fields
     // TODO: Remove sequence, vaa_time because they are in the fast market order state
-    let PlaceInitialOfferCctpShimData {
-        offer_price,
-        sequence,
-        vaa_time,
-        consistency_level,
-        _padding,
-    } = *data;
+    let PlaceInitialOfferCctpShimData { offer_price } = *data;
 
     let signer = &accounts[0];
     let transfer_authority = &accounts[1];
@@ -216,6 +200,10 @@ pub fn place_initial_offer_cctp_shim(
 
     let fast_market_order_zero_copy =
         FastMarketOrderState::try_deserialize(&mut &fast_market_order_account.data.borrow()[..])?;
+
+    let vaa_time = fast_market_order_zero_copy.vaa_timestamp;
+    let sequence = fast_market_order_zero_copy.vaa_sequence;
+    let consistency_level = fast_market_order_zero_copy.vaa_consistency_level;
 
     // Check pda of the transfer authority is valid
     let transfer_authority_seeds = [

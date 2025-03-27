@@ -2,9 +2,9 @@
 #![allow(clippy::result_large_err)]
 
 mod composite;
-// use composite::*;
+use composite::*;
 
-pub mod error;
+mod error;
 
 mod events;
 
@@ -480,9 +480,9 @@ pub mod matching_engine {
     }
 
     /// UNUSED. This instruction does not exist and has never existed. It just reverts and exist to expose an account lol.
-    // pub fn get_cctp_mint_recipient(_ctx: Context<CctpMintRecipientMut>) -> Result<()> {
-    //     err!(ErrorCode::InstructionMissing)
-    // }
+    pub fn get_cctp_mint_recipient(_ctx: Context<CctpMintRecipientMut>) -> Result<()> {
+        err!(ErrorCode::InstructionMissing)
+    }
 
     /// Non anchor function for placing an initial offer using the VAA shim.
     pub fn fallback_process_instruction(

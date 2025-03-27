@@ -17,6 +17,7 @@ use crate::utils::{
     setup::TestingContext,
 };
 use anchor_lang::prelude::*;
+use solana_sdk::signature::Signer;
 
 #[allow(dead_code)]
 pub enum InstructionTrigger {
@@ -209,11 +210,15 @@ impl TestingEngine {
             .expect("Testing state is not initialized");
         let custodian_address = initialized_state.custodian_address;
         let testing_actors = &self.testing_context.testing_actors;
+        let admin_owner_or_assistant = config
+            .admin_owner_or_assistant
+            .clone()
+            .unwrap_or_else(|| testing_actors.owner.keypair());
         let result = create_all_router_endpoints_test(
             &self.testing_context,
-            testing_actors.owner.pubkey(),
+            admin_owner_or_assistant.pubkey(),
             custodian_address,
-            testing_actors.owner.keypair(),
+            admin_owner_or_assistant,
             config.chains.clone(),
         )
         .await;

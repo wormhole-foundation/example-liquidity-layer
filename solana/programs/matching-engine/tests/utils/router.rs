@@ -189,7 +189,7 @@ pub async fn add_cctp_router_endpoint_ix(
     let ix_data = AddCctpRouterEndpoint {
         args: AddCctpRouterEndpointArgs {
             chain: chain.as_chain_id(),
-            cctp_domain: CHAIN_TO_DOMAIN[chain.as_index()].1,
+            cctp_domain: chain.as_cctp_domain(),
             address: registered_token_router_address,
             mint_recipient: None,
         },
@@ -237,7 +237,7 @@ pub async fn add_cctp_router_endpoint_ix(
         &Pubkey::new_from_array(registered_token_router_address),
         None,
         matching_engine::state::MessageProtocol::Cctp {
-            domain: CHAIN_TO_DOMAIN[chain.as_index()].1,
+            domain: chain.as_cctp_domain(),
         },
     );
     test_router_endpoint
@@ -334,7 +334,7 @@ pub async fn create_cctp_router_endpoint(
 ) -> TestRouterEndpoint {
     let fixture_accounts = testing_context.get_fixture_accounts().unwrap();
     let program_id = testing_context.get_matching_engine_program_id();
-    let token_messenger = match chain {
+    let remote_token_messenger = match chain {
         Chain::Arbitrum => fixture_accounts.arbitrum_remote_token_messenger,
         Chain::Ethereum => fixture_accounts.ethereum_remote_token_messenger,
         _ => {
@@ -348,7 +348,7 @@ pub async fn create_cctp_router_endpoint(
         custodian_address,
         admin_keypair.as_ref(),
         program_id,
-        token_messenger,
+        remote_token_messenger,
         chain,
     )
     .await

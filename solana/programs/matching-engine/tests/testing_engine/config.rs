@@ -26,6 +26,7 @@ pub struct InitializeInstructionConfig {
 
 pub struct CreateCctpRouterEndpointsInstructionConfig {
     pub chains: HashSet<Chain>,
+    pub admin_owner_or_assistant: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
 }
 
@@ -33,6 +34,7 @@ impl Default for CreateCctpRouterEndpointsInstructionConfig {
     fn default() -> Self {
         Self {
             chains: HashSet::from([Chain::Ethereum, Chain::Arbitrum, Chain::Solana]),
+            admin_owner_or_assistant: None,
             expected_error: None,
         }
     }

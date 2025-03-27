@@ -82,12 +82,7 @@ pub async fn place_initial_offer_fallback(
 
     let solver_usdc_balance_before = solver.get_balance(test_ctx).await;
 
-    let place_initial_offer_ix_data = PlaceInitialOfferCctpShimFallbackData::new(
-        offer_price,
-        vaa_data.sequence,
-        vaa_data.vaa_time,
-        vaa_data.consistency_level,
-    );
+    let place_initial_offer_ix_data = PlaceInitialOfferCctpShimFallbackData::new(offer_price);
 
     let place_initial_offer_ix_accounts = PlaceInitialOfferCctpShimFallbackAccounts {
         signer: &payer_signer.pubkey(),

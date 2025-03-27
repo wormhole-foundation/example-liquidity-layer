@@ -7,7 +7,6 @@ use wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH;
 
 use super::constants::Chain;
 use super::setup::TestingContext;
-use super::CHAIN_TO_DOMAIN;
 
 use super::constants::CORE_BRIDGE_PID;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -409,8 +408,8 @@ pub fn create_deposit_message(
     let deposit = Deposit {
         token_address: token_mint.to_bytes(),
         amount: ruint::aliases::U256::from(amount),
-        source_cctp_domain: CHAIN_TO_DOMAIN[source_address.chain.as_index()].1,
-        destination_cctp_domain: CHAIN_TO_DOMAIN[Chain::Solana.as_index()].1, // Hardcode solana as destination domain
+        source_cctp_domain: source_address.chain.as_cctp_domain(),
+        destination_cctp_domain: Chain::Solana.as_cctp_domain(), // Hardcode solana as destination domain
         cctp_nonce,
         burn_source: source_address.address.to_bytes(), // Token router address
         mint_recipient: cctp_mint_recipient.to_bytes(), // Mint recipient program id

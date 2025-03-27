@@ -115,17 +115,6 @@ pub fn get_player_one_keypair() -> Keypair {
 
 pub const ETHEREUM_USDC_ADDRESS: &str = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 
-// Chain to cctp domain mapping
-pub const CHAIN_TO_DOMAIN: &[(Chain, u32)] = &[
-    (Chain::Ethereum, 0),
-    (Chain::Avalanche, 1),
-    (Chain::Optimism, 2),
-    (Chain::Arbitrum, 3),
-    (Chain::Solana, 5),
-    (Chain::Base, 6),
-    (Chain::Polygon, 7),
-];
-
 // Enum for Chain types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Chain {
@@ -148,6 +137,18 @@ impl Chain {
             Chain::Arbitrum => 4,
             Chain::Base => 5,
             Chain::Polygon => 6,
+        }
+    }
+
+    pub fn as_cctp_domain(&self) -> u32 {
+        match self {
+            Chain::Ethereum => 0,
+            Chain::Avalanche => 1,
+            Chain::Optimism => 2,
+            Chain::Arbitrum => 3,
+            Chain::Solana => 5,
+            Chain::Base => 6,
+            Chain::Polygon => 7,
         }
     }
 }
