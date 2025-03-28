@@ -2575,6 +2575,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "matching-engine-testing"
+version = "0.0.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "anyhow",
+ "base64 0.22.1",
+ "bincode",
+ "bs58 0.5.0",
+ "bytemuck",
+ "cfg-if",
+ "hex",
+ "hex-literal",
+ "lazy_static",
+ "liquidity-layer-common-solana",
+ "matching-engine",
+ "num-traits",
+ "once_cell",
+ "ruint",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "solana-cli-output",
+ "solana-program",
+ "solana-program-test",
+ "solana-sdk",
+ "tracing",
+ "tracing-log",
+ "tracing-subscriber",
+ "wormhole-io",
+ "wormhole-solana-utils",
+ "wormhole-svm-definitions",
+ "wormhole-svm-shim",
+]
+
+[[package]]
 name = "memchr"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

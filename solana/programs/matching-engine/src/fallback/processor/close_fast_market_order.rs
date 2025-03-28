@@ -71,11 +71,19 @@ pub fn close_fast_market_order(accounts: &[AccountInfo]) -> Result<()> {
         });
     }
 
-    // Transfer the lamports from the fast market order to the close account refund recipient
+    // First, get the current lamports value
+    let current_recipient_lamports = **close_account_refund_recipient.lamports.borrow();
+
+    // Then, get the fast market order lamports
     let mut fast_market_order_lamports = fast_market_order.lamports.borrow_mut();
-    **close_account_refund_recipient.lamports.borrow_mut() =
-        (**close_account_refund_recipient.lamports.borrow())
-            .saturating_add(**fast_market_order_lamports);
+
+    // Calculate the new amount
+    let new_amount = current_recipient_lamports.saturating_add(**fast_market_order_lamports);
+
+    // Now update the recipient's lamports
+    **close_account_refund_recipient.lamports.borrow_mut() = new_amount;
+
+    // Zero out the fast market order lamports
     **fast_market_order_lamports = 0;
 
     Ok(())
