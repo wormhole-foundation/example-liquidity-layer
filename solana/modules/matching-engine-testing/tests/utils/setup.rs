@@ -246,7 +246,7 @@ impl TestingContext {
     pub async fn simulate_and_verify_logs(
         &self,
         transaction: impl Into<VersionedTransaction>,
-        expected_logs: Vec<ExpectedLog>,
+        expected_logs: &Vec<ExpectedLog>,
     ) -> AnyhowResult<()> {
         let mut ctx = self.test_context.borrow_mut();
         let simulation_result = ctx.banks_client.simulate_transaction(transaction).await?;

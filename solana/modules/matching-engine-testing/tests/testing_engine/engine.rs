@@ -7,6 +7,7 @@ use crate::shimful::fast_market_order_shim::{
 };
 use crate::shimful::verify_shim::create_guardian_signatures;
 use crate::shimless;
+use crate::utils::auction::AuctionState;
 use crate::utils::vaa::TestVaaPairs;
 use crate::utils::{
     auction::{
@@ -29,9 +30,9 @@ pub enum InstructionTrigger {
     ImproveOfferShimless(ImproveOfferInstructionConfig),
     ExecuteOrderShimless(ExecuteOrderInstructionConfig),
     ExecuteOrderShim(ExecuteOrderInstructionConfig),
-    // PrepareOrderShimless(PrepareOrderInstructionConfig),
-    // PrepareOrderShim(PrepareOrderInstructionConfig),
-    // SettleAuction(SettleAuctionInstructionConfig),
+    PrepareOrderShimless(PrepareOrderInstructionConfig),
+    PrepareOrderShim(PrepareOrderInstructionConfig),
+    SettleAuction(SettleAuctionInstructionConfig),
     CloseFastMarketOrderShim(CloseFastMarketOrderShimInstructionConfig),
 }
 
@@ -124,15 +125,16 @@ impl TestingEngine {
             }
             InstructionTrigger::ExecuteOrderShimless(config) => {
                 self.execute_order_shimless(current_state, config).await
-            } // InstructionTrigger::PrepareOrderShim(config) => {
-              //     self.prepare_order_shim(current_state, config).await
-              // }
-              // InstructionTrigger::PrepareOrderShimless(config) => {
-              //     self.prepare_order_shimless(current_state, config).await
-              // }
-              // InstructionTrigger::SettleAuction(config) => {
-              //     self.settle_auction(current_state, config).await
-              // }
+            }
+            InstructionTrigger::PrepareOrderShim(config) => {
+                self.prepare_order_shim(current_state, config).await
+            }
+            InstructionTrigger::PrepareOrderShimless(config) => {
+                self.prepare_order_shimless(current_state, config).await
+            }
+            InstructionTrigger::SettleAuction(config) => {
+                self.settle_auction(current_state, config).await
+            }
         }
     }
 
@@ -638,146 +640,146 @@ impl TestingEngine {
         }
     }
 
-    // async fn prepare_order_shim(
-    //     &self,
-    //     current_state: &TestingEngineState,
-    //     config: &PrepareOrderInstructionConfig,
-    // ) -> TestingEngineState {
-    //     let auction_accounts = current_state
-    //         .auction_accounts()
-    //         .expect("Auction accounts not found");
+    async fn prepare_order_shim(
+        &self,
+        current_state: &TestingEngineState,
+        config: &PrepareOrderInstructionConfig,
+    ) -> TestingEngineState {
+        let auction_accounts = current_state
+            .auction_accounts()
+            .expect("Auction accounts not found");
 
-    //     let deposit_vaa = current_state.get_first_test_vaa_pair().deposit_vaa.clone();
-    //     let deposit_vaa_data = deposit_vaa.get_vaa_data();
-    //     let deposit = deposit_vaa
-    //         .payload_deserialized
-    //         .clone()
-    //         .unwrap()
-    //         .get_deposit()
-    //         .unwrap();
+        let deposit_vaa = current_state.get_first_test_vaa_pair().deposit_vaa.clone();
+        let deposit_vaa_data = deposit_vaa.get_vaa_data();
+        let deposit = deposit_vaa
+            .payload_deserialized
+            .clone()
+            .unwrap()
+            .get_deposit()
+            .unwrap();
 
-    //     let payer_signer = config
-    //         .payer_signer
-    //         .clone()
-    //         .unwrap_or(self.testing_context.testing_actors.owner.keypair());
+        let payer_signer = config
+            .payer_signer
+            .clone()
+            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
 
-    //     let result = shimful::shims_prepare_order_response::prepare_order_response_test(
-    //         &self.testing_context,
-    //         &payer_signer,
-    //         &deposit_vaa_data,
-    //         current_state,
-    //         &auction_accounts.to_router_endpoint,
-    //         &auction_accounts.from_router_endpoint,
-    //         &deposit,
-    //         config.expected_error.as_ref(),
-    //     )
-    //     .await;
-    //     if config.expected_error.is_none() {
-    //         let prepare_order_response_fixture = result.unwrap();
-    //         let order_prepared_state = OrderPreparedState {
-    //             prepared_order_address: prepare_order_response_fixture.prepared_order_response,
-    //             prepared_custody_token: prepare_order_response_fixture.prepared_custody_token,
-    //         };
-    //         TestingEngineState::OrderPrepared {
-    //             base: current_state.base().clone(),
-    //             initialized: current_state.initialized().unwrap().clone(),
-    //             router_endpoints: current_state.router_endpoints().unwrap().clone(),
-    //             fast_market_order: current_state.fast_market_order().cloned(),
-    //             auction_state: current_state.auction_state().clone(),
-    //             order_prepared: order_prepared_state,
-    //             auction_accounts: auction_accounts.clone(),
-    //         }
-    //     } else {
-    //         current_state.clone()
-    //     }
-    // }
+        let result = shimful::shims_prepare_order_response::prepare_order_response_test(
+            &self.testing_context,
+            &payer_signer,
+            deposit_vaa_data,
+            current_state,
+            &auction_accounts.to_router_endpoint,
+            &auction_accounts.from_router_endpoint,
+            &deposit,
+            config.expected_error.as_ref(),
+        )
+        .await;
+        if config.expected_error.is_none() {
+            let prepare_order_response_fixture = result.unwrap();
+            let order_prepared_state = OrderPreparedState {
+                prepared_order_address: prepare_order_response_fixture.prepared_order_response,
+                prepared_custody_token: prepare_order_response_fixture.prepared_custody_token,
+            };
+            TestingEngineState::OrderPrepared {
+                base: current_state.base().clone(),
+                initialized: current_state.initialized().unwrap().clone(),
+                router_endpoints: current_state.router_endpoints().unwrap().clone(),
+                fast_market_order: current_state.fast_market_order().cloned(),
+                auction_state: current_state.auction_state().clone(),
+                order_prepared: order_prepared_state,
+                auction_accounts: auction_accounts.clone(),
+            }
+        } else {
+            current_state.clone()
+        }
+    }
 
-    // async fn prepare_order_shimless(
-    //     &self,
-    //     current_state: &TestingEngineState,
-    //     config: &PrepareOrderInstructionConfig,
-    // ) -> TestingEngineState {
-    //     let payer_signer = config
-    //         .payer_signer
-    //         .clone()
-    //         .unwrap_or(self.testing_context.testing_actors.owner.keypair());
-    //     let auction_accounts = current_state
-    //         .auction_accounts()
-    //         .expect("Auction accounts not found");
-    //     let solver_token_account = self
-    //         .testing_context
-    //         .testing_actors
-    //         .solvers
-    //         .get(config.solver_index)
-    //         .expect("Solver not found at index")
-    //         .token_account_address()
-    //         .expect("Token account does not exist for solver at index");
-    //     let result = shimless::prepare_order_response::prepare_order_response(
-    //         &self.testing_context,
-    //         &payer_signer,
-    //         current_state,
-    //         &auction_accounts.to_router_endpoint,
-    //         &auction_accounts.from_router_endpoint,
-    //         &solver_token_account,
-    //         config.expected_error.as_ref(),
-    //         config.expected_log_message.as_ref(),
-    //     )
-    //     .await;
-    //     if config.expected_error.is_none() {
-    //         let prepare_order_response_fixture = result.unwrap();
-    //         let order_prepared_state = OrderPreparedState {
-    //             prepared_order_address: prepare_order_response_fixture.prepared_order_response,
-    //             prepared_custody_token: prepare_order_response_fixture.prepared_custody_token,
-    //         };
-    //         TestingEngineState::OrderPrepared {
-    //             base: current_state.base().clone(),
-    //             initialized: current_state.initialized().unwrap().clone(),
-    //             router_endpoints: current_state.router_endpoints().unwrap().clone(),
-    //             fast_market_order: current_state.fast_market_order().cloned(),
-    //             auction_state: current_state.auction_state().clone(),
-    //             order_prepared: order_prepared_state,
-    //             auction_accounts: auction_accounts.clone(),
-    //         }
-    //     } else {
-    //         current_state.clone()
-    //     }
-    // }
+    async fn prepare_order_shimless(
+        &self,
+        current_state: &TestingEngineState,
+        config: &PrepareOrderInstructionConfig,
+    ) -> TestingEngineState {
+        let payer_signer = config
+            .payer_signer
+            .clone()
+            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
+        let auction_accounts = current_state
+            .auction_accounts()
+            .expect("Auction accounts not found");
+        let solver_token_account = self
+            .testing_context
+            .testing_actors
+            .solvers
+            .get(config.solver_index)
+            .expect("Solver not found at index")
+            .token_account_address()
+            .expect("Token account does not exist for solver at index");
+        let result = shimless::prepare_order_response::prepare_order_response(
+            &self.testing_context,
+            &payer_signer,
+            current_state,
+            &auction_accounts.to_router_endpoint,
+            &auction_accounts.from_router_endpoint,
+            &solver_token_account,
+            config.expected_error.as_ref(),
+            config.expected_log_messages.as_ref(),
+        )
+        .await;
+        if config.expected_error.is_none() {
+            let prepare_order_response_fixture = result.unwrap();
+            let order_prepared_state = OrderPreparedState {
+                prepared_order_address: prepare_order_response_fixture.prepared_order_response,
+                prepared_custody_token: prepare_order_response_fixture.prepared_custody_token,
+            };
+            TestingEngineState::OrderPrepared {
+                base: current_state.base().clone(),
+                initialized: current_state.initialized().unwrap().clone(),
+                router_endpoints: current_state.router_endpoints().unwrap().clone(),
+                fast_market_order: current_state.fast_market_order().cloned(),
+                auction_state: current_state.auction_state().clone(),
+                order_prepared: order_prepared_state,
+                auction_accounts: auction_accounts.clone(),
+            }
+        } else {
+            current_state.clone()
+        }
+    }
 
-    // async fn settle_auction(
-    //     &self,
-    //     current_state: &TestingEngineState,
-    //     config: &SettleAuctionInstructionConfig,
-    // ) -> TestingEngineState {
-    //     let payer_signer = config
-    //         .payer_signer
-    //         .clone()
-    //         .unwrap_or(self.testing_context.testing_actors.owner.keypair());
-    //     let order_prepared_state = current_state
-    //         .order_prepared()
-    //         .expect("Order prepared not found");
-    //     let prepared_custody_token = order_prepared_state.prepared_custody_token;
-    //     let prepared_order_response = order_prepared_state.prepared_order_address;
-    //     let auction_state = shimless::settle_auction::settle_auction_complete(
-    //         &self.testing_context,
-    //         &payer_signer,
-    //         current_state.auction_state(),
-    //         &prepared_order_response,
-    //         &prepared_custody_token,
-    //         &self.testing_context.get_matching_engine_program_id(),
-    //         config.expected_error.as_ref(),
-    //     )
-    //     .await;
-    //     match auction_state {
-    //         AuctionState::Settled => TestingEngineState::AuctionSettled {
-    //             base: current_state.base().clone(),
-    //             initialized: current_state.initialized().unwrap().clone(),
-    //             router_endpoints: current_state.router_endpoints().unwrap().clone(),
-    //             auction_state: current_state.auction_state().clone(),
-    //             fast_market_order: current_state.fast_market_order().cloned(),
-    //             order_prepared: order_prepared_state.clone(),
-    //             auction_accounts: current_state.auction_accounts().cloned(),
-    //         },
-    //         _ => current_state.clone(),
-    //     }
-    // }
+    async fn settle_auction(
+        &self,
+        current_state: &TestingEngineState,
+        config: &SettleAuctionInstructionConfig,
+    ) -> TestingEngineState {
+        let payer_signer = config
+            .payer_signer
+            .clone()
+            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
+        let order_prepared_state = current_state
+            .order_prepared()
+            .expect("Order prepared not found");
+        let prepared_custody_token = order_prepared_state.prepared_custody_token;
+        let prepared_order_response = order_prepared_state.prepared_order_address;
+        let auction_state = shimless::settle_auction::settle_auction_complete(
+            &self.testing_context,
+            &payer_signer,
+            current_state.auction_state(),
+            &prepared_order_response,
+            &prepared_custody_token,
+            &self.testing_context.get_matching_engine_program_id(),
+            config.expected_error.as_ref(),
+        )
+        .await;
+        match auction_state {
+            AuctionState::Settled => TestingEngineState::AuctionSettled {
+                base: current_state.base().clone(),
+                initialized: current_state.initialized().unwrap().clone(),
+                router_endpoints: current_state.router_endpoints().unwrap().clone(),
+                auction_state: current_state.auction_state().clone(),
+                fast_market_order: current_state.fast_market_order().cloned(),
+                order_prepared: order_prepared_state.clone(),
+                auction_accounts: current_state.auction_accounts().cloned(),
+            },
+            _ => current_state.clone(),
+        }
+    }
 }

@@ -65,13 +65,13 @@ impl FinalizedVaaMessage {
             .unwrap()
     }
 
-    pub fn get_slow_order_response<'a>(&'a self) -> SlowOrderResponse<'a> {
+    pub fn get_slow_order_response<'a>(&'a self) -> Result<SlowOrderResponse<'a>> {
         let liquidity_layer_message: LiquidityLayerDepositMessage<'a> =
             LiquidityLayerDepositMessage::parse(&self.deposit_payload)
-                .expect("Cannot get slow order response from deposit payload");
+                .map_err(|_| MatchingEngineError::InvalidDepositPayloadId)?;
         let slow_order_response: SlowOrderResponse<'a> =
             liquidity_layer_message.to_slow_order_response_unchecked();
-        slow_order_response
+        Ok(slow_order_response)
     }
 }
 
@@ -232,7 +232,7 @@ pub fn prepare_order_response_cctp_shim(
         .map_err(|_| MatchingEngineError::InvalidDeposit)?;
     let deposit = deposit_option
         .deposit()
-        .ok_or(MatchingEngineError::InvalidDepositPayloadId)?;
+        .ok_or_else(|| MatchingEngineError::InvalidDepositPayloadId)?;
     let cctp_message = CctpMessage::parse(&receive_message_args.encoded_message)
         .map_err(|_| MatchingEngineError::InvalidCctpMessage)?;
     require_eq!(
@@ -261,7 +261,7 @@ pub fn prepare_order_response_cctp_shim(
     // Construct the finalised vaa message digest data
     let finalized_vaa_message_digest = {
         let finalised_vaa_timestamp = fast_market_order_zero_copy.vaa_timestamp;
-        let finalised_vaa_sequence = fast_market_order_zero_copy.vaa_sequence - 1;
+        let finalised_vaa_sequence = fast_market_order_zero_copy.vaa_sequence.saturating_sub(1);
         let finalised_vaa_emitter_chain = fast_market_order_zero_copy.vaa_emitter_chain;
         let finalised_vaa_emitter_address = fast_market_order_zero_copy.vaa_emitter_address;
         let finalised_vaa_nonce = fast_market_order_zero_copy.vaa_nonce;
@@ -429,7 +429,7 @@ pub fn prepare_order_response_cctp_shim(
         ],
         data: verify_hash_data,
     };
-    invoke_signed_unchecked(&verify_shim_ix, &accounts, &[])?;
+    invoke_signed_unchecked(&verify_shim_ix, accounts, &[])?;
     // End verify deposit message vaa shim
     // ------------------------------------------------------------------------------------------------
 
@@ -479,7 +479,7 @@ pub fn prepare_order_response_cctp_shim(
         },
         to_endpoint: to_endpoint_account.info,
         redeemer_message: fast_market_order_zero_copy.redeemer_message
-            [..fast_market_order_zero_copy.redeemer_message_length as usize]
+            [..usize::from(fast_market_order_zero_copy.redeemer_message_length)]
             .to_vec(),
     };
     // Use cursor in order to write the prepared order response account data

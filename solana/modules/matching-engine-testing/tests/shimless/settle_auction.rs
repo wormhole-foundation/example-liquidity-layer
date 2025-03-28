@@ -27,19 +27,19 @@ pub async fn settle_auction_complete(
     let active_auction = auction_state
         .get_active_auction()
         .expect("Failed to get active auction");
-    let base_fee_token = usdc_mint_address.clone();
+    let base_fee_token = *usdc_mint_address;
     let event_seeds = EVENT_AUTHORITY_SEED;
     let event_authority =
         Pubkey::find_program_address(&[event_seeds], matching_engine_program_id).0;
     let settle_auction_accounts = SettleAuctionCompleteCpiAccounts {
         beneficiary: payer_signer.pubkey(),
-        base_fee_token: base_fee_token,
-        prepared_order_response: prepare_order_response_address.clone(),
-        prepared_custody_token: prepared_custody_token.clone(),
+        base_fee_token,
+        prepared_order_response: *prepare_order_response_address,
+        prepared_custody_token: *prepared_custody_token,
         auction: active_auction.auction_address,
         best_offer_token: active_auction.best_offer.offer_token,
         token_program: spl_token::ID,
-        event_authority: event_authority,
+        event_authority,
         program: *matching_engine_program_id,
     };
 

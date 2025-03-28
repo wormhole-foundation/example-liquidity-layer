@@ -51,6 +51,7 @@ pub struct PrepareOrderResponseShimAccountsFixture {
 }
 
 impl PrepareOrderResponseShimAccountsFixture {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         signer: &Pubkey,
         fixture_accounts: &FixtureAccounts,
@@ -155,7 +156,7 @@ impl PrepareOrderResponseShimDataFixture {
             finalized_vaa_message_base_fee: deposit_base_fee,
             vaa_payload: deposit_vaa_data.payload.to_vec(),
             deposit_payload: deposit.payload.to_vec(),
-            fast_market_order: fast_market_order.clone(),
+            fast_market_order: *fast_market_order,
             guardian_set_bump,
         }
     }
@@ -270,6 +271,7 @@ pub async fn prepare_order_response_cctp_shim(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn prepare_order_response_test(
     testing_context: &TestingContext,
     payer_signer: &Rc<Keypair>,
@@ -293,18 +295,19 @@ pub async fn prepare_order_response_test(
 
     let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) =
         super::verify_shim::create_guardian_signatures(
-            test_ctx,
+            testing_context,
             payer_signer,
             deposit_vaa_data,
             core_bridge_program_id,
             None,
         )
-        .await;
+        .await
+        .unwrap();
 
     let source_remote_token_messenger = match testing_context.testing_state.transfer_direction {
         TransferDirection::FromEthereumToArbitrum => {
             utils::router::get_remote_token_messenger(
-                test_ctx,
+                testing_context,
                 fixture_accounts.ethereum_remote_token_messenger,
             )
             .await
@@ -338,12 +341,12 @@ pub async fn prepare_order_response_test(
         .verify_cctp_message(&fast_market_order_state)
         .unwrap();
 
-    let deposit_base_fee = utils::cctp_message::get_deposit_base_fee(&deposit);
+    let deposit_base_fee = utils::cctp_message::get_deposit_base_fee(deposit);
     let prepare_order_response_cctp_shim_data = PrepareOrderResponseShimDataFixture::new(
         cctp_token_burn_message.encoded_cctp_burn_message,
         cctp_token_burn_message.cctp_attestation,
-        &deposit_vaa_data,
-        &deposit,
+        deposit_vaa_data,
+        deposit,
         deposit_base_fee,
         &fast_market_order_state,
         guardian_set_bump,
@@ -358,9 +361,9 @@ pub async fn prepare_order_response_test(
         &fixture_accounts,
         &custodian_address,
         &fast_market_order_address,
-        &from_endpoint_address,
-        &to_endpoint_address,
-        &usdc_mint_address,
+        from_endpoint_address,
+        to_endpoint_address,
+        usdc_mint_address,
         &cctp_message_decoded,
         &guardian_set_pubkey,
         &guardian_signatures_pubkey,
@@ -371,7 +374,7 @@ pub async fn prepare_order_response_test(
         payer_signer,
         prepare_order_response_cctp_shim_accounts,
         prepare_order_response_cctp_shim_data,
-        &matching_engine_program_id,
+        matching_engine_program_id,
         expected_error,
     )
     .await

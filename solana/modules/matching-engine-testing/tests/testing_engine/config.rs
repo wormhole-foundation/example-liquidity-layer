@@ -13,6 +13,7 @@ pub struct ExpectedError {
     pub error_string: String,
 }
 
+#[derive(Clone)]
 pub struct ExpectedLog {
     pub log_message: String,
     pub count: usize,
@@ -53,7 +54,7 @@ pub struct PrepareOrderInstructionConfig {
     pub solver_index: usize,
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
-    pub expected_log_message: Option<String>,
+    pub expected_log_messages: Option<Vec<ExpectedLog>>,
 }
 
 #[derive(Clone, Default)]

@@ -21,7 +21,7 @@ use std::fmt::Display;
 use std::rc::Rc;
 use std::str::FromStr;
 
-use super::{Chain, CHAIN_TO_DOMAIN, GUARDIAN_SECRET_KEY};
+use super::{Chain, GUARDIAN_SECRET_KEY};
 
 // Imported from https://github.com/circlefin/solana-cctp-contracts.git rev = "4477f88"
 
@@ -406,9 +406,9 @@ impl CircleAttester {
         let (recovery_id, compact_sig) = recoverable_signature.serialize_compact();
         // Recovery ID goes in byte 65
         signature_bytes[0..64].copy_from_slice(&compact_sig);
-        let recovery_id_try = i32::from(recovery_id) as u8;
+        let recovery_id_try = u8::try_from(i32::from(recovery_id)).unwrap();
         let recovery_id_true = if recovery_id_try < 27 {
-            recovery_id_try + 27
+            recovery_id_try.saturating_add(27)
         } else {
             recovery_id_try
         };
@@ -537,6 +537,7 @@ impl CctpMessage {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn craft_cctp_token_burn_message(
     test_ctx: &Rc<RefCell<ProgramTestContext>>,
     source_cctp_domain: u32,
@@ -547,7 +548,7 @@ pub async fn craft_cctp_token_burn_message(
     cctp_mint_recipient: &Pubkey,
     custodian_address: &Pubkey,
 ) -> Result<CctpTokenBurnMessage> {
-    let destination_cctp_domain = CHAIN_TO_DOMAIN[Chain::Solana as usize].1; // Hard code solana as destination domain
+    let destination_cctp_domain = Chain::Solana.as_cctp_domain(); // Hard code solana as destination domain
     assert_eq!(destination_cctp_domain, 5);
     let message_transmitter_config_data = test_ctx
         .borrow_mut()
@@ -568,7 +569,7 @@ pub async fn craft_cctp_token_burn_message(
     let burn_message_vec = BurnMessage::format_message(
         0,
         &Pubkey::try_from_slice(&burn_token_address).unwrap(),
-        &cctp_mint_recipient,
+        cctp_mint_recipient,
         amount,
         &Pubkey::try_from_slice(&[0u8; 32]).unwrap(),
     )?;
@@ -616,12 +617,13 @@ pub async fn craft_cctp_token_burn_message(
 
 pub fn ethereum_address_to_universal(eth_address: &str) -> [u8; 32] {
     // Remove '0x' prefix if present
-    let address_str = eth_address.strip_prefix("0x").unwrap_or(eth_address);
+    let address_str = eth_address
+        .strip_prefix("0x")
+        .unwrap_or_else(|| eth_address);
 
     // Decode the hex string to bytes
     let mut address_bytes = [0u8; 20]; // Ethereum addresses are 20 bytes
-    hex::decode_to_slice(address_str, &mut address_bytes as &mut [u8])
-        .expect("Invalid Ethereum address format");
+    hex::decode_to_slice(address_str, &mut address_bytes).expect("Invalid Ethereum address format");
 
     // Create a 32-byte array with leading zeros (Ethereum addresses are padded with zeros on the left)
     let mut universal_address = [0u8; 32];
@@ -636,8 +638,7 @@ pub fn get_deposit_base_fee(deposit: &Deposit) -> u64 {
     let slow_order_response = liquidity_layer_message
         .slow_order_response()
         .expect("Failed to get slow order response");
-    let base_fee = slow_order_response.base_fee();
-    base_fee
+    slow_order_response.base_fee()
 }
 
 pub struct UsedNonces;
@@ -648,7 +649,10 @@ impl UsedNonces {
         let first_nonce = if nonce == 0 {
             0
         } else {
-            (nonce - 1) / Self::MAX_NONCES * Self::MAX_NONCES + 1
+            (nonce.saturating_sub(1))
+                .saturating_div(Self::MAX_NONCES)
+                .saturating_mul(Self::MAX_NONCES)
+                .saturating_add(1)
         }; // Could potentially use a more efficient algorithm, but this finds the first nonce in a bucket
         let remote_domain_converted = remote_domain.to_string();
         let first_nonce_converted = first_nonce.to_string();

@@ -1,3 +1,4 @@
+use crate::testing_engine::config::ExpectedLog;
 use crate::testing_engine::state::TestingEngineState;
 use crate::utils;
 use crate::utils::cctp_message::UsedNonces;
@@ -27,6 +28,8 @@ pub struct PrepareOrderResponseFixture {
     pub prepared_order_response: Pubkey,
     pub prepared_custody_token: Pubkey,
 }
+
+#[allow(clippy::too_many_arguments)]
 pub async fn prepare_order_response(
     testing_context: &TestingContext,
     payer_signer: &Rc<Keypair>,
@@ -35,7 +38,7 @@ pub async fn prepare_order_response(
     from_endpoint_address: &Pubkey,
     base_fee_token_address: &Pubkey,
     expected_error: Option<&ExpectedError>,
-    expected_log_message: Option<&String>,
+    expected_log_message: Option<&Vec<ExpectedLog>>,
 ) -> Option<PrepareOrderResponseFixture> {
     let test_ctx = &testing_context.test_context;
     let matching_engine_program_id = &testing_context.get_matching_engine_program_id();
@@ -49,7 +52,7 @@ pub async fn prepare_order_response(
     let source_remote_token_messenger = match testing_context.testing_state.transfer_direction {
         TransferDirection::FromEthereumToArbitrum => {
             utils::router::get_remote_token_messenger(
-                test_ctx,
+                testing_context,
                 fixture_accounts.ethereum_remote_token_messenger,
             )
             .await
@@ -95,10 +98,10 @@ pub async fn prepare_order_response(
         fast_vaa: fast_transfer_liquidity_layer_vaa,
         path: LiveRouterPath {
             to_endpoint: LiveRouterEndpoint {
-                endpoint: to_endpoint_address.clone(),
+                endpoint: *to_endpoint_address,
             },
             from_endpoint: LiveRouterEndpoint {
-                endpoint: from_endpoint_address.clone(),
+                endpoint: *from_endpoint_address,
             },
         },
     };
@@ -120,7 +123,7 @@ pub async fn prepare_order_response(
         Pubkey::find_program_address(&prepared_custody_token_seeds, matching_engine_program_id);
 
     let usdc = Usdc {
-        mint: usdc_mint_address.clone(),
+        mint: *usdc_mint_address,
     };
     let (used_nonces_pda, _used_nonces_bump) =
         UsedNonces::address(source_remote_token_messenger.domain, cctp_nonce);
@@ -136,7 +139,7 @@ pub async fn prepare_order_response(
         Pubkey::find_program_address(&[EVENT_AUTHORITY_SEED], &TOKEN_MESSENGER_MINTER_PROGRAM_ID).0;
 
     let cctp_mint_recipient = CctpMintRecipientMut {
-        mint_recipient: cctp_mint_recipient.clone(),
+        mint_recipient: *cctp_mint_recipient,
     };
     let cctp_message_transmitter_event_authority =
         Pubkey::find_program_address(&[EVENT_AUTHORITY_SEED], &MESSAGE_TRANSMITTER_PROGRAM_ID).0;
@@ -151,30 +154,30 @@ pub async fn prepare_order_response(
     };
     let cctp = CctpReceiveMessage {
         mint_recipient: cctp_mint_recipient,
-        message_transmitter_authority: cctp_message_transmitter_authority.clone(),
-        message_transmitter_config: message_transmitter_config_pubkey.clone(),
+        message_transmitter_authority: cctp_message_transmitter_authority,
+        message_transmitter_config: message_transmitter_config_pubkey,
         used_nonces: used_nonces_pda,
         message_transmitter_event_authority: cctp_message_transmitter_event_authority,
-        token_messenger: fixture_accounts.token_messenger.clone(),
+        token_messenger: fixture_accounts.token_messenger,
         remote_token_messenger: cctp_remote_token_messenger,
-        token_minter: fixture_accounts.token_minter.clone(),
-        local_token: fixture_accounts.usdc_local_token.clone(),
-        token_pair: fixture_accounts.usdc_token_pair.clone(),
-        token_messenger_minter_custody_token: fixture_accounts.usdc_custody_token.clone(),
-        token_messenger_minter_event_authority: token_messenger_minter_event_authority,
+        token_minter: fixture_accounts.token_minter,
+        local_token: fixture_accounts.usdc_local_token,
+        token_pair: fixture_accounts.usdc_token_pair,
+        token_messenger_minter_custody_token: fixture_accounts.usdc_custody_token,
+        token_messenger_minter_event_authority,
         token_messenger_minter_program: TOKEN_MESSENGER_MINTER_PROGRAM_ID,
         message_transmitter_program: MESSAGE_TRANSMITTER_PROGRAM_ID,
     };
     let prepared_order_response_accounts = PrepareOrderResponseCctpAccounts {
         payer: payer_signer.pubkey(),
         custodian: checked_custodian,
-        fast_order_path: fast_order_path,
-        finalized_vaa: finalized_vaa,
+        fast_order_path,
+        finalized_vaa,
         prepared_order_response: prepared_order_response_pda,
         prepared_custody_token: prepared_custody_token_pda,
         base_fee_token: *base_fee_token_address,
-        usdc: usdc,
-        cctp: cctp,
+        usdc,
+        cctp,
         token_program: spl_token::ID,
         system_program: system_program::ID,
     };
@@ -188,7 +191,7 @@ pub async fn prepare_order_response(
     .data();
 
     let instruction = Instruction {
-        program_id: matching_engine_program_id.clone(),
+        program_id: *matching_engine_program_id,
         accounts: prepared_order_response_accounts.to_account_metas(None),
         data: prepare_order_response_ix_data,
     };
@@ -209,8 +212,9 @@ pub async fn prepare_order_response(
             "Expected error is not allowed when expected log message is provided"
         );
         testing_context
-            .execute_and_verify_logs(transaction, expected_log_message)
-            .await;
+            .simulate_and_verify_logs(transaction, expected_log_message)
+            .await
+            .unwrap();
     } else {
         testing_context
             .execute_and_verify_transaction(transaction, expected_error)

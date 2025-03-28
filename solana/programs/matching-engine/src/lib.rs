@@ -4,7 +4,7 @@
 mod composite;
 use composite::*;
 
-mod error;
+pub mod error;
 
 mod events;
 
