@@ -5,7 +5,7 @@
  * IDL can be found at `target/idl/matching_engine.json`.
  */
 export type MatchingEngine = {
-  "address": "",
+  "address": "MatchingEngine11111111111111111111111111111",
   "metadata": {
     "name": "matchingEngine",
     "version": "0.0.0",
@@ -963,6 +963,29 @@ export type MatchingEngine = {
         },
         {
           "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "getCctpMintRecipient",
+      "docs": [
+        "UNUSED. This instruction does not exist and has never existed. It just reverts and exist to expose an account lol."
+      ],
+      "discriminator": [
+        244,
+        239,
+        207,
+        186,
+        19,
+        125,
+        44,
+        181
+      ],
+      "accounts": [
+        {
+          "name": "mintRecipient",
+          "writable": true
         }
       ],
       "args": []
@@ -2712,6 +2735,456 @@ export type MatchingEngine = {
         154,
         205
       ]
+    }
+  ],
+  "events": [
+    {
+      "name": "auctionClosed",
+      "discriminator": [
+        104,
+        72,
+        168,
+        177,
+        241,
+        79,
+        231,
+        167
+      ]
+    },
+    {
+      "name": "auctionSettled",
+      "discriminator": [
+        61,
+        151,
+        131,
+        170,
+        95,
+        203,
+        219,
+        147
+      ]
+    },
+    {
+      "name": "auctionUpdated",
+      "discriminator": [
+        67,
+        35,
+        50,
+        236,
+        108,
+        230,
+        253,
+        111
+      ]
+    },
+    {
+      "name": "enacted",
+      "discriminator": [
+        200,
+        226,
+        146,
+        0,
+        188,
+        24,
+        141,
+        143
+      ]
+    },
+    {
+      "name": "fastFillRedeemed",
+      "discriminator": [
+        192,
+        96,
+        201,
+        180,
+        102,
+        112,
+        34,
+        102
+      ]
+    },
+    {
+      "name": "fastFillSequenceReserved",
+      "discriminator": [
+        6,
+        154,
+        159,
+        87,
+        13,
+        183,
+        211,
+        152
+      ]
+    },
+    {
+      "name": "localFastOrderFilled",
+      "discriminator": [
+        131,
+        247,
+        217,
+        194,
+        154,
+        179,
+        238,
+        193
+      ]
+    },
+    {
+      "name": "orderExecuted",
+      "discriminator": [
+        74,
+        135,
+        231,
+        5,
+        168,
+        106,
+        194,
+        117
+      ]
+    },
+    {
+      "name": "proposed",
+      "discriminator": [
+        216,
+        37,
+        138,
+        141,
+        130,
+        208,
+        180,
+        153
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6002,
+      "name": "ownerOnly"
+    },
+    {
+      "code": 6004,
+      "name": "ownerOrAssistantOnly"
+    },
+    {
+      "code": 6016,
+      "name": "u64Overflow"
+    },
+    {
+      "code": 6018,
+      "name": "u32Overflow"
+    },
+    {
+      "code": 6032,
+      "name": "sameEndpoint"
+    },
+    {
+      "code": 6034,
+      "name": "invalidEndpoint"
+    },
+    {
+      "code": 6048,
+      "name": "invalidVaa"
+    },
+    {
+      "code": 6066,
+      "name": "invalidDeposit"
+    },
+    {
+      "code": 6068,
+      "name": "invalidDepositMessage"
+    },
+    {
+      "code": 6070,
+      "name": "invalidPayloadId"
+    },
+    {
+      "code": 6072,
+      "name": "invalidDepositPayloadId"
+    },
+    {
+      "code": 6074,
+      "name": "notFastMarketOrder"
+    },
+    {
+      "code": 6076,
+      "name": "vaaMismatch"
+    },
+    {
+      "code": 6078,
+      "name": "redeemerMessageTooLarge"
+    },
+    {
+      "code": 6096,
+      "name": "invalidSourceRouter"
+    },
+    {
+      "code": 6098,
+      "name": "invalidTargetRouter"
+    },
+    {
+      "code": 6100,
+      "name": "endpointDisabled"
+    },
+    {
+      "code": 6102,
+      "name": "invalidCctpEndpoint"
+    },
+    {
+      "code": 6128,
+      "name": "paused"
+    },
+    {
+      "code": 6256,
+      "name": "assistantZeroPubkey"
+    },
+    {
+      "code": 6257,
+      "name": "feeRecipientZeroPubkey"
+    },
+    {
+      "code": 6258,
+      "name": "immutableProgram"
+    },
+    {
+      "code": 6260,
+      "name": "zeroDuration"
+    },
+    {
+      "code": 6262,
+      "name": "zeroGracePeriod"
+    },
+    {
+      "code": 6263,
+      "name": "zeroPenaltyPeriod"
+    },
+    {
+      "code": 6264,
+      "name": "userPenaltyRewardBpsTooLarge",
+      "msg": "Value exceeds 1000000"
+    },
+    {
+      "code": 6266,
+      "name": "initialPenaltyBpsTooLarge",
+      "msg": "Value exceeds 1000000"
+    },
+    {
+      "code": 6268,
+      "name": "minOfferDeltaBpsTooLarge",
+      "msg": "Value exceeds 1000000"
+    },
+    {
+      "code": 6270,
+      "name": "zeroSecurityDepositBase"
+    },
+    {
+      "code": 6271,
+      "name": "securityDepositBpsTooLarge",
+      "msg": "Value exceeds 1000000"
+    },
+    {
+      "code": 6514,
+      "name": "invalidNewOwner"
+    },
+    {
+      "code": 6516,
+      "name": "alreadyOwner"
+    },
+    {
+      "code": 6518,
+      "name": "noTransferOwnershipRequest"
+    },
+    {
+      "code": 6520,
+      "name": "notPendingOwner"
+    },
+    {
+      "code": 6524,
+      "name": "invalidChain"
+    },
+    {
+      "code": 6576,
+      "name": "chainNotAllowed"
+    },
+    {
+      "code": 6578,
+      "name": "invalidMintRecipient"
+    },
+    {
+      "code": 6768,
+      "name": "proposalAlreadyEnacted"
+    },
+    {
+      "code": 6770,
+      "name": "proposalDelayNotExpired"
+    },
+    {
+      "code": 6772,
+      "name": "invalidProposal"
+    },
+    {
+      "code": 6832,
+      "name": "auctionConfigMismatch"
+    },
+    {
+      "code": 7024,
+      "name": "fastMarketOrderExpired"
+    },
+    {
+      "code": 7026,
+      "name": "offerPriceTooHigh"
+    },
+    {
+      "code": 7032,
+      "name": "auctionNotActive"
+    },
+    {
+      "code": 7034,
+      "name": "auctionPeriodExpired"
+    },
+    {
+      "code": 7036,
+      "name": "auctionPeriodNotExpired"
+    },
+    {
+      "code": 7044,
+      "name": "executorTokenMismatch"
+    },
+    {
+      "code": 7050,
+      "name": "auctionNotCompleted"
+    },
+    {
+      "code": 7054,
+      "name": "carpingNotAllowed"
+    },
+    {
+      "code": 7056,
+      "name": "auctionNotSettled"
+    },
+    {
+      "code": 7058,
+      "name": "executorNotPreparedBy"
+    },
+    {
+      "code": 7060,
+      "name": "invalidOfferToken"
+    },
+    {
+      "code": 7062,
+      "name": "fastFillTooLarge"
+    },
+    {
+      "code": 7064,
+      "name": "auctionExists"
+    },
+    {
+      "code": 7065,
+      "name": "noAuction"
+    },
+    {
+      "code": 7066,
+      "name": "bestOfferTokenMismatch"
+    },
+    {
+      "code": 7068,
+      "name": "bestOfferTokenRequired"
+    },
+    {
+      "code": 7070,
+      "name": "preparedByMismatch"
+    },
+    {
+      "code": 7071,
+      "name": "preparedOrderResponseNotRequired"
+    },
+    {
+      "code": 7072,
+      "name": "auctionConfigNotRequired"
+    },
+    {
+      "code": 7073,
+      "name": "bestOfferTokenNotRequired"
+    },
+    {
+      "code": 7076,
+      "name": "fastFillAlreadyRedeemed"
+    },
+    {
+      "code": 7077,
+      "name": "fastFillNotRedeemed"
+    },
+    {
+      "code": 7080,
+      "name": "reservedSequenceMismatch"
+    },
+    {
+      "code": 7082,
+      "name": "auctionAlreadySettled"
+    },
+    {
+      "code": 7084,
+      "name": "invalidBaseFeeToken"
+    },
+    {
+      "code": 7086,
+      "name": "baseFeeTokenRequired"
+    },
+    {
+      "code": 7280,
+      "name": "cannotCloseAuctionYet"
+    },
+    {
+      "code": 7282,
+      "name": "auctionHistoryNotFull"
+    },
+    {
+      "code": 7284,
+      "name": "auctionHistoryFull"
+    },
+    {
+      "code": 7536,
+      "name": "invalidVerifyVaaShimProgram"
+    },
+    {
+      "code": 7792,
+      "name": "accountAlreadyInitialized"
+    },
+    {
+      "code": 7794,
+      "name": "accountNotWritable"
+    },
+    {
+      "code": 7796,
+      "name": "borshDeserializationError"
+    },
+    {
+      "code": 7798,
+      "name": "invalidPda"
+    },
+    {
+      "code": 7800,
+      "name": "accountDataTooSmall"
+    },
+    {
+      "code": 7802,
+      "name": "invalidProgram"
+    },
+    {
+      "code": 7804,
+      "name": "tokenTransferFailed"
+    },
+    {
+      "code": 7806,
+      "name": "invalidMint"
+    },
+    {
+      "code": 8048,
+      "name": "sameEndpoints",
+      "msg": "From and to router endpoints are the same"
+    },
+    {
+      "code": 8050,
+      "name": "invalidCctpMessage"
     }
   ],
   "types": [

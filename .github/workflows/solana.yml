@@ -127,6 +127,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
@@ -136,9 +138,9 @@ jobs:
           node-version: "20.11.0"
           solana-cli-version: "1.18.15"
           anchor-version: "0.30.1"
-      # - name: Set default Rust toolchain
-      #   run: rustup default stable
-      #   working-directory: ./solana
+      - name: Set default Rust toolchain
+        run: rustup default stable
+        working-directory: ./solana
       - name: make anchor-test-upgrade
         run: make anchor-test-upgrade
         working-directory: ./solana
