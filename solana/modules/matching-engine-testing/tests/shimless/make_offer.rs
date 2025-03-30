@@ -32,9 +32,9 @@ pub async fn place_initial_offer_shimless(
     fast_market_order: &TestVaa,
     offer_price: u64,
     payer_signer: &Rc<Keypair>,
-    program_id: Pubkey,
     expected_error: Option<&ExpectedError>,
 ) -> AuctionState {
+    let program_id = testing_context.get_matching_engine_program_id();
     let auction_address = Pubkey::find_program_address(
         &[Auction::SEED_PREFIX, &fast_market_order.vaa_data.digest()],
         &program_id,
@@ -173,19 +173,18 @@ pub async fn place_initial_offer_shimless(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub async fn improve_offer(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
-    program_id: Pubkey,
     solver: Solver,
-    auction_config: Pubkey,
     offer_price: u64,
     payer_signer: &Rc<Keypair>,
     initial_auction_state: &AuctionState,
     expected_error: Option<&ExpectedError>,
 ) -> Option<AuctionState> {
+    let program_id = testing_context.get_matching_engine_program_id();
     let active_auction_state = initial_auction_state.get_active_auction().unwrap();
+    let auction_config = active_auction_state.auction_config_address;
     let auction_address = active_auction_state.auction_address;
     let auction_custody_token_address = active_auction_state.auction_custody_token_address;
 

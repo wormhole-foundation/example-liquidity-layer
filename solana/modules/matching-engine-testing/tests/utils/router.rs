@@ -152,12 +152,12 @@ pub async fn add_cctp_router_endpoint_ix(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
     payer_signer: &Keypair,
-    admin_owner_or_assistant: Pubkey,
     admin_custodian: Pubkey,
     admin_keypair: &Keypair,
     remote_token_messenger: Pubkey,
     chain: Chain,
 ) -> TestRouterEndpoint {
+    let admin_owner_or_assistant = admin_keypair.pubkey();
     let usdc_mint_address = testing_context.get_usdc_mint_address();
     let program_id = testing_context.get_matching_engine_program_id();
     let admin = generate_admin(admin_owner_or_assistant, admin_custodian);
@@ -325,7 +325,6 @@ pub async fn create_cctp_router_endpoint(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
     payer_signer: &Keypair,
-    admin_owner_or_assistant: Pubkey,
     custodian_address: Pubkey,
     admin_keypair: Rc<Keypair>,
     chain: Chain,
@@ -343,7 +342,6 @@ pub async fn create_cctp_router_endpoint(
         testing_context,
         test_context,
         payer_signer,
-        admin_owner_or_assistant,
         custodian_address,
         admin_keypair.as_ref(),
         remote_token_messenger,
@@ -356,7 +354,6 @@ pub async fn create_all_router_endpoints_test(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
     payer_signer: &Keypair,
-    admin_owner_or_assistant: Pubkey,
     custodian_address: Pubkey,
     admin_keypair: Rc<Keypair>,
     chains: HashSet<Chain>,
@@ -369,7 +366,7 @@ pub async fn create_all_router_endpoints_test(
                     testing_context,
                     test_context,
                     payer_signer,
-                    admin_owner_or_assistant,
+                    admin_keypair.pubkey(),
                     custodian_address,
                     admin_keypair.as_ref(),
                 )
@@ -381,7 +378,6 @@ pub async fn create_all_router_endpoints_test(
                     testing_context,
                     test_context,
                     payer_signer,
-                    admin_owner_or_assistant,
                     custodian_address,
                     admin_keypair.clone(),
                     chain,

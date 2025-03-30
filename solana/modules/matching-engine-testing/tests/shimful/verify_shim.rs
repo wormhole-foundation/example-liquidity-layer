@@ -17,6 +17,12 @@ use std::str::FromStr;
 use wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH;
 use wormhole_svm_shim::verify_vaa;
 
+pub struct GuardianSignatureInfo {
+    pub guardian_set_pubkey: Pubkey,
+    pub guardian_signatures_pubkey: Pubkey,
+    pub guardian_set_bump: u8,
+}
+
 /// Create guardian signatures for a given vaa data
 ///
 /// This also creates the account holding the signatures and posts the signatures to the guardian signatures account
@@ -39,7 +45,7 @@ pub async fn create_guardian_signatures(
     vaa_data: &utils::vaa::PostedVaaData,
     wormhole_program_id: &Pubkey,
     guardian_signature_signer: Option<&Rc<Keypair>>,
-) -> AnyhowResult<(Pubkey, Pubkey, u8)> {
+) -> AnyhowResult<GuardianSignatureInfo> {
     let new_keypair = Rc::new(Keypair::new());
     let guardian_signature_signer = guardian_signature_signer.unwrap_or_else(|| &new_keypair);
     let (guardian_set_pubkey, guardian_set_bump) =
@@ -58,11 +64,11 @@ pub async fn create_guardian_signatures(
         0,
     )
     .await?;
-    Ok((
+    Ok(GuardianSignatureInfo {
         guardian_set_pubkey,
         guardian_signatures_pubkey,
         guardian_set_bump,
-    ))
+    })
 }
 
 /// Add a guardian signatures account

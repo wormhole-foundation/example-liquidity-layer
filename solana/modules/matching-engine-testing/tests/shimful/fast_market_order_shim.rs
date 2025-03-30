@@ -3,6 +3,7 @@ use crate::testing_engine::config::ExpectedError;
 use super::super::utils;
 use super::super::utils::constants::*;
 use super::super::utils::setup::TestingContext;
+use super::verify_shim::GuardianSignatureInfo;
 use common::messages::FastMarketOrder;
 use matching_engine::fallback::close_fast_market_order::{
     CloseFastMarketOrder as CloseFastMarketOrderFallback,
@@ -43,9 +44,7 @@ pub async fn initialise_fast_market_order_fallback(
     test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     fast_market_order: FastMarketOrderState,
-    guardian_set_pubkey: Pubkey,
-    guardian_signatures_pubkey: Pubkey,
-    guardian_set_bump: u8,
+    guardian_signature_info: &GuardianSignatureInfo,
     expected_error: Option<&ExpectedError>,
 ) {
     let program_id = &testing_context.get_matching_engine_program_id();
@@ -53,9 +52,7 @@ pub async fn initialise_fast_market_order_fallback(
         payer_signer,
         program_id,
         fast_market_order,
-        guardian_set_pubkey,
-        guardian_signatures_pubkey,
-        guardian_set_bump,
+        guardian_signature_info,
     );
     let recent_blockhash = testing_context
         .get_new_latest_blockhash(test_context)
@@ -93,9 +90,7 @@ fn initialise_fast_market_order_fallback_instruction(
     payer_signer: &Rc<Keypair>,
     program_id: &Pubkey,
     fast_market_order: FastMarketOrderState,
-    guardian_set_pubkey: Pubkey,
-    guardian_signatures_pubkey: Pubkey,
-    guardian_set_bump: u8,
+    guardian_signature_info: &GuardianSignatureInfo,
 ) -> solana_program::instruction::Instruction {
     let fast_market_order_account = Pubkey::find_program_address(
         &[
@@ -110,8 +105,8 @@ fn initialise_fast_market_order_fallback_instruction(
     let create_fast_market_order_accounts = InitialiseFastMarketOrderFallbackAccounts {
         signer: &payer_signer.pubkey(),
         fast_market_order_account: &fast_market_order_account,
-        guardian_set: &guardian_set_pubkey,
-        guardian_set_signatures: &guardian_signatures_pubkey,
+        guardian_set: &guardian_signature_info.guardian_set_pubkey,
+        guardian_set_signatures: &guardian_signature_info.guardian_signatures_pubkey,
         verify_vaa_shim_program: &WORMHOLE_VERIFY_VAA_SHIM_PID,
         system_program: &solana_program::system_program::ID,
     };
@@ -119,7 +114,10 @@ fn initialise_fast_market_order_fallback_instruction(
     InitialiseFastMarketOrderFallback {
         program_id,
         accounts: create_fast_market_order_accounts,
-        data: InitialiseFastMarketOrderFallbackData::new(fast_market_order, guardian_set_bump),
+        data: InitialiseFastMarketOrderFallbackData::new(
+            fast_market_order,
+            guardian_signature_info.guardian_set_bump,
+        ),
     }
     .instruction()
 }

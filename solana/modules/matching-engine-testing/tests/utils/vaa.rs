@@ -269,6 +269,26 @@ impl Default for CreateFastTransferParams {
     }
 }
 
+pub struct TestVaaArgs {
+    pub start_timestamp: Option<u32>,
+    pub sequence: u64,
+    pub cctp_nonce: u64,
+    pub vaa_nonce: u32,
+    pub is_posted: bool,
+}
+
+impl From<VaaArgs> for TestVaaArgs {
+    fn from(vaa_args: VaaArgs) -> Self {
+        Self {
+            start_timestamp: vaa_args.start_timestamp,
+            sequence: vaa_args.sequence.unwrap_or_default(),
+            cctp_nonce: vaa_args.cctp_nonce.unwrap_or_default(),
+            vaa_nonce: vaa_args.vaa_nonce.unwrap_or_default(),
+            is_posted: vaa_args.post_vaa,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct TestVaaPair {
     pub token_mint: Pubkey,
@@ -282,47 +302,47 @@ pub struct TestVaaPair {
 }
 
 impl TestVaaPair {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
-        start_timestamp: Option<u32>,
         token_mint: Pubkey,
         source_address: ChainAddress,
         refund_address: ChainAddress,
         destination_address: ChainAddress,
-        cctp_nonce: u64,
-        vaa_nonce: u32,
-        sequence: u64,
         cctp_mint_recipient: Pubkey,
         create_deposit_and_fast_transfer_params: &CreateDepositAndFastTransferParams,
-        is_posted: bool,
+        test_vaa_args: &TestVaaArgs,
     ) -> Self {
         create_deposit_and_fast_transfer_params.verify();
         let deposit_params = &create_deposit_and_fast_transfer_params.deposit_params;
         let create_fast_transfer_params =
             &create_deposit_and_fast_transfer_params.fast_transfer_params;
+        let start_timestamp = test_vaa_args.start_timestamp;
+        let sequence = test_vaa_args.sequence;
+        let cctp_nonce = test_vaa_args.cctp_nonce;
+        let vaa_nonce = test_vaa_args.vaa_nonce;
+        let is_posted = test_vaa_args.is_posted;
         let (deposit_vaa_pubkey, deposit_vaa_data, deposit) = create_deposit_message(
             token_mint,
             source_address.clone(),
             destination_address.clone(),
-            cctp_nonce,
-            sequence,
             cctp_mint_recipient,
             deposit_params.amount,
             deposit_params.base_fee,
-            vaa_nonce,
+            test_vaa_args,
         );
+        let test_vaa_args = TestVaaArgs {
+            start_timestamp,
+            sequence: sequence.saturating_add(1),
+            cctp_nonce,
+            vaa_nonce,
+            is_posted,
+        };
         let (fast_transfer_vaa_pubkey, fast_transfer_vaa_data, fast_market_order) =
             create_fast_transfer_message(
-                start_timestamp,
                 source_address.clone(),
                 refund_address.clone(),
                 destination_address.clone(),
-                vaa_nonce,
-                sequence.saturating_add(1),
-                create_fast_transfer_params.amount_in,
-                create_fast_transfer_params.min_amount_out,
-                create_fast_transfer_params.max_fee,
-                create_fast_transfer_params.init_auction_fee,
+                &test_vaa_args,
+                create_fast_transfer_params,
             );
         Self {
             token_mint,
@@ -392,19 +412,19 @@ impl TestVaaPair {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn create_deposit_message(
     token_mint: Pubkey,
     source_address: ChainAddress,
     _destination_address: ChainAddress,
-    cctp_nonce: u64,
-    sequence: u64,
     cctp_mint_recipient: Pubkey,
     amount: i32,
     base_fee: u64,
-    vaa_nonce: u32,
+    test_vaa_args: &TestVaaArgs,
 ) -> (Pubkey, PostedVaaData, Deposit) {
     let slow_order_response = SlowOrderResponse { base_fee };
+    let cctp_nonce = test_vaa_args.cctp_nonce;
+    let sequence = test_vaa_args.sequence;
+    let vaa_nonce = test_vaa_args.vaa_nonce;
     // Implements TypePrefixedPayload
     let deposit = Deposit {
         token_address: token_mint.to_bytes(),
@@ -434,19 +454,20 @@ pub fn create_deposit_message(
     (vaa_address, posted_vaa_data, deposit)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn create_fast_transfer_message(
-    start_timestamp: Option<u32>,
     source_address: ChainAddress,
     refund_address: ChainAddress,
     destination_address: ChainAddress,
-    vaa_nonce: u32,
-    sequence: u64,
-    amount_in: u64,
-    min_amount_out: u64,
-    max_fee: u64,
-    init_auction_fee: u64,
+    test_vaa_args: &TestVaaArgs,
+    create_fast_transfer_params: &CreateFastTransferParams,
 ) -> (Pubkey, PostedVaaData, FastMarketOrder) {
+    let amount_in = create_fast_transfer_params.amount_in;
+    let min_amount_out = create_fast_transfer_params.min_amount_out;
+    let max_fee = create_fast_transfer_params.max_fee;
+    let init_auction_fee = create_fast_transfer_params.init_auction_fee;
+    let start_timestamp = test_vaa_args.start_timestamp;
+    let sequence = test_vaa_args.sequence;
+    let vaa_nonce = test_vaa_args.vaa_nonce;
     // If start timestamp is not provided, set the deadline to 0
     let deadline = start_timestamp
         .map(|timestamp| timestamp.saturating_add(10))
@@ -523,18 +544,23 @@ impl TestVaaPairs {
         let is_posted = vaa_args.post_vaa;
         let create_deposit_and_fast_transfer_params =
             &vaa_args.create_deposit_and_fast_transfer_params;
+
+        let test_vaa_args = TestVaaArgs {
+            start_timestamp: vaa_args.start_timestamp,
+            sequence,
+            cctp_nonce,
+            vaa_nonce,
+            is_posted,
+        };
+
         let test_fast_transfer = TestVaaPair::new(
-            vaa_args.start_timestamp,
             token_mint,
             source_address,
             refund_address,
             destination_address,
-            cctp_nonce,
-            vaa_nonce,
-            sequence,
             cctp_mint_recipient,
             create_deposit_and_fast_transfer_params,
-            is_posted,
+            &test_vaa_args,
         );
         self.0.push(test_fast_transfer);
     }

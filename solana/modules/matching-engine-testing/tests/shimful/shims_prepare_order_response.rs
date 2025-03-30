@@ -3,6 +3,7 @@ use crate::testing_engine::state::TestingEngineState;
 use crate::utils::setup::{TestingContext, TransferDirection};
 
 use super::super::utils;
+use super::verify_shim::GuardianSignatureInfo;
 use anchor_lang::prelude::*;
 use anchor_spl::token::spl_token;
 use common::wormhole_cctp_solana::cctp::{
@@ -62,8 +63,7 @@ impl PrepareOrderResponseShimAccountsFixture {
         to_router_endpoint: &Pubkey,
         usdc_mint_address: &Pubkey,
         cctp_message_decoded: &CctpMessageDecoded,
-        guardian_set: &Pubkey,
-        guardian_set_signatures: &Pubkey,
+        guardian_signature_info: &GuardianSignatureInfo,
         transfer_direction: &TransferDirection,
     ) -> Self {
         let cctp_message_transmitter_event_authority =
@@ -117,8 +117,8 @@ impl PrepareOrderResponseShimAccountsFixture {
             cctp_token_messenger_minter_program: TOKEN_MESSENGER_MINTER_PROGRAM_ID,
             cctp_message_transmitter_program: MESSAGE_TRANSMITTER_PROGRAM_ID,
             cctp_token_messenger_minter_event_authority: token_messenger_minter_event_authority,
-            guardian_set: *guardian_set,
-            guardian_set_signatures: *guardian_set_signatures,
+            guardian_set: guardian_signature_info.guardian_set_pubkey,
+            guardian_set_signatures: guardian_signature_info.guardian_signatures_pubkey,
         }
     }
 }
@@ -293,17 +293,16 @@ pub async fn prepare_order_response_test(
         .clone()
         .expect("Fixture accounts not found");
 
-    let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) =
-        super::verify_shim::create_guardian_signatures(
-            testing_context,
-            test_context,
-            payer_signer,
-            deposit_vaa_data,
-            core_bridge_program_id,
-            None,
-        )
-        .await
-        .unwrap();
+    let guardian_signature_info = super::verify_shim::create_guardian_signatures(
+        testing_context,
+        test_context,
+        payer_signer,
+        deposit_vaa_data,
+        core_bridge_program_id,
+        None,
+    )
+    .await
+    .unwrap();
 
     let source_remote_token_messenger = match testing_context.testing_state.transfer_direction {
         TransferDirection::FromEthereumToArbitrum => {
@@ -350,7 +349,7 @@ pub async fn prepare_order_response_test(
         deposit,
         deposit_base_fee,
         &fast_market_order_state,
-        guardian_set_bump,
+        guardian_signature_info.guardian_set_bump,
     );
     let fast_market_order_address = testing_engine_state
         .fast_market_order()
@@ -366,8 +365,7 @@ pub async fn prepare_order_response_test(
         to_endpoint_address,
         usdc_mint_address,
         &cctp_message_decoded,
-        &guardian_set_pubkey,
-        &guardian_signatures_pubkey,
+        &guardian_signature_info,
         &testing_context.testing_state.transfer_direction,
     );
     super::shims_prepare_order_response::prepare_order_response_cctp_shim(

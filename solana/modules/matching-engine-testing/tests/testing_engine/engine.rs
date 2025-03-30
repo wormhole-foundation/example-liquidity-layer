@@ -19,7 +19,6 @@ use crate::utils::{
     setup::TestingContext,
 };
 use anchor_lang::prelude::*;
-use solana_sdk::signature::Signer;
 
 #[allow(dead_code)]
 pub enum InstructionTrigger {
@@ -243,7 +242,6 @@ impl TestingEngine {
             &self.testing_context,
             test_context,
             &payer_signer,
-            admin_owner_or_assistant.pubkey(),
             custodian_address,
             admin_owner_or_assistant,
             config.chains.clone(),
@@ -274,17 +272,16 @@ impl TestingEngine {
             .payer_signer
             .clone()
             .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
-        let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) =
-            create_guardian_signatures(
-                &self.testing_context,
-                test_context,
-                &payer_signer,
-                &fast_transfer_vaa.vaa_data,
-                &self.testing_context.get_wormhole_program_id(),
-                None,
-            )
-            .await
-            .expect("Failed to create guardian signatures");
+        let guardian_signature_info = create_guardian_signatures(
+            &self.testing_context,
+            test_context,
+            &payer_signer,
+            &fast_transfer_vaa.vaa_data,
+            &self.testing_context.get_wormhole_program_id(),
+            None,
+        )
+        .await
+        .expect("Failed to create guardian signatures");
 
         let (fast_market_order_account, fast_market_order_bump) = Pubkey::find_program_address(
             &[
@@ -300,9 +297,7 @@ impl TestingEngine {
             test_context,
             &payer_signer,
             fast_market_order,
-            guardian_set_pubkey,
-            guardian_signatures_pubkey,
-            guardian_set_bump,
+            &guardian_signature_info,
             config.expected_error.as_ref(),
         )
         .await;
@@ -318,8 +313,8 @@ impl TestingEngine {
                     fast_market_order,
                 },
                 guardian_set_state: GuardianSetState {
-                    guardian_set_address: guardian_set_pubkey,
-                    guardian_signatures_address: guardian_signatures_pubkey,
+                    guardian_set_address: guardian_signature_info.guardian_set_pubkey,
+                    guardian_signatures_address: guardian_signature_info.guardian_signatures_pubkey,
                 },
             }
         } else {
@@ -419,7 +414,6 @@ impl TestingEngine {
             fast_vaa,
             config.offer_price,
             &payer_signer,
-            self.testing_context.get_matching_engine_program_id(),
             expected_error,
         )
         .await;
@@ -456,9 +450,6 @@ impl TestingEngine {
             .get(config.solver_index)
             .expect("Solver not found at index");
         let offer_price = config.offer_price;
-        let auction_config_address = current_state
-            .auction_config_address()
-            .expect("Auction config address not found");
         let payer_signer = config
             .payer_signer
             .clone()
@@ -466,9 +457,7 @@ impl TestingEngine {
         let new_auction_state = shimless::make_offer::improve_offer(
             &self.testing_context,
             test_context,
-            self.testing_context.get_matching_engine_program_id(),
             solver.clone(),
-            auction_config_address,
             offer_price,
             &payer_signer,
             current_state.auction_state(),
@@ -811,7 +800,6 @@ impl TestingEngine {
             current_state.auction_state(),
             &prepared_order_response,
             &prepared_custody_token,
-            &self.testing_context.get_matching_engine_program_id(),
             config.expected_error.as_ref(),
         )
         .await;

@@ -21,9 +21,9 @@ pub async fn settle_auction_complete(
     auction_state: &AuctionState,
     prepare_order_response_address: &Pubkey,
     prepared_custody_token: &Pubkey,
-    matching_engine_program_id: &Pubkey,
     expected_error: Option<&ExpectedError>,
 ) -> AuctionState {
+    let matching_engine_program_id = testing_context.get_matching_engine_program_id();
     let usdc_mint_address = &testing_context.get_usdc_mint_address();
     let active_auction = auction_state
         .get_active_auction()
@@ -31,7 +31,7 @@ pub async fn settle_auction_complete(
     let base_fee_token = *usdc_mint_address;
     let event_seeds = EVENT_AUTHORITY_SEED;
     let event_authority =
-        Pubkey::find_program_address(&[event_seeds], matching_engine_program_id).0;
+        Pubkey::find_program_address(&[event_seeds], &matching_engine_program_id).0;
     let settle_auction_accounts = SettleAuctionCompleteCpiAccounts {
         beneficiary: payer_signer.pubkey(),
         base_fee_token,
@@ -41,13 +41,13 @@ pub async fn settle_auction_complete(
         best_offer_token: active_auction.best_offer.offer_token,
         token_program: spl_token::ID,
         event_authority,
-        program: *matching_engine_program_id,
+        program: matching_engine_program_id,
     };
 
     let settle_auction_complete_cpi = SettleAuctionComplete {};
 
     let settle_auction_complete_ix = Instruction {
-        program_id: *matching_engine_program_id,
+        program_id: matching_engine_program_id,
         accounts: settle_auction_accounts.to_account_metas(Some(false)),
         data: settle_auction_complete_cpi.data(),
     };
