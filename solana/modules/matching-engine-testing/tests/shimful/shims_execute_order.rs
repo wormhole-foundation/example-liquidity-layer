@@ -8,6 +8,7 @@ use common::wormhole_cctp_solana::cctp::{
     MESSAGE_TRANSMITTER_PROGRAM_ID, TOKEN_MESSENGER_MINTER_PROGRAM_ID,
 };
 use matching_engine::fallback::execute_order::{ExecuteOrderCctpShim, ExecuteOrderShimAccounts};
+use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     pubkey::Pubkey, signature::Keypair, signer::Signer, sysvar::SysvarId, transaction::Transaction,
 };
@@ -91,6 +92,7 @@ pub struct ExecuteOrderFallbackFixtureAccounts {
 
 pub async fn execute_order_fallback(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     program_id: &Pubkey,
     solver: Solver,
@@ -98,7 +100,6 @@ pub async fn execute_order_fallback(
     expected_error: Option<&ExpectedError>,
 ) -> Option<ExecuteOrderFallbackFixture> {
     // Get target chain and use as remote address
-    let test_ctx = &testing_context.test_context;
     let cctp_message = Pubkey::find_program_address(
         &[
             common::CCTP_MESSAGE_SEED_PREFIX,
@@ -181,8 +182,11 @@ pub async fn execute_order_fallback(
     .instruction();
 
     // Considering fast forwarding blocks here for deadline to be reached
-    let recent_blockhash = test_ctx.borrow().last_blockhash;
-    utils::setup::fast_forward_slots(testing_context, 3).await;
+    let recent_blockhash = testing_context
+        .get_new_latest_blockhash(test_context)
+        .await
+        .unwrap();
+    utils::setup::fast_forward_slots(test_context, 3).await;
     let transaction = Transaction::new_signed_with_payer(
         &[execute_order_ix],
         Some(&payer_signer.pubkey()),
@@ -190,7 +194,7 @@ pub async fn execute_order_fallback(
         recent_blockhash,
     );
     testing_context
-        .execute_and_verify_transaction(transaction, expected_error)
+        .execute_and_verify_transaction(test_context, transaction, expected_error)
         .await;
     if expected_error.is_none() {
         Some(ExecuteOrderFallbackFixture {
@@ -212,6 +216,7 @@ pub async fn execute_order_fallback(
 
 pub async fn execute_order_fallback_test(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     auction_accounts: &utils::auction::AuctionAccounts,
     fast_market_order_address: &Pubkey,
     active_auction_state: &ActiveAuctionState,
@@ -231,6 +236,7 @@ pub async fn execute_order_fallback_test(
     );
     execute_order_fallback(
         testing_context,
+        test_context,
         &testing_context.testing_actors.owner.keypair(),
         &testing_context.get_matching_engine_program_id(),
         solver,

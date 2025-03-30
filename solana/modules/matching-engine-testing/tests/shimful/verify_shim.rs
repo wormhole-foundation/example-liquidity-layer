@@ -3,6 +3,7 @@ use crate::utils::{self, setup::TestingContext};
 use anchor_lang::prelude::*;
 use anyhow::Result as AnyhowResult;
 
+use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
     hash::Hash,
@@ -33,6 +34,7 @@ use wormhole_svm_shim::verify_vaa;
 /// * `(guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump)` - The guardian set pubkey, the guardian signatures pubkey and the guardian set bump
 pub async fn create_guardian_signatures(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     vaa_data: &utils::vaa::PostedVaaData,
     wormhole_program_id: &Pubkey,
@@ -49,6 +51,7 @@ pub async fn create_guardian_signatures(
     let guardian_set_signatures = vaa_data.sign_with_guardian_key(&guardian_secret_key, 0);
     let guardian_signatures_pubkey = add_guardian_signatures_account(
         testing_context,
+        test_context,
         payer_signer,
         guardian_signature_signer,
         vec![guardian_set_signatures],
@@ -79,12 +82,15 @@ pub async fn create_guardian_signatures(
 /// * `guardian_signatures_pubkey` - The guardian signatures pubkey
 async fn add_guardian_signatures_account(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     signatures_signer: &Rc<Keypair>,
     guardian_signatures: Vec<[u8; GUARDIAN_SIGNATURE_LENGTH]>,
     guardian_set_index: u32,
 ) -> AnyhowResult<Pubkey> {
-    let new_blockhash = testing_context.get_new_latest_blockhash().await?;
+    let new_blockhash = testing_context
+        .get_new_latest_blockhash(test_context)
+        .await?;
     let transaction = post_signatures_transaction(
         payer_signer,
         signatures_signer,
@@ -93,7 +99,9 @@ async fn add_guardian_signatures_account(
         &guardian_signatures,
         new_blockhash,
     );
-    testing_context.process_transaction(transaction).await?;
+    testing_context
+        .process_transaction(test_context, transaction)
+        .await?;
 
     Ok(signatures_signer.pubkey())
 }

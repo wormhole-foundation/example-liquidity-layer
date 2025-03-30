@@ -1,5 +1,6 @@
 use crate::utils::{constants::*, setup::TestingContext};
 
+use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction,
     hash::Hash,
@@ -51,11 +52,12 @@ impl BumpCosts {
 /// * `emitter_signer` - The emitter signer keypair
 pub async fn set_up_post_message_transaction_test(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     emitter_signer: &Rc<Keypair>,
 ) {
     let recent_blockhash = testing_context
-        .get_new_latest_blockhash()
+        .get_new_latest_blockhash(test_context)
         .await
         .expect("Could not get last blockhash");
     let (transaction, _bump_costs) = set_up_post_message_transaction(
@@ -65,14 +67,11 @@ pub async fn set_up_post_message_transaction_test(
         recent_blockhash,
     );
     let details = {
-        let test_ctx = &testing_context.test_context;
-        let mut ctx = test_ctx.borrow_mut();
-        let out = ctx
+        let out = test_context
             .banks_client
             .simulate_transaction(transaction)
             .await
             .unwrap();
-        drop(ctx);
         assert!(out.result.clone().unwrap().is_ok(), "{:?}", out.result);
         out.simulation_details.unwrap()
     };

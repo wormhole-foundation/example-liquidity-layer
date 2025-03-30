@@ -1,4 +1,5 @@
 use matching_engine::state::FastMarketOrder;
+use solana_program_test::ProgramTestContext;
 
 use super::{config::*, state::*};
 use crate::shimful;
@@ -81,59 +82,74 @@ impl TestingEngine {
         Self { testing_context }
     }
 
-    pub async fn execute(&self, instruction_chain: Vec<InstructionTrigger>) {
+    pub async fn execute(
+        &self,
+        test_context: &mut ProgramTestContext,
+        instruction_chain: Vec<InstructionTrigger>,
+    ) {
         let mut current_state = self.create_initial_state();
 
         for trigger in instruction_chain {
-            current_state = self.execute_trigger(&current_state, &trigger).await;
+            current_state = self
+                .execute_trigger(test_context, &current_state, &trigger)
+                .await;
         }
     }
 
     async fn execute_trigger(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         trigger: &InstructionTrigger,
     ) -> TestingEngineState {
         match trigger {
             InstructionTrigger::InitializeProgram(config) => {
-                self.initialize_program(current_state, config).await
+                self.initialize_program(test_context, current_state, config)
+                    .await
             }
             InstructionTrigger::CreateCctpRouterEndpoints(config) => {
-                self.create_cctp_router_endpoints(current_state, config)
+                self.create_cctp_router_endpoints(test_context, current_state, config)
                     .await
             }
             InstructionTrigger::InitializeFastMarketOrderShim(config) => {
-                self.create_fast_market_order_account(current_state, config)
+                self.create_fast_market_order_account(test_context, current_state, config)
                     .await
             }
             InstructionTrigger::CloseFastMarketOrderShim(config) => {
-                self.close_fast_market_order_account(current_state, config)
+                self.close_fast_market_order_account(test_context, current_state, config)
                     .await
             }
             InstructionTrigger::PlaceInitialOfferShimless(config) => {
-                self.place_initial_offer_shimless(current_state, config)
+                self.place_initial_offer_shimless(test_context, current_state, config)
                     .await
             }
             InstructionTrigger::PlaceInitialOfferShim(config) => {
-                self.place_initial_offer_shim(current_state, config).await
+                self.place_initial_offer_shim(test_context, current_state, config)
+                    .await
             }
             InstructionTrigger::ImproveOfferShimless(config) => {
-                self.improve_offer_shimless(current_state, config).await
+                self.improve_offer_shimless(test_context, current_state, config)
+                    .await
             }
             InstructionTrigger::ExecuteOrderShim(config) => {
-                self.execute_order_shim(current_state, config).await
+                self.execute_order_shim(test_context, current_state, config)
+                    .await
             }
             InstructionTrigger::ExecuteOrderShimless(config) => {
-                self.execute_order_shimless(current_state, config).await
+                self.execute_order_shimless(test_context, current_state, config)
+                    .await
             }
             InstructionTrigger::PrepareOrderShim(config) => {
-                self.prepare_order_shim(current_state, config).await
+                self.prepare_order_shim(test_context, current_state, config)
+                    .await
             }
             InstructionTrigger::PrepareOrderShimless(config) => {
-                self.prepare_order_shimless(current_state, config).await
+                self.prepare_order_shimless(test_context, current_state, config)
+                    .await
             }
             InstructionTrigger::SettleAuction(config) => {
-                self.settle_auction(current_state, config).await
+                self.settle_auction(test_context, current_state, config)
+                    .await
             }
         }
     }
@@ -155,6 +171,7 @@ impl TestingEngine {
 
     async fn initialize_program(
         &self,
+        test_context: &mut ProgramTestContext,
         initial_state: &TestingEngineState,
         config: &InitializeInstructionConfig,
     ) -> TestingEngineState {
@@ -164,6 +181,7 @@ impl TestingEngine {
         let (result, owner_pubkey, owner_assistant_pubkey, fee_recipient_token_account) = {
             let result = shimless::initialize::initialize_program(
                 &self.testing_context,
+                test_context,
                 auction_parameters_config,
                 expected_error,
             )
@@ -203,6 +221,7 @@ impl TestingEngine {
 
     async fn create_cctp_router_endpoints(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &CreateCctpRouterEndpointsInstructionConfig,
     ) -> TestingEngineState {
@@ -212,12 +231,18 @@ impl TestingEngine {
             .expect("Testing state is not initialized");
         let custodian_address = initialized_state.custodian_address;
         let testing_actors = &self.testing_context.testing_actors;
+        let payer_signer = config
+            .payer_signer
+            .clone()
+            .unwrap_or_else(|| testing_actors.owner.keypair());
         let admin_owner_or_assistant = config
             .admin_owner_or_assistant
             .clone()
             .unwrap_or_else(|| testing_actors.owner.keypair());
         let result = create_all_router_endpoints_test(
             &self.testing_context,
+            test_context,
+            &payer_signer,
             admin_owner_or_assistant.pubkey(),
             custodian_address,
             admin_owner_or_assistant,
@@ -233,6 +258,7 @@ impl TestingEngine {
 
     async fn create_fast_market_order_account(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &InitializeFastMarketOrderShimInstructionConfig,
     ) -> TestingEngineState {
@@ -251,6 +277,7 @@ impl TestingEngine {
         let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) =
             create_guardian_signatures(
                 &self.testing_context,
+                test_context,
                 &payer_signer,
                 &fast_transfer_vaa.vaa_data,
                 &self.testing_context.get_wormhole_program_id(),
@@ -270,6 +297,7 @@ impl TestingEngine {
 
         initialise_fast_market_order_fallback(
             &self.testing_context,
+            test_context,
             &payer_signer,
             fast_market_order,
             guardian_set_pubkey,
@@ -301,6 +329,7 @@ impl TestingEngine {
 
     async fn close_fast_market_order_account(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &CloseFastMarketOrderShimInstructionConfig,
     ) -> TestingEngineState {
@@ -318,6 +347,7 @@ impl TestingEngine {
 
         shimful::fast_market_order_shim::close_fast_market_order_fallback(
             &self.testing_context,
+            test_context,
             &close_account_refund_recipient,
             &fast_market_order_account,
             config.expected_error.as_ref(),
@@ -336,6 +366,7 @@ impl TestingEngine {
     }
     async fn place_initial_offer_shimless(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &PlaceInitialOfferInstructionConfig,
     ) -> TestingEngineState {
@@ -383,6 +414,7 @@ impl TestingEngine {
         );
         let auction_state = shimless::make_offer::place_initial_offer_shimless(
             &self.testing_context,
+            test_context,
             &auction_accounts,
             fast_vaa,
             config.offer_price,
@@ -395,7 +427,7 @@ impl TestingEngine {
             auction_state
                 .get_active_auction()
                 .unwrap()
-                .verify_auction(&self.testing_context)
+                .verify_auction(&self.testing_context, test_context)
                 .await
                 .expect("Could not verify auction state");
             return TestingEngineState::InitialOfferPlaced {
@@ -412,6 +444,7 @@ impl TestingEngine {
 
     async fn improve_offer_shimless(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &ImproveOfferInstructionConfig,
     ) -> TestingEngineState {
@@ -432,6 +465,7 @@ impl TestingEngine {
             .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
         let new_auction_state = shimless::make_offer::improve_offer(
             &self.testing_context,
+            test_context,
             self.testing_context.get_matching_engine_program_id(),
             solver.clone(),
             auction_config_address,
@@ -457,6 +491,7 @@ impl TestingEngine {
 
     async fn place_initial_offer_shim(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &PlaceInitialOfferInstructionConfig,
     ) -> TestingEngineState {
@@ -496,6 +531,7 @@ impl TestingEngine {
         let place_initial_offer_shim_fixture =
             shimful::shims_make_offer::place_initial_offer_fallback(
                 &self.testing_context,
+                test_context,
                 &payer_signer,
                 fast_vaa_data,
                 solver,
@@ -512,7 +548,7 @@ impl TestingEngine {
                 .get_active_auction()
                 .unwrap();
             active_auction_state
-                .verify_auction(&self.testing_context)
+                .verify_auction(&self.testing_context, test_context)
                 .await
                 .expect("Could not verify auction");
             return TestingEngineState::InitialOfferPlaced {
@@ -529,6 +565,7 @@ impl TestingEngine {
 
     async fn execute_order_shim(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &ExecuteOrderInstructionConfig,
     ) -> TestingEngineState {
@@ -550,6 +587,7 @@ impl TestingEngine {
             .expect("Active auction not found");
         let result = shimful::shims_execute_order::execute_order_fallback_test(
             &self.testing_context,
+            test_context,
             auction_accounts,
             &fast_market_order_address,
             active_auction_state,
@@ -580,6 +618,7 @@ impl TestingEngine {
 
     async fn execute_order_shimless(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &ExecuteOrderInstructionConfig,
     ) -> TestingEngineState {
@@ -613,6 +652,7 @@ impl TestingEngine {
         );
         let result = shimless::execute_order::execute_order_shimless_test(
             &self.testing_context,
+            test_context,
             &auction_accounts,
             current_state.auction_state(),
             &payer_signer,
@@ -642,6 +682,7 @@ impl TestingEngine {
 
     async fn prepare_order_shim(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &PrepareOrderInstructionConfig,
     ) -> TestingEngineState {
@@ -665,6 +706,7 @@ impl TestingEngine {
 
         let result = shimful::shims_prepare_order_response::prepare_order_response_test(
             &self.testing_context,
+            test_context,
             &payer_signer,
             deposit_vaa_data,
             current_state,
@@ -696,6 +738,7 @@ impl TestingEngine {
 
     async fn prepare_order_shimless(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &PrepareOrderInstructionConfig,
     ) -> TestingEngineState {
@@ -716,6 +759,7 @@ impl TestingEngine {
             .expect("Token account does not exist for solver at index");
         let result = shimless::prepare_order_response::prepare_order_response(
             &self.testing_context,
+            test_context,
             &payer_signer,
             current_state,
             &auction_accounts.to_router_endpoint,
@@ -747,6 +791,7 @@ impl TestingEngine {
 
     async fn settle_auction(
         &self,
+        test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &SettleAuctionInstructionConfig,
     ) -> TestingEngineState {
@@ -761,6 +806,7 @@ impl TestingEngine {
         let prepared_order_response = order_prepared_state.prepared_order_address;
         let auction_state = shimless::settle_auction::settle_auction_complete(
             &self.testing_context,
+            test_context,
             &payer_signer,
             current_state.auction_state(),
             &prepared_order_response,

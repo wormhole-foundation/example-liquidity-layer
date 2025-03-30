@@ -10,6 +10,7 @@ use matching_engine::fallback::place_initial_offer::{
     PlaceInitialOfferCctpShimData as PlaceInitialOfferCctpShimFallbackData,
 };
 use matching_engine::state::Auction;
+use solana_program_test::ProgramTestContext;
 
 use super::fast_market_order_shim::create_fast_market_order_state_from_vaa_data;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer, transaction::Transaction};
@@ -39,6 +40,7 @@ use std::rc::Rc;
 #[allow(clippy::too_many_arguments)]
 pub async fn place_initial_offer_fallback(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     vaa_data: &utils::vaa::PostedVaaData,
     solver: Solver,
@@ -48,7 +50,6 @@ pub async fn place_initial_offer_fallback(
     expected_error: Option<&ExpectedError>,
 ) -> Option<InitialOfferPlacedState> {
     let program_id = testing_context.get_matching_engine_program_id();
-    let test_ctx = &testing_context.test_context;
     let fast_market_order = create_fast_market_order_state_from_vaa_data(vaa_data, solver.pubkey());
 
     let auction_address = Pubkey::find_program_address(
@@ -77,10 +78,10 @@ pub async fn place_initial_offer_fallback(
     .0;
 
     solver
-        .approve_usdc(test_ctx, &transfer_authority, 420_000__000_000)
+        .approve_usdc(test_context, &transfer_authority, 420_000__000_000)
         .await;
 
-    let solver_usdc_balance_before = solver.get_balance(test_ctx).await;
+    let solver_usdc_balance_before = solver.get_balance(test_context).await;
 
     let place_initial_offer_ix_data = PlaceInitialOfferCctpShimFallbackData::new(offer_price);
 
@@ -106,7 +107,10 @@ pub async fn place_initial_offer_fallback(
     }
     .instruction();
 
-    let recent_blockhash = test_ctx.borrow().last_blockhash;
+    let recent_blockhash = testing_context
+        .get_new_latest_blockhash(test_context)
+        .await
+        .unwrap();
 
     let transaction = Transaction::new_signed_with_payer(
         &[place_initial_offer_ix],
@@ -116,10 +120,10 @@ pub async fn place_initial_offer_fallback(
     );
 
     testing_context
-        .execute_and_verify_transaction(transaction, expected_error)
+        .execute_and_verify_transaction(test_context, transaction, expected_error)
         .await;
     if expected_error.is_none() {
-        let solver_usdc_balance_after = solver.get_balance(test_ctx).await;
+        let solver_usdc_balance_after = solver.get_balance(test_context).await;
         assert!(
             solver_usdc_balance_after < solver_usdc_balance_before,
             "Solver USDC balance should have decreased"

@@ -31,7 +31,6 @@ use solana_sdk::{
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
-use std::cell::RefCell;
 use std::rc::Rc;
 
 // Configures the program ID and CCTP mint recipient based on the environment
@@ -123,9 +122,8 @@ impl PreTestingContext {
 }
 
 pub struct TestingContext {
-    pub program_data_account: Pubkey, // TODO: Move this into something smarter
+    pub program_data_account: Pubkey,
     pub testing_actors: TestingActors,
-    pub test_context: Rc<RefCell<ProgramTestContext>>,
     pub fixture_accounts: Option<FixtureAccounts>,
     pub testing_state: TestingState,
 }
@@ -135,24 +133,22 @@ impl TestingContext {
         mut pre_testing_context: PreTestingContext,
         transfer_direction: TransferDirection,
         vaas_test: Option<TestVaaPairs>,
-    ) -> Self {
-        let test_context = Rc::new(RefCell::new(
-            pre_testing_context.program_test.start_with_context().await,
-        ));
+    ) -> (Self, ProgramTestContext) {
+        let mut test_context = pre_testing_context.program_test.start_with_context().await;
 
         // Airdrop to all actors
         pre_testing_context
             .testing_actors
-            .airdrop_all(&test_context)
+            .airdrop_all(&mut test_context)
             .await;
 
         // Create USDC mint
-        let _mint_fixture = MintFixture::new_from_file(&test_context, USDC_MINT_FIXTURE_PATH);
+        let _mint_fixture = MintFixture::new_from_file(&mut test_context, USDC_MINT_FIXTURE_PATH);
 
         // Create USDC ATAs for all actors that need them
         pre_testing_context
             .testing_actors
-            .create_atas(&test_context, USDC_MINT_ADDRESS)
+            .create_atas(&mut test_context, USDC_MINT_ADDRESS)
             .await;
         let testing_state = match vaas_test {
             Some(vaas_test) => TestingState {
@@ -165,17 +161,22 @@ impl TestingContext {
                 ..TestingState::default()
             },
         };
-        TestingContext {
-            program_data_account: pre_testing_context.program_data_pubkey,
-            testing_actors: pre_testing_context.testing_actors,
+        (
+            TestingContext {
+                program_data_account: pre_testing_context.program_data_pubkey,
+                testing_actors: pre_testing_context.testing_actors,
+                fixture_accounts: Some(pre_testing_context.account_fixtures),
+                testing_state,
+            },
             test_context,
-            fixture_accounts: Some(pre_testing_context.account_fixtures),
-            testing_state,
-        }
+        )
     }
 
-    pub async fn verify_vaas(&self) {
-        self.testing_state.vaas.verify_posted_vaas(self).await;
+    pub async fn verify_vaas(&self, test_context: &mut ProgramTestContext) {
+        self.testing_state
+            .vaas
+            .verify_posted_vaas(test_context)
+            .await;
     }
 
     pub fn get_vaa_pair(&self, index: usize) -> Option<TestVaaPair> {
@@ -206,30 +207,22 @@ impl TestingContext {
         wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID
     }
 
-    pub async fn get_new_latest_blockhash(&self) -> AnyhowResult<solana_program::hash::Hash> {
-        let mut ctx = self.test_context.borrow_mut();
-        let handle = ctx.get_new_latest_blockhash();
+    pub async fn get_new_latest_blockhash(
+        &self,
+        test_context: &mut ProgramTestContext,
+    ) -> AnyhowResult<solana_program::hash::Hash> {
+        let handle = test_context.get_new_latest_blockhash();
         let hash = handle.await?;
         Ok(hash)
     }
 
     pub async fn process_transaction(
         &self,
+        test_context: &mut ProgramTestContext,
         transaction: impl Into<VersionedTransaction>,
     ) -> Result<(), BanksClientError> {
-        let mut ctx = self.test_context.borrow_mut();
-        let handle = ctx.banks_client.process_transaction(transaction);
+        let handle = test_context.banks_client.process_transaction(transaction);
         handle.await
-    }
-
-    pub async fn get_account(
-        &self,
-        address: Pubkey,
-    ) -> Result<Option<solana_sdk::account::Account>, BanksClientError> {
-        let mut ctx = self.test_context.borrow_mut();
-        let account = ctx.banks_client.get_account(address).await?;
-        drop(ctx);
-        Ok(account)
     }
 
     /// Simulates a transaction and verifies that the logs contain the expected lines
@@ -245,12 +238,14 @@ impl TestingContext {
     #[allow(dead_code)]
     pub async fn simulate_and_verify_logs(
         &self,
+        test_context: &mut ProgramTestContext,
         transaction: impl Into<VersionedTransaction>,
         expected_logs: &Vec<ExpectedLog>,
     ) -> AnyhowResult<()> {
-        let mut ctx = self.test_context.borrow_mut();
-        let simulation_result = ctx.banks_client.simulate_transaction(transaction).await?;
-        drop(ctx);
+        let simulation_result = test_context
+            .banks_client
+            .simulate_transaction(transaction)
+            .await?;
 
         // Verify the transaction succeeded
         assert!(
@@ -284,10 +279,11 @@ impl TestingContext {
     // TODO: Edit to handle multiple instructions in a single transaction
     pub async fn execute_and_verify_transaction(
         &self,
+        test_context: &mut ProgramTestContext,
         transaction: impl Into<VersionedTransaction>,
         expected_error: Option<&ExpectedError>,
     ) {
-        let tx_result = self.process_transaction(transaction).await;
+        let tx_result = self.process_transaction(test_context, transaction).await;
         if let Some(expected_error) = expected_error {
             let tx_error = tx_result.expect_err(&format!(
                 "Expected error {:?}, but transaction succeeded",
@@ -353,17 +349,15 @@ impl Solver {
 
     pub async fn approve_usdc(
         &self,
-        test_context: &Rc<RefCell<ProgramTestContext>>,
+        test_context: &mut ProgramTestContext,
         delegate: &Pubkey,
         amount: u64,
     ) {
         // If signer pubkeys are empty, it means that the owner is the signer
-        let mut ctx = test_context.borrow_mut();
-        let last_blockhash = ctx
+        let last_blockhash = test_context
             .get_new_latest_blockhash()
             .await
             .expect("Failed to get new blockhash");
-        drop(ctx);
         let approve_ix = approve(
             &spl_token::ID,
             &self.token_account_address().unwrap(),
@@ -379,15 +373,14 @@ impl Solver {
             &[&self.actor.keypair()],
             last_blockhash,
         );
-        let mut ctx = test_context.borrow_mut();
-        ctx.banks_client
+        test_context
+            .banks_client
             .process_transaction(transaction)
             .await
             .expect("Failed to approve USDC");
-        drop(ctx);
     }
 
-    pub async fn get_balance(&self, test_context: &Rc<RefCell<ProgramTestContext>>) -> u64 {
+    pub async fn get_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
         self.actor.get_balance(test_context).await
     }
 }
@@ -427,10 +420,9 @@ impl TestingActor {
         self.token_account.as_ref().map(|t| t.address)
     }
 
-    pub async fn get_balance(&self, test_context: &Rc<RefCell<ProgramTestContext>>) -> u64 {
+    pub async fn get_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
         if let Some(token_account) = self.token_account_address() {
             let account = test_context
-                .borrow_mut()
                 .banks_client
                 .get_account(token_account)
                 .await
@@ -490,7 +482,7 @@ impl TestingActors {
     }
 
     /// Transfer Lamports to Executors
-    async fn airdrop_all(&self, test_context: &Rc<RefCell<ProgramTestContext>>) {
+    async fn airdrop_all(&self, test_context: &mut ProgramTestContext) {
         airdrop(test_context, &self.owner.pubkey(), 10000000000).await;
         airdrop(test_context, &self.owner_assistant.pubkey(), 10000000000).await;
         airdrop(test_context, &self.fee_recipient.pubkey(), 10000000000).await;
@@ -504,13 +496,12 @@ impl TestingActors {
     /// Set up ATAs for Various Owners
     async fn create_atas(
         &mut self,
-        test_context: &Rc<RefCell<ProgramTestContext>>,
+        test_context: &mut ProgramTestContext,
         usdc_mint_address: Pubkey,
     ) {
         for actor in self.token_account_actors() {
             let usdc_ata =
-                create_token_account(test_context.clone(), &actor.keypair(), &usdc_mint_address)
-                    .await;
+                create_token_account(test_context, &actor.keypair(), &usdc_mint_address).await;
             airdrop_usdc(test_context, &usdc_ata.address, 420_000__000_000).await;
             actor.token_account = Some(usdc_ata);
         }
@@ -520,14 +511,13 @@ impl TestingActors {
     #[allow(dead_code)]
     async fn add_solvers(
         &mut self,
-        test_context: &Rc<RefCell<ProgramTestContext>>,
+        test_context: &mut ProgramTestContext,
         num_solvers: usize,
         usdc_mint_address: Pubkey,
     ) {
         for _ in 0..num_solvers {
             let keypair = Rc::new(Keypair::new());
-            let usdc_ata =
-                create_token_account(test_context.clone(), &keypair, &usdc_mint_address).await;
+            let usdc_ata = create_token_account(test_context, &keypair, &usdc_mint_address).await;
             airdrop(test_context, &keypair.pubkey(), 10000000000).await;
             self.solvers
                 .push(Solver::new(keypair.clone(), Some(usdc_ata)));
@@ -535,40 +525,30 @@ impl TestingActors {
     }
 }
 
-pub async fn fast_forward_slots(testing_context: &TestingContext, num_slots: u64) {
+pub async fn fast_forward_slots(test_context: &mut ProgramTestContext, num_slots: u64) {
     // Get the current slot
-    let mut current_slot = testing_context
-        .test_context
-        .borrow_mut()
-        .banks_client
-        .get_root_slot()
-        .await
-        .unwrap();
-
-    let test_context = &testing_context.test_context;
+    let mut current_slot = test_context.banks_client.get_root_slot().await.unwrap();
 
     let target_slot = current_slot.saturating_add(num_slots);
     while current_slot < target_slot {
         // Warp to the next slot - note we need to borrow_mut() here
         test_context
-            .borrow_mut()
             .warp_to_slot(current_slot.saturating_add(1))
             .expect("Failed to warp to slot");
         current_slot = current_slot.saturating_add(1);
     }
 
     // Optionally, process a transaction to ensure the new slot is recognized
-    let recent_blockhash = test_context.borrow().last_blockhash;
-    let payer = test_context.borrow().payer.pubkey();
+    let recent_blockhash = test_context.last_blockhash;
+    let payer = test_context.payer.pubkey();
     let tx = Transaction::new_signed_with_payer(
         &[],
         Some(&payer),
-        &[&test_context.borrow().payer],
+        &[&test_context.payer],
         recent_blockhash,
     );
 
     test_context
-        .borrow_mut()
         .banks_client
         .process_transaction(tx)
         .await
@@ -638,7 +618,7 @@ pub async fn setup_environment(
     shim_mode: ShimMode,
     transfer_direction: TransferDirection,
     vaa_args: Option<VaaArgs>,
-) -> TestingContext {
+) -> (TestingContext, ProgramTestContext) {
     let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
     let vaas_test: Option<TestVaaPairs> = match vaa_args {
         Some(vaa_args) => {

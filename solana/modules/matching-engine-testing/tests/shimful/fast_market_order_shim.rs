@@ -15,6 +15,7 @@ use matching_engine::fallback::initialise_fast_market_order::{
 };
 
 use matching_engine::state::{FastMarketOrder as FastMarketOrderState, FastMarketOrderParams};
+use solana_program_test::ProgramTestContext;
 use solana_sdk::transaction::VersionedTransaction;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer, transaction::Transaction};
 use std::rc::Rc;
@@ -39,6 +40,7 @@ use wormhole_io::TypePrefixedPayload;
 /// * The expected error, if any, is reached when executing the instruction
 pub async fn initialise_fast_market_order_fallback(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     fast_market_order: FastMarketOrderState,
     guardian_set_pubkey: Pubkey,
@@ -55,7 +57,10 @@ pub async fn initialise_fast_market_order_fallback(
         guardian_signatures_pubkey,
         guardian_set_bump,
     );
-    let recent_blockhash = testing_context.test_context.borrow().last_blockhash;
+    let recent_blockhash = testing_context
+        .get_new_latest_blockhash(test_context)
+        .await
+        .unwrap();
     let transaction = solana_sdk::transaction::Transaction::new_signed_with_payer(
         &[initialise_fast_market_order_ix],
         Some(&payer_signer.pubkey()),
@@ -64,7 +69,7 @@ pub async fn initialise_fast_market_order_fallback(
     );
     let versioned_transaction = VersionedTransaction::from(transaction);
     testing_context
-        .execute_and_verify_transaction(versioned_transaction, expected_error)
+        .execute_and_verify_transaction(test_context, versioned_transaction, expected_error)
         .await;
 }
 
@@ -135,13 +140,14 @@ fn initialise_fast_market_order_fallback_instruction(
 /// * The expected error, if any, is reached when executing the instruction
 pub async fn close_fast_market_order_fallback(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     refund_recipient_keypair: &Rc<Keypair>,
     fast_market_order_address: &Pubkey,
     expected_error: Option<&ExpectedError>,
 ) {
     let program_id = &testing_context.get_matching_engine_program_id();
     let recent_blockhash = testing_context
-        .get_new_latest_blockhash()
+        .get_new_latest_blockhash(test_context)
         .await
         .expect("Failed to get new blockhash");
     let close_fast_market_order_ix = CloseFastMarketOrderFallback {
@@ -160,7 +166,7 @@ pub async fn close_fast_market_order_fallback(
         recent_blockhash,
     );
     testing_context
-        .execute_and_verify_transaction(transaction, expected_error)
+        .execute_and_verify_transaction(test_context, transaction, expected_error)
         .await;
 }
 

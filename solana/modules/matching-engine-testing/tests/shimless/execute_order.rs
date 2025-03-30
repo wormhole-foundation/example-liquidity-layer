@@ -15,6 +15,7 @@ use matching_engine::accounts::{
     RequiredSysvars,
 };
 use matching_engine::instruction::ExecuteFastOrderCctp as ExecuteOrderShimlessInstruction;
+use solana_program_test::ProgramTestContext;
 use solana_sdk::instruction::Instruction;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::sysvar::SysvarId;
@@ -153,12 +154,13 @@ pub fn create_execute_order_shimless_accounts(
 
 pub async fn execute_order_shimless_test(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     auction_accounts: &AuctionAccounts,
     auction_state: &AuctionState,
     payer_signer: &Rc<Keypair>,
     expected_error: Option<&ExpectedError>,
 ) -> Option<ExecuteOrderShimlessFixture> {
-    crate::utils::setup::fast_forward_slots(testing_context, 3).await;
+    crate::utils::setup::fast_forward_slots(test_context, 3).await;
     let fixture_accounts = testing_context
         .get_fixture_accounts()
         .expect("Fixture accounts not found");
@@ -181,14 +183,12 @@ pub async fn execute_order_shimless_test(
         Some(&payer_signer.pubkey()),
         &[payer_signer],
         testing_context
-            .test_context
-            .borrow_mut()
-            .get_new_latest_blockhash()
+            .get_new_latest_blockhash(test_context)
             .await
             .unwrap(),
     );
     testing_context
-        .execute_and_verify_transaction(tx, expected_error)
+        .execute_and_verify_transaction(test_context, tx, expected_error)
         .await;
     if expected_error.is_none() {
         Some(ExecuteOrderShimlessFixture {

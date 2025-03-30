@@ -19,6 +19,7 @@ use matching_engine::state::RouterEndpoint;
 use matching_engine::AddCctpRouterEndpointArgs;
 use matching_engine::LOCAL_CUSTODY_TOKEN_SEED_PREFIX;
 
+use solana_program_test::ProgramTestContext;
 use solana_sdk::instruction::Instruction;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::transaction::Transaction;
@@ -149,14 +150,16 @@ pub fn get_router_endpoint_address(program_id: Pubkey, encoded_chain: &[u8; 2]) 
 
 pub async fn add_cctp_router_endpoint_ix(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
+    payer_signer: &Keypair,
     admin_owner_or_assistant: Pubkey,
     admin_custodian: Pubkey,
     admin_keypair: &Keypair,
-    program_id: Pubkey,
     remote_token_messenger: Pubkey,
     chain: Chain,
 ) -> TestRouterEndpoint {
     let usdc_mint_address = testing_context.get_usdc_mint_address();
+    let program_id = testing_context.get_matching_engine_program_id();
     let admin = generate_admin(admin_owner_or_assistant, admin_custodian);
     let usdc = matching_engine::accounts::Usdc {
         mint: usdc_mint_address,
@@ -172,7 +175,7 @@ pub async fn add_cctp_router_endpoint_ix(
     .0;
 
     let accounts = AddCctpRouterEndpointAccounts {
-        payer: testing_context.test_context.borrow().payer.pubkey(),
+        payer: payer_signer.pubkey(),
         admin,
         router_endpoint: router_endpoint_address,
         local_custody_token: local_custody_token_address,
@@ -202,27 +205,22 @@ pub async fn add_cctp_router_endpoint_ix(
         data: ix_data,
     };
 
-    let mut transaction = Transaction::new_with_payer(
-        &[instruction],
-        Some(&testing_context.test_context.borrow().payer.pubkey()),
-    );
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer_signer.pubkey()));
     // TODO: Figure out who the signers are
     let new_blockhash = testing_context
-        .get_new_latest_blockhash()
+        .get_new_latest_blockhash(test_context)
         .await
         .expect("Failed to get new blockhash");
-    transaction.sign(
-        &[&testing_context.test_context.borrow().payer, &admin_keypair],
-        new_blockhash,
-    );
+    transaction.sign(&[payer_signer, admin_keypair], new_blockhash);
 
     let versioned_transaction = VersionedTransaction::from(transaction);
     testing_context
-        .process_transaction(versioned_transaction)
+        .process_transaction(test_context, versioned_transaction)
         .await
         .expect("Failed to process transaction");
 
-    let endpoint_account = testing_context
+    let endpoint_account = test_context
+        .banks_client
         .get_account(router_endpoint_address)
         .await
         .unwrap()
@@ -245,11 +243,12 @@ pub async fn add_cctp_router_endpoint_ix(
 
 pub async fn add_local_router_endpoint_ix(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
+    payer_signer: &Keypair,
     admin_owner_or_assistant: Pubkey,
     admin_custodian: Pubkey,
     admin_keypair: &Keypair,
 ) -> TestRouterEndpoint {
-    let test_context = &testing_context.test_context;
     let usdc_mint_address = testing_context.get_usdc_mint_address();
     let program_id = testing_context.get_matching_engine_program_id();
     let admin = generate_admin(admin_owner_or_assistant, admin_custodian);
@@ -272,7 +271,7 @@ pub async fn add_local_router_endpoint_ix(
 
     // Create the router endpoint
     let accounts = AddLocalRouterEndpointAccounts {
-        payer: test_context.borrow().payer.pubkey(),
+        payer: payer_signer.pubkey(),
         admin,
         router_endpoint: router_endpoint_address,
         local: local_token_router,
@@ -287,24 +286,21 @@ pub async fn add_local_router_endpoint_ix(
         data: ix_data,
     };
 
-    let mut transaction =
-        Transaction::new_with_payer(&[instruction], Some(&test_context.borrow().payer.pubkey()));
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer_signer.pubkey()));
     let new_blockhash = testing_context
-        .get_new_latest_blockhash()
+        .get_new_latest_blockhash(test_context)
         .await
         .expect("Could not get new blockhash");
-    transaction.sign(
-        &[&test_context.borrow().payer, &admin_keypair],
-        new_blockhash,
-    );
+    transaction.sign(&[payer_signer, admin_keypair], new_blockhash);
 
     let versioned_transaction = VersionedTransaction::from(transaction);
     testing_context
-        .process_transaction(versioned_transaction)
+        .process_transaction(test_context, versioned_transaction)
         .await
         .expect("Failed to process transaction");
 
-    let endpoint_account = testing_context
+    let endpoint_account = test_context
+        .banks_client
         .get_account(router_endpoint_address)
         .await
         .expect("Failed to get account")
@@ -327,13 +323,14 @@ pub async fn add_local_router_endpoint_ix(
 
 pub async fn create_cctp_router_endpoint(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
+    payer_signer: &Keypair,
     admin_owner_or_assistant: Pubkey,
     custodian_address: Pubkey,
     admin_keypair: Rc<Keypair>,
     chain: Chain,
 ) -> TestRouterEndpoint {
     let fixture_accounts = testing_context.get_fixture_accounts().unwrap();
-    let program_id = testing_context.get_matching_engine_program_id();
     let remote_token_messenger = match chain {
         Chain::Arbitrum => fixture_accounts.arbitrum_remote_token_messenger,
         Chain::Ethereum => fixture_accounts.ethereum_remote_token_messenger,
@@ -344,10 +341,11 @@ pub async fn create_cctp_router_endpoint(
 
     add_cctp_router_endpoint_ix(
         testing_context,
+        test_context,
+        payer_signer,
         admin_owner_or_assistant,
         custodian_address,
         admin_keypair.as_ref(),
-        program_id,
         remote_token_messenger,
         chain,
     )
@@ -356,6 +354,8 @@ pub async fn create_cctp_router_endpoint(
 
 pub async fn create_all_router_endpoints_test(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
+    payer_signer: &Keypair,
     admin_owner_or_assistant: Pubkey,
     custodian_address: Pubkey,
     admin_keypair: Rc<Keypair>,
@@ -367,6 +367,8 @@ pub async fn create_all_router_endpoints_test(
             Chain::Solana => {
                 let local_token_router_endpoint = add_local_router_endpoint_ix(
                     testing_context,
+                    test_context,
+                    payer_signer,
                     admin_owner_or_assistant,
                     custodian_address,
                     admin_keypair.as_ref(),
@@ -377,6 +379,8 @@ pub async fn create_all_router_endpoints_test(
             Chain::Arbitrum | Chain::Ethereum => {
                 let cctp_router_endpoint = create_cctp_router_endpoint(
                     testing_context,
+                    test_context,
+                    payer_signer,
                     admin_owner_or_assistant,
                     custodian_address,
                     admin_keypair.clone(),
@@ -394,10 +398,11 @@ pub async fn create_all_router_endpoints_test(
 }
 
 pub async fn get_remote_token_messenger(
-    testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     address: Pubkey,
 ) -> RemoteTokenMessenger {
-    let remote_token_messenger_data = testing_context
+    let remote_token_messenger_data = test_context
+        .banks_client
         .get_account(address)
         .await
         .unwrap()

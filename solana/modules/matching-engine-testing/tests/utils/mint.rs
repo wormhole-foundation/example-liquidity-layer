@@ -9,11 +9,10 @@ use solana_sdk::{
 };
 use spl_token::state::Mint;
 
-use std::{cell::RefCell, fs::File, io::Read, path::PathBuf, rc::Rc, str::FromStr};
+use std::{fs::File, io::Read, path::PathBuf, str::FromStr};
 
 #[derive(Clone)]
 pub struct MintFixture {
-    pub test_ctx: Rc<RefCell<ProgramTestContext>>,
     pub key: Pubkey,
     pub mint: spl_token::state::Mint,
     pub token_program: Pubkey,
@@ -30,15 +29,8 @@ impl MintFixture {
     /// # Returns
     ///
     /// A new MintFixture
-    pub fn new_from_file(
-        ctx: &Rc<RefCell<ProgramTestContext>>,
-        relative_path: &str,
-    ) -> MintFixture {
-        let ctx_ref = Rc::clone(ctx);
-
+    pub fn new_from_file(ctx: &mut ProgramTestContext, relative_path: &str) -> MintFixture {
         let (address, account_info) = {
-            let mut ctx = ctx.borrow_mut();
-
             // load cargo workspace path from env
             let mut path = PathBuf::from_str(env!("CARGO_MANIFEST_DIR")).unwrap();
             path.push(relative_path);
@@ -68,7 +60,6 @@ impl MintFixture {
         let mint = spl_token::state::Mint::unpack(&account_info.data()[..Mint::LEN]).unwrap();
 
         MintFixture {
-            test_ctx: ctx_ref,
             key: address,
             mint,
             token_program: account_info.owner().to_owned(),

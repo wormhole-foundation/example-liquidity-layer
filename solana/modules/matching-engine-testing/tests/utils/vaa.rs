@@ -6,13 +6,12 @@ use secp256k1::SecretKey as SecpSecretKey;
 use wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH;
 
 use super::constants::Chain;
-use super::setup::TestingContext;
 
 use super::constants::CORE_BRIDGE_PID;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use solana_program::keccak;
-use solana_program_test::ProgramTest;
+use solana_program_test::{ProgramTest, ProgramTestContext};
 use solana_sdk::account::Account;
 
 use std::ops::{Deref, DerefMut};
@@ -358,11 +357,12 @@ impl TestVaaPair {
             .create_vaa_account(program_test, self.fast_transfer_vaa.vaa_pubkey);
     }
 
-    pub async fn verify_posted_vaa_pair(&self, testing_context: &TestingContext) {
+    pub async fn verify_posted_vaa_pair(&self, test_context: &mut ProgramTestContext) {
         let expected_deposit_vaa = self.deposit_vaa.vaa_data.clone();
         let expected_fast_transfer_vaa = self.fast_transfer_vaa.vaa_data.clone();
         {
-            let deposit_vaa = testing_context
+            let deposit_vaa = test_context
+                .banks_client
                 .get_account(self.deposit_vaa.vaa_pubkey)
                 .await
                 .unwrap();
@@ -374,7 +374,8 @@ impl TestVaaPair {
         }
 
         {
-            let fast_transfer_vaa = testing_context
+            let fast_transfer_vaa = test_context
+                .banks_client
                 .get_account(self.fast_transfer_vaa.vaa_pubkey)
                 .await
                 .unwrap();
@@ -571,10 +572,10 @@ impl TestVaaPairs {
         }
     }
 
-    pub async fn verify_posted_vaas(&self, testing_context: &TestingContext) {
+    pub async fn verify_posted_vaas(&self, test_context: &mut ProgramTestContext) {
         for vaa_pair in self.0.iter() {
             if vaa_pair.is_posted() {
-                vaa_pair.verify_posted_vaa_pair(testing_context).await;
+                vaa_pair.verify_posted_vaa_pair(test_context).await;
             }
         }
     }

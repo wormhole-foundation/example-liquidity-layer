@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use solana_program_test::ProgramTestContext;
 
 use super::router::TestRouterEndpoints;
 use super::setup::{Solver, TestingContext, TransferDirection};
@@ -91,8 +92,13 @@ impl AuctionAccounts {
 }
 
 impl ActiveAuctionState {
-    pub async fn verify_auction(&self, testing_context: &TestingContext) -> AnyhowResult<()> {
-        let auction_account = testing_context
+    pub async fn verify_auction(
+        &self,
+        testing_context: &TestingContext,
+        test_context: &mut ProgramTestContext,
+    ) -> AnyhowResult<()> {
+        let auction_account = test_context
+            .banks_client
             .get_account(self.auction_address)
             .await?
             .expect("Failed to get auction account");

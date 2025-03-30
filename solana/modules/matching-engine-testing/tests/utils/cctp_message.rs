@@ -16,9 +16,7 @@ use secp256k1::SecretKey as SecpSecretKey;
 use solana_program::keccak::{Hash, Hasher};
 use solana_program_test::ProgramTestContext;
 use solana_sdk::keccak;
-use std::cell::RefCell;
 use std::fmt::Display;
-use std::rc::Rc;
 use std::str::FromStr;
 
 use super::{Chain, GUARDIAN_SECRET_KEY};
@@ -539,7 +537,7 @@ impl CctpMessage {
 
 #[allow(clippy::too_many_arguments)]
 pub async fn craft_cctp_token_burn_message(
-    test_ctx: &Rc<RefCell<ProgramTestContext>>,
+    test_context: &mut ProgramTestContext,
     source_cctp_domain: u32,
     cctp_nonce: u64,
     amount: Uint<256, 4>, // Only allows for 8 byte amounts for now. If we want larger amount support, we can change this to uint256.
@@ -550,8 +548,7 @@ pub async fn craft_cctp_token_burn_message(
 ) -> Result<CctpTokenBurnMessage> {
     let destination_cctp_domain = Chain::Solana.as_cctp_domain(); // Hard code solana as destination domain
     assert_eq!(destination_cctp_domain, 5);
-    let message_transmitter_config_data = test_ctx
-        .borrow_mut()
+    let message_transmitter_config_data = test_context
         .banks_client
         .get_account(*message_transmitter_config_pubkey)
         .await

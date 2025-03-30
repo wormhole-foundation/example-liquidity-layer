@@ -7,6 +7,7 @@ use anchor_lang::InstructionData;
 use anchor_spl::token::spl_token;
 use matching_engine::accounts::SettleAuctionComplete as SettleAuctionCompleteCpiAccounts;
 use matching_engine::instruction::SettleAuctionComplete;
+use solana_program_test::ProgramTestContext;
 use solana_sdk::instruction::Instruction;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::transaction::Transaction;
@@ -15,6 +16,7 @@ use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 
 pub async fn settle_auction_complete(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     auction_state: &AuctionState,
     prepare_order_response_address: &Pubkey,
@@ -22,7 +24,6 @@ pub async fn settle_auction_complete(
     matching_engine_program_id: &Pubkey,
     expected_error: Option<&ExpectedError>,
 ) -> AuctionState {
-    let test_ctx = &testing_context.test_context;
     let usdc_mint_address = &testing_context.get_usdc_mint_address();
     let active_auction = auction_state
         .get_active_auction()
@@ -55,11 +56,14 @@ pub async fn settle_auction_complete(
         &[settle_auction_complete_ix],
         Some(&payer_signer.pubkey()),
         &[&payer_signer],
-        test_ctx.borrow().last_blockhash,
+        testing_context
+            .get_new_latest_blockhash(test_context)
+            .await
+            .unwrap(),
     );
 
     testing_context
-        .execute_and_verify_transaction(tx, expected_error)
+        .execute_and_verify_transaction(test_context, tx, expected_error)
         .await;
     if expected_error.is_none() {
         AuctionState::Settled

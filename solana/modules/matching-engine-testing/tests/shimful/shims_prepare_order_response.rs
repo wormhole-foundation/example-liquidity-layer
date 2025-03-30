@@ -16,6 +16,7 @@ use matching_engine::fallback::prepare_order_response::{
 };
 use matching_engine::state::{FastMarketOrder as FastMarketOrderState, PreparedOrderResponse};
 use matching_engine::CCTP_MINT_RECIPIENT;
+use solana_program_test::ProgramTestContext;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
@@ -171,13 +172,13 @@ impl PrepareOrderResponseShimDataFixture {
 
 pub async fn prepare_order_response_cctp_shim(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     accounts: PrepareOrderResponseShimAccountsFixture,
     data: PrepareOrderResponseShimDataFixture,
     matching_engine_program_id: &Pubkey,
     expected_error: Option<&ExpectedError>,
 ) -> Option<PrepareOrderResponseShimFixture> {
-    let test_ctx = &testing_context.test_context;
     let fast_market_order_digest = data.fast_market_order.digest();
     let prepared_order_response_seeds = [
         PreparedOrderResponse::SEED_PREFIX,
@@ -247,9 +248,8 @@ pub async fn prepare_order_response_cctp_shim(
     }
     .instruction();
 
-    let recent_blockhash = test_ctx
-        .borrow_mut()
-        .get_new_latest_blockhash()
+    let recent_blockhash = testing_context
+        .get_new_latest_blockhash(test_context)
         .await
         .expect("Failed to get new latest blockhash");
     let transaction = Transaction::new_signed_with_payer(
@@ -259,7 +259,7 @@ pub async fn prepare_order_response_cctp_shim(
         recent_blockhash,
     );
     testing_context
-        .execute_and_verify_transaction(transaction, expected_error)
+        .execute_and_verify_transaction(test_context, transaction, expected_error)
         .await;
     if expected_error.is_none() {
         Some(PrepareOrderResponseShimFixture {
@@ -274,6 +274,7 @@ pub async fn prepare_order_response_cctp_shim(
 #[allow(clippy::too_many_arguments)]
 pub async fn prepare_order_response_test(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     deposit_vaa_data: &utils::vaa::PostedVaaData,
     testing_engine_state: &TestingEngineState,
@@ -282,7 +283,6 @@ pub async fn prepare_order_response_test(
     deposit: &Deposit,
     expected_error: Option<&ExpectedError>,
 ) -> Option<PrepareOrderResponseShimFixture> {
-    let test_ctx = &testing_context.test_context;
     let core_bridge_program_id = &testing_context.get_wormhole_program_id();
     let matching_engine_program_id = &testing_context.get_matching_engine_program_id();
     let usdc_mint_address = &testing_context.get_usdc_mint_address();
@@ -296,6 +296,7 @@ pub async fn prepare_order_response_test(
     let (guardian_set_pubkey, guardian_signatures_pubkey, guardian_set_bump) =
         super::verify_shim::create_guardian_signatures(
             testing_context,
+            test_context,
             payer_signer,
             deposit_vaa_data,
             core_bridge_program_id,
@@ -307,7 +308,7 @@ pub async fn prepare_order_response_test(
     let source_remote_token_messenger = match testing_context.testing_state.transfer_direction {
         TransferDirection::FromEthereumToArbitrum => {
             utils::router::get_remote_token_messenger(
-                testing_context,
+                test_context,
                 fixture_accounts.ethereum_remote_token_messenger,
             )
             .await
@@ -326,7 +327,7 @@ pub async fn prepare_order_response_test(
         .expect("Custodian address not found");
     // TODO: Make checks to see if fast market order sender matches cctp message sender ...
     let cctp_token_burn_message = utils::cctp_message::craft_cctp_token_burn_message(
-        test_ctx,
+        test_context,
         source_remote_token_messenger.domain,
         cctp_nonce,
         deposit.amount,
@@ -371,6 +372,7 @@ pub async fn prepare_order_response_test(
     );
     super::shims_prepare_order_response::prepare_order_response_cctp_shim(
         testing_context,
+        test_context,
         payer_signer,
         prepare_order_response_cctp_shim_accounts,
         prepare_order_response_cctp_shim_data,

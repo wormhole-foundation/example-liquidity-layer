@@ -18,6 +18,7 @@ use matching_engine::accounts::{
 use matching_engine::instruction::PrepareOrderResponseCctp as PrepareOrderResponseCctpIx;
 use matching_engine::state::PreparedOrderResponse;
 use matching_engine::CctpMessageArgs;
+use solana_program_test::ProgramTestContext;
 use solana_sdk::instruction::Instruction;
 use solana_sdk::signature::{Keypair, Signer};
 use solana_sdk::transaction::Transaction;
@@ -32,6 +33,7 @@ pub struct PrepareOrderResponseFixture {
 #[allow(clippy::too_many_arguments)]
 pub async fn prepare_order_response(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     testing_engine_state: &TestingEngineState,
     to_endpoint_address: &Pubkey,
@@ -40,7 +42,6 @@ pub async fn prepare_order_response(
     expected_error: Option<&ExpectedError>,
     expected_log_message: Option<&Vec<ExpectedLog>>,
 ) -> Option<PrepareOrderResponseFixture> {
-    let test_ctx = &testing_context.test_context;
     let matching_engine_program_id = &testing_context.get_matching_engine_program_id();
     let usdc_mint_address = &testing_context.get_usdc_mint_address();
     let cctp_mint_recipient = &testing_context.get_cctp_mint_recipient();
@@ -52,7 +53,7 @@ pub async fn prepare_order_response(
     let source_remote_token_messenger = match testing_context.testing_state.transfer_direction {
         TransferDirection::FromEthereumToArbitrum => {
             utils::router::get_remote_token_messenger(
-                testing_context,
+                test_context,
                 fixture_accounts.ethereum_remote_token_messenger,
             )
             .await
@@ -77,7 +78,7 @@ pub async fn prepare_order_response(
     let cctp_nonce = deposit.cctp_nonce;
     // TODO: Make checks to see if fast market order sender matches cctp message sender ...
     let cctp_token_burn_message = utils::cctp_message::craft_cctp_token_burn_message(
-        test_ctx,
+        test_context,
         source_remote_token_messenger.domain,
         cctp_nonce,
         deposit.amount,
@@ -200,9 +201,8 @@ pub async fn prepare_order_response(
         &[instruction],
         Some(&payer_signer.pubkey()),
         &[payer_signer],
-        test_ctx
-            .borrow_mut()
-            .get_new_latest_blockhash()
+        testing_context
+            .get_new_latest_blockhash(test_context)
             .await
             .expect("Failed to get new blockhash"),
     );
@@ -212,12 +212,12 @@ pub async fn prepare_order_response(
             "Expected error is not allowed when expected log message is provided"
         );
         testing_context
-            .simulate_and_verify_logs(transaction, expected_log_message)
+            .simulate_and_verify_logs(test_context, transaction, expected_log_message)
             .await
             .unwrap();
     } else {
         testing_context
-            .execute_and_verify_transaction(transaction, expected_error)
+            .execute_and_verify_transaction(test_context, transaction, expected_error)
             .await;
     }
     if expected_error.is_none() {

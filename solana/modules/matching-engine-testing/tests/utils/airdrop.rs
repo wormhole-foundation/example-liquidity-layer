@@ -2,8 +2,6 @@ use anchor_spl::token::spl_token;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{pubkey::Pubkey, signature::Signer, system_instruction};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 use super::constants;
 
@@ -15,35 +13,31 @@ use super::constants;
 /// * `recipient` - The recipient of the airdrop        
 /// * `amount` - The amount of SOL to airdrop
 
-pub async fn airdrop(
-    test_context: &Rc<RefCell<ProgramTestContext>>,
-    recipient: &Pubkey,
-    amount: u64,
-) {
-    let mut ctx = test_context.borrow_mut();
-
+pub async fn airdrop(test_context: &mut ProgramTestContext, recipient: &Pubkey, amount: u64) {
     // Create the transfer instruction with values from the context
-    let transfer_ix = system_instruction::transfer(&ctx.payer.pubkey(), recipient, amount);
+    let transfer_ix = system_instruction::transfer(&test_context.payer.pubkey(), recipient, amount);
 
     // Create and send transaction
     let tx = Transaction::new_signed_with_payer(
         &[transfer_ix.clone()],
-        Some(&ctx.payer.pubkey()),
-        &[&ctx.payer],
-        ctx.last_blockhash,
+        Some(&test_context.payer.pubkey()),
+        &[&test_context.payer],
+        test_context.last_blockhash,
     );
 
-    ctx.banks_client.process_transaction(tx).await.unwrap();
-    drop(ctx);
+    test_context
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .unwrap();
 }
 
 pub async fn airdrop_usdc(
-    test_context: &Rc<RefCell<ProgramTestContext>>,
+    test_context: &mut ProgramTestContext,
     recipient_ata: &Pubkey,
     amount: u64,
 ) {
     let new_blockhash = test_context
-        .borrow_mut()
         .get_new_latest_blockhash()
         .await
         .expect("Failed to get new blockhash");
@@ -52,23 +46,22 @@ pub async fn airdrop_usdc(
         &spl_token::ID,
         &usdc_mint_address,
         recipient_ata,
-        &test_context.borrow().payer.pubkey(),
+        &test_context.payer.pubkey(),
         &[],
         amount,
     )
     .expect("Failed to create mint to instruction");
     let tx = Transaction::new_signed_with_payer(
         &[mint_to_ix.clone()],
-        Some(&test_context.borrow().payer.pubkey()),
-        &[&test_context.borrow().payer],
+        Some(&test_context.payer.pubkey()),
+        &[&test_context.payer],
         new_blockhash,
     );
 
     let versioned_transaction = VersionedTransaction::from(tx);
-    let mut ctx = test_context.borrow_mut();
-    ctx.banks_client
+    test_context
+        .banks_client
         .process_transaction(versioned_transaction)
         .await
         .unwrap();
-    drop(ctx);
 }

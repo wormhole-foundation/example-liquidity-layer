@@ -30,7 +30,7 @@ use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
 /// Test that the program is initialised correctly
 #[tokio::test]
 pub async fn test_initialize_program() {
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::None,
         TransferDirection::FromArbitrumToEthereum,
         None, // Vaa args for creating vaas
@@ -42,16 +42,17 @@ pub async fn test_initialize_program() {
     let testing_engine = TestingEngine::new(testing_context).await;
 
     testing_engine
-        .execute(vec![InstructionTrigger::InitializeProgram(
-            initialize_config,
-        )])
+        .execute(
+            &mut test_context,
+            vec![InstructionTrigger::InitializeProgram(initialize_config)],
+        )
         .await;
 }
 
 /// Test that a CCTP token router endpoint is created for the arbitrum and ethereum chains
 #[tokio::test]
 pub async fn test_cctp_token_router_endpoint_creation() {
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::None,                            // Shim mode
         TransferDirection::FromArbitrumToEthereum, // Transfer direction
         None,                                      // Vaa args
@@ -63,28 +64,35 @@ pub async fn test_cctp_token_router_endpoint_creation() {
     let testing_engine = TestingEngine::new(testing_context).await;
 
     testing_engine
-        .execute(vec![InstructionTrigger::InitializeProgram(
-            initialize_config,
-        )])
+        .execute(
+            &mut test_context,
+            vec![InstructionTrigger::InitializeProgram(initialize_config)],
+        )
         .await;
 }
 
 #[tokio::test]
 pub async fn test_local_token_router_endpoint_creation() {
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::None,
         TransferDirection::FromArbitrumToEthereum,
         None,
     )
     .await;
 
-    let initialize_fixture =
-        initialize_program(&testing_context, AuctionParametersConfig::default(), None)
-            .await
-            .expect("Failed to initialize program");
-
+    let initialize_fixture = initialize_program(
+        &testing_context,
+        &mut test_context,
+        AuctionParametersConfig::default(),
+        None,
+    )
+    .await
+    .expect("Failed to initialize program");
+    let payer_signer = testing_context.testing_actors.owner.keypair();
     let _local_token_router_endpoint = add_local_router_endpoint_ix(
         &testing_context,
+        &mut test_context,
+        &payer_signer,
         testing_context.testing_actors.owner.pubkey(),
         initialize_fixture.get_custodian_address(),
         testing_context.testing_actors.owner.keypair().as_ref(),
@@ -101,25 +109,28 @@ pub async fn test_setup_vaas() {
         post_vaa: true,
         ..VaaArgs::default()
     };
-    let testing_context =
+    let (testing_context, mut test_context) =
         setup_environment(ShimMode::PostVaa, transfer_direction, Some(vaa_args)).await;
 
-    testing_context.verify_vaas().await;
+    testing_context.verify_vaas(&mut test_context).await;
 
     let testing_engine = TestingEngine::new(testing_context).await;
     testing_engine
-        .execute(vec![
-            InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
-            InstructionTrigger::CreateCctpRouterEndpoints(
-                CreateCctpRouterEndpointsInstructionConfig::default(),
-            ),
-        ])
+        .execute(
+            &mut test_context,
+            vec![
+                InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+                InstructionTrigger::CreateCctpRouterEndpoints(
+                    CreateCctpRouterEndpointsInstructionConfig::default(),
+                ),
+            ],
+        )
         .await;
 }
 
 #[tokio::test]
 pub async fn test_post_message_shims() {
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         TransferDirection::FromArbitrumToEthereum,
         None,
@@ -128,7 +139,13 @@ pub async fn test_post_message_shims() {
     let actors = &testing_context.testing_actors;
     let emitter_signer = actors.owner.keypair();
     let payer_signer = actors.solvers[0].keypair();
-    set_up_post_message_transaction_test(&testing_context, &payer_signer, &emitter_signer).await;
+    set_up_post_message_transaction_test(
+        &testing_context,
+        &mut test_context,
+        &payer_signer,
+        &emitter_signer,
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -137,7 +154,7 @@ pub async fn test_initialise_fast_market_order_fallback() {
         post_vaa: false,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         TransferDirection::FromArbitrumToEthereum,
         Some(vaa_args),
@@ -152,7 +169,9 @@ pub async fn test_initialise_fast_market_order_fallback() {
     ];
 
     let testing_engine = TestingEngine::new(testing_context).await;
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 
 #[tokio::test]
@@ -161,7 +180,7 @@ pub async fn test_close_fast_market_order_fallback() {
         post_vaa: false,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         TransferDirection::FromArbitrumToEthereum,
         Some(vaa_args),
@@ -177,7 +196,9 @@ pub async fn test_close_fast_market_order_fallback() {
             CloseFastMarketOrderShimInstructionConfig::default(),
         ),
     ];
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 
 #[tokio::test]
@@ -186,7 +207,7 @@ pub async fn test_approve_usdc() {
         post_vaa: false,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         TransferDirection::FromArbitrumToEthereum,
         Some(vaa_args),
@@ -211,19 +232,16 @@ pub async fn test_approve_usdc() {
     )
     .0;
     solver
-        .approve_usdc(
-            &testing_context.test_context,
-            &transfer_authority,
-            offer_price,
-        )
+        .approve_usdc(&mut test_context, &transfer_authority, offer_price)
         .await;
 
-    let usdc_balance = solver.get_balance(&testing_context.test_context).await;
+    let usdc_balance = solver.get_balance(&mut test_context).await;
 
     // TODO: Create an issue based on this bug. So this function will transfer the ownership of whatever the guardian signatures signer is set to to the verify shim program. This means that the argument to this function MUST be ephemeral and cannot be used until the close signatures instruction has been executed.
     let (_guardian_set_pubkey, _guardian_signatures_pubkey, _guardian_set_bump) =
         shimful::verify_shim::create_guardian_signatures(
             &testing_context,
+            &mut test_context,
             &actors.owner.keypair(),
             &vaa_data,
             &CORE_BRIDGE_PROGRAM_ID,
@@ -234,7 +252,8 @@ pub async fn test_approve_usdc() {
 
     println!("Solver USDC balance: {:?}", usdc_balance);
     let solver_token_account_address = solver.token_account_address().unwrap();
-    let solver_token_account_info = testing_context
+    let solver_token_account_info = test_context
+        .banks_client
         .get_account(solver_token_account_address)
         .await
         .expect("Failed to query banks client for solver token account info")
@@ -253,7 +272,7 @@ pub async fn test_place_initial_offer_fallback() {
         post_vaa: false,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
         Some(vaa_args),
@@ -277,7 +296,9 @@ pub async fn test_place_initial_offer_fallback() {
         }),
     ];
 
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 
 #[tokio::test]
@@ -287,7 +308,7 @@ pub async fn test_place_initial_offer_shim_blocks_non_shim() {
         post_vaa: true,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
         Some(vaa_args),
@@ -317,7 +338,9 @@ pub async fn test_place_initial_offer_shim_blocks_non_shim() {
         }),
     ];
 
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 
 #[tokio::test]
@@ -327,7 +350,7 @@ pub async fn test_place_initial_offer_non_shim_blocks_shim() {
         post_vaa: true,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
         Some(vaa_args),
@@ -356,7 +379,9 @@ pub async fn test_place_initial_offer_non_shim_blocks_shim() {
             ..PlaceInitialOfferInstructionConfig::default()
         }),
     ];
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 
 #[tokio::test]
@@ -368,7 +393,7 @@ pub async fn test_execute_order_fallback() {
         post_vaa: false,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
         Some(vaa_args),
@@ -386,7 +411,9 @@ pub async fn test_execute_order_fallback() {
         InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
     ];
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 
 #[tokio::test]
@@ -396,7 +423,7 @@ pub async fn test_execute_order_shimless() {
         post_vaa: true,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
         Some(vaa_args),
@@ -411,7 +438,9 @@ pub async fn test_execute_order_shimless() {
         InstructionTrigger::PlaceInitialOfferShimless(PlaceInitialOfferInstructionConfig::default()),
         InstructionTrigger::ExecuteOrderShimless(ExecuteOrderInstructionConfig::default()),
     ];
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 pub async fn test_execute_order_fallback_blocks_shimless() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
@@ -419,7 +448,7 @@ pub async fn test_execute_order_fallback_blocks_shimless() {
         post_vaa: true,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
         Some(vaa_args),
@@ -445,7 +474,9 @@ pub async fn test_execute_order_fallback_blocks_shimless() {
             ..ExecuteOrderInstructionConfig::default()
         }),
     ];
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 
 // From ethereum to arbitrum
@@ -456,7 +487,7 @@ pub async fn test_prepare_order_shim_fallback() {
         post_vaa: false,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
         Some(vaa_args),
@@ -475,7 +506,9 @@ pub async fn test_prepare_order_shim_fallback() {
         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
         InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig::default()),
     ];
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 
 // Prepare order response from ethereum to arbitrum (shimless)
@@ -486,7 +519,7 @@ pub async fn test_prepare_order_shimless() {
         post_vaa: true,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
         Some(vaa_args),
@@ -505,7 +538,9 @@ pub async fn test_prepare_order_shimless() {
         InstructionTrigger::ExecuteOrderShimless(ExecuteOrderInstructionConfig::default()),
         InstructionTrigger::PrepareOrderShimless(PrepareOrderInstructionConfig::default()),
     ];
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 
 #[tokio::test]
@@ -515,7 +550,7 @@ pub async fn test_prepare_order_response_shimful_blocks_shimless() {
         post_vaa: true,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
         Some(vaa_args),
@@ -539,7 +574,9 @@ pub async fn test_prepare_order_response_shimful_blocks_shimless() {
             ..PrepareOrderInstructionConfig::default()
         }),
     ];
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 
 #[tokio::test]
@@ -549,7 +586,7 @@ pub async fn test_prepare_order_response_shimless_blocks_shimful() {
         post_vaa: true,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
         Some(vaa_args),
@@ -577,7 +614,9 @@ pub async fn test_prepare_order_response_shimless_blocks_shimful() {
             ..PrepareOrderInstructionConfig::default()
         }),
     ];
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }
 
 #[tokio::test]
@@ -587,7 +626,7 @@ pub async fn test_settle_auction_complete() {
         post_vaa: false,
         ..VaaArgs::default()
     };
-    let testing_context = setup_environment(
+    let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
         Some(vaa_args),
@@ -608,5 +647,7 @@ pub async fn test_settle_auction_complete() {
         InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig::default()),
         InstructionTrigger::SettleAuction(SettleAuctionInstructionConfig::default()),
     ];
-    testing_engine.execute(instruction_triggers).await;
+    testing_engine
+        .execute(&mut test_context, instruction_triggers)
+        .await;
 }

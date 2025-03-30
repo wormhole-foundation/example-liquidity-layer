@@ -16,6 +16,7 @@ use matching_engine::instruction::{
     ImproveOffer as ImproveOfferIx, PlaceInitialOfferCctp as PlaceInitialOfferCctpIx,
 };
 use matching_engine::state::Auction;
+use solana_program_test::ProgramTestContext;
 use solana_sdk::instruction::Instruction;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signature::Signer;
@@ -26,6 +27,7 @@ use utils::vaa::TestVaa;
 
 pub async fn place_initial_offer_shimless(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     accounts: &AuctionAccounts,
     fast_market_order: &TestVaa,
     offer_price: u64,
@@ -33,7 +35,6 @@ pub async fn place_initial_offer_shimless(
     program_id: Pubkey,
     expected_error: Option<&ExpectedError>,
 ) -> AuctionState {
-    let test_ctx = &testing_context.test_context;
     let auction_address = Pubkey::find_program_address(
         &[Auction::SEED_PREFIX, &fast_market_order.vaa_data.digest()],
         &program_id,
@@ -76,7 +77,8 @@ pub async fn place_initial_offer_shimless(
     {
         // Check if solver has already approved usdc
         let usdc_account = accounts.solver.token_account_address().unwrap();
-        let usdc_account_info = testing_context
+        let usdc_account_info = test_context
+            .banks_client
             .get_account(usdc_account)
             .await
             .unwrap()
@@ -88,14 +90,14 @@ pub async fn place_initial_offer_shimless(
         if token_account_info.delegate.is_none() {
             accounts
                 .solver
-                .approve_usdc(test_ctx, &transfer_authority, 420_000__000_000)
+                .approve_usdc(test_context, &transfer_authority, 420_000__000_000)
                 .await;
         } else {
             let delegate = token_account_info.delegate.unwrap();
             if delegate != transfer_authority {
                 accounts
                     .solver
-                    .approve_usdc(test_ctx, &transfer_authority, 420_000__000_000)
+                    .approve_usdc(test_context, &transfer_authority, 420_000__000_000)
                     .await;
             }
         }
@@ -139,11 +141,14 @@ pub async fn place_initial_offer_shimless(
         &[initial_offer_ix_anchor],
         Some(&payer_signer.pubkey()),
         &[payer_signer],
-        test_ctx.borrow().last_blockhash,
+        testing_context
+            .get_new_latest_blockhash(test_context)
+            .await
+            .unwrap(),
     );
 
     testing_context
-        .execute_and_verify_transaction(tx, expected_error)
+        .execute_and_verify_transaction(test_context, tx, expected_error)
         .await;
 
     // If the transaction failed and we expected it to pass, we would not get here
@@ -171,6 +176,7 @@ pub async fn place_initial_offer_shimless(
 #[allow(clippy::too_many_arguments)]
 pub async fn improve_offer(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     program_id: Pubkey,
     solver: Solver,
     auction_config: Pubkey,
@@ -179,7 +185,6 @@ pub async fn improve_offer(
     initial_auction_state: &AuctionState,
     expected_error: Option<&ExpectedError>,
 ) -> Option<AuctionState> {
-    let test_ctx = &testing_context.test_context;
     let active_auction_state = initial_auction_state.get_active_auction().unwrap();
     let auction_address = active_auction_state.auction_address;
     let auction_custody_token_address = active_auction_state.auction_custody_token_address;
@@ -197,7 +202,7 @@ pub async fn improve_offer(
     )
     .0;
     solver
-        .approve_usdc(test_ctx, &transfer_authority, 420_000__000_000)
+        .approve_usdc(test_context, &transfer_authority, 420_000__000_000)
         .await;
     let offer_token = solver.token_account_address().unwrap();
 
@@ -234,11 +239,14 @@ pub async fn improve_offer(
         &[improve_offer_ix_anchor],
         Some(&payer_signer.pubkey()),
         &[payer_signer],
-        test_ctx.borrow().last_blockhash,
+        testing_context
+            .get_new_latest_blockhash(test_context)
+            .await
+            .unwrap(),
     );
 
     testing_context
-        .execute_and_verify_transaction(tx, expected_error)
+        .execute_and_verify_transaction(test_context, tx, expected_error)
         .await;
 
     // If the transaction failed and we expected it to pass, we would not get here

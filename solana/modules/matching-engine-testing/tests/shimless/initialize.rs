@@ -1,3 +1,4 @@
+use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     instruction::Instruction,
     pubkey::Pubkey,
@@ -138,10 +139,10 @@ impl From<AuctionParametersConfig> for AuctionParameters {
 
 pub async fn initialize_program(
     testing_context: &TestingContext,
+    test_context: &mut ProgramTestContext,
     auction_parameters_config: AuctionParametersConfig,
     expected_error: Option<&ExpectedError>,
 ) -> Option<InitializeFixture> {
-    let test_context = &testing_context.test_context;
     let program_id = testing_context.get_matching_engine_program_id();
     let usdc_mint_address = testing_context.get_usdc_mint_address();
     let cctp_mint_recipient = testing_context.get_cctp_mint_recipient();
@@ -198,14 +199,14 @@ pub async fn initialize_program(
     };
     // Create and sign transaction
     let mut transaction =
-        Transaction::new_with_payer(&[instruction], Some(&test_context.borrow().payer.pubkey()));
+        Transaction::new_with_payer(&[instruction], Some(&test_context.payer.pubkey()));
     let new_blockhash = testing_context
-        .get_new_latest_blockhash()
+        .get_new_latest_blockhash(test_context)
         .await
         .expect("Could not get new blockhash");
     transaction.sign(
         &[
-            &test_context.borrow().payer,
+            &test_context.payer,
             &testing_context.testing_actors.owner.keypair(),
         ],
         new_blockhash,
@@ -214,12 +215,13 @@ pub async fn initialize_program(
     // Process transaction
     let versioned_transaction = VersionedTransaction::from(transaction);
     testing_context
-        .execute_and_verify_transaction(versioned_transaction, expected_error)
+        .execute_and_verify_transaction(test_context, versioned_transaction, expected_error)
         .await;
 
     if expected_error.is_none() {
         // Verify the results
-        let custodian_account = testing_context
+        let custodian_account = test_context
+            .banks_client
             .get_account(custodian)
             .await
             .expect("Failed to get custodian account")

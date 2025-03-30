@@ -5,11 +5,10 @@ use solana_sdk::{
     program_pack::Pack, pubkey::Pubkey, signature::Keypair, signer::Signer,
     transaction::Transaction,
 };
-use std::{cell::RefCell, fs, rc::Rc};
+use std::fs;
 
 #[derive(Clone)]
 pub struct TokenAccountFixture {
-    pub test_ctx: Rc<RefCell<ProgramTestContext>>,
     pub address: Pubkey,
     pub account: spl_token::state::Account,
 }
@@ -33,80 +32,75 @@ impl std::fmt::Debug for TokenAccountFixture {
 /// * `owner` - The owner of the account
 /// * `mint` - The mint of the account
 pub async fn create_token_account(
-    test_ctx: Rc<RefCell<ProgramTestContext>>,
+    test_ctx: &mut ProgramTestContext,
     owner: &Keypair,
     mint: &Pubkey,
 ) -> TokenAccountFixture {
-    let test_ctx_ref = Rc::clone(&test_ctx);
-
     // Derive the Associated Token Account (ATA) for fee_recipient
     let token_account_address =
         spl_associated_token_account::get_associated_token_address(&owner.pubkey(), mint);
 
     // Inspired by https://github.com/mrgnlabs/marginfi-v2/blob/3b7bf0aceb684a762c8552412001c8d355033119/test-utils/src/spl.rs#L56
     let token_account = {
-        let mut ctx = test_ctx.borrow_mut();
-
         // Create instruction using borrowed values
         let create_ata_ix =
             spl_associated_token_account::instruction::create_associated_token_account(
-                &ctx.payer.pubkey(), // Funding account
-                &owner.pubkey(),     // Wallet address
-                mint,                // Mint address
-                &spl_token::id(),    // Token program
+                &test_ctx.payer.pubkey(), // Funding account
+                &owner.pubkey(),          // Wallet address
+                mint,                     // Mint address
+                &spl_token::id(),         // Token program
             );
 
         // Create and process transaction
         let tx = Transaction::new_signed_with_payer(
             &[create_ata_ix],
-            Some(&ctx.payer.pubkey()),
-            &[&ctx.payer],
-            ctx.last_blockhash,
+            Some(&test_ctx.payer.pubkey()),
+            &[&test_ctx.payer],
+            test_ctx.last_blockhash,
         );
 
-        ctx.banks_client.process_transaction(tx).await.unwrap();
+        test_ctx.banks_client.process_transaction(tx).await.unwrap();
 
         // Get the account
-        ctx.banks_client
+        test_ctx
+            .banks_client
             .get_account(token_account_address)
             .await
             .unwrap()
             .unwrap_or_else(|| panic!("Failed to get token account"))
     };
     TokenAccountFixture {
-        test_ctx: test_ctx_ref,
         address: token_account_address,
         account: spl_token::state::Account::unpack(&token_account.data).unwrap(),
     }
 }
 
 pub async fn create_token_account_for_pda(
-    test_context: &Rc<RefCell<ProgramTestContext>>,
+    test_context: &mut ProgramTestContext,
     pda: &Pubkey,  // The PDA that will own the token account
     mint: &Pubkey, // The mint (USDC in your case)
 ) -> Pubkey {
-    let mut ctx = test_context.borrow_mut();
-
     // Get the ATA address
     let ata = anchor_spl::associated_token::get_associated_token_address(pda, mint);
 
     // Create the create_ata instruction
     let create_ata_ix = spl_associated_token_account::instruction::create_associated_token_account(
-        &ctx.payer.pubkey(), // Funding account
-        pda,                 // Account that will own the token account
-        mint,                // Token mint (USDC)
-        &spl_token::id(),    // Token program
+        &test_context.payer.pubkey(), // Funding account
+        pda,                          // Account that will own the token account
+        mint,                         // Token mint (USDC)
+        &spl_token::id(),             // Token program
     );
 
     // Create and send transaction
     let transaction = Transaction::new_signed_with_payer(
         &[create_ata_ix],
-        Some(&ctx.payer.pubkey()),
-        &[&ctx.payer],
-        ctx.last_blockhash,
+        Some(&test_context.payer.pubkey()),
+        &[&test_context.payer],
+        test_context.last_blockhash,
     );
 
-    ctx.banks_client
+    test_context
+        .banks_client
         .process_transaction(transaction)
         .await
         .unwrap();
