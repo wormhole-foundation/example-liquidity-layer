@@ -1,7 +1,6 @@
 #![allow(clippy::expect_used)]
 #![allow(dead_code)]
 #![allow(clippy::panic)]
-#![allow(clippy::await_holding_refcell_ref)]
 
 pub mod account_fixtures;
 pub mod airdrop;
