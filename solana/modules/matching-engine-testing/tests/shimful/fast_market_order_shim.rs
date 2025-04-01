@@ -1,9 +1,8 @@
 use crate::testing_engine::config::ExpectedError;
 
-use super::super::utils;
-use super::super::utils::constants::*;
-use super::super::utils::setup::TestingContext;
 use super::verify_shim::GuardianSignatureInfo;
+use crate::testing_engine::setup::TestingContext;
+use crate::utils;
 use common::messages::FastMarketOrder;
 use matching_engine::fallback::close_fast_market_order::{
     CloseFastMarketOrder as CloseFastMarketOrderFallback,
@@ -14,6 +13,7 @@ use matching_engine::fallback::initialise_fast_market_order::{
     InitialiseFastMarketOrderAccounts as InitialiseFastMarketOrderFallbackAccounts,
     InitialiseFastMarketOrderData as InitialiseFastMarketOrderFallbackData,
 };
+use utils::constants::*;
 
 use matching_engine::state::{FastMarketOrder as FastMarketOrderState, FastMarketOrderParams};
 use solana_program_test::ProgramTestContext;

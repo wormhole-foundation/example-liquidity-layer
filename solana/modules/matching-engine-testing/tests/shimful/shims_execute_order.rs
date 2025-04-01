@@ -1,6 +1,6 @@
 use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::setup::{Solver, TestingContext, TransferDirection};
 use crate::utils::auction::ActiveAuctionState;
-use crate::utils::setup::TestingContext;
 
 use super::super::utils;
 use anchor_spl::token::spl_token;
@@ -13,8 +13,7 @@ use solana_sdk::{
     pubkey::Pubkey, signature::Keypair, signer::Signer, sysvar::SysvarId, transaction::Transaction,
 };
 use std::rc::Rc;
-use utils::setup::TransferDirection;
-use utils::{constants::*, setup::Solver};
+use utils::constants::*;
 use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
 use wormhole_svm_definitions::{
     solana::{
@@ -186,7 +185,7 @@ pub async fn execute_order_fallback(
         .get_new_latest_blockhash(test_context)
         .await
         .unwrap();
-    utils::setup::fast_forward_slots(test_context, 3).await;
+    crate::testing_engine::engine::fast_forward_slots(test_context, 3).await;
     let transaction = Transaction::new_signed_with_payer(
         &[execute_order_ix],
         Some(&payer_signer.pubkey()),
@@ -232,7 +231,7 @@ pub async fn execute_order_fallback_test(
         active_auction_state,
         &testing_context.testing_actors.owner.pubkey(),
         &fixture_accounts,
-        testing_context.initial_testing_state.transfer_direction,
+        testing_context.transfer_direction,
     );
     execute_order_fallback(
         testing_context,

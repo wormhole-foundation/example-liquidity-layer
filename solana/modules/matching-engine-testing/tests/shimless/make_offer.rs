@@ -6,6 +6,7 @@ use super::super::utils;
 use anchor_lang::prelude::*;
 use anchor_lang::InstructionData;
 
+use crate::testing_engine::setup::{Solver, TestingContext};
 use common::TRANSFER_AUTHORITY_SEED_PREFIX;
 use matching_engine::accounts::ImproveOffer as ImproveOfferAccounts;
 use matching_engine::accounts::{
@@ -22,7 +23,6 @@ use solana_sdk::signature::Keypair;
 use solana_sdk::signature::Signer;
 use solana_sdk::transaction::Transaction;
 use utils::auction::{ActiveAuctionState, AuctionAccounts, AuctionOffer, AuctionState};
-use utils::setup::{Solver, TestingContext};
 use utils::vaa::TestVaa;
 
 pub async fn place_initial_offer_shimless(

@@ -1,6 +1,6 @@
 use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::setup::TestingContext;
 use crate::utils::auction::AuctionState;
-use crate::utils::setup::TestingContext;
 
 use anchor_lang::prelude::*;
 use anchor_lang::InstructionData;

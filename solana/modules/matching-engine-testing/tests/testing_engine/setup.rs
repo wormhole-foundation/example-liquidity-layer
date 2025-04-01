@@ -1,21 +1,20 @@
-use super::account_fixtures::FixtureAccounts;
-use super::airdrop::airdrop;
-use super::auction::AuctionState;
-use super::mint::MintFixture;
-use super::program_fixtures::{
+use crate::testing_engine::config::{ExpectedError, ExpectedLog};
+use crate::utils::account_fixtures::FixtureAccounts;
+use crate::utils::airdrop::airdrop;
+use crate::utils::mint::MintFixture;
+use crate::utils::program_fixtures::{
     initialise_cctp_message_transmitter, initialise_cctp_token_messenger_minter,
     initialise_local_token_router, initialise_post_message_shims, initialise_upgrade_manager,
     initialise_verify_shims, initialise_wormhole_core_bridge,
 };
-use super::vaa::{
+use crate::utils::vaa::{
     create_vaas_test_with_chain_and_address, ChainAndAddress, TestVaaPair, TestVaaPairs, VaaArgs,
 };
-use super::{
+use crate::utils::{
     airdrop::airdrop_usdc,
     token_account::{create_token_account, read_keypair_from_file, TokenAccountFixture},
 };
-use super::{Chain, REGISTERED_TOKEN_ROUTERS};
-use crate::testing_engine::config::{ExpectedError, ExpectedLog};
+use crate::utils::{Chain, REGISTERED_TOKEN_ROUTERS};
 use anchor_lang::AccountDeserialize;
 use anchor_spl::token::{
     spl_token::{self, instruction::approve},
@@ -138,12 +137,13 @@ impl PreTestingContext {
 /// * `program_data_account` - The pubkey of the program data account created by the Upgrade Manager
 /// * `testing_actors` - The testing actors, including solvers and the owner
 /// * `fixture_accounts` - The accounts that are loaded from files under the `tests/fixtures` directory
-/// * `testing_state` - The testing state, including the auction state and the Vaas
+/// * `vaa_pairs` - The Vaas that were created in the pre-testing context setup stage
 pub struct TestingContext {
     pub program_data_account: Pubkey,
     pub testing_actors: TestingActors,
     pub fixture_accounts: Option<FixtureAccounts>,
-    pub initial_testing_state: TestingState,
+    pub vaa_pairs: TestVaaPairs,
+    pub transfer_direction: TransferDirection,
 }
 
 impl TestingContext {
@@ -179,23 +179,17 @@ impl TestingContext {
             .testing_actors
             .create_atas(&mut test_context, USDC_MINT_ADDRESS)
             .await;
-        let initial_testing_state = match vaas_test {
-            Some(vaas_test) => TestingState {
-                vaas: vaas_test,
-                transfer_direction,
-                ..TestingState::default()
-            },
-            None => TestingState {
-                transfer_direction,
-                ..TestingState::default()
-            },
+        let vaa_pairs = match vaas_test {
+            Some(vaas_test) => vaas_test,
+            None => TestVaaPairs::new(),
         };
         (
             TestingContext {
                 program_data_account: pre_testing_context.program_data_pubkey,
                 testing_actors: pre_testing_context.testing_actors,
                 fixture_accounts: Some(pre_testing_context.account_fixtures),
-                initial_testing_state,
+                vaa_pairs,
+                transfer_direction,
             },
             test_context,
         )
@@ -207,10 +201,7 @@ impl TestingContext {
     ///
     /// * `test_context` - The test context
     pub async fn verify_vaas(&self, test_context: &mut ProgramTestContext) {
-        self.initial_testing_state
-            .vaas
-            .verify_posted_vaas(test_context)
-            .await;
+        self.vaa_pairs.verify_posted_vaas(test_context).await;
     }
 
     /// Gets the VAA pair at the given index
@@ -219,8 +210,8 @@ impl TestingContext {
     ///
     /// * `index` - The index of the VAA pair
     pub fn get_vaa_pair(&self, index: usize) -> Option<TestVaaPair> {
-        if index < self.initial_testing_state.vaas.len() {
-            Some(self.initial_testing_state.vaas[index].clone())
+        if index < self.vaa_pairs.len() {
+            Some(self.vaa_pairs[index].clone())
         } else {
             None
         }
@@ -613,66 +604,6 @@ impl TestingActors {
             airdrop(test_context, &keypair.pubkey(), 10000000000).await;
             self.solvers
                 .push(Solver::new(keypair.clone(), Some(usdc_ata)));
-        }
-    }
-}
-
-/// Fast forwards the slot in the test context
-///
-/// # Arguments
-///
-/// * `test_context` - The test context
-/// * `num_slots` - The number of slots to fast forward
-pub async fn fast_forward_slots(test_context: &mut ProgramTestContext, num_slots: u64) {
-    // Get the current slot
-    let mut current_slot = test_context.banks_client.get_root_slot().await.unwrap();
-
-    let target_slot = current_slot.saturating_add(num_slots);
-    while current_slot < target_slot {
-        // Warp to the next slot - note we need to borrow_mut() here
-        test_context
-            .warp_to_slot(current_slot.saturating_add(1))
-            .expect("Failed to warp to slot");
-        current_slot = current_slot.saturating_add(1);
-    }
-
-    // Optionally, process a transaction to ensure the new slot is recognized
-    let recent_blockhash = test_context.last_blockhash;
-    let payer = test_context.payer.pubkey();
-    let tx = Transaction::new_signed_with_payer(
-        &[],
-        Some(&payer),
-        &[&test_context.payer],
-        recent_blockhash,
-    );
-
-    test_context
-        .banks_client
-        .process_transaction(tx)
-        .await
-        .expect("Failed to process transaction after warping");
-
-    println!("Fast forwarded {} slots", num_slots);
-}
-
-/// A struct representing the testing state
-///
-/// # Fields
-///
-/// * `auction_state` - The auction state
-/// * `vaas` - The VAAs
-pub struct TestingState {
-    pub auction_state: AuctionState,
-    pub vaas: TestVaaPairs,
-    pub transfer_direction: TransferDirection,
-}
-
-impl Default for TestingState {
-    fn default() -> Self {
-        Self {
-            auction_state: AuctionState::Inactive,
-            vaas: TestVaaPairs::new(),
-            transfer_direction: TransferDirection::FromEthereumToArbitrum,
         }
     }
 }

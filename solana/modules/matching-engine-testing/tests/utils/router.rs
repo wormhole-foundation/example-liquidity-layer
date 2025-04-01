@@ -1,8 +1,8 @@
 // Add methods for adding endpoints to the program test
 
 use super::constants::*;
-use super::setup::TestingContext;
 use super::token_account::create_token_account_for_pda;
+use crate::testing_engine::setup::TestingContext;
 use anchor_lang::prelude::*;
 
 use anchor_lang::{InstructionData, ToAccountMetas};

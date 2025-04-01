@@ -1,27 +1,26 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-use anchor_lang::AccountDeserialize;
-use anchor_spl::token::TokenAccount;
-use matching_engine::error::MatchingEngineError;
-use matching_engine::ID as PROGRAM_ID;
-use solana_program_test::tokio;
-use solana_sdk::pubkey::Pubkey;
-use testing_engine::config::*;
-mod shimful;
-mod shimless;
-mod testing_engine;
-mod utils;
+use crate::shimful;
+use crate::shimless;
+use crate::testing_engine;
 use crate::testing_engine::config::{
     ExpectedError, ImproveOfferInstructionConfig, InitializeInstructionConfig,
     PlaceInitialOfferInstructionConfig,
 };
-use crate::testing_engine::engine::{InstructionTrigger, TestingEngine};
+use crate::utils;
+use anchor_lang::AccountDeserialize;
+use anchor_spl::token::TokenAccount;
+use matching_engine::ID as PROGRAM_ID;
 use shimful::post_message::set_up_post_message_transaction_test;
 use shimless::initialize::{initialize_program, AuctionParametersConfig};
+use solana_program_test::tokio;
+use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::TransactionError;
+use testing_engine::config::*;
+use testing_engine::engine::{InstructionTrigger, TestingEngine};
+use testing_engine::setup::{setup_environment, ShimMode, TransferDirection};
 use utils::router::add_local_router_endpoint_ix;
-use utils::setup::{setup_environment, ShimMode, TestingContext, TransferDirection};
 use utils::vaa::VaaArgs;
 use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
 
@@ -443,6 +442,8 @@ pub async fn test_execute_order_shimless() {
         .execute(&mut test_context, instruction_triggers)
         .await;
 }
+
+#[tokio::test]
 pub async fn test_execute_order_fallback_blocks_shimless() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
     let vaa_args = VaaArgs {
@@ -469,8 +470,8 @@ pub async fn test_execute_order_fallback_blocks_shimless() {
         InstructionTrigger::ExecuteOrderShimless(ExecuteOrderInstructionConfig {
             expected_error: Some(ExpectedError {
                 instruction_index: 0,
-                error_code: MatchingEngineError::AccountAlreadyInitialized.into(),
-                error_string: MatchingEngineError::AccountAlreadyInitialized.to_string(),
+                error_code: 3012,
+                error_string: "AccountNotInitialized".to_string(),
             }),
             ..ExecuteOrderInstructionConfig::default()
         }),

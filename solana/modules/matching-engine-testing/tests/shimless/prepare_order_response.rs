@@ -1,9 +1,9 @@
+use crate::testing_engine::config::ExpectedError;
 use crate::testing_engine::config::ExpectedLog;
+use crate::testing_engine::setup::{TestingContext, TransferDirection};
 use crate::testing_engine::state::TestingEngineState;
 use crate::utils;
 use crate::utils::cctp_message::UsedNonces;
-use crate::utils::setup::TestingContext;
-use crate::{testing_engine::config::ExpectedError, utils::setup::TransferDirection};
 use anchor_lang::InstructionData;
 use anchor_lang::{prelude::*, system_program};
 use anchor_spl::token::spl_token;
@@ -50,17 +50,16 @@ pub async fn prepare_order_response(
         .clone()
         .expect("Fixture accounts not found");
 
-    let source_remote_token_messenger =
-        match testing_context.initial_testing_state.transfer_direction {
-            TransferDirection::FromEthereumToArbitrum => {
-                utils::router::get_remote_token_messenger(
-                    test_context,
-                    fixture_accounts.ethereum_remote_token_messenger,
-                )
-                .await
-            }
-            _ => panic!("Unsupported transfer direction"),
-        };
+    let source_remote_token_messenger = match testing_context.transfer_direction {
+        TransferDirection::FromEthereumToArbitrum => {
+            utils::router::get_remote_token_messenger(
+                test_context,
+                fixture_accounts.ethereum_remote_token_messenger,
+            )
+            .await
+        }
+        _ => panic!("Unsupported transfer direction"),
+    };
 
     let message_transmitter_config_pubkey = fixture_accounts.message_transmitter_config;
     let custodian_address = testing_engine_state
@@ -145,8 +144,7 @@ pub async fn prepare_order_response(
     };
     let cctp_message_transmitter_event_authority =
         Pubkey::find_program_address(&[EVENT_AUTHORITY_SEED], &MESSAGE_TRANSMITTER_PROGRAM_ID).0;
-    let cctp_remote_token_messenger = match testing_context.initial_testing_state.transfer_direction
-    {
+    let cctp_remote_token_messenger = match testing_context.transfer_direction {
         TransferDirection::FromEthereumToArbitrum => {
             fixture_accounts.ethereum_remote_token_messenger
         }

@@ -4,6 +4,7 @@ use crate::{shimless::initialize::AuctionParametersConfig, utils::Chain};
 use anchor_lang::prelude::*;
 use solana_sdk::signature::Keypair;
 
+/// An instruction config contains the configuration arguments for an instruction as well as the expected error
 pub trait InstructionConfig: Default {
     fn expected_error(&self) -> Option<&ExpectedError>;
 }

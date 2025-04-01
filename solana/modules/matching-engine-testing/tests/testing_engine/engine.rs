@@ -1,6 +1,9 @@
 use matching_engine::state::FastMarketOrder;
 use solana_program_test::ProgramTestContext;
+use solana_sdk::signer::Signer;
+use solana_sdk::transaction::Transaction;
 
+use super::setup::TestingContext;
 use super::{config::*, state::*};
 use crate::shimful;
 use crate::shimful::fast_market_order_shim::{
@@ -16,7 +19,6 @@ use crate::utils::{
         // AuctionState
     },
     router::create_all_router_endpoints_test,
-    setup::TestingContext,
 };
 use anchor_lang::prelude::*;
 
@@ -187,11 +189,8 @@ impl TestingEngine {
             .fixture_accounts
             .clone()
             .expect("Failed to get fixture accounts");
-        let vaas: TestVaaPairs = self.testing_context.initial_testing_state.vaas.clone();
-        let transfer_direction = self
-            .testing_context
-            .initial_testing_state
-            .transfer_direction;
+        let vaas: TestVaaPairs = self.testing_context.vaa_pairs.clone();
+        let transfer_direction = self.testing_context.transfer_direction;
         TestingEngineState::Uninitialized(BaseState {
             fixture_accounts,
             vaas,
@@ -847,4 +846,42 @@ impl TestingEngine {
             _ => current_state.clone(),
         }
     }
+}
+
+/// Fast forwards the slot in the test context
+///
+/// # Arguments
+///
+/// * `test_context` - The test context
+/// * `num_slots` - The number of slots to fast forward
+pub async fn fast_forward_slots(test_context: &mut ProgramTestContext, num_slots: u64) {
+    // Get the current slot
+    let mut current_slot = test_context.banks_client.get_root_slot().await.unwrap();
+
+    let target_slot = current_slot.saturating_add(num_slots);
+    while current_slot < target_slot {
+        // Warp to the next slot - note we need to borrow_mut() here
+        test_context
+            .warp_to_slot(current_slot.saturating_add(1))
+            .expect("Failed to warp to slot");
+        current_slot = current_slot.saturating_add(1);
+    }
+
+    // Optionally, process a transaction to ensure the new slot is recognized
+    let recent_blockhash = test_context.last_blockhash;
+    let payer = test_context.payer.pubkey();
+    let tx = Transaction::new_signed_with_payer(
+        &[],
+        Some(&payer),
+        &[&test_context.payer],
+        recent_blockhash,
+    );
+
+    test_context
+        .banks_client
+        .process_transaction(tx)
+        .await
+        .expect("Failed to process transaction after warping");
+
+    println!("Fast forwarded {} slots", num_slots);
 }

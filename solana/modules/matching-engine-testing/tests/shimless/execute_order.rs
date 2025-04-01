@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::setup::{TestingContext, TransferDirection};
 use crate::utils::account_fixtures::FixtureAccounts;
 use crate::utils::auction::{AuctionAccounts, AuctionState};
-use crate::utils::setup::{TestingContext, TransferDirection};
 use anchor_lang::prelude::*;
 use anchor_lang::{InstructionData, ToAccountMetas};
 use common::wormhole_cctp_solana::cctp::{
@@ -106,7 +106,7 @@ pub fn create_execute_order_shimless_accounts(
         Pubkey::find_program_address(&[b"message_transmitter"], &MESSAGE_TRANSMITTER_PROGRAM_ID).0;
     let token_messenger =
         Pubkey::find_program_address(&[b"token_messenger"], &TOKEN_MESSENGER_MINTER_PROGRAM_ID).0;
-    let remote_token_messenger = match testing_context.initial_testing_state.transfer_direction {
+    let remote_token_messenger = match testing_context.transfer_direction {
         TransferDirection::FromEthereumToArbitrum => {
             fixture_accounts.arbitrum_remote_token_messenger
         }
@@ -160,7 +160,7 @@ pub async fn execute_order_shimless_test(
     payer_signer: &Rc<Keypair>,
     expected_error: Option<&ExpectedError>,
 ) -> Option<ExecuteOrderShimlessFixture> {
-    crate::utils::setup::fast_forward_slots(test_context, 3).await;
+    crate::testing_engine::engine::fast_forward_slots(test_context, 3).await;
     let fixture_accounts = testing_context
         .get_fixture_accounts()
         .expect("Fixture accounts not found");

@@ -1,6 +1,6 @@
 use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::setup::{TestingContext, TransferDirection};
 use crate::testing_engine::state::TestingEngineState;
-use crate::utils::setup::{TestingContext, TransferDirection};
 
 use super::super::utils;
 use super::verify_shim::GuardianSignatureInfo;
@@ -304,17 +304,16 @@ pub async fn prepare_order_response_test(
     .await
     .unwrap();
 
-    let source_remote_token_messenger =
-        match testing_context.initial_testing_state.transfer_direction {
-            TransferDirection::FromEthereumToArbitrum => {
-                utils::router::get_remote_token_messenger(
-                    test_context,
-                    fixture_accounts.ethereum_remote_token_messenger,
-                )
-                .await
-            }
-            _ => panic!("Unsupported transfer direction"),
-        };
+    let source_remote_token_messenger = match testing_context.transfer_direction {
+        TransferDirection::FromEthereumToArbitrum => {
+            utils::router::get_remote_token_messenger(
+                test_context,
+                fixture_accounts.ethereum_remote_token_messenger,
+            )
+            .await
+        }
+        _ => panic!("Unsupported transfer direction"),
+    };
     let cctp_nonce = deposit.cctp_nonce;
 
     let message_transmitter_config_pubkey = fixture_accounts.message_transmitter_config;
@@ -367,7 +366,7 @@ pub async fn prepare_order_response_test(
         usdc_mint_address,
         &cctp_message_decoded,
         &guardian_signature_info,
-        &testing_context.initial_testing_state.transfer_direction,
+        &testing_context.transfer_direction,
     );
     super::shims_prepare_order_response::prepare_order_response_cctp_shim(
         testing_context,

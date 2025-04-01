@@ -1,8 +1,8 @@
+use super::setup::TransferDirection;
 use crate::utils::{
     account_fixtures::FixtureAccounts,
     auction::{AuctionAccounts, AuctionState},
     router::TestRouterEndpoints,
-    setup::TransferDirection,
     vaa::{TestVaaPair, TestVaaPairs},
 };
 use anchor_lang::prelude::*;

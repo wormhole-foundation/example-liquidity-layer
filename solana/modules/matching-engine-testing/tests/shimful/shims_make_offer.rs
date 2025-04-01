@@ -2,8 +2,7 @@ use crate::testing_engine::config::ExpectedError;
 use crate::testing_engine::state::InitialOfferPlacedState;
 
 use super::super::utils;
-use super::super::utils::setup::Solver;
-use super::super::utils::setup::TestingContext;
+use crate::testing_engine::setup::{Solver, TestingContext};
 use matching_engine::fallback::place_initial_offer::{
     PlaceInitialOfferCctpShim as PlaceInitialOfferCctpShimFallback,
     PlaceInitialOfferCctpShimAccounts as PlaceInitialOfferCctpShimFallbackAccounts,
