@@ -20,38 +20,41 @@ pub trait DataDiscriminator {
     const DISCRIMINATOR: &'static [u8];
 }
 
+/// A struct representing a posted VAA
+///
+/// # Fields
+///
+/// * `consistency_level` - The level of consistency requested by the emitter
+/// * `vaa_time` - The time the VAA was submitted
+/// * `vaa_signature_account` - The account where signatures are stored
+/// * `submission_time` - The time the posted message was created
+/// * `nonce` - The unique nonce for this message
+/// * `sequence` - The sequence number of this message
+/// * `emitter_chain` - The chain ID of the emitter
+/// * `emitter_address` - The address of the emitter
+/// * `payload` - The payload of the VAA
 #[derive(
     Debug, Default, BorshSerialize, BorshDeserialize, Clone, Serialize, Deserialize, PartialEq, Eq,
 )]
 pub struct PostedVaaData {
     /// Header of the posted VAA
     // pub vaa_version: u8, (This is removed because it is encoded in the discriminator)
-
-    /// Level of consistency requested by the emitter
     pub consistency_level: u8,
 
-    /// Time the vaa was submitted
     pub vaa_time: u32,
 
-    /// Account where signatures are stored
     pub vaa_signature_account: Pubkey,
 
-    /// Time the posted message was created
     pub submission_time: u32,
 
-    /// Unique nonce for this message
     pub nonce: u32,
 
-    /// Sequence number of this message
     pub sequence: u64,
 
-    /// Emitter of the message
     pub emitter_chain: u16,
 
-    /// Emitter of the message
     pub emitter_address: [u8; 32],
 
-    /// Message payload
     pub payload: Vec<u8>,
 }
 
@@ -60,6 +63,15 @@ impl DataDiscriminator for PostedVaaData {
 }
 
 impl PostedVaaData {
+    /// Creates a new posted VAA
+    ///
+    /// # Arguments
+    ///
+    /// * `chain` - The chain the VAA is being posted to
+    /// * `payload` - The payload of the VAA
+    /// * `emitter_address` - The address of the emitter
+    /// * `sequence` - The sequence number of the VAA
+    /// * `nonce` - The nonce of the VAA
     pub fn new(
         chain: Chain,
         payload: Vec<u8>,
@@ -88,6 +100,7 @@ impl PostedVaaData {
         }
     }
 
+    /// Computes the hash of the VAA (needed for the digest of the VAA)
     pub fn message_hash(&self) -> keccak::Hash {
         keccak::hashv(&[
             self.vaa_time.to_be_bytes().as_ref(),
@@ -100,6 +113,16 @@ impl PostedVaaData {
         ])
     }
 
+    /// Signs the VAA with the guardian key
+    ///
+    /// # Arguments
+    ///
+    /// * `guardian_secret_key` - The guardian key
+    /// * `index` - The index of the guardian
+    ///
+    /// # Returns
+    ///
+    /// The 66 byte signature (with recovery id at final index and guardian index at first index)
     pub fn sign_with_guardian_key(
         &self,
         guardian_secret_key: &SecpSecretKey,
@@ -120,6 +143,11 @@ impl PostedVaaData {
         signature_bytes
     }
 
+    /// Computes the digest of the VAA
+    ///
+    /// # Returns
+    ///
+    /// The 32 byte digest of the VAA
     pub fn digest(&self) -> [u8; 32] {
         keccak::hashv(&[self.message_hash().as_ref()])
             .as_ref()
@@ -127,6 +155,12 @@ impl PostedVaaData {
             .unwrap()
     }
 
+    /// Creates a VAA account
+    ///
+    /// # Arguments
+    ///
+    /// * `program_test` - The program test
+    /// * `vaa_address` - The address of the VAA
     pub fn create_vaa_account(&self, program_test: &mut ProgramTest, vaa_address: Pubkey) {
         let vaa_data_serialized = serialize_with_discriminator(self).unwrap();
         let lamports = solana_sdk::rent::Rent::default().minimum_balance(vaa_data_serialized.len());
@@ -167,6 +201,12 @@ where
     Ok(data)
 }
 
+/// A struct representing the deserialized payload of a VAA
+///
+/// # Enums
+///
+/// * `deposit` - The deposit payload
+/// * `fast_transfer` - The fast transfer payload
 #[derive(Clone)]
 pub enum PayloadDeserialized {
     Deposit(Deposit),
@@ -181,14 +221,23 @@ impl PayloadDeserialized {
         }
     }
 
-    pub fn get_fast_transfer(&self) -> Option<FastMarketOrder> {
-        match self {
-            Self::FastTransfer(fast_transfer) => Some(fast_transfer.clone()),
-            _ => None,
-        }
-    }
+    // pub fn get_fast_transfer(&self) -> Option<FastMarketOrder> {
+    //     match self {
+    //         Self::FastTransfer(fast_transfer) => Some(fast_transfer.clone()),
+    //         _ => None,
+    //     }
+    // }
 }
 
+/// A struct representing a test VAA (may be posted or not)
+///
+/// # Fields
+///
+/// * `kind` - The kind of VAA
+/// * `vaa_pubkey` - The pubkey of the VAA
+/// * `vaa_data` - The data of the VAA
+/// * `payload_deserialized` - The deserialized payload of the VAA
+/// * `is_posted` - Whether the VAA has been posted
 #[derive(Clone)]
 pub struct TestVaa {
     pub kind: TestVaaKind,
@@ -199,10 +248,12 @@ pub struct TestVaa {
 }
 
 impl TestVaa {
+    /// Gets the pubkey of the VAA
     pub fn get_vaa_pubkey(&self) -> Pubkey {
         self.vaa_pubkey
     }
 
+    /// Gets the posted vaa data of the VAA
     pub fn get_vaa_data(&self) -> &PostedVaaData {
         &self.vaa_data
     }
@@ -214,6 +265,7 @@ pub enum TestVaaKind {
     FastTransfer,
 }
 
+/// A struct representing the parameters for creating a deposit and fast transfer
 #[derive(Default)]
 pub struct CreateDepositAndFastTransferParams {
     pub deposit_params: CreateDepositParams,
@@ -221,6 +273,7 @@ pub struct CreateDepositAndFastTransferParams {
 }
 
 impl CreateDepositAndFastTransferParams {
+    /// Verifies the parameters for creating a deposit and fast transfer
     pub fn verify(&self) {
         assert!(
             self.fast_transfer_params.max_fee
@@ -269,6 +322,7 @@ impl Default for CreateFastTransferParams {
     }
 }
 
+/// Helper struct for creating test VAA arguments
 pub struct TestVaaArgs {
     pub start_timestamp: Option<u32>,
     pub sequence: u64,
@@ -289,6 +343,18 @@ impl From<VaaArgs> for TestVaaArgs {
     }
 }
 
+/// A struct representing a pair of test VAA
+///
+/// # Fields
+///
+/// * `token_mint` - The mint of the token
+/// * `source_address` - The source address
+/// * `refund_address` - The refund address
+/// * `destination_address` - The destination address
+/// * `cctp_nonce` - The CCTP nonce
+/// * `sequence` - The sequence number
+/// * `fast_transfer_vaa` - The fast transfer VAA
+/// * `deposit_vaa` - The deposit VAA
 #[derive(Clone)]
 pub struct TestVaaPair {
     pub token_mint: Pubkey,
@@ -302,6 +368,17 @@ pub struct TestVaaPair {
 }
 
 impl TestVaaPair {
+    /// Creates a new test VAA pair
+    ///
+    /// # Arguments
+    ///
+    /// * `token_mint` - The mint of the token
+    /// * `source_address` - The source address
+    /// * `refund_address` - The refund address
+    /// * `destination_address` - The destination address
+    /// * `cctp_mint_recipient` - The CCTP mint recipient
+    /// * `create_deposit_and_fast_transfer_params` - The parameters for creating a deposit and fast transfer
+    /// * `test_vaa_args` - The arguments for the test VAA
     pub fn new(
         token_mint: Pubkey,
         source_address: ChainAddress,
@@ -368,6 +445,11 @@ impl TestVaaPair {
         }
     }
 
+    /// Adds the VAA pair to the test context
+    ///
+    /// # Arguments
+    ///
+    /// * `program_test` - The program test
     pub fn add_to_test(&self, program_test: &mut ProgramTest) {
         self.deposit_vaa
             .vaa_data
@@ -377,6 +459,7 @@ impl TestVaaPair {
             .create_vaa_account(program_test, self.fast_transfer_vaa.vaa_pubkey);
     }
 
+    /// Verifies the posted VAA pair
     pub async fn verify_posted_vaa_pair(&self, test_context: &mut ProgramTestContext) {
         let expected_deposit_vaa = self.deposit_vaa.vaa_data.clone();
         let expected_fast_transfer_vaa = self.fast_transfer_vaa.vaa_data.clone();
@@ -407,11 +490,29 @@ impl TestVaaPair {
         }
     }
 
+    /// Checks if the VAA pair is posted
     pub fn is_posted(&self) -> bool {
         self.deposit_vaa.is_posted && self.fast_transfer_vaa.is_posted
     }
 }
 
+/// Creates a deposit message
+///
+/// # Arguments
+///
+/// * `token_mint` - The mint of the token
+/// * `source_address` - The source address
+/// * `destination_address` - The destination address (always set to solana regardless of the destination chain)
+/// * `cctp_mint_recipient` - The CCTP mint recipient
+/// * `amount` - The amount of the deposit
+/// * `base_fee` - The base fee of the deposit
+/// * `test_vaa_args` - The arguments for the test VAA
+///
+/// # Returns
+///
+/// * `vaa_address` - The address of the VAA
+/// * `posted_vaa_data` - The posted VAA data
+/// * `deposit` - The deposit account deserialized
 pub fn create_deposit_message(
     token_mint: Pubkey,
     source_address: ChainAddress,
@@ -454,6 +555,21 @@ pub fn create_deposit_message(
     (vaa_address, posted_vaa_data, deposit)
 }
 
+/// Creates a fast transfer message
+///
+/// # Arguments
+///
+/// * `source_address` - The source address
+/// * `refund_address` - The refund address
+/// * `destination_address` - The destination address
+/// * `test_vaa_args` - The arguments for the test VAA
+/// * `create_fast_transfer_params` - The parameters for creating a fast transfer
+///
+/// # Returns
+///
+/// * `vaa_address` - The address of the VAA
+/// * `posted_vaa_data` - The posted VAA data
+/// * `fast_market_order` - The fast market order account deserialized
 pub fn create_fast_transfer_message(
     source_address: ChainAddress,
     refund_address: ChainAddress,
@@ -502,6 +618,11 @@ pub fn create_fast_transfer_message(
     (vaa_address, posted_vaa_data, fast_market_order)
 }
 
+/// A struct representing a collection of test VAA pairs
+///
+/// # Fields
+///
+/// * `pairs` - The collection of test VAA pairs
 #[derive(Clone)]
 pub struct TestVaaPairs(pub Vec<TestVaaPair>);
 
@@ -525,6 +646,15 @@ impl TestVaaPairs {
     }
 
     /// Add a fast transfer to the test, the sequence number and cctp nonce are equal to the index of the test fast transfer
+    ///
+    /// # Arguments
+    ///
+    /// * `token_mint` - The mint of the token
+    /// * `source_address` - The source address
+    /// * `refund_address` - The refund address
+    /// * `destination_address` - The destination address
+    /// * `cctp_mint_recipient` - The CCTP mint recipient
+    /// * `vaa_args` - The arguments for the test VAA
     pub fn add_ft(
         &mut self,
         token_mint: Pubkey,
@@ -565,6 +695,16 @@ impl TestVaaPairs {
         self.0.push(test_fast_transfer);
     }
 
+    /// Creates a collection of test VAA pairs with a chain and address
+    ///
+    /// # Arguments
+    ///
+    /// * `program_test` - The program test
+    /// * `mint_address` - The mint address
+    /// * `cctp_mint_recipient` - The CCTP mint recipient
+    /// * `source_chain_and_address` - The source chain and address
+    /// * `destination_chain_and_address` - The destination chain and address
+    /// * `vaa_args` - The arguments for the test VAA
     pub fn create_vaas_with_chain_and_address(
         &mut self,
         program_test: &mut ProgramTest,
@@ -607,6 +747,16 @@ impl TestVaaPairs {
     }
 }
 
+/// A struct representing the arguments for creating a test VAA
+///
+/// # Fields
+///
+/// * `sequence` - The sequence number
+/// * `cctp_nonce` - The CCTP nonce
+/// * `vaa_nonce` - The VAA nonce
+/// * `start_timestamp` - The start timestamp
+/// * `post_vaa` - Whether to post the VAA
+/// * `create_deposit_and_fast_transfer_params` - The parameters for creating a deposit and fast transfer
 #[derive(Default)]
 pub struct VaaArgs {
     pub sequence: Option<u64>,
@@ -622,6 +772,20 @@ pub struct ChainAndAddress {
     pub address: [u8; 32],
 }
 
+/// Creates a collection of test VAA pairs with a chain and address (one deposit and one fast transfer per chain)
+///
+/// # Arguments
+///
+/// * `program_test` - The program test
+/// * `mint_address` - The mint address
+/// * `cctp_mint_recipient` - The CCTP mint recipient
+/// * `source_chain_and_address` - The source chain and address
+/// * `destination_chain_and_address` - The destination chain and address
+/// * `vaa_args` - The arguments for the test VAA
+///
+/// # Returns
+///
+/// * `test_vaa_pairs` - The collection of test VAA pairs
 pub fn create_vaas_test_with_chain_and_address(
     program_test: &mut ProgramTest,
     mint_address: Pubkey,
@@ -645,6 +809,17 @@ pub trait ToBytes {
     fn to_bytes(&self) -> [u8; 32];
 }
 
+/// A struct representing a test public key
+///
+/// # Enums
+///
+/// * `solana` - A Solana public key
+/// * `evm` - An EVM public key
+/// * `bytes` - A bytes representation of the public key
+///
+/// # Methods
+///
+/// * `to_bytes` - Converts the public key to a bytes array
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum TestPubkey {
@@ -713,6 +888,12 @@ impl ToBytes for EvmAddress {
     }
 }
 
+/// A struct representing a chain and address
+///
+/// # Fields
+///
+/// * `chain` - The chain
+/// * `address` - The address
 #[derive(Clone)]
 pub struct ChainAddress {
     pub chain: Chain,

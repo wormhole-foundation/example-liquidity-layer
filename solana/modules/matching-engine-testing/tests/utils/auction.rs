@@ -111,7 +111,7 @@ impl ActiveAuctionState {
             custody_token_bump: 254, // TODO: Figure this out
             vaa_sequence: 0,         // No need to cehck against this
             source_chain: {
-                match testing_context.testing_state.transfer_direction {
+                match testing_context.initial_testing_state.transfer_direction {
                     TransferDirection::FromEthereumToArbitrum => 3,
                     TransferDirection::FromArbitrumToEthereum => 23,
                     TransferDirection::Other => {

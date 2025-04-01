@@ -8,6 +8,7 @@ use solana_sdk::{
 use std::fs;
 
 #[derive(Clone)]
+/// A struct representing an initialised token account
 pub struct TokenAccountFixture {
     pub address: Pubkey,
     pub account: spl_token::state::Account,
@@ -31,6 +32,10 @@ impl std::fmt::Debug for TokenAccountFixture {
 /// * `payer` - The payer of the account
 /// * `owner` - The owner of the account
 /// * `mint` - The mint of the account
+///
+/// # Returns
+///
+/// The token account fixture
 pub async fn create_token_account(
     test_ctx: &mut ProgramTestContext,
     owner: &Keypair,
@@ -75,6 +80,17 @@ pub async fn create_token_account(
     }
 }
 
+/// Creates a token account for the given PDA
+///
+/// # Arguments
+///
+/// * `test_context` - The test context
+/// * `pda` - The PDA that will own the token account
+/// * `mint` - The mint address of the token
+///
+/// # Returns
+///
+/// The address of the token account
 pub async fn create_token_account_for_pda(
     test_context: &mut ProgramTestContext,
     pda: &Pubkey,  // The PDA that will own the token account

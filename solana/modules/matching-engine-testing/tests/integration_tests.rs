@@ -1,5 +1,4 @@
 #![allow(clippy::expect_used)]
-#![allow(dead_code)]
 #![allow(clippy::panic)]
 
 use anchor_lang::AccountDeserialize;
@@ -108,8 +107,12 @@ pub async fn test_setup_vaas() {
         post_vaa: true,
         ..VaaArgs::default()
     };
-    let (testing_context, mut test_context) =
-        setup_environment(ShimMode::PostVaa, transfer_direction, Some(vaa_args)).await;
+    let (testing_context, mut test_context) = setup_environment(
+        ShimMode::VerifySignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
 
     testing_context.verify_vaas(&mut test_context).await;
 

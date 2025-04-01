@@ -54,6 +54,14 @@ cfg_if::cfg_if! {
 }
 const OWNER_KEYPAIR_PATH: &str = "tests/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json";
 
+/// The pre-testing context struct stores data that for the program before the solana-program-test context is created
+///
+/// # Fields
+///
+/// * `program_test` - The program test
+/// * `testing_actors` - The testing actors
+/// * `program_data_pubkey` - The pubkey of the program data account
+/// * `account_fixtures` - The account fixtures
 pub struct PreTestingContext {
     pub program_test: ProgramTest,
     pub testing_actors: TestingActors,
@@ -112,23 +120,44 @@ impl PreTestingContext {
         }
     }
 
+    /// Adds the post message shims to the program test
     pub fn add_post_message_shims(&mut self) {
         initialise_post_message_shims(&mut self.program_test);
     }
 
+    /// Adds the verify shims to the program test
     pub fn add_verify_shims(&mut self) {
         initialise_verify_shims(&mut self.program_test);
     }
 }
 
+/// Testing Context struct that stores common data needed to run tests
+///
+/// # Fields
+///
+/// * `program_data_account` - The pubkey of the program data account created by the Upgrade Manager
+/// * `testing_actors` - The testing actors, including solvers and the owner
+/// * `fixture_accounts` - The accounts that are loaded from files under the `tests/fixtures` directory
+/// * `testing_state` - The testing state, including the auction state and the Vaas
 pub struct TestingContext {
     pub program_data_account: Pubkey,
     pub testing_actors: TestingActors,
     pub fixture_accounts: Option<FixtureAccounts>,
-    pub testing_state: TestingState,
+    pub initial_testing_state: TestingState,
 }
 
 impl TestingContext {
+    /// Creates a new TestingContext
+    ///
+    /// # Arguments
+    ///
+    /// * `pre_testing_context` - The pre-testing context
+    /// * `transfer_direction` - The transfer direction
+    /// * `vaas_test` - The Vaas that were created in the pre-testing context setup stage
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the new TestingContext and the test context from the solana-program-test crate
     pub async fn new(
         mut pre_testing_context: PreTestingContext,
         transfer_direction: TransferDirection,
@@ -150,7 +179,7 @@ impl TestingContext {
             .testing_actors
             .create_atas(&mut test_context, USDC_MINT_ADDRESS)
             .await;
-        let testing_state = match vaas_test {
+        let initial_testing_state = match vaas_test {
             Some(vaas_test) => TestingState {
                 vaas: vaas_test,
                 transfer_direction,
@@ -166,47 +195,87 @@ impl TestingContext {
                 program_data_account: pre_testing_context.program_data_pubkey,
                 testing_actors: pre_testing_context.testing_actors,
                 fixture_accounts: Some(pre_testing_context.account_fixtures),
-                testing_state,
+                initial_testing_state,
             },
             test_context,
         )
     }
 
+    /// Verifies the posted VAA pairs
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
     pub async fn verify_vaas(&self, test_context: &mut ProgramTestContext) {
-        self.testing_state
+        self.initial_testing_state
             .vaas
             .verify_posted_vaas(test_context)
             .await;
     }
 
+    /// Gets the VAA pair at the given index
+    ///
+    /// # Arguments
+    ///
+    /// * `index` - The index of the VAA pair
     pub fn get_vaa_pair(&self, index: usize) -> Option<TestVaaPair> {
-        if index < self.testing_state.vaas.len() {
-            Some(self.testing_state.vaas[index].clone())
+        if index < self.initial_testing_state.vaas.len() {
+            Some(self.initial_testing_state.vaas[index].clone())
         } else {
             None
         }
     }
 
+    /// Gets the fixture accounts
+    ///
+    /// # Returns
+    ///
+    /// The fixture accounts
     pub fn get_fixture_accounts(&self) -> Option<FixtureAccounts> {
         self.fixture_accounts.clone()
     }
 
+    /// Gets the matching engine program ID
+    ///
+    /// # Returns
+    ///
+    /// The matching engine program ID
     pub fn get_matching_engine_program_id(&self) -> Pubkey {
         PROGRAM_ID
     }
 
+    /// Gets the USDC mint address
+    ///
+    /// # Returns
+    ///
+    /// The USDC mint address
     pub fn get_usdc_mint_address(&self) -> Pubkey {
         USDC_MINT_ADDRESS
     }
 
+    /// Gets the CCTP mint recipient
+    ///
+    /// # Returns
+    ///
+    /// The CCTP mint recipient
     pub fn get_cctp_mint_recipient(&self) -> Pubkey {
         CCTP_MINT_RECIPIENT
     }
 
+    /// Gets the Wormhole program ID
+    ///
+    /// # Returns
+    ///
+    /// The Wormhole program ID
     pub fn get_wormhole_program_id(&self) -> Pubkey {
         wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID
     }
 
+    /// Gets the new latest blockhash
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
     pub async fn get_new_latest_blockhash(
         &self,
         test_context: &mut ProgramTestContext,
@@ -216,6 +285,12 @@ impl TestingContext {
         Ok(hash)
     }
 
+    /// Processes a transaction
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `transaction` - The transaction to process
     pub async fn process_transaction(
         &self,
         test_context: &mut ProgramTestContext,
@@ -236,6 +311,7 @@ impl TestingContext {
     ///
     /// The simulation details if the transaction was successful and all expected logs were found
     #[allow(dead_code)]
+    // TODO: Use this
     pub async fn simulate_and_verify_logs(
         &self,
         test_context: &mut ProgramTestContext,
@@ -323,6 +399,11 @@ impl TestingContext {
     }
 }
 
+/// A struct representing a solver
+///
+/// # Fields
+///
+/// * `actor` - The testing actor
 #[derive(Clone)]
 pub struct Solver {
     pub actor: TestingActor,
@@ -385,6 +466,12 @@ impl Solver {
     }
 }
 
+/// A struct representing a testing actor
+///
+/// # Fields
+///
+/// * `keypair` - The keypair of the actor
+/// * `token_account` - The token account of the actor (if it exists)
 #[derive(Clone)]
 pub struct TestingActor {
     pub keypair: Rc<Keypair>,
@@ -420,6 +507,11 @@ impl TestingActor {
         self.token_account.as_ref().map(|t| t.address)
     }
 
+    /// Gets the balance of the token account
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
     pub async fn get_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
         if let Some(token_account) = self.token_account_address() {
             let account = test_context
@@ -525,6 +617,12 @@ impl TestingActors {
     }
 }
 
+/// Fast forwards the slot in the test context
+///
+/// # Arguments
+///
+/// * `test_context` - The test context
+/// * `num_slots` - The number of slots to fast forward
 pub async fn fast_forward_slots(test_context: &mut ProgramTestContext, num_slots: u64) {
     // Get the current slot
     let mut current_slot = test_context.banks_client.get_root_slot().await.unwrap();
@@ -557,11 +655,12 @@ pub async fn fast_forward_slots(test_context: &mut ProgramTestContext, num_slots
     println!("Fast forwarded {} slots", num_slots);
 }
 
-#[derive(Clone)]
-pub struct ProgramAddresses {
-    pub custodian_address: Pubkey,
-}
-
+/// A struct representing the testing state
+///
+/// # Fields
+///
+/// * `auction_state` - The auction state
+/// * `vaas` - The VAAs
 pub struct TestingState {
     pub auction_state: AuctionState,
     pub vaas: TestVaaPairs,
@@ -578,10 +677,17 @@ impl Default for TestingState {
     }
 }
 
+/// The mode of the shim
+///
+/// # Enums
+///
+/// * `None` - No shims
+/// * `PostVaa` - Post the VAAs but don't add the shims
+/// * `VerifySignature` - Only add the verify signature shim program
+/// * `VerifyAndPostSignature` - Add the verify signature and post message shims program
 pub enum ShimMode {
     None,
-    PostVaa,
-    // VerifySignature,
+    VerifySignature,
     VerifyAndPostSignature,
 }
 
@@ -670,10 +776,9 @@ pub async fn setup_environment(
     };
     match shim_mode {
         ShimMode::None => {}
-        ShimMode::PostVaa => {}
-        // ShimMode::VerifySignature => {
-        //     pre_testing_context.add_verify_shims();
-        // }
+        ShimMode::VerifySignature => {
+            pre_testing_context.add_verify_shims();
+        }
         ShimMode::VerifyAndPostSignature => {
             pre_testing_context.add_verify_shims();
             pre_testing_context.add_post_message_shims();

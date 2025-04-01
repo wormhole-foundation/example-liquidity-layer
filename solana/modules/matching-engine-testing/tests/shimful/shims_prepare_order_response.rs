@@ -53,7 +53,7 @@ pub struct PrepareOrderResponseShimAccountsFixture {
 }
 
 impl PrepareOrderResponseShimAccountsFixture {
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)] // TODO: fix this (10/7)
     pub fn new(
         signer: &Pubkey,
         fixture_accounts: &FixtureAccounts,
@@ -304,16 +304,17 @@ pub async fn prepare_order_response_test(
     .await
     .unwrap();
 
-    let source_remote_token_messenger = match testing_context.testing_state.transfer_direction {
-        TransferDirection::FromEthereumToArbitrum => {
-            utils::router::get_remote_token_messenger(
-                test_context,
-                fixture_accounts.ethereum_remote_token_messenger,
-            )
-            .await
-        }
-        _ => panic!("Unsupported transfer direction"),
-    };
+    let source_remote_token_messenger =
+        match testing_context.initial_testing_state.transfer_direction {
+            TransferDirection::FromEthereumToArbitrum => {
+                utils::router::get_remote_token_messenger(
+                    test_context,
+                    fixture_accounts.ethereum_remote_token_messenger,
+                )
+                .await
+            }
+            _ => panic!("Unsupported transfer direction"),
+        };
     let cctp_nonce = deposit.cctp_nonce;
 
     let message_transmitter_config_pubkey = fixture_accounts.message_transmitter_config;
@@ -366,7 +367,7 @@ pub async fn prepare_order_response_test(
         usdc_mint_address,
         &cctp_message_decoded,
         &guardian_signature_info,
-        &testing_context.testing_state.transfer_direction,
+        &testing_context.initial_testing_state.transfer_direction,
     );
     super::shims_prepare_order_response::prepare_order_response_cctp_shim(
         testing_context,

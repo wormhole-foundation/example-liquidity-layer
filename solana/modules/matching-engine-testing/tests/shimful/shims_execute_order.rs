@@ -232,7 +232,7 @@ pub async fn execute_order_fallback_test(
         active_auction_state,
         &testing_context.testing_actors.owner.pubkey(),
         &fixture_accounts,
-        testing_context.testing_state.transfer_direction,
+        testing_context.initial_testing_state.transfer_direction,
     );
     execute_order_fallback(
         testing_context,

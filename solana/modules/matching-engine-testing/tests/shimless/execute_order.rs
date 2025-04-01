@@ -106,7 +106,7 @@ pub fn create_execute_order_shimless_accounts(
         Pubkey::find_program_address(&[b"message_transmitter"], &MESSAGE_TRANSMITTER_PROGRAM_ID).0;
     let token_messenger =
         Pubkey::find_program_address(&[b"token_messenger"], &TOKEN_MESSENGER_MINTER_PROGRAM_ID).0;
-    let remote_token_messenger = match testing_context.testing_state.transfer_direction {
+    let remote_token_messenger = match testing_context.initial_testing_state.transfer_direction {
         TransferDirection::FromEthereumToArbitrum => {
             fixture_accounts.arbitrum_remote_token_messenger
         }

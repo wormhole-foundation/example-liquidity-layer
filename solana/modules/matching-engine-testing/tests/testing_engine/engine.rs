@@ -36,6 +36,33 @@ pub enum InstructionTrigger {
     CloseFastMarketOrderShim(CloseFastMarketOrderShimInstructionConfig),
 }
 
+// Implement InstructionConfig for InstructionTrigger
+impl InstructionConfig for InstructionTrigger {
+    fn expected_error(&self) -> Option<&ExpectedError> {
+        match self {
+            Self::InitializeProgram(config) => config.expected_error(),
+            Self::CreateCctpRouterEndpoints(config) => config.expected_error(),
+            Self::InitializeFastMarketOrderShim(config) => config.expected_error(),
+            Self::PlaceInitialOfferShimless(config) => config.expected_error(),
+            Self::PlaceInitialOfferShim(config) => config.expected_error(),
+            Self::ImproveOfferShimless(config) => config.expected_error(),
+            Self::ExecuteOrderShimless(config) => config.expected_error(),
+            Self::ExecuteOrderShim(config) => config.expected_error(),
+            Self::PrepareOrderShimless(config) => config.expected_error(),
+            Self::PrepareOrderShim(config) => config.expected_error(),
+            Self::SettleAuction(config) => config.expected_error(),
+            Self::CloseFastMarketOrderShim(config) => config.expected_error(),
+        }
+    }
+}
+
+// If you need a default implementation
+impl Default for InstructionTrigger {
+    fn default() -> Self {
+        Self::InitializeProgram(InitializeInstructionConfig::default())
+    }
+}
+
 /// Functional style testing engine for the matching engine program
 ///
 /// This engine is used to test the matching engine program with a functional style.
@@ -46,6 +73,7 @@ pub enum InstructionTrigger {
 /// If an instruction trigger fails, the engine will return the previous state.
 ///
 /// Instruction triggers (enums) take a configuration struct as an argument.
+/// Each instruction config implements the InstructionConfig trait.
 /// The configuration struct contains fields for the expected error, and for
 /// providing test specific configuration.
 ///
@@ -159,8 +187,11 @@ impl TestingEngine {
             .fixture_accounts
             .clone()
             .expect("Failed to get fixture accounts");
-        let vaas: TestVaaPairs = self.testing_context.testing_state.vaas.clone();
-        let transfer_direction = self.testing_context.testing_state.transfer_direction;
+        let vaas: TestVaaPairs = self.testing_context.initial_testing_state.vaas.clone();
+        let transfer_direction = self
+            .testing_context
+            .initial_testing_state
+            .transfer_direction;
         TestingEngineState::Uninitialized(BaseState {
             fixture_accounts,
             vaas,
@@ -175,7 +206,7 @@ impl TestingEngine {
         config: &InitializeInstructionConfig,
     ) -> TestingEngineState {
         let auction_parameters_config = config.auction_parameters_config.clone();
-        let expected_error = config.expected_error.as_ref();
+        let expected_error = config.expected_error();
 
         let (result, owner_pubkey, owner_assistant_pubkey, fee_recipient_token_account) = {
             let result = shimless::initialize::initialize_program(
@@ -298,7 +329,7 @@ impl TestingEngine {
             &payer_signer,
             fast_market_order,
             &guardian_signature_info,
-            config.expected_error.as_ref(),
+            config.expected_error(),
         )
         .await;
 
@@ -345,7 +376,7 @@ impl TestingEngine {
             test_context,
             &close_account_refund_recipient,
             &fast_market_order_account,
-            config.expected_error.as_ref(),
+            config.expected_error(),
         )
         .await;
 
@@ -379,7 +410,7 @@ impl TestingEngine {
             .solvers
             .get(config.solver_index)
             .expect("Solver not found at index");
-        let expected_error = config.expected_error.as_ref();
+        let expected_error = config.expected_error();
         let fast_vaa = &current_state
             .base()
             .vaas
@@ -405,7 +436,7 @@ impl TestingEngine {
                 .endpoints,
             custodian_address,
             self.testing_context.get_usdc_mint_address(),
-            self.testing_context.testing_state.transfer_direction,
+            current_state.base().transfer_direction,
         );
         let auction_state = shimless::make_offer::place_initial_offer_shimless(
             &self.testing_context,
@@ -442,7 +473,7 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &ImproveOfferInstructionConfig,
     ) -> TestingEngineState {
-        let expected_error = config.expected_error.as_ref();
+        let expected_error = config.expected_error();
         let solver = self
             .testing_context
             .testing_actors
@@ -511,7 +542,7 @@ impl TestingEngine {
             &router_endpoints.endpoints,
             custodian_address,
             self.testing_context.get_usdc_mint_address(),
-            self.testing_context.testing_state.transfer_direction,
+            current_state.base().transfer_direction,
         );
         let fast_vaa_data = current_state
             .get_first_test_vaa_pair()
@@ -527,7 +558,7 @@ impl TestingEngine {
                 &fast_market_order_address,
                 &auction_accounts,
                 config.offer_price,
-                config.expected_error.as_ref(),
+                config.expected_error(),
             )
             .await;
         if config.expected_error.is_none() {
@@ -581,7 +612,7 @@ impl TestingEngine {
             &fast_market_order_address,
             active_auction_state,
             solver,
-            config.expected_error.as_ref(),
+            config.expected_error(),
         )
         .await;
         if config.expected_error.is_none() {
@@ -637,7 +668,7 @@ impl TestingEngine {
             &router_endpoints.endpoints,
             custodian_address,
             self.testing_context.get_usdc_mint_address(),
-            self.testing_context.testing_state.transfer_direction,
+            current_state.base().transfer_direction,
         );
         let result = shimless::execute_order::execute_order_shimless_test(
             &self.testing_context,
@@ -645,7 +676,7 @@ impl TestingEngine {
             &auction_accounts,
             current_state.auction_state(),
             &payer_signer,
-            config.expected_error.as_ref(),
+            config.expected_error(),
         )
         .await;
         if config.expected_error.is_none() {
@@ -702,7 +733,7 @@ impl TestingEngine {
             &auction_accounts.to_router_endpoint,
             &auction_accounts.from_router_endpoint,
             &deposit,
-            config.expected_error.as_ref(),
+            config.expected_error(),
         )
         .await;
         if config.expected_error.is_none() {
@@ -754,7 +785,7 @@ impl TestingEngine {
             &auction_accounts.to_router_endpoint,
             &auction_accounts.from_router_endpoint,
             &solver_token_account,
-            config.expected_error.as_ref(),
+            config.expected_error(),
             config.expected_log_messages.as_ref(),
         )
         .await;
@@ -800,7 +831,7 @@ impl TestingEngine {
             current_state.auction_state(),
             &prepared_order_response,
             &prepared_custody_token,
-            config.expected_error.as_ref(),
+            config.expected_error(),
         )
         .await;
         match auction_state {
