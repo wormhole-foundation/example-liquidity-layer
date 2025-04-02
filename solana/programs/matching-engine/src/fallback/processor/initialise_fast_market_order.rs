@@ -122,7 +122,6 @@ pub fn initialise_fast_market_order(
         guardian_set_bump,
         _padding: _,
     } = *data;
-
     // Start of cpi call to verify the shim.
     // ------------------------------------------------------------------------------------------------
     let fast_market_order_digest = fast_market_order.digest();
@@ -191,7 +190,6 @@ pub fn initialise_fast_market_order(
         &program_id,
         fast_market_order_signer_seeds,
     )?;
-
     // Borrow the account data mutably
     let mut fast_market_order_account_data = fast_market_order_account.try_borrow_mut_data()?;
 
@@ -206,7 +204,6 @@ pub fn initialise_fast_market_order(
         msg!("Account data buffer too small");
         return Err(MatchingEngineError::AccountDataTooSmall.into());
     }
-
     // Write the fast_market_order struct to the account
     fast_market_order_account_data[8..8_usize.saturating_add(fast_market_order_bytes.len())]
         .copy_from_slice(fast_market_order_bytes);

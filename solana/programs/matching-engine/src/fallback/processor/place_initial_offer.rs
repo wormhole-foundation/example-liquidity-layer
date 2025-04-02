@@ -182,7 +182,6 @@ pub fn place_initial_offer_cctp_shim(
     // Check all accounts are valid
     check_account_length(accounts, 11)?;
     // Extract data fields
-    // TODO: Remove sequence, vaa_time because they are in the fast market order state
     let PlaceInitialOfferCctpShimData { offer_price } = *data;
 
     let signer = &accounts[0];
@@ -197,6 +196,13 @@ pub fn place_initial_offer_cctp_shim(
     let offer_token = &accounts[8];
     let auction_custody_token = &accounts[9];
     let usdc = &accounts[10];
+
+    // Check that the fast market order account is owned by the program
+    if fast_market_order_account.owner != program_id {
+        msg!("Fast market order account owner is invalid");
+        return Err(ErrorCode::ConstraintOwner.into())
+            .map_err(|e: Error| e.with_account_name("fast_market_order_account"));
+    }
 
     let fast_market_order_zero_copy =
         FastMarketOrderState::try_deserialize(&mut &fast_market_order_account.data.borrow()[..])?;

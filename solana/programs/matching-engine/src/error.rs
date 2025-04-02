@@ -100,9 +100,15 @@ pub enum MatchingEngineError {
     TokenTransferFailed = 0x70c,
     InvalidMint = 0x70e,
 
+    // Place initial offer errors
     #[msg("From and to router endpoints are the same")]
     SameEndpoints = 0x800,
-    InvalidCctpMessage = 0x802,
+
+    // Close fast market order errors
+    MismatchingCloseAccountRefundRecipient = 0xa10,
+
+    // Execute order errors
+    InvalidCctpMessage = 0x902,
 }
 
 #[cfg(test)]

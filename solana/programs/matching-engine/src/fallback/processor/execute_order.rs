@@ -358,7 +358,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         });
     };
 
-    // TODO: Done with auction checks, now on to executor token checks
     if executor_token_account.key() != active_auction.info.as_ref().unwrap().best_offer_token {
         msg!("Executor token is not equal to best offer token");
         return Err(ErrorCode::ConstraintAddress.into()).map_err(|e: Error| {

@@ -172,7 +172,6 @@ impl<'ix> PrepareOrderResponseCctpShimAccounts<'ix> {
     }
 }
 
-// TODO: Also close the fast market order account since it is no longer needed
 pub struct PrepareOrderResponseCctpShim<'ix> {
     pub program_id: &'ix Pubkey,
     pub accounts: PrepareOrderResponseCctpShimAccounts<'ix>,
@@ -256,7 +255,6 @@ pub fn prepare_order_response_cctp_shim(
         FastMarketOrderState::try_read(&fast_market_order_account_data[..])?;
     // Create pdas for addresses that need to be created
     // Check the prepared order response account is valid
-    // TODO: Pass the digest so it isn't recomputed
     let fast_market_order_digest = fast_market_order_zero_copy.digest();
     // Construct the finalised vaa message digest data
     let finalized_vaa_message_digest = {
@@ -286,7 +284,6 @@ pub fn prepare_order_response_cctp_shim(
         Custodian::try_deserialize(&mut &custodian.data.borrow()[..]).map(Box::new)?;
     // Deserialise the to_endpoint account
 
-    // TODO:  Scope this to do checks and deallocate stack
     let to_endpoint_account =
         RouterEndpoint::try_deserialize(&mut &to_endpoint.data.borrow()[..]).map(Box::new)?;
     // Deserialise the from_endpoint account
@@ -296,7 +293,7 @@ pub fn prepare_order_response_cctp_shim(
     let guardian_set_bump = finalized_vaa_message.guardian_set_bump;
 
     // Check loaded vaa is deposit message
-    // TODO: Fix errors
+    // TODO: Fix errors to be more specific
     let liquidity_layer_message =
         LiquidityLayerDepositMessage::parse(&finalized_vaa_message.deposit_payload)
             .map_err(|_| MatchingEngineError::InvalidDepositPayloadId)?;

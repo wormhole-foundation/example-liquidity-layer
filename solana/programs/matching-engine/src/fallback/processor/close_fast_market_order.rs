@@ -1,3 +1,4 @@
+use crate::error::MatchingEngineError;
 use crate::state::FastMarketOrder;
 use anchor_lang::prelude::*;
 use solana_program::instruction::Instruction;
@@ -63,12 +64,14 @@ pub fn close_fast_market_order(accounts: &[AccountInfo]) -> Result<()> {
     if fast_market_order_data.close_account_refund_recipient
         != close_account_refund_recipient.key().as_ref()
     {
-        return Err(ProgramError::InvalidAccountData.into()).map_err(|e: Error| {
-            e.with_pubkeys((
-                Pubkey::from(fast_market_order_data.close_account_refund_recipient),
-                close_account_refund_recipient.key(),
-            ))
-        });
+        return Err(MatchingEngineError::MismatchingCloseAccountRefundRecipient.into()).map_err(
+            |e: Error| {
+                e.with_pubkeys((
+                    Pubkey::from(fast_market_order_data.close_account_refund_recipient),
+                    close_account_refund_recipient.key(),
+                ))
+            },
+        );
     }
 
     // First, get the current lamports value
