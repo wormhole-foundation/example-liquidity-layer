@@ -30,6 +30,25 @@ pub struct PrepareOrderResponseFixture {
     pub prepared_custody_token: Pubkey,
 }
 
+/// Prepare an order response (shimless)
+///
+/// Prepare an order response by providing a fast market order.
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `test_context` - The test context
+/// * `payer_signer` - The payer signer
+/// * `testing_engine_state` - The testing engine state
+/// * `to_endpoint_address` - The to endpoint address
+/// * `from_endpoint_address` - The from endpoint address
+/// * `base_fee_token_address` - The base fee token address
+/// * `expected_error` - The expected error
+/// * `expected_log_messages` - The expected log messages
+///
+/// # Returns
+///
+/// The prepared order response fixture if successful, otherwise None
 #[allow(clippy::too_many_arguments)]
 pub async fn prepare_order_response(
     testing_context: &TestingContext,
@@ -40,7 +59,7 @@ pub async fn prepare_order_response(
     from_endpoint_address: &Pubkey,
     base_fee_token_address: &Pubkey,
     expected_error: Option<&ExpectedError>,
-    expected_log_message: Option<&Vec<ExpectedLog>>,
+    expected_log_messages: Option<&Vec<ExpectedLog>>,
 ) -> Option<PrepareOrderResponseFixture> {
     let matching_engine_program_id = &testing_context.get_matching_engine_program_id();
     let usdc_mint_address = &testing_context.get_usdc_mint_address();
@@ -206,13 +225,9 @@ pub async fn prepare_order_response(
             .await
             .expect("Failed to get new blockhash"),
     );
-    if let Some(expected_log_message) = expected_log_message {
-        assert!(
-            expected_error.is_none(),
-            "Expected error is not allowed when expected log message is provided"
-        );
+    if let Some(expected_log_messages) = expected_log_messages {
         testing_context
-            .simulate_and_verify_logs(test_context, transaction, expected_log_message)
+            .simulate_and_verify_logs(test_context, transaction, expected_log_messages)
             .await
             .unwrap();
     } else {

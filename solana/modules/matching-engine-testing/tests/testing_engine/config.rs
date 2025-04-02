@@ -1,12 +1,31 @@
+//! # Testing Engine Config
+//!
+//! This module contains the configuration arguments for the testing engine.
+//!
+//! ## Examples
+//!
+//! ```
+//! use crate::testing_engine::config::*;
+//!
+//! let initialize_instruction_config = InitializeInstructionConfig::default();
+//!
+//! let instruction_triggers = vec![
+//!     InstructionTrigger::InitializeProgram(initialize_instruction_config),
+//! ];
+//! ```
+
 use std::{collections::HashSet, rc::Rc};
 
 use crate::{shimless::initialize::AuctionParametersConfig, utils::Chain};
 use anchor_lang::prelude::*;
 use solana_sdk::signature::Keypair;
 
+use super::setup::{TestingActor, TestingActors};
+
 /// An instruction config contains the configuration arguments for an instruction as well as the expected error
 pub trait InstructionConfig: Default {
     fn expected_error(&self) -> Option<&ExpectedError>;
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>>;
 }
 
 /// A type alias for an optional value that overwrites the current state
@@ -18,7 +37,7 @@ pub type OverwriteCurrentState<T> = Option<T>;
 ///
 /// * `instruction_index` - The index of the instruction that is expected to error
 /// * `error_code` - The error code that is expected to be returned
-/// * `error_string` - The error string that is expected to be returned
+/// * `error_string` - A description of the error that is expected to be returned for debugging purposes
 #[derive(Clone)]
 pub struct ExpectedError {
     pub instruction_index: u8,
@@ -42,11 +61,15 @@ pub struct ExpectedLog {
 pub struct InitializeInstructionConfig {
     pub auction_parameters_config: AuctionParametersConfig,
     pub expected_error: Option<ExpectedError>,
+    pub expected_log_messages: Option<Vec<ExpectedLog>>,
 }
 
 impl InstructionConfig for InitializeInstructionConfig {
     fn expected_error(&self) -> Option<&ExpectedError> {
         self.expected_error.as_ref()
+    }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        self.expected_log_messages.as_ref()
     }
 }
 pub struct CreateCctpRouterEndpointsInstructionConfig {
@@ -54,6 +77,7 @@ pub struct CreateCctpRouterEndpointsInstructionConfig {
     pub payer_signer: Option<Rc<Keypair>>,
     pub admin_owner_or_assistant: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
+    pub expected_log_messages: Option<Vec<ExpectedLog>>,
 }
 
 impl Default for CreateCctpRouterEndpointsInstructionConfig {
@@ -63,6 +87,7 @@ impl Default for CreateCctpRouterEndpointsInstructionConfig {
             payer_signer: None,
             admin_owner_or_assistant: None,
             expected_error: None,
+            expected_log_messages: None,
         }
     }
 }
@@ -71,6 +96,9 @@ impl InstructionConfig for CreateCctpRouterEndpointsInstructionConfig {
     fn expected_error(&self) -> Option<&ExpectedError> {
         self.expected_error.as_ref()
     }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        self.expected_log_messages.as_ref()
+    }
 }
 
 #[derive(Clone, Default)]
@@ -78,12 +106,16 @@ pub struct InitializeFastMarketOrderShimInstructionConfig {
     pub fast_market_order_id: u32,
     pub close_account_refund_recipient: Option<Pubkey>, // If none defaults to solver 0 pubkey,
     pub payer_signer: Option<Rc<Keypair>>,              // If none defaults to owner keypair
-    pub expected_error: Option<ExpectedError>,
+    pub expected_error: Option<ExpectedError>,          // If none, will not check for an error
+    pub expected_log_messages: Option<Vec<ExpectedLog>>, // If none, will not check for logs
 }
 
 impl InstructionConfig for InitializeFastMarketOrderShimInstructionConfig {
     fn expected_error(&self) -> Option<&ExpectedError> {
         self.expected_error.as_ref()
+    }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        self.expected_log_messages.as_ref()
     }
 }
 
@@ -100,6 +132,9 @@ impl InstructionConfig for PrepareOrderInstructionConfig {
     fn expected_error(&self) -> Option<&ExpectedError> {
         self.expected_error.as_ref()
     }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        self.expected_log_messages.as_ref()
+    }
 }
 
 #[derive(Clone, Default)]
@@ -108,11 +143,15 @@ pub struct ExecuteOrderInstructionConfig {
     pub solver_index: usize,
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
+    pub expected_log_messages: Option<Vec<ExpectedLog>>,
 }
 
 impl InstructionConfig for ExecuteOrderInstructionConfig {
     fn expected_error(&self) -> Option<&ExpectedError> {
         self.expected_error.as_ref()
+    }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        self.expected_log_messages.as_ref()
     }
 }
 
@@ -120,11 +159,15 @@ impl InstructionConfig for ExecuteOrderInstructionConfig {
 pub struct SettleAuctionInstructionConfig {
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
+    pub expected_log_messages: Option<Vec<ExpectedLog>>,
 }
 
 impl InstructionConfig for SettleAuctionInstructionConfig {
     fn expected_error(&self) -> Option<&ExpectedError> {
         self.expected_error.as_ref()
+    }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        self.expected_log_messages.as_ref()
     }
 }
 
@@ -133,30 +176,58 @@ pub struct CloseFastMarketOrderShimInstructionConfig {
     pub close_account_refund_recipient_keypair: Option<Rc<Keypair>>, // If none, will use the solver 0 keypair
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>, // If none, will use the fast market order address from the current state
     pub expected_error: Option<ExpectedError>,
+    pub expected_log_messages: Option<Vec<ExpectedLog>>,
 }
 
 impl InstructionConfig for CloseFastMarketOrderShimInstructionConfig {
     fn expected_error(&self) -> Option<&ExpectedError> {
         self.expected_error.as_ref()
     }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        self.expected_log_messages.as_ref()
+    }
 }
 
+#[derive(Clone)]
+pub enum TestingActorEnum {
+    Solver(usize),
+    Owner,
+}
+
+impl TestingActorEnum {
+    pub fn get_actor(&self, testing_actors: &TestingActors) -> TestingActor {
+        match self {
+            Self::Solver(index) => testing_actors.solvers[*index].actor.clone(),
+            Self::Owner => testing_actors.owner.clone(),
+        }
+    }
+}
+
+impl Default for TestingActorEnum {
+    fn default() -> Self {
+        Self::Solver(0)
+    }
+}
+
+#[derive(Clone)]
 pub struct PlaceInitialOfferInstructionConfig {
-    pub solver_index: usize,
+    pub actor: TestingActorEnum,
     pub offer_price: u64,
     pub payer_signer: Option<Rc<Keypair>>,
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>,
     pub expected_error: Option<ExpectedError>,
+    pub expected_log_messages: Option<Vec<ExpectedLog>>,
 }
 
 impl Default for PlaceInitialOfferInstructionConfig {
     fn default() -> Self {
         Self {
-            solver_index: 0,
+            actor: TestingActorEnum::Solver(0),
             offer_price: 1__000_000,
             payer_signer: None,
             fast_market_order_address: None,
             expected_error: None,
+            expected_log_messages: None,
         }
     }
 }
@@ -165,6 +236,9 @@ impl InstructionConfig for PlaceInitialOfferInstructionConfig {
     fn expected_error(&self) -> Option<&ExpectedError> {
         self.expected_error.as_ref()
     }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        self.expected_log_messages.as_ref()
+    }
 }
 
 pub struct ImproveOfferInstructionConfig {
@@ -172,6 +246,7 @@ pub struct ImproveOfferInstructionConfig {
     pub offer_price: u64,
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
+    pub expected_log_messages: Option<Vec<ExpectedLog>>,
 }
 
 impl Default for ImproveOfferInstructionConfig {
@@ -181,6 +256,7 @@ impl Default for ImproveOfferInstructionConfig {
             offer_price: 500_000,
             payer_signer: None,
             expected_error: None,
+            expected_log_messages: None,
         }
     }
 }
@@ -188,5 +264,8 @@ impl Default for ImproveOfferInstructionConfig {
 impl InstructionConfig for ImproveOfferInstructionConfig {
     fn expected_error(&self) -> Option<&ExpectedError> {
         self.expected_error.as_ref()
+    }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        self.expected_log_messages.as_ref()
     }
 }

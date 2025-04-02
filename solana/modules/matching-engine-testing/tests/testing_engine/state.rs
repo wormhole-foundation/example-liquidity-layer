@@ -1,3 +1,17 @@
+//! # Testing Engine State
+//!
+//! This module contains the state for the testing engine.
+//! It is used to store the state of the testing engine.
+//!
+//! ## Examples
+//!
+//! ```
+//! use crate::testing_engine::state::*;
+//!
+//! let testing_engine_state = TestingEngineState::Uninitialized(BaseState::default());
+//! // Use the testing engine state to test the instructions and move through the states
+//! ```
+
 use super::setup::TransferDirection;
 use crate::utils::{
     account_fixtures::FixtureAccounts,

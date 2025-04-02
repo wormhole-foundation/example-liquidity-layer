@@ -2,7 +2,7 @@ use crate::testing_engine::config::ExpectedError;
 use crate::testing_engine::state::InitialOfferPlacedState;
 
 use super::super::utils;
-use crate::testing_engine::setup::{Solver, TestingContext};
+use crate::testing_engine::setup::{TestingActor, TestingContext};
 use matching_engine::fallback::place_initial_offer::{
     PlaceInitialOfferCctpShim as PlaceInitialOfferCctpShimFallback,
     PlaceInitialOfferCctpShimAccounts as PlaceInitialOfferCctpShimFallbackAccounts,
@@ -42,14 +42,14 @@ pub async fn place_initial_offer_fallback(
     test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     vaa_data: &utils::vaa::PostedVaaData,
-    solver: Solver,
+    actor: TestingActor,
     fast_market_order_account: &Pubkey,
     auction_accounts: &utils::auction::AuctionAccounts,
     offer_price: u64,
     expected_error: Option<&ExpectedError>,
 ) -> Option<InitialOfferPlacedState> {
     let program_id = testing_context.get_matching_engine_program_id();
-    let fast_market_order = create_fast_market_order_state_from_vaa_data(vaa_data, solver.pubkey());
+    let fast_market_order = create_fast_market_order_state_from_vaa_data(vaa_data, actor.pubkey());
 
     let auction_address = Pubkey::find_program_address(
         &[Auction::SEED_PREFIX, &fast_market_order.digest()],
@@ -76,11 +76,11 @@ pub async fn place_initial_offer_fallback(
     )
     .0;
 
-    solver
+    actor
         .approve_usdc(test_context, &transfer_authority, 420_000__000_000)
         .await;
 
-    let solver_usdc_balance_before = solver.get_balance(test_context).await;
+    let actor_usdc_balance_before = actor.get_token_account_balance(test_context).await;
 
     let place_initial_offer_ix_data = PlaceInitialOfferCctpShimFallbackData::new(offer_price);
 
@@ -122,9 +122,9 @@ pub async fn place_initial_offer_fallback(
         .execute_and_verify_transaction(test_context, transaction, expected_error)
         .await;
     if expected_error.is_none() {
-        let solver_usdc_balance_after = solver.get_balance(test_context).await;
+        let actor_usdc_balance_after = actor.get_token_account_balance(test_context).await;
         assert!(
-            solver_usdc_balance_after < solver_usdc_balance_before,
+            actor_usdc_balance_after < actor_usdc_balance_before,
             "Solver USDC balance should have decreased"
         );
         let new_active_auction_state = utils::auction::ActiveAuctionState {

@@ -10,7 +10,7 @@ use anchor_lang::AccountDeserialize;
 use anchor_spl::{associated_token::spl_associated_token_account, token::spl_token};
 use solana_program::{bpf_loader_upgradeable, system_program};
 
-use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::config::{ExpectedError, ExpectedLog};
 
 use crate::testing_engine::setup::TestingContext;
 use anchor_lang::{InstructionData, ToAccountMetas};
@@ -142,6 +142,7 @@ pub async fn initialize_program(
     test_context: &mut ProgramTestContext,
     auction_parameters_config: AuctionParametersConfig,
     expected_error: Option<&ExpectedError>,
+    expected_log_messages: Option<&Vec<ExpectedLog>>,
 ) -> Option<InitializeFixture> {
     let program_id = testing_context.get_matching_engine_program_id();
     let usdc_mint_address = testing_context.get_usdc_mint_address();
@@ -149,7 +150,6 @@ pub async fn initialize_program(
     let (custodian, _custodian_bump) =
         Pubkey::find_program_address(&[Custodian::SEED_PREFIX], &program_id);
 
-    // TODO: Figure out this seed? Where does the 0u32 come from?
     let (auction_config, _auction_config_bump) = Pubkey::find_program_address(
         &[
             AuctionConfig::SEED_PREFIX,
@@ -217,6 +217,35 @@ pub async fn initialize_program(
     testing_context
         .execute_and_verify_transaction(test_context, versioned_transaction, expected_error)
         .await;
+
+    if let Some(expected_log_messages) = expected_log_messages {
+        // Recreate the instruction
+        let instruction = Instruction {
+            program_id,
+            accounts: accounts.to_account_metas(None),
+            data: ix_data.data(),
+        };
+        let mut transaction =
+            Transaction::new_with_payer(&[instruction], Some(&test_context.payer.pubkey()));
+        let new_blockhash = testing_context
+            .get_new_latest_blockhash(test_context)
+            .await
+            .expect("Could not get new blockhash");
+        transaction.sign(
+            &[
+                &test_context.payer,
+                &testing_context.testing_actors.owner.keypair(),
+            ],
+            new_blockhash,
+        );
+        let versioned_transaction = VersionedTransaction::from(transaction);
+
+        // Simulate and verify logs
+        testing_context
+            .simulate_and_verify_logs(test_context, versioned_transaction, expected_log_messages)
+            .await
+            .expect("Failed to verify logs");
+    }
 
     if expected_error.is_none() {
         // Verify the results

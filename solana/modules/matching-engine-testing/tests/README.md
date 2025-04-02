@@ -2,7 +2,9 @@
 
 ## How to read the tests
 
-Each test is found in the `integration_tests.rs` file.
+Each test is found in the `test_scenarios` directory.
+
+Each file in this directory is a module that contains tests for a specific subset of scenarios (instructions).
 
 Each test is a function that is annotated with `#[tokio::test]`.
 
@@ -12,7 +14,7 @@ The `TestingEngine` is initialised with a `TestingContext`. The `TestingContext`
 
 The `TestingEngine` is used to execute the instruction triggers in the order they are provided. See the `testing_engine/engine.rs` file for more details.
 
-## Integration Tests
+## Happy path integration tests
 
 ### Initialize program
 
@@ -39,5 +41,21 @@ What is expected:
 - Fast market order account is closed
 - Guardian set is closed
 - Close account refund recipient is sent usdc
+
+### Place initial offer (shimless)
+
+What is expected:
+- Fast market order is initialised
+- Initial offer is placed
+- Auction account is created and corresponds to a vaa and the initial offer
+
+### Place initial offer (shim)
+
+What is expected:
+- Fast market order is posted as a vaa
+- Initial offer is placed
+- Auction account is created and corresponds to a vaa and the initial offer
+
+
 
 

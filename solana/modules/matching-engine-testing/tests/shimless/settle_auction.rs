@@ -14,6 +14,23 @@ use solana_sdk::transaction::Transaction;
 use std::rc::Rc;
 use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 
+/// Settle an auction (shimless)
+///
+/// Settle an auction by providing a prepare order response address, prepared custody token, and expected error.
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `test_context` - The test context
+/// * `payer_signer` - The payer signer
+/// * `auction_state` - The auction state
+/// * `prepare_order_response_address` - The prepare order response address
+/// * `prepared_custody_token` - The prepared custody token
+/// * `expected_error` - The expected error
+///
+/// # Returns
+///
+/// The new auction state if successful, otherwise the old auction state
 pub async fn settle_auction_complete(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,

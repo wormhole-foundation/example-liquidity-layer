@@ -25,6 +25,23 @@ use solana_sdk::transaction::Transaction;
 use utils::auction::{ActiveAuctionState, AuctionAccounts, AuctionOffer, AuctionState};
 use utils::vaa::TestVaa;
 
+/// Place an initial offer (shimless)
+///
+/// Place an initial offer by providing a price.
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `test_context` - The test context
+/// * `accounts` - The auction accounts
+/// * `fast_market_order` - The fast market order
+/// * `offer_price` - The price of the offer
+/// * `payer_signer` - The payer signer
+/// * `expected_error` - The expected error
+///
+/// # Returns
+///
+/// The new auction state if successful, otherwise the old auction state
 pub async fn place_initial_offer_shimless(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
@@ -76,7 +93,7 @@ pub async fn place_initial_offer_shimless(
     .0;
     {
         // Check if solver has already approved usdc
-        let usdc_account = accounts.solver.token_account_address().unwrap();
+        let usdc_account = accounts.actor.token_account_address().unwrap();
         let usdc_account_info = test_context
             .banks_client
             .get_account(usdc_account)
@@ -89,14 +106,14 @@ pub async fn place_initial_offer_shimless(
         .expect("Failed to deserialize usdc account");
         if token_account_info.delegate.is_none() {
             accounts
-                .solver
+                .actor
                 .approve_usdc(test_context, &transfer_authority, 420_000__000_000)
                 .await;
         } else {
             let delegate = token_account_info.delegate.unwrap();
             if delegate != transfer_authority {
                 accounts
-                    .solver
+                    .actor
                     .approve_usdc(test_context, &transfer_authority, 420_000__000_000)
                     .await;
             }
@@ -173,6 +190,23 @@ pub async fn place_initial_offer_shimless(
     }
 }
 
+/// Improve an offer (shimless)
+///
+/// Improve an offer by providing a new price.
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `test_context` - The test context
+/// * `solver` - The solver
+/// * `offer_price` - The new price
+/// * `payer_signer` - The payer signer
+/// * `initial_auction_state` - The initial auction state
+/// * `expected_error` - The expected error
+///
+/// # Returns
+///
+/// The new auction state if successful, otherwise the old auction state
 pub async fn improve_offer(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
@@ -181,7 +215,7 @@ pub async fn improve_offer(
     payer_signer: &Rc<Keypair>,
     initial_auction_state: &AuctionState,
     expected_error: Option<&ExpectedError>,
-) -> Option<AuctionState> {
+) -> AuctionState {
     let program_id = testing_context.get_matching_engine_program_id();
     let active_auction_state = initial_auction_state.get_active_auction().unwrap();
     let auction_config = active_auction_state.auction_config_address;
@@ -254,7 +288,7 @@ pub async fn improve_offer(
             .get_active_auction()
             .unwrap()
             .initial_offer;
-        Some(AuctionState::Active(Box::new(ActiveAuctionState {
+        AuctionState::Active(Box::new(ActiveAuctionState {
             auction_address,
             auction_custody_token_address,
             auction_config_address: auction_config,
@@ -264,8 +298,8 @@ pub async fn improve_offer(
                 offer_token,
                 offer_price,
             },
-        })))
+        }))
     } else {
-        None
+        initial_auction_state.clone()
     }
 }

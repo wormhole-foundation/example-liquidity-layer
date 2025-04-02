@@ -1,3 +1,17 @@
+//! # Testing Engine Setup
+//!
+//! This module contains the setup for the testing engine.
+//! It is used to create the pre-testing context and the testing context.
+//!
+//! ## Examples
+//!
+//! ```
+//! use crate::testing_engine::setup::*;
+//!
+//! let testing_context = setup_testing_context(//arguments);
+//! let testing_engine = TestingEngine::new(testing_context).await;
+//! ```
+
 use crate::testing_engine::config::{ExpectedError, ExpectedLog};
 use crate::utils::account_fixtures::FixtureAccounts;
 use crate::utils::airdrop::airdrop;
@@ -144,6 +158,7 @@ pub struct TestingContext {
     pub fixture_accounts: Option<FixtureAccounts>,
     pub vaa_pairs: TestVaaPairs,
     pub transfer_direction: TransferDirection,
+    pub shim_mode: ShimMode,
 }
 
 impl TestingContext {
@@ -162,6 +177,7 @@ impl TestingContext {
         mut pre_testing_context: PreTestingContext,
         transfer_direction: TransferDirection,
         vaas_test: Option<TestVaaPairs>,
+        shim_mode: ShimMode,
     ) -> (Self, ProgramTestContext) {
         let mut test_context = pre_testing_context.program_test.start_with_context().await;
 
@@ -190,6 +206,7 @@ impl TestingContext {
                 fixture_accounts: Some(pre_testing_context.account_fixtures),
                 vaa_pairs,
                 transfer_direction,
+                shim_mode,
             },
             test_context,
         )
@@ -301,8 +318,6 @@ impl TestingContext {
     /// # Returns
     ///
     /// The simulation details if the transaction was successful and all expected logs were found
-    #[allow(dead_code)]
-    // TODO: Use this
     pub async fn simulate_and_verify_logs(
         &self,
         test_context: &mut ProgramTestContext,
@@ -313,7 +328,6 @@ impl TestingContext {
             .banks_client
             .simulate_transaction(transaction)
             .await?;
-
         // Verify the transaction succeeded
         assert!(
             simulation_result.result.clone().unwrap().is_ok(),
@@ -419,41 +433,30 @@ impl Solver {
         self.actor.token_account.as_ref().map(|t| t.address)
     }
 
+    /// Approves the USDC mint for the given delegate
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `delegate` - The delegate to approve the USDC mint to
+    /// * `amount` - The amount of USDC to approve
     pub async fn approve_usdc(
         &self,
         test_context: &mut ProgramTestContext,
         delegate: &Pubkey,
         amount: u64,
     ) {
-        // If signer pubkeys are empty, it means that the owner is the signer
-        let last_blockhash = test_context
-            .get_new_latest_blockhash()
-            .await
-            .expect("Failed to get new blockhash");
-        let approve_ix = approve(
-            &spl_token::ID,
-            &self.token_account_address().unwrap(),
-            delegate,
-            &self.actor.pubkey(),
-            &[],
-            amount,
-        )
-        .expect("Failed to create approve USDC instruction");
-        let transaction = Transaction::new_signed_with_payer(
-            &[approve_ix],
-            Some(&self.actor.pubkey()),
-            &[&self.actor.keypair()],
-            last_blockhash,
-        );
-        test_context
-            .banks_client
-            .process_transaction(transaction)
-            .await
-            .expect("Failed to approve USDC");
+        self.actor
+            .approve_usdc(test_context, delegate, amount)
+            .await;
     }
 
-    pub async fn get_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
-        self.actor.get_balance(test_context).await
+    pub async fn get_token_account_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
+        self.actor.get_token_account_balance(test_context).await
+    }
+
+    pub async fn get_lamport_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
+        self.actor.get_lamport_balance(test_context).await
     }
 }
 
@@ -503,7 +506,7 @@ impl TestingActor {
     /// # Arguments
     ///
     /// * `test_context` - The test context
-    pub async fn get_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
+    pub async fn get_token_account_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
         if let Some(token_account) = self.token_account_address() {
             let account = test_context
                 .banks_client
@@ -516,6 +519,54 @@ impl TestingActor {
         } else {
             0
         }
+    }
+
+    pub async fn get_lamport_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
+        test_context
+            .banks_client
+            .get_balance(self.keypair.pubkey())
+            .await
+            .unwrap()
+    }
+
+    /// Approves the USDC mint for the given delegate
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `delegate` - The delegate to approve the USDC mint to
+    /// * `amount` - The amount of USDC to approve
+    pub async fn approve_usdc(
+        &self,
+        test_context: &mut ProgramTestContext,
+        delegate: &Pubkey,
+        amount: u64,
+    ) {
+        // If signer pubkeys are empty, it means that the owner is the signer
+        let last_blockhash = test_context
+            .get_new_latest_blockhash()
+            .await
+            .expect("Failed to get new blockhash");
+        let approve_ix = approve(
+            &spl_token::ID,
+            &self.token_account_address().unwrap(),
+            delegate,
+            &self.pubkey(),
+            &[],
+            amount,
+        )
+        .expect("Failed to create approve USDC instruction");
+        let transaction = Transaction::new_signed_with_payer(
+            &[approve_ix],
+            Some(&self.pubkey()),
+            &[&self.keypair()],
+            last_blockhash,
+        );
+        test_context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .expect("Failed to approve USDC");
     }
 }
 
@@ -557,6 +608,7 @@ impl TestingActors {
     pub fn token_account_actors(&mut self) -> Vec<&mut TestingActor> {
         let mut actors = Vec::new();
         actors.push(&mut self.fee_recipient);
+        actors.push(&mut self.owner);
         for solver in &mut self.solvers {
             actors.push(&mut solver.actor);
         }
@@ -616,6 +668,7 @@ impl TestingActors {
 /// * `PostVaa` - Post the VAAs but don't add the shims
 /// * `VerifySignature` - Only add the verify signature shim program
 /// * `VerifyAndPostSignature` - Add the verify signature and post message shims program
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum ShimMode {
     None,
     VerifySignature,
@@ -623,7 +676,7 @@ pub enum ShimMode {
 }
 
 #[allow(dead_code)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum TransferDirection {
     FromArbitrumToEthereum,
     FromEthereumToArbitrum,
@@ -715,5 +768,11 @@ pub async fn setup_environment(
             pre_testing_context.add_post_message_shims();
         }
     };
-    TestingContext::new(pre_testing_context, transfer_direction, vaas_test).await
+    TestingContext::new(
+        pre_testing_context,
+        transfer_direction,
+        vaas_test,
+        shim_mode,
+    )
+    .await
 }

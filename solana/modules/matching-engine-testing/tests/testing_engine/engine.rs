@@ -1,3 +1,27 @@
+//! # Testing Engine
+//!
+//! This module contains the testing engine for the matching engine program.
+//! It is used to test the matching engine program with a functional style.
+//!
+//! ## Features
+//!
+//! - Testing engine struct (TestingEngine struct)
+//! - Execute instructions (impl TestingEngine)
+//! - Fast forward slots (fn fast_forward_slots)
+//!
+//! ## Examples
+//!
+//! ```
+//! use crate::testing_engine::engine::*;
+//!
+//! let testing_context = setup_testing_context(//arguments);
+//! let testing_engine = TestingEngine::new(testing_context).await;
+//! let instruction_triggers = vec![
+//!     InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+//! ];
+//! testing_engine.execute(instruction_triggers).await;
+//! ```
+
 use matching_engine::state::FastMarketOrder;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::signer::Signer;
@@ -11,6 +35,7 @@ use crate::shimful::fast_market_order_shim::{
 };
 use crate::shimful::verify_shim::create_guardian_signatures;
 use crate::shimless;
+use crate::testing_engine::setup::ShimMode;
 use crate::utils::auction::AuctionState;
 use crate::utils::vaa::TestVaaPairs;
 use crate::utils::{
@@ -38,6 +63,18 @@ pub enum InstructionTrigger {
     CloseFastMarketOrderShim(CloseFastMarketOrderShimInstructionConfig),
 }
 
+impl InstructionTrigger {
+    pub fn is_shim(&self) -> bool {
+        matches!(
+            self,
+            Self::PlaceInitialOfferShim(_)
+                | Self::ExecuteOrderShim(_)
+                | Self::PrepareOrderShim(_)
+                | Self::InitializeFastMarketOrderShim(_)
+                | Self::CloseFastMarketOrderShim(_)
+        )
+    }
+}
 // Implement InstructionConfig for InstructionTrigger
 impl InstructionConfig for InstructionTrigger {
     fn expected_error(&self) -> Option<&ExpectedError> {
@@ -54,6 +91,22 @@ impl InstructionConfig for InstructionTrigger {
             Self::PrepareOrderShim(config) => config.expected_error(),
             Self::SettleAuction(config) => config.expected_error(),
             Self::CloseFastMarketOrderShim(config) => config.expected_error(),
+        }
+    }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        match self {
+            Self::InitializeProgram(config) => config.expected_log_messages(),
+            Self::CreateCctpRouterEndpoints(config) => config.expected_log_messages(),
+            Self::InitializeFastMarketOrderShim(config) => config.expected_log_messages(),
+            Self::PlaceInitialOfferShimless(config) => config.expected_log_messages(),
+            Self::PlaceInitialOfferShim(config) => config.expected_log_messages(),
+            Self::ImproveOfferShimless(config) => config.expected_log_messages(),
+            Self::ExecuteOrderShim(config) => config.expected_log_messages(),
+            Self::ExecuteOrderShimless(config) => config.expected_log_messages(),
+            Self::PrepareOrderShim(config) => config.expected_log_messages(),
+            Self::PrepareOrderShimless(config) => config.expected_log_messages(),
+            Self::SettleAuction(config) => config.expected_log_messages(),
+            Self::CloseFastMarketOrderShim(config) => config.expected_log_messages(),
         }
     }
 }
@@ -111,20 +164,48 @@ impl TestingEngine {
         Self { testing_context }
     }
 
+    /// Executes a chain of instruction triggers
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `instruction_chain` - The chain of instruction triggers to execute
     pub async fn execute(
         &self,
         test_context: &mut ProgramTestContext,
         instruction_chain: Vec<InstructionTrigger>,
-    ) {
+    ) -> TestingEngineState {
         let mut current_state = self.create_initial_state();
+
+        self.verify_triggers(&instruction_chain);
 
         for trigger in instruction_chain {
             current_state = self
                 .execute_trigger(test_context, &current_state, &trigger)
                 .await;
         }
+        current_state
     }
 
+    /// Verifies that the shimmode corresponds to the instruction chain
+    fn verify_triggers(&self, instruction_chain: &[InstructionTrigger]) {
+        // If any shim instructions are present, make sure that shim mode is set to VerifyAndPostSignature
+        if instruction_chain.iter().any(|trigger| trigger.is_shim()) {
+            assert_eq!(
+                self.testing_context.shim_mode,
+                ShimMode::VerifyAndPostSignature,
+                "Shim mode is not set to VerifyAndPostSignature, and a shim instruction trigger is present"
+            );
+        }
+    }
+
+    /// Executes an instruction trigger and returns the updated testing engine state
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `current_state` - The current state of the testing engine
+    /// * `trigger` - The instruction trigger to execute
     async fn execute_trigger(
         &self,
         test_context: &mut ProgramTestContext,
@@ -183,6 +264,7 @@ impl TestingEngine {
         }
     }
 
+    /// Creates the initial state for the testing engine
     pub fn create_initial_state(&self) -> TestingEngineState {
         let fixture_accounts = self
             .testing_context
@@ -198,6 +280,7 @@ impl TestingEngine {
         })
     }
 
+    /// Instruction trigger function for initializing the program
     async fn initialize_program(
         &self,
         test_context: &mut ProgramTestContext,
@@ -206,6 +289,7 @@ impl TestingEngine {
     ) -> TestingEngineState {
         let auction_parameters_config = config.auction_parameters_config.clone();
         let expected_error = config.expected_error();
+        let expected_log_messages = config.expected_log_messages();
 
         let (result, owner_pubkey, owner_assistant_pubkey, fee_recipient_token_account) = {
             let result = shimless::initialize::initialize_program(
@@ -213,6 +297,7 @@ impl TestingEngine {
                 test_context,
                 auction_parameters_config,
                 expected_error,
+                expected_log_messages,
             )
             .await;
 
@@ -248,6 +333,7 @@ impl TestingEngine {
         initial_state.clone()
     }
 
+    /// Instruction trigger function for creating cctp router endpoints
     async fn create_cctp_router_endpoints(
         &self,
         test_context: &mut ProgramTestContext,
@@ -284,6 +370,7 @@ impl TestingEngine {
         }
     }
 
+    /// Instruction trigger function for creating a fast market order account
     async fn create_fast_market_order_account(
         &self,
         test_context: &mut ProgramTestContext,
@@ -352,6 +439,7 @@ impl TestingEngine {
         }
     }
 
+    /// Instruction trigger function for closing a fast market order account
     async fn close_fast_market_order_account(
         &self,
         test_context: &mut ProgramTestContext,
@@ -403,12 +491,7 @@ impl TestingEngine {
             .payer_signer
             .clone()
             .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
-        let solver = self
-            .testing_context
-            .testing_actors
-            .solvers
-            .get(config.solver_index)
-            .expect("Solver not found at index");
+        let solver = config.actor.get_actor(&self.testing_context.testing_actors);
         let expected_error = config.expected_error();
         let fast_vaa = &current_state
             .base()
@@ -466,6 +549,7 @@ impl TestingEngine {
         current_state.clone()
     }
 
+    /// Instruction trigger function for improving an offer
     async fn improve_offer_shimless(
         &self,
         test_context: &mut ProgramTestContext,
@@ -495,19 +579,19 @@ impl TestingEngine {
         )
         .await;
         if expected_error.is_none() {
-            let auction_state = new_auction_state.unwrap();
             return TestingEngineState::OfferImproved {
                 base: current_state.base().clone(),
                 initialized: current_state.initialized().unwrap().clone(),
                 router_endpoints: current_state.router_endpoints().unwrap().clone(),
                 fast_market_order: current_state.fast_market_order().cloned(),
-                auction_state,
+                auction_state: new_auction_state,
                 auction_accounts: current_state.auction_accounts().cloned(),
             };
         }
         current_state.clone()
     }
 
+    /// Instruction trigger function for placing an initial offer
     async fn place_initial_offer_shim(
         &self,
         test_context: &mut ProgramTestContext,
@@ -523,7 +607,7 @@ impl TestingEngine {
         let router_endpoints = current_state
             .router_endpoints()
             .expect("Router endpoints are not created");
-        let solver = self.testing_context.testing_actors.solvers[config.solver_index].clone();
+        let solver = config.actor.get_actor(&self.testing_context.testing_actors);
         let payer_signer = config
             .payer_signer
             .clone()
@@ -582,6 +666,7 @@ impl TestingEngine {
         current_state.clone()
     }
 
+    /// Instruction trigger function for executing an order
     async fn execute_order_shim(
         &self,
         test_context: &mut ProgramTestContext,
@@ -635,6 +720,7 @@ impl TestingEngine {
         }
     }
 
+    /// Instruction trigger function for executing an order
     async fn execute_order_shimless(
         &self,
         test_context: &mut ProgramTestContext,
@@ -662,7 +748,7 @@ impl TestingEngine {
                     .fast_transfer_vaa
                     .get_vaa_pubkey(),
             ),
-            solver.clone(),
+            solver.actor.clone(),
             auction_config_address,
             &router_endpoints.endpoints,
             custodian_address,
@@ -699,6 +785,7 @@ impl TestingEngine {
         }
     }
 
+    /// Instruction trigger function for preparing an order
     async fn prepare_order_shim(
         &self,
         test_context: &mut ProgramTestContext,
@@ -755,6 +842,7 @@ impl TestingEngine {
         }
     }
 
+    /// Instruction trigger function for preparing an order
     async fn prepare_order_shimless(
         &self,
         test_context: &mut ProgramTestContext,
@@ -808,6 +896,7 @@ impl TestingEngine {
         }
     }
 
+    /// Instruction trigger function for settling an auction
     async fn settle_auction(
         &self,
         test_context: &mut ProgramTestContext,
