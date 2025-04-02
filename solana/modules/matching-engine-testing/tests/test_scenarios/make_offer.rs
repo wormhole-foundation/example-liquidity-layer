@@ -1,7 +1,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-//! # Make offer instruction testing
+//! # Place initial offer and improve offer instruction testing
 //!
 //! This module contains tests for the place initial offer and improve offer instructions.
 //!
