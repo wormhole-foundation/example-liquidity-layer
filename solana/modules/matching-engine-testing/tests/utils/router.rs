@@ -1,4 +1,7 @@
-// Add methods for adding endpoints to the program test
+//! # Router
+//!
+//! This module provides a struct for representing a router in the test environment.
+//! It includes methods for adding router endpoints to the program test environment.
 
 use super::constants::*;
 use super::token_account::create_token_account_for_pda;

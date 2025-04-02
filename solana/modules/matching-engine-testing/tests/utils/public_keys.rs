@@ -1,3 +1,8 @@
+//! # Public Keys
+//!
+//! This module provides a struct for representing public keys in the test environment.
+//! It includes methods for converting between different key types and for creating unique keys.
+
 use solana_sdk::{keccak, pubkey::Pubkey};
 
 use super::Chain;

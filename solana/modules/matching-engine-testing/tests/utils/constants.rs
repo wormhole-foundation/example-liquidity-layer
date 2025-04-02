@@ -1,5 +1,39 @@
 #![allow(dead_code)]
 
+//! # Constants
+//!
+//! This module contains constants for the matching engine testing module.
+//!
+//! ## Exposed constants
+//!
+//! - `CORE_BRIDGE_PID` - The program ID of the core bridge
+//! - `CORE_BRIDGE_FEE_COLLECTOR` - The fee collector of the core bridge
+//! - `CORE_BRIDGE_CONFIG` - The config of the core bridge
+//! - `TOKEN_BRIDGE_PID` - The program ID of the token bridge
+//! - `TOKEN_BRIDGE_EMITTER_AUTHORITY` - The emitter authority of the token bridge
+//! - `TOKEN_BRIDGE_CUSTODY_AUTHORITY` - The custody authority of the token bridge
+//! - `TOKEN_BRIDGE_MINT_AUTHORITY` - The mint authority of the token bridge
+//! - `TOKEN_BRIDGE_TRANSFER_AUTHORITY` - The transfer authority of the token bridge
+//! - `USDC_MINT` - The mint address of USDC
+//! - `GUARDIAN_SECRET_KEY` - The guardian secret key
+//! - `TOKEN_ROUTER_PID` - The program ID of the token router
+//! - `CCTP_TOKEN_MESSENGER_MINTER_PID` - The program ID of the CCTP token messenger minter
+//! - `CCTP_MESSAGE_TRANSMITTER_PID` - The program ID of the CCTP message transmitter
+//! - `WORMHOLE_POST_MESSAGE_SHIM_PID` - The program ID of the Wormhole post message shim
+//! - `WORMHOLE_VERIFY_VAA_SHIM_PID` - The program ID of the Wormhole verify VAA shim
+//! - `WORMHOLE_POST_MESSAGE_SHIM_EVENT_AUTHORITY` - The event authority of the Wormhole post message shim
+//!
+//! ## Enums
+//!
+//! - `Chain` - An enum representing the different chains. Chain implements `as_cctp_domain` to get the CCTP domain for the chain.
+//!
+//! ## Examples
+//!
+//! ```rust
+//! use crate::constants::*;
+//! let eth_cctp_domain = Chain::Ethereum.as_cctp_domain();
+//! ```
+
 use solana_program::pubkey;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Keypair;
@@ -79,36 +113,28 @@ pub const WORMHOLE_POST_MESSAGE_SHIM_EVENT_AUTHORITY_BUMP: u8 = 255;
 // pub const PLAYER_ONE_KEYPAIR_B64: &str = "4STrqllKVVva0Fphqyf++6uGTVReATBe2cI26oIuVBft77CQP9qQrMTU1nM9ql0EnCpSgmCmm20m8khMo9WdPQ==";
 
 /// Keypairs as base58 strings (taken from consts.ts in ts tests using a converter)
-#[allow(dead_code)]
 pub const PAYER_KEYPAIR_B58: &str =
     "4NMwxzmYj2uvHuq8xoqhY8RXg0Pd5zkvmfWAL6YvbYFuViXVCBDK5Pru9GgqEVEZo6UXcPVH6rdR8JKgKxHGkXDp";
-#[allow(dead_code)]
 pub const OWNER_ASSISTANT_KEYPAIR_B58: &str =
     "2UbUgoidcNHxVEDG6ADNKGaGDqBTXTVw6B9pWvJtLNhbxcQDkdeEyBYBYYYxxDy92ckXUEaU9chWEGi5jc8Uc9e3";
-#[allow(dead_code)]
 pub const OWNER_KEYPAIR_B58: &str =
     "3M5rkG5DQVEGQFRtA1qruxPqJvYBbkGCdkCdB9ZjcnQnYL9ec8W78pLcQHVtjJzHP8phUXQ8V1SXbgZK9ZaFaS6U";
-#[allow(dead_code)]
 pub const PLAYER_ONE_KEYPAIR_B58: &str =
     "yqJrKqGqzuW6nEmfj62AgvZWqgGv9TqxfvPXiGvf8DxGDWz3UNkQdDfKDnBYpHQxPRVrYMupDKqbGVYHhfZApGb";
 
 // Helper functions to get keypairs
-#[allow(dead_code)]
 pub fn get_payer_keypair() -> Keypair {
     Keypair::from_base58_string(PAYER_KEYPAIR_B58)
 }
 
-#[allow(dead_code)]
 pub fn get_owner_assistant_keypair() -> Keypair {
     Keypair::from_base58_string(OWNER_ASSISTANT_KEYPAIR_B58)
 }
 
-#[allow(dead_code)]
 pub fn get_owner_keypair() -> Keypair {
     Keypair::from_base58_string(OWNER_KEYPAIR_B58)
 }
 
-#[allow(dead_code)]
 pub fn get_player_one_keypair() -> Keypair {
     Keypair::from_base58_string(PLAYER_ONE_KEYPAIR_B58)
 }

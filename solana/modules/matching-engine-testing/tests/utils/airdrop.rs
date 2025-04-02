@@ -9,10 +9,9 @@ use super::constants;
 ///
 /// # Arguments
 ///
-/// * `test_context` - The test context
+/// * `test_context` - The program test context
 /// * `recipient` - The recipient of the airdrop        
 /// * `amount` - The amount of SOL to airdrop
-
 pub async fn airdrop(test_context: &mut ProgramTestContext, recipient: &Pubkey, amount: u64) {
     // Create the transfer instruction with values from the context
     let transfer_ix = system_instruction::transfer(&test_context.payer.pubkey(), recipient, amount);
@@ -32,6 +31,13 @@ pub async fn airdrop(test_context: &mut ProgramTestContext, recipient: &Pubkey, 
         .unwrap();
 }
 
+/// Airdrops USDC to a given recipient
+///
+/// # Arguments
+///
+/// * `test_context` - The program test context
+/// * `recipient_ata` - The recipient's ATA
+/// * `amount` - The amount of USDC to airdrop
 pub async fn airdrop_usdc(
     test_context: &mut ProgramTestContext,
     recipient_ata: &Pubkey,

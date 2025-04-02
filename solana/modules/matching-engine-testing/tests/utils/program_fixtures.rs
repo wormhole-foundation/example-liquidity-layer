@@ -1,3 +1,9 @@
+//! # Program Fixtures
+//!
+//! This module provides fixtures for initializing programs on the Solana blockchain.
+//! It includes functions to initialize the upgrade manager, CCTP token messenger minter,
+//! wormhole core bridge, CCTP message transmitter, local token router, and verify shims.
+
 use solana_program::bpf_loader_upgradeable;
 use solana_program_test::ProgramTest;
 use solana_sdk::pubkey::Pubkey;

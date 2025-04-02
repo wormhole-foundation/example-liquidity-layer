@@ -131,7 +131,7 @@ pub enum TokenMessengerError {
     InvalidTokenMint,
 }
 
-//https://github.com/circlefin/solana-cctp-contracts/blob/4477f889732209dfc9a08b3aeaeb9203a324055c/programs/token-messenger-minter/src/token_messenger/state.rs#L35-L38
+// Imported from https://github.com/circlefin/solana-cctp-contracts/blob/4477f889732209dfc9a08b3aeaeb9203a324055c/programs/token-messenger-minter/src/token_messenger/state.rs#L35-L38
 #[derive(Debug, InitSpace)]
 pub struct CctpRemoteTokenMessenger {
     pub domain: u32, // Big endian
@@ -147,7 +147,7 @@ impl From<&RemoteTokenMessenger> for CctpRemoteTokenMessenger {
     }
 }
 
-// https://github.com/circlefin/solana-cctp-contracts/blob/4477f889732209dfc9a08b3aeaeb9203a324055c/programs/message-transmitter/src/message.rs#L30
+// Imported from https://github.com/circlefin/solana-cctp-contracts/blob/4477f889732209dfc9a08b3aeaeb9203a324055c/programs/message-transmitter/src/message.rs#L30
 #[derive(Clone, Debug)]
 pub struct Message<'a> {
     data: &'a [u8],
@@ -296,7 +296,7 @@ impl<'a> Message<'a> {
     }
 }
 
-// https://github.com/circlefin/solana-cctp-contracts/blob/4477f889732209dfc9a08b3aeaeb9203a324055c/programs/token-messenger-minter/src/token_messenger/burn_message.rs#L26
+// Imported from https://github.com/circlefin/solana-cctp-contracts/blob/4477f889732209dfc9a08b3aeaeb9203a324055c/programs/token-messenger-minter/src/token_messenger/burn_message.rs#L26
 #[derive(Clone, Debug)]
 pub struct BurnMessage<'a> {
     data: &'a [u8],
@@ -393,6 +393,15 @@ pub struct CircleAttester {
 }
 
 impl CircleAttester {
+    /// Creates an attestation for a given message
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - The message to attest to
+    ///
+    /// # Returns
+    ///
+    /// A 65 byte array containing the attestation and the recovery id in the last byte
     pub fn create_attestation(&self, message: &[u8]) -> [u8; 65] {
         // Sign the message hash with the guardian key
         let secp = secp256k1::SECP256K1;
@@ -425,6 +434,14 @@ impl Default for CircleAttester {
     }
 }
 
+/// A struct representing a CCTP token burn message
+///
+/// # Fields
+///
+/// * `destination_cctp_domain` - The destination CCTP domain
+/// * `cctp_message` - The CCTP message
+/// * `encoded_cctp_burn_message` - The encoded CCTP burn message
+/// * `cctp_attestation` - The CCTP attestation
 pub struct CctpTokenBurnMessage {
     pub destination_cctp_domain: u32,
     pub cctp_message: CctpMessage,
@@ -440,6 +457,17 @@ impl CctpTokenBurnMessage {
     }
 }
 
+/// A struct representing a CCTP message header
+///
+/// # Fields
+///
+/// * `version` - The version of the CCTP message
+/// * `source_domain` - The source CCTP domain
+/// * `destination_domain` - The destination CCTP domain
+/// * `nonce` - The nonce of the CCTP message
+/// * `sender` - The sender of the CCTP message
+/// * `recipient` - The recipient of the CCTP message
+/// * `destination_caller` - The destination caller of the CCTP message
 pub struct CctpMessageHeader {
     pub version: u32,
     pub source_domain: u32,
@@ -470,6 +498,15 @@ impl CctpMessageHeader {
     }
 }
 
+/// A struct representing a CCTP message body
+///
+/// # Fields
+///
+/// * `version` - The version of the CCTP message
+/// * `burn_token_address` - The address of the token to burn
+/// * `mint_recipient` - The address of the recipient of the token
+/// * `amount` - The amount of the token to burn
+/// * `message_sender` - The address of the sender of the message
 pub struct CctpMessageBody {
     pub version: u32,
     pub burn_token_address: [u8; 32],
@@ -520,6 +557,12 @@ impl From<&BurnMessage<'_>> for CctpMessageBody {
     }
 }
 
+/// A struct representing a CCTP message
+///
+/// # Fields
+///
+/// * `header` - The header of the CCTP message
+/// * `body` - The body of the CCTP message
 pub struct CctpMessage {
     pub header: CctpMessageHeader,
     pub body: CctpMessageBody,
@@ -535,6 +578,18 @@ impl CctpMessage {
     }
 }
 
+/// Crafts a CCTP token burn message
+///
+/// # Arguments
+///
+/// * `test_context` - The test context
+/// * `source_cctp_domain` - The source CCTP domain
+/// * `cctp_nonce` - The nonce of the CCTP message
+/// * `amount` - The amount of the token to burn
+/// * `message_transmitter_config_pubkey` - The pubkey of the message transmitter config
+/// * `remote_token_messenger` - The remote token messenger
+/// * `cctp_mint_recipient` - The address of the recipient of the token
+/// * `custodian_address` - The address of the custodian
 #[allow(clippy::too_many_arguments)]
 pub async fn craft_cctp_token_burn_message(
     test_context: &mut ProgramTestContext,
@@ -612,6 +667,15 @@ pub async fn craft_cctp_token_burn_message(
     })
 }
 
+/// Converts an Ethereum address to a wormhole universal address
+///
+/// # Arguments
+///
+/// * `eth_address` - The Ethereum address to convert
+///
+/// # Returns
+///
+/// A 32-byte array containing the universal address
 pub fn ethereum_address_to_universal(eth_address: &str) -> [u8; 32] {
     // Remove '0x' prefix if present
     let address_str = eth_address
@@ -629,6 +693,15 @@ pub fn ethereum_address_to_universal(eth_address: &str) -> [u8; 32] {
     universal_address
 }
 
+/// Gets the base fee for a deposit
+///
+/// # Arguments
+///
+/// * `deposit` - The deposit to get the base fee for
+///
+/// # Returns
+///
+/// The base fee for the deposit
 pub fn get_deposit_base_fee(deposit: &Deposit) -> u64 {
     let payload = deposit.payload.clone();
     let liquidity_layer_message = LiquidityLayerDepositMessage::parse(&payload).unwrap();
@@ -664,6 +737,12 @@ impl UsedNonces {
     }
 }
 
+/// A struct representing a decoded CCTP message
+///
+/// # Fields
+///
+/// * `nonce` - The nonce of the CCTP message
+/// * `source_domain` - The source CCTP domain
 #[derive(Debug)]
 pub struct CctpMessageDecoded {
     pub nonce: u64,

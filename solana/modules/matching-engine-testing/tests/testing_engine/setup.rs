@@ -581,13 +581,19 @@ pub struct TestingActors {
 }
 
 impl TestingActors {
+    /// Create a new TestingActors struct
+    ///
+    /// # Arguments
+    ///
+    /// * `owner_keypair_path` - The path to the owner keypair
+    ///
+    /// # Returns
     pub fn new(owner_keypair_path: &str) -> Self {
         let owner_kp = Rc::new(read_keypair_from_file(owner_keypair_path));
         let owner = TestingActor::new(owner_kp.clone(), None);
         let owner_assistant = TestingActor::new(owner_kp.clone(), None);
         let fee_recipient = TestingActor::new(Rc::new(Keypair::new()), None);
         let relayer = TestingActor::new(Rc::new(Keypair::new()), None);
-        // TODO: Change player 1 solver to use the keyfile
         let mut solvers = vec![];
         solvers.extend(vec![
             Solver::new(Rc::new(Keypair::new()), None),
@@ -605,6 +611,7 @@ impl TestingActors {
         }
     }
 
+    /// Get the actors that should have token accounts
     pub fn token_account_actors(&mut self) -> Vec<&mut TestingActor> {
         let mut actors = Vec::new();
         actors.push(&mut self.fee_recipient);
@@ -644,7 +651,7 @@ impl TestingActors {
 
     /// Add solvers to the testing actors
     #[allow(dead_code)]
-    async fn add_solvers(
+    pub async fn add_solvers(
         &mut self,
         test_context: &mut ProgramTestContext,
         num_solvers: usize,
@@ -675,6 +682,13 @@ pub enum ShimMode {
     VerifyAndPostSignature,
 }
 
+/// The direction of the transfer
+///
+/// # Enums
+///
+/// * `FromArbitrumToEthereum` - The direction of the transfer from Arbitrum to Ethereum
+/// * `FromEthereumToArbitrum` - The direction of the transfer from Ethereum to Arbitrum
+/// * `Other` - The direction of the transfer is not supported
 #[allow(dead_code)]
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum TransferDirection {

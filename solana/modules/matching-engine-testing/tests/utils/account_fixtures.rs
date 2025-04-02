@@ -1,3 +1,9 @@
+//! # Account Fixtures
+//!
+//! This module provides fixtures for creating accounts in the test environment.
+//! It includes methods for creating accounts and for reading a keypair from a JSON fixture file.
+//! These accounts are located in the `tests/fixtures/accounts` directory.
+
 use anchor_lang::prelude::{pubkey, Pubkey};
 use anyhow::Result as AnyhowResult;
 use serde_json::Value;

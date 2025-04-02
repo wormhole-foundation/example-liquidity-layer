@@ -1,3 +1,8 @@
+//! # VAA
+//!
+//! This module provides a struct for representing a VAA in the test environment.
+//! It includes methods for creating a VAA and for deserializing a VAA.
+
 use anchor_lang::prelude::*;
 use common::messages::wormhole_io::{TypePrefixedPayload, WriteableBytes};
 use common::messages::{FastMarketOrder, SlowOrderResponse};

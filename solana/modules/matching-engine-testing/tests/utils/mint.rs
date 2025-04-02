@@ -1,3 +1,7 @@
+//! # Mint fixture
+//!
+//! This module provides a fixture for creating a mint account (like a USDC mint).
+
 use anchor_spl::token::spl_token;
 use solana_cli_output::CliAccount;
 use solana_program_test::ProgramTestContext;

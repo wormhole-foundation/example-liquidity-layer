@@ -6,6 +6,19 @@ use super::Chain;
 use crate::testing_engine::setup::{TestingActor, TestingContext, TransferDirection};
 use anyhow::{anyhow, Result as AnyhowResult};
 use matching_engine::state::{Auction, AuctionInfo};
+
+/// A struct representing the accounts for an auction
+///
+/// # Fields
+///
+/// * `posted_fast_vaa` - The address of the posted fast VAA
+/// * `offer_token` - The address of the offer token
+/// * `actor` - The actor of the auction (who places the initial offer, improves it, executes it, or settles it)
+/// * `auction_config` - The address of the auction config
+/// * `from_router_endpoint` - The address of the router endpoint for the source chain
+/// * `to_router_endpoint` - The address of the router endpoint for the destination chain
+/// * `custodian` - The address of the custodian
+/// * `usdc_mint` - The usdc mint address
 #[derive(Clone)]
 pub struct AuctionAccounts {
     pub posted_fast_vaa: Option<Pubkey>,
@@ -178,6 +191,12 @@ impl ActiveAuctionState {
     }
 }
 
+/// Compares two auctions to assert they are equal
+///
+/// # Arguments
+///
+/// * `auction_1` - The first auction
+/// * `auction_2` - The second auction
 pub async fn compare_auctions(auction_1: &Auction, auction_2: &Auction) {
     let auction_1_info = auction_1.info.unwrap();
     let auction_2_info = auction_2.info.unwrap();

@@ -1,3 +1,8 @@
+//! # Token Account
+//!
+//! This module provides a fixture for creating a token account.
+//! It includes methods for creating a token account and for reading a keypair from a JSON fixture file.
+
 use anchor_spl::associated_token::spl_associated_token_account;
 use anchor_spl::token::spl_token;
 use solana_program_test::ProgramTestContext;
