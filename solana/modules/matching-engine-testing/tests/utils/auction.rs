@@ -4,7 +4,7 @@ use solana_program_test::ProgramTestContext;
 use super::Chain;
 use super::{router::TestRouterEndpoints, token_account::SplTokenEnum};
 use crate::testing_engine::setup::{TestingActor, TestingContext, TransferDirection};
-use anyhow::{anyhow, Result as AnyhowResult};
+use anyhow::{anyhow, ensure, Result as AnyhowResult};
 use matching_engine::state::{Auction, AuctionInfo};
 
 /// A struct representing the accounts for an auction
@@ -179,18 +179,39 @@ impl ActiveAuctionState {
             redeemer_message_len: 0, // Not tested against
             destination_asset_info: None, // Not tested against
         };
-        assert_eq!(auction_info.config_id, expected_auction_info.config_id);
-
-        assert_eq!(auction_info.start_slot, expected_auction_info.start_slot);
-
-        assert_eq!(auction_info.offer_price, expected_auction_info.offer_price);
-        assert_eq!(
-            auction_info.best_offer_token,
-            expected_auction_info.best_offer_token
+        ensure!(
+            auction_info.config_id == expected_auction_info.config_id,
+            "Auction config_id mismatch: expected {:?}, got {:?}",
+            expected_auction_info.config_id,
+            auction_info.config_id
         );
-        assert_eq!(
-            auction_info.initial_offer_token,
-            expected_auction_info.initial_offer_token
+
+        ensure!(
+            auction_info.start_slot == expected_auction_info.start_slot,
+            "Auction start_slot mismatch: expected {}, got {}",
+            expected_auction_info.start_slot,
+            auction_info.start_slot
+        );
+
+        ensure!(
+            auction_info.offer_price == expected_auction_info.offer_price,
+            "Auction offer_price mismatch: expected {}, got {}",
+            expected_auction_info.offer_price,
+            auction_info.offer_price
+        );
+
+        ensure!(
+            auction_info.best_offer_token == expected_auction_info.best_offer_token,
+            "Auction best_offer_token mismatch: expected {:?}, got {:?}",
+            expected_auction_info.best_offer_token,
+            auction_info.best_offer_token
+        );
+
+        ensure!(
+            auction_info.initial_offer_token == expected_auction_info.initial_offer_token,
+            "Auction initial_offer_token mismatch: expected {:?}, got {:?}",
+            expected_auction_info.initial_offer_token,
+            auction_info.initial_offer_token
         );
         Ok(())
     }

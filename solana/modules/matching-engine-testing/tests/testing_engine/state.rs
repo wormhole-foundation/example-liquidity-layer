@@ -101,6 +101,8 @@ pub enum TestingEngineState {
         router_endpoints: Option<RouterEndpointsState>,
         fast_market_order: FastMarketOrderAccountCreatedState,
         guardian_set_state: GuardianSetState,
+        auction_state: AuctionState,
+        auction_accounts: Option<AuctionAccounts>,
     },
     InitialOfferPlaced {
         base: BaseState,
@@ -258,6 +260,7 @@ impl TestingEngineState {
             Self::OrderPrepared { auction_state, .. } => auction_state,
             Self::AuctionSettled { auction_state, .. } => auction_state,
             Self::FastMarketOrderClosed { auction_state, .. } => auction_state,
+            Self::FastMarketOrderAccountCreated { auction_state, .. } => auction_state,
             _ => &AuctionState::Inactive,
         }
     }
@@ -280,6 +283,9 @@ impl TestingEngineState {
                 auction_accounts, ..
             } => auction_accounts.as_ref(),
             Self::FastMarketOrderClosed {
+                auction_accounts, ..
+            } => auction_accounts.as_ref(),
+            Self::FastMarketOrderAccountCreated {
                 auction_accounts, ..
             } => auction_accounts.as_ref(),
             _ => None,

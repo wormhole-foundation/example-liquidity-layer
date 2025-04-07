@@ -38,15 +38,43 @@ use testing_engine::engine::{InstructionTrigger, TestingEngine};
 use testing_engine::setup::{setup_environment, ShimMode, TransferDirection};
 use utils::vaa::VaaArgs;
 
+// Define a constant transfer direction for the tests
+const TRANSFER_DIRECTION: TransferDirection = TransferDirection::FromEthereumToArbitrum;
+
 /*
-    Happy path tests
+                    Happy path tests section
+
+                    *****************
+               ******               ******
+           ****                           ****
+        ****                                 ***
+      ***                                       ***
+     **           ***               ***           **
+   **           *******           *******          ***
+  **            *******           *******            **
+ **             *******           *******             **
+ **               ***               ***               **
+**                                                     **
+**       *                                     *       **
+**      **                                     **      **
+ **   ****                                     ****   **
+ **      **                                   **      **
+  **       ***                             ***       **
+   ***       ****                       ****       ***
+     **         ******             ******         **
+      ***            ***************            ***
+        ****                                 ****
+           ****                           ****
+               ******               ******
+                    *****************
 */
 
-/// Test that the place initial offer fallback instruction works correctly from arbitrum to ethereum
+/// Test that the place initial offer shim instruction works correctly from arbitrum to ethereum
 #[tokio::test]
-pub async fn test_place_initial_offer_fallback() {
+pub async fn test_place_initial_offer_shim() {
     let config = PlaceInitialOfferInstructionConfig::default();
-    let (final_state, _, _) = Box::pin(place_initial_offer_shim(config, None)).await;
+    let (final_state, _, _) =
+        Box::pin(place_initial_offer_shim(config, None, TRANSFER_DIRECTION)).await;
     assert_eq!(
         final_state
             .fast_market_order()
@@ -68,12 +96,17 @@ pub async fn test_place_initial_offer_fallback() {
 #[tokio::test]
 pub async fn test_place_initial_offer_shimless() {
     let config = PlaceInitialOfferInstructionConfig::default();
-    let (_final_state, _, _) = Box::pin(place_initial_offer_shimless(config, None)).await;
+    let (_final_state, _, _) = Box::pin(place_initial_offer_shimless(
+        config,
+        None,
+        TRANSFER_DIRECTION,
+    ))
+    .await;
 }
 
 /// Test that auction account is exactly the same when using shimless and fallback instructions
 #[tokio::test]
-pub async fn test_place_initial_offer_shimless_and_fallback_are_identical() {
+pub async fn test_place_initial_offer_shimless_and_fallback_auctions_are_identical() {
     let shimless_config = PlaceInitialOfferInstructionConfig {
         actor: TestingActorEnum::Owner,
         ..PlaceInitialOfferInstructionConfig::default()
@@ -82,10 +115,16 @@ pub async fn test_place_initial_offer_shimless_and_fallback_are_identical() {
         actor: TestingActorEnum::Owner,
         ..PlaceInitialOfferInstructionConfig::default()
     };
-    let (final_state_shimless, mut shimless_test_context, _) =
-        Box::pin(place_initial_offer_shimless(shimless_config, None)).await;
-    let (final_state_fallback, mut fallback_test_context, _) =
-        Box::pin(place_initial_offer_shim(fallback_config, None)).await;
+    let (final_state_shimless, mut shimless_test_context, _) = Box::pin(
+        place_initial_offer_shimless(shimless_config, None, TRANSFER_DIRECTION),
+    )
+    .await;
+    let (final_state_fallback, mut fallback_test_context, _) = Box::pin(place_initial_offer_shim(
+        fallback_config,
+        None,
+        TRANSFER_DIRECTION,
+    ))
+    .await;
 
     let shimless_auction = {
         let shimless_active_auction_address = final_state_shimless
@@ -124,8 +163,10 @@ pub async fn test_place_initial_offer_shimless_and_fallback_are_identical() {
 #[tokio::test]
 pub async fn test_place_initial_offer_shim_and_improve_offer_shimless() {
     let config = PlaceInitialOfferInstructionConfig::default();
-    let (place_initial_offer_state, mut test_context, testing_engine) =
-        Box::pin(place_initial_offer_shimless(config, None)).await;
+    let (place_initial_offer_state, mut test_context, testing_engine) = Box::pin(
+        place_initial_offer_shimless(config, None, TRANSFER_DIRECTION),
+    )
+    .await;
     let improve_offer_config = ImproveOfferInstructionConfig::default();
     let instruction_triggers = vec![InstructionTrigger::ImproveOfferShimless(
         improve_offer_config,
@@ -169,7 +210,7 @@ pub async fn test_place_initial_offer_shim_and_improve_offer_shimless() {
 
 /// Test that the shimless place initial offer instruction blocks the shim instruction
 #[tokio::test]
-pub async fn test_place_initial_offer_non_shim_blocks_shim() {
+pub async fn test_place_initial_offer_shimless_blocks_shim() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
     let vaa_args = VaaArgs {
         post_vaa: true,
@@ -211,7 +252,7 @@ pub async fn test_place_initial_offer_non_shim_blocks_shim() {
 
 /// Test that the place initial offer shim blocks the non shim instruction
 #[tokio::test]
-pub async fn test_place_initial_offer_shim_blocks_non_shim() {
+pub async fn test_place_initial_offer_shim_blocks_shimless() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
     let vaa_args = VaaArgs {
         post_vaa: true,
@@ -254,7 +295,7 @@ pub async fn test_place_initial_offer_shim_blocks_non_shim() {
 
 /// Test with usdt token account
 #[tokio::test]
-pub async fn test_place_initial_shim_offer_usdt_token_account() {
+pub async fn test_place_initial_offer_shim_fails_usdt_token_account() {
     let expected_error = ExpectedError {
         instruction_index: 0,
         error_code: 3, // Token spl transfer error code when mint does not match
@@ -265,12 +306,12 @@ pub async fn test_place_initial_shim_offer_usdt_token_account() {
         expected_error: Some(expected_error),
         ..PlaceInitialOfferInstructionConfig::default()
     };
-    Box::pin(place_initial_offer_shim(config, None)).await;
+    Box::pin(place_initial_offer_shim(config, None, TRANSFER_DIRECTION)).await;
 }
 
 /// Test with usdt token account as custom account
 #[tokio::test]
-pub async fn test_place_initial_shim_offer_usdt_mint_address() {
+pub async fn test_place_initial_shim_offer_fails_usdt_mint_address() {
     let custom_accounts = PlaceInitialOfferCustomAccounts {
         mint_address: Some(crate::utils::constants::USDT_MINT),
         ..PlaceInitialOfferCustomAccounts::default()
@@ -286,7 +327,7 @@ pub async fn test_place_initial_shim_offer_usdt_mint_address() {
         expected_error: Some(expected_error),
         ..PlaceInitialOfferInstructionConfig::default()
     };
-    Box::pin(place_initial_offer_shim(config, None)).await;
+    Box::pin(place_initial_offer_shim(config, None, TRANSFER_DIRECTION)).await;
 }
 
 /// Test that the place initial offer fails if the fast market order is not created
@@ -359,6 +400,7 @@ pub async fn test_place_initial_offer_shim_fails_when_offer_greater_than_max_fee
     Box::pin(place_initial_offer_shim(
         initial_offer_config,
         Some(vaa_args),
+        TRANSFER_DIRECTION,
     ))
     .await;
 }
@@ -388,6 +430,7 @@ pub async fn test_place_initial_offer_shim_fails_when_amount_in_is_u64_max() {
     Box::pin(place_initial_offer_shim(
         initial_offer_config,
         Some(vaa_args),
+        TRANSFER_DIRECTION,
     ))
     .await;
 }
@@ -418,6 +461,7 @@ pub async fn test_place_initial_offer_shim_fails_when_max_fee_and_amount_in_sum_
     Box::pin(place_initial_offer_shim(
         initial_offer_config,
         Some(vaa_args),
+        TRANSFER_DIRECTION,
     ))
     .await;
 }
@@ -439,7 +483,7 @@ pub async fn test_improve_offer_shim_fails_carping() {
     .create_vaa_args_and_initial_offer_config();
 
     let (initial_offer_state, mut test_context, testing_engine) = Box::pin(
-        place_initial_offer_shim(initial_offer_config, Some(vaa_args)),
+        place_initial_offer_shim(initial_offer_config, Some(vaa_args), TRANSFER_DIRECTION),
     )
     .await;
 
@@ -484,7 +528,7 @@ pub async fn test_improve_offer_shim_fails_carping_second_improvement() {
     .create_vaa_args_and_initial_offer_config();
 
     let (initial_offer_state, mut test_context, testing_engine) = Box::pin(
-        place_initial_offer_shim(initial_offer_config, Some(vaa_args)),
+        place_initial_offer_shim(initial_offer_config, Some(vaa_args), TRANSFER_DIRECTION),
     )
     .await;
     let new_offer_price = amount_in.saturating_sub(1).saturating_div(2);
@@ -548,6 +592,7 @@ pub async fn test_place_initial_offer_shim_when_offer_equals_max_fee() {
     Box::pin(place_initial_offer_shim(
         initial_offer_config,
         Some(vaa_args),
+        TRANSFER_DIRECTION,
     ))
     .await;
 }
@@ -571,6 +616,7 @@ pub async fn test_place_initial_offer_shimless_when_offer_equals_max_fee() {
     Box::pin(place_initial_offer_shimless(
         initial_offer_config,
         Some(vaa_args),
+        TRANSFER_DIRECTION,
     ))
     .await;
 }
@@ -603,6 +649,7 @@ pub async fn test_place_initial_offer_shim_when_deposit_amount_is_u256_max() {
     Box::pin(place_initial_offer_shim(
         initial_offer_config,
         Some(vaa_args),
+        TRANSFER_DIRECTION,
     ))
     .await;
 }
@@ -635,16 +682,20 @@ pub async fn test_place_initial_offer_shimless_when_deposit_amount_is_u256_max()
     Box::pin(place_initial_offer_shimless(
         initial_offer_config,
         Some(vaa_args),
+        TRANSFER_DIRECTION,
     ))
     .await;
 }
 
 #[tokio::test]
 pub async fn test_improve_offer_after_close_fast_market_order() {
-    let (place_initial_offer_state, mut test_context, testing_engine) = Box::pin(
-        place_initial_offer_shim(PlaceInitialOfferInstructionConfig::default(), None),
-    )
-    .await;
+    let (place_initial_offer_state, mut test_context, testing_engine) =
+        Box::pin(place_initial_offer_shim(
+            PlaceInitialOfferInstructionConfig::default(),
+            None,
+            TRANSFER_DIRECTION,
+        ))
+        .await;
     let instruction_triggers = vec![
         InstructionTrigger::CloseFastMarketOrderShim(
             CloseFastMarketOrderShimInstructionConfig::default(),
@@ -660,6 +711,34 @@ pub async fn test_improve_offer_after_close_fast_market_order() {
         .await;
 }
 
+#[tokio::test]
+pub async fn test_improve_offer_after_reopen_fast_market_order() {
+    let (place_initial_offer_state, mut test_context, testing_engine) =
+        Box::pin(place_initial_offer_shim(
+            PlaceInitialOfferInstructionConfig::default(),
+            None,
+            TRANSFER_DIRECTION,
+        ))
+        .await;
+    let reopen_fast_market_order_state = Box::pin(reopen_fast_market_order_shim(
+        place_initial_offer_state,
+        &mut test_context,
+        &testing_engine,
+        None,
+    ))
+    .await;
+    let improve_offer_trigger = vec![InstructionTrigger::ImproveOfferShimless(
+        ImproveOfferInstructionConfig::default(),
+    )];
+    testing_engine
+        .execute(
+            &mut test_context,
+            improve_offer_trigger,
+            Some(reopen_fast_market_order_state),
+        )
+        .await;
+}
+
 /*
 ================================================================================
 Helper structs and functions
@@ -669,8 +748,8 @@ Helper structs and functions
 pub async fn place_initial_offer_shim(
     config: PlaceInitialOfferInstructionConfig,
     vaa_args: Option<VaaArgs>,
+    transfer_direction: TransferDirection,
 ) -> (TestingEngineState, ProgramTestContext, TestingEngine) {
-    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
     let vaa_args = vaa_args.unwrap_or_else(|| VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
@@ -707,8 +786,8 @@ pub async fn place_initial_offer_shim(
 pub async fn place_initial_offer_shimless(
     config: PlaceInitialOfferInstructionConfig,
     vaa_args: Option<VaaArgs>,
+    transfer_direction: TransferDirection,
 ) -> (TestingEngineState, ProgramTestContext, TestingEngine) {
-    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
     let vaa_args = vaa_args.unwrap_or_else(|| VaaArgs {
         post_vaa: true,
         ..VaaArgs::default()
@@ -734,6 +813,43 @@ pub async fn place_initial_offer_shimless(
         test_context,
         testing_engine,
     )
+}
+
+pub async fn reopen_fast_market_order_shim(
+    initial_state: TestingEngineState,
+    test_context: &mut ProgramTestContext,
+    testing_engine: &TestingEngine,
+    configs: Option<(
+        InitializeFastMarketOrderShimInstructionConfig,
+        CloseFastMarketOrderShimInstructionConfig,
+    )>,
+) -> TestingEngineState {
+    // If no configs are provided, assume its the first reopening
+    let (reopen_config, close_config) = configs.unwrap_or_else(|| {
+        let correct_solver = &testing_engine
+            .testing_context
+            .testing_actors
+            .solvers
+            .get(1)
+            .unwrap()
+            .pubkey();
+        (
+            InitializeFastMarketOrderShimInstructionConfig {
+                fast_market_order_id: 1,
+                close_account_refund_recipient: Some(*correct_solver),
+                ..InitializeFastMarketOrderShimInstructionConfig::default()
+            },
+            CloseFastMarketOrderShimInstructionConfig::default(),
+        )
+    });
+    let instruction_triggers = vec![
+        InstructionTrigger::CloseFastMarketOrderShim(close_config),
+        InstructionTrigger::InitializeFastMarketOrderShim(reopen_config),
+    ];
+
+    testing_engine
+        .execute(test_context, instruction_triggers, Some(initial_state))
+        .await
 }
 
 /// A struct representing the auction info and its valid state

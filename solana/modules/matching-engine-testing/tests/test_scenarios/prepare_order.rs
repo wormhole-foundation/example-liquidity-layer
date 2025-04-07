@@ -18,6 +18,8 @@
 //! - `test_prepare_order_response_shimful_blocks_shimless` - Test that the prepare order response shimful instruction blocks the shimless instruction
 //!
 
+use crate::test_scenarios::execute_order::{execute_order_helper, ShimExecutionMode};
+use crate::test_scenarios::make_offer::place_initial_offer_shim;
 use crate::testing_engine;
 use crate::testing_engine::config::{
     InitializeInstructionConfig, PlaceInitialOfferInstructionConfig, PrepareOrderInstructionConfig,
@@ -31,9 +33,39 @@ use testing_engine::engine::{InstructionTrigger, TestingEngine};
 use testing_engine::setup::{setup_environment, ShimMode, TransferDirection};
 use utils::vaa::VaaArgs;
 
-/// Test that the prepare order fallback instruction works correctly (from ethereum to arbitrum)
+use super::make_offer::reopen_fast_market_order_shim;
+
+/*
+                    Happy path tests section
+
+                    *****************
+               ******               ******
+           ****                           ****
+        ****                                 ***
+      ***                                       ***
+     **           ***               ***           **
+   **           *******           *******          ***
+  **            *******           *******            **
+ **             *******           *******             **
+ **               ***               ***               **
+**                                                     **
+**       *                                     *       **
+**      **                                     **      **
+ **   ****                                     ****   **
+ **      **                                   **      **
+  **       ***                             ***       **
+   ***       ****                       ****       ***
+     **         ******             ******         **
+      ***            ***************            ***
+        ****                                 ****
+           ****                           ****
+               ******               ******
+                    *****************
+*/
+
+/// Test that the prepare order shim instruction works correctly (from ethereum to arbitrum)
 #[tokio::test]
-pub async fn test_prepare_order_shim_fallback() {
+pub async fn test_prepare_order_shim() {
     let transfer_direction = TransferDirection::FromEthereumToArbitrum;
     let vaa_args = VaaArgs {
         post_vaa: false,
@@ -95,8 +127,187 @@ pub async fn test_prepare_order_shimless() {
         .await;
 }
 
+/// Test that prepare order response shim works after executing order shimlessly
+#[tokio::test]
+pub async fn test_prepare_order_response_shim_after_execute_order_shimless() {
+    let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+    let (execute_order_state, mut test_context, testing_engine) = Box::pin(execute_order_helper(
+        ExecuteOrderInstructionConfig::default(),
+        ShimExecutionMode::Shimless,
+        None,
+        transfer_direction,
+    ))
+    .await;
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig::default()),
+    ];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(execute_order_state),
+        )
+        .await;
+}
+
+/// Test that prepare order response shimless works after executing order shimlessly
+#[tokio::test]
+pub async fn test_prepare_order_response_shimless_after_execute_order_shim() {
+    let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+    let (execute_order_state, mut test_context, testing_engine) = Box::pin(execute_order_helper(
+        ExecuteOrderInstructionConfig::default(),
+        ShimExecutionMode::Shim,
+        Some(VaaArgs {
+            post_vaa: true,
+            ..VaaArgs::default()
+        }),
+        transfer_direction,
+    ))
+    .await;
+    let instruction_triggers = vec![InstructionTrigger::PrepareOrderShimless(
+        PrepareOrderInstructionConfig::default(),
+    )];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(execute_order_state),
+        )
+        .await;
+}
+
+/// Test prepare order response shim after reopening fast market order account in between offer and execute order
+#[tokio::test]
+pub async fn test_prepare_order_response_shim_after_reopening_fast_market_order_account() {
+    let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+    let (place_initial_offer_state, mut test_context, testing_engine) =
+        Box::pin(place_initial_offer_shim(
+            PlaceInitialOfferInstructionConfig::default(),
+            None,
+            transfer_direction,
+        ))
+        .await;
+    let reopen_fast_market_order_state = Box::pin(reopen_fast_market_order_shim(
+        place_initial_offer_state,
+        &mut test_context,
+        &testing_engine,
+        None,
+    ))
+    .await;
+    let instruction_triggers = vec![
+        InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
+        InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig::default()),
+    ];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(reopen_fast_market_order_state),
+        )
+        .await;
+}
+
+/// Test that prepare order response shim works after reopening fast market order after place initial offer AND execute order
+#[tokio::test]
+pub async fn test_prepare_order_response_shim_after_reopening_fast_market_order_account_after_execute_order_and_place_initial_offer(
+) {
+    let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+    let (place_initial_offer_state, mut test_context, testing_engine) =
+        Box::pin(place_initial_offer_shim(
+            PlaceInitialOfferInstructionConfig::default(),
+            None,
+            transfer_direction,
+        ))
+        .await;
+    let reopen_fast_market_order_state = reopen_fast_market_order_shim(
+        place_initial_offer_state,
+        &mut test_context,
+        &testing_engine,
+        None,
+    )
+    .await;
+    let instruction_triggers = vec![InstructionTrigger::ExecuteOrderShim(
+        ExecuteOrderInstructionConfig::default(),
+    )];
+    let execute_order_state = testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(reopen_fast_market_order_state),
+        )
+        .await;
+    let second_solver_keypair = testing_engine
+        .testing_context
+        .testing_actors
+        .solvers
+        .get(1)
+        .unwrap()
+        .clone()
+        .keypair();
+    let third_solver_pubkey = &testing_engine
+        .testing_context
+        .testing_actors
+        .solvers
+        .get(2)
+        .unwrap()
+        .pubkey();
+    let reopen_config = InitializeFastMarketOrderShimInstructionConfig {
+        fast_market_order_id: 2,
+        close_account_refund_recipient: Some(*third_solver_pubkey),
+        ..InitializeFastMarketOrderShimInstructionConfig::default()
+    };
+    let close_config = CloseFastMarketOrderShimInstructionConfig {
+        close_account_refund_recipient_keypair: Some(second_solver_keypair),
+        ..CloseFastMarketOrderShimInstructionConfig::default()
+    };
+    let double_reopen_fast_market_order_state = reopen_fast_market_order_shim(
+        execute_order_state,
+        &mut test_context,
+        &testing_engine,
+        Some((reopen_config, close_config)),
+    )
+    .await;
+    let instruction_triggers = vec![InstructionTrigger::PrepareOrderShim(
+        PrepareOrderInstructionConfig::default(),
+    )];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(double_reopen_fast_market_order_state),
+        )
+        .await;
+}
+
 /*
-    Sad path tests
+                    Sad path tests section
+
+                    *****************
+               ******               ******
+           ****                           ****
+        ****                                 ***
+      ***                                       ***
+     **           ***               ***           **
+   **           *******           *******          ***
+  **            *******           *******            **
+ **             *******           *******             **
+ **               ***               ***               **
+**                                                     **
+**                                                     **
+**                                                     **
+**                                                     **
+ **                   ************                   **
+  **               ******      ******               **
+   ***           *****            *****            ***
+     **        ***                    ***         **
+      ***    **                         **      ***
+        ****                                 ****
+           ****                           ****
+               ******               ******
+                    *****************
 */
 
 /// Test that the prepare order response shimless instruction blocks the shimful instruction

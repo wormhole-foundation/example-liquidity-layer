@@ -22,6 +22,8 @@
 //! testing_engine.execute(instruction_triggers).await;
 //! ```
 
+use std::ops::{Deref, DerefMut};
+
 use matching_engine::state::FastMarketOrder;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::signer::Signer;
@@ -48,7 +50,6 @@ use crate::utils::{
 };
 use anchor_lang::prelude::*;
 
-#[allow(dead_code)]
 pub enum InstructionTrigger {
     InitializeProgram(InitializeInstructionConfig),
     CreateCctpRouterEndpoints(CreateCctpRouterEndpointsInstructionConfig),
@@ -62,6 +63,60 @@ pub enum InstructionTrigger {
     PrepareOrderShim(PrepareOrderInstructionConfig),
     SettleAuction(SettleAuctionInstructionConfig),
     CloseFastMarketOrderShim(CloseFastMarketOrderShimInstructionConfig),
+}
+
+pub enum VerificationTrigger {
+    // Verify that the auction state is as expected (bool is expected to succeed)
+    VerifyAuctionState(bool),
+}
+
+pub enum ExecutionTrigger {
+    Instruction(InstructionTrigger),
+    Verification(VerificationTrigger),
+}
+
+impl From<InstructionTrigger> for ExecutionTrigger {
+    fn from(trigger: InstructionTrigger) -> Self {
+        ExecutionTrigger::Instruction(trigger)
+    }
+}
+
+impl From<VerificationTrigger> for ExecutionTrigger {
+    fn from(trigger: VerificationTrigger) -> Self {
+        ExecutionTrigger::Verification(trigger)
+    }
+}
+
+pub struct ExecutionChain(Vec<ExecutionTrigger>);
+
+impl Deref for ExecutionChain {
+    type Target = Vec<ExecutionTrigger>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for ExecutionChain {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl ExecutionChain {
+    pub fn instruction_triggers(&self) -> Vec<&InstructionTrigger> {
+        self.iter()
+            .filter_map(|trigger| match trigger {
+                ExecutionTrigger::Instruction(trigger) => Some(trigger),
+                _ => None,
+            })
+            .collect()
+    }
+}
+impl From<Vec<InstructionTrigger>> for ExecutionChain {
+    fn from(triggers: Vec<InstructionTrigger>) -> Self {
+        Self(triggers.into_iter().map(|trigger| trigger.into()).collect())
+    }
 }
 
 impl InstructionTrigger {
@@ -174,25 +229,29 @@ impl TestingEngine {
     pub async fn execute(
         &self,
         test_context: &mut ProgramTestContext,
-        instruction_chain: Vec<InstructionTrigger>,
+        execution_chain: impl Into<ExecutionChain>,
         initial_state: Option<TestingEngineState>,
     ) -> TestingEngineState {
         let mut current_state = initial_state.unwrap_or_else(|| self.create_initial_state());
+        let execution_chain = execution_chain.into();
+        self.verify_triggers(&execution_chain);
 
-        self.verify_triggers(&instruction_chain);
-
-        for trigger in instruction_chain {
+        for trigger in execution_chain.iter() {
             current_state = self
-                .execute_trigger(test_context, &current_state, &trigger)
+                .execute_trigger(test_context, &current_state, trigger)
                 .await;
         }
         current_state
     }
 
     /// Verifies that the shimmode corresponds to the instruction chain
-    fn verify_triggers(&self, instruction_chain: &[InstructionTrigger]) {
+    fn verify_triggers(&self, execution_chain: &ExecutionChain) {
         // If any shim instructions are present, make sure that shim mode is set to VerifyAndPostSignature
-        if instruction_chain.iter().any(|trigger| trigger.is_shim()) {
+        if execution_chain
+            .instruction_triggers()
+            .iter()
+            .any(|trigger| trigger.is_shim())
+        {
             assert_eq!(
                 self.testing_context.shim_mode,
                 ShimMode::VerifyAndPostSignature,
@@ -212,57 +271,65 @@ impl TestingEngine {
         &self,
         test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
-        trigger: &InstructionTrigger,
+        trigger: &ExecutionTrigger,
     ) -> TestingEngineState {
         match trigger {
-            InstructionTrigger::InitializeProgram(config) => {
-                self.initialize_program(test_context, current_state, config)
-                    .await
-            }
-            InstructionTrigger::CreateCctpRouterEndpoints(config) => {
-                self.create_cctp_router_endpoints(test_context, current_state, config)
-                    .await
-            }
-            InstructionTrigger::InitializeFastMarketOrderShim(config) => {
-                self.create_fast_market_order_account(test_context, current_state, config)
-                    .await
-            }
-            InstructionTrigger::CloseFastMarketOrderShim(config) => {
-                self.close_fast_market_order_account(test_context, current_state, config)
-                    .await
-            }
-            InstructionTrigger::PlaceInitialOfferShimless(config) => {
-                self.place_initial_offer_shimless(test_context, current_state, config)
-                    .await
-            }
-            InstructionTrigger::PlaceInitialOfferShim(config) => {
-                self.place_initial_offer_shim(test_context, current_state, config)
-                    .await
-            }
-            InstructionTrigger::ImproveOfferShimless(config) => {
-                self.improve_offer_shimless(test_context, current_state, config)
-                    .await
-            }
-            InstructionTrigger::ExecuteOrderShim(config) => {
-                self.execute_order_shim(test_context, current_state, config)
-                    .await
-            }
-            InstructionTrigger::ExecuteOrderShimless(config) => {
-                self.execute_order_shimless(test_context, current_state, config)
-                    .await
-            }
-            InstructionTrigger::PrepareOrderShim(config) => {
-                self.prepare_order_shim(test_context, current_state, config)
-                    .await
-            }
-            InstructionTrigger::PrepareOrderShimless(config) => {
-                self.prepare_order_shimless(test_context, current_state, config)
-                    .await
-            }
-            InstructionTrigger::SettleAuction(config) => {
-                self.settle_auction(test_context, current_state, config)
-                    .await
-            }
+            ExecutionTrigger::Instruction(trigger) => match trigger {
+                InstructionTrigger::InitializeProgram(config) => {
+                    self.initialize_program(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::CreateCctpRouterEndpoints(config) => {
+                    self.create_cctp_router_endpoints(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::InitializeFastMarketOrderShim(config) => {
+                    self.create_fast_market_order_account(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::CloseFastMarketOrderShim(config) => {
+                    self.close_fast_market_order_account(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::PlaceInitialOfferShimless(config) => {
+                    self.place_initial_offer_shimless(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::PlaceInitialOfferShim(config) => {
+                    self.place_initial_offer_shim(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::ImproveOfferShimless(config) => {
+                    self.improve_offer_shimless(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::ExecuteOrderShim(config) => {
+                    self.execute_order_shim(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::ExecuteOrderShimless(config) => {
+                    self.execute_order_shimless(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::PrepareOrderShim(config) => {
+                    self.prepare_order_shim(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::PrepareOrderShimless(config) => {
+                    self.prepare_order_shimless(test_context, current_state, config)
+                        .await
+                }
+                InstructionTrigger::SettleAuction(config) => {
+                    self.settle_auction(test_context, current_state, config)
+                        .await
+                }
+            },
+            ExecutionTrigger::Verification(trigger) => match trigger {
+                VerificationTrigger::VerifyAuctionState(expected_to_succeed) => {
+                    self.verify_auction_state(test_context, current_state, *expected_to_succeed)
+                        .await
+                }
+            },
         }
     }
 
@@ -439,6 +506,8 @@ impl TestingEngine {
                     guardian_set_address: guardian_signature_info.guardian_set_pubkey,
                     guardian_signatures_address: guardian_signature_info.guardian_signatures_pubkey,
                 },
+                auction_state: current_state.auction_state().clone(),
+                auction_accounts: current_state.auction_accounts().cloned(),
             }
         } else {
             current_state.clone()
@@ -851,6 +920,24 @@ impl TestingEngine {
             },
             _ => current_state.clone(),
         }
+    }
+
+    async fn verify_auction_state(
+        &self,
+        test_context: &mut ProgramTestContext,
+        current_state: &TestingEngineState,
+        expected_to_succeed: bool,
+    ) -> TestingEngineState {
+        let auction_state = current_state
+            .auction_state()
+            .get_active_auction()
+            .expect("Active auction state expected");
+        let was_success = auction_state
+            .verify_auction(&self.testing_context, test_context)
+            .await
+            .is_ok();
+        assert_eq!(was_success, expected_to_succeed);
+        current_state.clone()
     }
 }
 

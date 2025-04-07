@@ -221,6 +221,42 @@ pub async fn test_fast_market_order_cannot_be_refunded_by_someone_who_did_not_in
         .await;
 }
 
+/// Test that the same fast market order cannot be closed twice
+#[tokio::test]
+pub async fn test_fast_market_order_cannot_be_closed_twice() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: false,
+        ..VaaArgs::default()
+    };
+    let (testing_context, mut test_context) = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::CloseFastMarketOrderShim(
+            CloseFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::CloseFastMarketOrderShim(CloseFastMarketOrderShimInstructionConfig {
+            expected_error: Some(ExpectedError {
+                instruction_index: 0,
+                error_code: 3001,
+                error_string: "Fast market order account is already closed".to_string(),
+            }),
+            ..CloseFastMarketOrderShimInstructionConfig::default()
+        }),
+    ];
+    testing_engine
+        .execute(&mut test_context, instruction_triggers, None)
+        .await;
+}
 /*
                                 Edge case tests section
                                                                                        88
@@ -232,3 +268,133 @@ a8"     "" a8P_____88 88P'   `"8a I8[    "" a8"     "8a 88P'   "Y8 a8P_____88 a8
 "8a,   ,aa "8b,   ,aa 88       88 aa    ]8I "8a,   ,a8" 88         "8b,   ,aa "8a,   ,d88
  `"Ybbd8"'  `"Ybbd8"' 88       88 `"YbbdP"'  `"YbbdP"'  88          `"Ybbd8"'  `"8bbdP"Y8
 */
+
+/// Test that fast market order can be opened after being closed by the same solver
+#[tokio::test]
+pub async fn test_fast_market_order_can_be_opened_after_being_closed_by_the_same_solver() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: false,
+        ..VaaArgs::default()
+    };
+    let (testing_context, mut test_context) = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::CloseFastMarketOrderShim(
+            CloseFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+    ];
+    testing_engine
+        .execute(&mut test_context, instruction_triggers, None)
+        .await;
+}
+
+/// Test that multiple fast market orders can be opened and closed by different solvers in arbitrary order
+#[tokio::test]
+pub async fn test_multiple_fast_market_orders_can_be_opened_and_closed_by_different_solvers_in_arbitrary_order(
+) {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: false,
+        ..VaaArgs::default()
+    };
+    let (testing_context, mut test_context) = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+    let solver_1 = testing_context.testing_actors.solvers[1].clone();
+    let solver_2 = testing_context.testing_actors.solvers[2].clone();
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig {
+                fast_market_order_id: 0,
+                close_account_refund_recipient: None, // Solver 0
+                ..InitializeFastMarketOrderShimInstructionConfig::default()
+            },
+        ),
+    ];
+    let current_state = testing_engine
+        .execute(&mut test_context, instruction_triggers, None)
+        .await;
+    let fast_market_order_0_pubkey = current_state
+        .fast_market_order()
+        .unwrap()
+        .fast_market_order_address;
+    let instruction_triggers_1 = vec![InstructionTrigger::InitializeFastMarketOrderShim(
+        InitializeFastMarketOrderShimInstructionConfig {
+            fast_market_order_id: 1,
+            close_account_refund_recipient: Some(solver_1.pubkey()),
+            ..InitializeFastMarketOrderShimInstructionConfig::default()
+        },
+    )];
+    let current_state = testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers_1,
+            Some(current_state),
+        )
+        .await;
+    let fast_market_order_1_pubkey = current_state
+        .fast_market_order()
+        .unwrap()
+        .fast_market_order_address;
+    let instruction_triggers_2 = vec![
+        InstructionTrigger::CloseFastMarketOrderShim(CloseFastMarketOrderShimInstructionConfig {
+            fast_market_order_address: Some(fast_market_order_0_pubkey),
+            ..CloseFastMarketOrderShimInstructionConfig::default()
+        }),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig {
+                fast_market_order_id: 2,
+                close_account_refund_recipient: Some(solver_2.pubkey()),
+                ..InitializeFastMarketOrderShimInstructionConfig::default()
+            },
+        ),
+    ];
+    let current_state = testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers_2,
+            Some(current_state),
+        )
+        .await;
+    let fast_market_order_2_pubkey = current_state
+        .fast_market_order()
+        .unwrap()
+        .fast_market_order_address;
+    let instruction_triggers_3 = vec![
+        InstructionTrigger::CloseFastMarketOrderShim(CloseFastMarketOrderShimInstructionConfig {
+            close_account_refund_recipient_keypair: Some(solver_2.keypair()),
+            fast_market_order_address: Some(fast_market_order_2_pubkey),
+            ..CloseFastMarketOrderShimInstructionConfig::default()
+        }),
+        InstructionTrigger::CloseFastMarketOrderShim(CloseFastMarketOrderShimInstructionConfig {
+            close_account_refund_recipient_keypair: Some(solver_1.keypair()),
+            fast_market_order_address: Some(fast_market_order_1_pubkey),
+            ..CloseFastMarketOrderShimInstructionConfig::default()
+        }),
+    ];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers_3,
+            Some(current_state),
+        )
+        .await;
+}
