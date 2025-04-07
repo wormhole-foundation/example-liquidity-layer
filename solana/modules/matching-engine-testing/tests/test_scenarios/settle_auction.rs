@@ -50,6 +50,6 @@ pub async fn test_settle_auction_complete() {
         InstructionTrigger::SettleAuction(SettleAuctionInstructionConfig::default()),
     ];
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }

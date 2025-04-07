@@ -55,6 +55,7 @@ cfg_if::cfg_if! {
 
         /// USDC mint address found on Solana mainnet.
         pub const USDC_MINT: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+        pub const USDT_MINT: Pubkey = pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB");
     } else if #[cfg(feature = "testnet")] {
         /// Core Bridge program ID on Solana devnet.
         pub const CORE_BRIDGE_PID: Pubkey = pubkey!("3u8hJUVTA4jH1wYAyUur7FFZVQ8H635K3tSHHF4ssjQ5");
@@ -70,6 +71,7 @@ cfg_if::cfg_if! {
 
         /// USDC mint address found on Solana devnet.
         pub const USDC_MINT: Pubkey = pubkey!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+        pub const USDT_MINT: Pubkey = pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB");
     } else if #[cfg(feature = "localnet")] {
         /// Core Bridge program ID on Wormhole's Tilt (dev) network.
         pub const CORE_BRIDGE_PID: Pubkey = pubkey!("Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o");
@@ -87,6 +89,7 @@ cfg_if::cfg_if! {
         ///
         /// NOTE: We expect an integrator to load this account by pulling it from Solana devnet.
         pub const USDC_MINT: Pubkey = pubkey!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+        pub const USDT_MINT: Pubkey = pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB");
     }
 }
 

@@ -1,8 +1,8 @@
 use anchor_lang::prelude::*;
 use solana_program_test::ProgramTestContext;
 
-use super::router::TestRouterEndpoints;
 use super::Chain;
+use super::{router::TestRouterEndpoints, token_account::SplTokenEnum};
 use crate::testing_engine::setup::{TestingActor, TestingContext, TransferDirection};
 use anyhow::{anyhow, Result as AnyhowResult};
 use matching_engine::state::{Auction, AuctionInfo};
@@ -23,12 +23,13 @@ use matching_engine::state::{Auction, AuctionInfo};
 pub struct AuctionAccounts {
     pub posted_fast_vaa: Option<Pubkey>,
     pub offer_token: Pubkey,
-    pub actor: TestingActor,
+    pub offer_actor: TestingActor,
+    pub close_account_refund_recipient: Option<Pubkey>, // Only for shim
     pub auction_config: Pubkey,
     pub from_router_endpoint: Pubkey,
     pub to_router_endpoint: Pubkey,
     pub custodian: Pubkey,
-    pub usdc_mint: Pubkey,
+    pub spl_token_enum: SplTokenEnum,
 }
 
 /// An enum representing the state of an auction
@@ -71,6 +72,7 @@ pub struct ActiveAuctionState {
     pub auction_config_address: Pubkey,
     pub initial_offer: AuctionOffer,
     pub best_offer: AuctionOffer,
+    pub spl_token_enum: SplTokenEnum,
 }
 
 /// A struct representing an auction offer
@@ -88,13 +90,15 @@ pub struct AuctionOffer {
 }
 
 impl AuctionAccounts {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         posted_fast_vaa: Option<Pubkey>,
-        actor: TestingActor,
+        offer_actor: TestingActor,
+        close_account_refund_recipient: Option<Pubkey>,
         auction_config: Pubkey,
         router_endpoints: &TestRouterEndpoints,
         custodian: Pubkey,
-        usdc_mint: Pubkey,
+        spl_token_enum: SplTokenEnum,
         direction: TransferDirection,
     ) -> Self {
         let (from_router_endpoint, to_router_endpoint) = match direction {
@@ -116,13 +120,14 @@ impl AuctionAccounts {
         };
         Self {
             posted_fast_vaa,
-            offer_token: actor.token_account_address().unwrap(),
-            actor,
+            offer_token: offer_actor.token_account_address(&spl_token_enum).unwrap(),
+            close_account_refund_recipient,
+            offer_actor,
             auction_config,
             from_router_endpoint,
             to_router_endpoint,
             custodian,
-            usdc_mint,
+            spl_token_enum,
         }
     }
 }

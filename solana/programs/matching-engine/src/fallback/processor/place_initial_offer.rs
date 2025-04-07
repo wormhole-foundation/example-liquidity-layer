@@ -325,7 +325,7 @@ pub fn place_initial_offer_cctp_shim(
     {
         let deadline = i64::from(fast_market_order_zero_copy.deadline);
         let expiration = i64::from(vaa_time).saturating_add(crate::VAA_AUCTION_EXPIRATION_TIME);
-        let current_time = Clock::get().unwrap().unix_timestamp;
+        let current_time: i64 = Clock::get().unwrap().unix_timestamp;
         if !((deadline == 0 || current_time < deadline) && current_time < expiration) {
             msg!("Fast market order has expired");
             return Err(MatchingEngineError::FastMarketOrderExpired.into());

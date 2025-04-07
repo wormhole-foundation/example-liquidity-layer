@@ -297,14 +297,14 @@ impl CreateDepositAndFastTransferParams {
 }
 
 pub struct CreateDepositParams {
-    pub amount: i32,
+    pub amount: ruint::aliases::U256,
     pub base_fee: u64,
 }
 
 impl Default for CreateDepositParams {
     fn default() -> Self {
         Self {
-            amount: 69000000,
+            amount: ruint::aliases::U256::from(69000000),
             base_fee: 2,
         }
     }
@@ -524,7 +524,7 @@ pub fn create_deposit_message(
     source_address: ChainAddress,
     _destination_address: ChainAddress,
     cctp_mint_recipient: Pubkey,
-    amount: i32,
+    amount: ruint::aliases::U256,
     base_fee: u64,
     test_vaa_args: &TestVaaArgs,
 ) -> (Pubkey, PostedVaaData, Deposit) {
@@ -535,7 +535,7 @@ pub fn create_deposit_message(
     // Implements TypePrefixedPayload
     let deposit = Deposit {
         token_address: token_mint.to_bytes(),
-        amount: ruint::aliases::U256::from(amount),
+        amount,
         source_cctp_domain: source_address.chain.as_cctp_domain(),
         destination_cctp_domain: Chain::Solana.as_cctp_domain(), // Hardcode solana as destination domain
         cctp_nonce,
@@ -590,7 +590,7 @@ pub fn create_fast_transfer_message(
     let start_timestamp = test_vaa_args.start_timestamp;
     let sequence = test_vaa_args.sequence;
     let vaa_nonce = test_vaa_args.vaa_nonce;
-    // If start timestamp is not provided, set the deadline to 0
+    // If start timestamp is not provided, set the deadline to 0, otherwise set the deadline to 10 seconds from the start timestamp
     let deadline = start_timestamp
         .map(|timestamp| timestamp.saturating_add(10))
         .unwrap_or_default();

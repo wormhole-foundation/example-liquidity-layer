@@ -1,12 +1,19 @@
 use std::rc::Rc;
 
 use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::config::ImproveOfferInstructionConfig;
+use crate::testing_engine::config::InstructionConfig;
+use crate::testing_engine::config::PlaceInitialOfferInstructionConfig;
+use crate::testing_engine::setup::TestingActor;
+use crate::testing_engine::state::InitialOfferPlacedState;
+use crate::testing_engine::state::TestingEngineState;
+use crate::utils::auction::AuctionAccounts;
 
 use super::super::utils;
 use anchor_lang::prelude::*;
 use anchor_lang::InstructionData;
 
-use crate::testing_engine::setup::{Solver, TestingContext};
+use crate::testing_engine::setup::TestingContext;
 use common::TRANSFER_AUTHORITY_SEED_PREFIX;
 use matching_engine::accounts::ImproveOffer as ImproveOfferAccounts;
 use matching_engine::accounts::{
@@ -22,8 +29,7 @@ use solana_sdk::instruction::Instruction;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signature::Signer;
 use solana_sdk::transaction::Transaction;
-use utils::auction::{ActiveAuctionState, AuctionAccounts, AuctionOffer, AuctionState};
-use utils::vaa::TestVaa;
+use utils::auction::{ActiveAuctionState, AuctionOffer, AuctionState};
 
 /// Place an initial offer (shimless)
 ///
@@ -45,15 +51,35 @@ use utils::vaa::TestVaa;
 pub async fn place_initial_offer_shimless(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
-    accounts: &AuctionAccounts,
-    fast_market_order: &TestVaa,
-    offer_price: u64,
-    payer_signer: &Rc<Keypair>,
-    expected_error: Option<&ExpectedError>,
-) -> AuctionState {
+    current_state: &TestingEngineState,
+    config: &PlaceInitialOfferInstructionConfig,
+) -> Option<InitialOfferPlacedState> {
+    let payer_signer = config
+        .payer_signer
+        .clone()
+        .unwrap_or_else(|| testing_context.testing_actors.owner.keypair());
+    let offer_actor = config.actor.get_actor(&testing_context.testing_actors);
+    let offer_token = offer_actor
+        .token_account_address(&config.spl_token_enum)
+        .unwrap();
+    let expected_error = config.expected_error();
+    let fast_vaa = &current_state
+        .base()
+        .vaas
+        .get(config.test_vaa_pair_index)
+        .expect("Failed to get vaa pair")
+        .fast_transfer_vaa;
+    let auction_config_address = current_state
+        .initialized()
+        .expect("Testing state is not initialized")
+        .auction_config_address;
+    let custodian_address = current_state
+        .initialized()
+        .expect("Testing state is not initialized")
+        .custodian_address;
     let program_id = testing_context.get_matching_engine_program_id();
     let auction_address = Pubkey::find_program_address(
-        &[Auction::SEED_PREFIX, &fast_market_order.vaa_data.digest()],
+        &[Auction::SEED_PREFIX, &fast_vaa.vaa_data.digest()],
         &program_id,
     )
     .0;
@@ -65,18 +91,51 @@ pub async fn place_initial_offer_shimless(
         &program_id,
     )
     .0;
-    let initial_offer_ix = PlaceInitialOfferCctpIx { offer_price };
-
+    let initial_offer_ix = PlaceInitialOfferCctpIx {
+        offer_price: config.offer_price,
+    };
+    let (from_router_endpoint, to_router_endpoint) = match &config.custom_accounts {
+        Some(custom_accounts) => {
+            let from_router_endpoint = match custom_accounts.from_router_endpoint {
+                Some(from_router_endpoint) => from_router_endpoint,
+                None => {
+                    current_state
+                        .router_endpoints()
+                        .expect("Router endpoints are not initialized")
+                        .endpoints
+                        .get_from_and_to_endpoint_addresses(current_state.base().transfer_direction)
+                        .0
+                }
+            };
+            let to_router_endpoint = match custom_accounts.to_router_endpoint {
+                Some(to_router_endpoint) => to_router_endpoint,
+                None => {
+                    current_state
+                        .router_endpoints()
+                        .expect("Router endpoints are not initialized")
+                        .endpoints
+                        .get_from_and_to_endpoint_addresses(current_state.base().transfer_direction)
+                        .1
+                }
+            };
+            (from_router_endpoint, to_router_endpoint)
+        }
+        None => current_state
+            .router_endpoints()
+            .expect("Router endpoints are not initialized")
+            .endpoints
+            .get_from_and_to_endpoint_addresses(current_state.base().transfer_direction),
+    };
     let fast_order_path = FastOrderPath {
         fast_vaa: LiquidityLayerVaa {
-            vaa: fast_market_order.vaa_pubkey,
+            vaa: fast_vaa.vaa_pubkey,
         },
         path: LiveRouterPath {
             from_endpoint: LiveRouterEndpoint {
-                endpoint: accounts.from_router_endpoint,
+                endpoint: from_router_endpoint,
             },
             to_endpoint: LiveRouterEndpoint {
-                endpoint: accounts.to_router_endpoint,
+                endpoint: to_router_endpoint,
             },
         },
     };
@@ -93,7 +152,9 @@ pub async fn place_initial_offer_shimless(
     .0;
     {
         // Check if solver has already approved usdc
-        let usdc_account = accounts.actor.token_account_address().unwrap();
+        let usdc_account = offer_actor
+            .token_account_address(&config.spl_token_enum)
+            .unwrap();
         let usdc_account_info = test_context
             .banks_client
             .get_account(usdc_account)
@@ -105,35 +166,52 @@ pub async fn place_initial_offer_shimless(
         )
         .expect("Failed to deserialize usdc account");
         if token_account_info.delegate.is_none() {
-            accounts
-                .actor
-                .approve_usdc(test_context, &transfer_authority, 420_000__000_000)
+            offer_actor
+                .approve_spl_token(
+                    test_context,
+                    &transfer_authority,
+                    420_000__000_000,
+                    &config.spl_token_enum,
+                )
                 .await;
         } else {
             let delegate = token_account_info.delegate.unwrap();
             if delegate != transfer_authority {
-                accounts
-                    .actor
-                    .approve_usdc(test_context, &transfer_authority, 420_000__000_000)
+                offer_actor
+                    .approve_spl_token(
+                        test_context,
+                        &transfer_authority,
+                        420_000__000_000,
+                        &config.spl_token_enum,
+                    )
                     .await;
             }
         }
     }
 
     let custodian = CheckedCustodian {
-        custodian: accounts.custodian,
+        custodian: custodian_address,
+    };
+    let usdc_mint_address = match &config.custom_accounts {
+        Some(custom_accounts) => match custom_accounts.mint_address {
+            Some(usdc_mint_address) => usdc_mint_address,
+            None => testing_context.get_usdc_mint_address(),
+        },
+        None => testing_context.get_usdc_mint_address(),
     };
     let initial_offer_accounts = PlaceInitialOfferCctpAccounts {
         payer: payer_signer.pubkey(),
         transfer_authority,
         custodian,
-        auction_config: accounts.auction_config,
+        auction_config: auction_config_address,
         fast_order_path,
         auction: auction_address,
-        offer_token: accounts.offer_token,
+        offer_token: offer_actor
+            .token_account_address(&config.spl_token_enum)
+            .unwrap(),
         auction_custody_token: auction_custody_token_address,
         usdc: Usdc {
-            mint: accounts.usdc_mint,
+            mint: usdc_mint_address,
         },
         system_program: anchor_lang::system_program::ID,
         token_program: anchor_spl::token::ID,
@@ -143,7 +221,7 @@ pub async fn place_initial_offer_shimless(
 
     let mut account_metas = initial_offer_accounts.to_account_metas(None);
     for meta in account_metas.iter_mut() {
-        if meta.pubkey == accounts.offer_token {
+        if meta.pubkey == offer_token {
             meta.is_writable = true;
         }
     }
@@ -157,7 +235,7 @@ pub async fn place_initial_offer_shimless(
     let tx = Transaction::new_signed_with_payer(
         &[initial_offer_ix_anchor],
         Some(&payer_signer.pubkey()),
-        &[payer_signer],
+        &[&payer_signer],
         testing_context
             .get_new_latest_blockhash(test_context)
             .await
@@ -170,23 +248,42 @@ pub async fn place_initial_offer_shimless(
 
     // If the transaction failed and we expected it to pass, we would not get here
     if expected_error.is_none() {
-        AuctionState::Active(Box::new(ActiveAuctionState {
+        let auction_state = AuctionState::Active(Box::new(ActiveAuctionState {
             auction_address,
             auction_custody_token_address,
-            auction_config_address: accounts.auction_config,
+            auction_config_address,
             initial_offer: AuctionOffer {
                 participant: payer_signer.pubkey(),
-                offer_token: accounts.offer_token,
+                offer_token,
                 offer_price: initial_offer_ix.offer_price,
             },
             best_offer: AuctionOffer {
                 participant: payer_signer.pubkey(),
-                offer_token: accounts.offer_token,
+                offer_token,
                 offer_price: initial_offer_ix.offer_price,
             },
-        }))
+            spl_token_enum: config.spl_token_enum.clone(),
+        }));
+
+        let auction_accounts = AuctionAccounts::new(
+            Some(fast_vaa.get_vaa_pubkey()),
+            offer_actor.clone(),
+            current_state.close_account_refund_recipient(),
+            auction_config_address,
+            &current_state
+                .router_endpoints()
+                .expect("Router endpoints are not created")
+                .endpoints,
+            custodian_address,
+            config.spl_token_enum.clone(),
+            current_state.base().transfer_direction,
+        );
+        Some(InitialOfferPlacedState {
+            auction_state,
+            auction_accounts,
+        })
     } else {
-        AuctionState::Inactive
+        None
     }
 }
 
@@ -210,8 +307,8 @@ pub async fn place_initial_offer_shimless(
 pub async fn improve_offer(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
-    solver: Solver,
-    offer_price: u64,
+    actor: &TestingActor,
+    config: &ImproveOfferInstructionConfig,
     payer_signer: &Rc<Keypair>,
     initial_auction_state: &AuctionState,
     expected_error: Option<&ExpectedError>,
@@ -221,7 +318,7 @@ pub async fn improve_offer(
     let auction_config = active_auction_state.auction_config_address;
     let auction_address = active_auction_state.auction_address;
     let auction_custody_token_address = active_auction_state.auction_custody_token_address;
-
+    let offer_price = config.offer_price;
     let improve_offer_ix = ImproveOfferIx { offer_price };
 
     let event_authority = Pubkey::find_program_address(&[b"__event_authority"], &program_id).0;
@@ -234,10 +331,16 @@ pub async fn improve_offer(
         &program_id,
     )
     .0;
-    solver
-        .approve_usdc(test_context, &transfer_authority, 420_000__000_000)
+    let spl_token_enum = &active_auction_state.spl_token_enum;
+    actor
+        .approve_spl_token(
+            test_context,
+            &transfer_authority,
+            420_000__000_000,
+            spl_token_enum,
+        )
         .await;
-    let offer_token = solver.token_account_address().unwrap();
+    let offer_token = actor.token_account_address(spl_token_enum).unwrap();
 
     let active_auction = ActiveAuction {
         auction: auction_address,
@@ -298,6 +401,7 @@ pub async fn improve_offer(
                 offer_token,
                 offer_price,
             },
+            spl_token_enum: spl_token_enum.clone(),
         }))
     } else {
         initial_auction_state.clone()

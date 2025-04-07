@@ -5,7 +5,7 @@
 
 use super::constants::*;
 use super::token_account::create_token_account_for_pda;
-use crate::testing_engine::setup::TestingContext;
+use crate::testing_engine::setup::{TestingContext, TransferDirection};
 use anchor_lang::prelude::*;
 
 use anchor_lang::{InstructionData, ToAccountMetas};
@@ -94,6 +94,28 @@ impl Deref for TestRouterEndpoints {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl TestRouterEndpoints {
+    #[allow(dead_code)]
+    pub fn get_from_and_to_endpoint_addresses(
+        &self,
+        transfer_direction: TransferDirection,
+    ) -> (Pubkey, Pubkey) {
+        match transfer_direction {
+            TransferDirection::FromArbitrumToEthereum => (
+                self.get(&Chain::Arbitrum).unwrap().endpoint_address,
+                self.get(&Chain::Ethereum).unwrap().endpoint_address,
+            ),
+            TransferDirection::FromEthereumToArbitrum => (
+                self.get(&Chain::Ethereum).unwrap().endpoint_address,
+                self.get(&Chain::Arbitrum).unwrap().endpoint_address,
+            ),
+            TransferDirection::Other => {
+                panic!("Unsupported transfer direction");
+            }
+        }
     }
 }
 

@@ -54,9 +54,16 @@ pub fn close_fast_market_order(accounts: &[AccountInfo]) -> Result<()> {
     let fast_market_order = &accounts[0];
     let close_account_refund_recipient = &accounts[1];
 
+    // Check that the close_account_refund_recipient is a signer, otherwise someone might call this and steal the lamports
     if !close_account_refund_recipient.is_signer {
         msg!("Refund recipient (account #2) is not a signer");
         return Err(ProgramError::InvalidAccountData.into());
+    }
+
+    // Check that the fast_market_order is owned by the close_account_refund_recipient
+    if fast_market_order.owner != &close_account_refund_recipient.key() {
+        msg!("Fast market order is not owned by the close account refund recipient");
+        return Err(ErrorCode::ConstraintOwner.into());
     }
 
     let fast_market_order_data =

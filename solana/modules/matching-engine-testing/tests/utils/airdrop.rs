@@ -3,8 +3,6 @@ use solana_program_test::ProgramTestContext;
 use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{pubkey::Pubkey, signature::Signer, system_instruction};
 
-use super::constants;
-
 /// Airdrops SOL to a given recipient
 ///
 /// # Arguments
@@ -38,19 +36,19 @@ pub async fn airdrop(test_context: &mut ProgramTestContext, recipient: &Pubkey, 
 /// * `test_context` - The program test context
 /// * `recipient_ata` - The recipient's ATA
 /// * `amount` - The amount of USDC to airdrop
-pub async fn airdrop_usdc(
+pub async fn airdrop_spl_token(
     test_context: &mut ProgramTestContext,
     recipient_ata: &Pubkey,
     amount: u64,
+    mint_address: Pubkey,
 ) {
     let new_blockhash = test_context
         .get_new_latest_blockhash()
         .await
         .expect("Failed to get new blockhash");
-    let usdc_mint_address = constants::USDC_MINT;
     let mint_to_ix = spl_token::instruction::mint_to(
         &spl_token::ID,
-        &usdc_mint_address,
+        &mint_address,
         recipient_ata,
         &test_context.payer.pubkey(),
         &[],

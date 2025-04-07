@@ -107,7 +107,7 @@ impl FastMarketOrder {
     /// Creates an payload as expected in a fast market order vaa
     pub fn payload(&self) -> Vec<u8> {
         let mut payload = vec![];
-        payload.push(11_u8);
+        payload.push(11_u8); // TODO: Explain why this is 11
         payload.extend_from_slice(&self.amount_in.to_be_bytes());
         payload.extend_from_slice(&self.min_amount_out.to_be_bytes());
         payload.extend_from_slice(&self.target_chain.to_be_bytes());

@@ -16,11 +16,17 @@
 
 use std::{collections::HashSet, rc::Rc};
 
-use crate::{shimless::initialize::AuctionParametersConfig, utils::Chain};
+use crate::{
+    shimless::initialize::AuctionParametersConfig,
+    utils::{token_account::SplTokenEnum, Chain},
+};
 use anchor_lang::prelude::*;
 use solana_sdk::signature::Keypair;
 
-use super::setup::{TestingActor, TestingActors};
+use super::{
+    setup::{TestingActor, TestingActors},
+    state::TestingEngineState,
+};
 
 /// An instruction config contains the configuration arguments for an instruction as well as the expected error
 pub trait InstructionConfig: Default {
@@ -38,6 +44,7 @@ pub type OverwriteCurrentState<T> = Option<T>;
 /// * `instruction_index` - The index of the instruction that is expected to error
 /// * `error_code` - The error code that is expected to be returned
 /// * `error_string` - A description of the error that is expected to be returned for debugging purposes
+// TODO: Change the error string to either be checked for or change the field name AND make it optional
 #[derive(Clone)]
 pub struct ExpectedError {
     pub instruction_index: u8,
@@ -209,23 +216,85 @@ impl Default for TestingActorEnum {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
+pub struct PlaceInitialOfferCustomAccounts {
+    pub fast_market_order_address: Option<Pubkey>,
+    pub offer_token_address: Option<Pubkey>,
+    pub auction_config_address: Option<Pubkey>,
+    pub from_router_endpoint: Option<Pubkey>,
+    pub to_router_endpoint: Option<Pubkey>,
+    pub custodian_address: Option<Pubkey>,
+    pub mint_address: Option<Pubkey>,
+    pub system_program_address: Option<Pubkey>,
+    pub token_program_address: Option<Pubkey>,
+}
+
 pub struct PlaceInitialOfferInstructionConfig {
     pub actor: TestingActorEnum,
+    pub test_vaa_pair_index: usize,
     pub offer_price: u64,
     pub payer_signer: Option<Rc<Keypair>>,
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>,
+    pub custom_accounts: OverwriteCurrentState<PlaceInitialOfferCustomAccounts>,
+    pub spl_token_enum: SplTokenEnum,
     pub expected_error: Option<ExpectedError>,
     pub expected_log_messages: Option<Vec<ExpectedLog>>,
+}
+
+impl PlaceInitialOfferInstructionConfig {
+    pub fn get_from_and_to_router_endpoints(
+        &self,
+        current_state: &TestingEngineState,
+    ) -> (Pubkey, Pubkey) {
+        match &self.custom_accounts {
+            Some(custom_accounts) => {
+                let from_router_endpoint = match custom_accounts.from_router_endpoint {
+                    Some(from_router_endpoint) => from_router_endpoint,
+                    None => {
+                        current_state
+                            .router_endpoints()
+                            .expect("Router endpoints are not initialized")
+                            .endpoints
+                            .get_from_and_to_endpoint_addresses(
+                                current_state.base().transfer_direction,
+                            )
+                            .0
+                    }
+                };
+                let to_router_endpoint = match custom_accounts.to_router_endpoint {
+                    Some(to_router_endpoint) => to_router_endpoint,
+                    None => {
+                        current_state
+                            .router_endpoints()
+                            .expect("Router endpoints are not initialized")
+                            .endpoints
+                            .get_from_and_to_endpoint_addresses(
+                                current_state.base().transfer_direction,
+                            )
+                            .1
+                    }
+                };
+                (from_router_endpoint, to_router_endpoint)
+            }
+            None => current_state
+                .router_endpoints()
+                .expect("Router endpoints are not initialized")
+                .endpoints
+                .get_from_and_to_endpoint_addresses(current_state.base().transfer_direction),
+        }
+    }
 }
 
 impl Default for PlaceInitialOfferInstructionConfig {
     fn default() -> Self {
         Self {
             actor: TestingActorEnum::Solver(0),
+            test_vaa_pair_index: 0,
             offer_price: 1__000_000,
             payer_signer: None,
             fast_market_order_address: None,
+            custom_accounts: None,
+            spl_token_enum: SplTokenEnum::Usdc,
             expected_error: None,
             expected_log_messages: None,
         }
@@ -242,7 +311,7 @@ impl InstructionConfig for PlaceInitialOfferInstructionConfig {
 }
 
 pub struct ImproveOfferInstructionConfig {
-    pub solver_index: usize,
+    pub actor: TestingActorEnum,
     pub offer_price: u64,
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
@@ -252,7 +321,7 @@ pub struct ImproveOfferInstructionConfig {
 impl Default for ImproveOfferInstructionConfig {
     fn default() -> Self {
         Self {
-            solver_index: 0,
+            actor: TestingActorEnum::Solver(0),
             offer_price: 500_000,
             payer_signer: None,
             expected_error: None,

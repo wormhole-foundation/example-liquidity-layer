@@ -18,6 +18,7 @@ use crate::shimless;
 use crate::testing_engine;
 use crate::testing_engine::config::InitializeInstructionConfig;
 use crate::utils;
+use crate::utils::token_account::SplTokenEnum;
 use anchor_lang::AccountDeserialize;
 use anchor_spl::token::TokenAccount;
 use matching_engine::ID as PROGRAM_ID;
@@ -78,6 +79,7 @@ pub async fn test_initialize_program() {
         .execute(
             &mut test_context,
             vec![InstructionTrigger::InitializeProgram(initialize_config)],
+            None,
         )
         .await;
 }
@@ -100,6 +102,7 @@ pub async fn test_cctp_token_router_endpoint_creation() {
         .execute(
             &mut test_context,
             vec![InstructionTrigger::InitializeProgram(initialize_config)],
+            None,
         )
         .await;
 }
@@ -163,6 +166,7 @@ pub async fn test_setup_vaas() {
                     CreateCctpRouterEndpointsInstructionConfig::default(),
                 ),
             ],
+            None,
         )
         .await;
 }
@@ -220,10 +224,17 @@ pub async fn test_approve_usdc() {
     )
     .0;
     solver
-        .approve_usdc(&mut test_context, &transfer_authority, offer_price)
+        .approve_spl_token(
+            &mut test_context,
+            &transfer_authority,
+            offer_price,
+            &SplTokenEnum::Usdc,
+        )
         .await;
 
-    let usdc_balance = solver.get_token_account_balance(&mut test_context).await;
+    let usdc_balance = solver
+        .get_token_account_balance(&mut test_context, &SplTokenEnum::Usdc)
+        .await;
 
     // TODO: Create an issue based on this bug. So this function will transfer the ownership of whatever the guardian signatures signer is set to to the verify shim program. This means that the argument to this function MUST be ephemeral and cannot be used until the close signatures instruction has been executed.
     let _guardian_signature_info = shimful::verify_shim::create_guardian_signatures(

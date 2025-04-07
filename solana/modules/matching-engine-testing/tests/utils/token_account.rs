@@ -147,3 +147,10 @@ pub fn read_keypair_from_file(filename: &str) -> Keypair {
     // Create keypair from bytes
     Keypair::from_bytes(&bytes).expect("Bytes must form a valid keypair")
 }
+
+/// Enum representing the different SPL token types
+#[derive(Clone)]
+pub enum SplTokenEnum {
+    Usdc,
+    Usdt,
+}

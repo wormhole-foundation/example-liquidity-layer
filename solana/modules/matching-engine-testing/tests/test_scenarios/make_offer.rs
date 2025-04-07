@@ -22,10 +22,15 @@ use crate::testing_engine::config::{
 use crate::testing_engine::state::TestingEngineState;
 use crate::utils;
 use crate::utils::auction::compare_auctions;
+use crate::utils::token_account::SplTokenEnum;
+use crate::utils::vaa::{
+    CreateDepositAndFastTransferParams, CreateDepositParams, CreateFastTransferParams,
+};
 
 use anchor_lang::error::ErrorCode;
 use anchor_lang::AccountDeserialize;
-use matching_engine::state::Auction;
+use matching_engine::error::MatchingEngineError;
+use matching_engine::state::{Auction, AuctionParameters};
 use solana_program_test::{tokio, ProgramTestContext};
 use solana_sdk::transaction::TransactionError;
 use testing_engine::config::*;
@@ -41,7 +46,7 @@ use utils::vaa::VaaArgs;
 #[tokio::test]
 pub async fn test_place_initial_offer_fallback() {
     let config = PlaceInitialOfferInstructionConfig::default();
-    let (final_state, _) = place_initial_offer_fallback(config).await;
+    let (final_state, _, _) = Box::pin(place_initial_offer_shim(config, None)).await;
     assert_eq!(
         final_state
             .fast_market_order()
@@ -63,20 +68,24 @@ pub async fn test_place_initial_offer_fallback() {
 #[tokio::test]
 pub async fn test_place_initial_offer_shimless() {
     let config = PlaceInitialOfferInstructionConfig::default();
-    let (_final_state, _) = place_initial_offer_shimless(config).await;
+    let (_final_state, _, _) = Box::pin(place_initial_offer_shimless(config, None)).await;
 }
 
 /// Test that auction account is exactly the same when using shimless and fallback instructions
 #[tokio::test]
 pub async fn test_place_initial_offer_shimless_and_fallback_are_identical() {
-    let config = PlaceInitialOfferInstructionConfig {
+    let shimless_config = PlaceInitialOfferInstructionConfig {
         actor: TestingActorEnum::Owner,
         ..PlaceInitialOfferInstructionConfig::default()
     };
-    let (final_state_shimless, mut shimless_test_context) =
-        place_initial_offer_shimless(config.clone()).await;
-    let (final_state_fallback, mut fallback_test_context) =
-        place_initial_offer_fallback(config.clone()).await;
+    let fallback_config = PlaceInitialOfferInstructionConfig {
+        actor: TestingActorEnum::Owner,
+        ..PlaceInitialOfferInstructionConfig::default()
+    };
+    let (final_state_shimless, mut shimless_test_context, _) =
+        Box::pin(place_initial_offer_shimless(shimless_config, None)).await;
+    let (final_state_fallback, mut fallback_test_context, _) =
+        Box::pin(place_initial_offer_shim(fallback_config, None)).await;
 
     let shimless_auction = {
         let shimless_active_auction_address = final_state_shimless
@@ -111,74 +120,51 @@ pub async fn test_place_initial_offer_shimless_and_fallback_are_identical() {
     compare_auctions(&shimless_auction, &shimful_auction).await;
 }
 
-pub async fn place_initial_offer_fallback(
-    config: PlaceInitialOfferInstructionConfig,
-) -> (TestingEngineState, ProgramTestContext) {
-    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
-        post_vaa: false,
-        ..VaaArgs::default()
-    };
-    let (testing_context, mut test_context) = setup_environment(
-        ShimMode::VerifyAndPostSignature,
-        transfer_direction,
-        Some(vaa_args),
-    )
-    .await;
-
-    let testing_engine = TestingEngine::new(testing_context).await;
-
-    let instruction_triggers = vec![
-        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
-        InstructionTrigger::CreateCctpRouterEndpoints(
-            CreateCctpRouterEndpointsInstructionConfig::default(),
-        ),
-        InstructionTrigger::InitializeFastMarketOrderShim(
-            InitializeFastMarketOrderShimInstructionConfig::default(),
-        ),
-        InstructionTrigger::PlaceInitialOfferShim(config),
-    ];
-
-    (
-        testing_engine
-            .execute(&mut test_context, instruction_triggers)
-            .await,
-        test_context,
-    )
-}
-
-pub async fn place_initial_offer_shimless(
-    config: PlaceInitialOfferInstructionConfig,
-) -> (TestingEngineState, ProgramTestContext) {
-    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
-        post_vaa: true,
-        ..VaaArgs::default()
-    };
-    let (testing_context, mut test_context) = setup_environment(
-        ShimMode::VerifyAndPostSignature,
-        transfer_direction,
-        Some(vaa_args),
-    )
-    .await;
-    let testing_engine = TestingEngine::new(testing_context).await;
-    let instruction_triggers = vec![
-        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
-        InstructionTrigger::CreateCctpRouterEndpoints(
-            CreateCctpRouterEndpointsInstructionConfig::default(),
-        ),
-        InstructionTrigger::PlaceInitialOfferShimless(config),
-    ];
-    (
-        testing_engine
-            .execute(&mut test_context, instruction_triggers)
-            .await,
-        test_context,
-    )
+/// Test place initial offer shim and then improve the offer (shimless)
+#[tokio::test]
+pub async fn test_place_initial_offer_shim_and_improve_offer_shimless() {
+    let config = PlaceInitialOfferInstructionConfig::default();
+    let (place_initial_offer_state, mut test_context, testing_engine) =
+        Box::pin(place_initial_offer_shimless(config, None)).await;
+    let improve_offer_config = ImproveOfferInstructionConfig::default();
+    let instruction_triggers = vec![InstructionTrigger::ImproveOfferShimless(
+        improve_offer_config,
+    )];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(place_initial_offer_state),
+        )
+        .await;
 }
 
 /*
-    Sad path tests
+                    Sad path tests section
+
+                    *****************
+               ******               ******
+           ****                           ****
+        ****                                 ***
+      ***                                       ***
+     **           ***               ***           **
+   **           *******           *******          ***
+  **            *******           *******            **
+ **             *******           *******             **
+ **               ***               ***               **
+**                                                     **
+**                                                     **
+**                                                     **
+**                                                     **
+ **                   ************                   **
+  **               ******      ******               **
+   ***           *****            *****            ***
+     **        ***                    ***         **
+      ***    **                         **      ***
+        ****                                 ****
+           ****                           ****
+               ******               ******
+                    *****************
 */
 
 /// Test that the shimless place initial offer instruction blocks the shim instruction
@@ -219,7 +205,7 @@ pub async fn test_place_initial_offer_non_shim_blocks_shim() {
         }),
     ];
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }
 
@@ -262,8 +248,45 @@ pub async fn test_place_initial_offer_shim_blocks_non_shim() {
     ];
 
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
+}
+
+/// Test with usdt token account
+#[tokio::test]
+pub async fn test_place_initial_shim_offer_usdt_token_account() {
+    let expected_error = ExpectedError {
+        instruction_index: 0,
+        error_code: 3, // Token spl transfer error code when mint does not match
+        error_string: "Invalid argument".to_string(),
+    };
+    let config = PlaceInitialOfferInstructionConfig {
+        spl_token_enum: SplTokenEnum::Usdt,
+        expected_error: Some(expected_error),
+        ..PlaceInitialOfferInstructionConfig::default()
+    };
+    Box::pin(place_initial_offer_shim(config, None)).await;
+}
+
+/// Test with usdt token account as custom account
+#[tokio::test]
+pub async fn test_place_initial_shim_offer_usdt_mint_address() {
+    let custom_accounts = PlaceInitialOfferCustomAccounts {
+        mint_address: Some(crate::utils::constants::USDT_MINT),
+        ..PlaceInitialOfferCustomAccounts::default()
+    };
+    let expected_error = ExpectedError {
+        instruction_index: 0,
+        error_code: u32::from(MatchingEngineError::InvalidMint), // Token spl transfer error code when mint does not match
+        error_string: "Invalid mint".to_string(),
+    };
+    let config = PlaceInitialOfferInstructionConfig {
+        custom_accounts: Some(custom_accounts),
+        spl_token_enum: SplTokenEnum::Usdt,
+        expected_error: Some(expected_error),
+        ..PlaceInitialOfferInstructionConfig::default()
+    };
+    Box::pin(place_initial_offer_shim(config, None)).await;
 }
 
 /// Test that the place initial offer fails if the fast market order is not created
@@ -307,6 +330,470 @@ pub async fn test_place_initial_offer_fails_if_fast_market_order_not_created() {
 
     let testing_engine = TestingEngine::new(testing_context).await;
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
+}
+
+/// Place initial offer shim fails when Offer > Max fee
+#[tokio::test]
+pub async fn test_place_initial_offer_shim_fails_when_offer_greater_than_max_fee() {
+    let amount_in = 123456789_u64;
+    let (vaa_args, mut initial_offer_config) = TestAuctionSetup {
+        amount_in,
+        min_amount_out: amount_in.saturating_sub(5),
+        max_fee: amount_in.saturating_sub(1),
+        init_auction_fee: amount_in.saturating_div(3),
+        deposit_amount: ruint::aliases::U256::from(111111111),
+        deposit_base_fee: amount_in.saturating_div(4),
+        offer_price: amount_in.saturating_add(1),
+        post_vaa: false,
+    }
+    .create_vaa_args_and_initial_offer_config();
+
+    let expected_error = ExpectedError {
+        instruction_index: 0,
+        error_code: u32::from(MatchingEngineError::OfferPriceTooHigh),
+        error_string: "Offer price is greater than max fee".to_string(),
+    };
+    initial_offer_config.expected_error = Some(expected_error);
+    Box::pin(place_initial_offer_shim(
+        initial_offer_config,
+        Some(vaa_args),
+    ))
+    .await;
+}
+
+/// Place initial offer shim fails when amount in is u64::max
+#[tokio::test]
+pub async fn test_place_initial_offer_shim_fails_when_amount_in_is_u64_max() {
+    let amount_in = u64::MAX;
+    let (vaa_args, mut initial_offer_config) = TestAuctionSetup {
+        amount_in,
+        min_amount_out: amount_in.saturating_sub(5),
+        max_fee: amount_in.saturating_sub(1),
+        init_auction_fee: amount_in.saturating_div(3),
+        deposit_amount: ruint::aliases::U256::from(i32::MAX),
+        deposit_base_fee: amount_in.saturating_div(4),
+        offer_price: amount_in.saturating_sub(1),
+        post_vaa: false,
+    }
+    .create_vaa_args_and_initial_offer_config();
+
+    let expected_error = ExpectedError {
+        instruction_index: 0,
+        error_code: u32::from(MatchingEngineError::U64Overflow),
+        error_string: "U64Overflow".to_string(),
+    };
+    initial_offer_config.expected_error = Some(expected_error);
+    Box::pin(place_initial_offer_shim(
+        initial_offer_config,
+        Some(vaa_args),
+    ))
+    .await;
+}
+
+/// Place initial offer shim fails when max fee and amount in sum to u64::max
+#[tokio::test]
+pub async fn test_place_initial_offer_shim_fails_when_max_fee_and_amount_in_sum_to_u64_max() {
+    let amount_in = u64::MAX.saturating_div(2).saturating_add(1);
+    let (vaa_args, mut initial_offer_config) = TestAuctionSetup {
+        amount_in,
+        min_amount_out: amount_in.saturating_sub(5),
+        max_fee: amount_in.saturating_sub(2),
+        init_auction_fee: amount_in.saturating_div(3),
+        deposit_amount: ruint::aliases::U256::from(111111111),
+        deposit_base_fee: amount_in.saturating_div(4),
+        offer_price: amount_in.saturating_div(2),
+        post_vaa: false,
+    }
+    .create_vaa_args_and_initial_offer_config();
+
+    let expected_error = ExpectedError {
+        instruction_index: 0,
+        error_code: u32::from(MatchingEngineError::U64Overflow),
+        error_string: "U64Overflow".to_string(),
+    };
+    initial_offer_config.expected_error = Some(expected_error);
+
+    Box::pin(place_initial_offer_shim(
+        initial_offer_config,
+        Some(vaa_args),
+    ))
+    .await;
+}
+
+/// Test that improved offer fails when improvement is too small
+#[tokio::test]
+pub async fn test_improve_offer_shim_fails_carping() {
+    let amount_in = 123456789_u64;
+    let (vaa_args, initial_offer_config) = TestAuctionSetup {
+        amount_in,
+        min_amount_out: amount_in.saturating_sub(5),
+        max_fee: amount_in.saturating_sub(1),
+        init_auction_fee: amount_in.saturating_div(3),
+        deposit_amount: ruint::aliases::U256::from(111111111),
+        deposit_base_fee: amount_in.saturating_div(4),
+        offer_price: amount_in.saturating_sub(1),
+        post_vaa: false,
+    }
+    .create_vaa_args_and_initial_offer_config();
+
+    let (initial_offer_state, mut test_context, testing_engine) = Box::pin(
+        place_initial_offer_shim(initial_offer_config, Some(vaa_args)),
+    )
+    .await;
+
+    let expected_error = ExpectedError {
+        instruction_index: 0,
+        error_code: u32::from(MatchingEngineError::CarpingNotAllowed),
+        error_string: "Carping not allowed".to_string(),
+    };
+
+    let improve_offer_config = ImproveOfferInstructionConfig {
+        offer_price: amount_in.saturating_sub(1),
+        expected_error: Some(expected_error),
+        ..ImproveOfferInstructionConfig::default()
+    };
+    let instruction_triggers = vec![InstructionTrigger::ImproveOfferShimless(
+        improve_offer_config,
+    )];
+
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(initial_offer_state),
+        )
+        .await;
+}
+
+/// Test that improved offer fails when improvement is too small after an allowed improvement
+#[tokio::test]
+pub async fn test_improve_offer_shim_fails_carping_second_improvement() {
+    let amount_in = 123456789_u64;
+    let (vaa_args, initial_offer_config) = TestAuctionSetup {
+        amount_in,
+        min_amount_out: amount_in.saturating_sub(5),
+        max_fee: amount_in.saturating_sub(1),
+        init_auction_fee: amount_in.saturating_div(3),
+        deposit_amount: ruint::aliases::U256::from(111111111),
+        deposit_base_fee: amount_in.saturating_div(4),
+        offer_price: amount_in.saturating_sub(1),
+        post_vaa: false,
+    }
+    .create_vaa_args_and_initial_offer_config();
+
+    let (initial_offer_state, mut test_context, testing_engine) = Box::pin(
+        place_initial_offer_shim(initial_offer_config, Some(vaa_args)),
+    )
+    .await;
+    let new_offer_price = amount_in.saturating_sub(1).saturating_div(2);
+    let improve_offer_config = ImproveOfferInstructionConfig {
+        offer_price: new_offer_price,
+        expected_error: None,
+        ..ImproveOfferInstructionConfig::default()
+    };
+    let expected_error = ExpectedError {
+        instruction_index: 0,
+        error_code: u32::from(MatchingEngineError::CarpingNotAllowed),
+        error_string: "Carping not allowed".to_string(),
+    };
+    let improve_offer_config_2 = ImproveOfferInstructionConfig {
+        offer_price: new_offer_price.saturating_sub(1),
+        expected_error: Some(expected_error),
+        ..ImproveOfferInstructionConfig::default()
+    };
+    let instruction_triggers = vec![
+        InstructionTrigger::ImproveOfferShimless(improve_offer_config),
+        InstructionTrigger::ImproveOfferShimless(improve_offer_config_2),
+    ];
+
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(initial_offer_state),
+        )
+        .await;
+}
+
+/*
+                                Edge case tests section
+                                                                                       88
+                                                                                       88
+                                                                                       88
+ ,adPPYba,  ,adPPYba, 8b,dPPYba,  ,adPPYba,  ,adPPYba,  8b,dPPYba,  ,adPPYba,  ,adPPYb,88
+a8"     "" a8P_____88 88P'   `"8a I8[    "" a8"     "8a 88P'   "Y8 a8P_____88 a8"    `Y88
+8b         8PP""""""" 88       88  `"Y8ba,  8b       d8 88         8PP""""""" 8b       88
+"8a,   ,aa "8b,   ,aa 88       88 aa    ]8I "8a,   ,a8" 88         "8b,   ,aa "8a,   ,d88
+ `"Ybbd8"'  `"Ybbd8"' 88       88 `"YbbdP"'  `"YbbdP"'  88          `"Ybbd8"'  `"8bbdP"Y8
+*/
+
+/// Test place initial offer shim when Offer == Max fee; Max fee == Amount in minus 1
+#[tokio::test]
+pub async fn test_place_initial_offer_shim_when_offer_equals_max_fee() {
+    let amount_in = 123456789_u64;
+    let (vaa_args, initial_offer_config) = TestAuctionSetup {
+        amount_in,
+        min_amount_out: amount_in.saturating_sub(5),
+        max_fee: amount_in.saturating_sub(1), // Equal to amount in in minus 1
+        init_auction_fee: amount_in.saturating_div(3),
+        deposit_amount: ruint::aliases::U256::from(111111111),
+        deposit_base_fee: amount_in.saturating_div(4),
+        offer_price: amount_in.saturating_sub(1), // Equal to max fee
+        post_vaa: false,
+    }
+    .create_vaa_args_and_initial_offer_config();
+
+    Box::pin(place_initial_offer_shim(
+        initial_offer_config,
+        Some(vaa_args),
+    ))
+    .await;
+}
+
+/// Test place initial offer shimless when Offer == Max fee; Max fee == Amount in minus 1
+#[tokio::test]
+pub async fn test_place_initial_offer_shimless_when_offer_equals_max_fee() {
+    let amount_in = 123456789_u64;
+    let (vaa_args, initial_offer_config) = TestAuctionSetup {
+        amount_in,
+        min_amount_out: amount_in.saturating_sub(5),
+        max_fee: amount_in.saturating_sub(1), // Equal to amount in in minus 1
+        init_auction_fee: amount_in.saturating_div(3),
+        deposit_amount: ruint::aliases::U256::from(111111111),
+        deposit_base_fee: amount_in.saturating_div(4),
+        offer_price: amount_in.saturating_sub(1), // Equal to max fee
+        post_vaa: true,
+    }
+    .create_vaa_args_and_initial_offer_config();
+
+    Box::pin(place_initial_offer_shimless(
+        initial_offer_config,
+        Some(vaa_args),
+    ))
+    .await;
+}
+
+/// Test place initial offer shim when deposit amount == u256::MAX
+#[tokio::test]
+pub async fn test_place_initial_offer_shim_when_deposit_amount_is_u256_max() {
+    let amount_in = 123456789_u64;
+    let be_deposit_bytes: [u8; 32] = [
+        u64::MAX.to_be_bytes(),
+        u64::MAX.to_be_bytes(),
+        u64::MAX.to_be_bytes(),
+        u64::MAX.to_be_bytes(),
+    ]
+    .concat()
+    .try_into()
+    .unwrap();
+    let (vaa_args, initial_offer_config) = TestAuctionSetup {
+        amount_in,
+        min_amount_out: amount_in.saturating_sub(5),
+        max_fee: amount_in.saturating_sub(1),
+        init_auction_fee: amount_in.saturating_div(3),
+        deposit_amount: ruint::aliases::U256::from_be_bytes(be_deposit_bytes),
+        deposit_base_fee: amount_in.saturating_div(4),
+        offer_price: amount_in.saturating_sub(1),
+        post_vaa: true,
+    }
+    .create_vaa_args_and_initial_offer_config();
+
+    Box::pin(place_initial_offer_shim(
+        initial_offer_config,
+        Some(vaa_args),
+    ))
+    .await;
+}
+
+/// Test place initial offer shimless when deposit amount == u256::MAX
+#[tokio::test]
+pub async fn test_place_initial_offer_shimless_when_deposit_amount_is_u256_max() {
+    let amount_in = 123456789_u64;
+    let be_deposit_bytes: [u8; 32] = [
+        u64::MAX.to_be_bytes(),
+        u64::MAX.to_be_bytes(),
+        u64::MAX.to_be_bytes(),
+        u64::MAX.to_be_bytes(),
+    ]
+    .concat()
+    .try_into()
+    .unwrap();
+    let (vaa_args, initial_offer_config) = TestAuctionSetup {
+        amount_in,
+        min_amount_out: amount_in.saturating_sub(5),
+        max_fee: amount_in.saturating_sub(1),
+        init_auction_fee: amount_in.saturating_div(3),
+        deposit_amount: ruint::aliases::U256::from_be_bytes(be_deposit_bytes),
+        deposit_base_fee: amount_in.saturating_div(4),
+        offer_price: amount_in.saturating_sub(1),
+        post_vaa: true,
+    }
+    .create_vaa_args_and_initial_offer_config();
+
+    Box::pin(place_initial_offer_shimless(
+        initial_offer_config,
+        Some(vaa_args),
+    ))
+    .await;
+}
+
+#[tokio::test]
+pub async fn test_improve_offer_after_close_fast_market_order() {
+    let (place_initial_offer_state, mut test_context, testing_engine) = Box::pin(
+        place_initial_offer_shim(PlaceInitialOfferInstructionConfig::default(), None),
+    )
+    .await;
+    let instruction_triggers = vec![
+        InstructionTrigger::CloseFastMarketOrderShim(
+            CloseFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::ImproveOfferShimless(ImproveOfferInstructionConfig::default()),
+    ];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(place_initial_offer_state),
+        )
+        .await;
+}
+
+/*
+================================================================================
+Helper structs and functions
+================================================================================
+*/
+
+pub async fn place_initial_offer_shim(
+    config: PlaceInitialOfferInstructionConfig,
+    vaa_args: Option<VaaArgs>,
+) -> (TestingEngineState, ProgramTestContext, TestingEngine) {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = vaa_args.unwrap_or_else(|| VaaArgs {
+        post_vaa: false,
+        ..VaaArgs::default()
+    });
+    let (testing_context, mut test_context) = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+
+    let testing_engine = TestingEngine::new(testing_context).await;
+
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::PlaceInitialOfferShim(config),
+    ];
+
+    (
+        testing_engine
+            .execute(&mut test_context, instruction_triggers, None)
+            .await,
+        test_context,
+        testing_engine,
+    )
+}
+
+pub async fn place_initial_offer_shimless(
+    config: PlaceInitialOfferInstructionConfig,
+    vaa_args: Option<VaaArgs>,
+) -> (TestingEngineState, ProgramTestContext, TestingEngine) {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = vaa_args.unwrap_or_else(|| VaaArgs {
+        post_vaa: true,
+        ..VaaArgs::default()
+    });
+    let (testing_context, mut test_context) = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+        InstructionTrigger::PlaceInitialOfferShimless(config),
+    ];
+    (
+        testing_engine
+            .execute(&mut test_context, instruction_triggers, None)
+            .await,
+        test_context,
+        testing_engine,
+    )
+}
+
+/// A struct representing the auction info and its valid state
+// TODO: Use this or something similar to fuzz test over various initial offers.
+#[derive(Clone)]
+pub struct TestAuctionSetup {
+    pub amount_in: u64, // Must be small enough for security deposit to be less than u64::MAX
+    pub min_amount_out: u64, // Not used for anything can be any value
+    pub max_fee: u64,   // Must be greater than or equal to offer price
+    pub init_auction_fee: u64, // Must be less than or equal to max fee
+    pub deposit_amount: ruint::aliases::U256,
+    pub deposit_base_fee: u64,
+    pub offer_price: u64, // Must be less than or equal to max fee
+    pub post_vaa: bool,   // Must be true for shimless tests
+}
+
+impl TestAuctionSetup {
+    #[allow(dead_code)]
+    pub fn calculate_security_deposit_notional(&self) -> u64 {
+        let test_auction_parameters = AuctionParameters {
+            user_penalty_reward_bps: 250000,
+            initial_penalty_bps: 250000,
+            duration: 2,
+            grace_period: 5,
+            penalty_period: 10,
+            min_offer_delta_bps: 20000,
+            security_deposit_base: 4200000,
+            security_deposit_bps: 5000,
+        };
+
+        matching_engine::utils::auction::compute_notional_security_deposit(
+            &test_auction_parameters,
+            self.amount_in,
+        )
+    }
+
+    pub fn create_vaa_args_and_initial_offer_config(
+        &self,
+    ) -> (VaaArgs, PlaceInitialOfferInstructionConfig) {
+        let create_deposit_and_fast_transfer_params = CreateDepositAndFastTransferParams {
+            deposit_params: CreateDepositParams {
+                amount: self.deposit_amount,
+                base_fee: self.deposit_base_fee,
+            },
+            fast_transfer_params: CreateFastTransferParams {
+                amount_in: self.amount_in,
+                min_amount_out: self.amount_in,
+                max_fee: self.max_fee,
+                init_auction_fee: self.init_auction_fee,
+            },
+        };
+        let vaa_args = VaaArgs {
+            post_vaa: self.post_vaa,
+            create_deposit_and_fast_transfer_params,
+            ..Default::default()
+        };
+        let initial_offer_config = PlaceInitialOfferInstructionConfig {
+            offer_price: self.offer_price,
+            ..PlaceInitialOfferInstructionConfig::default()
+        };
+        (vaa_args, initial_offer_config)
+    }
 }

@@ -37,6 +37,7 @@ use crate::shimful::verify_shim::create_guardian_signatures;
 use crate::shimless;
 use crate::testing_engine::setup::ShimMode;
 use crate::utils::auction::AuctionState;
+use crate::utils::token_account::SplTokenEnum;
 use crate::utils::vaa::TestVaaPairs;
 use crate::utils::{
     auction::{
@@ -174,8 +175,9 @@ impl TestingEngine {
         &self,
         test_context: &mut ProgramTestContext,
         instruction_chain: Vec<InstructionTrigger>,
+        initial_state: Option<TestingEngineState>,
     ) -> TestingEngineState {
-        let mut current_state = self.create_initial_state();
+        let mut current_state = initial_state.unwrap_or_else(|| self.create_initial_state());
 
         self.verify_triggers(&instruction_chain);
 
@@ -308,7 +310,7 @@ impl TestingEngine {
                 testing_actors.owner_assistant.pubkey(),
                 testing_actors
                     .fee_recipient
-                    .token_account_address()
+                    .token_account_address(&SplTokenEnum::Usdc)
                     .unwrap(),
             )
         };
@@ -428,6 +430,10 @@ impl TestingEngine {
                     fast_market_order_address: fast_market_order_account,
                     fast_market_order_bump,
                     fast_market_order,
+                    close_account_refund_recipient: Pubkey::try_from_slice(
+                        &fast_market_order.close_account_refund_recipient,
+                    )
+                    .unwrap(),
                 },
                 guardian_set_state: GuardianSetState {
                     guardian_set_address: guardian_signature_info.guardian_set_pubkey,
@@ -487,50 +493,18 @@ impl TestingEngine {
             current_state.router_endpoints().is_some(),
             "Router endpoints are not created"
         );
-        let payer_signer = config
-            .payer_signer
-            .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
-        let solver = config.actor.get_actor(&self.testing_context.testing_actors);
-        let expected_error = config.expected_error();
-        let fast_vaa = &current_state
-            .base()
-            .vaas
-            .first()
-            .expect("Failed to get vaa pair")
-            .fast_transfer_vaa;
-        let fast_vaa_pubkey = fast_vaa.get_vaa_pubkey();
-        let auction_config_address = current_state
-            .initialized()
-            .expect("Testing state is not initialized")
-            .auction_config_address;
-        let custodian_address = current_state
-            .initialized()
-            .expect("Testing state is not initialized")
-            .custodian_address;
-        let auction_accounts = AuctionAccounts::new(
-            Some(fast_vaa_pubkey),
-            solver.clone(),
-            auction_config_address,
-            &current_state
-                .router_endpoints()
-                .expect("Router endpoints are not created")
-                .endpoints,
-            custodian_address,
-            self.testing_context.get_usdc_mint_address(),
-            current_state.base().transfer_direction,
-        );
-        let auction_state = shimless::make_offer::place_initial_offer_shimless(
+
+        let initial_offer_placed_state = shimless::make_offer::place_initial_offer_shimless(
             &self.testing_context,
             test_context,
-            &auction_accounts,
-            fast_vaa,
-            config.offer_price,
-            &payer_signer,
-            expected_error,
+            current_state,
+            config,
         )
         .await;
-        if expected_error.is_none() {
+        if config.expected_error().is_none() {
+            let initial_offer_placed_state = initial_offer_placed_state.unwrap();
+            let auction_state = initial_offer_placed_state.auction_state;
+            let auction_accounts = initial_offer_placed_state.auction_accounts;
             auction_state
                 .get_active_auction()
                 .unwrap()
@@ -557,13 +531,7 @@ impl TestingEngine {
         config: &ImproveOfferInstructionConfig,
     ) -> TestingEngineState {
         let expected_error = config.expected_error();
-        let solver = self
-            .testing_context
-            .testing_actors
-            .solvers
-            .get(config.solver_index)
-            .expect("Solver not found at index");
-        let offer_price = config.offer_price;
+        let actor = config.actor.get_actor(&self.testing_context.testing_actors);
         let payer_signer = config
             .payer_signer
             .clone()
@@ -571,8 +539,8 @@ impl TestingEngine {
         let new_auction_state = shimless::make_offer::improve_offer(
             &self.testing_context,
             test_context,
-            solver.clone(),
-            offer_price,
+            &actor,
+            config,
             &payer_signer,
             current_state.auction_state(),
             expected_error,
@@ -598,49 +566,12 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &PlaceInitialOfferInstructionConfig,
     ) -> TestingEngineState {
-        let fast_market_order_address = config.fast_market_order_address.unwrap_or_else(|| {
-            current_state
-                .fast_market_order()
-                .expect("Fast market order is not created")
-                .fast_market_order_address
-        });
-        let router_endpoints = current_state
-            .router_endpoints()
-            .expect("Router endpoints are not created");
-        let solver = config.actor.get_actor(&self.testing_context.testing_actors);
-        let payer_signer = config
-            .payer_signer
-            .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
-        let auction_config_address = current_state
-            .auction_config_address()
-            .expect("Auction config address not found");
-        let custodian_address = current_state
-            .custodian_address()
-            .expect("Custodian address not found");
-        let auction_accounts = AuctionAccounts::new(
-            None,
-            solver.clone(),
-            auction_config_address,
-            &router_endpoints.endpoints,
-            custodian_address,
-            self.testing_context.get_usdc_mint_address(),
-            current_state.base().transfer_direction,
-        );
-        let fast_vaa_data = current_state
-            .get_first_test_vaa_pair()
-            .fast_transfer_vaa
-            .get_vaa_data();
         let place_initial_offer_shim_fixture =
             shimful::shims_make_offer::place_initial_offer_fallback(
                 &self.testing_context,
                 test_context,
-                &payer_signer,
-                fast_vaa_data,
-                solver,
-                &fast_market_order_address,
-                &auction_accounts,
-                config.offer_price,
+                current_state,
+                config,
                 config.expected_error(),
             )
             .await;
@@ -654,6 +585,7 @@ impl TestingEngine {
                 .verify_auction(&self.testing_context, test_context)
                 .await
                 .expect("Could not verify auction");
+            let auction_accounts = initial_offer_placed_state.auction_accounts;
             return TestingEngineState::InitialOfferPlaced {
                 base: current_state.base().clone(),
                 initialized: current_state.initialized().unwrap().clone(),
@@ -673,33 +605,17 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &ExecuteOrderInstructionConfig,
     ) -> TestingEngineState {
-        let solver = self.testing_context.testing_actors.solvers[config.solver_index].clone();
-
-        // TODO: Change to get auction accounts from current state
-        let auction_accounts = current_state
-            .auction_accounts()
-            .expect("Auction accounts not found");
-        let fast_market_order_address = config.fast_market_order_address.unwrap_or_else(|| {
-            current_state
-                .fast_market_order()
-                .expect("Fast market order is not created")
-                .fast_market_order_address
-        });
-        let active_auction_state = current_state
-            .auction_state()
-            .get_active_auction()
-            .expect("Active auction not found");
         let result = shimful::shims_execute_order::execute_order_fallback_test(
             &self.testing_context,
             test_context,
-            auction_accounts,
-            &fast_market_order_address,
-            active_auction_state,
-            solver,
-            config.expected_error(),
+            current_state,
+            config,
         )
         .await;
         if config.expected_error.is_none() {
+            let auction_accounts = current_state
+                .auction_accounts()
+                .expect("Auction accounts not found");
             let order_executed_fallback_fixture = result.unwrap();
             let order_executed_state = OrderExecutedState {
                 cctp_message: order_executed_fallback_fixture.cctp_message,
@@ -749,10 +665,11 @@ impl TestingEngine {
                     .get_vaa_pubkey(),
             ),
             solver.actor.clone(),
+            current_state.close_account_refund_recipient(),
             auction_config_address,
             &router_endpoints.endpoints,
             custodian_address,
-            self.testing_context.get_usdc_mint_address(),
+            current_state.spl_token_enum().unwrap(),
             current_state.base().transfer_direction,
         );
         let result = shimless::execute_order::execute_order_shimless_test(

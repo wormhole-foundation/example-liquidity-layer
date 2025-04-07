@@ -1,9 +1,9 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-//! # Make offer instruction testing
+//! # Prepare order response instruction testing
 //!
-//! This module contains tests for the place initial offer and improve offer instructions.
+//! This module contains tests for the prepare order response instructions.
 //!
 //! ## Test Cases
 //!
@@ -11,6 +11,11 @@
 //!
 //! - `test_prepare_order_shim_fallback` - Test that the prepare order shim fallback instruction works correctly
 //! - `test_prepare_order_shimless` - Test that the prepare order shimless instruction works correctly
+//!
+//! ### Sad path tests
+//!
+//! - `test_prepare_order_response_shimless_blocks_shimful` - Test that the prepare order response shimless instruction blocks the shimful instruction
+//! - `test_prepare_order_response_shimful_blocks_shimless` - Test that the prepare order response shimful instruction blocks the shimless instruction
 //!
 
 use crate::testing_engine;
@@ -54,7 +59,7 @@ pub async fn test_prepare_order_shim_fallback() {
         InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig::default()),
     ];
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }
 
@@ -86,7 +91,7 @@ pub async fn test_prepare_order_shimless() {
         InstructionTrigger::PrepareOrderShimless(PrepareOrderInstructionConfig::default()),
     ];
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }
 
@@ -131,7 +136,7 @@ pub async fn test_prepare_order_response_shimless_blocks_shimful() {
         }),
     ];
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }
 
@@ -170,6 +175,6 @@ pub async fn test_prepare_order_response_shimful_blocks_shimless() {
         }),
     ];
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }

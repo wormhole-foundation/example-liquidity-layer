@@ -17,6 +17,7 @@ use crate::utils::{
     account_fixtures::FixtureAccounts,
     auction::{AuctionAccounts, AuctionState},
     router::TestRouterEndpoints,
+    token_account::SplTokenEnum,
     vaa::{TestVaaPair, TestVaaPairs},
 };
 use anchor_lang::prelude::*;
@@ -47,11 +48,13 @@ pub struct FastMarketOrderAccountCreatedState {
     pub fast_market_order_address: Pubkey,
     pub fast_market_order_bump: u8,
     pub fast_market_order: FastMarketOrder,
+    pub close_account_refund_recipient: Pubkey,
 }
 
 #[derive(Clone)]
 pub struct InitialOfferPlacedState {
     pub auction_state: AuctionState,
+    pub auction_accounts: AuctionAccounts,
 }
 
 #[derive(Clone)]
@@ -254,6 +257,7 @@ impl TestingEngineState {
             Self::OrderExecuted { auction_state, .. } => auction_state,
             Self::OrderPrepared { auction_state, .. } => auction_state,
             Self::AuctionSettled { auction_state, .. } => auction_state,
+            Self::FastMarketOrderClosed { auction_state, .. } => auction_state,
             _ => &AuctionState::Inactive,
         }
     }
@@ -303,5 +307,15 @@ impl TestingEngineState {
 
     pub fn auction_config_address(&self) -> Option<Pubkey> {
         self.initialized().map(|state| state.auction_config_address)
+    }
+
+    pub fn spl_token_enum(&self) -> Option<SplTokenEnum> {
+        self.auction_accounts()
+            .map(|accounts| accounts.spl_token_enum.clone())
+    }
+
+    pub fn close_account_refund_recipient(&self) -> Option<Pubkey> {
+        self.fast_market_order()
+            .map(|fast_market_order| fast_market_order.close_account_refund_recipient)
     }
 }

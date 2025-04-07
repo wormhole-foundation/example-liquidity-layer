@@ -1,4 +1,4 @@
-//! # Happy path instruction testing
+//! # Create and close fast market order instruction testing
 //!
 //! This module contains tests for the create and close fast market order instructions.
 //!
@@ -76,7 +76,7 @@ pub async fn test_initialise_fast_market_order_fallback() {
 
     let testing_engine = TestingEngine::new(testing_context).await;
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }
 
@@ -104,7 +104,7 @@ pub async fn test_close_fast_market_order_fallback() {
         ),
     ];
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }
 
@@ -138,7 +138,7 @@ pub async fn test_close_fast_market_order_fallback_with_custom_refund_recipient(
         }),
     ];
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
     let solver_1_balance_after = solver_1.get_lamport_balance(&mut test_context).await;
     assert!(
@@ -217,7 +217,7 @@ pub async fn test_fast_market_order_cannot_be_refunded_by_someone_who_did_not_in
 
     let testing_engine = TestingEngine::new(testing_context).await;
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }
 

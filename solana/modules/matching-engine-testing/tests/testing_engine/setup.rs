@@ -14,19 +14,18 @@
 
 use crate::testing_engine::config::{ExpectedError, ExpectedLog};
 use crate::utils::account_fixtures::FixtureAccounts;
-use crate::utils::airdrop::airdrop;
+use crate::utils::airdrop::{airdrop, airdrop_spl_token};
 use crate::utils::mint::MintFixture;
 use crate::utils::program_fixtures::{
     initialise_cctp_message_transmitter, initialise_cctp_token_messenger_minter,
     initialise_local_token_router, initialise_post_message_shims, initialise_upgrade_manager,
     initialise_verify_shims, initialise_wormhole_core_bridge,
 };
+use crate::utils::token_account::{
+    create_token_account, read_keypair_from_file, SplTokenEnum, TokenAccountFixture,
+};
 use crate::utils::vaa::{
     create_vaas_test_with_chain_and_address, ChainAndAddress, TestVaaPair, TestVaaPairs, VaaArgs,
-};
-use crate::utils::{
-    airdrop::airdrop_usdc,
-    token_account::{create_token_account, read_keypair_from_file, TokenAccountFixture},
 };
 use crate::utils::{Chain, REGISTERED_TOKEN_ROUTERS};
 use anchor_lang::AccountDeserialize;
@@ -52,17 +51,23 @@ cfg_if::cfg_if! {
         //const PROGRAM_ID : Pubkey = solana_sdk::pubkey!("5BsCKkzuZXLygduw6RorCqEB61AdzNkxp5VzQrFGzYWr");
         //const CCTP_MINT_RECIPIENT: Pubkey = solana_sdk::pubkey!("HUXc7MBf55vWrrkevVbmJN8HAyfFtjLcPLBt9yWngKzm");
         const USDC_MINT_ADDRESS: Pubkey = solana_sdk::pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+        const USDT_MINT_ADDRESS: Pubkey = solana_sdk::pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB");
         const USDC_MINT_FIXTURE_PATH: &str = "tests/fixtures/usdc_mint.json";
+        const USDT_MINT_FIXTURE_PATH: &str = "tests/fixtures/usdt_mint.json";
     } else if #[cfg(feature = "testnet")] {
         //const PROGRAM_ID : Pubkey = solana_sdk::pubkey!("mPydpGUWxzERTNpyvTKdvS7v8kvw5sgwfiP8WQFrXVS");
         //const CCTP_MINT_RECIPIENT: Pubkey = solana_sdk::pubkey!("6yKmqWarCry3c8ntYKzM4WiS2fVypxLbENE2fP8onJje");
         const USDC_MINT_ADDRESS: Pubkey = solana_sdk::pubkey!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+        const USDT_MINT_ADDRESS: Pubkey = solana_sdk::pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB");
         const USDC_MINT_FIXTURE_PATH: &str = "tests/fixtures/usdc_mint_devnet.json";
+        const USDT_MINT_FIXTURE_PATH: &str = "tests/fixtures/usdt_mint.json";
     } else if #[cfg(feature = "localnet")] {
         //const PROGRAM_ID : Pubkey = solana_sdk::pubkey!("MatchingEngine11111111111111111111111111111");
         // const CCTP_MINT_RECIPIENT: Pubkey = solana_sdk::pubkey!("35iwWKi7ebFyXNaqpswd1g9e9jrjvqWPV39nCQPaBbX1");
         const USDC_MINT_ADDRESS: Pubkey = solana_sdk::pubkey!("4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU");
+        const USDT_MINT_ADDRESS: Pubkey = solana_sdk::pubkey!("Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB");
         const USDC_MINT_FIXTURE_PATH: &str = "tests/fixtures/usdc_mint_devnet.json";
+        const USDT_MINT_FIXTURE_PATH: &str = "tests/fixtures/usdt_mint.json";
     }
 }
 const OWNER_KEYPAIR_PATH: &str = "tests/keys/pFCBP4bhqdSsrWUVTgqhPsLrfEdChBK17vgFM7TxjxQ.json";
@@ -188,12 +193,20 @@ impl TestingContext {
             .await;
 
         // Create USDC mint
-        let _mint_fixture = MintFixture::new_from_file(&mut test_context, USDC_MINT_FIXTURE_PATH);
+        let _usdc_mint_fixture =
+            MintFixture::new_from_file(&mut test_context, USDC_MINT_FIXTURE_PATH);
+        let _usdt_mint_fixture =
+            MintFixture::new_from_file(&mut test_context, USDT_MINT_FIXTURE_PATH);
 
         // Create USDC ATAs for all actors that need them
         pre_testing_context
             .testing_actors
-            .create_atas(&mut test_context, USDC_MINT_ADDRESS)
+            .create_usdc_atas(&mut test_context, USDC_MINT_ADDRESS)
+            .await;
+
+        pre_testing_context
+            .testing_actors
+            .create_usdt_atas(&mut test_context, USDT_MINT_ADDRESS)
             .await;
         let vaa_pairs = match vaas_test {
             Some(vaas_test) => vaas_test,
@@ -415,9 +428,13 @@ pub struct Solver {
 }
 
 impl Solver {
-    pub fn new(keypair: Rc<Keypair>, token_account: Option<TokenAccountFixture>) -> Self {
+    pub fn new(
+        keypair: Rc<Keypair>,
+        usdc_token_account: Option<TokenAccountFixture>,
+        usdt_token_account: Option<TokenAccountFixture>,
+    ) -> Self {
         Self {
-            actor: TestingActor::new(keypair, token_account),
+            actor: TestingActor::new(keypair, usdc_token_account, usdt_token_account),
         }
     }
 
@@ -430,7 +447,7 @@ impl Solver {
     }
 
     pub fn token_account_address(&self) -> Option<Pubkey> {
-        self.actor.token_account.as_ref().map(|t| t.address)
+        self.actor.usdc_token_account.as_ref().map(|t| t.address)
     }
 
     /// Approves the USDC mint for the given delegate
@@ -440,19 +457,26 @@ impl Solver {
     /// * `test_context` - The test context
     /// * `delegate` - The delegate to approve the USDC mint to
     /// * `amount` - The amount of USDC to approve
-    pub async fn approve_usdc(
+    pub async fn approve_spl_token(
         &self,
         test_context: &mut ProgramTestContext,
         delegate: &Pubkey,
         amount: u64,
+        spl_token_enum: &SplTokenEnum,
     ) {
         self.actor
-            .approve_usdc(test_context, delegate, amount)
+            .approve_spl_token(test_context, delegate, amount, spl_token_enum)
             .await;
     }
 
-    pub async fn get_token_account_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
-        self.actor.get_token_account_balance(test_context).await
+    pub async fn get_token_account_balance(
+        &self,
+        test_context: &mut ProgramTestContext,
+        spl_token_enum: &SplTokenEnum,
+    ) -> u64 {
+        self.actor
+            .get_token_account_balance(test_context, spl_token_enum)
+            .await
     }
 
     pub async fn get_lamport_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
@@ -469,7 +493,8 @@ impl Solver {
 #[derive(Clone)]
 pub struct TestingActor {
     pub keypair: Rc<Keypair>,
-    pub token_account: Option<TokenAccountFixture>,
+    pub usdc_token_account: Option<TokenAccountFixture>,
+    pub usdt_token_account: Option<TokenAccountFixture>,
 }
 
 impl std::fmt::Debug for TestingActor {
@@ -478,16 +503,21 @@ impl std::fmt::Debug for TestingActor {
             f,
             "TestingActor {{ pubkey: {:?}, token_account: {:?} }}",
             self.keypair.pubkey(),
-            self.token_account
+            self.usdc_token_account
         )
     }
 }
 
 impl TestingActor {
-    pub fn new(keypair: Rc<Keypair>, token_account: Option<TokenAccountFixture>) -> Self {
+    pub fn new(
+        keypair: Rc<Keypair>,
+        usdc_token_account: Option<TokenAccountFixture>,
+        usdt_token_account: Option<TokenAccountFixture>,
+    ) -> Self {
         Self {
             keypair,
-            token_account,
+            usdc_token_account,
+            usdt_token_account,
         }
     }
     pub fn pubkey(&self) -> Pubkey {
@@ -497,8 +527,11 @@ impl TestingActor {
         self.keypair.clone()
     }
 
-    pub fn token_account_address(&self) -> Option<Pubkey> {
-        self.token_account.as_ref().map(|t| t.address)
+    pub fn token_account_address(&self, spl_token_enum: &SplTokenEnum) -> Option<Pubkey> {
+        match spl_token_enum {
+            SplTokenEnum::Usdc => self.usdc_token_account.as_ref().map(|t| t.address),
+            SplTokenEnum::Usdt => self.usdt_token_account.as_ref().map(|t| t.address),
+        }
     }
 
     /// Gets the balance of the token account
@@ -506,8 +539,12 @@ impl TestingActor {
     /// # Arguments
     ///
     /// * `test_context` - The test context
-    pub async fn get_token_account_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
-        if let Some(token_account) = self.token_account_address() {
+    pub async fn get_token_account_balance(
+        &self,
+        test_context: &mut ProgramTestContext,
+        spl_token_enum: &SplTokenEnum,
+    ) -> u64 {
+        if let Some(token_account) = self.token_account_address(spl_token_enum) {
             let account = test_context
                 .banks_client
                 .get_account(token_account)
@@ -536,11 +573,12 @@ impl TestingActor {
     /// * `test_context` - The test context
     /// * `delegate` - The delegate to approve the USDC mint to
     /// * `amount` - The amount of USDC to approve
-    pub async fn approve_usdc(
+    pub async fn approve_spl_token(
         &self,
         test_context: &mut ProgramTestContext,
         delegate: &Pubkey,
         amount: u64,
+        spl_token_enum: &SplTokenEnum,
     ) {
         // If signer pubkeys are empty, it means that the owner is the signer
         let last_blockhash = test_context
@@ -549,7 +587,7 @@ impl TestingActor {
             .expect("Failed to get new blockhash");
         let approve_ix = approve(
             &spl_token::ID,
-            &self.token_account_address().unwrap(),
+            &self.token_account_address(spl_token_enum).unwrap(),
             delegate,
             &self.pubkey(),
             &[],
@@ -590,17 +628,17 @@ impl TestingActors {
     /// # Returns
     pub fn new(owner_keypair_path: &str) -> Self {
         let owner_kp = Rc::new(read_keypair_from_file(owner_keypair_path));
-        let owner = TestingActor::new(owner_kp.clone(), None);
-        let owner_assistant = TestingActor::new(owner_kp.clone(), None);
-        let fee_recipient = TestingActor::new(Rc::new(Keypair::new()), None);
-        let relayer = TestingActor::new(Rc::new(Keypair::new()), None);
+        let owner = TestingActor::new(owner_kp.clone(), None, None);
+        let owner_assistant = TestingActor::new(owner_kp.clone(), None, None);
+        let fee_recipient = TestingActor::new(Rc::new(Keypair::new()), None, None);
+        let relayer = TestingActor::new(Rc::new(Keypair::new()), None, None);
         let mut solvers = vec![];
         solvers.extend(vec![
-            Solver::new(Rc::new(Keypair::new()), None),
-            Solver::new(Rc::new(Keypair::new()), None),
-            Solver::new(Rc::new(Keypair::new()), None),
+            Solver::new(Rc::new(Keypair::new()), None, None),
+            Solver::new(Rc::new(Keypair::new()), None, None),
+            Solver::new(Rc::new(Keypair::new()), None, None),
         ]);
-        let liquidator = TestingActor::new(Rc::new(Keypair::new()), None);
+        let liquidator = TestingActor::new(Rc::new(Keypair::new()), None, None);
         Self {
             owner,
             owner_assistant,
@@ -636,7 +674,7 @@ impl TestingActors {
     }
 
     /// Set up ATAs for Various Owners
-    async fn create_atas(
+    async fn create_usdc_atas(
         &mut self,
         test_context: &mut ProgramTestContext,
         usdc_mint_address: Pubkey,
@@ -644,8 +682,34 @@ impl TestingActors {
         for actor in self.token_account_actors() {
             let usdc_ata =
                 create_token_account(test_context, &actor.keypair(), &usdc_mint_address).await;
-            airdrop_usdc(test_context, &usdc_ata.address, 420_000__000_000).await;
-            actor.token_account = Some(usdc_ata);
+            airdrop_spl_token(
+                test_context,
+                &usdc_ata.address,
+                420_000__000_000,
+                usdc_mint_address,
+            )
+            .await;
+            actor.usdc_token_account = Some(usdc_ata);
+        }
+    }
+
+    /// Create usdt associated token accounts
+    pub async fn create_usdt_atas(
+        &mut self,
+        test_context: &mut ProgramTestContext,
+        usdt_mint_address: Pubkey,
+    ) {
+        for actor in self.token_account_actors() {
+            let usdt_ata =
+                create_token_account(test_context, &actor.keypair(), &usdt_mint_address).await;
+            airdrop_spl_token(
+                test_context,
+                &usdt_ata.address,
+                420_000__000_000,
+                usdt_mint_address,
+            )
+            .await;
+            actor.usdt_token_account = Some(usdt_ata);
         }
     }
 
@@ -656,13 +720,15 @@ impl TestingActors {
         test_context: &mut ProgramTestContext,
         num_solvers: usize,
         usdc_mint_address: Pubkey,
+        usdt_mint_address: Pubkey,
     ) {
         for _ in 0..num_solvers {
             let keypair = Rc::new(Keypair::new());
             let usdc_ata = create_token_account(test_context, &keypair, &usdc_mint_address).await;
+            let usdt_ata = create_token_account(test_context, &keypair, &usdt_mint_address).await;
             airdrop(test_context, &keypair.pubkey(), 10000000000).await;
             self.solvers
-                .push(Solver::new(keypair.clone(), Some(usdc_ata)));
+                .push(Solver::new(keypair.clone(), Some(usdc_ata), Some(usdt_ata)));
         }
     }
 }

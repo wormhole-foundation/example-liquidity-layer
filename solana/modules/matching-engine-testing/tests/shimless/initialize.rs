@@ -10,7 +10,10 @@ use anchor_lang::AccountDeserialize;
 use anchor_spl::{associated_token::spl_associated_token_account, token::spl_token};
 use solana_program::{bpf_loader_upgradeable, system_program};
 
-use crate::testing_engine::config::{ExpectedError, ExpectedLog};
+use crate::{
+    testing_engine::config::{ExpectedError, ExpectedLog},
+    utils::token_account::SplTokenEnum,
+};
 
 use crate::testing_engine::setup::TestingContext;
 use anchor_lang::{InstructionData, ToAccountMetas};
@@ -176,7 +179,7 @@ pub async fn initialize_program(
         fee_recipient_token: testing_context
             .testing_actors
             .fee_recipient
-            .token_account_address()
+            .token_account_address(&SplTokenEnum::Usdc)
             .unwrap(),
         cctp_mint_recipient,
         usdc: matching_engine::accounts::Usdc {

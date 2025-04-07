@@ -114,8 +114,6 @@ pub fn initialise_fast_market_order(
     let fast_market_order_account = &accounts[1];
     let guardian_set = &accounts[2];
     let guardian_set_signatures = &accounts[3];
-    let _verify_vaa_shim_program = &accounts[4];
-    let _system_program = &accounts[5];
 
     let InitialiseFastMarketOrderData {
         fast_market_order,
@@ -124,7 +122,7 @@ pub fn initialise_fast_market_order(
     } = *data;
     // Start of cpi call to verify the shim.
     // ------------------------------------------------------------------------------------------------
-    let fast_market_order_digest = fast_market_order.digest();
+    let fast_market_order_vaa_digest = fast_market_order.digest();
     // Did not want to pass in the vaa hash here. So recreated it.
     let verify_hash_data = {
         let mut data = vec![];
@@ -132,11 +130,11 @@ pub fn initialise_fast_market_order(
             &wormhole_svm_shim::verify_vaa::VerifyVaaShimInstruction::<false>::VERIFY_HASH_SELECTOR,
         );
         data.push(guardian_set_bump);
-        data.extend_from_slice(&fast_market_order_digest);
+        data.extend_from_slice(&fast_market_order_vaa_digest);
         data
     };
     let verify_shim_ix = Instruction {
-        program_id: wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
+        program_id: wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID, // Because program is hardcoded, the check is not needed.
         accounts: vec![
             AccountMeta::new_readonly(guardian_set.key(), false),
             AccountMeta::new_readonly(guardian_set_signatures.key(), false),
@@ -162,7 +160,7 @@ pub fn initialise_fast_market_order(
     let (fast_market_order_pda, fast_market_order_bump) = Pubkey::find_program_address(
         &[
             FastMarketOrderState::SEED_PREFIX,
-            fast_market_order_digest.as_ref(),
+            fast_market_order_vaa_digest.as_ref(),
             fast_market_order.close_account_refund_recipient.as_ref(),
         ],
         &program_id,
@@ -175,7 +173,7 @@ pub fn initialise_fast_market_order(
     }
     let fast_market_order_seeds = [
         FastMarketOrderState::SEED_PREFIX,
-        fast_market_order_digest.as_ref(),
+        fast_market_order_vaa_digest.as_ref(),
         fast_market_order.close_account_refund_recipient.as_ref(),
         &[fast_market_order_bump],
     ];

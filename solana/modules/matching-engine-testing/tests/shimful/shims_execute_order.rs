@@ -1,6 +1,9 @@
-use crate::testing_engine::config::ExpectedError;
-use crate::testing_engine::setup::{Solver, TestingContext, TransferDirection};
-use crate::utils::auction::ActiveAuctionState;
+use crate::testing_engine::config::{
+    ExecuteOrderInstructionConfig, ExpectedError, InstructionConfig,
+};
+use crate::testing_engine::setup::{TestingContext, TransferDirection};
+use crate::testing_engine::state::TestingEngineState;
+use crate::utils::token_account::SplTokenEnum;
 
 use super::super::utils;
 use anchor_spl::token::spl_token;
@@ -9,10 +12,7 @@ use common::wormhole_cctp_solana::cctp::{
 };
 use matching_engine::fallback::execute_order::{ExecuteOrderCctpShim, ExecuteOrderShimAccounts};
 use solana_program_test::ProgramTestContext;
-use solana_sdk::{
-    pubkey::Pubkey, signature::Keypair, signer::Signer, sysvar::SysvarId, transaction::Transaction,
-};
-use std::rc::Rc;
+use solana_sdk::{pubkey::Pubkey, signer::Signer, sysvar::SysvarId, transaction::Transaction};
 use utils::constants::*;
 use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
 use wormhole_svm_definitions::{
@@ -40,13 +40,17 @@ pub struct ExecuteOrderFallbackAccounts {
 
 impl ExecuteOrderFallbackAccounts {
     pub fn new(
-        auction_accounts: &utils::auction::AuctionAccounts,
-        fast_market_order_address: &Pubkey,
-        active_auction_state: &ActiveAuctionState,
-        signer: &Pubkey,
+        current_state: &TestingEngineState,
+        payer_signer: &Pubkey,
         fixture_accounts: &utils::account_fixtures::FixtureAccounts,
-        transfer_direction: TransferDirection,
     ) -> Self {
+        let transfer_direction = current_state.base().transfer_direction;
+        let auction_accounts = current_state.auction_accounts().unwrap();
+        let active_auction_state = current_state.auction_state().get_active_auction().unwrap();
+        let fast_market_order_address = current_state
+            .fast_market_order()
+            .unwrap()
+            .fast_market_order_address;
         let remote_token_messenger = match transfer_direction {
             TransferDirection::FromEthereumToArbitrum => {
                 fixture_accounts.arbitrum_remote_token_messenger
@@ -58,15 +62,15 @@ impl ExecuteOrderFallbackAccounts {
         };
 
         Self {
-            signer: *signer,
+            signer: *payer_signer,
             custodian: auction_accounts.custodian,
-            fast_market_order_address: *fast_market_order_address,
+            fast_market_order_address,
             active_auction: active_auction_state.auction_address,
             active_auction_custody_token: active_auction_state.auction_custody_token_address,
             active_auction_config: auction_accounts.auction_config,
             active_auction_best_offer_token: auction_accounts.offer_token,
             initial_offer_token: auction_accounts.offer_token,
-            initial_participant: *signer,
+            initial_participant: *payer_signer,
             to_router_endpoint: auction_accounts.to_router_endpoint,
             remote_token_messenger,
             token_messenger: fixture_accounts.token_messenger,
@@ -87,18 +91,70 @@ pub struct ExecuteOrderFallbackFixtureAccounts {
     pub remote_token_messenger: Pubkey,
     pub token_messenger_minter_sender_authority: Pubkey,
     pub token_messenger_minter_event_authority: Pubkey,
+    pub messenger_transmitter_config: Pubkey,
+    pub token_minter: Pubkey,
+    pub executor_token: Pubkey,
 }
 
 pub async fn execute_order_fallback(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
-    payer_signer: &Rc<Keypair>,
-    program_id: &Pubkey,
-    solver: Solver,
+    config: &ExecuteOrderInstructionConfig,
     execute_order_fallback_accounts: &ExecuteOrderFallbackAccounts,
     expected_error: Option<&ExpectedError>,
 ) -> Option<ExecuteOrderFallbackFixture> {
-    // Get target chain and use as remote address
+    let program_id = &testing_context.get_matching_engine_program_id();
+    let payer_signer = config
+        .payer_signer
+        .clone()
+        .unwrap_or_else(|| testing_context.testing_actors.owner.keypair());
+
+    let execute_order_fallback_fixture = create_execute_order_fallback_fixture(
+        testing_context,
+        config,
+        execute_order_fallback_accounts,
+    );
+    let clock_id = solana_program::clock::Clock::id();
+    let execute_order_ix_accounts = create_execute_order_shim_accounts(
+        execute_order_fallback_accounts,
+        &execute_order_fallback_fixture,
+        &clock_id,
+    );
+
+    let execute_order_ix = ExecuteOrderCctpShim {
+        program_id,
+        accounts: execute_order_ix_accounts,
+    }
+    .instruction();
+
+    // Considering fast forwarding blocks here for deadline to be reached
+    let recent_blockhash = testing_context
+        .get_new_latest_blockhash(test_context)
+        .await
+        .unwrap();
+    crate::testing_engine::engine::fast_forward_slots(test_context, 3).await;
+    let transaction = Transaction::new_signed_with_payer(
+        &[execute_order_ix],
+        Some(&payer_signer.pubkey()),
+        &[&payer_signer],
+        recent_blockhash,
+    );
+    testing_context
+        .execute_and_verify_transaction(test_context, transaction, expected_error)
+        .await;
+    if expected_error.is_none() {
+        Some(execute_order_fallback_fixture)
+    } else {
+        None
+    }
+}
+
+pub fn create_execute_order_fallback_fixture(
+    testing_context: &TestingContext,
+    config: &ExecuteOrderInstructionConfig,
+    execute_order_fallback_accounts: &ExecuteOrderFallbackAccounts,
+) -> ExecuteOrderFallbackFixture {
+    let program_id = &testing_context.get_matching_engine_program_id();
     let cctp_message = Pubkey::find_program_address(
         &[
             common::CCTP_MESSAGE_SEED_PREFIX,
@@ -134,11 +190,36 @@ pub async fn execute_order_fallback(
         &POST_MESSAGE_SHIM_PROGRAM_ID,
     )
     .0;
-    let executor_token = solver.actor.token_account_address().unwrap();
+    let solver = testing_context.testing_actors.solvers[config.solver_index].clone();
+    let executor_token = solver
+        .actor
+        .token_account_address(&SplTokenEnum::Usdc)
+        .unwrap();
+    ExecuteOrderFallbackFixture {
+        cctp_message,
+        post_message_sequence,
+        post_message_message,
+        accounts: ExecuteOrderFallbackFixtureAccounts {
+            local_token,
+            token_messenger,
+            remote_token_messenger,
+            token_messenger_minter_sender_authority,
+            token_messenger_minter_event_authority: *token_messenger_minter_event_authority,
+            messenger_transmitter_config,
+            token_minter,
+            executor_token,
+        },
+    }
+}
 
-    let execute_order_ix_accounts = ExecuteOrderShimAccounts {
-        signer: &payer_signer.pubkey(),                        // 0
-        cctp_message: &cctp_message,                           // 1
+pub fn create_execute_order_shim_accounts<'ix>(
+    execute_order_fallback_accounts: &'ix ExecuteOrderFallbackAccounts,
+    execute_order_fallback_fixture: &'ix ExecuteOrderFallbackFixture,
+    clock_id: &'ix Pubkey,
+) -> ExecuteOrderShimAccounts<'ix> {
+    ExecuteOrderShimAccounts {
+        signer: &execute_order_fallback_accounts.signer, // 0
+        cctp_message: &execute_order_fallback_fixture.cctp_message, // 1
         custodian: &execute_order_fallback_accounts.custodian, // 2
         fast_market_order: &execute_order_fallback_accounts.fast_market_order_address, // 3
         active_auction: &execute_order_fallback_accounts.active_auction, // 4
@@ -146,23 +227,33 @@ pub async fn execute_order_fallback(
         active_auction_config: &execute_order_fallback_accounts.active_auction_config, // 6
         active_auction_best_offer_token: &execute_order_fallback_accounts
             .active_auction_best_offer_token, // 7
-        executor_token: &executor_token,                                               // 8
+        executor_token: &execute_order_fallback_fixture.accounts.executor_token,       // 8
         initial_offer_token: &execute_order_fallback_accounts.initial_offer_token,     // 9
         initial_participant: &execute_order_fallback_accounts.initial_participant,     // 10
         to_router_endpoint: &execute_order_fallback_accounts.to_router_endpoint,       // 11
         post_message_shim_program: &POST_MESSAGE_SHIM_PROGRAM_ID,                      // 12
-        post_message_sequence: &post_message_sequence,                                 // 13
-        post_message_message: &post_message_message,                                   // 14
+        post_message_sequence: &execute_order_fallback_fixture.post_message_sequence,  // 13
+        post_message_message: &execute_order_fallback_fixture.post_message_message,    // 14
         cctp_deposit_for_burn_mint: &USDC_MINT,                                        // 15
         cctp_deposit_for_burn_token_messenger_minter_sender_authority:
-            &token_messenger_minter_sender_authority, // 16
-        cctp_deposit_for_burn_message_transmitter_config: &messenger_transmitter_config, // 17
-        cctp_deposit_for_burn_token_messenger: &token_messenger,                       // 18
-        cctp_deposit_for_burn_remote_token_messenger: &remote_token_messenger,         // 19
-        cctp_deposit_for_burn_token_minter: &token_minter,                             // 20
-        cctp_deposit_for_burn_local_token: &local_token,                               // 21
+            &execute_order_fallback_fixture
+                .accounts
+                .token_messenger_minter_sender_authority, // 16
+        cctp_deposit_for_burn_message_transmitter_config: &execute_order_fallback_fixture
+            .accounts
+            .messenger_transmitter_config, // 17
+        cctp_deposit_for_burn_token_messenger: &execute_order_fallback_fixture
+            .accounts
+            .token_messenger, // 18
+        cctp_deposit_for_burn_remote_token_messenger: &execute_order_fallback_fixture
+            .accounts
+            .remote_token_messenger, // 19
+        cctp_deposit_for_burn_token_minter: &execute_order_fallback_fixture.accounts.token_minter, // 20
+        cctp_deposit_for_burn_local_token: &execute_order_fallback_fixture.accounts.local_token, // 21
         cctp_deposit_for_burn_token_messenger_minter_event_authority:
-            token_messenger_minter_event_authority, // 22
+            &execute_order_fallback_fixture
+                .accounts
+                .token_messenger_minter_event_authority, // 22
         cctp_deposit_for_burn_token_messenger_minter_program: &TOKEN_MESSENGER_MINTER_PROGRAM_ID, // 23
         cctp_deposit_for_burn_message_transmitter_program: &MESSAGE_TRANSMITTER_PROGRAM_ID, // 24
         core_bridge_program: &CORE_BRIDGE_PROGRAM_ID,                                       // 25
@@ -171,74 +262,30 @@ pub async fn execute_order_fallback(
         post_message_shim_event_authority: &POST_MESSAGE_SHIM_EVENT_AUTHORITY,              // 28
         system_program: &solana_program::system_program::ID,                                // 29
         token_program: &spl_token::ID,                                                      // 30
-        clock: &solana_program::clock::Clock::id(),                                         // 31
-    };
-
-    let execute_order_ix = ExecuteOrderCctpShim {
-        program_id,
-        accounts: execute_order_ix_accounts,
-    }
-    .instruction();
-
-    // Considering fast forwarding blocks here for deadline to be reached
-    let recent_blockhash = testing_context
-        .get_new_latest_blockhash(test_context)
-        .await
-        .unwrap();
-    crate::testing_engine::engine::fast_forward_slots(test_context, 3).await;
-    let transaction = Transaction::new_signed_with_payer(
-        &[execute_order_ix],
-        Some(&payer_signer.pubkey()),
-        &[&payer_signer],
-        recent_blockhash,
-    );
-    testing_context
-        .execute_and_verify_transaction(test_context, transaction, expected_error)
-        .await;
-    if expected_error.is_none() {
-        Some(ExecuteOrderFallbackFixture {
-            cctp_message,
-            post_message_sequence,
-            post_message_message,
-            accounts: ExecuteOrderFallbackFixtureAccounts {
-                local_token,
-                token_messenger,
-                remote_token_messenger,
-                token_messenger_minter_sender_authority,
-                token_messenger_minter_event_authority: *token_messenger_minter_event_authority,
-            },
-        })
-    } else {
-        None
+        clock: clock_id,                                                                    // 31
     }
 }
 
 pub async fn execute_order_fallback_test(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
-    auction_accounts: &utils::auction::AuctionAccounts,
-    fast_market_order_address: &Pubkey,
-    active_auction_state: &ActiveAuctionState,
-    solver: Solver,
-    expected_error: Option<&ExpectedError>,
+    current_state: &TestingEngineState,
+    config: &ExecuteOrderInstructionConfig,
 ) -> Option<ExecuteOrderFallbackFixture> {
+    let expected_error = config.expected_error();
     let fixture_accounts = testing_context
         .get_fixture_accounts()
         .expect("Pre-made fixture accounts not found");
-    let execute_order_fallback_accounts = ExecuteOrderFallbackAccounts::new(
-        auction_accounts,
-        fast_market_order_address,
-        active_auction_state,
-        &testing_context.testing_actors.owner.pubkey(),
-        &fixture_accounts,
-        testing_context.transfer_direction,
-    );
+    let payer_signer = config
+        .payer_signer
+        .clone()
+        .unwrap_or_else(|| testing_context.testing_actors.owner.keypair());
+    let execute_order_fallback_accounts =
+        ExecuteOrderFallbackAccounts::new(current_state, &payer_signer.pubkey(), &fixture_accounts);
     execute_order_fallback(
         testing_context,
         test_context,
-        &testing_context.testing_actors.owner.keypair(),
-        &testing_context.get_matching_engine_program_id(),
-        solver,
+        config,
         &execute_order_fallback_accounts,
         expected_error,
     )

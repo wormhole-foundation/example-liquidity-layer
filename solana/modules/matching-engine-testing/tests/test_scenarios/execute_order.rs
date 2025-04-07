@@ -49,7 +49,7 @@ pub async fn test_execute_order_fallback() {
         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
     ];
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }
 
@@ -77,12 +77,36 @@ pub async fn test_execute_order_shimless() {
         InstructionTrigger::ExecuteOrderShimless(ExecuteOrderInstructionConfig::default()),
     ];
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }
 
 /*
-    Sad path tests
+                    Sad path tests section
+
+                    *****************
+               ******               ******
+           ****                           ****
+        ****                                 ***
+      ***                                       ***
+     **           ***               ***           **
+   **           *******           *******          ***
+  **            *******           *******            **
+ **             *******           *******             **
+ **               ***               ***               **
+**                                                     **
+**                                                     **
+**                                                     **
+**                                                     **
+ **                   ************                   **
+  **               ******      ******               **
+   ***           *****            *****            ***
+     **        ***                    ***         **
+      ***    **                         **      ***
+        ****                                 ****
+           ****                           ****
+               ******               ******
+                    *****************
 */
 
 /// Test that the execute order fallback instruction blocks the shimless instruction
@@ -120,6 +144,6 @@ pub async fn test_execute_order_fallback_blocks_shimless() {
         }),
     ];
     testing_engine
-        .execute(&mut test_context, instruction_triggers)
+        .execute(&mut test_context, instruction_triggers, None)
         .await;
 }
