@@ -31,12 +31,12 @@ use super::make_offer::place_initial_offer_shim;
 // TODO: Flesh out this test to see if the message was posted correctly
 pub async fn test_execute_order_shim() {
     let transfer_direction = TransferDirection::FromEthereumToArbitrum;
-    execute_order_helper(
+    Box::pin(execute_order_helper(
         ExecuteOrderInstructionConfig::default(),
         ShimExecutionMode::Shim,
         None,
         transfer_direction,
-    )
+    ))
     .await;
 }
 
@@ -44,12 +44,12 @@ pub async fn test_execute_order_shim() {
 #[tokio::test]
 pub async fn test_execute_order_shimless() {
     let transfer_direction = TransferDirection::FromEthereumToArbitrum;
-    execute_order_helper(
+    Box::pin(execute_order_helper(
         ExecuteOrderInstructionConfig::default(),
         ShimExecutionMode::Shimless,
         None,
         transfer_direction,
-    )
+    ))
     .await;
 }
 
@@ -75,18 +75,15 @@ pub async fn test_execute_order_after_reopening_fast_market_order_account() {
             InitializeFastMarketOrderShimInstructionConfig {
                 fast_market_order_id: 1,
                 close_account_refund_recipient: Some(close_account_refund_recipient),
-                payer_signer: None,
-                expected_error: None,
-                expected_log_messages: None,
                 ..InitializeFastMarketOrderShimInstructionConfig::default()
             },
         ),
         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
     ];
     let mut execution_chain = ExecutionChain::from(instruction_triggers);
-    execution_chain.push(ExecutionTrigger::Verification(
+    execution_chain.push(ExecutionTrigger::Verification(Box::new(
         VerificationTrigger::VerifyAuctionState(true),
-    ));
+    )));
     let _ = testing_engine
         .execute(
             &mut test_context,
@@ -114,9 +111,9 @@ pub async fn test_execute_order_shim_after_placing_initial_offer_with_shimless()
         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
     ];
     let mut execution_chain = ExecutionChain::from(instruction_triggers);
-    execution_chain.push(ExecutionTrigger::Verification(
+    execution_chain.push(ExecutionTrigger::Verification(Box::new(
         VerificationTrigger::VerifyAuctionState(true),
-    ));
+    )));
     let _ = testing_engine
         .execute(
             &mut test_context,
@@ -144,9 +141,9 @@ pub async fn test_execute_order_shimless_after_placing_initial_offer_with_shim()
         ExecuteOrderInstructionConfig::default(),
     )];
     let mut execution_chain = ExecutionChain::from(instruction_triggers);
-    execution_chain.push(ExecutionTrigger::Verification(
+    execution_chain.push(ExecutionTrigger::Verification(Box::new(
         VerificationTrigger::VerifyAuctionState(true),
-    ));
+    )));
     let _ = testing_engine
         .execute(
             &mut test_context,
@@ -305,9 +302,9 @@ pub async fn execute_order_helper(
         ShimExecutionMode::Shimless => vec![InstructionTrigger::ExecuteOrderShimless(config)],
     };
     let mut execution_chain = ExecutionChain::from(instruction_triggers);
-    execution_chain.push(ExecutionTrigger::Verification(
+    execution_chain.push(ExecutionTrigger::Verification(Box::new(
         VerificationTrigger::VerifyAuctionState(true),
-    ));
+    )));
     (
         testing_engine
             .execute(

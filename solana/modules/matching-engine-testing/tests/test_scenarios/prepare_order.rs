@@ -222,12 +222,12 @@ pub async fn test_prepare_order_response_shim_after_reopening_fast_market_order_
             transfer_direction,
         ))
         .await;
-    let reopen_fast_market_order_state = reopen_fast_market_order_shim(
+    let reopen_fast_market_order_state = Box::pin(reopen_fast_market_order_shim(
         place_initial_offer_state,
         &mut test_context,
         &testing_engine,
         None,
-    )
+    ))
     .await;
     let instruction_triggers = vec![InstructionTrigger::ExecuteOrderShim(
         ExecuteOrderInstructionConfig::default(),
@@ -263,12 +263,12 @@ pub async fn test_prepare_order_response_shim_after_reopening_fast_market_order_
         close_account_refund_recipient_keypair: Some(second_solver_keypair),
         ..CloseFastMarketOrderShimInstructionConfig::default()
     };
-    let double_reopen_fast_market_order_state = reopen_fast_market_order_shim(
+    let double_reopen_fast_market_order_state = Box::pin(reopen_fast_market_order_shim(
         execute_order_state,
         &mut test_context,
         &testing_engine,
         Some((reopen_config, close_config)),
-    )
+    ))
     .await;
     let instruction_triggers = vec![InstructionTrigger::PrepareOrderShim(
         PrepareOrderInstructionConfig::default(),

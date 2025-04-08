@@ -71,19 +71,19 @@ pub enum VerificationTrigger {
 }
 
 pub enum ExecutionTrigger {
-    Instruction(InstructionTrigger),
-    Verification(VerificationTrigger),
+    Instruction(Box<InstructionTrigger>),
+    Verification(Box<VerificationTrigger>),
 }
 
 impl From<InstructionTrigger> for ExecutionTrigger {
     fn from(trigger: InstructionTrigger) -> Self {
-        ExecutionTrigger::Instruction(trigger)
+        ExecutionTrigger::Instruction(Box::new(trigger))
     }
 }
 
 impl From<VerificationTrigger> for ExecutionTrigger {
     fn from(trigger: VerificationTrigger) -> Self {
-        ExecutionTrigger::Verification(trigger)
+        ExecutionTrigger::Verification(Box::new(trigger))
     }
 }
 
@@ -106,9 +106,12 @@ impl DerefMut for ExecutionChain {
 impl ExecutionChain {
     pub fn instruction_triggers(&self) -> Vec<&InstructionTrigger> {
         self.iter()
-            .filter_map(|trigger| match trigger {
-                ExecutionTrigger::Instruction(trigger) => Some(trigger),
-                _ => None,
+            .filter_map(|trigger| {
+                if let ExecutionTrigger::Instruction(boxed_trigger) = trigger {
+                    Some(boxed_trigger.as_ref())
+                } else {
+                    None
+                }
             })
             .collect()
     }
@@ -274,59 +277,59 @@ impl TestingEngine {
         trigger: &ExecutionTrigger,
     ) -> TestingEngineState {
         match trigger {
-            ExecutionTrigger::Instruction(trigger) => match trigger {
-                InstructionTrigger::InitializeProgram(config) => {
+            ExecutionTrigger::Instruction(trigger) => match **trigger {
+                InstructionTrigger::InitializeProgram(ref config) => {
                     self.initialize_program(test_context, current_state, config)
                         .await
                 }
-                InstructionTrigger::CreateCctpRouterEndpoints(config) => {
+                InstructionTrigger::CreateCctpRouterEndpoints(ref config) => {
                     self.create_cctp_router_endpoints(test_context, current_state, config)
                         .await
                 }
-                InstructionTrigger::InitializeFastMarketOrderShim(config) => {
+                InstructionTrigger::InitializeFastMarketOrderShim(ref config) => {
                     self.create_fast_market_order_account(test_context, current_state, config)
                         .await
                 }
-                InstructionTrigger::CloseFastMarketOrderShim(config) => {
+                InstructionTrigger::CloseFastMarketOrderShim(ref config) => {
                     self.close_fast_market_order_account(test_context, current_state, config)
                         .await
                 }
-                InstructionTrigger::PlaceInitialOfferShimless(config) => {
+                InstructionTrigger::PlaceInitialOfferShimless(ref config) => {
                     self.place_initial_offer_shimless(test_context, current_state, config)
                         .await
                 }
-                InstructionTrigger::PlaceInitialOfferShim(config) => {
+                InstructionTrigger::PlaceInitialOfferShim(ref config) => {
                     self.place_initial_offer_shim(test_context, current_state, config)
                         .await
                 }
-                InstructionTrigger::ImproveOfferShimless(config) => {
+                InstructionTrigger::ImproveOfferShimless(ref config) => {
                     self.improve_offer_shimless(test_context, current_state, config)
                         .await
                 }
-                InstructionTrigger::ExecuteOrderShim(config) => {
+                InstructionTrigger::ExecuteOrderShim(ref config) => {
                     self.execute_order_shim(test_context, current_state, config)
                         .await
                 }
-                InstructionTrigger::ExecuteOrderShimless(config) => {
+                InstructionTrigger::ExecuteOrderShimless(ref config) => {
                     self.execute_order_shimless(test_context, current_state, config)
                         .await
                 }
-                InstructionTrigger::PrepareOrderShim(config) => {
+                InstructionTrigger::PrepareOrderShim(ref config) => {
                     self.prepare_order_shim(test_context, current_state, config)
                         .await
                 }
-                InstructionTrigger::PrepareOrderShimless(config) => {
+                InstructionTrigger::PrepareOrderShimless(ref config) => {
                     self.prepare_order_shimless(test_context, current_state, config)
                         .await
                 }
-                InstructionTrigger::SettleAuction(config) => {
+                InstructionTrigger::SettleAuction(ref config) => {
                     self.settle_auction(test_context, current_state, config)
                         .await
                 }
             },
-            ExecutionTrigger::Verification(trigger) => match trigger {
+            ExecutionTrigger::Verification(trigger) => match **trigger {
                 VerificationTrigger::VerifyAuctionState(expected_to_succeed) => {
-                    self.verify_auction_state(test_context, current_state, *expected_to_succeed)
+                    self.verify_auction_state(test_context, current_state, expected_to_succeed)
                         .await
                 }
             },

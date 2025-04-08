@@ -3183,7 +3183,11 @@ export type MatchingEngine = {
       "msg": "From and to router endpoints are the same"
     },
     {
-      "code": 8050,
+      "code": 8576,
+      "name": "mismatchingCloseAccountRefundRecipient"
+    },
+    {
+      "code": 8306,
       "name": "invalidCctpMessage"
     }
   ],
