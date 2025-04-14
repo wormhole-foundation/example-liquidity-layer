@@ -41,19 +41,14 @@ use crate::testing_engine::setup::ShimMode;
 use crate::utils::auction::AuctionState;
 use crate::utils::token_account::SplTokenEnum;
 use crate::utils::vaa::TestVaaPairs;
-use crate::utils::{
-    auction::{
-        AuctionAccounts,
-        // AuctionState
-    },
-    router::create_all_router_endpoints_test,
-};
+use crate::utils::{auction::AuctionAccounts, router::create_all_router_endpoints_test};
 use anchor_lang::prelude::*;
 
 pub enum InstructionTrigger {
     InitializeProgram(InitializeInstructionConfig),
     CreateCctpRouterEndpoints(CreateCctpRouterEndpointsInstructionConfig),
     InitializeFastMarketOrderShim(InitializeFastMarketOrderShimInstructionConfig),
+    SetPauseCustodian(SetPauseCustodianInstructionConfig),
     PlaceInitialOfferShimless(PlaceInitialOfferInstructionConfig),
     PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig),
     ImproveOfferShimless(ImproveOfferInstructionConfig),
@@ -68,6 +63,8 @@ pub enum InstructionTrigger {
 pub enum VerificationTrigger {
     // Verify that the auction state is as expected (bool is expected to succeed)
     VerifyAuctionState(bool),
+    // Verify that the execute order math is correct
+    VerifyBalances(VerifyBalancesConfig),
 }
 
 pub enum ExecutionTrigger {
@@ -104,6 +101,10 @@ impl DerefMut for ExecutionChain {
 }
 
 impl ExecutionChain {
+    pub fn new(triggers: Vec<ExecutionTrigger>) -> Self {
+        Self(triggers)
+    }
+
     pub fn instruction_triggers(&self) -> Vec<&InstructionTrigger> {
         self.iter()
             .filter_map(|trigger| {
@@ -118,6 +119,12 @@ impl ExecutionChain {
 }
 impl From<Vec<InstructionTrigger>> for ExecutionChain {
     fn from(triggers: Vec<InstructionTrigger>) -> Self {
+        Self(triggers.into_iter().map(|trigger| trigger.into()).collect())
+    }
+}
+
+impl From<Vec<VerificationTrigger>> for ExecutionChain {
+    fn from(triggers: Vec<VerificationTrigger>) -> Self {
         Self(triggers.into_iter().map(|trigger| trigger.into()).collect())
     }
 }
@@ -141,6 +148,7 @@ impl InstructionConfig for InstructionTrigger {
             Self::InitializeProgram(config) => config.expected_error(),
             Self::CreateCctpRouterEndpoints(config) => config.expected_error(),
             Self::InitializeFastMarketOrderShim(config) => config.expected_error(),
+            Self::SetPauseCustodian(config) => config.expected_error(),
             Self::PlaceInitialOfferShimless(config) => config.expected_error(),
             Self::PlaceInitialOfferShim(config) => config.expected_error(),
             Self::ImproveOfferShimless(config) => config.expected_error(),
@@ -157,6 +165,7 @@ impl InstructionConfig for InstructionTrigger {
             Self::InitializeProgram(config) => config.expected_log_messages(),
             Self::CreateCctpRouterEndpoints(config) => config.expected_log_messages(),
             Self::InitializeFastMarketOrderShim(config) => config.expected_log_messages(),
+            Self::SetPauseCustodian(config) => config.expected_log_messages(),
             Self::PlaceInitialOfferShimless(config) => config.expected_log_messages(),
             Self::PlaceInitialOfferShim(config) => config.expected_log_messages(),
             Self::ImproveOfferShimless(config) => config.expected_log_messages(),
@@ -294,6 +303,10 @@ impl TestingEngine {
                     self.close_fast_market_order_account(test_context, current_state, config)
                         .await
                 }
+                InstructionTrigger::SetPauseCustodian(ref config) => {
+                    self.set_pause_custodian(test_context, current_state, config)
+                        .await
+                }
                 InstructionTrigger::PlaceInitialOfferShimless(ref config) => {
                     self.place_initial_offer_shimless(test_context, current_state, config)
                         .await
@@ -332,6 +345,10 @@ impl TestingEngine {
                     self.verify_auction_state(test_context, current_state, expected_to_succeed)
                         .await
                 }
+                VerificationTrigger::VerifyBalances(ref config) => {
+                    self.verify_balances(test_context, current_state, config)
+                        .await
+                }
             },
         }
     }
@@ -362,12 +379,16 @@ impl TestingEngine {
         let auction_parameters_config = config.auction_parameters_config.clone();
         let expected_error = config.expected_error();
         let expected_log_messages = config.expected_log_messages();
-
+        let payer_signer = config
+            .payer_signer
+            .clone()
+            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
         let (result, owner_pubkey, owner_assistant_pubkey, fee_recipient_token_account) = {
             let result = shimless::initialize::initialize_program(
                 &self.testing_context,
                 test_context,
                 auction_parameters_config,
+                &payer_signer,
                 expected_error,
                 expected_log_messages,
             )
@@ -460,7 +481,7 @@ impl TestingEngine {
         let payer_signer = config
             .payer_signer
             .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
+            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
         let guardian_signature_info = create_guardian_signatures(
             &self.testing_context,
             test_context,
@@ -517,6 +538,32 @@ impl TestingEngine {
         }
     }
 
+    /// Instruction trigger function for pausing the custodian
+    async fn set_pause_custodian(
+        &self,
+        test_context: &mut ProgramTestContext,
+        current_state: &TestingEngineState,
+        config: &SetPauseCustodianInstructionConfig,
+    ) -> TestingEngineState {
+        let owner_or_assistant = config.payer_signer.clone().unwrap_or_else(|| {
+            self.testing_context
+                .testing_actors
+                .owner_assistant
+                .keypair()
+        });
+        let is_paused = config.is_paused;
+        let testing_context = &self.testing_context;
+        shimless::pause_custodian::set_pause(
+            test_context,
+            testing_context,
+            current_state,
+            &owner_or_assistant,
+            config.expected_error(),
+            is_paused,
+        )
+        .await
+    }
+
     /// Instruction trigger function for closing a fast market order account
     async fn close_fast_market_order_account(
         &self,
@@ -553,6 +600,7 @@ impl TestingEngine {
             fast_market_order: current_state.fast_market_order().cloned(),
             order_prepared: current_state.order_prepared().cloned(),
             auction_accounts: current_state.auction_accounts().cloned(),
+            order_executed: current_state.order_executed().cloned(),
         }
     }
     async fn place_initial_offer_shimless(
@@ -607,7 +655,7 @@ impl TestingEngine {
         let payer_signer = config
             .payer_signer
             .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
+            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
         let new_auction_state = shimless::make_offer::improve_offer(
             &self.testing_context,
             test_context,
@@ -693,6 +741,7 @@ impl TestingEngine {
                 cctp_message: order_executed_fallback_fixture.cctp_message,
                 post_message_sequence: Some(order_executed_fallback_fixture.post_message_sequence),
                 post_message_message: Some(order_executed_fallback_fixture.post_message_message),
+                actor_enum: config.actor_enum,
             };
             TestingEngineState::OrderExecuted {
                 base: current_state.base().clone(),
@@ -718,14 +767,16 @@ impl TestingEngine {
         let payer_signer = config
             .payer_signer
             .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
+            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
         let auction_config_address = current_state
             .auction_config_address()
             .expect("Auction config address not found");
         let router_endpoints = current_state
             .router_endpoints()
             .expect("Router endpoints are not created");
-        let solver = self.testing_context.testing_actors.solvers[config.solver_index].clone();
+        let actor = config
+            .actor_enum
+            .get_actor(&self.testing_context.testing_actors);
         let custodian_address = current_state
             .custodian_address()
             .expect("Custodian address not found");
@@ -736,7 +787,7 @@ impl TestingEngine {
                     .fast_transfer_vaa
                     .get_vaa_pubkey(),
             ),
-            solver.actor.clone(),
+            actor.clone(),
             current_state.close_account_refund_recipient(),
             auction_config_address,
             &router_endpoints.endpoints,
@@ -759,6 +810,7 @@ impl TestingEngine {
                 cctp_message: execute_order_fixture.cctp_message,
                 post_message_sequence: None,
                 post_message_message: None,
+                actor_enum: config.actor_enum,
             };
             TestingEngineState::OrderExecuted {
                 base: current_state.base().clone(),
@@ -797,7 +849,7 @@ impl TestingEngine {
         let payer_signer = config
             .payer_signer
             .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
+            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
 
         let result = shimful::shims_prepare_order_response::prepare_order_response_test(
             &self.testing_context,
@@ -814,8 +866,11 @@ impl TestingEngine {
         if config.expected_error.is_none() {
             let prepare_order_response_fixture = result.unwrap();
             let order_prepared_state = OrderPreparedState {
-                prepared_order_address: prepare_order_response_fixture.prepared_order_response,
+                prepared_order_response_address: prepare_order_response_fixture
+                    .prepared_order_response,
                 prepared_custody_token: prepare_order_response_fixture.prepared_custody_token,
+                base_fee_token: prepare_order_response_fixture.base_fee_token,
+                actor_enum: config.actor_enum,
             };
             TestingEngineState::OrderPrepared {
                 base: current_state.base().clone(),
@@ -841,18 +896,16 @@ impl TestingEngine {
         let payer_signer = config
             .payer_signer
             .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
+            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
         let auction_accounts = current_state
             .auction_accounts()
             .expect("Auction accounts not found");
-        let solver_token_account = self
-            .testing_context
-            .testing_actors
-            .solvers
-            .get(config.solver_index)
-            .expect("Solver not found at index")
-            .token_account_address()
+        let solver_token_account = config
+            .actor_enum
+            .get_actor(&self.testing_context.testing_actors)
+            .token_account_address(&config.token_enum)
             .expect("Token account does not exist for solver at index");
+        println!("Base fee token address: {:?}", solver_token_account);
         let result = shimless::prepare_order_response::prepare_order_response(
             &self.testing_context,
             test_context,
@@ -868,8 +921,11 @@ impl TestingEngine {
         if config.expected_error.is_none() {
             let prepare_order_response_fixture = result.unwrap();
             let order_prepared_state = OrderPreparedState {
-                prepared_order_address: prepare_order_response_fixture.prepared_order_response,
+                prepared_order_response_address: prepare_order_response_fixture
+                    .prepared_order_response,
                 prepared_custody_token: prepare_order_response_fixture.prepared_custody_token,
+                base_fee_token: prepare_order_response_fixture.base_fee_token,
+                actor_enum: config.actor_enum,
             };
             TestingEngineState::OrderPrepared {
                 base: current_state.base().clone(),
@@ -895,19 +951,12 @@ impl TestingEngine {
         let payer_signer = config
             .payer_signer
             .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.owner.keypair());
-        let order_prepared_state = current_state
-            .order_prepared()
-            .expect("Order prepared not found");
-        let prepared_custody_token = order_prepared_state.prepared_custody_token;
-        let prepared_order_response = order_prepared_state.prepared_order_address;
+            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
         let auction_state = shimless::settle_auction::settle_auction_complete(
             &self.testing_context,
+            current_state,
             test_context,
             &payer_signer,
-            current_state.auction_state(),
-            &prepared_order_response,
-            &prepared_custody_token,
             config.expected_error(),
         )
         .await;
@@ -918,8 +967,9 @@ impl TestingEngine {
                 router_endpoints: current_state.router_endpoints().unwrap().clone(),
                 auction_state: current_state.auction_state().clone(),
                 fast_market_order: current_state.fast_market_order().cloned(),
-                order_prepared: order_prepared_state.clone(),
+                order_prepared: current_state.order_prepared().unwrap().clone(),
                 auction_accounts: current_state.auction_accounts().cloned(),
+                order_executed: current_state.order_executed().cloned(),
             },
             _ => current_state.clone(),
         }
@@ -940,6 +990,33 @@ impl TestingEngine {
             .await
             .is_ok();
         assert_eq!(was_success, expected_to_succeed);
+        current_state.clone()
+    }
+
+    async fn verify_balances(
+        &self,
+        test_context: &mut ProgramTestContext,
+        current_state: &TestingEngineState,
+        config: &VerifyBalancesConfig,
+    ) -> TestingEngineState {
+        let previous_state_balances = &config.previous_state_balances;
+        let balances = self.testing_context.get_balances(test_context).await;
+        for (actor, balance_change) in config.balance_changes.iter() {
+            let balance = balances.get(actor).unwrap();
+            let previous_balance = previous_state_balances.get(actor).unwrap();
+            assert_eq!(
+                balance.usdc,
+                saturating_add_signed(previous_balance.usdc, balance_change.usdc),
+                "USDC balance mismatch for actor {:?}",
+                actor
+            );
+            assert_eq!(
+                balance.usdt,
+                saturating_add_signed(previous_balance.usdt, balance_change.usdt),
+                "USDT balance mismatch for actor {:?}",
+                actor
+            );
+        }
         current_state.clone()
     }
 }
@@ -980,4 +1057,13 @@ pub async fn fast_forward_slots(test_context: &mut ProgramTestContext, num_slots
         .expect("Failed to process transaction after warping");
 
     println!("Fast forwarded {} slots", num_slots);
+}
+
+#[allow(clippy::cast_sign_loss)]
+fn saturating_add_signed(unsigned: u64, signed: i32) -> u64 {
+    if signed >= 0 {
+        unsigned.saturating_add(signed as u64)
+    } else {
+        unsigned.saturating_sub(signed.unsigned_abs() as u64)
+    }
 }

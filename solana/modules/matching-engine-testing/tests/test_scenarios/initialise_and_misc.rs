@@ -116,17 +116,18 @@ pub async fn test_local_token_router_endpoint_creation() {
         None,
     )
     .await;
-
+    let payer_signer = testing_context.testing_actors.payer_signer.clone();
     let initialize_fixture = initialize_program(
         &testing_context,
         &mut test_context,
         AuctionParametersConfig::default(),
+        &payer_signer,
         None, // No expected error
         None, // No expected log messages
     )
     .await
     .expect("Failed to initialize program");
-    let payer_signer = testing_context.testing_actors.owner.keypair();
+    let payer_signer = testing_context.testing_actors.payer_signer.clone();
     let _local_token_router_endpoint = add_local_router_endpoint_ix(
         &testing_context,
         &mut test_context,

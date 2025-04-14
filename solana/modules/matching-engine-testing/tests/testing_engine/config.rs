@@ -14,17 +14,22 @@
 //! ];
 //! ```
 
-use std::{collections::HashSet, rc::Rc};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::Deref,
+    rc::Rc,
+};
 
 use crate::{
     shimless::initialize::AuctionParametersConfig,
-    utils::{token_account::SplTokenEnum, Chain},
+    utils::{auction::ActiveAuctionState, token_account::SplTokenEnum, Chain},
 };
 use anchor_lang::prelude::*;
+use solana_program_test::ProgramTestContext;
 use solana_sdk::signature::Keypair;
 
 use super::{
-    setup::{TestingActor, TestingActors},
+    setup::{Balance, Balances, TestingActor, TestingActors},
     state::TestingEngineState,
 };
 
@@ -67,6 +72,7 @@ pub struct ExpectedLog {
 #[derive(Clone, Default)]
 pub struct InitializeInstructionConfig {
     pub auction_parameters_config: AuctionParametersConfig,
+    pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
     pub expected_log_messages: Option<Vec<ExpectedLog>>,
 }
@@ -127,9 +133,27 @@ impl InstructionConfig for InitializeFastMarketOrderShimInstructionConfig {
 }
 
 #[derive(Clone, Default)]
+pub struct SetPauseCustodianInstructionConfig {
+    pub payer_signer: Option<Rc<Keypair>>,
+    pub is_paused: bool,
+    pub expected_error: Option<ExpectedError>,
+    pub expected_log_messages: Option<Vec<ExpectedLog>>,
+}
+
+impl InstructionConfig for SetPauseCustodianInstructionConfig {
+    fn expected_error(&self) -> Option<&ExpectedError> {
+        self.expected_error.as_ref()
+    }
+    fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
+        self.expected_log_messages.as_ref()
+    }
+}
+
+#[derive(Clone, Default)]
 pub struct PrepareOrderInstructionConfig {
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>,
-    pub solver_index: usize,
+    pub actor_enum: TestingActorEnum,
+    pub token_enum: SplTokenEnum,
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
     pub expected_log_messages: Option<Vec<ExpectedLog>>,
@@ -147,7 +171,8 @@ impl InstructionConfig for PrepareOrderInstructionConfig {
 #[derive(Clone, Default)]
 pub struct ExecuteOrderInstructionConfig {
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>,
-    pub solver_index: usize,
+    pub actor_enum: TestingActorEnum,
+    pub token_enum: SplTokenEnum,
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
     pub expected_log_messages: Option<Vec<ExpectedLog>>,
@@ -195,10 +220,14 @@ impl InstructionConfig for CloseFastMarketOrderShimInstructionConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Copy)]
 pub enum TestingActorEnum {
     Solver(usize),
     Owner,
+    OwnerAssistant,
+    FeeRecipient,
+    Relayer,
+    Liquidator,
 }
 
 impl TestingActorEnum {
@@ -206,6 +235,10 @@ impl TestingActorEnum {
         match self {
             Self::Solver(index) => testing_actors.solvers[*index].actor.clone(),
             Self::Owner => testing_actors.owner.clone(),
+            Self::OwnerAssistant => testing_actors.owner_assistant.clone(),
+            Self::FeeRecipient => testing_actors.fee_recipient.clone(),
+            Self::Relayer => testing_actors.relayer.clone(),
+            Self::Liquidator => testing_actors.liquidator.clone(),
         }
     }
 }
@@ -337,4 +370,187 @@ impl InstructionConfig for ImproveOfferInstructionConfig {
     fn expected_log_messages(&self) -> Option<&Vec<ExpectedLog>> {
         self.expected_log_messages.as_ref()
     }
+}
+
+pub struct VerifyBalancesConfig {
+    pub previous_state_balances: Balances,
+    pub balance_changes: BalanceChanges,
+}
+
+pub struct ExecuteOrderActorEnums {
+    pub executor: TestingActorEnum,
+    pub best_offer: TestingActorEnum,
+    pub initial_offer: TestingActorEnum,
+}
+
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct BalanceChanges(HashMap<TestingActorEnum, BalanceChange>);
+
+impl Deref for BalanceChanges {
+    type Target = HashMap<TestingActorEnum, BalanceChange>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl From<(&Balances, &Balances)> for BalanceChanges {
+    fn from((initial_balances, final_balances): (&Balances, &Balances)) -> Self {
+        let mut balance_changes = HashMap::new();
+
+        let all_actors: HashSet<_> = initial_balances
+            .keys()
+            .chain(final_balances.keys())
+            .collect();
+
+        for actor in all_actors {
+            let initial = initial_balances
+                .get(actor)
+                .cloned()
+                .unwrap_or_else(|| Balance {
+                    lamports: 0,
+                    usdc: 0,
+                    usdt: 0,
+                });
+
+            let final_bal = final_balances
+                .get(actor)
+                .cloned()
+                .unwrap_or_else(|| Balance {
+                    lamports: 0,
+                    usdc: 0,
+                    usdt: 0,
+                });
+
+            let balance_change = BalanceChange {
+                lamports: i32::try_from(
+                    i64::try_from(final_bal.lamports)
+                        .unwrap()
+                        .saturating_sub(i64::try_from(initial.lamports).unwrap()),
+                )
+                .unwrap(),
+                usdc: i32::try_from(
+                    i64::try_from(final_bal.usdc)
+                        .unwrap()
+                        .saturating_sub(i64::try_from(initial.usdc).unwrap()),
+                )
+                .unwrap(),
+                usdt: i32::try_from(
+                    i64::try_from(final_bal.usdt)
+                        .unwrap()
+                        .saturating_sub(i64::try_from(initial.usdt).unwrap()),
+                )
+                .unwrap(),
+            };
+
+            balance_changes.insert(*actor, balance_change);
+        }
+
+        Self(balance_changes)
+    }
+}
+
+impl BalanceChanges {
+    pub async fn execute_order_changes(
+        test_context: &mut ProgramTestContext,
+        current_state: &TestingEngineState,
+        executor: TestingActor,
+        execute_order_actor_enums: ExecuteOrderActorEnums,
+        active_auction_state: &ActiveAuctionState,
+        spl_token_enum: SplTokenEnum,
+    ) -> Self {
+        let ExecuteOrderActorEnums {
+            executor: executor_testing_actor_enum,
+            best_offer: best_offer_testing_actor_enum,
+            initial_offer: initial_offer_testing_actor_enum,
+        } = execute_order_actor_enums;
+        // TODO: Make this dynamic so that it does not depend on the first vaa pair
+        let fast_market_order = current_state
+            .base()
+            .get_fast_market_order(0)
+            .expect("Fast market order is not initialized");
+        let init_auction_fee = fast_market_order.init_auction_fee;
+        let executor_token_address = executor.token_account_address(&spl_token_enum).unwrap();
+        let auction_calculations = active_auction_state
+            .get_auction_calculations(test_context, executor_token_address, init_auction_fee)
+            .await;
+        println!("auction_calculations: {:?}", auction_calculations);
+
+        let mut balance_changes = HashMap::new();
+        balance_changes.insert(
+            executor_testing_actor_enum,
+            BalanceChange {
+                lamports: 0,
+                usdc: match spl_token_enum {
+                    SplTokenEnum::Usdc => {
+                        auction_calculations
+                            .expected_token_balance_changes
+                            .executor_token_balance_change
+                    }
+                    SplTokenEnum::Usdt => 0,
+                },
+                usdt: match spl_token_enum {
+                    SplTokenEnum::Usdc => 0,
+                    SplTokenEnum::Usdt => {
+                        auction_calculations
+                            .expected_token_balance_changes
+                            .executor_token_balance_change
+                    }
+                },
+            },
+        );
+
+        balance_changes.insert(
+            best_offer_testing_actor_enum,
+            BalanceChange {
+                lamports: 0,
+                usdc: match spl_token_enum {
+                    SplTokenEnum::Usdc => {
+                        auction_calculations
+                            .expected_token_balance_changes
+                            .best_offer_token_balance_change
+                    }
+                    SplTokenEnum::Usdt => 0,
+                },
+                usdt: match spl_token_enum {
+                    SplTokenEnum::Usdc => 0,
+                    SplTokenEnum::Usdt => {
+                        auction_calculations
+                            .expected_token_balance_changes
+                            .best_offer_token_balance_change
+                    }
+                },
+            },
+        );
+
+        balance_changes.insert(
+            initial_offer_testing_actor_enum,
+            BalanceChange {
+                lamports: 0,
+                usdc: match spl_token_enum {
+                    SplTokenEnum::Usdc => {
+                        auction_calculations
+                            .expected_token_balance_changes
+                            .initial_offer_token_balance_change
+                    }
+                    SplTokenEnum::Usdt => 0,
+                },
+                usdt: match spl_token_enum {
+                    SplTokenEnum::Usdc => 0,
+                    SplTokenEnum::Usdt => {
+                        auction_calculations
+                            .expected_token_balance_changes
+                            .initial_offer_token_balance_change
+                    }
+                },
+            },
+        );
+        Self(balance_changes)
+    }
+}
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
+pub struct BalanceChange {
+    pub lamports: i32,
+    pub usdc: i32,
+    pub usdt: i32,
 }

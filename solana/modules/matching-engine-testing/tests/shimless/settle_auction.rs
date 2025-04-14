@@ -1,5 +1,7 @@
 use crate::testing_engine::config::ExpectedError;
 use crate::testing_engine::setup::TestingContext;
+use crate::testing_engine::state::OrderPreparedState;
+use crate::testing_engine::state::TestingEngineState;
 use crate::utils::auction::AuctionState;
 
 use anchor_lang::prelude::*;
@@ -33,27 +35,34 @@ use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 /// The new auction state if successful, otherwise the old auction state
 pub async fn settle_auction_complete(
     testing_context: &TestingContext,
+    current_state: &TestingEngineState,
     test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
-    auction_state: &AuctionState,
-    prepare_order_response_address: &Pubkey,
-    prepared_custody_token: &Pubkey,
     expected_error: Option<&ExpectedError>,
 ) -> AuctionState {
+    let auction_state = current_state.auction_state();
+    let order_prepared_state = current_state
+        .order_prepared()
+        .expect("Order prepared not found");
+    let OrderPreparedState {
+        prepared_order_response_address,
+        prepared_custody_token,
+        base_fee_token,
+        actor_enum: _,
+    } = *order_prepared_state;
+
     let matching_engine_program_id = testing_context.get_matching_engine_program_id();
-    let usdc_mint_address = &testing_context.get_usdc_mint_address();
     let active_auction = auction_state
         .get_active_auction()
         .expect("Failed to get active auction");
-    let base_fee_token = *usdc_mint_address;
     let event_seeds = EVENT_AUTHORITY_SEED;
     let event_authority =
         Pubkey::find_program_address(&[event_seeds], &matching_engine_program_id).0;
     let settle_auction_accounts = SettleAuctionCompleteCpiAccounts {
         beneficiary: payer_signer.pubkey(),
         base_fee_token,
-        prepared_order_response: *prepare_order_response_address,
-        prepared_custody_token: *prepared_custody_token,
+        prepared_order_response: prepared_order_response_address,
+        prepared_custody_token,
         auction: active_auction.auction_address,
         best_offer_token: active_auction.best_offer.offer_token,
         token_program: spl_token::ID,

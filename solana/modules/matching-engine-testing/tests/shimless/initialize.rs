@@ -2,7 +2,7 @@ use solana_program_test::ProgramTestContext;
 use solana_sdk::{
     instruction::Instruction,
     pubkey::Pubkey,
-    signature::Signer,
+    signature::{Keypair, Signer},
     transaction::{Transaction, VersionedTransaction},
 };
 
@@ -144,6 +144,7 @@ pub async fn initialize_program(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
     auction_parameters_config: AuctionParametersConfig,
+    payer_signer: &Keypair,
     expected_error: Option<&ExpectedError>,
     expected_log_messages: Option<&Vec<ExpectedLog>>,
 ) -> Option<InitializeFixture> {
@@ -201,16 +202,15 @@ pub async fn initialize_program(
         data: ix_data.data(),
     };
     // Create and sign transaction
-    let mut transaction =
-        Transaction::new_with_payer(&[instruction], Some(&test_context.payer.pubkey()));
+    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer_signer.pubkey()));
     let new_blockhash = testing_context
         .get_new_latest_blockhash(test_context)
         .await
         .expect("Could not get new blockhash");
     transaction.sign(
         &[
-            &test_context.payer,
-            &testing_context.testing_actors.owner.keypair(),
+            &payer_signer,
+            &testing_context.testing_actors.owner.keypair().as_ref(),
         ],
         new_blockhash,
     );

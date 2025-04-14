@@ -265,6 +265,7 @@ pub async fn prepare_order_response_cctp_shim(
         Some(PrepareOrderResponseShimFixture {
             prepared_order_response: prepared_order_response_pda,
             prepared_custody_token: prepared_custody_token_pda,
+            base_fee_token: accounts.base_fee_token,
         })
     } else {
         None
@@ -383,4 +384,5 @@ pub async fn prepare_order_response_test(
 pub struct PrepareOrderResponseShimFixture {
     pub prepared_order_response: Pubkey,
     pub prepared_custody_token: Pubkey,
+    pub base_fee_token: Pubkey,
 }

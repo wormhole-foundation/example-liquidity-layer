@@ -227,12 +227,12 @@ impl PayloadDeserialized {
         }
     }
 
-    // pub fn get_fast_transfer(&self) -> Option<FastMarketOrder> {
-    //     match self {
-    //         Self::FastTransfer(fast_transfer) => Some(fast_transfer.clone()),
-    //         _ => None,
-    //     }
-    // }
+    pub fn get_fast_transfer(&self) -> Option<FastMarketOrder> {
+        match self {
+            Self::FastTransfer(fast_transfer) => Some(fast_transfer.clone()),
+            _ => None,
+        }
+    }
 }
 
 /// A struct representing a test VAA (may be posted or not)
@@ -262,6 +262,10 @@ impl TestVaa {
     /// Gets the posted vaa data of the VAA
     pub fn get_vaa_data(&self) -> &PostedVaaData {
         &self.vaa_data
+    }
+
+    pub fn get_payload_deserialized(&self) -> Option<&PayloadDeserialized> {
+        self.payload_deserialized.as_ref()
     }
 }
 
@@ -499,6 +503,24 @@ impl TestVaaPair {
     /// Checks if the VAA pair is posted
     pub fn is_posted(&self) -> bool {
         self.deposit_vaa.is_posted && self.fast_transfer_vaa.is_posted
+    }
+
+    pub fn get_fast_transfer_vaa_expiration_time(&self) -> u32 {
+        let two_hours_in_seconds = 7200;
+        let vaa_time = self.fast_transfer_vaa.vaa_data.vaa_time;
+        let expiration = vaa_time.saturating_add(two_hours_in_seconds);
+        let deadline = self
+            .fast_transfer_vaa
+            .get_payload_deserialized()
+            .unwrap()
+            .get_fast_transfer()
+            .unwrap()
+            .deadline;
+        if expiration < deadline || deadline == 0 {
+            expiration
+        } else {
+            deadline
+        }
     }
 }
 

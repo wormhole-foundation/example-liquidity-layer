@@ -12,7 +12,7 @@
 //! // Use the testing engine state to test the instructions and move through the states
 //! ```
 
-use super::setup::TransferDirection;
+use super::{config::TestingActorEnum, setup::TransferDirection};
 use crate::utils::{
     account_fixtures::FixtureAccounts,
     auction::{AuctionAccounts, AuctionState},
@@ -29,6 +29,18 @@ pub struct BaseState {
     pub fixture_accounts: FixtureAccounts,
     pub vaas: TestVaaPairs,
     pub transfer_direction: TransferDirection,
+}
+
+impl BaseState {
+    pub fn get_fast_market_order(&self, index: usize) -> Option<common::messages::FastMarketOrder> {
+        self.vaas.get(index).map(|vaa| {
+            vaa.fast_transfer_vaa
+                .get_payload_deserialized()
+                .unwrap()
+                .get_fast_transfer()
+                .unwrap()
+        })
+    }
 }
 
 // Each state contains its specific data
@@ -67,12 +79,15 @@ pub struct OrderExecutedState {
     pub cctp_message: Pubkey,
     pub post_message_sequence: Option<Pubkey>, // Only set if shimful execution
     pub post_message_message: Option<Pubkey>,  // Only set if shimful execution
+    pub actor_enum: TestingActorEnum,
 }
 
 #[derive(Clone)]
 pub struct OrderPreparedState {
-    pub prepared_order_address: Pubkey,
+    pub prepared_order_response_address: Pubkey,
     pub prepared_custody_token: Pubkey,
+    pub base_fee_token: Pubkey,
+    pub actor_enum: TestingActorEnum,
 }
 
 #[derive(Clone)]
@@ -82,7 +97,6 @@ pub struct GuardianSetState {
 }
 
 // The main state enum that reflects all possible instruction states
-#[allow(dead_code)]
 #[derive(Clone)]
 pub enum TestingEngineState {
     Uninitialized(BaseState),
@@ -146,6 +160,7 @@ pub enum TestingEngineState {
         fast_market_order: Option<FastMarketOrderAccountCreatedState>,
         order_prepared: OrderPreparedState,
         auction_accounts: Option<AuctionAccounts>,
+        order_executed: Option<OrderExecutedState>,
     },
     FastMarketOrderClosed {
         base: BaseState,
@@ -155,6 +170,7 @@ pub enum TestingEngineState {
         fast_market_order: Option<FastMarketOrderAccountCreatedState>,
         order_prepared: Option<OrderPreparedState>,
         auction_accounts: Option<AuctionAccounts>,
+        order_executed: Option<OrderExecutedState>,
     },
 }
 
@@ -292,12 +308,37 @@ impl TestingEngineState {
         }
     }
 
+    pub fn initial_offer_placed_actor(&self) -> Option<TestingActorEnum> {
+        self.auction_state()
+            .get_active_auction()
+            .map(|auction| auction.initial_offer.actor)
+    }
+
+    pub fn best_offer_actor(&self) -> Option<TestingActorEnum> {
+        self.auction_state()
+            .get_active_auction()
+            .map(|auction| auction.best_offer.actor)
+    }
+
+    pub fn execute_order_actor(&self) -> Option<TestingActorEnum> {
+        self.order_executed()
+            .map(|order_executed| order_executed.actor_enum)
+    }
+
     // Prepared order accessor
     pub fn order_prepared(&self) -> Option<&OrderPreparedState> {
         match self {
             Self::OrderPrepared { order_prepared, .. } => Some(order_prepared),
             Self::AuctionSettled { order_prepared, .. } => Some(order_prepared),
             Self::FastMarketOrderClosed { order_prepared, .. } => order_prepared.as_ref(),
+            _ => None,
+        }
+    }
+
+    pub fn order_executed(&self) -> Option<&OrderExecutedState> {
+        match self {
+            Self::AuctionSettled { order_executed, .. } => order_executed.as_ref(),
+            Self::OrderExecuted { order_executed, .. } => Some(order_executed),
             _ => None,
         }
     }
@@ -323,5 +364,138 @@ impl TestingEngineState {
     pub fn close_account_refund_recipient(&self) -> Option<Pubkey> {
         self.fast_market_order()
             .map(|fast_market_order| fast_market_order.close_account_refund_recipient)
+    }
+
+    pub fn set_auction_state(&self, new_auction_state: AuctionState) -> anyhow::Result<Self> {
+        match self {
+            Self::FastMarketOrderAccountCreated {
+                base,
+                initialized,
+                router_endpoints,
+                fast_market_order,
+                guardian_set_state,
+                auction_state: _, // Ignore the current auction state
+                auction_accounts,
+            } => Ok(Self::FastMarketOrderAccountCreated {
+                base: base.clone(),
+                initialized: initialized.clone(),
+                router_endpoints: router_endpoints.clone(),
+                fast_market_order: fast_market_order.clone(),
+                guardian_set_state: guardian_set_state.clone(),
+                auction_state: new_auction_state, // Use the new auction state
+                auction_accounts: auction_accounts.clone(),
+            }),
+
+            Self::InitialOfferPlaced {
+                base,
+                initialized,
+                router_endpoints,
+                fast_market_order,
+                auction_state: _, // Ignore the current auction state
+                auction_accounts,
+            } => Ok(Self::InitialOfferPlaced {
+                base: base.clone(),
+                initialized: initialized.clone(),
+                router_endpoints: router_endpoints.clone(),
+                fast_market_order: fast_market_order.clone(),
+                auction_state: new_auction_state, // Use the new auction state
+                auction_accounts: auction_accounts.clone(),
+            }),
+
+            Self::OfferImproved {
+                base,
+                initialized,
+                router_endpoints,
+                fast_market_order,
+                auction_state: _, // Ignore the current auction state
+                auction_accounts,
+            } => Ok(Self::OfferImproved {
+                base: base.clone(),
+                initialized: initialized.clone(),
+                router_endpoints: router_endpoints.clone(),
+                fast_market_order: fast_market_order.clone(),
+                auction_state: new_auction_state, // Use the new auction state
+                auction_accounts: auction_accounts.clone(),
+            }),
+
+            Self::OrderExecuted {
+                base,
+                initialized,
+                router_endpoints,
+                fast_market_order,
+                auction_state: _, // Ignore the current auction state
+                order_executed,
+                auction_accounts,
+            } => Ok(Self::OrderExecuted {
+                base: base.clone(),
+                initialized: initialized.clone(),
+                router_endpoints: router_endpoints.clone(),
+                fast_market_order: fast_market_order.clone(),
+                auction_state: new_auction_state, // Use the new auction state
+                order_executed: order_executed.clone(),
+                auction_accounts: auction_accounts.clone(),
+            }),
+
+            Self::OrderPrepared {
+                base,
+                initialized,
+                router_endpoints,
+                fast_market_order,
+                auction_state: _, // Ignore the current auction state
+                order_prepared,
+                auction_accounts,
+            } => Ok(Self::OrderPrepared {
+                base: base.clone(),
+                initialized: initialized.clone(),
+                router_endpoints: router_endpoints.clone(),
+                fast_market_order: fast_market_order.clone(),
+                auction_state: new_auction_state, // Use the new auction state
+                order_prepared: order_prepared.clone(),
+                auction_accounts: auction_accounts.clone(),
+            }),
+
+            Self::AuctionSettled {
+                base,
+                initialized,
+                router_endpoints,
+                auction_state: _, // Ignore the current auction state
+                fast_market_order,
+                order_prepared,
+                auction_accounts,
+                order_executed,
+            } => Ok(Self::AuctionSettled {
+                base: base.clone(),
+                initialized: initialized.clone(),
+                router_endpoints: router_endpoints.clone(),
+                auction_state: new_auction_state, // Use the new auction state
+                fast_market_order: fast_market_order.clone(),
+                order_prepared: order_prepared.clone(),
+                auction_accounts: auction_accounts.clone(),
+                order_executed: order_executed.clone(),
+            }),
+
+            Self::FastMarketOrderClosed {
+                base,
+                initialized,
+                router_endpoints,
+                auction_state: _, // Ignore the current auction state
+                fast_market_order,
+                order_prepared,
+                auction_accounts,
+                order_executed,
+            } => Ok(Self::FastMarketOrderClosed {
+                base: base.clone(),
+                initialized: initialized.clone(),
+                router_endpoints: router_endpoints.clone(),
+                auction_state: new_auction_state, // Use the new auction state
+                fast_market_order: fast_market_order.clone(),
+                order_prepared: order_prepared.clone(),
+                auction_accounts: auction_accounts.clone(),
+                order_executed: order_executed.clone(),
+            }),
+
+            // For states that don't have an auction_state field
+            _ => anyhow::bail!("Cannot set auction state for this state: no auction state exists"),
+        }
     }
 }

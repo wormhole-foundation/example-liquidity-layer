@@ -61,6 +61,37 @@ tracing-log = "0.2.0"
 once_cell = "1.8"
 anyhow = "1.0.97"
 
-[lints]
-workspace = true
+[lints.clippy]
+correctness = { priority = -1, level = "warn"}
+inconsistent_digit_grouping = "allow"
+
+### See clippy.toml.
+unnecessary_lazy_evaluations = "allow"
+or_fun_call = "warn"
+
+arithmetic_side_effects = "allow"
+as_conversions = "allow"
+cast_abs_to_unsigned = "allow"
+cast_lossless= "allow"
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "deny"
+cast_sign_loss = "deny"
+eq_op = "deny"
+expect_used = "deny"
+float_cmp = "deny"
+integer_division = "allow"
+large_futures = "deny"
+large_stack_arrays = "deny"
+large_stack_frames = "deny"
+lossy_float_literal = "deny"
+manual_slice_size_calculation = "deny"
+modulo_one = "deny"
+out_of_bounds_indexing = "deny"
+overflow_check_conditional = "deny"
+panic = "allow"
+recursive_format_impl = "deny"
+todo = "allow"
+unchecked_duration_subtraction = "allow"
+unreachable = "deny"
 

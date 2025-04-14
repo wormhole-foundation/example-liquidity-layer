@@ -57,7 +57,7 @@ pub async fn place_initial_offer_shimless(
     let payer_signer = config
         .payer_signer
         .clone()
-        .unwrap_or_else(|| testing_context.testing_actors.owner.keypair());
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
     let offer_actor = config.actor.get_actor(&testing_context.testing_actors);
     let offer_token = offer_actor
         .token_account_address(&config.spl_token_enum)
@@ -253,11 +253,13 @@ pub async fn place_initial_offer_shimless(
             auction_custody_token_address,
             auction_config_address,
             initial_offer: AuctionOffer {
+                actor: config.actor,
                 participant: payer_signer.pubkey(),
                 offer_token,
                 offer_price: initial_offer_ix.offer_price,
             },
             best_offer: AuctionOffer {
+                actor: config.actor,
                 participant: payer_signer.pubkey(),
                 offer_token,
                 offer_price: initial_offer_ix.offer_price,
@@ -397,6 +399,7 @@ pub async fn improve_offer(
             auction_config_address: auction_config,
             initial_offer: initial_offer.clone(),
             best_offer: AuctionOffer {
+                actor: config.actor,
                 participant: payer_signer.pubkey(),
                 offer_token,
                 offer_price,

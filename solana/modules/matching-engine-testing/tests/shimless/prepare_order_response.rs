@@ -28,6 +28,7 @@ use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 pub struct PrepareOrderResponseFixture {
     pub prepared_order_response: Pubkey,
     pub prepared_custody_token: Pubkey,
+    pub base_fee_token: Pubkey,
 }
 
 /// Prepare an order response (shimless)
@@ -239,6 +240,7 @@ pub async fn prepare_order_response(
         Some(PrepareOrderResponseFixture {
             prepared_order_response: prepared_order_response_pda,
             prepared_custody_token: prepared_custody_token_pda,
+            base_fee_token: *base_fee_token_address,
         })
     } else {
         None

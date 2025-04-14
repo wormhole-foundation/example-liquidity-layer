@@ -240,7 +240,7 @@ pub fn place_initial_offer_cctp_shim(
     let checked_custodian = Custodian::try_deserialize(&mut &custodian.data.borrow()[..])?;
     if checked_custodian.paused {
         msg!("Custodian is paused");
-        return Err(ErrorCode::ConstraintRaw.into())
+        return Err(MatchingEngineError::Paused.into())
             .map_err(|e: Error| e.with_account_name("custodian"));
     }
     // Check auction_config owner

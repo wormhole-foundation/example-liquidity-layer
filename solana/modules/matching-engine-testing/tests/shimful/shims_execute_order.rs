@@ -3,7 +3,6 @@ use crate::testing_engine::config::{
 };
 use crate::testing_engine::setup::{TestingContext, TransferDirection};
 use crate::testing_engine::state::TestingEngineState;
-use crate::utils::token_account::SplTokenEnum;
 
 use super::super::utils;
 use anchor_spl::token::spl_token;
@@ -107,7 +106,7 @@ pub async fn execute_order_fallback(
     let payer_signer = config
         .payer_signer
         .clone()
-        .unwrap_or_else(|| testing_context.testing_actors.owner.keypair());
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
 
     let execute_order_fallback_fixture = create_execute_order_fallback_fixture(
         testing_context,
@@ -190,11 +189,8 @@ pub fn create_execute_order_fallback_fixture(
         &POST_MESSAGE_SHIM_PROGRAM_ID,
     )
     .0;
-    let solver = testing_context.testing_actors.solvers[config.solver_index].clone();
-    let executor_token = solver
-        .actor
-        .token_account_address(&SplTokenEnum::Usdc)
-        .unwrap();
+    let solver = config.actor_enum.get_actor(&testing_context.testing_actors);
+    let executor_token = solver.token_account_address(&config.token_enum).unwrap();
     ExecuteOrderFallbackFixture {
         cctp_message,
         post_message_sequence,
@@ -279,7 +275,7 @@ pub async fn execute_order_fallback_test(
     let payer_signer = config
         .payer_signer
         .clone()
-        .unwrap_or_else(|| testing_context.testing_actors.owner.keypair());
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
     let execute_order_fallback_accounts =
         ExecuteOrderFallbackAccounts::new(current_state, &payer_signer.pubkey(), &fixture_accounts);
     execute_order_fallback(

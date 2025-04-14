@@ -36,6 +36,7 @@ use anchor_spl::token::{
 use anyhow::Result as AnyhowResult;
 use matching_engine::{CCTP_MINT_RECIPIENT, ID as PROGRAM_ID};
 use solana_program_test::{BanksClientError, ProgramTest, ProgramTestContext};
+use solana_sdk::clock::Clock;
 use solana_sdk::instruction::InstructionError;
 use solana_sdk::transaction::{TransactionError, VersionedTransaction};
 use solana_sdk::{
@@ -43,7 +44,11 @@ use solana_sdk::{
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
+use std::collections::HashMap;
+use std::ops::Deref;
 use std::rc::Rc;
+
+use super::config::TestingActorEnum;
 
 // Configures the program ID and CCTP mint recipient based on the environment
 cfg_if::cfg_if! {
@@ -99,12 +104,13 @@ impl PreTestingContext {
             program_id,
             None,
         );
+
         program_test.set_compute_max_units(1000000000);
         program_test.set_transaction_account_lock_limit(1000);
 
         // Setup Testing Actors
         let testing_actors = TestingActors::new(owner_keypair_path);
-
+        println!("Testing actors: {:?}", testing_actors);
         // Initialise Upgrade Manager
         let program_data_pubkey = initialise_upgrade_manager(
             &mut program_test,
@@ -415,6 +421,49 @@ impl TestingContext {
             );
         }
     }
+
+    /// Gets the balances of all the test actors
+    pub async fn get_balances(&self, test_context: &mut ProgramTestContext) -> Balances {
+        Balances::new(&self.testing_actors, test_context).await
+    }
+
+    pub async fn get_current_timestamp(&self, test_context: &mut ProgramTestContext) -> i64 {
+        let clock = test_context
+            .banks_client
+            .get_sysvar::<Clock>()
+            .await
+            .expect("Failed to get clock sysvar");
+        clock.unix_timestamp
+    }
+
+    pub async fn fast_forward_to_timestamp(
+        &self,
+        test_context: &mut ProgramTestContext,
+        target_timestamp: i64,
+    ) {
+        let new_clock = Clock {
+            unix_timestamp: target_timestamp,
+            ..Default::default()
+        };
+        test_context.set_sysvar(&new_clock);
+        let current_timestamp = self.get_current_timestamp(test_context).await;
+        assert!(current_timestamp >= target_timestamp);
+    }
+
+    pub async fn make_fast_transfer_vaa_expired(
+        &self,
+        test_context: &mut ProgramTestContext,
+        seconds_after_expiry: i64, // Make this negative if you want it slightly before expiry
+    ) {
+        let vaa_expiration_time = i64::from(
+            self.get_vaa_pair(0)
+                .unwrap()
+                .get_fast_transfer_vaa_expiration_time(),
+        );
+        let target_timestamp = vaa_expiration_time + seconds_after_expiry;
+        self.fast_forward_to_timestamp(test_context, target_timestamp)
+            .await;
+    }
 }
 
 /// A struct representing a solver
@@ -608,14 +657,116 @@ impl TestingActor {
     }
 }
 
+/// A struct containing the balances of all the test actors
+#[derive(Debug, Clone)]
+pub struct Balances(HashMap<TestingActorEnum, Balance>);
+
+impl Deref for Balances {
+    type Target = HashMap<TestingActorEnum, Balance>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Balances {
+    pub fn get(&self, actor: &TestingActorEnum) -> Option<&Balance> {
+        self.0.get(actor)
+    }
+}
+
+impl Balances {
+    pub async fn new(
+        testing_actors: &TestingActors,
+        test_context: &mut ProgramTestContext,
+    ) -> Self {
+        let mut balances = HashMap::new();
+        balances.insert(
+            TestingActorEnum::Owner,
+            Balance::new(&testing_actors.owner, test_context).await,
+        );
+        balances.insert(
+            TestingActorEnum::OwnerAssistant,
+            Balance::new(&testing_actors.owner_assistant, test_context).await,
+        );
+        balances.insert(
+            TestingActorEnum::FeeRecipient,
+            Balance::new(&testing_actors.fee_recipient, test_context).await,
+        );
+        balances.insert(
+            TestingActorEnum::Relayer,
+            Balance::new(&testing_actors.relayer, test_context).await,
+        );
+        for (index, solver) in testing_actors.solvers.iter().enumerate() {
+            balances.insert(
+                TestingActorEnum::Solver(index),
+                Balance::new(&solver.actor, test_context).await,
+            );
+        }
+        balances.insert(
+            TestingActorEnum::Liquidator,
+            Balance::new(&testing_actors.liquidator, test_context).await,
+        );
+        Self(balances)
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct Balance {
+    pub lamports: u64,
+    pub usdc: u64,
+    pub usdt: u64,
+}
+
+impl Balance {
+    pub async fn new(testing_actor: &TestingActor, test_context: &mut ProgramTestContext) -> Self {
+        Self {
+            lamports: testing_actor.get_lamport_balance(test_context).await,
+            usdc: testing_actor
+                .get_token_account_balance(test_context, &SplTokenEnum::Usdc)
+                .await,
+            usdt: testing_actor
+                .get_token_account_balance(test_context, &SplTokenEnum::Usdt)
+                .await,
+        }
+    }
+}
+
 /// A struct containing all the testing actors (the owner, the owner assistant, the fee recipient, the relayer, solvers, liquidator)
 pub struct TestingActors {
+    pub payer_signer: Rc<Keypair>,
     pub owner: TestingActor,
     pub owner_assistant: TestingActor,
     pub fee_recipient: TestingActor,
     pub relayer: TestingActor,
     pub solvers: Vec<Solver>,
     pub liquidator: TestingActor,
+}
+
+impl std::fmt::Debug for TestingActors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Create a string that lists all solvers with their indices
+        let solver_string = {
+            let solver_entries: Vec<String> = self
+                .solvers
+                .iter()
+                .enumerate() // This gives (index, value) pairs
+                .map(|(i, solver)| format!("solver {}: {}", i, solver.pubkey()))
+                .collect();
+
+            format!("[{}]", solver_entries.join(", "))
+        };
+        write!(
+            f,
+            "TestingActors {{ owner: {:?}, owner_assistant: {:?}, fee_recipient: {:?}, relayer: {:?}, solvers: {:?}, liquidator: {:?} }}",
+            self.owner.pubkey(),
+            self.owner_assistant.pubkey(),
+            self.fee_recipient.pubkey(),
+            self.relayer.pubkey(),
+            solver_string,
+            self.liquidator.pubkey(),
+        )
+    }
 }
 
 impl TestingActors {
@@ -640,6 +791,7 @@ impl TestingActors {
         ]);
         let liquidator = TestingActor::new(Rc::new(Keypair::new()), None, None);
         Self {
+            payer_signer: Rc::new(Keypair::new()),
             owner,
             owner_assistant,
             fee_recipient,
@@ -663,6 +815,7 @@ impl TestingActors {
 
     /// Transfer Lamports to Executors
     async fn airdrop_all(&self, test_context: &mut ProgramTestContext) {
+        airdrop(test_context, &self.payer_signer.pubkey(), 10000000000).await;
         airdrop(test_context, &self.owner.pubkey(), 10000000000).await;
         airdrop(test_context, &self.owner_assistant.pubkey(), 10000000000).await;
         airdrop(test_context, &self.fee_recipient.pubkey(), 10000000000).await;

@@ -233,13 +233,8 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             .map_err(|e: Error| e.with_account_name("custodian"));
     };
 
-    // Check custodian is not paused
-    let checked_custodian = Custodian::try_deserialize(&mut &custodian_account.data.borrow()[..])?;
-    if checked_custodian.paused {
-        msg!("Custodian is paused");
-        return Err(ErrorCode::ConstraintRaw.into())
-            .map_err(|e: Error| e.with_account_name("custodian"));
-    };
+    // Check custodian deserialises into a checked custodian account
+    let _checked_custodian = Custodian::try_deserialize(&mut &custodian_account.data.borrow()[..])?;
 
     let fast_market_order_digest = fast_market_order_zero_copy.digest();
     // Check fast market order seeds

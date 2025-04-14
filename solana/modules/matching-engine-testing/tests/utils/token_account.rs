@@ -42,7 +42,7 @@ impl std::fmt::Debug for TokenAccountFixture {
 ///
 /// The token account fixture
 pub async fn create_token_account(
-    test_ctx: &mut ProgramTestContext,
+    test_context: &mut ProgramTestContext,
     owner: &Keypair,
     mint: &Pubkey,
 ) -> TokenAccountFixture {
@@ -55,24 +55,28 @@ pub async fn create_token_account(
         // Create instruction using borrowed values
         let create_ata_ix =
             spl_associated_token_account::instruction::create_associated_token_account(
-                &test_ctx.payer.pubkey(), // Funding account
-                &owner.pubkey(),          // Wallet address
-                mint,                     // Mint address
-                &spl_token::id(),         // Token program
+                &test_context.payer.pubkey(), // Funding account
+                &owner.pubkey(),              // Wallet address
+                mint,                         // Mint address
+                &spl_token::id(),             // Token program
             );
 
         // Create and process transaction
         let tx = Transaction::new_signed_with_payer(
             &[create_ata_ix],
-            Some(&test_ctx.payer.pubkey()),
-            &[&test_ctx.payer],
-            test_ctx.last_blockhash,
+            Some(&test_context.payer.pubkey()),
+            &[&test_context.payer],
+            test_context.last_blockhash,
         );
 
-        test_ctx.banks_client.process_transaction(tx).await.unwrap();
+        test_context
+            .banks_client
+            .process_transaction(tx)
+            .await
+            .unwrap();
 
         // Get the account
-        test_ctx
+        test_context
             .banks_client
             .get_account(token_account_address)
             .await
@@ -153,4 +157,10 @@ pub fn read_keypair_from_file(filename: &str) -> Keypair {
 pub enum SplTokenEnum {
     Usdc,
     Usdt,
+}
+
+impl Default for SplTokenEnum {
+    fn default() -> Self {
+        Self::Usdc
+    }
 }

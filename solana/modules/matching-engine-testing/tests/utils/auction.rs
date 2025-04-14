@@ -1,11 +1,13 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token::TokenAccount;
 use solana_program_test::ProgramTestContext;
 
 use super::Chain;
 use super::{router::TestRouterEndpoints, token_account::SplTokenEnum};
+use crate::testing_engine::config::TestingActorEnum;
 use crate::testing_engine::setup::{TestingActor, TestingContext, TransferDirection};
 use anyhow::{anyhow, ensure, Result as AnyhowResult};
-use matching_engine::state::{Auction, AuctionInfo};
+use matching_engine::state::{Auction, AuctionConfig, AuctionInfo};
 
 /// A struct representing the accounts for an auction
 ///
@@ -42,6 +44,7 @@ pub struct AuctionAccounts {
 #[derive(Clone)]
 pub enum AuctionState {
     Active(Box<ActiveAuctionState>),
+    Paused(Box<ActiveAuctionState>),
     Settled,
     Inactive,
 }
@@ -50,8 +53,29 @@ impl AuctionState {
     pub fn get_active_auction(&self) -> Option<&ActiveAuctionState> {
         match self {
             AuctionState::Active(auction) => Some(auction),
+            AuctionState::Paused(auction) => Some(auction),
             AuctionState::Inactive => None,
             AuctionState::Settled => None,
+        }
+    }
+
+    pub fn set_pause(&self, is_paused: bool) -> Self {
+        match self {
+            AuctionState::Active(auction) => {
+                if is_paused {
+                    AuctionState::Paused(auction.clone())
+                } else {
+                    AuctionState::Active(auction.clone())
+                }
+            }
+            AuctionState::Paused(auction) => {
+                if is_paused {
+                    AuctionState::Paused(auction.clone())
+                } else {
+                    AuctionState::Active(auction.clone())
+                }
+            }
+            _ => self.clone(),
         }
     }
 }
@@ -75,6 +99,257 @@ pub struct ActiveAuctionState {
     pub spl_token_enum: SplTokenEnum,
 }
 
+#[derive(Debug)]
+pub struct ExpectedTokenBalanceChanges {
+    pub executor_token_balance_change: i32,
+    pub best_offer_token_balance_change: i32,
+    pub initial_offer_token_balance_change: i32,
+}
+
+/// A struct representing the calculations for an auction
+#[derive(Debug)]
+pub struct AuctionCalculations {
+    pub penalty_amount: i32,
+    pub user_reward: i32,
+    pub security_deposit: i32,
+    pub init_auction_fee: i32,
+    pub min_offer_delta: u64,
+    pub notional_security_deposit: u64,
+    pub amount_in: i32, // Expose for easy access
+    pub deposit_and_fee: i32,
+    pub custody_token_balance_change: i32,
+    pub expected_token_balance_changes: ExpectedTokenBalanceChanges,
+    pub has_penalty: bool,
+}
+
+impl ActiveAuctionState {
+    pub const BPS_DENOMINATOR: u64 = 1_000_000;
+    /// Computes the penalty amount and user reward for the auction
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    ///
+    /// # Returns
+    ///
+    pub async fn get_auction_calculations(
+        &self,
+        test_context: &mut ProgramTestContext,
+        executor_token_address: Pubkey,
+        init_auction_fee: u64,
+    ) -> AuctionCalculations {
+        let auction_info = helpers::get_auction_info(test_context, self.auction_address).await;
+        let auction_config =
+            helpers::get_auction_config(test_context, self.auction_config_address).await;
+
+        let best_offer_token_account_exists =
+            helpers::token_account_exists(test_context, self.best_offer.offer_token).await;
+
+        let initial_offer_token_account_exists =
+            helpers::token_account_exists(test_context, self.initial_offer.offer_token).await;
+
+        let custody_token_balance =
+            helpers::get_token_account_balance(test_context, self.auction_custody_token_address)
+                .await;
+
+        // Cast to u64 for math later
+        let amount_in = auction_info.amount_in;
+        let grace_period = u64::from(auction_config.grace_period);
+        let initial_penalty_bps = u64::from(auction_config.initial_penalty_bps);
+        let penalty_period = u64::from(auction_config.penalty_period);
+        let user_penalty_reward_bps = u64::from(auction_config.user_penalty_reward_bps);
+        let security_deposit = auction_info.security_deposit;
+        let min_offer_delta_bps = u64::from(auction_config.min_offer_delta_bps);
+        let security_deposit_bps = u64::from(auction_config.security_deposit_bps);
+
+        let latest_slot = test_context.banks_client.get_root_slot().await.unwrap();
+        let slots_elapsed = latest_slot.saturating_sub(auction_info.start_slot);
+        let elapsed_penalty_period = slots_elapsed.saturating_sub(grace_period);
+        let has_penalty = elapsed_penalty_period >= penalty_period;
+
+        // Copy of computeDepositPenalty
+        let (penalty_amount, user_reward) = if has_penalty {
+            if elapsed_penalty_period >= penalty_period
+                || initial_penalty_bps == Self::BPS_DENOMINATOR
+            {
+                let user_reward = security_deposit
+                    .checked_mul(user_penalty_reward_bps)
+                    .unwrap()
+                    .checked_div(Self::BPS_DENOMINATOR)
+                    .unwrap(); // security_deposit * user_penalty_reward_bps / BPS_DENOMINATOR
+                (
+                    security_deposit.checked_sub(user_reward).unwrap(), // security_deposit - user_reward
+                    user_reward,                                        // user_reward
+                )
+            } else {
+                let base_penalty = security_deposit
+                    .checked_mul(initial_penalty_bps)
+                    .unwrap()
+                    .checked_div(Self::BPS_DENOMINATOR)
+                    .unwrap(); // base_penalty = security_deposit * initial_penalty_bps / 10000
+                let penalty_period_elapsed_penalty = security_deposit
+                    .checked_sub(base_penalty)
+                    .unwrap()
+                    .checked_mul(elapsed_penalty_period)
+                    .unwrap()
+                    .checked_div(penalty_period)
+                    .unwrap(); // (security_deposit - base_penalty) * elapsed_penalty_period / penalty_period
+                let pre_penalty_amount = base_penalty
+                    .checked_add(penalty_period_elapsed_penalty)
+                    .unwrap();
+                let user_reward = pre_penalty_amount
+                    .checked_mul(user_penalty_reward_bps)
+                    .unwrap()
+                    .checked_div(Self::BPS_DENOMINATOR)
+                    .unwrap();
+                (
+                    pre_penalty_amount.checked_sub(user_reward).unwrap(),
+                    user_reward,
+                )
+            }
+        } else {
+            (0, 0)
+        };
+
+        let min_offer_delta = self
+            .best_offer
+            .offer_price
+            .checked_mul(min_offer_delta_bps)
+            .unwrap()
+            .checked_div(Self::BPS_DENOMINATOR)
+            .unwrap();
+        let notional_security_deposit = amount_in
+            .checked_mul(security_deposit_bps)
+            .unwrap()
+            .checked_div(Self::BPS_DENOMINATOR)
+            .unwrap();
+
+        let mut executor_token_balance_change: i32 = 0;
+        let mut best_offer_token_balance_change: i32 = 0;
+        let mut initial_offer_token_balance_change: i32 = 0;
+
+        let mut deposit_and_fee = if has_penalty {
+            i32::try_from(security_deposit.saturating_sub(user_reward)).unwrap()
+        } else {
+            i32::try_from(security_deposit.saturating_add(self.best_offer.offer_price)).unwrap()
+        };
+
+        // Cast to i32 for math later
+        let penalty_amount = i32::try_from(penalty_amount).unwrap();
+        let user_reward = i32::try_from(user_reward).unwrap();
+        let security_deposit = i32::try_from(security_deposit).unwrap();
+        let offer_price = i32::try_from(auction_info.offer_price).unwrap();
+        let amount_in = i32::try_from(amount_in).unwrap();
+        let init_auction_fee = i32::try_from(init_auction_fee).unwrap();
+
+        // Helper function to calculate the custody token balance change
+        let new_custody_token_balance_calc =
+            |custody_token_balance: u64, custody_token_balance_change: i32| {
+                custody_token_balance.saturating_add_signed(custody_token_balance_change as i64)
+                    as i32
+            };
+
+        // Find the custody token balance change
+
+        // custody_token_balance_change = init_auction_fee + offer_price - amount_in
+        let mut custody_token_balance_change = init_auction_fee
+            .saturating_add(offer_price)
+            .saturating_sub(amount_in);
+
+        // If the best offer token is not the same as the initial offer token, and the initial offer token account exists, subtract the init auction fee
+        if self.best_offer.offer_token != self.initial_offer.offer_token
+            && initial_offer_token_account_exists
+        {
+            custody_token_balance_change =
+                custody_token_balance_change.saturating_sub(init_auction_fee);
+        }
+
+        // If there is a penalty
+        if has_penalty {
+            // Subtract the user reward
+            custody_token_balance_change = custody_token_balance_change.saturating_sub(user_reward);
+
+            // If the executor token is the same as the best offer token, the custody token balance is given to the executor
+            if executor_token_address == self.best_offer.offer_token {
+                let balance_change = new_custody_token_balance_calc(
+                    custody_token_balance,
+                    custody_token_balance_change,
+                );
+                executor_token_balance_change = balance_change;
+                best_offer_token_balance_change = balance_change;
+
+                // If the all token accounts are the same, apply the same balance change to each of them
+                if self.initial_offer.offer_token == self.best_offer.offer_token {
+                    initial_offer_token_balance_change = balance_change;
+                }
+
+            // If there is a penalty and the executor token is not the same as the best offer token
+            } else {
+                // Subtract the penalty amount from the deposit and fee
+                deposit_and_fee = deposit_and_fee.saturating_sub(penalty_amount);
+
+                // If the best offer token account exists, subtract the deposit and fee from the custody token balance change
+                if best_offer_token_account_exists {
+                    custody_token_balance_change =
+                        custody_token_balance_change.saturating_sub(deposit_and_fee);
+                }
+
+                // The remaining balance is given to the executor
+                executor_token_balance_change = new_custody_token_balance_calc(
+                    custody_token_balance,
+                    custody_token_balance_change,
+                );
+
+                // If the initial offer token is the same as the best offer token, apply the same balance change to each of them
+                if self.initial_offer.offer_token == self.best_offer.offer_token {
+                    let balance_change =
+                        deposit_and_fee + init_auction_fee + amount_in + security_deposit;
+                    // This is sufficient, because either neither of them exist or both do
+                    if best_offer_token_account_exists {
+                        best_offer_token_balance_change = balance_change;
+                        initial_offer_token_balance_change = balance_change;
+                    };
+                } else {
+                    if best_offer_token_account_exists {
+                        best_offer_token_balance_change = deposit_and_fee;
+                    };
+                    if initial_offer_token_account_exists {
+                        initial_offer_token_balance_change = init_auction_fee;
+                    }
+                }
+            }
+        // If there is no penalty
+        } else if self.best_offer.offer_token == self.initial_offer.offer_token {
+            let balance_change = deposit_and_fee + init_auction_fee;
+            best_offer_token_balance_change = balance_change;
+            initial_offer_token_balance_change = balance_change;
+        } else {
+            best_offer_token_balance_change = deposit_and_fee;
+            initial_offer_token_balance_change = init_auction_fee;
+        }
+
+        let expected_token_balance_changes = ExpectedTokenBalanceChanges {
+            executor_token_balance_change,
+            best_offer_token_balance_change,
+            initial_offer_token_balance_change,
+        };
+
+        AuctionCalculations {
+            penalty_amount,
+            user_reward,
+            security_deposit,
+            init_auction_fee,
+            min_offer_delta,
+            notional_security_deposit,
+            amount_in,
+            deposit_and_fee,
+            custody_token_balance_change,
+            expected_token_balance_changes,
+            has_penalty,
+        }
+    }
+}
+
 /// A struct representing an auction offer
 ///
 /// # Fields
@@ -84,6 +359,7 @@ pub struct ActiveAuctionState {
 /// * `offer_price` - The price of the offer
 #[derive(Clone)]
 pub struct AuctionOffer {
+    pub actor: TestingActorEnum,
     pub participant: Pubkey,
     pub offer_token: Pubkey,
     pub offer_price: u64,
@@ -237,4 +513,71 @@ pub async fn compare_auctions(auction_1: &Auction, auction_2: &Auction) {
     );
     assert_eq!(auction_1_info.start_slot, auction_2_info.start_slot);
     assert_eq!(auction_1_info.offer_price, auction_2_info.offer_price);
+}
+
+mod helpers {
+    use super::*;
+
+    pub async fn token_account_exists(
+        test_context: &mut ProgramTestContext,
+        token_address: Pubkey,
+    ) -> bool {
+        if let Some(account) = test_context
+            .banks_client
+            .get_account(token_address)
+            .await
+            .unwrap()
+        {
+            TokenAccount::try_deserialize(&mut &account.data[..]).is_ok()
+        } else {
+            false
+        }
+    }
+
+    pub async fn get_auction_config(
+        test_context: &mut ProgramTestContext,
+        auction_config_address: Pubkey,
+    ) -> AuctionConfig {
+        let auction_config = test_context
+            .banks_client
+            .get_account(auction_config_address)
+            .await
+            .unwrap()
+            .unwrap();
+        let mut data_ref = auction_config.data.as_ref();
+        let auction_config_data: AuctionConfig =
+            AccountDeserialize::try_deserialize(&mut data_ref).unwrap();
+        auction_config_data
+    }
+
+    pub async fn get_auction_info(
+        test_context: &mut ProgramTestContext,
+        auction_address: Pubkey,
+    ) -> AuctionInfo {
+        let auction = test_context
+            .banks_client
+            .get_account(auction_address)
+            .await
+            .unwrap()
+            .unwrap();
+        let mut data_ref = auction.data.as_ref();
+        let auction_data: Auction = AccountDeserialize::try_deserialize(&mut data_ref).unwrap();
+        auction_data.info.unwrap()
+    }
+
+    pub async fn get_token_account_balance(
+        test_context: &mut ProgramTestContext,
+        token_address: Pubkey,
+    ) -> u64 {
+        let token_account = test_context
+            .banks_client
+            .get_account(token_address)
+            .await
+            .unwrap()
+            .unwrap();
+        let mut data_ref = token_account.data.as_ref();
+        let token_account_data: TokenAccount =
+            AccountDeserialize::try_deserialize(&mut data_ref).unwrap();
+        token_account_data.amount
+    }
 }

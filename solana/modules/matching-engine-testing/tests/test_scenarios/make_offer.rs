@@ -1,5 +1,9 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
+// TODO:
+// Test that it is possible to continue to prepare order response and execution after initial offer is placed and is paused
+// Test that auction is expired means that you cannot place offer or execute it
+// Cannot place initial offer twice
 
 //! # Place initial offer and improve offer instruction testing
 //!
@@ -464,6 +468,114 @@ pub async fn test_place_initial_offer_shim_fails_when_max_fee_and_amount_in_sum_
         TRANSFER_DIRECTION,
     ))
     .await;
+}
+
+/// Test place initial offer shim fails when vaa is expired
+#[tokio::test]
+pub async fn test_place_initial_offer_shim_fails_when_vaa_is_expired() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: false,
+        ..VaaArgs::default()
+    };
+    let (testing_context, mut test_context) = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+    ];
+    let initialse_fast_market_order_state = testing_engine
+        .execute(&mut test_context, instruction_triggers, None)
+        .await;
+    testing_engine
+        .testing_context
+        .make_fast_transfer_vaa_expired(&mut test_context, 60) // 1 minute after expiry
+        .await;
+
+    let place_initial_offer_config = PlaceInitialOfferInstructionConfig {
+        expected_error: Some(ExpectedError {
+            instruction_index: 0,
+            error_code: u32::from(MatchingEngineError::FastMarketOrderExpired),
+            error_string: "Fast market order has expired".to_string(),
+        }),
+        ..PlaceInitialOfferInstructionConfig::default()
+    };
+
+    let instruction_triggers = vec![InstructionTrigger::PlaceInitialOfferShim(
+        place_initial_offer_config,
+    )];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(initialse_fast_market_order_state),
+        )
+        .await;
+}
+
+#[tokio::test]
+pub async fn test_place_initial_offer_shim_fails_custodian_is_paused() {
+    let transfer_direction = TransferDirection::FromArbitrumToEthereum;
+    let vaa_args = VaaArgs {
+        post_vaa: false,
+        ..VaaArgs::default()
+    };
+    let (testing_context, mut test_context) = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vaa_args),
+    )
+    .await;
+
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+    ];
+    let initial_state = testing_engine
+        .execute(&mut test_context, instruction_triggers, None)
+        .await;
+
+    let pause_custodian_config = SetPauseCustodianInstructionConfig {
+        is_paused: true,
+        ..Default::default()
+    };
+    let instruction_triggers = vec![InstructionTrigger::SetPauseCustodian(
+        pause_custodian_config,
+    )];
+    let paused_state = testing_engine
+        .execute(&mut test_context, instruction_triggers, Some(initial_state))
+        .await;
+
+    let place_initial_offer_config = PlaceInitialOfferInstructionConfig {
+        expected_error: Some(ExpectedError {
+            instruction_index: 0,
+            error_code: u32::from(MatchingEngineError::Paused),
+            error_string: "Fast market order account owner is invalid".to_string(),
+        }),
+        ..PlaceInitialOfferInstructionConfig::default()
+    };
+    let instruction_triggers = vec![InstructionTrigger::PlaceInitialOfferShim(
+        place_initial_offer_config,
+    )];
+    testing_engine
+        .execute(&mut test_context, instruction_triggers, Some(paused_state))
+        .await;
 }
 
 /// Test that improved offer fails when improvement is too small

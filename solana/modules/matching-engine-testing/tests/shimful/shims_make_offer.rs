@@ -46,7 +46,7 @@ pub async fn place_initial_offer_fallback(
     let payer_signer = config
         .payer_signer
         .clone()
-        .unwrap_or_else(|| testing_context.testing_actors.owner.keypair());
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
     let close_account_refund_recipient = current_state
         .fast_market_order()
         .unwrap()
@@ -73,6 +73,7 @@ pub async fn place_initial_offer_fallback(
     let fast_market_order =
         create_fast_market_order_state_from_vaa_data(vaa_data, close_account_refund_recipient);
     let offer_price = config.offer_price;
+    let actor_enum = config.actor;
     let offer_actor = config.actor.get_actor(&testing_context.testing_actors);
     let offer_token = match &config.custom_accounts {
         Some(custom_accounts) => match custom_accounts.offer_token_address {
@@ -186,11 +187,13 @@ pub async fn place_initial_offer_fallback(
             auction_custody_token_address,
             auction_config_address,
             initial_offer: utils::auction::AuctionOffer {
+                actor: actor_enum,
                 participant: payer_signer.pubkey(),
                 offer_token,
                 offer_price,
             },
             best_offer: utils::auction::AuctionOffer {
+                actor: actor_enum,
                 participant: payer_signer.pubkey(),
                 offer_token,
                 offer_price,
