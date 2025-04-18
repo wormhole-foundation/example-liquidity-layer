@@ -15,6 +15,7 @@
 use crate::testing_engine::config::{ExpectedError, ExpectedLog};
 use crate::utils::account_fixtures::FixtureAccounts;
 use crate::utils::airdrop::{airdrop, airdrop_spl_token};
+use crate::utils::cctp_message::CctpRemoteTokenMessenger;
 use crate::utils::mint::MintFixture;
 use crate::utils::program_fixtures::{
     initialise_cctp_message_transmitter, initialise_cctp_token_messenger_minter,
@@ -464,6 +465,34 @@ impl TestingContext {
         self.fast_forward_to_timestamp(test_context, target_timestamp)
             .await;
     }
+
+    pub async fn get_remote_token_messenger(
+        &self,
+        test_context: &mut ProgramTestContext,
+    ) -> CctpRemoteTokenMessenger {
+        let fixture_accounts = self.get_fixture_accounts().unwrap();
+        match self.transfer_direction {
+            TransferDirection::FromEthereumToArbitrum => {
+                crate::utils::router::get_remote_token_messenger(
+                    test_context,
+                    fixture_accounts.ethereum_remote_token_messenger,
+                )
+                .await
+                .into()
+            }
+            TransferDirection::FromArbitrumToEthereum => {
+                crate::utils::router::get_remote_token_messenger(
+                    test_context,
+                    fixture_accounts.arbitrum_remote_token_messenger,
+                )
+                .await
+                .into()
+            }
+            TransferDirection::Other => {
+                panic!("Unsupported transfer direction");
+            }
+        }
+    }
 }
 
 /// A struct representing a solver
@@ -594,14 +623,17 @@ impl TestingActor {
         spl_token_enum: &SplTokenEnum,
     ) -> u64 {
         if let Some(token_account) = self.token_account_address(spl_token_enum) {
-            let account = test_context
+            if let Some(account) = test_context
                 .banks_client
                 .get_account(token_account)
                 .await
                 .unwrap()
-                .unwrap();
-            let token_account = TokenAccount::try_deserialize(&mut &account.data[..]).unwrap();
-            token_account.amount
+            {
+                let token_account = TokenAccount::try_deserialize(&mut &account.data[..]).unwrap();
+                token_account.amount
+            } else {
+                0
+            }
         } else {
             0
         }
@@ -654,6 +686,65 @@ impl TestingActor {
             .process_transaction(transaction)
             .await
             .expect("Failed to approve USDC");
+    }
+
+    pub async fn close_token_account(
+        &self,
+        test_context: &mut ProgramTestContext,
+        spl_token_enum: &SplTokenEnum,
+    ) {
+        if let Some(token_account) = self.token_account_address(spl_token_enum) {
+            let balance = self
+                .get_token_account_balance(test_context, spl_token_enum)
+                .await;
+            let burn_ix = spl_token::instruction::burn(
+                &spl_token::ID,
+                &token_account,
+                &USDC_MINT_ADDRESS,
+                &self.pubkey(),
+                &[],
+                balance,
+            )
+            .unwrap();
+            let last_blockhash = test_context
+                .get_new_latest_blockhash()
+                .await
+                .expect("Failed to get new blockhash");
+            let transaction = Transaction::new_signed_with_payer(
+                &[burn_ix],
+                Some(&self.pubkey()),
+                &[&self.keypair()],
+                last_blockhash,
+            );
+            test_context
+                .banks_client
+                .process_transaction(transaction)
+                .await
+                .expect("Failed to burn token account");
+            let close_account_ix = spl_token::instruction::close_account(
+                &spl_token::ID,
+                &token_account,
+                &self.pubkey(),
+                &self.pubkey(),
+                &[],
+            )
+            .unwrap();
+            let last_blockhash = test_context
+                .get_new_latest_blockhash()
+                .await
+                .expect("Failed to get new blockhash");
+            let transaction = Transaction::new_signed_with_payer(
+                &[close_account_ix],
+                Some(&self.pubkey()),
+                &[&self.keypair()],
+                last_blockhash,
+            );
+            test_context
+                .banks_client
+                .process_transaction(transaction)
+                .await
+                .expect("Failed to close token account");
+        }
     }
 }
 
@@ -866,6 +957,17 @@ impl TestingActors {
         }
     }
 
+    pub fn get_actor(&self, actor_enum: &TestingActorEnum) -> &TestingActor {
+        match actor_enum {
+            TestingActorEnum::Owner => &self.owner,
+            TestingActorEnum::OwnerAssistant => &self.owner_assistant,
+            TestingActorEnum::FeeRecipient => &self.fee_recipient,
+            TestingActorEnum::Relayer => &self.relayer,
+            TestingActorEnum::Solver(index) => &self.solvers[*index].actor,
+            TestingActorEnum::Liquidator => &self.liquidator,
+        }
+    }
+
     /// Add solvers to the testing actors
     #[allow(dead_code)]
     pub async fn add_solvers(
@@ -940,54 +1042,59 @@ impl Default for TransferDirection {
 pub async fn setup_environment(
     shim_mode: ShimMode,
     transfer_direction: TransferDirection,
-    vaa_args: Option<VaaArgs>,
+    vaa_args: Option<Vec<VaaArgs>>,
 ) -> (TestingContext, ProgramTestContext) {
     let mut pre_testing_context = PreTestingContext::new(PROGRAM_ID, OWNER_KEYPAIR_PATH);
     let vaas_test: Option<TestVaaPairs> = match vaa_args {
-        Some(vaa_args) => {
-            let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum]
-                .clone()
-                .try_into()
-                .expect("Failed to convert registered token router address to bytes [u8; 32]");
-            let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum]
-                .clone()
-                .try_into()
-                .expect("Failed to convert registered token router address to bytes [u8; 32]");
-            match transfer_direction {
-                TransferDirection::FromArbitrumToEthereum => {
-                    Some(create_vaas_test_with_chain_and_address(
-                        &mut pre_testing_context.program_test,
-                        USDC_MINT_ADDRESS,
-                        CCTP_MINT_RECIPIENT,
-                        ChainAndAddress {
-                            chain: Chain::Arbitrum,
-                            address: arbitrum_emitter_address,
-                        },
-                        ChainAndAddress {
-                            chain: Chain::Ethereum,
-                            address: ethereum_emitter_address,
-                        },
-                        vaa_args,
-                    ))
-                }
-                TransferDirection::FromEthereumToArbitrum => {
-                    Some(create_vaas_test_with_chain_and_address(
-                        &mut pre_testing_context.program_test,
-                        USDC_MINT_ADDRESS,
-                        CCTP_MINT_RECIPIENT,
-                        ChainAndAddress {
-                            chain: Chain::Ethereum,
-                            address: ethereum_emitter_address,
-                        },
-                        ChainAndAddress {
-                            chain: Chain::Arbitrum,
-                            address: arbitrum_emitter_address,
-                        },
-                        vaa_args,
-                    ))
-                }
-                TransferDirection::Other => panic!("Unsupported transfer direction"),
+        Some(vaa_args_plural) => {
+            let mut vaas_test_temp = TestVaaPairs::new();
+            for vaa_args in vaa_args_plural {
+                let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum]
+                    .clone()
+                    .try_into()
+                    .expect("Failed to convert registered token router address to bytes [u8; 32]");
+                let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum]
+                    .clone()
+                    .try_into()
+                    .expect("Failed to convert registered token router address to bytes [u8; 32]");
+                let new_vaas_test = match transfer_direction {
+                    TransferDirection::FromArbitrumToEthereum => {
+                        create_vaas_test_with_chain_and_address(
+                            &mut pre_testing_context.program_test,
+                            USDC_MINT_ADDRESS,
+                            CCTP_MINT_RECIPIENT,
+                            ChainAndAddress {
+                                chain: Chain::Arbitrum,
+                                address: arbitrum_emitter_address,
+                            },
+                            ChainAndAddress {
+                                chain: Chain::Ethereum,
+                                address: ethereum_emitter_address,
+                            },
+                            vaa_args,
+                        )
+                    }
+                    TransferDirection::FromEthereumToArbitrum => {
+                        create_vaas_test_with_chain_and_address(
+                            &mut pre_testing_context.program_test,
+                            USDC_MINT_ADDRESS,
+                            CCTP_MINT_RECIPIENT,
+                            ChainAndAddress {
+                                chain: Chain::Ethereum,
+                                address: ethereum_emitter_address,
+                            },
+                            ChainAndAddress {
+                                chain: Chain::Arbitrum,
+                                address: arbitrum_emitter_address,
+                            },
+                            vaa_args,
+                        )
+                    }
+                    TransferDirection::Other => panic!("Unsupported transfer direction"),
+                };
+                vaas_test_temp.extend(new_vaas_test.0);
             }
+            Some(vaas_test_temp)
         }
         None => None,
     };

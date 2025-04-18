@@ -1,4 +1,6 @@
-use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::config::{
+    ExpectedError, InstructionConfig, PrepareOrderResponseInstructionConfig,
+};
 use crate::testing_engine::setup::{TestingContext, TransferDirection};
 use crate::testing_engine::state::TestingEngineState;
 
@@ -9,10 +11,9 @@ use anchor_spl::token::spl_token;
 use common::wormhole_cctp_solana::cctp::{
     MESSAGE_TRANSMITTER_PROGRAM_ID, TOKEN_MESSENGER_MINTER_PROGRAM_ID,
 };
-use common::wormhole_cctp_solana::messages::Deposit;
 use common::wormhole_cctp_solana::utils::CctpMessage;
 use matching_engine::fallback::prepare_order_response::{
-    FinalizedVaaMessage, PrepareOrderResponseCctpShim as PrepareOrderResponseCctpShimIx,
+    FinalizedVaaMessageArgs, PrepareOrderResponseCctpShim as PrepareOrderResponseCctpShimIx,
     PrepareOrderResponseCctpShimAccounts, PrepareOrderResponseCctpShimData,
 };
 use matching_engine::state::{FastMarketOrder as FastMarketOrderState, PreparedOrderResponse};
@@ -22,7 +23,6 @@ use solana_sdk::signature::Keypair;
 use solana_sdk::signer::Signer;
 use solana_sdk::transaction::Transaction;
 use std::rc::Rc;
-use utils::account_fixtures::FixtureAccounts;
 use utils::cctp_message::{CctpMessageDecoded, UsedNonces};
 use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 
@@ -53,19 +53,36 @@ pub struct PrepareOrderResponseShimAccountsFixture {
 }
 
 impl PrepareOrderResponseShimAccountsFixture {
-    #[allow(clippy::too_many_arguments)] // TODO: fix this (10/7)
     pub fn new(
+        testing_context: &TestingContext,
+        config: &PrepareOrderResponseInstructionConfig,
+        current_state: &TestingEngineState,
         signer: &Pubkey,
-        fixture_accounts: &FixtureAccounts,
-        custodian_address: &Pubkey,
-        fast_market_order_address: &Pubkey,
-        from_router_endpoint: &Pubkey,
-        to_router_endpoint: &Pubkey,
-        usdc_mint_address: &Pubkey,
         cctp_message_decoded: &CctpMessageDecoded,
         guardian_signature_info: &GuardianSignatureInfo,
-        transfer_direction: &TransferDirection,
     ) -> Self {
+        let usdc_mint_address = testing_context.get_usdc_mint_address();
+        let auction_accounts = current_state
+            .auction_accounts()
+            .expect("Auction accounts not found");
+        let to_endpoint = auction_accounts.to_router_endpoint;
+        let from_endpoint = auction_accounts.from_router_endpoint;
+        let fast_market_order = current_state
+            .fast_market_order()
+            .expect("could not find fast market order")
+            .fast_market_order_address;
+        let base_fee_token = config
+            .actor_enum
+            .get_actor(&testing_context.testing_actors)
+            .token_account_address(&config.token_enum)
+            .unwrap();
+        let fixture_accounts = testing_context
+            .fixture_accounts
+            .clone()
+            .expect("Fixture accounts not found");
+        let custodian = current_state
+            .custodian_address()
+            .expect("Custodian address not found");
         let cctp_message_transmitter_event_authority =
             Pubkey::find_program_address(&[EVENT_AUTHORITY_SEED], &MESSAGE_TRANSMITTER_PROGRAM_ID)
                 .0;
@@ -86,7 +103,7 @@ impl PrepareOrderResponseShimAccountsFixture {
             cctp_message_decoded.source_domain,
             cctp_message_decoded.nonce,
         );
-        let cctp_remote_token_messenger = match transfer_direction {
+        let cctp_remote_token_messenger = match testing_context.transfer_direction {
             TransferDirection::FromEthereumToArbitrum => {
                 fixture_accounts.ethereum_remote_token_messenger
             }
@@ -97,12 +114,12 @@ impl PrepareOrderResponseShimAccountsFixture {
         };
         Self {
             signer: *signer,
-            custodian: *custodian_address,
-            fast_market_order: *fast_market_order_address,
-            from_endpoint: *from_router_endpoint,
-            to_endpoint: *to_router_endpoint,
-            base_fee_token: *usdc_mint_address, // Change this to the solver's address?
-            usdc: *usdc_mint_address,
+            custodian,
+            fast_market_order,
+            from_endpoint,
+            to_endpoint,
+            base_fee_token,
+            usdc: usdc_mint_address,
             cctp_mint_recipient: CCTP_MINT_RECIPIENT,
             cctp_message_transmitter_authority,
             cctp_message_transmitter_config: fixture_accounts.message_transmitter_config,
@@ -126,39 +143,29 @@ impl PrepareOrderResponseShimAccountsFixture {
 pub struct PrepareOrderResponseShimDataFixture {
     pub encoded_cctp_message: Vec<u8>,
     pub cctp_attestation: Vec<u8>,
-    pub finalized_vaa_message_sequence: u64,
-    pub finalized_vaa_message_timestamp: u32,
-    pub finalized_vaa_message_emitter_chain: u16,
-    pub finalized_vaa_message_emitter_address: [u8; 32],
-    pub finalized_vaa_message_base_fee: u64,
-    pub vaa_payload: Vec<u8>,
-    pub deposit_payload: Vec<u8>,
+    pub finalized_vaa_message_args: FinalizedVaaMessageArgs,
     pub fast_market_order: FastMarketOrderState,
-    pub guardian_set_bump: u8,
 }
 
+// Helper struct for creating the data for the prepare order response instruction
 impl PrepareOrderResponseShimDataFixture {
     pub fn new(
         encoded_cctp_message: Vec<u8>,
         cctp_attestation: Vec<u8>,
-        deposit_vaa_data: &utils::vaa::PostedVaaData,
-        deposit: &Deposit,
-        deposit_base_fee: u64,
+        consistency_level: u8,
+        base_fee: u64,
         fast_market_order: &FastMarketOrderState,
         guardian_set_bump: u8,
     ) -> Self {
         Self {
             encoded_cctp_message,
             cctp_attestation,
-            finalized_vaa_message_sequence: deposit_vaa_data.sequence,
-            finalized_vaa_message_timestamp: deposit_vaa_data.vaa_time,
-            finalized_vaa_message_emitter_chain: deposit_vaa_data.emitter_chain,
-            finalized_vaa_message_emitter_address: deposit_vaa_data.emitter_address,
-            finalized_vaa_message_base_fee: deposit_base_fee,
-            vaa_payload: deposit_vaa_data.payload.to_vec(),
-            deposit_payload: deposit.payload.to_vec(),
+            finalized_vaa_message_args: FinalizedVaaMessageArgs {
+                consistency_level,
+                base_fee,
+                guardian_set_bump,
+            },
             fast_market_order: *fast_market_order,
-            guardian_set_bump,
         }
     }
     pub fn decode_cctp_message(&self) -> CctpMessageDecoded {
@@ -170,15 +177,16 @@ impl PrepareOrderResponseShimDataFixture {
     }
 }
 
+/// Executes the instruction that prepares the order response for the CCTP shim
 pub async fn prepare_order_response_cctp_shim(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     accounts: PrepareOrderResponseShimAccountsFixture,
     data: PrepareOrderResponseShimDataFixture,
-    matching_engine_program_id: &Pubkey,
     expected_error: Option<&ExpectedError>,
 ) -> Option<PrepareOrderResponseShimFixture> {
+    let matching_engine_program_id = &testing_context.get_matching_engine_program_id();
     let fast_market_order_digest = data.fast_market_order.digest();
     let prepared_order_response_seeds = [
         PreparedOrderResponse::SEED_PREFIX,
@@ -229,16 +237,11 @@ pub async fn prepare_order_response_cctp_shim(
         system_program: &solana_program::system_program::ID,
     };
 
-    let finalized_vaa_message = FinalizedVaaMessage {
-        base_fee: data.finalized_vaa_message_base_fee,
-        vaa_payload: data.vaa_payload,
-        deposit_payload: data.deposit_payload,
-        guardian_set_bump: data.guardian_set_bump,
-    };
+    let finalized_vaa_message_args = data.finalized_vaa_message_args;
     let data = PrepareOrderResponseCctpShimData {
         encoded_cctp_message: data.encoded_cctp_message,
         cctp_attestation: data.cctp_attestation,
-        finalized_vaa_message,
+        finalized_vaa_message_args,
     };
 
     let prepare_order_response_cctp_shim_ix = PrepareOrderResponseCctpShimIx {
@@ -272,69 +275,55 @@ pub async fn prepare_order_response_cctp_shim(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub async fn prepare_order_response_test(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
-    payer_signer: &Rc<Keypair>,
-    deposit_vaa_data: &utils::vaa::PostedVaaData,
-    testing_engine_state: &TestingEngineState,
-    to_endpoint_address: &Pubkey,
-    from_endpoint_address: &Pubkey,
-    deposit: &Deposit,
-    expected_error: Option<&ExpectedError>,
+    config: &PrepareOrderResponseInstructionConfig,
+    current_state: &TestingEngineState,
 ) -> Option<PrepareOrderResponseShimFixture> {
-    let core_bridge_program_id = &testing_context.get_wormhole_program_id();
-    let matching_engine_program_id = &testing_context.get_matching_engine_program_id();
-    let usdc_mint_address = &testing_context.get_usdc_mint_address();
-    let cctp_mint_recipient = &testing_context.get_cctp_mint_recipient();
-
-    let fixture_accounts = testing_context
-        .fixture_accounts
+    let payer_signer = config
+        .payer_signer
         .clone()
-        .expect("Fixture accounts not found");
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
+    let deposit_vaa = current_state
+        .get_test_vaa_pair(config.vaa_index)
+        .deposit_vaa
+        .clone();
+    let deposit_vaa_data = deposit_vaa.get_vaa_data();
+    let deposit = deposit_vaa
+        .payload_deserialized
+        .clone()
+        .unwrap()
+        .get_deposit()
+        .unwrap();
+    let core_bridge_program_id = &testing_context.get_wormhole_program_id();
+
+    let finalized_vaa_data = current_state
+        .get_test_vaa_pair(config.vaa_index)
+        .get_finalized_vaa_data()
+        .clone();
 
     let guardian_signature_info = super::verify_shim::create_guardian_signatures(
         testing_context,
         test_context,
-        payer_signer,
-        deposit_vaa_data,
+        &payer_signer,
+        &finalized_vaa_data,
         core_bridge_program_id,
         None,
     )
     .await
     .unwrap();
 
-    let source_remote_token_messenger = match testing_context.transfer_direction {
-        TransferDirection::FromEthereumToArbitrum => {
-            utils::router::get_remote_token_messenger(
-                test_context,
-                fixture_accounts.ethereum_remote_token_messenger,
-            )
-            .await
-        }
-        _ => panic!("Unsupported transfer direction"),
-    };
-    let cctp_nonce = deposit.cctp_nonce;
-
-    let message_transmitter_config_pubkey = fixture_accounts.message_transmitter_config;
-    let fast_market_order_state = testing_engine_state
+    let fast_market_order_state = current_state
         .fast_market_order()
         .expect("could not find fast market order")
         .fast_market_order;
-    let custodian_address = testing_engine_state
-        .custodian_address()
-        .expect("Custodian address not found");
-    // TODO: Make checks to see if fast market order sender matches cctp message sender ...
+
     let cctp_token_burn_message = utils::cctp_message::craft_cctp_token_burn_message(
+        testing_context,
         test_context,
-        source_remote_token_messenger.domain,
-        cctp_nonce,
-        deposit.amount,
-        &message_transmitter_config_pubkey,
-        &(&source_remote_token_messenger).into(),
-        cctp_mint_recipient,
-        &custodian_address,
+        current_state,
+        config.vaa_index,
     )
     .await
     .unwrap();
@@ -342,41 +331,31 @@ pub async fn prepare_order_response_test(
         .verify_cctp_message(&fast_market_order_state)
         .unwrap();
 
-    let deposit_base_fee = utils::cctp_message::get_deposit_base_fee(deposit);
+    let deposit_base_fee = utils::cctp_message::get_deposit_base_fee(&deposit);
     let prepare_order_response_cctp_shim_data = PrepareOrderResponseShimDataFixture::new(
         cctp_token_burn_message.encoded_cctp_burn_message,
         cctp_token_burn_message.cctp_attestation,
-        deposit_vaa_data,
-        deposit,
+        deposit_vaa_data.consistency_level,
         deposit_base_fee,
         &fast_market_order_state,
         guardian_signature_info.guardian_set_bump,
     );
-    let fast_market_order_address = testing_engine_state
-        .fast_market_order()
-        .expect("could not find fast market order")
-        .fast_market_order_address;
     let cctp_message_decoded = prepare_order_response_cctp_shim_data.decode_cctp_message();
     let prepare_order_response_cctp_shim_accounts = PrepareOrderResponseShimAccountsFixture::new(
+        testing_context,
+        config,
+        current_state,
         &payer_signer.pubkey(),
-        &fixture_accounts,
-        &custodian_address,
-        &fast_market_order_address,
-        from_endpoint_address,
-        to_endpoint_address,
-        usdc_mint_address,
         &cctp_message_decoded,
         &guardian_signature_info,
-        &testing_context.transfer_direction,
     );
     super::shims_prepare_order_response::prepare_order_response_cctp_shim(
         testing_context,
         test_context,
-        payer_signer,
+        &payer_signer,
         prepare_order_response_cctp_shim_accounts,
         prepare_order_response_cctp_shim_data,
-        matching_engine_program_id,
-        expected_error,
+        config.expected_error(),
     )
     .await
 }

@@ -42,14 +42,17 @@ impl ExecuteOrderFallbackAccounts {
         current_state: &TestingEngineState,
         payer_signer: &Pubkey,
         fixture_accounts: &utils::account_fixtures::FixtureAccounts,
+        override_fast_market_order_address: Option<Pubkey>,
     ) -> Self {
         let transfer_direction = current_state.base().transfer_direction;
         let auction_accounts = current_state.auction_accounts().unwrap();
         let active_auction_state = current_state.auction_state().get_active_auction().unwrap();
-        let fast_market_order_address = current_state
-            .fast_market_order()
-            .unwrap()
-            .fast_market_order_address;
+        let fast_market_order_address = override_fast_market_order_address.unwrap_or_else(|| {
+            current_state
+                .fast_market_order()
+                .unwrap()
+                .fast_market_order_address
+        });
         let remote_token_messenger = match transfer_direction {
             TransferDirection::FromEthereumToArbitrum => {
                 fixture_accounts.arbitrum_remote_token_messenger
@@ -95,7 +98,7 @@ pub struct ExecuteOrderFallbackFixtureAccounts {
     pub executor_token: Pubkey,
 }
 
-pub async fn execute_order_fallback(
+pub async fn execute_order_shimful(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
     config: &ExecuteOrderInstructionConfig,
@@ -131,7 +134,11 @@ pub async fn execute_order_fallback(
         .get_new_latest_blockhash(test_context)
         .await
         .unwrap();
-    crate::testing_engine::engine::fast_forward_slots(test_context, 3).await;
+    let slots_to_fast_forward = config.fast_forward_slots;
+    if slots_to_fast_forward > 0 {
+        crate::testing_engine::engine::fast_forward_slots(test_context, slots_to_fast_forward)
+            .await;
+    }
     let transaction = Transaction::new_signed_with_payer(
         &[execute_order_ix],
         Some(&payer_signer.pubkey()),
@@ -262,7 +269,7 @@ pub fn create_execute_order_shim_accounts<'ix>(
     }
 }
 
-pub async fn execute_order_fallback_test(
+pub async fn execute_order_shimful_test(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
     current_state: &TestingEngineState,
@@ -276,9 +283,13 @@ pub async fn execute_order_fallback_test(
         .payer_signer
         .clone()
         .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
-    let execute_order_fallback_accounts =
-        ExecuteOrderFallbackAccounts::new(current_state, &payer_signer.pubkey(), &fixture_accounts);
-    execute_order_fallback(
+    let execute_order_fallback_accounts = ExecuteOrderFallbackAccounts::new(
+        current_state,
+        &payer_signer.pubkey(),
+        &fixture_accounts,
+        config.fast_market_order_address,
+    );
+    execute_order_shimful(
         testing_context,
         test_context,
         config,

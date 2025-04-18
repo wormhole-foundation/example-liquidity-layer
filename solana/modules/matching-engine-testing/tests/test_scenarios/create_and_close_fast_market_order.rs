@@ -56,10 +56,10 @@ use utils::vaa::VaaArgs;
 /// Test that the create fast market order account works correctly for the fallback instruction
 #[tokio::test]
 pub async fn test_initialise_fast_market_order_fallback() {
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         TransferDirection::FromArbitrumToEthereum,
@@ -83,10 +83,10 @@ pub async fn test_initialise_fast_market_order_fallback() {
 /// Test that the close fast market order account works correctly for the fallback instruction
 #[tokio::test]
 pub async fn test_close_fast_market_order_fallback() {
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         TransferDirection::FromArbitrumToEthereum,
@@ -111,10 +111,10 @@ pub async fn test_close_fast_market_order_fallback() {
 /// Test that the close fast market order account works correctly for the fallback instruction
 #[tokio::test]
 pub async fn test_close_fast_market_order_fallback_with_custom_refund_recipient() {
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         TransferDirection::FromArbitrumToEthereum,
@@ -179,10 +179,10 @@ pub async fn test_close_fast_market_order_fallback_with_custom_refund_recipient(
 #[tokio::test]
 pub async fn test_fast_market_order_cannot_be_refunded_by_someone_who_did_not_initialise_it() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
-    };
+    }];
 
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
@@ -225,10 +225,10 @@ pub async fn test_fast_market_order_cannot_be_refunded_by_someone_who_did_not_in
 #[tokio::test]
 pub async fn test_fast_market_order_cannot_be_closed_twice() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
@@ -273,10 +273,10 @@ a8"     "" a8P_____88 88P'   `"8a I8[    "" a8"     "8a 88P'   "Y8 a8P_____88 a8
 #[tokio::test]
 pub async fn test_fast_market_order_can_be_opened_after_being_closed_by_the_same_solver() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
@@ -306,10 +306,10 @@ pub async fn test_fast_market_order_can_be_opened_after_being_closed_by_the_same
 pub async fn test_multiple_fast_market_orders_can_be_opened_and_closed_by_different_solvers_in_arbitrary_order(
 ) {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,

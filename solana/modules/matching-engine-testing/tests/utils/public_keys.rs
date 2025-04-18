@@ -5,7 +5,7 @@
 
 use solana_sdk::{keccak, pubkey::Pubkey};
 
-use super::Chain;
+use super::{Chain, REGISTERED_TOKEN_ROUTERS};
 
 pub trait ToBytes {
     fn to_bytes(&self) -> [u8; 32];
@@ -142,6 +142,24 @@ impl ChainAddress {
         Self {
             chain,
             address: TestPubkey::Bytes(address),
+        }
+    }
+
+    pub fn from_registered_token_router(chain: Chain) -> Self {
+        match chain {
+            Chain::Arbitrum => Self::new_with_address(
+                chain,
+                REGISTERED_TOKEN_ROUTERS[&chain].clone().try_into().unwrap(),
+            ),
+            Chain::Ethereum => Self::new_with_address(
+                chain,
+                REGISTERED_TOKEN_ROUTERS[&chain].clone().try_into().unwrap(),
+            ),
+            Chain::Solana => Self::new_with_address(
+                chain,
+                REGISTERED_TOKEN_ROUTERS[&chain].clone().try_into().unwrap(),
+            ),
+            _ => panic!("Unsupported chain"),
         }
     }
 }

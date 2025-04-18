@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::config::{ExecuteOrderInstructionConfig, ExpectedError};
 use crate::testing_engine::setup::{TestingContext, TransferDirection};
 use crate::utils::account_fixtures::FixtureAccounts;
 use crate::utils::auction::{AuctionAccounts, AuctionState};
@@ -32,6 +32,7 @@ pub fn create_execute_order_shimless_accounts(
     auction_accounts: &AuctionAccounts,
     payer_signer: &Rc<Keypair>,
     auction_state: &AuctionState,
+    executor_token: Pubkey,
 ) -> ExecuteOrderShimlessAccounts {
     let active_auction_state = auction_state.get_active_auction().unwrap();
     let active_auction_address = active_auction_state.auction_address;
@@ -74,7 +75,7 @@ pub fn create_execute_order_shimless_accounts(
     let execute_order = matching_engine::accounts::ExecuteOrder {
         fast_vaa,
         active_auction,
-        executor_token: active_auction_state.best_offer.offer_token, // TODO: Is this correct?
+        executor_token,
         initial_participant: active_auction_state.initial_offer.participant,
         initial_offer_token: active_auction_state.initial_offer.offer_token,
     };
@@ -155,12 +156,31 @@ pub fn create_execute_order_shimless_accounts(
 pub async fn execute_order_shimless_test(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
+    config: &ExecuteOrderInstructionConfig,
     auction_accounts: &AuctionAccounts,
     auction_state: &AuctionState,
-    payer_signer: &Rc<Keypair>,
     expected_error: Option<&ExpectedError>,
 ) -> Option<ExecuteOrderShimlessFixture> {
-    crate::testing_engine::engine::fast_forward_slots(test_context, 3).await;
+    let payer_signer = config
+        .payer_signer
+        .clone()
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
+    let slots_to_fast_forward = config.fast_forward_slots;
+    if slots_to_fast_forward > 0 {
+        crate::testing_engine::engine::fast_forward_slots(test_context, slots_to_fast_forward)
+            .await;
+    }
+    let executor_token = config
+        .actor_enum
+        .get_actor(&testing_context.testing_actors)
+        .token_account_address(&config.token_enum)
+        .unwrap_or_else(|| {
+            auction_state
+                .get_active_auction()
+                .unwrap()
+                .best_offer
+                .offer_token
+        });
     let fixture_accounts = testing_context
         .get_fixture_accounts()
         .expect("Fixture accounts not found");
@@ -169,8 +189,9 @@ pub async fn execute_order_shimless_test(
             testing_context,
             &fixture_accounts,
             auction_accounts,
-            payer_signer,
+            &payer_signer,
             auction_state,
+            executor_token,
         );
     let execute_order_instruction_data = ExecuteOrderShimlessInstruction {}.data();
     let execute_order_ix = Instruction {
@@ -181,7 +202,7 @@ pub async fn execute_order_shimless_test(
     let tx = Transaction::new_signed_with_payer(
         &[execute_order_ix],
         Some(&payer_signer.pubkey()),
-        &[payer_signer],
+        &[&payer_signer],
         testing_context
             .get_new_latest_blockhash(test_context)
             .await

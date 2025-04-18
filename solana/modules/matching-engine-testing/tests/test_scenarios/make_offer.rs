@@ -1,9 +1,7 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 // TODO:
-// Test that it is possible to continue to prepare order response and execution after initial offer is placed and is paused
 // Test that auction is expired means that you cannot place offer or execute it
-// Cannot place initial offer twice
 
 //! # Place initial offer and improve offer instruction testing
 //!
@@ -110,12 +108,12 @@ pub async fn test_place_initial_offer_shimless() {
 
 /// Test that auction account is exactly the same when using shimless and fallback instructions
 #[tokio::test]
-pub async fn test_place_initial_offer_shimless_and_fallback_auctions_are_identical() {
+pub async fn test_place_initial_offer_shimless_and_shim_auctions_are_identical() {
     let shimless_config = PlaceInitialOfferInstructionConfig {
         actor: TestingActorEnum::Owner,
         ..PlaceInitialOfferInstructionConfig::default()
     };
-    let fallback_config = PlaceInitialOfferInstructionConfig {
+    let shim_config = PlaceInitialOfferInstructionConfig {
         actor: TestingActorEnum::Owner,
         ..PlaceInitialOfferInstructionConfig::default()
     };
@@ -124,7 +122,7 @@ pub async fn test_place_initial_offer_shimless_and_fallback_auctions_are_identic
     )
     .await;
     let (final_state_fallback, mut fallback_test_context, _) = Box::pin(place_initial_offer_shim(
-        fallback_config,
+        shim_config,
         None,
         TRANSFER_DIRECTION,
     ))
@@ -216,10 +214,10 @@ pub async fn test_place_initial_offer_shim_and_improve_offer_shimless() {
 #[tokio::test]
 pub async fn test_place_initial_offer_shimless_blocks_shim() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: true,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
@@ -258,10 +256,10 @@ pub async fn test_place_initial_offer_shimless_blocks_shim() {
 #[tokio::test]
 pub async fn test_place_initial_offer_shim_blocks_shimless() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: true,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
@@ -338,10 +336,10 @@ pub async fn test_place_initial_shim_offer_fails_usdt_mint_address() {
 #[tokio::test]
 pub async fn test_place_initial_offer_fails_if_fast_market_order_not_created() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: true,
         ..VaaArgs::default()
-    };
+    }];
 
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
@@ -474,10 +472,10 @@ pub async fn test_place_initial_offer_shim_fails_when_max_fee_and_amount_in_sum_
 #[tokio::test]
 pub async fn test_place_initial_offer_shim_fails_when_vaa_is_expired() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
@@ -498,7 +496,6 @@ pub async fn test_place_initial_offer_shim_fails_when_vaa_is_expired() {
         .execute(&mut test_context, instruction_triggers, None)
         .await;
     testing_engine
-        .testing_context
         .make_fast_transfer_vaa_expired(&mut test_context, 60) // 1 minute after expiry
         .await;
 
@@ -526,10 +523,10 @@ pub async fn test_place_initial_offer_shim_fails_when_vaa_is_expired() {
 #[tokio::test]
 pub async fn test_place_initial_offer_shim_fails_custodian_is_paused() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
@@ -575,6 +572,70 @@ pub async fn test_place_initial_offer_shim_fails_custodian_is_paused() {
     )];
     testing_engine
         .execute(&mut test_context, instruction_triggers, Some(paused_state))
+        .await;
+}
+
+/// Test place initial offer shim fails back to back
+#[tokio::test]
+pub async fn test_place_initial_offer_shim_fails_back_to_back() {
+    let (initial_offer_state, mut test_context, testing_engine) =
+        Box::pin(place_initial_offer_shim(
+            PlaceInitialOfferInstructionConfig::default(),
+            None,
+            TRANSFER_DIRECTION,
+        ))
+        .await;
+
+    let expected_error = ExpectedError {
+        instruction_index: 0,
+        error_code: 0,
+        error_string: "Already in use".to_string(),
+    };
+    let place_initial_offer_config = PlaceInitialOfferInstructionConfig {
+        expected_error: Some(expected_error),
+        ..PlaceInitialOfferInstructionConfig::default()
+    };
+    let instruction_triggers = vec![InstructionTrigger::PlaceInitialOfferShim(
+        place_initial_offer_config,
+    )];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(initial_offer_state),
+        )
+        .await;
+}
+
+/// Test place initial offer shim fails back to back
+#[tokio::test]
+pub async fn test_place_initial_offer_shimless_fails_back_to_back() {
+    let (initial_offer_state, mut test_context, testing_engine) =
+        Box::pin(place_initial_offer_shimless(
+            PlaceInitialOfferInstructionConfig::default(),
+            None,
+            TRANSFER_DIRECTION,
+        ))
+        .await;
+
+    let expected_error = ExpectedError {
+        instruction_index: 0,
+        error_code: 0,
+        error_string: "Already in use".to_string(),
+    };
+    let place_initial_offer_config = PlaceInitialOfferInstructionConfig {
+        expected_error: Some(expected_error),
+        ..PlaceInitialOfferInstructionConfig::default()
+    };
+    let instruction_triggers = vec![InstructionTrigger::PlaceInitialOfferShimless(
+        place_initial_offer_config,
+    )];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(initial_offer_state),
+        )
         .await;
 }
 
@@ -859,12 +920,14 @@ Helper structs and functions
 
 pub async fn place_initial_offer_shim(
     config: PlaceInitialOfferInstructionConfig,
-    vaa_args: Option<VaaArgs>,
+    vaa_args: Option<Vec<VaaArgs>>,
     transfer_direction: TransferDirection,
 ) -> (TestingEngineState, ProgramTestContext, TestingEngine) {
-    let vaa_args = vaa_args.unwrap_or_else(|| VaaArgs {
-        post_vaa: false,
-        ..VaaArgs::default()
+    let vaa_args = vaa_args.unwrap_or_else(|| {
+        vec![VaaArgs {
+            post_vaa: false,
+            ..VaaArgs::default()
+        }]
     });
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
@@ -897,12 +960,14 @@ pub async fn place_initial_offer_shim(
 
 pub async fn place_initial_offer_shimless(
     config: PlaceInitialOfferInstructionConfig,
-    vaa_args: Option<VaaArgs>,
+    vaa_args: Option<Vec<VaaArgs>>,
     transfer_direction: TransferDirection,
 ) -> (TestingEngineState, ProgramTestContext, TestingEngine) {
-    let vaa_args = vaa_args.unwrap_or_else(|| VaaArgs {
-        post_vaa: true,
-        ..VaaArgs::default()
+    let vaa_args = vaa_args.unwrap_or_else(|| {
+        vec![VaaArgs {
+            post_vaa: true,
+            ..VaaArgs::default()
+        }]
     });
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
@@ -1000,7 +1065,7 @@ impl TestAuctionSetup {
 
     pub fn create_vaa_args_and_initial_offer_config(
         &self,
-    ) -> (VaaArgs, PlaceInitialOfferInstructionConfig) {
+    ) -> (Vec<VaaArgs>, PlaceInitialOfferInstructionConfig) {
         let create_deposit_and_fast_transfer_params = CreateDepositAndFastTransferParams {
             deposit_params: CreateDepositParams {
                 amount: self.deposit_amount,
@@ -1013,11 +1078,11 @@ impl TestAuctionSetup {
                 init_auction_fee: self.init_auction_fee,
             },
         };
-        let vaa_args = VaaArgs {
+        let vaa_args = vec![VaaArgs {
             post_vaa: self.post_vaa,
             create_deposit_and_fast_transfer_params,
             ..Default::default()
-        };
+        }];
         let initial_offer_config = PlaceInitialOfferInstructionConfig {
             offer_price: self.offer_price,
             ..PlaceInitialOfferInstructionConfig::default()

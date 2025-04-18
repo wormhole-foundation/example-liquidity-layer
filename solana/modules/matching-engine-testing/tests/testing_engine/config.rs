@@ -22,7 +22,7 @@ use std::{
 
 use crate::{
     shimless::initialize::AuctionParametersConfig,
-    utils::{auction::ActiveAuctionState, token_account::SplTokenEnum, Chain},
+    utils::{token_account::SplTokenEnum, Chain},
 };
 use anchor_lang::prelude::*;
 use solana_program_test::ProgramTestContext;
@@ -118,6 +118,7 @@ impl InstructionConfig for CreateCctpRouterEndpointsInstructionConfig {
 pub struct InitializeFastMarketOrderShimInstructionConfig {
     pub fast_market_order_id: u32,
     pub close_account_refund_recipient: Option<Pubkey>, // If none defaults to solver 0 pubkey,
+    pub vaa_index: usize,                               // If none defaults to 0
     pub payer_signer: Option<Rc<Keypair>>,              // If none defaults to owner keypair
     pub expected_error: Option<ExpectedError>,          // If none, will not check for an error
     pub expected_log_messages: Option<Vec<ExpectedLog>>, // If none, will not check for logs
@@ -150,16 +151,17 @@ impl InstructionConfig for SetPauseCustodianInstructionConfig {
 }
 
 #[derive(Clone, Default)]
-pub struct PrepareOrderInstructionConfig {
+pub struct PrepareOrderResponseInstructionConfig {
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>,
     pub actor_enum: TestingActorEnum,
     pub token_enum: SplTokenEnum,
+    pub vaa_index: usize,
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
     pub expected_log_messages: Option<Vec<ExpectedLog>>,
 }
 
-impl InstructionConfig for PrepareOrderInstructionConfig {
+impl InstructionConfig for PrepareOrderResponseInstructionConfig {
     fn expected_error(&self) -> Option<&ExpectedError> {
         self.expected_error.as_ref()
     }
@@ -168,14 +170,31 @@ impl InstructionConfig for PrepareOrderInstructionConfig {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ExecuteOrderInstructionConfig {
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>,
     pub actor_enum: TestingActorEnum,
     pub token_enum: SplTokenEnum,
+    pub vaa_index: usize,
+    pub fast_forward_slots: u64, // Number of slots to fast forward, defaults to 3 in Default impl
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
     pub expected_log_messages: Option<Vec<ExpectedLog>>,
+}
+
+impl Default for ExecuteOrderInstructionConfig {
+    fn default() -> Self {
+        Self {
+            fast_forward_slots: 3,
+            actor_enum: TestingActorEnum::default(),
+            fast_market_order_address: None,
+            token_enum: SplTokenEnum::default(),
+            vaa_index: 0,
+            payer_signer: None,
+            expected_error: None,
+            expected_log_messages: None,
+        }
+    }
 }
 
 impl InstructionConfig for ExecuteOrderInstructionConfig {
@@ -374,13 +393,45 @@ impl InstructionConfig for ImproveOfferInstructionConfig {
 
 pub struct VerifyBalancesConfig {
     pub previous_state_balances: Balances,
-    pub balance_changes: BalanceChanges,
+    pub balance_changes_config: BalanceChangesConfig,
+    pub closed_token_account_enums: Option<HashSet<TestingActorEnum>>,
+}
+
+pub struct BalanceChangesConfig {
+    pub actor: TestingActor,
+    pub spl_token_enum: SplTokenEnum,
+    pub custodian_token_previous_balance: u64,
+}
+
+impl VerifyBalancesConfig {
+    pub async fn get_balance_changes(
+        &self,
+        test_context: &mut ProgramTestContext,
+        current_state: &TestingEngineState,
+    ) -> BalanceChanges {
+        BalanceChanges::execute_order_changes(
+            test_context,
+            current_state,
+            &self.balance_changes_config,
+        )
+        .await
+    }
 }
 
 pub struct ExecuteOrderActorEnums {
     pub executor: TestingActorEnum,
     pub best_offer: TestingActorEnum,
     pub initial_offer: TestingActorEnum,
+}
+
+impl ExecuteOrderActorEnums {
+    pub fn from_state(state: &TestingEngineState) -> Self {
+        Self {
+            executor: state.execute_order_actor().unwrap(),
+            best_offer: state.best_offer_actor().unwrap(),
+            initial_offer: state.initial_offer_placed_actor().unwrap(),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -454,27 +505,35 @@ impl BalanceChanges {
     pub async fn execute_order_changes(
         test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
-        executor: TestingActor,
-        execute_order_actor_enums: ExecuteOrderActorEnums,
-        active_auction_state: &ActiveAuctionState,
-        spl_token_enum: SplTokenEnum,
+        balance_changes_config: &BalanceChangesConfig,
     ) -> Self {
+        let executor = &balance_changes_config.actor;
+        let spl_token_enum = &balance_changes_config.spl_token_enum;
+        let executor_testing_actor_enum = ExecuteOrderActorEnums::from_state(current_state);
         let ExecuteOrderActorEnums {
             executor: executor_testing_actor_enum,
             best_offer: best_offer_testing_actor_enum,
             initial_offer: initial_offer_testing_actor_enum,
-        } = execute_order_actor_enums;
+        } = executor_testing_actor_enum;
+        let active_auction_state = current_state
+            .auction_state()
+            .get_active_auction()
+            .expect("Active auction is not initialized");
         // TODO: Make this dynamic so that it does not depend on the first vaa pair
         let fast_market_order = current_state
             .base()
             .get_fast_market_order(0)
             .expect("Fast market order is not initialized");
         let init_auction_fee = fast_market_order.init_auction_fee;
-        let executor_token_address = executor.token_account_address(&spl_token_enum).unwrap();
+        let executor_token_address = executor.token_account_address(spl_token_enum).unwrap();
         let auction_calculations = active_auction_state
-            .get_auction_calculations(test_context, executor_token_address, init_auction_fee)
+            .get_auction_calculations(
+                test_context,
+                executor_token_address,
+                balance_changes_config.custodian_token_previous_balance,
+                init_auction_fee,
+            )
             .await;
-        println!("auction_calculations: {:?}", auction_calculations);
 
         let mut balance_changes = HashMap::new();
         balance_changes.insert(

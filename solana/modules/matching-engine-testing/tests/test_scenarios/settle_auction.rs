@@ -53,10 +53,10 @@ use utils::vaa::VaaArgs;
 #[tokio::test]
 pub async fn test_settle_auction_complete() {
     let transfer_direction = TransferDirection::FromEthereumToArbitrum;
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         transfer_direction,
@@ -75,11 +75,35 @@ pub async fn test_settle_auction_complete() {
         ),
         InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
-        InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig::default()),
+        InstructionTrigger::PrepareOrderShim(PrepareOrderResponseInstructionConfig::default()),
         InstructionTrigger::SettleAuction(SettleAuctionInstructionConfig::default()),
     ];
     testing_engine
         .execute(&mut test_context, instruction_triggers, None)
+        .await;
+}
+
+/// Test settle auction works when custodian is paused
+#[tokio::test]
+pub async fn test_settle_auction_custodian_paused() {
+    let (initial_state, mut test_context, testing_engine) = Box::pin(place_initial_offer_shim(
+        PlaceInitialOfferInstructionConfig::default(),
+        None,
+        TransferDirection::FromEthereumToArbitrum,
+    ))
+    .await;
+
+    let instruction_triggers = vec![
+        InstructionTrigger::SetPauseCustodian(SetPauseCustodianInstructionConfig {
+            is_paused: true,
+            ..Default::default()
+        }),
+        InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
+        InstructionTrigger::PrepareOrderShim(PrepareOrderResponseInstructionConfig::default()),
+        InstructionTrigger::SettleAuction(SettleAuctionInstructionConfig::default()),
+    ];
+    testing_engine
+        .execute(&mut test_context, instruction_triggers, Some(initial_state))
         .await;
 }
 
@@ -88,7 +112,7 @@ pub async fn test_settle_auction_complete() {
 pub async fn test_settle_auction_reopened_fast_market_order() {
     let (initial_state, mut test_context, testing_engine) = Box::pin(place_initial_offer_shim(
         PlaceInitialOfferInstructionConfig::default(),
-        Some(VaaArgs::default()),
+        Some(vec![VaaArgs::default()]),
         TransferDirection::FromEthereumToArbitrum,
     ))
     .await;
@@ -103,7 +127,7 @@ pub async fn test_settle_auction_reopened_fast_market_order() {
 
     let instruction_triggers = vec![
         InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
-        InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig::default()),
+        InstructionTrigger::PrepareOrderShim(PrepareOrderResponseInstructionConfig::default()),
         InstructionTrigger::SettleAuction(SettleAuctionInstructionConfig::default()),
     ];
     testing_engine
@@ -131,10 +155,10 @@ mod helpers {
 
     pub async fn balance_changes_shim() -> BalanceChanges {
         let transfer_direction = TransferDirection::FromEthereumToArbitrum;
-        let vaa_args = VaaArgs {
+        let vaa_args = vec![VaaArgs {
             post_vaa: false,
             ..VaaArgs::default()
-        };
+        }];
         let (testing_context, mut test_context) = setup_environment(
             ShimMode::VerifyAndPostSignature,
             transfer_direction,
@@ -178,7 +202,7 @@ mod helpers {
         );
         let instruction_triggers = vec![
             InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
-            InstructionTrigger::PrepareOrderShim(PrepareOrderInstructionConfig::default()),
+            InstructionTrigger::PrepareOrderShim(PrepareOrderResponseInstructionConfig::default()),
         ];
         let prepare_order_state = testing_engine
             .execute(
@@ -248,10 +272,10 @@ mod helpers {
 
     pub async fn balance_changes_shimless() -> BalanceChanges {
         let transfer_direction = TransferDirection::FromEthereumToArbitrum;
-        let vaa_args = VaaArgs {
+        let vaa_args = vec![VaaArgs {
             post_vaa: true,
             ..VaaArgs::default()
-        };
+        }];
         let (testing_context, mut test_context) = setup_environment(
             ShimMode::VerifyAndPostSignature,
             transfer_direction,
@@ -288,7 +312,9 @@ mod helpers {
         );
         let instruction_triggers = vec![
             InstructionTrigger::ExecuteOrderShimless(ExecuteOrderInstructionConfig::default()),
-            InstructionTrigger::PrepareOrderShimless(PrepareOrderInstructionConfig::default()),
+            InstructionTrigger::PrepareOrderShimless(
+                PrepareOrderResponseInstructionConfig::default(),
+            ),
             InstructionTrigger::SettleAuction(SettleAuctionInstructionConfig::default()),
         ];
         testing_engine

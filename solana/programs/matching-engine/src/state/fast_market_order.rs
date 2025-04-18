@@ -107,7 +107,7 @@ impl FastMarketOrder {
     /// Creates an payload as expected in a fast market order vaa
     pub fn payload(&self) -> Vec<u8> {
         let mut payload = vec![];
-        payload.push(11_u8); // TODO: Explain why this is 11
+        payload.push(11_u8); // This is the payload id for a fast market order
         payload.extend_from_slice(&self.amount_in.to_be_bytes());
         payload.extend_from_slice(&self.min_amount_out.to_be_bytes());
         payload.extend_from_slice(&self.target_chain.to_be_bytes());
@@ -120,7 +120,6 @@ impl FastMarketOrder {
         payload.extend_from_slice(&self.redeemer_message_length.to_be_bytes());
         if self.redeemer_message_length > 0 {
             payload.extend_from_slice(
-                // uisize try from should never fail
                 &self.redeemer_message[..usize::from(self.redeemer_message_length)],
             );
         }

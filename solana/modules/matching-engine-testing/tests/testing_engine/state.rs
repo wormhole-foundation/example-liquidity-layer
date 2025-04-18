@@ -343,8 +343,8 @@ impl TestingEngineState {
         }
     }
 
-    pub fn get_first_test_vaa_pair(&self) -> &TestVaaPair {
-        self.base().vaas.first().unwrap()
+    pub fn get_test_vaa_pair(&self, index: usize) -> &TestVaaPair {
+        self.base().vaas.get(index).unwrap()
     }
 
     // Convenience methods for common fields

@@ -273,6 +273,11 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     let mut active_auction =
         Auction::try_deserialize(&mut &active_auction_account.data.borrow()[..])?;
 
+    require!(
+        fast_market_order_digest == active_auction.vaa_hash,
+        MatchingEngineError::VaaMismatch
+    );
+
     // Correct way to use create_program_address with existing seeds and bump
     let active_auction_pda = Pubkey::create_program_address(
         &[
@@ -348,16 +353,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         return Err(ErrorCode::ConstraintAddress.into()).map_err(|e: Error| {
             e.with_pubkeys((
                 active_auction_best_offer_token_account.key(),
-                active_auction.info.as_ref().unwrap().best_offer_token,
-            ))
-        });
-    };
-
-    if executor_token_account.key() != active_auction.info.as_ref().unwrap().best_offer_token {
-        msg!("Executor token is not equal to best offer token");
-        return Err(ErrorCode::ConstraintAddress.into()).map_err(|e: Error| {
-            e.with_pubkeys((
-                executor_token_account.key(),
                 active_auction.info.as_ref().unwrap().best_offer_token,
             ))
         });

@@ -9,18 +9,21 @@ use crate::state::{
     Custodian, FastMarketOrder as FastMarketOrderState, MessageProtocol, PreparedOrderResponse,
     RouterEndpoint,
 };
+use crate::CCTP_MINT_RECIPIENT;
 use anchor_lang::prelude::*;
 use anchor_spl::token::spl_token;
-use common::messages::raw::LiquidityLayerDepositMessage;
-use common::messages::raw::LiquidityLayerMessage;
-use common::messages::raw::SlowOrderResponse;
+use common::messages::SlowOrderResponse;
 use common::wormhole_cctp_solana::cctp::message_transmitter_program;
 use common::wormhole_cctp_solana::cpi::ReceiveMessageArgs;
+use common::wormhole_cctp_solana::messages::Deposit;
 use common::wormhole_cctp_solana::utils::CctpMessage;
+use common::wormhole_io::TypePrefixedPayload;
+use ruint::aliases::U256;
 use solana_program::instruction::Instruction;
 use solana_program::keccak;
 use solana_program::program::invoke_signed_unchecked;
 use solana_program::program_pack::Pack;
+use wormhole_io::WriteableBytes;
 
 use crate::error::MatchingEngineError;
 
@@ -28,18 +31,18 @@ use crate::error::MatchingEngineError;
 pub struct PrepareOrderResponseCctpShimData {
     pub encoded_cctp_message: Vec<u8>,
     pub cctp_attestation: Vec<u8>,
-    pub finalized_vaa_message: FinalizedVaaMessage,
+    pub finalized_vaa_message_args: FinalizedVaaMessageArgs,
 }
 
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize)]
-pub struct FinalizedVaaMessage {
-    pub base_fee: u64,            // Can also get from deposit payload
-    pub vaa_payload: Vec<u8>,     // Can get a lot of this info from the cctp message
-    pub deposit_payload: Vec<u8>, // Probably dont need this since its in the vaa payload (at the end)
+pub struct FinalizedVaaMessageArgs {
+    pub base_fee: u64, // Can also get from deposit payload
+    pub consistency_level: u8,
     pub guardian_set_bump: u8,
 }
 
-impl FinalizedVaaMessage {
+impl FinalizedVaaMessageArgs {
+    #[allow(clippy::too_many_arguments)]
     pub fn digest(
         &self,
         sequence: u64,
@@ -48,6 +51,7 @@ impl FinalizedVaaMessage {
         emitter_address: [u8; 32],
         nonce: u32,
         consistency_level: u8,
+        deposit_vaa_payload: Deposit,
     ) -> [u8; 32] {
         let message_hash = keccak::hashv(&[
             timestamp.to_be_bytes().as_ref(),
@@ -56,7 +60,7 @@ impl FinalizedVaaMessage {
             &emitter_address,
             &sequence.to_be_bytes(),
             &[consistency_level],
-            self.vaa_payload.as_ref(),
+            deposit_vaa_payload.to_vec().as_ref(),
         ]);
         // Digest is the hash of the message
         keccak::hashv(&[message_hash.as_ref()])
@@ -64,27 +68,18 @@ impl FinalizedVaaMessage {
             .try_into()
             .unwrap()
     }
-
-    pub fn get_slow_order_response<'a>(&'a self) -> Result<SlowOrderResponse<'a>> {
-        let liquidity_layer_message: LiquidityLayerDepositMessage<'a> =
-            LiquidityLayerDepositMessage::parse(&self.deposit_payload)
-                .map_err(|_| MatchingEngineError::InvalidDepositPayloadId)?;
-        let slow_order_response: SlowOrderResponse<'a> =
-            liquidity_layer_message.to_slow_order_response_unchecked();
-        Ok(slow_order_response)
-    }
 }
 
 impl PrepareOrderResponseCctpShimData {
     pub fn new(
         encoded_cctp_message: Vec<u8>,
         cctp_attestation: Vec<u8>,
-        finalized_vaa_message: FinalizedVaaMessage,
+        finalized_vaa_message_args: FinalizedVaaMessageArgs,
     ) -> Self {
         Self {
             encoded_cctp_message,
             cctp_attestation,
-            finalized_vaa_message,
+            finalized_vaa_message_args,
         }
     }
     pub fn from_bytes(data: &[u8]) -> Option<Self> {
@@ -221,34 +216,15 @@ pub fn prepare_order_response_cctp_shim(
     let cctp_message_transmitter_program = &accounts[22];
     let guardian_set = &accounts[23];
     let guardian_set_signatures = &accounts[24];
-    let _verify_shim_program = &accounts[25];
+    let verify_shim_program = &accounts[25];
     let token_program = &accounts[26];
     let system_program = &accounts[27];
     let receive_message_args = data.to_receive_message_args();
-    let finalized_vaa_message = data.finalized_vaa_message;
+    let finalized_vaa_message_args = data.finalized_vaa_message_args;
 
-    let deposit_option = LiquidityLayerMessage::parse(&finalized_vaa_message.vaa_payload)
-        .map_err(|_| MatchingEngineError::InvalidDeposit)?;
-    let deposit = deposit_option
-        .deposit()
-        .ok_or_else(|| MatchingEngineError::InvalidDepositPayloadId)?;
     let cctp_message = CctpMessage::parse(&receive_message_args.encoded_message)
         .map_err(|_| MatchingEngineError::InvalidCctpMessage)?;
-    require_eq!(
-        cctp_message.source_domain(),
-        deposit.source_cctp_domain(),
-        MatchingEngineError::InvalidCctpMessage
-    );
-    require_eq!(
-        cctp_message.destination_domain(),
-        deposit.destination_cctp_domain(),
-        MatchingEngineError::InvalidCctpMessage
-    );
-    require_eq!(
-        cctp_message.nonce(),
-        deposit.cctp_nonce(),
-        MatchingEngineError::InvalidCctpMessage
-    );
+
     // Load accounts
     let fast_market_order_account_data = fast_market_order.data.borrow();
     let fast_market_order_zero_copy =
@@ -256,23 +232,12 @@ pub fn prepare_order_response_cctp_shim(
     // Create pdas for addresses that need to be created
     // Check the prepared order response account is valid
     let fast_market_order_digest = fast_market_order_zero_copy.digest();
-    // Construct the finalised vaa message digest data
-    let finalized_vaa_message_digest = {
-        let finalised_vaa_timestamp = fast_market_order_zero_copy.vaa_timestamp;
-        let finalised_vaa_sequence = fast_market_order_zero_copy.vaa_sequence.saturating_sub(1);
-        let finalised_vaa_emitter_chain = fast_market_order_zero_copy.vaa_emitter_chain;
-        let finalised_vaa_emitter_address = fast_market_order_zero_copy.vaa_emitter_address;
-        let finalised_vaa_nonce = fast_market_order_zero_copy.vaa_nonce;
-        let finalised_vaa_consistency_level = fast_market_order_zero_copy.vaa_consistency_level;
-        finalized_vaa_message.digest(
-            finalised_vaa_sequence,
-            finalised_vaa_timestamp,
-            finalised_vaa_emitter_chain,
-            finalised_vaa_emitter_address,
-            finalised_vaa_nonce,
-            finalised_vaa_consistency_level,
-        )
-    };
+
+    require_eq!(
+        cctp_mint_recipient.key(),
+        CCTP_MINT_RECIPIENT,
+        MatchingEngineError::InvalidMintRecipient
+    );
 
     // Check that fast market order is owned by the program
     require!(
@@ -280,7 +245,8 @@ pub fn prepare_order_response_cctp_shim(
         ErrorCode::ConstraintOwner
     );
 
-    let checked_custodian =
+    // Check that custodian deserialises correctly
+    let _checked_custodian =
         Custodian::try_deserialize(&mut &custodian.data.borrow()[..]).map(Box::new)?;
     // Deserialise the to_endpoint account
 
@@ -290,16 +256,8 @@ pub fn prepare_order_response_cctp_shim(
     let from_endpoint_account =
         RouterEndpoint::try_deserialize(&mut &from_endpoint.data.borrow()[..]).map(Box::new)?;
 
-    let guardian_set_bump = finalized_vaa_message.guardian_set_bump;
+    let guardian_set_bump = finalized_vaa_message_args.guardian_set_bump;
 
-    // Check loaded vaa is deposit message
-    // TODO: Fix errors to be more specific
-    let liquidity_layer_message =
-        LiquidityLayerDepositMessage::parse(&finalized_vaa_message.deposit_payload)
-            .map_err(|_| MatchingEngineError::InvalidDepositPayloadId)?;
-    let slow_order_response = liquidity_layer_message
-        .slow_order_response()
-        .ok_or_else(|| MatchingEngineError::InvalidDepositPayloadId)?;
     let prepared_order_response_seeds = [
         PreparedOrderResponse::SEED_PREFIX,
         &fast_market_order_digest,
@@ -318,8 +276,6 @@ pub fn prepare_order_response_cctp_shim(
 
     // Check custodian account
     require_eq!(custodian.owner, program_id, ErrorCode::ConstraintOwner);
-
-    require!(!checked_custodian.paused, MatchingEngineError::Paused);
 
     // Check usdc mint
     require_eq!(
@@ -393,7 +349,7 @@ pub fn prepare_order_response_cctp_shim(
     );
 
     require_eq!(
-        _verify_shim_program.key(),
+        verify_shim_program.key(),
         wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
         MatchingEngineError::InvalidProgram
     );
@@ -403,6 +359,39 @@ pub fn prepare_order_response_cctp_shim(
         solana_program::system_program::ID,
         MatchingEngineError::InvalidProgram
     );
+
+    // Construct the finalised vaa message digest data
+    let finalized_vaa_message_digest = {
+        let finalised_vaa_timestamp = fast_market_order_zero_copy.vaa_timestamp;
+        let finalised_vaa_sequence = fast_market_order_zero_copy.vaa_sequence.saturating_sub(1);
+        let finalised_vaa_emitter_chain = fast_market_order_zero_copy.vaa_emitter_chain;
+        let finalised_vaa_emitter_address = fast_market_order_zero_copy.vaa_emitter_address;
+        let finalised_vaa_nonce = fast_market_order_zero_copy.vaa_nonce;
+        let finalised_vaa_consistency_level = finalized_vaa_message_args.consistency_level;
+        let slow_order_response = SlowOrderResponse {
+            base_fee: finalized_vaa_message_args.base_fee,
+        };
+        let deposit_vaa_payload = Deposit {
+            token_address: usdc.key().to_bytes(),
+            amount: U256::from(fast_market_order_zero_copy.amount_in),
+            source_cctp_domain: cctp_message.source_domain(),
+            destination_cctp_domain: cctp_message.destination_domain(),
+            cctp_nonce: cctp_message.nonce(),
+            burn_source: from_endpoint_account.mint_recipient,
+            mint_recipient: cctp_mint_recipient.key().to_bytes(),
+            payload: WriteableBytes::new(slow_order_response.to_vec()),
+        };
+
+        finalized_vaa_message_args.digest(
+            finalised_vaa_sequence,
+            finalised_vaa_timestamp,
+            finalised_vaa_emitter_chain,
+            finalised_vaa_emitter_address,
+            finalised_vaa_nonce,
+            finalised_vaa_consistency_level,
+            deposit_vaa_payload,
+        )
+    };
 
     // Verify deposit message shim using verify shim program
 
@@ -467,7 +456,7 @@ pub fn prepare_order_response_cctp_shim(
             prepared_by: signer.key(),
             base_fee_token: base_fee_token.key(),
             source_chain: fast_market_order_zero_copy.vaa_emitter_chain,
-            base_fee: slow_order_response.base_fee(),
+            base_fee: finalized_vaa_message_args.base_fee,
             fast_vaa_timestamp: fast_market_order_zero_copy.vaa_timestamp,
             amount_in: fast_market_order_zero_copy.amount_in,
             sender: fast_market_order_zero_copy.sender,
@@ -551,6 +540,10 @@ pub fn prepare_order_response_cctp_shim(
         receive_message_args,
     )?;
 
+    msg!(
+        "Attempting to transfer {} from cctp mint recipient to prepared custody token",
+        fast_market_order_zero_copy.amount_in
+    );
     // Finally transfer minted via CCTP to prepared custody token.
     let transfer_ix = spl_token::instruction::transfer(
         &spl_token::ID,

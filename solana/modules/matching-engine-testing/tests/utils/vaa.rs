@@ -6,7 +6,7 @@
 use anchor_lang::prelude::*;
 use common::messages::wormhole_io::{TypePrefixedPayload, WriteableBytes};
 use common::messages::{FastMarketOrder, SlowOrderResponse};
-use common::wormhole_cctp_solana::messages::Deposit; // Implements to_vec() under PrefixedPayload
+use common::wormhole_cctp_solana::messages::Deposit;
 use secp256k1::SecretKey as SecpSecretKey;
 use wormhole_svm_definitions::GUARDIAN_SIGNATURE_LENGTH;
 
@@ -522,6 +522,26 @@ impl TestVaaPair {
             deadline
         }
     }
+
+    pub fn get_finalized_vaa_data(&self) -> PostedVaaData {
+        let deposit_payload = self
+            .deposit_vaa
+            .get_payload_deserialized()
+            .unwrap()
+            .get_deposit()
+            .unwrap();
+        PostedVaaData {
+            consistency_level: self.deposit_vaa.vaa_data.consistency_level, // This is arbitrary, does not matter for the test
+            vaa_time: self.fast_transfer_vaa.vaa_data.vaa_time,
+            vaa_signature_account: self.deposit_vaa.vaa_data.vaa_signature_account,
+            submission_time: self.fast_transfer_vaa.vaa_data.submission_time,
+            nonce: self.fast_transfer_vaa.vaa_data.nonce,
+            sequence: self.fast_transfer_vaa.vaa_data.sequence.saturating_sub(1),
+            emitter_chain: self.deposit_vaa.vaa_data.emitter_chain,
+            emitter_address: self.deposit_vaa.vaa_data.emitter_address,
+            payload: deposit_payload.to_vec(),
+        }
+    }
 }
 
 /// Creates a deposit message
@@ -673,7 +693,7 @@ impl TestVaaPairs {
         Self(Vec::new())
     }
 
-    /// Add a fast transfer to the test, the sequence number and cctp nonce are equal to the index of the test fast transfer
+    /// Add a vaa pair to the test, the sequence number and cctp nonce are equal to the index of the test vaa pair
     ///
     /// # Arguments
     ///
@@ -683,7 +703,7 @@ impl TestVaaPairs {
     /// * `destination_address` - The destination address
     /// * `cctp_mint_recipient` - The CCTP mint recipient
     /// * `vaa_args` - The arguments for the test VAA
-    pub fn add_ft(
+    pub fn add_vaa_pair(
         &mut self,
         token_mint: Pubkey,
         source_address: ChainAddress,
@@ -711,7 +731,7 @@ impl TestVaaPairs {
             is_posted,
         };
 
-        let test_fast_transfer = TestVaaPair::new(
+        let test_vaa_pair = TestVaaPair::new(
             token_mint,
             source_address,
             refund_address,
@@ -720,7 +740,7 @@ impl TestVaaPairs {
             create_deposit_and_fast_transfer_params,
             &test_vaa_args,
         );
-        self.0.push(test_fast_transfer);
+        self.0.push(test_vaa_pair);
     }
 
     /// Creates a collection of test VAA pairs with a chain and address
@@ -742,16 +762,26 @@ impl TestVaaPairs {
         destination_chain_and_address: ChainAndAddress,
         vaa_args: &VaaArgs,
     ) {
-        let source_address = ChainAddress::new_with_address(
-            source_chain_and_address.chain,
-            source_chain_and_address.address,
-        );
-        let destination_address = ChainAddress::new_with_address(
-            destination_chain_and_address.chain,
-            destination_chain_and_address.address,
-        );
+        let source_address = vaa_args
+            .override_emitter_chain_and_address
+            .clone()
+            .unwrap_or_else(|| {
+                ChainAddress::new_with_address(
+                    source_chain_and_address.chain,
+                    source_chain_and_address.address,
+                )
+            });
+        let destination_address = vaa_args
+            .override_destination_chain_and_address
+            .clone()
+            .unwrap_or_else(|| {
+                ChainAddress::new_with_address(
+                    destination_chain_and_address.chain,
+                    destination_chain_and_address.address,
+                )
+            });
         let refund_address = source_address.clone();
-        self.add_ft(
+        self.add_vaa_pair(
             mint_address,
             source_address,
             refund_address,
@@ -793,6 +823,8 @@ pub struct VaaArgs {
     pub start_timestamp: Option<u32>,
     pub post_vaa: bool,
     pub create_deposit_and_fast_transfer_params: CreateDepositAndFastTransferParams,
+    pub override_emitter_chain_and_address: Option<ChainAddress>,
+    pub override_destination_chain_and_address: Option<ChainAddress>,
 }
 
 pub struct ChainAndAddress {

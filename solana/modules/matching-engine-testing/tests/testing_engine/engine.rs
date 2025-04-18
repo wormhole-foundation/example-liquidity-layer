@@ -54,8 +54,8 @@ pub enum InstructionTrigger {
     ImproveOfferShimless(ImproveOfferInstructionConfig),
     ExecuteOrderShimless(ExecuteOrderInstructionConfig),
     ExecuteOrderShim(ExecuteOrderInstructionConfig),
-    PrepareOrderShimless(PrepareOrderInstructionConfig),
-    PrepareOrderShim(PrepareOrderInstructionConfig),
+    PrepareOrderShimless(PrepareOrderResponseInstructionConfig),
+    PrepareOrderShim(PrepareOrderResponseInstructionConfig),
     SettleAuction(SettleAuctionInstructionConfig),
     CloseFastMarketOrderShim(CloseFastMarketOrderShimInstructionConfig),
 }
@@ -64,7 +64,7 @@ pub enum VerificationTrigger {
     // Verify that the auction state is as expected (bool is expected to succeed)
     VerifyAuctionState(bool),
     // Verify that the execute order math is correct
-    VerifyBalances(VerifyBalancesConfig),
+    VerifyBalances(Box<VerifyBalancesConfig>),
 }
 
 pub enum ExecutionTrigger {
@@ -470,8 +470,8 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &InitializeFastMarketOrderShimInstructionConfig,
     ) -> TestingEngineState {
-        let first_test_vaa_pair = current_state.get_first_test_vaa_pair();
-        let fast_transfer_vaa = first_test_vaa_pair.fast_transfer_vaa.clone();
+        let test_vaa_pair = current_state.get_test_vaa_pair(config.vaa_index);
+        let fast_transfer_vaa = test_vaa_pair.fast_transfer_vaa.clone();
         let fast_market_order = create_fast_market_order_state_from_vaa_data(
             &fast_transfer_vaa.vaa_data,
             config
@@ -725,7 +725,7 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &ExecuteOrderInstructionConfig,
     ) -> TestingEngineState {
-        let result = shimful::shims_execute_order::execute_order_fallback_test(
+        let result = shimful::shims_execute_order::execute_order_shimful_test(
             &self.testing_context,
             test_context,
             current_state,
@@ -764,10 +764,6 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &ExecuteOrderInstructionConfig,
     ) -> TestingEngineState {
-        let payer_signer = config
-            .payer_signer
-            .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
         let auction_config_address = current_state
             .auction_config_address()
             .expect("Auction config address not found");
@@ -783,7 +779,7 @@ impl TestingEngine {
         let auction_accounts = AuctionAccounts::new(
             Some(
                 current_state
-                    .get_first_test_vaa_pair()
+                    .get_test_vaa_pair(config.vaa_index)
                     .fast_transfer_vaa
                     .get_vaa_pubkey(),
             ),
@@ -798,9 +794,9 @@ impl TestingEngine {
         let result = shimless::execute_order::execute_order_shimless_test(
             &self.testing_context,
             test_context,
+            config,
             &auction_accounts,
             current_state.auction_state(),
-            &payer_signer,
             config.expected_error(),
         )
         .await;
@@ -831,39 +827,19 @@ impl TestingEngine {
         &self,
         test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
-        config: &PrepareOrderInstructionConfig,
+        config: &PrepareOrderResponseInstructionConfig,
     ) -> TestingEngineState {
-        let auction_accounts = current_state
-            .auction_accounts()
-            .expect("Auction accounts not found");
-
-        let deposit_vaa = current_state.get_first_test_vaa_pair().deposit_vaa.clone();
-        let deposit_vaa_data = deposit_vaa.get_vaa_data();
-        let deposit = deposit_vaa
-            .payload_deserialized
-            .clone()
-            .unwrap()
-            .get_deposit()
-            .unwrap();
-
-        let payer_signer = config
-            .payer_signer
-            .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
-
         let result = shimful::shims_prepare_order_response::prepare_order_response_test(
             &self.testing_context,
             test_context,
-            &payer_signer,
-            deposit_vaa_data,
+            config,
             current_state,
-            &auction_accounts.to_router_endpoint,
-            &auction_accounts.from_router_endpoint,
-            &deposit,
-            config.expected_error(),
         )
         .await;
         if config.expected_error.is_none() {
+            let auction_accounts = current_state
+                .auction_accounts()
+                .expect("Auction accounts not found");
             let prepare_order_response_fixture = result.unwrap();
             let order_prepared_state = OrderPreparedState {
                 prepared_order_response_address: prepare_order_response_fixture
@@ -891,12 +867,8 @@ impl TestingEngine {
         &self,
         test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
-        config: &PrepareOrderInstructionConfig,
+        config: &PrepareOrderResponseInstructionConfig,
     ) -> TestingEngineState {
-        let payer_signer = config
-            .payer_signer
-            .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
         let auction_accounts = current_state
             .auction_accounts()
             .expect("Auction accounts not found");
@@ -909,13 +881,9 @@ impl TestingEngine {
         let result = shimless::prepare_order_response::prepare_order_response(
             &self.testing_context,
             test_context,
-            &payer_signer,
+            config,
             current_state,
-            &auction_accounts.to_router_endpoint,
-            &auction_accounts.from_router_endpoint,
             &solver_token_account,
-            config.expected_error(),
-            config.expected_log_messages.as_ref(),
         )
         .await;
         if config.expected_error.is_none() {
@@ -1001,23 +969,98 @@ impl TestingEngine {
     ) -> TestingEngineState {
         let previous_state_balances = &config.previous_state_balances;
         let balances = self.testing_context.get_balances(test_context).await;
-        for (actor, balance_change) in config.balance_changes.iter() {
+        let balance_changes = config
+            .get_balance_changes(test_context, current_state)
+            .await;
+        let mut is_error = false;
+        for (actor, balance_change) in balance_changes.iter() {
+            if let Some(closed_token_account_enums) = &config.closed_token_account_enums {
+                if closed_token_account_enums.contains(actor) {
+                    continue;
+                }
+            }
             let balance = balances.get(actor).unwrap();
             let previous_balance = previous_state_balances.get(actor).unwrap();
-            assert_eq!(
-                balance.usdc,
-                saturating_add_signed(previous_balance.usdc, balance_change.usdc),
-                "USDC balance mismatch for actor {:?}",
-                actor
-            );
-            assert_eq!(
-                balance.usdt,
-                saturating_add_signed(previous_balance.usdt, balance_change.usdt),
-                "USDT balance mismatch for actor {:?}",
-                actor
-            );
+            if balance.usdc != saturating_add_signed(previous_balance.usdc, balance_change.usdc) {
+                is_error = true;
+                println!("USDC balance mismatch for actor {:?}", actor);
+                println!("Expected balance change: {:?}", balance_change.usdc);
+                println!(
+                    "Actual balance change: {:?}",
+                    balance.usdc.saturating_sub(previous_balance.usdc)
+                );
+            }
+            if balance.usdt != saturating_add_signed(previous_balance.usdt, balance_change.usdt) {
+                is_error = true;
+                println!("USDT balance mismatch for actor {:?}", actor);
+                println!("Expected balance change: {:?}", balance_change.usdt);
+                println!(
+                    "Actual balance change: {:?}",
+                    balance.usdt.saturating_sub(previous_balance.usdt)
+                );
+            }
+        }
+        if is_error {
+            panic!("Balance mismatch");
         }
         current_state.clone()
+    }
+
+    pub async fn make_auction_passed_penalty_period(
+        &self,
+        test_context: &mut ProgramTestContext,
+        current_state: &TestingEngineState,
+        slots_after_expiry: u64,
+    ) {
+        let active_auction_state = current_state
+            .auction_state()
+            .get_active_auction()
+            .expect("Active auction state expected");
+        let auction_expiration_slot = active_auction_state
+            .get_auction_expiration_slot(test_context)
+            .await;
+        let target_slot = auction_expiration_slot + slots_after_expiry;
+        fast_forward_slots(test_context, target_slot).await;
+    }
+
+    pub async fn make_auction_passed_grace_period(
+        &self,
+        test_context: &mut ProgramTestContext,
+        current_state: &TestingEngineState,
+        slots_after_grace_period: u64,
+    ) {
+        let active_auction_state = current_state
+            .auction_state()
+            .get_active_auction()
+            .expect("Active auction state expected");
+        let auction_grace_period_slot = active_auction_state
+            .get_auction_grace_period_slot(test_context)
+            .await;
+        let target_slot = auction_grace_period_slot + slots_after_grace_period;
+        fast_forward_slots(test_context, target_slot).await;
+    }
+
+    pub async fn make_fast_transfer_vaa_expired(
+        &self,
+        test_context: &mut ProgramTestContext,
+        seconds_after_expiry: i64,
+    ) {
+        self.testing_context
+            .make_fast_transfer_vaa_expired(test_context, seconds_after_expiry)
+            .await;
+    }
+
+    pub async fn close_token_account(
+        &self,
+        test_context: &mut ProgramTestContext,
+        actor_enum: &TestingActorEnum,
+        spl_token_enum: &SplTokenEnum,
+    ) {
+        self.testing_context
+            .testing_actors
+            .get_actor(actor_enum)
+            .close_token_account(test_context, spl_token_enum)
+            .await;
     }
 }
 

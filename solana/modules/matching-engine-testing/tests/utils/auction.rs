@@ -136,6 +136,7 @@ impl ActiveAuctionState {
         &self,
         test_context: &mut ProgramTestContext,
         executor_token_address: Pubkey,
+        custodian_token_balance_previous: u64,
         init_auction_fee: u64,
     ) -> AuctionCalculations {
         let auction_info = helpers::get_auction_info(test_context, self.auction_address).await;
@@ -148,13 +149,12 @@ impl ActiveAuctionState {
         let initial_offer_token_account_exists =
             helpers::token_account_exists(test_context, self.initial_offer.offer_token).await;
 
-        let custody_token_balance =
-            helpers::get_token_account_balance(test_context, self.auction_custody_token_address)
-                .await;
+        let custody_token_balance = custodian_token_balance_previous;
 
         // Cast to u64 for math later
         let amount_in = auction_info.amount_in;
         let grace_period = u64::from(auction_config.grace_period);
+        let auction_duration = u64::from(auction_config.duration);
         let initial_penalty_bps = u64::from(auction_config.initial_penalty_bps);
         let penalty_period = u64::from(auction_config.penalty_period);
         let user_penalty_reward_bps = u64::from(auction_config.user_penalty_reward_bps);
@@ -163,9 +163,11 @@ impl ActiveAuctionState {
         let security_deposit_bps = u64::from(auction_config.security_deposit_bps);
 
         let latest_slot = test_context.banks_client.get_root_slot().await.unwrap();
-        let slots_elapsed = latest_slot.saturating_sub(auction_info.start_slot);
+        let slots_elapsed = latest_slot
+            .saturating_sub(auction_info.start_slot)
+            .saturating_sub(auction_duration);
         let elapsed_penalty_period = slots_elapsed.saturating_sub(grace_period);
-        let has_penalty = elapsed_penalty_period >= penalty_period;
+        let has_penalty = slots_elapsed >= grace_period;
 
         // Copy of computeDepositPenalty
         let (penalty_amount, user_reward) = if has_penalty {
@@ -196,12 +198,12 @@ impl ActiveAuctionState {
                     .unwrap(); // (security_deposit - base_penalty) * elapsed_penalty_period / penalty_period
                 let pre_penalty_amount = base_penalty
                     .checked_add(penalty_period_elapsed_penalty)
-                    .unwrap();
+                    .unwrap(); // base_penalty + penalty_period_elapsed_penalty
                 let user_reward = pre_penalty_amount
                     .checked_mul(user_penalty_reward_bps)
                     .unwrap()
                     .checked_div(Self::BPS_DENOMINATOR)
-                    .unwrap();
+                    .unwrap(); // pre_penalty_amount * user_penalty_reward_bps / 10000
                 (
                     pre_penalty_amount.checked_sub(user_reward).unwrap(),
                     user_reward,
@@ -229,7 +231,12 @@ impl ActiveAuctionState {
         let mut initial_offer_token_balance_change: i32 = 0;
 
         let mut deposit_and_fee = if has_penalty {
-            i32::try_from(security_deposit.saturating_sub(user_reward)).unwrap()
+            i32::try_from(
+                security_deposit
+                    .saturating_add(self.best_offer.offer_price)
+                    .saturating_sub(user_reward),
+            )
+            .unwrap()
         } else {
             i32::try_from(security_deposit.saturating_add(self.best_offer.offer_price)).unwrap()
         };
@@ -257,9 +264,10 @@ impl ActiveAuctionState {
             .saturating_sub(amount_in);
 
         // If the best offer token is not the same as the initial offer token, and the initial offer token account exists, subtract the init auction fee
-        if self.best_offer.offer_token != self.initial_offer.offer_token
+        if executor_token_address != self.initial_offer.offer_token
             && initial_offer_token_account_exists
         {
+            // Don't give the init auction fee to the executor if the initial offer token exists and is not the same as the executor
             custody_token_balance_change =
                 custody_token_balance_change.saturating_sub(init_auction_fee);
         }
@@ -279,7 +287,9 @@ impl ActiveAuctionState {
                 best_offer_token_balance_change = balance_change;
 
                 // If the all token accounts are the same, apply the same balance change to each of them
-                if self.initial_offer.offer_token == self.best_offer.offer_token {
+                if self.initial_offer.offer_token == self.best_offer.offer_token
+                    && initial_offer_token_account_exists
+                {
                     initial_offer_token_balance_change = balance_change;
                 }
 
@@ -302,8 +312,7 @@ impl ActiveAuctionState {
 
                 // If the initial offer token is the same as the best offer token, apply the same balance change to each of them
                 if self.initial_offer.offer_token == self.best_offer.offer_token {
-                    let balance_change =
-                        deposit_and_fee + init_auction_fee + amount_in + security_deposit;
+                    let balance_change = deposit_and_fee + init_auction_fee;
                     // This is sufficient, because either neither of them exist or both do
                     if best_offer_token_account_exists {
                         best_offer_token_balance_change = balance_change;
@@ -314,18 +323,34 @@ impl ActiveAuctionState {
                         best_offer_token_balance_change = deposit_and_fee;
                     };
                     if initial_offer_token_account_exists {
-                        initial_offer_token_balance_change = init_auction_fee;
+                        if executor_token_address == self.initial_offer.offer_token {
+                            initial_offer_token_balance_change = executor_token_balance_change;
+                        } else {
+                            initial_offer_token_balance_change = init_auction_fee;
+                        }
                     }
                 }
             }
         // If there is no penalty
-        } else if self.best_offer.offer_token == self.initial_offer.offer_token {
+        } else if self.best_offer.offer_token == self.initial_offer.offer_token
+            && initial_offer_token_account_exists
+        {
             let balance_change = deposit_and_fee + init_auction_fee;
             best_offer_token_balance_change = balance_change;
             initial_offer_token_balance_change = balance_change;
         } else {
-            best_offer_token_balance_change = deposit_and_fee;
-            initial_offer_token_balance_change = init_auction_fee;
+            if best_offer_token_account_exists {
+                best_offer_token_balance_change = deposit_and_fee;
+            } else {
+                executor_token_balance_change =
+                    executor_token_balance_change.saturating_add(deposit_and_fee);
+            }
+            if initial_offer_token_account_exists {
+                initial_offer_token_balance_change = init_auction_fee;
+            } else {
+                executor_token_balance_change =
+                    executor_token_balance_change.saturating_add(init_auction_fee);
+            }
         }
 
         let expected_token_balance_changes = ExpectedTokenBalanceChanges {
@@ -347,6 +372,34 @@ impl ActiveAuctionState {
             expected_token_balance_changes,
             has_penalty,
         }
+    }
+
+    pub async fn get_auction_expiration_slot(&self, test_context: &mut ProgramTestContext) -> u64 {
+        let auction_info = helpers::get_auction_info(test_context, self.auction_address).await;
+        let auction_config =
+            helpers::get_auction_config(test_context, self.auction_config_address).await;
+        auction_info.start_slot
+            + u64::from(auction_config.grace_period)
+            + u64::from(auction_config.penalty_period)
+    }
+
+    pub async fn get_auction_grace_period_slot(
+        &self,
+        test_context: &mut ProgramTestContext,
+    ) -> u64 {
+        let auction_info = helpers::get_auction_info(test_context, self.auction_address).await;
+        let auction_config =
+            helpers::get_auction_config(test_context, self.auction_config_address).await;
+        auction_info.start_slot
+            + u64::from(auction_config.duration)
+            + u64::from(auction_config.grace_period)
+    }
+
+    pub async fn get_auction_custody_token_balance(
+        &self,
+        test_context: &mut ProgramTestContext,
+    ) -> u64 {
+        helpers::get_token_account_balance(test_context, self.auction_custody_token_address).await
     }
 }
 
@@ -569,15 +622,18 @@ mod helpers {
         test_context: &mut ProgramTestContext,
         token_address: Pubkey,
     ) -> u64 {
-        let token_account = test_context
+        if let Some(token_account) = test_context
             .banks_client
             .get_account(token_address)
             .await
             .unwrap()
-            .unwrap();
-        let mut data_ref = token_account.data.as_ref();
-        let token_account_data: TokenAccount =
-            AccountDeserialize::try_deserialize(&mut data_ref).unwrap();
-        token_account_data.amount
+        {
+            let mut data_ref = token_account.data.as_ref();
+            let token_account_data: TokenAccount =
+                AccountDeserialize::try_deserialize(&mut data_ref).unwrap();
+            token_account_data.amount
+        } else {
+            0
+        }
     }
 }

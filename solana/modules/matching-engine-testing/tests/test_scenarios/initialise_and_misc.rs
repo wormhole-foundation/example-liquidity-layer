@@ -144,10 +144,10 @@ pub async fn test_local_token_router_endpoint_creation() {
 #[tokio::test]
 pub async fn test_setup_vaas() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: true,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifySignature,
         transfer_direction,
@@ -196,10 +196,10 @@ pub async fn test_post_message_shims() {
 /// Test that the approve usdc helper function works correctly
 #[tokio::test]
 pub async fn test_approve_usdc() {
-    let vaa_args = VaaArgs {
+    let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
-    };
+    }];
     let (testing_context, mut test_context) = setup_environment(
         ShimMode::VerifyAndPostSignature,
         TransferDirection::FromArbitrumToEthereum,

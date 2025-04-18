@@ -1,5 +1,4 @@
-use crate::testing_engine::config::ExpectedError;
-use crate::testing_engine::config::ExpectedLog;
+use crate::testing_engine::config::{InstructionConfig, PrepareOrderResponseInstructionConfig};
 use crate::testing_engine::setup::{TestingContext, TransferDirection};
 use crate::testing_engine::state::TestingEngineState;
 use crate::utils;
@@ -20,9 +19,8 @@ use matching_engine::state::PreparedOrderResponse;
 use matching_engine::CctpMessageArgs;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::instruction::Instruction;
-use solana_sdk::signature::{Keypair, Signer};
+use solana_sdk::signature::Signer;
 use solana_sdk::transaction::Transaction;
-use std::rc::Rc;
 use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 
 pub struct PrepareOrderResponseFixture {
@@ -39,29 +37,31 @@ pub struct PrepareOrderResponseFixture {
 ///
 /// * `testing_context` - The testing context
 /// * `test_context` - The test context
-/// * `payer_signer` - The payer signer
-/// * `testing_engine_state` - The testing engine state
-/// * `to_endpoint_address` - The to endpoint address
-/// * `from_endpoint_address` - The from endpoint address
+/// * `config` - The prepare order response instruction config
+/// * `current_state` - The current state
 /// * `base_fee_token_address` - The base fee token address
-/// * `expected_error` - The expected error
-/// * `expected_log_messages` - The expected log messages
 ///
 /// # Returns
 ///
 /// The prepared order response fixture if successful, otherwise None
-#[allow(clippy::too_many_arguments)]
 pub async fn prepare_order_response(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
-    payer_signer: &Rc<Keypair>,
-    testing_engine_state: &TestingEngineState,
-    to_endpoint_address: &Pubkey,
-    from_endpoint_address: &Pubkey,
+    config: &PrepareOrderResponseInstructionConfig,
+    current_state: &TestingEngineState,
     base_fee_token_address: &Pubkey,
-    expected_error: Option<&ExpectedError>,
-    expected_log_messages: Option<&Vec<ExpectedLog>>,
 ) -> Option<PrepareOrderResponseFixture> {
+    let auction_accounts = current_state
+        .auction_accounts()
+        .expect("Auction accounts not found");
+    let to_endpoint_address = &auction_accounts.to_router_endpoint;
+    let from_endpoint_address = &auction_accounts.from_router_endpoint;
+    let payer_signer = config
+        .payer_signer
+        .clone()
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
+    let expected_error = config.expected_error();
+    let expected_log_messages = config.expected_log_messages();
     let matching_engine_program_id = &testing_context.get_matching_engine_program_id();
     let usdc_mint_address = &testing_context.get_usdc_mint_address();
     let cctp_mint_recipient = &testing_context.get_cctp_mint_recipient();
@@ -70,42 +70,25 @@ pub async fn prepare_order_response(
         .clone()
         .expect("Fixture accounts not found");
 
-    let source_remote_token_messenger = match testing_context.transfer_direction {
-        TransferDirection::FromEthereumToArbitrum => {
-            utils::router::get_remote_token_messenger(
-                test_context,
-                fixture_accounts.ethereum_remote_token_messenger,
-            )
-            .await
-        }
-        _ => panic!("Unsupported transfer direction"),
-    };
-
-    let message_transmitter_config_pubkey = fixture_accounts.message_transmitter_config;
-    let custodian_address = testing_engine_state
-        .custodian_address()
-        .expect("Custodian address not found");
-    let first_vaa_pair = testing_engine_state.get_first_test_vaa_pair();
-    let posted_fast_transfer_vaa = first_vaa_pair.clone().fast_transfer_vaa;
+    let vaa_pair = current_state.get_test_vaa_pair(config.vaa_index);
+    let posted_fast_transfer_vaa = vaa_pair.clone().fast_transfer_vaa;
     let posted_fast_transfer_vaa_address = posted_fast_transfer_vaa.vaa_pubkey;
-    let deposit = first_vaa_pair
+    let cctp_nonce = vaa_pair
         .deposit_vaa
-        .clone()
-        .payload_deserialized
+        .get_payload_deserialized()
         .unwrap()
         .get_deposit()
-        .unwrap();
-    let cctp_nonce = deposit.cctp_nonce;
+        .unwrap()
+        .cctp_nonce;
+    let custodian_address = current_state
+        .custodian_address()
+        .expect("Custodian address not found");
     // TODO: Make checks to see if fast market order sender matches cctp message sender ...
     let cctp_token_burn_message = utils::cctp_message::craft_cctp_token_burn_message(
+        testing_context,
         test_context,
-        source_remote_token_messenger.domain,
-        cctp_nonce,
-        deposit.amount,
-        &message_transmitter_config_pubkey,
-        &(&source_remote_token_messenger).into(),
-        cctp_mint_recipient,
-        &custodian_address,
+        current_state,
+        config.vaa_index,
     )
     .await
     .unwrap();
@@ -127,7 +110,7 @@ pub async fn prepare_order_response(
         },
     };
     let finalized_vaa = LiquidityLayerVaa {
-        vaa: first_vaa_pair.deposit_vaa.vaa_pubkey,
+        vaa: vaa_pair.deposit_vaa.vaa_pubkey,
     };
     let fast_transfer_digest = posted_fast_transfer_vaa.get_vaa_data().digest();
     let prepared_order_response_seeds = [
@@ -146,8 +129,13 @@ pub async fn prepare_order_response(
     let usdc = Usdc {
         mint: *usdc_mint_address,
     };
+
+    let remote_token_messenger = testing_context
+        .get_remote_token_messenger(test_context)
+        .await;
+
     let (used_nonces_pda, _used_nonces_bump) =
-        UsedNonces::address(source_remote_token_messenger.domain, cctp_nonce);
+        UsedNonces::address(remote_token_messenger.domain, cctp_nonce);
     let cctp_message_transmitter_authority = Pubkey::find_program_address(
         &[
             b"message_transmitter_authority",
@@ -173,6 +161,11 @@ pub async fn prepare_order_response(
         }
         _ => panic!("Unsupported transfer direction"),
     };
+    let fixture_accounts = testing_context
+        .fixture_accounts
+        .clone()
+        .expect("Fixture accounts not found");
+    let message_transmitter_config_pubkey = fixture_accounts.message_transmitter_config;
     let cctp = CctpReceiveMessage {
         mint_recipient: cctp_mint_recipient,
         message_transmitter_authority: cctp_message_transmitter_authority,
@@ -220,7 +213,7 @@ pub async fn prepare_order_response(
     let transaction = Transaction::new_signed_with_payer(
         &[instruction],
         Some(&payer_signer.pubkey()),
-        &[payer_signer],
+        &[&payer_signer],
         testing_context
             .get_new_latest_blockhash(test_context)
             .await

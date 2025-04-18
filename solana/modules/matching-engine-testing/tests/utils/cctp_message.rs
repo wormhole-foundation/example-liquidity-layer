@@ -1,3 +1,5 @@
+use crate::testing_engine::setup::TestingContext;
+use crate::testing_engine::state::TestingEngineState;
 use crate::utils::ETHEREUM_USDC_ADDRESS;
 use anchor_lang::prelude::*;
 use common::messages::raw::LiquidityLayerDepositMessage;
@@ -11,6 +13,7 @@ use common::wormhole_cctp_solana::cctp::{
 use common::wormhole_cctp_solana::messages::Deposit;
 use matching_engine::state::FastMarketOrder;
 use num_traits::FromBytes;
+use ruint::aliases::U256;
 use ruint::Uint;
 use secp256k1::SecretKey as SecpSecretKey;
 use solana_program::keccak::{Hash, Hasher};
@@ -138,8 +141,8 @@ pub struct CctpRemoteTokenMessenger {
     pub token_messenger: Pubkey,
 }
 
-impl From<&RemoteTokenMessenger> for CctpRemoteTokenMessenger {
-    fn from(value: &RemoteTokenMessenger) -> Self {
+impl From<RemoteTokenMessenger> for CctpRemoteTokenMessenger {
+    fn from(value: RemoteTokenMessenger) -> Self {
         Self {
             domain: value.domain,
             token_messenger: Pubkey::from(value.token_messenger),
@@ -582,30 +585,59 @@ impl CctpMessage {
 ///
 /// # Arguments
 ///
+/// * `testing_context` - The testing context
 /// * `test_context` - The test context
-/// * `source_cctp_domain` - The source CCTP domain
-/// * `cctp_nonce` - The nonce of the CCTP message
-/// * `amount` - The amount of the token to burn
-/// * `message_transmitter_config_pubkey` - The pubkey of the message transmitter config
-/// * `remote_token_messenger` - The remote token messenger
-/// * `cctp_mint_recipient` - The address of the recipient of the token
-/// * `custodian_address` - The address of the custodian
-#[allow(clippy::too_many_arguments)]
+/// * `current_state` - The current state of the testing engine
+/// * `test_vaa_pair_index` - The index of the test VAA pair
+///
+/// # Returns
+///
+/// A CCTP token burn message
 pub async fn craft_cctp_token_burn_message(
+    testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
-    source_cctp_domain: u32,
-    cctp_nonce: u64,
-    amount: Uint<256, 4>, // Only allows for 8 byte amounts for now. If we want larger amount support, we can change this to uint256.
-    message_transmitter_config_pubkey: &Pubkey,
-    remote_token_messenger: &CctpRemoteTokenMessenger,
-    cctp_mint_recipient: &Pubkey,
-    custodian_address: &Pubkey,
+    current_state: &TestingEngineState,
+    test_vaa_pair_index: usize,
 ) -> Result<CctpTokenBurnMessage> {
+    let fixture_accounts = testing_context
+        .fixture_accounts
+        .clone()
+        .expect("Fixture accounts not found");
+    let remote_token_messenger = testing_context
+        .get_remote_token_messenger(test_context)
+        .await;
+
+    let message_transmitter_config_pubkey = fixture_accounts.message_transmitter_config;
+
+    let custodian_address = current_state
+        .custodian_address()
+        .expect("Custodian address not found");
+
+    let cctp_mint_recipient = &testing_context.get_cctp_mint_recipient();
+
+    let test_vaa_pair = current_state.get_test_vaa_pair(test_vaa_pair_index);
+    let deposit = test_vaa_pair
+        .deposit_vaa
+        .get_payload_deserialized()
+        .unwrap()
+        .get_deposit()
+        .unwrap();
+    let cctp_nonce = deposit.cctp_nonce;
+    let source_cctp_domain = deposit.source_cctp_domain;
+    let amount = test_vaa_pair
+        .fast_transfer_vaa
+        .get_payload_deserialized()
+        .unwrap()
+        .get_fast_transfer()
+        .unwrap()
+        .amount_in;
+
+    let amount = U256::from(amount);
     let destination_cctp_domain = Chain::Solana.as_cctp_domain(); // Hard code solana as destination domain
     assert_eq!(destination_cctp_domain, 5);
     let message_transmitter_config_data = test_context
         .banks_client
-        .get_account(*message_transmitter_config_pubkey)
+        .get_account(message_transmitter_config_pubkey)
         .await
         .expect("Failed to fetch account")
         .expect("Account not found")
