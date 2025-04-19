@@ -1,4 +1,5 @@
 use crate::testing_engine::config::ExpectedError;
+use crate::testing_engine::config::SettleAuctionInstructionConfig;
 use crate::testing_engine::setup::TestingContext;
 use crate::testing_engine::state::OrderPreparedState;
 use crate::testing_engine::state::TestingEngineState;
@@ -11,9 +12,8 @@ use matching_engine::accounts::SettleAuctionComplete as SettleAuctionCompleteCpi
 use matching_engine::instruction::SettleAuctionComplete;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::instruction::Instruction;
-use solana_sdk::signature::{Keypair, Signer};
+use solana_sdk::signature::Signer;
 use solana_sdk::transaction::Transaction;
-use std::rc::Rc;
 use wormhole_svm_definitions::EVENT_AUTHORITY_SEED;
 
 /// Settle an auction (shimless)
@@ -37,10 +37,23 @@ pub async fn settle_auction_complete(
     testing_context: &TestingContext,
     current_state: &TestingEngineState,
     test_context: &mut ProgramTestContext,
-    payer_signer: &Rc<Keypair>,
+    config: &SettleAuctionInstructionConfig,
     expected_error: Option<&ExpectedError>,
 ) -> AuctionState {
-    let auction_state = current_state.auction_state();
+    let payer_signer = &config
+        .payer_signer
+        .clone()
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
+    let active_auction = config
+        .overwrite_active_auction_state
+        .as_ref()
+        .unwrap_or_else(|| {
+            current_state
+                .auction_state()
+                .get_active_auction()
+                .expect("Failed to get active auction")
+        });
+
     let order_prepared_state = current_state
         .order_prepared()
         .expect("Order prepared not found");
@@ -52,9 +65,6 @@ pub async fn settle_auction_complete(
     } = *order_prepared_state;
 
     let matching_engine_program_id = testing_context.get_matching_engine_program_id();
-    let active_auction = auction_state
-        .get_active_auction()
-        .expect("Failed to get active auction");
     let event_seeds = EVENT_AUTHORITY_SEED;
     let event_authority =
         Pubkey::find_program_address(&[event_seeds], &matching_engine_program_id).0;
@@ -94,6 +104,6 @@ pub async fn settle_auction_complete(
     if expected_error.is_none() {
         AuctionState::Settled
     } else {
-        auction_state.clone()
+        AuctionState::Active(Box::new(active_auction.clone()))
     }
 }

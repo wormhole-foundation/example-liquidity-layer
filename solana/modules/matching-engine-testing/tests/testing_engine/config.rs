@@ -22,7 +22,11 @@ use std::{
 
 use crate::{
     shimless::initialize::AuctionParametersConfig,
-    utils::{token_account::SplTokenEnum, Chain},
+    utils::{
+        auction::{ActiveAuctionState, AuctionAccounts},
+        token_account::SplTokenEnum,
+        Chain,
+    },
 };
 use anchor_lang::prelude::*;
 use solana_program_test::ProgramTestContext;
@@ -153,6 +157,7 @@ impl InstructionConfig for SetPauseCustodianInstructionConfig {
 #[derive(Clone, Default)]
 pub struct PrepareOrderResponseInstructionConfig {
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>,
+    pub overwrite_auction_accounts: OverwriteCurrentState<AuctionAccounts>,
     pub actor_enum: TestingActorEnum,
     pub token_enum: SplTokenEnum,
     pub vaa_index: usize,
@@ -208,6 +213,7 @@ impl InstructionConfig for ExecuteOrderInstructionConfig {
 
 #[derive(Clone, Default)]
 pub struct SettleAuctionInstructionConfig {
+    pub overwrite_active_auction_state: OverwriteCurrentState<ActiveAuctionState>,
     pub payer_signer: Option<Rc<Keypair>>,
     pub expected_error: Option<ExpectedError>,
     pub expected_log_messages: Option<Vec<ExpectedLog>>,

@@ -1,11 +1,13 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::TokenAccount;
+use matching_engine::ID;
 use solana_program_test::ProgramTestContext;
 
 use super::Chain;
 use super::{router::TestRouterEndpoints, token_account::SplTokenEnum};
 use crate::testing_engine::config::TestingActorEnum;
 use crate::testing_engine::setup::{TestingActor, TestingContext, TransferDirection};
+use crate::testing_engine::state::TestingEngineState;
 use anyhow::{anyhow, ensure, Result as AnyhowResult};
 use matching_engine::state::{Auction, AuctionConfig, AuctionInfo};
 
@@ -124,6 +126,18 @@ pub struct AuctionCalculations {
 
 impl ActiveAuctionState {
     pub const BPS_DENOMINATOR: u64 = 1_000_000;
+
+    pub fn fake_active_auction_state(auction_accounts: &AuctionAccounts) -> Self {
+        Self {
+            auction_address: Pubkey::new_unique(),
+            auction_custody_token_address: Pubkey::new_unique(),
+            auction_config_address: auction_accounts.auction_config,
+            initial_offer: AuctionOffer::default(),
+            best_offer: AuctionOffer::default(),
+            spl_token_enum: auction_accounts.spl_token_enum.clone(),
+        }
+    }
+
     /// Computes the penalty amount and user reward for the auction
     ///
     /// # Arguments
@@ -410,7 +424,7 @@ impl ActiveAuctionState {
 /// * `participant` - The participant of the offer
 /// * `offer_token` - The token of the offer
 /// * `offer_price` - The price of the offer
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct AuctionOffer {
     pub actor: TestingActorEnum,
     pub participant: Pubkey,
@@ -419,6 +433,31 @@ pub struct AuctionOffer {
 }
 
 impl AuctionAccounts {
+    pub fn fake_auction_accounts(
+        current_state: &TestingEngineState,
+        testing_context: &TestingContext,
+    ) -> Self {
+        let router_endpoints = current_state
+            .router_endpoints()
+            .clone()
+            .unwrap()
+            .endpoints
+            .clone();
+        let actor = testing_context.testing_actors.owner.clone();
+        let transfer_direction = testing_context.transfer_direction;
+        let auction_config = Pubkey::find_program_address(&[AuctionConfig::SEED_PREFIX], &ID).0;
+        Self::new(
+            None,
+            actor,
+            None,
+            auction_config,
+            &router_endpoints,
+            Pubkey::new_unique(),
+            SplTokenEnum::Usdc,
+            transfer_direction,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         posted_fast_vaa: Option<Pubkey>,

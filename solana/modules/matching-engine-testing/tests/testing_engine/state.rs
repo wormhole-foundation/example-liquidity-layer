@@ -117,6 +117,7 @@ pub enum TestingEngineState {
         guardian_set_state: GuardianSetState,
         auction_state: AuctionState,
         auction_accounts: Option<AuctionAccounts>,
+        order_prepared: Option<OrderPreparedState>,
     },
     InitialOfferPlaced {
         base: BaseState,
@@ -125,6 +126,7 @@ pub enum TestingEngineState {
         fast_market_order: Option<FastMarketOrderAccountCreatedState>,
         auction_state: AuctionState,
         auction_accounts: AuctionAccounts,
+        order_prepared: Option<OrderPreparedState>,
     },
     OfferImproved {
         base: BaseState,
@@ -133,6 +135,7 @@ pub enum TestingEngineState {
         fast_market_order: Option<FastMarketOrderAccountCreatedState>,
         auction_state: AuctionState,
         auction_accounts: Option<AuctionAccounts>,
+        order_prepared: Option<OrderPreparedState>,
     },
     OrderExecuted {
         base: BaseState,
@@ -331,6 +334,9 @@ impl TestingEngineState {
             Self::OrderPrepared { order_prepared, .. } => Some(order_prepared),
             Self::AuctionSettled { order_prepared, .. } => Some(order_prepared),
             Self::FastMarketOrderClosed { order_prepared, .. } => order_prepared.as_ref(),
+            Self::InitialOfferPlaced { order_prepared, .. } => order_prepared.as_ref(),
+            Self::OfferImproved { order_prepared, .. } => order_prepared.as_ref(),
+            Self::FastMarketOrderAccountCreated { order_prepared, .. } => order_prepared.as_ref(),
             _ => None,
         }
     }
@@ -376,6 +382,7 @@ impl TestingEngineState {
                 guardian_set_state,
                 auction_state: _, // Ignore the current auction state
                 auction_accounts,
+                order_prepared,
             } => Ok(Self::FastMarketOrderAccountCreated {
                 base: base.clone(),
                 initialized: initialized.clone(),
@@ -384,6 +391,7 @@ impl TestingEngineState {
                 guardian_set_state: guardian_set_state.clone(),
                 auction_state: new_auction_state, // Use the new auction state
                 auction_accounts: auction_accounts.clone(),
+                order_prepared: order_prepared.clone(),
             }),
 
             Self::InitialOfferPlaced {
@@ -393,6 +401,7 @@ impl TestingEngineState {
                 fast_market_order,
                 auction_state: _, // Ignore the current auction state
                 auction_accounts,
+                order_prepared,
             } => Ok(Self::InitialOfferPlaced {
                 base: base.clone(),
                 initialized: initialized.clone(),
@@ -400,6 +409,7 @@ impl TestingEngineState {
                 fast_market_order: fast_market_order.clone(),
                 auction_state: new_auction_state, // Use the new auction state
                 auction_accounts: auction_accounts.clone(),
+                order_prepared: order_prepared.clone(),
             }),
 
             Self::OfferImproved {
@@ -409,6 +419,7 @@ impl TestingEngineState {
                 fast_market_order,
                 auction_state: _, // Ignore the current auction state
                 auction_accounts,
+                order_prepared,
             } => Ok(Self::OfferImproved {
                 base: base.clone(),
                 initialized: initialized.clone(),
@@ -416,6 +427,7 @@ impl TestingEngineState {
                 fast_market_order: fast_market_order.clone(),
                 auction_state: new_auction_state, // Use the new auction state
                 auction_accounts: auction_accounts.clone(),
+                order_prepared: order_prepared.clone(),
             }),
 
             Self::OrderExecuted {

@@ -14,7 +14,9 @@ use crate::testing_engine::config::{
     InitializeInstructionConfig, PlaceInitialOfferInstructionConfig,
 };
 use crate::utils;
+use crate::utils::auction::{ActiveAuctionState, AuctionAccounts};
 
+use anchor_lang::error::ErrorCode;
 use solana_program_test::tokio;
 use testing_engine::config::*;
 use testing_engine::engine::{InstructionTrigger, TestingEngine};
@@ -150,6 +152,179 @@ pub async fn test_settle_auction_balance_changes() {
     helpers::compare_balance_changes(&balance_changes_shim, &balance_changes_shimless);
 }
 
+/// Test settle auction prepare order before active auction
+#[tokio::test]
+pub async fn test_settle_auction_prepare_order_before_active_auction() {
+    let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+    let (testing_context, mut test_context) = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vec![VaaArgs::default()]),
+    )
+    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
+
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+    ];
+    let create_cctp_router_endpoints_state = testing_engine
+        .execute(&mut test_context, instruction_triggers, None)
+        .await;
+
+    // This is just needed to get the router endpoint accounts when prepare order happens before place initial offer, it is not used for anything else
+    let fake_auction_accounts = AuctionAccounts::fake_auction_accounts(
+        &create_cctp_router_endpoints_state,
+        &testing_engine.testing_context,
+    );
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::PrepareOrderShim(PrepareOrderResponseInstructionConfig {
+            overwrite_auction_accounts: Some(fake_auction_accounts),
+            ..Default::default()
+        }),
+    ];
+    let prepared_order_state = testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(create_cctp_router_endpoints_state),
+        )
+        .await;
+
+    let instruction_triggers = vec![
+        InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
+        InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
+        InstructionTrigger::SettleAuction(SettleAuctionInstructionConfig::default()),
+    ];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(prepared_order_state),
+        )
+        .await;
+}
+
+/// Test settle auction with base_fee_token != best offer actor
+#[tokio::test]
+pub async fn test_settle_auction_base_fee_token_not_best_offer_actor() {
+    let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+    let (place_initial_offer_state, mut test_context, testing_engine) =
+        Box::pin(place_initial_offer_shim(
+            PlaceInitialOfferInstructionConfig::default(),
+            None,
+            transfer_direction,
+        ))
+        .await;
+
+    let instruction_triggers = vec![
+        InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
+        InstructionTrigger::PrepareOrderShim(PrepareOrderResponseInstructionConfig {
+            actor_enum: TestingActorEnum::Solver(2),
+            ..Default::default()
+        }),
+        InstructionTrigger::SettleAuction(SettleAuctionInstructionConfig::default()),
+    ];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(place_initial_offer_state),
+        )
+        .await;
+}
+
+/*
+                    Sad path tests section
+
+                    *****************
+               ******               ******
+           ****                           ****
+        ****                                 ***
+      ***                                       ***
+     **           ***               ***           **
+   **           *******           *******          ***
+  **            *******           *******            **
+ **             *******           *******             **
+ **               ***               ***               **
+**                                                     **
+**                                                     **
+**                                                     **
+**                                                     **
+ **                   ************                   **
+  **               ******      ******               **
+   ***           *****            *****            ***
+     **        ***                    ***         **
+      ***    **                         **      ***
+        ****                                 ****
+           ****                           ****
+               ******               ******
+                    *****************
+*/
+
+/// Test cannot settle non-existent auction
+#[tokio::test]
+pub async fn test_settle_auction_non_existent() {
+    let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+    let (testing_context, mut test_context) = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        transfer_direction,
+        Some(vec![VaaArgs::default()]),
+    )
+    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
+
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+    ];
+    let create_cctp_router_endpoints_state = testing_engine
+        .execute(&mut test_context, instruction_triggers, None)
+        .await;
+
+    let fake_auction_accounts = AuctionAccounts::fake_auction_accounts(
+        &create_cctp_router_endpoints_state,
+        &testing_engine.testing_context,
+    );
+    let fake_active_auction_state =
+        ActiveAuctionState::fake_active_auction_state(&fake_auction_accounts);
+    let instruction_triggers = vec![
+        InstructionTrigger::InitializeFastMarketOrderShim(
+            InitializeFastMarketOrderShimInstructionConfig::default(),
+        ),
+        InstructionTrigger::PrepareOrderShim(PrepareOrderResponseInstructionConfig {
+            overwrite_auction_accounts: Some(fake_auction_accounts),
+            ..Default::default()
+        }),
+        InstructionTrigger::SettleAuction(SettleAuctionInstructionConfig {
+            overwrite_active_auction_state: Some(fake_active_auction_state),
+            expected_error: Some(ExpectedError {
+                instruction_index: 0,
+                error_code: u32::from(ErrorCode::AccountNotInitialized),
+                error_string: "AccountNotInitialized".to_string(),
+            }),
+            ..SettleAuctionInstructionConfig::default()
+        }),
+    ];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(create_cctp_router_endpoints_state),
+        )
+        .await;
+}
+
+/*
+Helper code
+*/
 mod helpers {
     use super::*;
 

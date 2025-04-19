@@ -532,6 +532,7 @@ impl TestingEngine {
                 },
                 auction_state: current_state.auction_state().clone(),
                 auction_accounts: current_state.auction_accounts().cloned(),
+                order_prepared: current_state.order_prepared().cloned(),
             }
         } else {
             current_state.clone()
@@ -638,6 +639,7 @@ impl TestingEngine {
                 fast_market_order: current_state.fast_market_order().cloned(),
                 auction_state,
                 auction_accounts,
+                order_prepared: current_state.order_prepared().cloned(),
             };
         }
         current_state.clone()
@@ -674,6 +676,7 @@ impl TestingEngine {
                 fast_market_order: current_state.fast_market_order().cloned(),
                 auction_state: new_auction_state,
                 auction_accounts: current_state.auction_accounts().cloned(),
+                order_prepared: current_state.order_prepared().cloned(),
             };
         }
         current_state.clone()
@@ -713,6 +716,7 @@ impl TestingEngine {
                 fast_market_order: current_state.fast_market_order().cloned(),
                 auction_state: initial_offer_placed_state.auction_state,
                 auction_accounts,
+                order_prepared: current_state.order_prepared().cloned(),
             };
         }
         current_state.clone()
@@ -837,9 +841,15 @@ impl TestingEngine {
         )
         .await;
         if config.expected_error.is_none() {
-            let auction_accounts = current_state
-                .auction_accounts()
-                .expect("Auction accounts not found");
+            let auction_accounts =
+                config
+                    .overwrite_auction_accounts
+                    .as_ref()
+                    .unwrap_or_else(|| {
+                        current_state
+                            .auction_accounts()
+                            .expect("Auction accounts not found")
+                    });
             let prepare_order_response_fixture = result.unwrap();
             let order_prepared_state = OrderPreparedState {
                 prepared_order_response_address: prepare_order_response_fixture
@@ -916,15 +926,11 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &SettleAuctionInstructionConfig,
     ) -> TestingEngineState {
-        let payer_signer = config
-            .payer_signer
-            .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
         let auction_state = shimless::settle_auction::settle_auction_complete(
             &self.testing_context,
             current_state,
             test_context,
-            &payer_signer,
+            config,
             config.expected_error(),
         )
         .await;

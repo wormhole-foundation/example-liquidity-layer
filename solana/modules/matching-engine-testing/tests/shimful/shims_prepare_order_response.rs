@@ -62,9 +62,14 @@ impl PrepareOrderResponseShimAccountsFixture {
         guardian_signature_info: &GuardianSignatureInfo,
     ) -> Self {
         let usdc_mint_address = testing_context.get_usdc_mint_address();
-        let auction_accounts = current_state
-            .auction_accounts()
-            .expect("Auction accounts not found");
+        let auction_accounts = config
+            .overwrite_auction_accounts
+            .as_ref()
+            .unwrap_or_else(|| {
+                current_state
+                    .auction_accounts()
+                    .expect("Auction accounts not found")
+            });
         let to_endpoint = auction_accounts.to_router_endpoint;
         let from_endpoint = auction_accounts.from_router_endpoint;
         let fast_market_order = current_state

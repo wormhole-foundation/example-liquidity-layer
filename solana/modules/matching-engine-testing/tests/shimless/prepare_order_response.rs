@@ -51,9 +51,14 @@ pub async fn prepare_order_response(
     current_state: &TestingEngineState,
     base_fee_token_address: &Pubkey,
 ) -> Option<PrepareOrderResponseFixture> {
-    let auction_accounts = current_state
-        .auction_accounts()
-        .expect("Auction accounts not found");
+    let auction_accounts = config
+        .overwrite_auction_accounts
+        .as_ref()
+        .unwrap_or_else(|| {
+            current_state
+                .auction_accounts()
+                .expect("Auction accounts not found")
+        });
     let to_endpoint_address = &auction_accounts.to_router_endpoint;
     let from_endpoint_address = &auction_accounts.from_router_endpoint;
     let payer_signer = config

@@ -315,6 +315,56 @@ pub async fn test_prepare_order_response_shim_after_custodian_is_paused_after_in
         .await;
 }
 
+/// Prepare order response shim for completed auction after grace period
+#[tokio::test]
+pub async fn test_prepare_order_response_shim_for_completed_auction_after_grace_period() {
+    let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+    let (place_initial_offer_state, mut test_context, testing_engine) =
+        Box::pin(place_initial_offer_shim(
+            PlaceInitialOfferInstructionConfig::default(),
+            None,
+            transfer_direction,
+        ))
+        .await;
+    testing_engine
+        .make_auction_passed_grace_period(&mut test_context, &place_initial_offer_state, 1)
+        .await;
+    let instruction_triggers = vec![
+        InstructionTrigger::ExecuteOrderShim(ExecuteOrderInstructionConfig::default()),
+        InstructionTrigger::PrepareOrderShim(PrepareOrderResponseInstructionConfig::default()),
+    ];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(place_initial_offer_state),
+        )
+        .await;
+}
+
+/// Prepare order response shim for active auction
+#[tokio::test]
+pub async fn test_prepare_order_response_shim_within_auction_period() {
+    let transfer_direction = TransferDirection::FromEthereumToArbitrum;
+    let (place_initial_offer_state, mut test_context, testing_engine) =
+        Box::pin(place_initial_offer_shim(
+            PlaceInitialOfferInstructionConfig::default(),
+            None,
+            transfer_direction,
+        ))
+        .await;
+    let instruction_triggers = vec![InstructionTrigger::PrepareOrderShim(
+        PrepareOrderResponseInstructionConfig::default(),
+    )];
+    testing_engine
+        .execute(
+            &mut test_context,
+            instruction_triggers,
+            Some(place_initial_offer_state),
+        )
+        .await;
+}
+
 /*
                     Sad path tests section
 
