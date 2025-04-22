@@ -32,24 +32,23 @@ What is expected:
 
 What is expected:
 - Fast market order account is created
-- Guardian set is created
+- Guardian signatures account is created via Verify VAA Shim program, which are the signatures found in the fast market order VAA from the source network.
 - Fast market order is initialised
 
 ### Close fast market order
 
 What is expected:
 - Fast market order account is closed
-- Guardian set is closed
-- Close account refund recipient is sent usdc
+- Close account refund recipient is sent lamports from the fast market order account
 
-### Place initial offer (shimless)
+### Place initial offer (shim)
 
 What is expected:
 - Fast market order is initialised
 - Initial offer is placed
 - Auction account is created and corresponds to a vaa and the initial offer
 
-### Place initial offer (shim)
+### Place initial offer (shimless)
 
 What is expected:
 - Fast market order is posted as a vaa

@@ -184,14 +184,14 @@ impl Chain {
 
 // Registered Token Routers
 lazy_static::lazy_static! {
-    pub static ref REGISTERED_TOKEN_ROUTERS: std::collections::HashMap<Chain, Vec<u8>> = {
+    pub static ref REGISTERED_TOKEN_ROUTERS: std::collections::HashMap<Chain, [u8; 32]> = {
         let mut m = std::collections::HashMap::new();
-        m.insert(Chain::Ethereum, vec![0xf0; 32]);
-        m.insert(Chain::Avalanche, vec![0xf1; 32]);
-        m.insert(Chain::Optimism, vec![0xf2; 32]);
-        m.insert(Chain::Arbitrum, vec![0xf3; 32]);
-        m.insert(Chain::Base, vec![0xf6; 32]);
-        m.insert(Chain::Polygon, vec![0xf7; 32]);
+        m.insert(Chain::Ethereum, [0xf0; 32]);
+        m.insert(Chain::Avalanche, [0xf1; 32]);
+        m.insert(Chain::Optimism, [0xf2; 32]);
+        m.insert(Chain::Arbitrum, [0xf3; 32]);
+        m.insert(Chain::Base, [0xf6; 32]);
+        m.insert(Chain::Polygon, [0xf7; 32]);
         m
     };
 }
