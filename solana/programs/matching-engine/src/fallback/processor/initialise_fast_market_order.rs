@@ -11,7 +11,7 @@ use wormhole_svm_shim::verify_vaa::VerifyHashData;
 
 use super::helpers::create_account_reliably;
 
-use super::helpers::check_account_length;
+use super::helpers::require_min_account_infos_len;
 use super::FallbackMatchingEngineInstruction;
 use crate::error::MatchingEngineError;
 use crate::state::FastMarketOrder as FastMarketOrderState;
@@ -112,7 +112,7 @@ pub fn initialise_fast_market_order(
     accounts: &[AccountInfo],
     data: &InitialiseFastMarketOrderData,
 ) -> Result<()> {
-    check_account_length(accounts, 6)?;
+    require_min_account_infos_len(accounts, 6)?;
 
     let program_id = ID;
 

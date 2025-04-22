@@ -3,8 +3,8 @@ use std::io::Cursor;
 use super::helpers::create_account_reliably;
 use super::place_initial_offer::VaaMessageBodyHeader;
 use super::FallbackMatchingEngineInstruction;
-use crate::fallback::helpers::check_account_length;
 use crate::fallback::helpers::create_token_account_reliably;
+use crate::fallback::helpers::require_min_account_infos_len;
 use crate::state::PreparedOrderResponseInfo;
 use crate::state::PreparedOrderResponseSeeds;
 use crate::state::{
@@ -172,7 +172,7 @@ pub fn prepare_order_response_cctp_shim(
     data: PrepareOrderResponseCctpShimData,
 ) -> Result<()> {
     let program_id = &ID;
-    check_account_length(accounts, 27)?;
+    require_min_account_infos_len(accounts, 27)?;
 
     let signer = &accounts[0];
     let custodian = &accounts[1];

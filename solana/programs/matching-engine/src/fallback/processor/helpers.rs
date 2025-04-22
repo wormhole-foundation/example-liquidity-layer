@@ -9,7 +9,7 @@ use solana_program::{
 };
 
 #[inline(always)]
-pub fn check_account_length(accounts: &[AccountInfo], len: usize) -> Result<()> {
+pub fn require_min_account_infos_len(accounts: &[AccountInfo], len: usize) -> Result<()> {
     if accounts.len() < len {
         return Err(ErrorCode::AccountNotEnoughKeys.into());
     }

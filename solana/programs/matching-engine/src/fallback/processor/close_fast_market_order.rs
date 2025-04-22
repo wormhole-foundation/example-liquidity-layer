@@ -4,7 +4,7 @@ use anchor_lang::prelude::*;
 use solana_program::instruction::Instruction;
 use solana_program::program_error::ProgramError;
 
-use super::helpers::check_account_length;
+use super::helpers::require_min_account_infos_len;
 use super::FallbackMatchingEngineInstruction;
 
 pub struct CloseFastMarketOrderAccounts<'ix> {
@@ -49,7 +49,7 @@ impl CloseFastMarketOrder<'_> {
 ///
 /// Result<()>
 pub fn close_fast_market_order(accounts: &[AccountInfo]) -> Result<()> {
-    check_account_length(accounts, 2)?;
+    require_min_account_infos_len(accounts, 2)?;
 
     let fast_market_order = &accounts[0];
     let close_account_refund_recipient = &accounts[1];

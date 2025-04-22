@@ -1,6 +1,6 @@
-use super::helpers::check_account_length;
 use super::helpers::create_account_reliably;
 use super::helpers::create_token_account_reliably;
+use super::helpers::require_min_account_infos_len;
 use crate::state::MessageProtocol;
 use crate::state::{
     Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian,
@@ -193,7 +193,7 @@ pub fn place_initial_offer_cctp_shim(
     let program_id = &PROGRAM_ID; // Your program ID
 
     // Check all accounts are valid
-    check_account_length(accounts, 11)?;
+    require_min_account_infos_len(accounts, 11)?;
     // Extract data fields
     let PlaceInitialOfferCctpShimData { offer_price } = *data;
 

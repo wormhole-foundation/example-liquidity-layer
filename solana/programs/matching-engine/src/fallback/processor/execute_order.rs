@@ -1,4 +1,4 @@
-use super::helpers::check_account_length;
+use super::helpers::require_min_account_infos_len;
 use crate::fallback::burn_and_post::PostMessageDerivedAccounts;
 use crate::state::{
     Auction, AuctionConfig, AuctionStatus, Custodian, FastMarketOrder as FastMarketOrderState,
@@ -157,7 +157,7 @@ impl ExecuteOrderCctpShim<'_> {
 
 pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     // This saves stack space whereas having that in the body does not
-    check_account_length(accounts, 31)?;
+    require_min_account_infos_len(accounts, 31)?;
 
     let program_id = &ID;
 
