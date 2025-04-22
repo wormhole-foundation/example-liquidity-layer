@@ -124,7 +124,7 @@ pub async fn place_initial_offer_fallback(
         .get_token_account_balance(test_context, &config.spl_token_enum)
         .await;
 
-    let place_initial_offer_ix_data = PlaceInitialOfferCctpShimFallbackData::new(offer_price);
+    let place_initial_offer_ix_data = PlaceInitialOfferCctpShimFallbackData { offer_price };
 
     let (from_router_endpoint, to_router_endpoint) =
         config.get_from_and_to_router_endpoints(current_state);

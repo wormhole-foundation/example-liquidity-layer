@@ -17,7 +17,6 @@ use utils::constants::*;
 
 use matching_engine::state::{FastMarketOrder as FastMarketOrderState, FastMarketOrderParams};
 use solana_program_test::ProgramTestContext;
-use solana_sdk::transaction::VersionedTransaction;
 use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer, transaction::Transaction};
 use std::rc::Rc;
 use wormhole_io::TypePrefixedPayload;
@@ -56,6 +55,7 @@ pub async fn initialise_fast_market_order_fallback(
     );
     let transaction = testing_context
         .create_transaction(
+            test_context,
             &[initialise_fast_market_order_ix],
             Some(&payer_signer.pubkey()),
             &[payer_signer],

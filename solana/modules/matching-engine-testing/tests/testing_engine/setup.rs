@@ -39,7 +39,7 @@ use matching_engine::{CCTP_MINT_RECIPIENT, ID as PROGRAM_ID};
 use solana_program_test::{BanksClientError, ProgramTest, ProgramTestContext};
 use solana_sdk::clock::Clock;
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
-use solana_sdk::instruction::InstructionError;
+use solana_sdk::instruction::{Instruction, InstructionError};
 use solana_sdk::transaction::{TransactionError, VersionedTransaction};
 use solana_sdk::{
     pubkey::Pubkey,
@@ -380,23 +380,23 @@ impl TestingContext {
 
     pub async fn create_transaction(
         &self,
+        test_context: &mut ProgramTestContext,
         instructions: &[Instruction],
         payer: Option<&Pubkey>,
         signers: &[&Keypair],
         compute_unit_price: u64,
-        compute_unit_limit: u64,
-    ) -> VersionedTransaction {
-        let last_blockhash = self.get_new_latest_blockhash(test_context).await;
+        compute_unit_limit: u32,
+    ) -> Transaction {
+        let last_blockhash = self.get_new_latest_blockhash(test_context).await.unwrap();
         let compute_budget_price =
             ComputeBudgetInstruction::set_compute_unit_price(compute_unit_price);
         let compute_budget_limit =
             ComputeBudgetInstruction::set_compute_unit_limit(compute_unit_limit);
-        let instructions = [
-            &compute_budget_price,
-            &compute_budget_limit,
-            instructions.to_vec(),
-        ];
-        Transaction::new_signed_with_payer(instructions, payer, signers, last_blockhash)
+        let mut all_instructions = Vec::with_capacity(instructions.len() + 2);
+        all_instructions.push(compute_budget_price.clone());
+        all_instructions.push(compute_budget_limit.clone());
+        all_instructions.extend_from_slice(instructions);
+        Transaction::new_signed_with_payer(&all_instructions, payer, signers, last_blockhash)
     }
 
     // TODO: Edit to handle multiple instructions in a single transaction

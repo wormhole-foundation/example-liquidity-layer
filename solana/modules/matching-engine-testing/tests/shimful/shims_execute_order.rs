@@ -235,8 +235,8 @@ pub fn create_execute_order_shim_accounts<'ix>(
         initial_participant: &execute_order_fallback_accounts.initial_participant,     // 10
         to_router_endpoint: &execute_order_fallback_accounts.to_router_endpoint,       // 11
         post_message_shim_program: &POST_MESSAGE_SHIM_PROGRAM_ID,                      // 12
-        post_message_sequence: &execute_order_fallback_fixture.post_message_sequence,  // 13
-        post_message_message: &execute_order_fallback_fixture.post_message_message,    // 14
+        core_bridge_emitter_sequence: &execute_order_fallback_fixture.post_message_sequence, // 13
+        post_shim_message: &execute_order_fallback_fixture.post_message_message,       // 14
         cctp_deposit_for_burn_mint: &USDC_MINT,                                        // 15
         cctp_deposit_for_burn_token_messenger_minter_sender_authority:
             &execute_order_fallback_fixture

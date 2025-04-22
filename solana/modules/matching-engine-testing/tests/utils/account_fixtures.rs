@@ -4,7 +4,7 @@
 //! It includes methods for creating accounts and for reading a keypair from a JSON fixture file.
 //! These accounts are located in the `tests/fixtures/accounts` directory.
 
-use anchor_lang::prelude::{pubkey, Pubkey};
+use anchor_lang::prelude::Pubkey;
 use anyhow::Result as AnyhowResult;
 use serde_json::Value;
 use solana_program_test::ProgramTest;
@@ -70,7 +70,7 @@ impl FixtureAccounts {
     ///
     /// * `program_test` - The program test instance
     pub fn add_lookup_table_hack(program_test: &mut ProgramTest) {
-        let filename = "tests/fixtures/lup.json";
+        let filename = "tests/fixtures/lut.json";
         let account_fixture = read_account_from_file(filename).unwrap();
         program_test.add_account_with_file_data(
             account_fixture.address,
