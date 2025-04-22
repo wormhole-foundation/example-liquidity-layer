@@ -96,7 +96,6 @@ pub enum MatchingEngineError {
     BorshDeserializationError = 0x704,
     BorshSerializationError = 0x705,
     InvalidPda = 0x706,
-    AccountDataTooSmall = 0x708,
     InvalidProgram = 0x70a,
     TokenTransferFailed = 0x70c,
     InvalidMint = 0x70e,

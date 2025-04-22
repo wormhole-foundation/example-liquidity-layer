@@ -1,8 +1,13 @@
 use anchor_lang::prelude::*;
 use anchor_lang::Discriminator;
+use anchor_spl::token_interface::spl_token_metadata_interface::borsh::BorshDeserialize;
 use bytemuck::{Pod, Zeroable};
 use solana_program::instruction::Instruction;
+use solana_program::keccak;
 use solana_program::program::invoke_signed_unchecked;
+use wormhole_svm_shim::verify_vaa::VerifyHash;
+use wormhole_svm_shim::verify_vaa::VerifyHashAccounts;
+use wormhole_svm_shim::verify_vaa::VerifyHashData;
 
 use super::helpers::create_account_reliably;
 
@@ -10,6 +15,7 @@ use super::helpers::check_account_length;
 use super::FallbackMatchingEngineInstruction;
 use crate::error::MatchingEngineError;
 use crate::state::FastMarketOrder as FastMarketOrderState;
+use crate::ID;
 
 pub struct InitialiseFastMarketOrderAccounts<'ix> {
     /// The signer of the transaction
@@ -33,8 +39,8 @@ impl<'ix> InitialiseFastMarketOrderAccounts<'ix> {
             AccountMeta::new(*self.fast_market_order_account, false),
             AccountMeta::new_readonly(*self.guardian_set, false),
             AccountMeta::new_readonly(*self.guardian_set_signatures, false),
-            AccountMeta::new(*self.verify_vaa_shim_program, false),
-            AccountMeta::new(*self.system_program, false),
+            AccountMeta::new_readonly(*self.verify_vaa_shim_program, false),
+            AccountMeta::new_readonly(*self.system_program, false),
         ]
     }
 }
@@ -108,7 +114,7 @@ pub fn initialise_fast_market_order(
 ) -> Result<()> {
     check_account_length(accounts, 6)?;
 
-    let program_id = crate::ID;
+    let program_id = ID;
 
     let signer = &accounts[0];
     let fast_market_order_account = &accounts[1];
@@ -123,33 +129,21 @@ pub fn initialise_fast_market_order(
     // Start of cpi call to verify the shim.
     // ------------------------------------------------------------------------------------------------
     let fast_market_order_vaa_digest = fast_market_order.digest();
-    // Did not want to pass in the vaa hash here. So recreated it.
-    let verify_hash_data = {
-        let mut data = vec![];
-        data.extend_from_slice(
-            &wormhole_svm_shim::verify_vaa::VerifyVaaShimInstruction::<false>::VERIFY_HASH_SELECTOR,
-        );
-        data.push(guardian_set_bump);
-        data.extend_from_slice(&fast_market_order_vaa_digest);
-        data
-    };
-    let verify_shim_ix = Instruction {
-        program_id: wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID, // Because program is hardcoded, the check is not needed.
-        accounts: vec![
-            AccountMeta::new_readonly(guardian_set.key(), false),
-            AccountMeta::new_readonly(guardian_set_signatures.key(), false),
-        ],
+    let fast_market_order_vaa_digest_hash =
+        keccak::Hash::try_from_slice(&fast_market_order_vaa_digest).unwrap();
+    let verify_hash_data =
+        VerifyHashData::new(guardian_set_bump, fast_market_order_vaa_digest_hash);
+    let verify_hash_shim_ix = VerifyHash {
+        program_id: &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
+        accounts: VerifyHashAccounts {
+            guardian_set: &guardian_set.key(),
+            guardian_signatures: &guardian_set_signatures.key(),
+        },
         data: verify_hash_data,
-    };
+    }
+    .instruction();
     // Make the cpi call to verify the shim.
-    invoke_signed_unchecked(
-        &verify_shim_ix,
-        &[
-            guardian_set.to_account_info(),
-            guardian_set_signatures.to_account_info(),
-        ],
-        &[],
-    )?;
+    invoke_signed_unchecked(&verify_hash_shim_ix, accounts, &[])?;
     // ------------------------------------------------------------------------------------------------
     // End of cpi call to verify the shim.
 
@@ -196,12 +190,7 @@ pub fn initialise_fast_market_order(
     fast_market_order_account_data[0..8].copy_from_slice(&discriminator);
 
     let fast_market_order_bytes = bytemuck::bytes_of(&data.fast_market_order);
-    // Ensure the destination has enough space
-    if fast_market_order_account_data.len() < 8_usize.saturating_add(fast_market_order_bytes.len())
-    {
-        msg!("Account data buffer too small");
-        return Err(MatchingEngineError::AccountDataTooSmall.into());
-    }
+
     // Write the fast_market_order struct to the account
     fast_market_order_account_data[8..8_usize.saturating_add(fast_market_order_bytes.len())]
         .copy_from_slice(fast_market_order_bytes);
