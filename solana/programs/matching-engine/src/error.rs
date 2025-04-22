@@ -94,6 +94,7 @@ pub enum MatchingEngineError {
     AccountAlreadyInitialized = 0x700,
     AccountNotWritable = 0x702,
     BorshDeserializationError = 0x704,
+    BorshSerializationError = 0x705,
     InvalidPda = 0x706,
     AccountDataTooSmall = 0x708,
     InvalidProgram = 0x70a,

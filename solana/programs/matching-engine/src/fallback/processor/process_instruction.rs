@@ -149,7 +149,7 @@ impl FallbackMatchingEngineInstruction<'_> {
                 out
             }
             Self::PrepareOrderResponseCctpShim(data) => {
-                let data_slice = data.to_bytes();
+                let data_slice = data.try_to_vec().unwrap();
                 let total_capacity = 8_usize.saturating_add(data_slice.len()); // 8 for the selector, plus the data length
 
                 let mut out = Vec::with_capacity(total_capacity);

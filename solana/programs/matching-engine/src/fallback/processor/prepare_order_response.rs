@@ -1,8 +1,10 @@
 use std::io::Cursor;
 
 use super::helpers::create_account_reliably;
+use super::place_initial_offer::VaaMessageBodyHeader;
 use super::FallbackMatchingEngineInstruction;
 use crate::fallback::helpers::check_account_length;
+use crate::fallback::helpers::create_token_account_reliably;
 use crate::state::PreparedOrderResponseInfo;
 use crate::state::PreparedOrderResponseSeeds;
 use crate::state::{
@@ -10,6 +12,7 @@ use crate::state::{
     RouterEndpoint,
 };
 use crate::CCTP_MINT_RECIPIENT;
+use crate::ID;
 use anchor_lang::prelude::*;
 use anchor_spl::token::spl_token;
 use common::messages::SlowOrderResponse;
@@ -42,24 +45,18 @@ pub struct FinalizedVaaMessageArgs {
 }
 
 impl FinalizedVaaMessageArgs {
-    #[allow(clippy::too_many_arguments)]
     pub fn digest(
         &self,
-        sequence: u64,
-        timestamp: u32,
-        emitter_chain: u16,
-        emitter_address: [u8; 32],
-        nonce: u32,
-        consistency_level: u8,
+        vaa_message_body_header: VaaMessageBodyHeader,
         deposit_vaa_payload: Deposit,
     ) -> [u8; 32] {
         let message_hash = keccak::hashv(&[
-            timestamp.to_be_bytes().as_ref(),
-            nonce.to_be_bytes().as_ref(),
-            emitter_chain.to_be_bytes().as_ref(),
-            &emitter_address,
-            &sequence.to_be_bytes(),
-            &[consistency_level],
+            vaa_message_body_header.vaa_time.to_be_bytes().as_ref(),
+            vaa_message_body_header.nonce.to_be_bytes().as_ref(),
+            vaa_message_body_header.emitter_chain.to_be_bytes().as_ref(),
+            &vaa_message_body_header.emitter_address,
+            &vaa_message_body_header.sequence.to_be_bytes(),
+            &[vaa_message_body_header.consistency_level],
             deposit_vaa_payload.to_vec().as_ref(),
         ]);
         // Digest is the hash of the message
@@ -71,22 +68,8 @@ impl FinalizedVaaMessageArgs {
 }
 
 impl PrepareOrderResponseCctpShimData {
-    pub fn new(
-        encoded_cctp_message: Vec<u8>,
-        cctp_attestation: Vec<u8>,
-        finalized_vaa_message_args: FinalizedVaaMessageArgs,
-    ) -> Self {
-        Self {
-            encoded_cctp_message,
-            cctp_attestation,
-            finalized_vaa_message_args,
-        }
-    }
     pub fn from_bytes(data: &[u8]) -> Option<Self> {
         Self::try_from_slice(data).ok()
-    }
-    pub fn to_bytes(&self) -> Vec<u8> {
-        self.try_to_vec().unwrap()
     }
 
     pub fn to_receive_message_args(&self) -> ReceiveMessageArgs {
@@ -188,7 +171,7 @@ pub fn prepare_order_response_cctp_shim(
     accounts: &[AccountInfo],
     data: PrepareOrderResponseCctpShimData,
 ) -> Result<()> {
-    let program_id = &crate::ID;
+    let program_id = &ID;
     check_account_length(accounts, 27)?;
 
     let signer = &accounts[0];
@@ -366,7 +349,6 @@ pub fn prepare_order_response_cctp_shim(
         let finalised_vaa_sequence = fast_market_order_zero_copy.vaa_sequence.saturating_sub(1);
         let finalised_vaa_emitter_chain = fast_market_order_zero_copy.vaa_emitter_chain;
         let finalised_vaa_emitter_address = fast_market_order_zero_copy.vaa_emitter_address;
-        let finalised_vaa_nonce = fast_market_order_zero_copy.vaa_nonce;
         let finalised_vaa_consistency_level = finalized_vaa_message_args.consistency_level;
         let slow_order_response = SlowOrderResponse {
             base_fee: finalized_vaa_message_args.base_fee,
@@ -383,12 +365,13 @@ pub fn prepare_order_response_cctp_shim(
         };
 
         finalized_vaa_message_args.digest(
-            finalised_vaa_sequence,
-            finalised_vaa_timestamp,
-            finalised_vaa_emitter_chain,
-            finalised_vaa_emitter_address,
-            finalised_vaa_nonce,
-            finalised_vaa_consistency_level,
+            VaaMessageBodyHeader::new(
+                finalised_vaa_consistency_level,
+                finalised_vaa_timestamp,
+                finalised_vaa_sequence,
+                finalised_vaa_emitter_chain,
+                finalised_vaa_emitter_address,
+            ),
             deposit_vaa_payload,
         )
     };
@@ -488,23 +471,17 @@ pub fn prepare_order_response_cctp_shim(
     ];
 
     let prepared_custody_token_signer_seeds = &[&create_prepared_custody_token_seeds[..]];
-    let prepared_custody_token_account_space = spl_token::state::Account::LEN;
-    create_account_reliably(
+    create_token_account_reliably(
         &signer.key(),
         &prepared_custody_token_pda,
+        &prepared_order_response_pda,
+        &usdc.key(),
+        spl_token::state::Account::LEN,
         prepared_custody_token.lamports(),
-        prepared_custody_token_account_space,
         accounts,
-        &spl_token::ID,
         prepared_custody_token_signer_seeds,
     )?;
-    let init_token_account_ix = spl_token::instruction::initialize_account3(
-        &spl_token::ID,
-        &prepared_custody_token_pda,
-        &usdc.key(),
-        &prepared_order_response_pda,
-    )?;
-    solana_program::program::invoke_signed_unchecked(&init_token_account_ix, accounts, &[])?;
+
     // End create prepared custody token account
     // ------------------------------------------------------------------------------------------------
 
