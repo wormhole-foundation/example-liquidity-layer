@@ -54,19 +54,17 @@ pub async fn initialise_fast_market_order_fallback(
         fast_market_order,
         guardian_signature_info,
     );
-    let recent_blockhash = testing_context
-        .get_new_latest_blockhash(test_context)
-        .await
-        .unwrap();
-    let transaction = solana_sdk::transaction::Transaction::new_signed_with_payer(
-        &[initialise_fast_market_order_ix],
-        Some(&payer_signer.pubkey()),
-        &[payer_signer],
-        recent_blockhash,
-    );
-    let versioned_transaction = VersionedTransaction::from(transaction);
+    let transaction = testing_context
+        .create_transaction(
+            &[initialise_fast_market_order_ix],
+            Some(&payer_signer.pubkey()),
+            &[payer_signer],
+            1000000000,
+            1000000000,
+        )
+        .await;
     testing_context
-        .execute_and_verify_transaction(test_context, versioned_transaction, expected_error)
+        .execute_and_verify_transaction(test_context, transaction, expected_error)
         .await;
 }
 

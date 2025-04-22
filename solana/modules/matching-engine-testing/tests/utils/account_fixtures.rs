@@ -51,7 +51,7 @@ impl FixtureAccounts {
             core_guardian_set: add_account_from_file(program_test, "tests/fixtures/accounts/core_bridge/guardian_set_0.json").address,
             message_transmitter_config: add_account_from_file(program_test, "tests/fixtures/accounts/message_transmitter/message_transmitter_config.json").address,
             // matching_engine_custodian: add_account_from_file(program_test, "tests/fixtures/accounts/testnet/matching_engine_custodian.json").address,
-            matching_engine_custodian: pubkey!("5BsCKkzuZXLygduw6RorCqEB61AdzNkxp5VzQrFGzYWr"),
+            matching_engine_custodian: Pubkey::from_str("5BsCKkzuZXLygduw6RorCqEB61AdzNkxp5VzQrFGzYWr").unwrap(),
             token_router_custodian: add_account_from_file(program_test, "tests/fixtures/accounts/testnet/token_router_custodian.json").address,
             token_router_program: add_account_from_file(program_test, "tests/fixtures/accounts/testnet/token_router_program_data_hacked.json").address,
             arbitrum_remote_token_messenger: add_account_from_file(program_test, "tests/fixtures/accounts/token_messenger_minter/arbitrum_remote_token_messenger.json").address,
