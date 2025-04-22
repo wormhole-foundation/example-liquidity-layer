@@ -7,12 +7,10 @@ use common::wormhole_cctp_solana::{
     cpi::BurnAndPublishArgs,
 };
 use solana_program::program::invoke_signed_unchecked;
+use wormhole_svm_definitions::solana::Finality;
 use wormhole_svm_definitions::solana::{
     CORE_BRIDGE_CONFIG, CORE_BRIDGE_FEE_COLLECTOR, CORE_BRIDGE_PROGRAM_ID,
     POST_MESSAGE_SHIM_EVENT_AUTHORITY, POST_MESSAGE_SHIM_PROGRAM_ID,
-};
-use wormhole_svm_definitions::{
-    find_emitter_sequence_address, find_shim_message_address, solana::Finality,
 };
 use wormhole_svm_shim::post_message;
 
@@ -20,23 +18,7 @@ use wormhole_svm_shim::post_message;
 pub struct PostMessageAccounts {
     pub emitter: Pubkey,
     pub payer: Pubkey,
-    derived: PostMessageDerivedAccounts,
-}
-
-impl PostMessageAccounts {
-    pub fn new(emitter: Pubkey, payer: Pubkey) -> Self {
-        Self {
-            emitter,
-            payer,
-            derived: Self::get_derived_accounts(&emitter),
-        }
-    }
-    fn get_derived_accounts(emitter: &Pubkey) -> PostMessageDerivedAccounts {
-        PostMessageDerivedAccounts {
-            message: find_shim_message_address(emitter, &POST_MESSAGE_SHIM_PROGRAM_ID).0,
-            sequence: find_emitter_sequence_address(emitter, &CORE_BRIDGE_PROGRAM_ID).0,
-        }
-    }
+    pub derived: PostMessageDerivedAccounts,
 }
 
 pub struct PostMessageDerivedAccounts {

@@ -1,10 +1,11 @@
 use super::helpers::check_account_length;
+use crate::fallback::burn_and_post::PostMessageDerivedAccounts;
 use crate::state::{
     Auction, AuctionConfig, AuctionStatus, Custodian, FastMarketOrder as FastMarketOrderState,
     MessageProtocol, RouterEndpoint,
 };
-use crate::utils;
 use crate::utils::auction::DepositPenalty;
+use crate::{utils, ID};
 use anchor_lang::prelude::*;
 use anchor_spl::token::{spl_token, TokenAccount};
 use common::messages::Fill;
@@ -35,7 +36,7 @@ pub struct ExecuteOrderShimAccounts<'ix> {
     pub active_auction_config: &'ix Pubkey, // 6
     /// The token account of the auction's best offer
     pub active_auction_best_offer_token: &'ix Pubkey, // 7
-    /// ???
+    /// The token account of the executor
     pub executor_token: &'ix Pubkey, // 8
     /// The token account of the auction's initial offer
     pub initial_offer_token: &'ix Pubkey, // 9
@@ -45,10 +46,10 @@ pub struct ExecuteOrderShimAccounts<'ix> {
     pub to_router_endpoint: &'ix Pubkey, // 11
     /// The program id of the post message shim program
     pub post_message_shim_program: &'ix Pubkey, // 12
-    /// The sequence account of the post message shim program (can be derived)
-    pub post_message_sequence: &'ix Pubkey, // 13
+    /// The emitter sequence of the core bridge program (can be derived)
+    pub core_bridge_emitter_sequence: &'ix Pubkey, // 13
     /// The message account of the post message shim program (can be derived)
-    pub post_message_message: &'ix Pubkey, // 14
+    pub post_shim_message: &'ix Pubkey, // 14
     /// The mint account of the CCTP token to be burned
     pub cctp_deposit_for_burn_mint: &'ix Pubkey, // 15
     /// The token messenger minter sender authority account of the CCTP token to be burned
@@ -101,8 +102,8 @@ impl<'ix> ExecuteOrderShimAccounts<'ix> {
             AccountMeta::new(*self.initial_participant, false),
             AccountMeta::new_readonly(*self.to_router_endpoint, false),
             AccountMeta::new_readonly(*self.post_message_shim_program, false),
-            AccountMeta::new(*self.post_message_sequence, false),
-            AccountMeta::new(*self.post_message_message, false),
+            AccountMeta::new(*self.core_bridge_emitter_sequence, false),
+            AccountMeta::new(*self.post_shim_message, false),
             AccountMeta::new(*self.cctp_deposit_for_burn_mint, false),
             AccountMeta::new_readonly(
                 *self.cctp_deposit_for_burn_token_messenger_minter_sender_authority,
@@ -158,7 +159,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     // This saves stack space whereas having that in the body does not
     check_account_length(accounts, 31)?;
 
-    let program_id = &crate::ID;
+    let program_id = &ID;
 
     // Get the accounts
     let signer_account = &accounts[0];
@@ -174,8 +175,8 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     let initial_participant_account = &accounts[10];
     let to_router_endpoint_account = &accounts[11];
     let _post_message_shim_program_account = &accounts[12];
-    let _post_message_sequence_account = &accounts[13];
-    let _post_message_message_account = &accounts[14];
+    let core_bridge_emitter_sequence_account = &accounts[13];
+    let post_shim_message_account = &accounts[14];
     let cctp_deposit_for_burn_mint_account = &accounts[15];
     let cctp_deposit_for_burn_token_messenger_minter_sender_authority_account = &accounts[16];
     let cctp_deposit_for_burn_message_transmitter_config_account = &accounts[17];
@@ -441,12 +442,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     // the fast fill will most likely require an additional transaction, so this buffer allows
     // the best offer participant to perform his duty without the risk of getting slashed by
     // another executor.
-    let additional_grace_period = match active_auction.target_protocol {
-        MessageProtocol::Local { .. } => {
-            crate::EXECUTE_FAST_ORDER_LOCAL_ADDITIONAL_GRACE_PERIOD.into()
-        }
-        _ => None,
-    };
+    let additional_grace_period = Some(crate::EXECUTE_FAST_ORDER_LOCAL_ADDITIONAL_GRACE_PERIOD);
 
     let DepositPenalty {
         penalty,
@@ -634,9 +630,14 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             .unwrap(),
     };
 
-    let post_message_accounts =
-        PostMessageAccounts::new(custodian_account.key(), signer_account.key());
-    // Lets print the auction account balance
+    let post_message_accounts = PostMessageAccounts {
+        emitter: custodian_account.key(),
+        payer: signer_account.key(),
+        derived: PostMessageDerivedAccounts {
+            message: post_shim_message_account.key(),
+            sequence: core_bridge_emitter_sequence_account.key(),
+        },
+    };
 
     burn_and_post(
         CpiContext::new_with_signer(
