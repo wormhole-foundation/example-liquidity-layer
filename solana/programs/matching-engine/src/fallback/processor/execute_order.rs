@@ -197,8 +197,8 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     // Do checks
     // ------------------------------------------------------------------------------------------------
 
-    let fast_market_order_zero_copy =
-        FastMarketOrderState::try_deserialize(&mut &fast_market_order_account.data.borrow()[..])?;
+    let fast_market_order_data = &fast_market_order_account.data.borrow()[..];
+    let fast_market_order_zero_copy = FastMarketOrderState::try_read(fast_market_order_data)?;
     // Bind value for compiler (needed for pda seeds)
     let active_auction_key = active_auction_account.key();
 

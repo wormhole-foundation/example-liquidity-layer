@@ -226,9 +226,9 @@ pub fn prepare_order_response_cctp_shim(
         .map_err(|_| MatchingEngineError::InvalidCctpMessage)?;
 
     // Load accounts
-    let fast_market_order_account_data = fast_market_order.data.borrow();
+    let fast_market_order_account_data = &fast_market_order.data.borrow()[..];
     let fast_market_order_zero_copy =
-        FastMarketOrderState::try_read(&fast_market_order_account_data[..])?;
+        FastMarketOrderState::try_read(fast_market_order_account_data)?;
     // Create pdas for addresses that need to be created
     // Check the prepared order response account is valid
     let fast_market_order_digest = fast_market_order_zero_copy.digest();

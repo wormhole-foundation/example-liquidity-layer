@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 
+use anchor_spl::token::spl_token;
 use solana_program::{
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
@@ -126,6 +127,54 @@ pub fn create_account_reliably(
             invoke_signed_unchecked(&cpi_ix, accounts, signer_seeds)?;
         }
     }
+
+    Ok(())
+}
+
+/// Create a token account reliably
+///
+/// This function creates a token account and initializes it with the given mint and owner.
+///
+/// # Arguments
+///
+/// * `payer_pubkey` - The pubkey of the account that will pay for the token account.
+/// * `account_pubkey_to_create` - The pubkey of the account to create.
+/// * `owner_account_info` - The account info of the owner of the token account.
+/// * `mint_pubkey` - The pubkey of the mint.
+/// * `data_len` - The length of the data to be written to the token account.
+/// * `accounts` - The accounts to be used in the CPI.
+/// * `signer_seeds` - The signer seeds to be used in the CPI.
+#[allow(clippy::too_many_arguments)]
+pub fn create_token_account_reliably(
+    payer_pubkey: &Pubkey,
+    account_pubkey_to_create: &Pubkey,
+    owner_account_pubkey: &Pubkey,
+    mint_pubkey: &Pubkey,
+    data_len: usize,
+    token_account_lamports: u64,
+    accounts: &[AccountInfo],
+    signer_seeds: &[&[&[u8]]],
+) -> ProgramResult {
+    // Create the owner account
+    create_account_reliably(
+        payer_pubkey,
+        account_pubkey_to_create,
+        token_account_lamports,
+        data_len,
+        accounts,
+        &spl_token::ID,
+        signer_seeds,
+    )?;
+
+    // Create the token account
+    let init_token_account_ix = spl_token::instruction::initialize_account3(
+        &spl_token::ID,
+        account_pubkey_to_create,
+        mint_pubkey,
+        owner_account_pubkey,
+    )?;
+
+    solana_program::program::invoke_signed_unchecked(&init_token_account_ix, accounts, &[])?;
 
     Ok(())
 }

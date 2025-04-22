@@ -1,8 +1,10 @@
 use super::helpers::check_account_length;
 use super::helpers::create_account_reliably;
+use super::helpers::create_token_account_reliably;
+use crate::state::MessageProtocol;
 use crate::state::{
     Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian,
-    FastMarketOrder as FastMarketOrderState, MessageProtocol, RouterEndpoint,
+    FastMarketOrder as FastMarketOrderState, RouterEndpoint,
 };
 use crate::ID as PROGRAM_ID;
 use anchor_lang::prelude::*;
@@ -25,10 +27,6 @@ pub struct PlaceInitialOfferCctpShimData {
 }
 
 impl PlaceInitialOfferCctpShimData {
-    pub fn new(offer_price: u64) -> Self {
-        Self { offer_price }
-    }
-
     pub fn from_bytes(data: &[u8]) -> Option<&Self> {
         bytemuck::try_from_bytes::<Self>(data).ok()
     }
@@ -36,18 +34,31 @@ impl PlaceInitialOfferCctpShimData {
 
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub struct PlaceInitialOfferCctpShimAccounts<'ix> {
+    /// The signer account
     pub signer: &'ix Pubkey,
+    /// The transfer authority account
     pub transfer_authority: &'ix Pubkey,
+    /// The custodian account
     pub custodian: &'ix Pubkey,
+    /// The auction config account
     pub auction_config: &'ix Pubkey,
+    /// The from endpoint account
     pub from_endpoint: &'ix Pubkey,
+    /// The to endpoint account
     pub to_endpoint: &'ix Pubkey,
-    pub fast_market_order: &'ix Pubkey, // Needs initalising. Seeds are [FastMarketOrderState::SEED_PREFIX, auction_address.as_ref()]
-    pub auction: &'ix Pubkey,           // Needs initalising
+    /// The fast market order account, which will be initialised. Seeds are [FastMarketOrderState::SEED_PREFIX, auction_address.as_ref()]
+    pub fast_market_order: &'ix Pubkey,
+    /// The auction account, which will be initialised
+    pub auction: &'ix Pubkey,
+    /// The offer token account
     pub offer_token: &'ix Pubkey,
+    /// The auction custody token account
     pub auction_custody_token: &'ix Pubkey,
+    /// The usdc token account
     pub usdc: &'ix Pubkey,
+    /// The system program account
     pub system_program: &'ix Pubkey,
+    /// The token program account
     pub token_program: &'ix Pubkey,
 }
 
@@ -119,8 +130,7 @@ impl VaaMessageBodyHeader {
         }
     }
 
-    /// This function creates both the message body and the payload.
-    /// This is all done here just because it's (supposedly?) cheaper in the solana vm.
+    /// This function creates both the message body for the fast market order, including the payload.
     pub fn message_body(&self, fast_market_order: &FastMarketOrderState) -> Vec<u8> {
         let mut message_body = vec![];
         message_body.extend_from_slice(&self.vaa_time.to_be_bytes());
@@ -129,44 +139,48 @@ impl VaaMessageBodyHeader {
         message_body.extend_from_slice(&self.emitter_address);
         message_body.extend_from_slice(&self.sequence.to_be_bytes());
         message_body.extend_from_slice(&[self.consistency_level]);
-        let mut payload = vec![];
-        payload.push(11_u8);
-        payload.extend_from_slice(&fast_market_order.amount_in.to_be_bytes());
-        payload.extend_from_slice(&fast_market_order.min_amount_out.to_be_bytes());
-        payload.extend_from_slice(&fast_market_order.target_chain.to_be_bytes());
-        payload.extend_from_slice(&fast_market_order.redeemer);
-        payload.extend_from_slice(&fast_market_order.sender);
-        payload.extend_from_slice(&fast_market_order.refund_address);
-        payload.extend_from_slice(&fast_market_order.max_fee.to_be_bytes());
-        payload.extend_from_slice(&fast_market_order.init_auction_fee.to_be_bytes());
-        payload.extend_from_slice(&fast_market_order.deadline.to_be_bytes());
-        payload.extend_from_slice(&fast_market_order.redeemer_message_length.to_be_bytes());
+        message_body.push(11_u8);
+        message_body.extend_from_slice(&fast_market_order.amount_in.to_be_bytes());
+        message_body.extend_from_slice(&fast_market_order.min_amount_out.to_be_bytes());
+        message_body.extend_from_slice(&fast_market_order.target_chain.to_be_bytes());
+        message_body.extend_from_slice(&fast_market_order.redeemer);
+        message_body.extend_from_slice(&fast_market_order.sender);
+        message_body.extend_from_slice(&fast_market_order.refund_address);
+        message_body.extend_from_slice(&fast_market_order.max_fee.to_be_bytes());
+        message_body.extend_from_slice(&fast_market_order.init_auction_fee.to_be_bytes());
+        message_body.extend_from_slice(&fast_market_order.deadline.to_be_bytes());
+        message_body.extend_from_slice(&fast_market_order.redeemer_message_length.to_be_bytes());
         if fast_market_order.redeemer_message_length > 0 {
-            payload.extend_from_slice(
+            message_body.extend_from_slice(
                 &fast_market_order.redeemer_message
                     [..usize::from(fast_market_order.redeemer_message_length)],
             );
         }
-        message_body.extend_from_slice(&payload);
         message_body
     }
 
+    /// This function creates the hash of the message body for the fast market order.
+    /// This is used to create the digest.
     pub fn message_hash(&self, fast_market_order: &FastMarketOrderState) -> keccak::Hash {
         keccak::hashv(&[self.message_body(fast_market_order).as_ref()])
     }
 
+    /// The digest is the hash of the message hash.
     pub fn digest(&self, fast_market_order: &FastMarketOrderState) -> keccak::Hash {
         keccak::hashv(&[self.message_hash(fast_market_order).as_ref()])
     }
 
+    /// This function returns the vaa time.
     pub fn vaa_time(&self) -> u32 {
         self.vaa_time
     }
 
+    /// This function returns the sequence number of the fast market order.
     pub fn sequence(&self) -> u64 {
         self.sequence
     }
 
+    /// This function returns the emitter chain of the fast market order.
     pub fn emitter_chain(&self) -> u16 {
         self.emitter_chain
     }
@@ -176,8 +190,7 @@ pub fn place_initial_offer_cctp_shim(
     accounts: &[AccountInfo],
     data: &PlaceInitialOfferCctpShimData,
 ) -> Result<()> {
-    // Check account owners
-    let program_id = &crate::ID; // Your program ID
+    let program_id = &PROGRAM_ID; // Your program ID
 
     // Check all accounts are valid
     check_account_length(accounts, 11)?;
@@ -204,8 +217,8 @@ pub fn place_initial_offer_cctp_shim(
             .map_err(|e: Error| e.with_account_name("fast_market_order_account"));
     }
 
-    let fast_market_order_zero_copy =
-        FastMarketOrderState::try_deserialize(&mut &fast_market_order_account.data.borrow()[..])?;
+    let fast_market_order_data = &fast_market_order_account.data.borrow()[..];
+    let fast_market_order_zero_copy = FastMarketOrderState::try_read(fast_market_order_data)?;
 
     let vaa_time = fast_market_order_zero_copy.vaa_timestamp;
     let sequence = fast_market_order_zero_copy.vaa_sequence;
@@ -303,16 +316,16 @@ pub fn place_initial_offer_cctp_shim(
         return Err(MatchingEngineError::SameEndpoint.into());
     }
 
-    // Check that the to endpoint protocol is cctp or local
+    // Check that the to endpoint is a valid protocol
     match to_endpoint_account.protocol {
         MessageProtocol::Cctp { .. } | MessageProtocol::Local { .. } => (),
         _ => return Err(MatchingEngineError::InvalidEndpoint.into()),
     }
 
-    // Check that the from endpoint protocol is cctp or local
-    match from_endpoint_account.protocol {
-        MessageProtocol::Cctp { .. } | MessageProtocol::Local { .. } => (),
-        _ => return Err(MatchingEngineError::InvalidEndpoint.into()),
+    // Check that the vaa emitter address equals the from_endpoints encoded address
+    if from_endpoint_account.address != fast_market_order_zero_copy.vaa_emitter_address {
+        msg!("Vaa emitter address is not equal to the from_endpoints encoded address");
+        return Err(MatchingEngineError::InvalidSourceRouter.into());
     }
 
     // Check that to endpoint chain is equal to the fast_market_order target_chain
@@ -349,8 +362,6 @@ pub fn place_initial_offer_cctp_shim(
 
     // Begin of initialisation of auction custody token account
     // ------------------------------------------------------------------------------------------------
-    let auction_custody_token_space = spl_token::state::Account::LEN;
-
     let (auction_custody_token_pda, auction_custody_token_bump) = Pubkey::find_program_address(
         &[
             crate::AUCTION_CUSTODY_TOKEN_SEED_PREFIX,
@@ -373,25 +384,17 @@ pub fn place_initial_offer_cctp_shim(
         &[auction_custody_token_bump],
     ];
     let auction_custody_token_signer_seeds = &[&auction_custody_token_seeds[..]];
-    create_account_reliably(
+
+    create_token_account_reliably(
         &signer.key(),
         &auction_custody_token_pda,
+        &auction_account.key(),
+        &usdc.key(),
+        spl_token::state::Account::LEN,
         auction_custody_token.lamports(),
-        auction_custody_token_space,
         accounts,
-        &spl_token::ID,
         auction_custody_token_signer_seeds,
     )?;
-    // Initialise the token account
-    let init_token_account_ix = spl_token::instruction::initialize_account3(
-        &spl_token::ID,
-        &auction_custody_token_pda,
-        &usdc.key(),
-        &auction_account.key(),
-    )
-    .unwrap();
-
-    solana_program::program::invoke(&init_token_account_ix, accounts).unwrap();
 
     // ------------------------------------------------------------------------------------------------
     // End of initialisation of auction custody token account
@@ -494,8 +497,7 @@ pub fn place_initial_offer_cctp_shim(
             &offer_price.to_be_bytes(),
             &[transfer_authority_bump],
         ]],
-    )
-    .map_err(|_| MatchingEngineError::TokenTransferFailed)?;
+    )?;
     // ------------------------------------------------------------------------------------------------
     // End of token transfer from offer token to auction custody token
     Ok(())
