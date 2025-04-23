@@ -7,6 +7,20 @@ on:
   pull_request: 
     paths:
       - 'solana/**'
+  workflow_dispatch:
+    inputs:
+      job-to-run:
+        description: 'Job to run (leave empty to run all)'
+        required: false
+        default: ''
+        type: choice
+        options:
+          - ''
+          - make-cargo-test-all
+          - make-lint
+          - make-check-idl
+          - make-anchor-test
+          - make-anchor-test-upgrade
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,6 +29,7 @@ env:
 jobs:
   cancel-previous-runs:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.job-to-run == '' }}
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.9.1
@@ -24,6 +39,7 @@ jobs:
   make-cargo-test-all:
     name: make cargo-test-all
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.job-to-run == '' || github.event.inputs.job-to-run == 'make-cargo-test-all' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install toolchain
@@ -37,6 +53,7 @@ jobs:
   make-lint:
     name: make lint
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.job-to-run == '' || github.event.inputs.job-to-run == 'make-lint' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install toolchain
@@ -51,6 +68,7 @@ jobs:
   make-check-idl:
     name: make check-idl
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.job-to-run == '' || github.event.inputs.job-to-run == 'make-check-idl' }}
     steps:
       - uses: actions/checkout@v4
       - uses: metadaoproject/setup-anchor@v2
@@ -68,6 +86,7 @@ jobs:
   make-anchor-test:
     name: make anchor-test
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.job-to-run == '' || github.event.inputs.job-to-run == 'make-anchor-test' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install Foundry
@@ -89,6 +108,7 @@ jobs:
   make-anchor-test-upgrade:
     name: make anchor-test-upgrade
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.job-to-run == '' || github.event.inputs.job-to-run == 'make-anchor-test-upgrade' }}
     steps:
       - uses: actions/checkout@v4
       - name: Install Foundry
