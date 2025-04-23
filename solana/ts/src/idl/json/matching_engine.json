@@ -3152,12 +3152,12 @@
       "name": "BorshDeserializationError"
     },
     {
-      "code": 7798,
-      "name": "InvalidPda"
+      "code": 7797,
+      "name": "BorshSerializationError"
     },
     {
-      "code": 7800,
-      "name": "AccountDataTooSmall"
+      "code": 7798,
+      "name": "InvalidPda"
     },
     {
       "code": 7802,

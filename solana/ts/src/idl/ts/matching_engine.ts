@@ -3158,12 +3158,12 @@ export type MatchingEngine = {
       "name": "borshDeserializationError"
     },
     {
-      "code": 7798,
-      "name": "invalidPda"
+      "code": 7797,
+      "name": "borshSerializationError"
     },
     {
-      "code": 7800,
-      "name": "accountDataTooSmall"
+      "code": 7798,
+      "name": "invalidPda"
     },
     {
       "code": 7802,
