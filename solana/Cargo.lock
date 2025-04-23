@@ -6930,18 +6930,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9a873b44870f1f20c68683a83f0350a34893f94f04149cbce494f7049e6101e"
 
 [[package]]
-name = "wormhole-matching-engine-api"
-version = "0.0.0"
-dependencies = [
- "anchor-lang",
- "anchor-spl",
- "bytemuck",
- "liquidity-layer-common-solana",
- "solana-program",
- "wormhole-svm-definitions",
-]
-
-[[package]]
 name = "wormhole-raw-vaas"
 version = "0.3.0-alpha.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
