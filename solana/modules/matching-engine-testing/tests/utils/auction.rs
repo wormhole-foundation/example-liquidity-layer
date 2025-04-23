@@ -437,12 +437,7 @@ impl AuctionAccounts {
         current_state: &TestingEngineState,
         testing_context: &TestingContext,
     ) -> Self {
-        let router_endpoints = current_state
-            .router_endpoints()
-            .clone()
-            .unwrap()
-            .endpoints
-            .clone();
+        let router_endpoints = current_state.router_endpoints().unwrap().endpoints.clone();
         let actor = testing_context.testing_actors.owner.clone();
         let transfer_direction = testing_context.transfer_direction;
         let auction_config = Pubkey::find_program_address(&[AuctionConfig::SEED_PREFIX], &ID).0;

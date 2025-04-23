@@ -1071,14 +1071,8 @@ pub async fn setup_environment(
         Some(vaa_args_plural) => {
             let mut vaas_test_temp = TestVaaPairs::new();
             for vaa_args in vaa_args_plural {
-                let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum]
-                    .clone()
-                    .try_into()
-                    .expect("Failed to convert registered token router address to bytes [u8; 32]");
-                let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum]
-                    .clone()
-                    .try_into()
-                    .expect("Failed to convert registered token router address to bytes [u8; 32]");
+                let arbitrum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Arbitrum];
+                let ethereum_emitter_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&Chain::Ethereum];
                 let new_vaas_test = match transfer_direction {
                     TransferDirection::FromArbitrumToEthereum => {
                         create_vaas_test_with_chain_and_address(

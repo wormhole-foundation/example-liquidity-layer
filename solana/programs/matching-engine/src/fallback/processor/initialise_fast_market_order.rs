@@ -114,8 +114,6 @@ pub fn initialise_fast_market_order(
 ) -> Result<()> {
     require_min_account_infos_len(accounts, 6)?;
 
-    let program_id = ID;
-
     let signer = &accounts[0];
     let fast_market_order_account = &accounts[1];
     let guardian_set = &accounts[2];
@@ -157,7 +155,7 @@ pub fn initialise_fast_market_order(
             fast_market_order_vaa_digest.as_ref(),
             fast_market_order.close_account_refund_recipient.as_ref(),
         ],
-        &program_id,
+        &ID,
     );
 
     if fast_market_order_pda != fast_market_order_key {
@@ -179,7 +177,7 @@ pub fn initialise_fast_market_order(
         fast_market_order_account.lamports(),
         space,
         accounts,
-        &program_id,
+        &ID,
         fast_market_order_signer_seeds,
     )?;
     // Borrow the account data mutably

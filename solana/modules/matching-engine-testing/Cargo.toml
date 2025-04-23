@@ -10,21 +10,10 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["no-idl"]
-no-entrypoint = []
-no-idl = []
-no-log-ix-name = []
-cpi = ["no-entrypoint"]
 mainnet = ["matching-engine/mainnet", "common/mainnet"]
 testnet = ["matching-engine/testnet", "common/testnet"]
 localnet = ["matching-engine/localnet", "common/localnet"]
 integration-test = ["localnet"]
-idl-build = [
-    "localnet",
-    "common/idl-build",
-    "anchor-lang/idl-build",
-    "anchor-spl/idl-build"
-]
 
 [dev-dependencies]
 matching-engine.workspace = true

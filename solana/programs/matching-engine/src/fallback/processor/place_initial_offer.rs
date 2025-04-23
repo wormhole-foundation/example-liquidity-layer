@@ -71,7 +71,7 @@ impl<'ix> PlaceInitialOfferCctpShimAccounts<'ix> {
             AccountMeta::new_readonly(*self.auction_config, false),
             AccountMeta::new_readonly(*self.from_endpoint, false),
             AccountMeta::new_readonly(*self.to_endpoint, false),
-            AccountMeta::new(*self.fast_market_order, false),
+            AccountMeta::new_readonly(*self.fast_market_order, false),
             AccountMeta::new(*self.auction, false),
             AccountMeta::new(*self.offer_token, false),
             AccountMeta::new(*self.auction_custody_token, false),
@@ -358,7 +358,7 @@ pub fn place_initial_offer_cctp_shim(
         from_endpoint_account.chain,
         from_endpoint_account.address,
     );
-    let vaa_message_digest = vaa_message.digest(&fast_market_order_zero_copy);
+    let vaa_message_digest = vaa_message.digest(fast_market_order_zero_copy);
 
     // Begin of initialisation of auction custody token account
     // ------------------------------------------------------------------------------------------------
@@ -441,7 +441,7 @@ pub fn place_initial_offer_cctp_shim(
     let auction_to_write = Auction {
         bump,
         vaa_hash: vaa_message
-            .digest(&fast_market_order_zero_copy)
+            .digest(fast_market_order_zero_copy)
             .as_ref()
             .try_into()
             .unwrap(),

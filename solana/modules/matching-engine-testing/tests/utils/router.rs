@@ -210,10 +210,7 @@ pub async fn add_cctp_router_endpoint_ix(
         system_program: anchor_lang::system_program::ID,
     };
 
-    let registered_token_router_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&chain]
-        .clone()
-        .try_into()
-        .expect("Failed to convert registered token router address to bytes [u8; 32]");
+    let registered_token_router_address: [u8; 32] = REGISTERED_TOKEN_ROUTERS[&chain];
     let ix_data = AddCctpRouterEndpoint {
         args: AddCctpRouterEndpointArgs {
             chain: chain.as_chain_id(),

@@ -147,18 +147,9 @@ impl ChainAddress {
 
     pub fn from_registered_token_router(chain: Chain) -> Self {
         match chain {
-            Chain::Arbitrum => Self::new_with_address(
-                chain,
-                REGISTERED_TOKEN_ROUTERS[&chain].clone().try_into().unwrap(),
-            ),
-            Chain::Ethereum => Self::new_with_address(
-                chain,
-                REGISTERED_TOKEN_ROUTERS[&chain].clone().try_into().unwrap(),
-            ),
-            Chain::Solana => Self::new_with_address(
-                chain,
-                REGISTERED_TOKEN_ROUTERS[&chain].clone().try_into().unwrap(),
-            ),
+            Chain::Arbitrum => Self::new_with_address(chain, REGISTERED_TOKEN_ROUTERS[&chain]),
+            Chain::Ethereum => Self::new_with_address(chain, REGISTERED_TOKEN_ROUTERS[&chain]),
+            Chain::Solana => Self::new_with_address(chain, REGISTERED_TOKEN_ROUTERS[&chain]),
             _ => panic!("Unsupported chain"),
         }
     }

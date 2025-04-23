@@ -159,8 +159,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     // This saves stack space whereas having that in the body does not
     require_min_account_infos_len(accounts, 31)?;
 
-    let program_id = &ID;
-
     // Get the accounts
     let signer_account = &accounts[0];
     let cctp_message_account = &accounts[1];
@@ -216,7 +214,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     ];
 
     let (cctp_message_pda, cctp_message_bump) =
-        Pubkey::find_program_address(&cctp_message_seeds, program_id);
+        Pubkey::find_program_address(&cctp_message_seeds, &ID);
     if cctp_message_pda != cctp_message_account.key() {
         msg!("Cctp message seeds are invalid");
         return Err(ErrorCode::ConstraintSeeds.into())
@@ -224,10 +222,10 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     };
 
     // Check custodian owner
-    if custodian_account.owner != program_id {
+    if custodian_account.owner != &ID {
         msg!(
             "Custodian owner is invalid: expected {}, got {}",
-            program_id,
+            &ID,
             custodian_account.owner
         );
         return Err(ErrorCode::ConstraintOwner.into())
@@ -248,7 +246,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     ];
 
     let (fast_market_order_pda, _fast_market_order_bump) =
-        Pubkey::find_program_address(&fast_market_order_seeds, program_id);
+        Pubkey::find_program_address(&fast_market_order_seeds, &ID);
     if fast_market_order_pda != fast_market_order_account.key() {
         msg!("Fast market order seeds are invalid");
         return Err(ErrorCode::ConstraintSeeds.into()).map_err(|e: Error| {
@@ -257,14 +255,14 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     };
 
     // Check fast market order is owned by the matching engine program
-    if fast_market_order_account.owner != program_id {
+    if fast_market_order_account.owner != &ID {
         msg!("Fast market order is not owned by the matching engine program");
         return Err(ErrorCode::ConstraintOwner.into())
             .map_err(|e: Error| e.with_account_name("fast_market_order"));
     };
 
     // Check active auction owner
-    if active_auction_account.owner != program_id {
+    if active_auction_account.owner != &ID {
         msg!("Active auction is not owned by the matching engine program");
         return Err(ErrorCode::ConstraintOwner.into())
             .map_err(|e: Error| e.with_account_name("active_auction"));
@@ -286,7 +284,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             active_auction.vaa_hash.as_ref(),
             &[active_auction.bump],
         ],
-        program_id,
+        &ID,
     )
     .map_err(|_| {
         msg!("Failed to create program address with known bump");
@@ -313,7 +311,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             active_auction_account.key().as_ref(),
             &[active_auction.info.as_ref().unwrap().custody_token_bump],
         ],
-        program_id,
+        &ID,
     )
     .map_err(|_| {
         msg!("Failed to create program address with known bump");
