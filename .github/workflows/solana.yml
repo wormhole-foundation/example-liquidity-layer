@@ -59,9 +59,9 @@ jobs:
           node-version: "20.11.0"
           solana-cli-version: "1.18.15"
           anchor-version: "0.30.1"
-      - name: Set default Rust toolchain
-        run: rustup default stable
-        working-directory: ./solana
+      # - name: Set default Rust toolchain
+      #   run: rustup default stable
+      #   working-directory: ./solana
       - name: make check-idl
         run: make check-idl
         working-directory: ./solana
@@ -80,9 +80,9 @@ jobs:
           node-version: "20.11.0"
           solana-cli-version: "1.18.15"
           anchor-version: "0.30.1"
-      - name: Set default Rust toolchain
-        run: rustup default stable
-        working-directory: ./solana
+      # - name: Set default Rust toolchain
+      #   run: rustup default stable
+      #   working-directory: ./solana
       - name: make anchor-test
         run: make anchor-test
         working-directory: ./solana
@@ -101,9 +101,9 @@ jobs:
           node-version: "20.11.0"
           solana-cli-version: "1.18.15"
           anchor-version: "0.30.1"
-      - name: Set default Rust toolchain
-        run: rustup default stable
-        working-directory: ./solana
+      # - name: Set default Rust toolchain
+      #   run: rustup default stable
+      #   working-directory: ./solana
       - name: make anchor-test-upgrade
         run: make anchor-test-upgrade
         working-directory: ./solana

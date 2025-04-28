@@ -7,6 +7,12 @@ CLONED_MAINNET_PROGRAMS=\
 	ts/tests/artifacts/mainnet_cctp_token_messenger_minter.so \
 	ts/tests/artifacts/mainnet_cctp_message_transmitter.so
 
+PROGRAM_NAMES=matching_engine token_router upgrade_manager
+
+### Building the IDL requires a nightly build. We arbitrarily chose the same
+### date as the release of Anchor 0.30.1.
+IDL_TOOLCHAIN=nightly-2024-06-20
+
 .PHONY: all
 all: check
 
@@ -42,11 +48,15 @@ endif
 
 .PHONY: anchor-test-setup
 anchor-test-setup: node_modules ts/tests/artifacts $(CLONED_MAINNET_PROGRAMS)
-	anchor build -- --features integration-test
+	anchor build --no-idl -- --features integration-test
 
 .PHONY: idl
 idl:
-	anchor build -- --features localnet
+	mkdir -p target/idl target/types
+	for program in $(PROGRAM_NAMES); do \
+		RUSTUP_TOOLCHAIN=$(IDL_TOOLCHAIN) anchor idl build -p $$program -o target/idl/$$program.json; \
+		anchor idl type -o target/types/$$program.ts target/idl/$$program.json; \
+	done
 	mkdir -p ts/src/idl/json
 	mkdir -p ts/src/idl/ts
 	cp -r target/idl/* ts/src/idl/json/
@@ -65,7 +75,7 @@ anchor-test: anchor-test-setup
 
 .PHONY: anchor-test-upgrade
 anchor-test-upgrade: node_modules ts/tests/artifacts $(CLONED_MAINNET_PROGRAMS)
-	anchor build -- --features testnet
+	anchor build --no-idl -- --features testnet
 	cp target/deploy/matching_engine.so ts/tests/artifacts/new_testnet_matching_engine.so
 	cp target/deploy/token_router.so ts/tests/artifacts/new_testnet_token_router.so
 	cp target/deploy/upgrade_manager.so ts/tests/artifacts/testnet_upgrade_manager.so
