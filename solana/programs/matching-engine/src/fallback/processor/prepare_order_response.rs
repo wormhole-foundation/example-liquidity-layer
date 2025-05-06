@@ -289,15 +289,6 @@ pub fn prepare_order_response_cctp_shim(
         MatchingEngineError::InvalidEndpoint
     );
 
-    // Check that the from endpoint protocol is cctp or local
-    require!(
-        matches!(
-            from_endpoint_account.protocol,
-            MessageProtocol::Cctp { .. } | MessageProtocol::Local { .. }
-        ),
-        MatchingEngineError::InvalidEndpoint
-    );
-
     // Check that to endpoint chain is equal to the fast_market_order target_chain
     require_eq!(
         to_endpoint_account.chain,
