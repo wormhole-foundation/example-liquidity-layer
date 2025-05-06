@@ -132,7 +132,6 @@ contract MatchingEngineTest is Test {
     function setUp() public {
         // Set core bridge messageFee > 0
         vm.store(address(wormhole), bytes32(uint256(WORMHOLE_MESSAGE_FEE_STORAGE_SLOT)), bytes32(uint256(WORMHOLE_MESSAGE_FEE)));
-        uint256 messageFee = wormhole.messageFee();
         vm.startPrank(makeAddr("owner"));
         engine = deployProxy(USDC_ADDRESS, address(wormhole), CIRCLE_BRIDGE.fromUniversalAddress());
 
