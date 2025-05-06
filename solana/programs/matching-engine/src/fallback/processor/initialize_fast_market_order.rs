@@ -123,14 +123,14 @@ pub fn initialize_fast_market_order(
         fast_market_order,
         guardian_set_bump,
         _padding: _,
-    } = *data;
+    } = data;
     // Start of cpi call to verify the shim.
     // ------------------------------------------------------------------------------------------------
     let fast_market_order_vaa_digest = fast_market_order.digest();
     let fast_market_order_vaa_digest_hash =
         keccak::Hash::try_from_slice(&fast_market_order_vaa_digest).unwrap();
     let verify_hash_data =
-        VerifyHashData::new(guardian_set_bump, fast_market_order_vaa_digest_hash);
+        VerifyHashData::new(*guardian_set_bump, fast_market_order_vaa_digest_hash);
     let verify_hash_shim_ix = VerifyHash {
         program_id: &wormhole_svm_definitions::solana::VERIFY_VAA_SHIM_PROGRAM_ID,
         accounts: VerifyHashAccounts {
@@ -187,7 +187,7 @@ pub fn initialize_fast_market_order(
     let discriminator = FastMarketOrderState::discriminator();
     fast_market_order_account_data[0..8].copy_from_slice(&discriminator);
 
-    let fast_market_order_bytes = bytemuck::bytes_of(&data.fast_market_order);
+    let fast_market_order_bytes = bytemuck::bytes_of(fast_market_order);
 
     // Write the fast_market_order struct to the account
     fast_market_order_account_data[8..8_usize.saturating_add(fast_market_order_bytes.len())]
