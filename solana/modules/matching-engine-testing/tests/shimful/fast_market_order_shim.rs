@@ -94,7 +94,7 @@ fn initialise_fast_market_order_fallback_instruction(
         &[
             FastMarketOrderState::SEED_PREFIX,
             &fast_market_order.digest(),
-            &fast_market_order.close_account_refund_recipient,
+            &fast_market_order.close_account_refund_recipient.as_ref(),
         ],
         program_id,
     )
@@ -217,7 +217,7 @@ pub fn create_fast_market_order_state_from_vaa_data(
         max_fee: order.max_fee,
         init_auction_fee: order.init_auction_fee,
         redeemer_message: redeemer_message_fixed_length,
-        close_account_refund_recipient: close_account_refund_recipient.to_bytes(),
+        close_account_refund_recipient,
         vaa_sequence: vaa_data.sequence,
         vaa_timestamp: vaa_data.vaa_time,
         vaa_nonce: vaa_data.nonce,

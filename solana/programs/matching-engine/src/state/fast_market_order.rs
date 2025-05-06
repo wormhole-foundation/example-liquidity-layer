@@ -31,7 +31,7 @@ pub struct FastMarketOrder {
     /// The redeemer message of the fast transfer
     pub redeemer_message: [u8; 512],
     /// The refund recipient for the creator of the fast market order account
-    pub close_account_refund_recipient: [u8; 32],
+    pub close_account_refund_recipient: Pubkey,
     /// The emitter address of the fast transfer
     pub vaa_emitter_address: [u8; 32],
     /// The sequence of the fast transfer vaa
@@ -60,7 +60,7 @@ pub struct FastMarketOrderParams {
     pub max_fee: u64,
     pub init_auction_fee: u64,
     pub redeemer_message: [u8; 512],
-    pub close_account_refund_recipient: [u8; 32],
+    pub close_account_refund_recipient: Pubkey,
     pub vaa_sequence: u64,
     pub vaa_timestamp: u32,
     pub vaa_nonce: u32,

@@ -497,7 +497,7 @@ impl TestingEngine {
             &[
                 FastMarketOrder::SEED_PREFIX,
                 &fast_market_order.digest(),
-                &fast_market_order.close_account_refund_recipient,
+                &fast_market_order.close_account_refund_recipient.as_ref(),
             ],
             &self.testing_context.get_matching_engine_program_id(),
         );
@@ -521,10 +521,8 @@ impl TestingEngine {
                     fast_market_order_address: fast_market_order_account,
                     fast_market_order_bump,
                     fast_market_order,
-                    close_account_refund_recipient: Pubkey::try_from_slice(
-                        &fast_market_order.close_account_refund_recipient,
-                    )
-                    .unwrap(),
+                    close_account_refund_recipient: fast_market_order
+                        .close_account_refund_recipient,
                 },
                 guardian_set_state: GuardianSetState {
                     guardian_set_address: guardian_signature_info.guardian_set_pubkey,

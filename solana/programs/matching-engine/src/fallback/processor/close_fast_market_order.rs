@@ -63,12 +63,12 @@ pub fn close_fast_market_order(accounts: &[AccountInfo]) -> Result<()> {
     let fast_market_order_deserialized = FastMarketOrder::try_read(fast_market_order_data)?;
     // Check that the fast_market_order is owned by the close_account_refund_recipient
     if fast_market_order_deserialized.close_account_refund_recipient
-        != close_account_refund_recipient.key().as_ref()
+        != close_account_refund_recipient.key()
     {
         return Err(MatchingEngineError::MismatchingCloseAccountRefundRecipient.into()).map_err(
             |e: Error| {
                 e.with_pubkeys((
-                    Pubkey::from(fast_market_order_deserialized.close_account_refund_recipient),
+                    fast_market_order_deserialized.close_account_refund_recipient,
                     close_account_refund_recipient.key(),
                 ))
             },
@@ -76,12 +76,12 @@ pub fn close_fast_market_order(accounts: &[AccountInfo]) -> Result<()> {
     }
 
     if fast_market_order_deserialized.close_account_refund_recipient
-        != close_account_refund_recipient.key().as_ref()
+        != close_account_refund_recipient.key()
     {
         return Err(MatchingEngineError::MismatchingCloseAccountRefundRecipient.into()).map_err(
             |e: Error| {
                 e.with_pubkeys((
-                    Pubkey::from(fast_market_order_deserialized.close_account_refund_recipient),
+                    fast_market_order_deserialized.close_account_refund_recipient,
                     close_account_refund_recipient.key(),
                 ))
             },

@@ -523,7 +523,7 @@ mod tests {
             max_fee: 0,
             init_auction_fee: 0,
             redeemer_message: [0_u8; 512],
-            close_account_refund_recipient: [0_u8; 32],
+            close_account_refund_recipient: Pubkey::default(),
             vaa_sequence: 0,
             vaa_timestamp: 0,
             vaa_nonce: 0,
