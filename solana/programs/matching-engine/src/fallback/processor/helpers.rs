@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 
+use crate::ID;
 use anchor_spl::mint::USDC;
 use anchor_spl::token::spl_token;
 use solana_program::program_pack::Pack;
@@ -15,6 +16,12 @@ pub fn require_min_account_infos_len(accounts: &[AccountInfo], len: usize) -> Re
     if accounts.len() < len {
         return Err(ErrorCode::AccountNotEnoughKeys.into());
     }
+    Ok(())
+}
+
+#[inline(always)]
+pub fn check_custodian_owner_is_program_id(custodian: &AccountInfo) -> Result<()> {
+    require_eq!(custodian.owner, &ID, ErrorCode::ConstraintOwner);
     Ok(())
 }
 

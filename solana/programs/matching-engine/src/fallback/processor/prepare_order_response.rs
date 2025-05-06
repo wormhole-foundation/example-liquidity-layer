@@ -3,6 +3,7 @@ use std::io::Cursor;
 use super::helpers::create_account_reliably;
 use super::place_initial_offer::VaaMessageBodyHeader;
 use super::FallbackMatchingEngineInstruction;
+use crate::fallback::helpers::check_custodian_owner_is_program_id;
 use crate::fallback::helpers::create_usdc_token_account_reliably;
 use crate::fallback::helpers::require_min_account_infos_len;
 use crate::state::PreparedOrderResponseInfo;
@@ -227,6 +228,8 @@ pub fn prepare_order_response_cctp_shim(
         ErrorCode::ConstraintOwner
     );
 
+    // Check custodian owner
+    check_custodian_owner_is_program_id(custodian)?;
     // Check that custodian deserializes correctly
     let _checked_custodian =
         Custodian::try_deserialize(&mut &custodian.data.borrow()[..]).map(Box::new)?;
@@ -255,9 +258,6 @@ pub fn prepare_order_response_cctp_shim(
 
     let (prepared_custody_token_pda, prepared_custody_token_bump) =
         Pubkey::find_program_address(&prepared_custody_token_seeds, program_id);
-
-    // Check custodian account
-    require_eq!(custodian.owner, program_id, ErrorCode::ConstraintOwner);
 
     // Check usdc mint
     require_eq!(

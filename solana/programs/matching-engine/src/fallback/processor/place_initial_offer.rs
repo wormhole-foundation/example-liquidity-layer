@@ -1,6 +1,4 @@
-use super::helpers::create_account_reliably;
-use super::helpers::create_usdc_token_account_reliably;
-use super::helpers::require_min_account_infos_len;
+use super::helpers::*;
 use crate::state::MessageProtocol;
 use crate::state::{
     Auction, AuctionConfig, AuctionInfo, AuctionStatus, Custodian,
@@ -239,15 +237,8 @@ pub fn place_initial_offer_cctp_shim(
     }
 
     // Check custodian owner
-    if custodian.owner != program_id {
-        msg!(
-            "Custodian owner is invalid: expected {}, got {}",
-            program_id,
-            custodian.owner
-        );
-        return Err(ErrorCode::ConstraintOwner.into())
-            .map_err(|e: Error| e.with_account_name("custodian"));
-    }
+    check_custodian_owner_is_program_id(custodian)?;
+
     // Check custodian is not paused
     let checked_custodian = Custodian::try_deserialize(&mut &custodian.data.borrow()[..])?;
     if checked_custodian.paused {

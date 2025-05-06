@@ -1,5 +1,5 @@
-use super::helpers::require_min_account_infos_len;
 use crate::fallback::burn_and_post::PostMessageDerivedAccounts;
+use crate::fallback::helpers::*;
 use crate::state::{
     Auction, AuctionConfig, AuctionStatus, Custodian, FastMarketOrder as FastMarketOrderState,
     MessageProtocol, RouterEndpoint,
@@ -222,15 +222,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     };
 
     // Check custodian owner
-    if custodian_account.owner != &ID {
-        msg!(
-            "Custodian owner is invalid: expected {}, got {}",
-            &ID,
-            custodian_account.owner
-        );
-        return Err(ErrorCode::ConstraintOwner.into())
-            .map_err(|e: Error| e.with_account_name("custodian"));
-    };
+    check_custodian_owner_is_program_id(custodian_account)?;
 
     // Check custodian deserialises into a checked custodian account
     let _checked_custodian = Custodian::try_deserialize(&mut &custodian_account.data.borrow()[..])?;
