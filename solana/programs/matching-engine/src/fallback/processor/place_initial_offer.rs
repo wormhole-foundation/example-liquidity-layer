@@ -1,5 +1,5 @@
 use super::helpers::create_account_reliably;
-use super::helpers::create_token_account_reliably;
+use super::helpers::create_usdc_token_account_reliably;
 use super::helpers::require_min_account_infos_len;
 use crate::state::MessageProtocol;
 use crate::state::{
@@ -384,11 +384,10 @@ pub fn place_initial_offer_cctp_shim(
     ];
     let auction_custody_token_signer_seeds = &[&auction_custody_token_seeds[..]];
 
-    create_token_account_reliably(
+    create_usdc_token_account_reliably(
         &signer.key(),
         &auction_custody_token_pda,
         &auction_account.key(),
-        &usdc.key(),
         auction_custody_token.lamports(),
         accounts,
         auction_custody_token_signer_seeds,

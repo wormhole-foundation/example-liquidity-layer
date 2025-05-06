@@ -1,5 +1,6 @@
 use anchor_lang::prelude::*;
 
+use anchor_spl::mint::USDC;
 use anchor_spl::token::spl_token;
 use solana_program::program_pack::Pack;
 use solana_program::{
@@ -145,11 +146,10 @@ pub fn create_account_reliably(
 /// * `data_len` - The length of the data to be written to the token account.
 /// * `accounts` - The accounts to be used in the CPI.
 /// * `signer_seeds` - The signer seeds to be used in the CPI.
-pub fn create_token_account_reliably(
+pub fn create_usdc_token_account_reliably(
     payer_pubkey: &Pubkey,
     account_pubkey_to_create: &Pubkey,
     owner_account_pubkey: &Pubkey,
-    mint_pubkey: &Pubkey,
     token_account_lamports: u64,
     accounts: &[AccountInfo],
     signer_seeds: &[&[&[u8]]],
@@ -169,7 +169,7 @@ pub fn create_token_account_reliably(
     let init_token_account_ix = spl_token::instruction::initialize_account3(
         &spl_token::ID,
         account_pubkey_to_create,
-        mint_pubkey,
+        &USDC,
         owner_account_pubkey,
     )?;
 

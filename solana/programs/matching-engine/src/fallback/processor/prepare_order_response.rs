@@ -3,7 +3,7 @@ use std::io::Cursor;
 use super::helpers::create_account_reliably;
 use super::place_initial_offer::VaaMessageBodyHeader;
 use super::FallbackMatchingEngineInstruction;
-use crate::fallback::helpers::create_token_account_reliably;
+use crate::fallback::helpers::create_usdc_token_account_reliably;
 use crate::fallback::helpers::require_min_account_infos_len;
 use crate::state::PreparedOrderResponseInfo;
 use crate::state::PreparedOrderResponseSeeds;
@@ -461,11 +461,10 @@ pub fn prepare_order_response_cctp_shim(
     ];
 
     let prepared_custody_token_signer_seeds = &[&create_prepared_custody_token_seeds[..]];
-    create_token_account_reliably(
+    create_usdc_token_account_reliably(
         &signer.key(),
         &prepared_custody_token_pda,
         &prepared_order_response_pda,
-        &usdc.key(),
         prepared_custody_token.lamports(),
         accounts,
         prepared_custody_token_signer_seeds,
