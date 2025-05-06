@@ -55,6 +55,8 @@ contract MatchingEngineTest is Test {
     uint32 constant ARB_DOMAIN = 3;
     uint32 constant ETH_DOMAIN = 0;
     uint32 constant AVAX_DOMAIN = 1;
+    uint256 constant WORMHOLE_MESSAGE_FEE = 1;
+    uint256 constant WORMHOLE_MESSAGE_FEE_STORAGE_SLOT = 7;
 
     // Environment variables.
     uint256 immutable TESTING_SIGNER = uint256(vm.envBytes32("TESTING_DEVNET_GUARDIAN"));
@@ -128,6 +130,9 @@ contract MatchingEngineTest is Test {
     }
 
     function setUp() public {
+        // Set core bridge messageFee > 0
+        vm.store(address(wormhole), bytes32(uint256(WORMHOLE_MESSAGE_FEE_STORAGE_SLOT)), bytes32(uint256(WORMHOLE_MESSAGE_FEE)));
+        uint256 messageFee = wormhole.messageFee();
         vm.startPrank(makeAddr("owner"));
         engine = deployProxy(USDC_ADDRESS, address(wormhole), CIRCLE_BRIDGE.fromUniversalAddress());
 
@@ -1794,9 +1799,10 @@ contract MatchingEngineTest is Test {
         // Record logs for placeMarketOrder.
         vm.recordLogs();
 
+        vm.deal(caller, WORMHOLE_MESSAGE_FEE);
         // Place the order.
         vm.prank(caller);
-        engine.executeFastOrder(fastMessage);
+        engine.executeFastOrder{value: WORMHOLE_MESSAGE_FEE}(fastMessage);
 
         // Fetch the logs for Wormhole message. There should be two messages.
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -1816,9 +1822,10 @@ contract MatchingEngineTest is Test {
         // Record logs for placeMarketOrder.
         vm.recordLogs();
 
+        vm.deal(caller, WORMHOLE_MESSAGE_FEE);
         // Place the order.
         vm.prank(caller);
-        engine.executeFastOrder(fastMessage);
+        engine.executeFastOrder{value: WORMHOLE_MESSAGE_FEE}(fastMessage);
 
         // Fetch the logs for Wormhole message. There should be two messages.
         Vm.Log[] memory logs = vm.getRecordedLogs();
@@ -1837,8 +1844,10 @@ contract MatchingEngineTest is Test {
         // Record logs for placeMarketOrder.
         vm.recordLogs();
 
+        vm.deal(caller, WORMHOLE_MESSAGE_FEE);
+
         vm.prank(caller);
-        engine.executeSlowOrderAndRedeem(fastTransferVaa, params);
+        engine.executeSlowOrderAndRedeem{value: WORMHOLE_MESSAGE_FEE}(fastTransferVaa, params);
 
         // Fetch the logs for Wormhole message. There should be two messages.
         Vm.Log[] memory logs = vm.getRecordedLogs();
