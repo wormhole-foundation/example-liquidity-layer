@@ -42,6 +42,7 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         redeemerMessage: Buffer | Uint8Array,
         minAmountOut?: bigint,
         refundAddress?: string,
+        transactionValue?: bigint,
     ) {
         if (minAmountOut !== undefined && refundAddress !== undefined) {
             return this.contract["placeMarketOrder(uint64,uint64,uint16,bytes32,bytes,address)"](
@@ -51,6 +52,9 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
                 redeemer,
                 redeemerMessage,
                 refundAddress,
+                {
+                    value: transactionValue,
+                }
             );
         } else {
             return this.contract["placeMarketOrder(uint64,uint16,bytes32,bytes)"](
@@ -58,6 +62,9 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
                 targetChain,
                 redeemer,
                 redeemerMessage,
+                {
+                    value: transactionValue,
+                }
             );
         }
     }
@@ -71,6 +78,7 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
         deadline: number,
         minAmountOut?: bigint,
         refundAddress?: string,
+        transactionValue?: bigint,
     ) {
         if (minAmountOut !== undefined && refundAddress !== undefined) {
             return this.contract[
@@ -84,6 +92,9 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
                 refundAddress,
                 maxFee,
                 deadline,
+                {
+                    value: transactionValue,
+                }
             );
         } else {
             return this.contract["placeFastMarketOrder(uint64,uint16,bytes32,bytes,uint64,uint32)"](
@@ -93,6 +104,9 @@ export class EvmTokenRouter implements TokenRouter<ethers.ContractTransaction> {
                 redeemerMessage,
                 maxFee,
                 deadline,
+                {
+                    value: transactionValue,
+                }
             );
         }
     }

@@ -59,6 +59,15 @@ describe("Environment", () => {
                 const actualChainId = await coreBridge.chainId();
                 expect(actualChainId).to.equal(chainId);
 
+                {
+                  // set message fee
+                  const messageFeeSlot = 7;
+                  await provider.send("anvil_setStorageAt", [
+                    coreBridge.address,
+                    messageFeeSlot,
+                    ethers.utils.hexZeroPad(`0x${WORMHOLE_MESSAGE_FEE.toString(16)}`, 32),
+                  ]);
+                }
                 // fetch current coreBridge protocol fee
                 const messageFee = await coreBridge.messageFee();
                 expect(messageFee.eq(WORMHOLE_MESSAGE_FEE)).to.be.true;
@@ -243,7 +252,7 @@ describe("Environment", () => {
                     const scripts = `${__dirname}/../../sh`;
                     const cmd =
                         `bash ${scripts}/deploy_matching_engine.sh ` +
-                        `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey} ` +
+                        `-n localnet -c ${chainName} -u ${localhost} -k ${owner.privateKey}` +
                         `> /dev/null 2>&1`;
                     const out = execSync(cmd, { encoding: "utf8" });
 
