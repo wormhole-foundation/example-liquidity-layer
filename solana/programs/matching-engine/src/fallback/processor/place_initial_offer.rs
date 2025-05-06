@@ -15,7 +15,6 @@ use common::TRANSFER_AUTHORITY_SEED_PREFIX;
 use solana_program::instruction::Instruction;
 use solana_program::keccak;
 use solana_program::program::invoke_signed_unchecked;
-use solana_program::program_pack::Pack;
 
 use super::FallbackMatchingEngineInstruction;
 use crate::error::MatchingEngineError;
@@ -390,7 +389,6 @@ pub fn place_initial_offer_cctp_shim(
         &auction_custody_token_pda,
         &auction_account.key(),
         &usdc.key(),
-        spl_token::state::Account::LEN,
         auction_custody_token.lamports(),
         accounts,
         auction_custody_token_signer_seeds,

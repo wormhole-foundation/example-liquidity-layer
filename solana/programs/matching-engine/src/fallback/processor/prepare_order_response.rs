@@ -25,7 +25,6 @@ use ruint::aliases::U256;
 use solana_program::instruction::Instruction;
 use solana_program::keccak;
 use solana_program::program::invoke_signed_unchecked;
-use solana_program::program_pack::Pack;
 use wormhole_io::WriteableBytes;
 
 use crate::error::MatchingEngineError;
@@ -467,7 +466,6 @@ pub fn prepare_order_response_cctp_shim(
         &prepared_custody_token_pda,
         &prepared_order_response_pda,
         &usdc.key(),
-        spl_token::state::Account::LEN,
         prepared_custody_token.lamports(),
         accounts,
         prepared_custody_token_signer_seeds,

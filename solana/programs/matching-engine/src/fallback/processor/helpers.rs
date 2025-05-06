@@ -1,6 +1,7 @@
 use anchor_lang::prelude::*;
 
 use anchor_spl::token::spl_token;
+use solana_program::program_pack::Pack;
 use solana_program::{
     entrypoint::ProgramResult,
     instruction::{AccountMeta, Instruction},
@@ -144,14 +145,11 @@ pub fn create_account_reliably(
 /// * `data_len` - The length of the data to be written to the token account.
 /// * `accounts` - The accounts to be used in the CPI.
 /// * `signer_seeds` - The signer seeds to be used in the CPI.
-//TODO: Fix clippy warning
-#[allow(clippy::too_many_arguments)]
 pub fn create_token_account_reliably(
     payer_pubkey: &Pubkey,
     account_pubkey_to_create: &Pubkey,
     owner_account_pubkey: &Pubkey,
     mint_pubkey: &Pubkey,
-    data_len: usize,
     token_account_lamports: u64,
     accounts: &[AccountInfo],
     signer_seeds: &[&[&[u8]]],
@@ -161,7 +159,7 @@ pub fn create_token_account_reliably(
         payer_pubkey,
         account_pubkey_to_create,
         token_account_lamports,
-        data_len,
+        spl_token::state::Account::LEN,
         accounts,
         &spl_token::ID,
         signer_seeds,
