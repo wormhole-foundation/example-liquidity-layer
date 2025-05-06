@@ -34,7 +34,7 @@ pub struct FixtureAccounts {
 }
 
 impl FixtureAccounts {
-    /// Initialises all accounts in fixtures directory
+    /// Initializes all accounts in fixtures directory
     ///
     /// # Arguments
     ///

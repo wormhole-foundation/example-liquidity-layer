@@ -6,13 +6,13 @@
 //!
 //! ### Happy path tests
 //!
-//! - `test_initialise_fast_market_order_fallback` - Test that the fast market order is initialised correctly
+//! - `test_initialize_fast_market_order_fallback` - Test that the fast market order is initialized correctly
 //! - `test_close_fast_market_order_fallback` - Test that the fast market order is closed correctly
 //! - `test_close_fast_market_order_fallback_with_custom_refund_recipient` - Test that the fast market order is closed correctly with a custom refund recipient
 //!
 //! ### Sad path tests
 //!
-//! - `test_fast_market_order_cannot_be_refunded_by_someone_who_did_not_initialise_it` - Test that the fast market order cannot be refunded by someone who did not initialise it
+//! - `test_fast_market_order_cannot_be_refunded_by_someone_who_did_not_initialize_it` - Test that the fast market order cannot be refunded by someone who did not initialize it
 //!
 //! ### Edge case tests
 //!
@@ -55,7 +55,7 @@ use utils::vaa::VaaArgs;
 
 /// Test that the create fast market order account works correctly for the fallback instruction
 #[tokio::test]
-pub async fn test_initialise_fast_market_order_fallback() {
+pub async fn test_initialize_fast_market_order_fallback() {
     let vaa_args = vec![VaaArgs {
         post_vaa: false,
         ..VaaArgs::default()
@@ -175,9 +175,9 @@ pub async fn test_close_fast_market_order_fallback_with_custom_refund_recipient(
                     *****************
 */
 
-/// Test that the fast market order cannot be refunded by someone who did not initialise it
+/// Test that the fast market order cannot be refunded by someone who did not initialize it
 #[tokio::test]
-pub async fn test_fast_market_order_cannot_be_refunded_by_someone_who_did_not_initialise_it() {
+pub async fn test_fast_market_order_cannot_be_refunded_by_someone_who_did_not_initialize_it() {
     let transfer_direction = TransferDirection::FromArbitrumToEthereum;
     let vaa_args = vec![VaaArgs {
         post_vaa: false,

@@ -10,7 +10,7 @@ Each test is a function that is annotated with `#[tokio::test]`.
 
 Each test is a test for a specific scenario, and uses the `TestingEngine` to execute a series of instruction triggers.
 
-The `TestingEngine` is initialised with a `TestingContext`. The `TestingContext` holds the solana program test context, the actors, the transfer direction, created vaas, as well as some constants.
+The `TestingEngine` is initialized with a `TestingContext`. The `TestingContext` holds the solana program test context, the actors, the transfer direction, created vaas, as well as some constants.
 
 The `TestingEngine` is used to execute the instruction triggers in the order they are provided. See the `testing_engine/engine.rs` file for more details.
 
@@ -19,7 +19,7 @@ The `TestingEngine` is used to execute the instruction triggers in the order the
 ### Initialize program
 
 What is expected:
-- Program is initialised
+- Program is initialized
 - Router endpoints are created
 
 
@@ -33,7 +33,7 @@ What is expected:
 What is expected:
 - Fast market order account is created
 - Guardian signatures account is created via Verify VAA Shim program, which are the signatures found in the fast market order VAA from the source network.
-- Fast market order is initialised
+- Fast market order is initialized
 
 ### Close fast market order
 
@@ -44,7 +44,7 @@ What is expected:
 ### Place initial offer (shim)
 
 What is expected:
-- Fast market order is initialised
+- Fast market order is initialized
 - Initial offer is placed
 - Auction account is created and corresponds to a vaa and the initial offer
 

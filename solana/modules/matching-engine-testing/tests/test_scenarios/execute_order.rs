@@ -1044,7 +1044,7 @@ pub async fn test_execute_order_shim_emitter_chain_mismatch() {
     )
     .await;
     let testing_engine = TestingEngine::new(testing_context).await;
-    let initialise_first_fast_market_order_instruction_triggers = vec![
+    let initialize_first_fast_market_order_instruction_triggers = vec![
         InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
         InstructionTrigger::CreateCctpRouterEndpoints(
             CreateCctpRouterEndpointsInstructionConfig::default(),
@@ -1053,14 +1053,14 @@ pub async fn test_execute_order_shim_emitter_chain_mismatch() {
             InitializeFastMarketOrderShimInstructionConfig::default(),
         ),
     ];
-    let initialise_first_fast_market_order_state = testing_engine
+    let initialize_first_fast_market_order_state = testing_engine
         .execute(
             &mut test_context,
-            initialise_first_fast_market_order_instruction_triggers,
+            initialize_first_fast_market_order_instruction_triggers,
             None,
         )
         .await;
-    let initialise_second_fast_market_order_instruction_triggers = vec![
+    let initialize_second_fast_market_order_instruction_triggers = vec![
         InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig::default()),
         InstructionTrigger::InitializeFastMarketOrderShim(
             InitializeFastMarketOrderShimInstructionConfig {
@@ -1070,11 +1070,11 @@ pub async fn test_execute_order_shim_emitter_chain_mismatch() {
             },
         ),
     ];
-    let initialise_second_fast_market_order_state = testing_engine
+    let initialize_second_fast_market_order_state = testing_engine
         .execute(
             &mut test_context,
-            initialise_second_fast_market_order_instruction_triggers,
-            Some(initialise_first_fast_market_order_state),
+            initialize_second_fast_market_order_instruction_triggers,
+            Some(initialize_first_fast_market_order_state),
         )
         .await;
     let instruction_triggers = vec![InstructionTrigger::ExecuteOrderShim(
@@ -1092,7 +1092,7 @@ pub async fn test_execute_order_shim_emitter_chain_mismatch() {
         .execute(
             &mut test_context,
             instruction_triggers,
-            Some(initialise_second_fast_market_order_state),
+            Some(initialize_second_fast_market_order_state),
         )
         .await;
 }

@@ -46,9 +46,9 @@ pub struct PlaceInitialOfferCctpShimAccounts<'ix> {
     pub from_endpoint: &'ix Pubkey,
     /// The to endpoint account
     pub to_endpoint: &'ix Pubkey,
-    /// The fast market order account, which will be initialised. Seeds are [FastMarketOrderState::SEED_PREFIX, auction_address.as_ref()]
+    /// The fast market order account, which will be initialized. Seeds are [FastMarketOrderState::SEED_PREFIX, auction_address.as_ref()]
     pub fast_market_order: &'ix Pubkey,
-    /// The auction account, which will be initialised
+    /// The auction account, which will be initialized
     pub auction: &'ix Pubkey,
     /// The offer token account
     pub offer_token: &'ix Pubkey,

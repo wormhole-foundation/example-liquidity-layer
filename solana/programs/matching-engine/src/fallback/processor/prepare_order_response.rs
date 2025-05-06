@@ -228,14 +228,14 @@ pub fn prepare_order_response_cctp_shim(
         ErrorCode::ConstraintOwner
     );
 
-    // Check that custodian deserialises correctly
+    // Check that custodian deserializes correctly
     let _checked_custodian =
         Custodian::try_deserialize(&mut &custodian.data.borrow()[..]).map(Box::new)?;
-    // Deserialise the to_endpoint account
+    // Deserialize the to_endpoint account
 
     let to_endpoint_account =
         RouterEndpoint::try_deserialize(&mut &to_endpoint.data.borrow()[..]).map(Box::new)?;
-    // Deserialise the from_endpoint account
+    // Deserialize the from_endpoint account
     let from_endpoint_account =
         RouterEndpoint::try_deserialize(&mut &from_endpoint.data.borrow()[..]).map(Box::new)?;
 
@@ -343,13 +343,13 @@ pub fn prepare_order_response_cctp_shim(
         MatchingEngineError::InvalidProgram
     );
 
-    // Construct the finalised vaa message digest data
+    // Construct the finalized vaa message digest data
     let finalized_vaa_message_digest = {
-        let finalised_vaa_timestamp = fast_market_order_zero_copy.vaa_timestamp;
-        let finalised_vaa_sequence = fast_market_order_zero_copy.vaa_sequence.saturating_sub(1);
-        let finalised_vaa_emitter_chain = fast_market_order_zero_copy.vaa_emitter_chain;
-        let finalised_vaa_emitter_address = fast_market_order_zero_copy.vaa_emitter_address;
-        let finalised_vaa_consistency_level = finalized_vaa_message_args.consistency_level;
+        let finalized_vaa_timestamp = fast_market_order_zero_copy.vaa_timestamp;
+        let finalized_vaa_sequence = fast_market_order_zero_copy.vaa_sequence.saturating_sub(1);
+        let finalized_vaa_emitter_chain = fast_market_order_zero_copy.vaa_emitter_chain;
+        let finalized_vaa_emitter_address = fast_market_order_zero_copy.vaa_emitter_address;
+        let finalized_vaa_consistency_level = finalized_vaa_message_args.consistency_level;
         let slow_order_response = SlowOrderResponse {
             base_fee: finalized_vaa_message_args.base_fee,
         };
@@ -366,11 +366,11 @@ pub fn prepare_order_response_cctp_shim(
 
         finalized_vaa_message_args.digest(
             VaaMessageBodyHeader::new(
-                finalised_vaa_consistency_level,
-                finalised_vaa_timestamp,
-                finalised_vaa_sequence,
-                finalised_vaa_emitter_chain,
-                finalised_vaa_emitter_address,
+                finalized_vaa_consistency_level,
+                finalized_vaa_timestamp,
+                finalized_vaa_sequence,
+                finalized_vaa_emitter_chain,
+                finalized_vaa_emitter_address,
             ),
             deposit_vaa_payload,
         )

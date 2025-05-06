@@ -13,7 +13,7 @@ use solana_sdk::{
 use std::fs;
 
 #[derive(Clone)]
-/// A struct representing an initialised token account
+/// A struct representing an initialized token account
 pub struct TokenAccountFixture {
     pub address: Pubkey,
     pub account: spl_token::state::Account,

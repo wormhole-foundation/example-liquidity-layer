@@ -33,7 +33,7 @@ use super::setup::TestingContext;
 use super::{config::*, state::*};
 use crate::shimful;
 use crate::shimful::fast_market_order_shim::{
-    create_fast_market_order_state_from_vaa_data, initialise_fast_market_order_fallback,
+    create_fast_market_order_state_from_vaa_data, initialize_fast_market_order_fallback,
 };
 use crate::shimful::verify_shim::create_guardian_signatures;
 use crate::shimless;
@@ -502,7 +502,7 @@ impl TestingEngine {
             &self.testing_context.get_matching_engine_program_id(),
         );
 
-        initialise_fast_market_order_fallback(
+        initialize_fast_market_order_fallback(
             &self.testing_context,
             test_context,
             &payer_signer,

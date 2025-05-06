@@ -22,10 +22,10 @@ fn get_program_data(owner: Pubkey) -> Vec<u8> {
     bincode::serialize(&state).unwrap()
 }
 
-/// Initialise the upgrade manager program
+/// Initialize the upgrade manager program
 ///
 /// Returns the program data pubkey
-pub fn initialise_upgrade_manager(
+pub fn initialize_upgrade_manager(
     program_test: &mut ProgramTest,
     program_id: &Pubkey,
     owner_pubkey: Pubkey,
@@ -52,34 +52,34 @@ pub fn initialise_upgrade_manager(
     program_data_pubkey
 }
 
-pub fn initialise_cctp_token_messenger_minter(program_test: &mut ProgramTest) {
+pub fn initialize_cctp_token_messenger_minter(program_test: &mut ProgramTest) {
     let program_id = CCTP_TOKEN_MESSENGER_MINTER_PID;
     program_test.add_program("mainnet_cctp_token_messenger_minter", program_id, None);
 }
 
-pub fn initialise_wormhole_core_bridge(program_test: &mut ProgramTest) {
+pub fn initialize_wormhole_core_bridge(program_test: &mut ProgramTest) {
     let program_id = CORE_BRIDGE_PID;
     program_test.add_program("mainnet_core_bridge", program_id, None);
 }
 
-pub fn initialise_cctp_message_transmitter(program_test: &mut ProgramTest) {
+pub fn initialize_cctp_message_transmitter(program_test: &mut ProgramTest) {
     let program_id = CCTP_MESSAGE_TRANSMITTER_PID;
     program_test.add_program("mainnet_cctp_message_transmitter", program_id, None);
 }
 
-pub fn initialise_local_token_router(program_test: &mut ProgramTest) {
+pub fn initialize_local_token_router(program_test: &mut ProgramTest) {
     let program_id = TOKEN_ROUTER_PID;
     program_test.add_program("token_router", program_id, None);
 }
 
-pub fn initialise_post_message_shims(program_test: &mut ProgramTest) {
+pub fn initialize_post_message_shims(program_test: &mut ProgramTest) {
     let post_message_program_id = WORMHOLE_POST_MESSAGE_SHIM_PID;
     program_test.add_program("wormhole_post_message_shim", post_message_program_id, None);
     let verify_vaa_shim_program_id = WORMHOLE_VERIFY_VAA_SHIM_PID;
     program_test.add_program("wormhole_verify_vaa_shim", verify_vaa_shim_program_id, None);
 }
 
-pub fn initialise_verify_shims(program_test: &mut ProgramTest) {
+pub fn initialize_verify_shims(program_test: &mut ProgramTest) {
     let verify_vaa_shim_program_id = WORMHOLE_VERIFY_VAA_SHIM_PID;
     program_test.add_program("wormhole_verify_vaa_shim", verify_vaa_shim_program_id, None);
     program_test.add_account_with_base64_data(

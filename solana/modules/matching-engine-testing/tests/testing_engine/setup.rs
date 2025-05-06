@@ -18,9 +18,9 @@ use crate::utils::airdrop::{airdrop, airdrop_spl_token};
 use crate::utils::cctp_message::CctpRemoteTokenMessenger;
 use crate::utils::mint::MintFixture;
 use crate::utils::program_fixtures::{
-    initialise_cctp_message_transmitter, initialise_cctp_token_messenger_minter,
-    initialise_local_token_router, initialise_post_message_shims, initialise_upgrade_manager,
-    initialise_verify_shims, initialise_wormhole_core_bridge,
+    initialize_cctp_message_transmitter, initialize_cctp_token_messenger_minter,
+    initialize_local_token_router, initialize_post_message_shims, initialize_upgrade_manager,
+    initialize_verify_shims, initialize_wormhole_core_bridge,
 };
 use crate::utils::token_account::{
     create_token_account, read_keypair_from_file, SplTokenEnum, TokenAccountFixture,
@@ -113,26 +113,26 @@ impl PreTestingContext {
         // Setup Testing Actors
         let testing_actors = TestingActors::new(owner_keypair_path);
         println!("Testing actors: {:?}", testing_actors);
-        // Initialise Upgrade Manager
-        let program_data_pubkey = initialise_upgrade_manager(
+        // Initialize Upgrade Manager
+        let program_data_pubkey = initialize_upgrade_manager(
             &mut program_test,
             &program_id,
             testing_actors.owner.pubkey(),
         );
 
-        // Initialise CCTP Token Messenger Minter
-        initialise_cctp_token_messenger_minter(&mut program_test);
+        // Initialize CCTP Token Messenger Minter
+        initialize_cctp_token_messenger_minter(&mut program_test);
 
-        // Initialise Wormhole Core Bridge
-        initialise_wormhole_core_bridge(&mut program_test);
+        // Initialize Wormhole Core Bridge
+        initialize_wormhole_core_bridge(&mut program_test);
 
-        // Initialise CCTP Message Transmitter
-        initialise_cctp_message_transmitter(&mut program_test);
+        // Initialize CCTP Message Transmitter
+        initialize_cctp_message_transmitter(&mut program_test);
 
-        // Initialise Local Token Router
-        initialise_local_token_router(&mut program_test);
+        // Initialize Local Token Router
+        initialize_local_token_router(&mut program_test);
 
-        // Initialise Account Fixtures
+        // Initialize Account Fixtures
         let account_fixtures = FixtureAccounts::new(&mut program_test);
 
         // Add lookup table accounts
@@ -148,12 +148,12 @@ impl PreTestingContext {
 
     /// Adds the post message shims to the program test
     pub fn add_post_message_shims(&mut self) {
-        initialise_post_message_shims(&mut self.program_test);
+        initialize_post_message_shims(&mut self.program_test);
     }
 
     /// Adds the verify shims to the program test
     pub fn add_verify_shims(&mut self) {
-        initialise_verify_shims(&mut self.program_test);
+        initialize_verify_shims(&mut self.program_test);
     }
 }
 

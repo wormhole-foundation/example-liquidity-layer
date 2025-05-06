@@ -1,12 +1,12 @@
-//! # Initialise and misc instruction testing
+//! # Initialize and misc instruction testing
 //!
-//! This module contains tests for the initialise and some other miscellaneous setup test scenarios.
+//! This module contains tests for the initialize and some other miscellaneous setup test scenarios.
 //!
 //! ## Test Cases
 //!
 //! ### Happy path tests
 //!
-//! - `test_initialize_program` - Test that the program is initialised correctly
+//! - `test_initialize_program` - Test that the program is initialized correctly
 //! - `test_cctp_token_router_endpoint_creation` - Test that a CCTP token router endpoint is created for the arbitrum and ethereum chains
 //! - `test_local_token_router_endpoint_creation` - Test that a local token router endpoint is created for the arbitrum and ethereum chains
 //! - `test_setup_vaas` - Test that the vaas are setup correctly
@@ -61,7 +61,7 @@ use wormhole_svm_definitions::solana::CORE_BRIDGE_PROGRAM_ID;
                     *****************
 */
 
-/// Test that the program is initialised correctly
+/// Test that the program is initialized correctly
 #[tokio::test]
 pub async fn test_initialize_program() {
     let (testing_context, mut test_context) = setup_environment(

@@ -8,10 +8,10 @@ use matching_engine::fallback::close_fast_market_order::{
     CloseFastMarketOrder as CloseFastMarketOrderFallback,
     CloseFastMarketOrderAccounts as CloseFastMarketOrderFallbackAccounts,
 };
-use matching_engine::fallback::initialise_fast_market_order::{
-    InitialiseFastMarketOrder as InitialiseFastMarketOrderFallback,
-    InitialiseFastMarketOrderAccounts as InitialiseFastMarketOrderFallbackAccounts,
-    InitialiseFastMarketOrderData as InitialiseFastMarketOrderFallbackData,
+use matching_engine::fallback::initialize_fast_market_order::{
+    InitializeFastMarketOrder as InitializeFastMarketOrderFallback,
+    InitializeFastMarketOrderAccounts as InitializeFastMarketOrderFallbackAccounts,
+    InitializeFastMarketOrderData as InitializeFastMarketOrderFallbackData,
 };
 use utils::constants::*;
 
@@ -21,9 +21,9 @@ use solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer, transaction
 use std::rc::Rc;
 use wormhole_io::TypePrefixedPayload;
 
-/// Initialise the fast market order account
+/// Initialize the fast market order account
 ///
-/// This function initialises the fast market order account
+/// This function initializes the fast market order account
 ///
 /// # Arguments
 ///
@@ -38,7 +38,7 @@ use wormhole_io::TypePrefixedPayload;
 /// # Asserts
 ///
 /// * The expected error, if any, is reached when executing the instruction
-pub async fn initialise_fast_market_order_fallback(
+pub async fn initialize_fast_market_order_fallback(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
@@ -47,7 +47,7 @@ pub async fn initialise_fast_market_order_fallback(
     expected_error: Option<&ExpectedError>,
 ) {
     let program_id = &testing_context.get_matching_engine_program_id();
-    let initialise_fast_market_order_ix = initialise_fast_market_order_fallback_instruction(
+    let initialize_fast_market_order_ix = initialize_fast_market_order_fallback_instruction(
         payer_signer,
         program_id,
         fast_market_order,
@@ -56,7 +56,7 @@ pub async fn initialise_fast_market_order_fallback(
     let transaction = testing_context
         .create_transaction(
             test_context,
-            &[initialise_fast_market_order_ix],
+            &[initialize_fast_market_order_ix],
             Some(&payer_signer.pubkey()),
             &[payer_signer],
             1000000000,
@@ -68,9 +68,9 @@ pub async fn initialise_fast_market_order_fallback(
         .await;
 }
 
-/// Creates the initialise fast market order fallback instruction
+/// Creates the initialize fast market order fallback instruction
 ///
-/// This function creates the initialise fast market order fallback instruction
+/// This function creates the initialize fast market order fallback instruction
 ///
 /// # Arguments
 ///
@@ -83,8 +83,8 @@ pub async fn initialise_fast_market_order_fallback(
 ///
 /// # Returns
 ///
-/// * `Instruction` - The initialise fast market order fallback instruction
-fn initialise_fast_market_order_fallback_instruction(
+/// * `Instruction` - The initialize fast market order fallback instruction
+fn initialize_fast_market_order_fallback_instruction(
     payer_signer: &Rc<Keypair>,
     program_id: &Pubkey,
     fast_market_order: FastMarketOrderState,
@@ -100,7 +100,7 @@ fn initialise_fast_market_order_fallback_instruction(
     )
     .0;
 
-    let create_fast_market_order_accounts = InitialiseFastMarketOrderFallbackAccounts {
+    let create_fast_market_order_accounts = InitializeFastMarketOrderFallbackAccounts {
         signer: &payer_signer.pubkey(),
         fast_market_order_account: &fast_market_order_account,
         guardian_set: &guardian_signature_info.guardian_set_pubkey,
@@ -109,10 +109,10 @@ fn initialise_fast_market_order_fallback_instruction(
         system_program: &solana_program::system_program::ID,
     };
 
-    InitialiseFastMarketOrderFallback {
+    InitializeFastMarketOrderFallback {
         program_id,
         accounts: create_fast_market_order_accounts,
-        data: InitialiseFastMarketOrderFallbackData::new(
+        data: InitializeFastMarketOrderFallbackData::new(
             fast_market_order,
             guardian_signature_info.guardian_set_bump,
         ),

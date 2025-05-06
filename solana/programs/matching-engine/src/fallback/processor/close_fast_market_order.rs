@@ -8,7 +8,7 @@ use super::helpers::require_min_account_infos_len;
 use super::FallbackMatchingEngineInstruction;
 
 pub struct CloseFastMarketOrderAccounts<'ix> {
-    /// The fast market order account created from the initialise fast market order instruction
+    /// The fast market order account created from the initialize fast market order instruction
     pub fast_market_order: &'ix Pubkey,
     /// The account that will receive the refund. CHECK: Must be a signer.
     /// CHECK: Must match the close account refund recipient in the fast market order account

@@ -17,7 +17,7 @@ use crate::error::MatchingEngineError;
 use crate::state::FastMarketOrder as FastMarketOrderState;
 use crate::ID;
 
-pub struct InitialiseFastMarketOrderAccounts<'ix> {
+pub struct InitializeFastMarketOrderAccounts<'ix> {
     /// The signer of the transaction
     pub signer: &'ix Pubkey,
     /// The fast market order account pubkey (that is created by the instruction)
@@ -32,7 +32,7 @@ pub struct InitialiseFastMarketOrderAccounts<'ix> {
     pub system_program: &'ix Pubkey,
 }
 
-impl<'ix> InitialiseFastMarketOrderAccounts<'ix> {
+impl<'ix> InitializeFastMarketOrderAccounts<'ix> {
     pub fn to_account_metas(&self) -> Vec<AccountMeta> {
         vec![
             AccountMeta::new(*self.signer, true), // This will be the refund recipient
@@ -47,7 +47,7 @@ impl<'ix> InitialiseFastMarketOrderAccounts<'ix> {
 
 #[derive(Debug, Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
-pub struct InitialiseFastMarketOrderData {
+pub struct InitializeFastMarketOrderData {
     /// The fast market order as the bytemuck struct
     pub fast_market_order: FastMarketOrderState,
     /// The guardian set bump
@@ -55,8 +55,8 @@ pub struct InitialiseFastMarketOrderData {
     /// Padding to ensure bytemuck deserialization works
     _padding: [u8; 7],
 }
-impl InitialiseFastMarketOrderData {
-    // Adds the padding to the InitialiseFastMarketOrderData
+impl InitializeFastMarketOrderData {
+    // Adds the padding to the InitializeFastMarketOrderData
     pub fn new(fast_market_order: FastMarketOrderState, guardian_set_bump: u8) -> Self {
         Self {
             fast_market_order,
@@ -65,37 +65,37 @@ impl InitialiseFastMarketOrderData {
         }
     }
 
-    /// Deserializes the InitialiseFastMarketOrderData from a byte slice
+    /// Deserializes the InitializeFastMarketOrderData from a byte slice
     ///
     /// # Arguments
     ///
-    /// * `data` - A byte slice containing the InitialiseFastMarketOrderData
+    /// * `data` - A byte slice containing the InitializeFastMarketOrderData
     ///
     /// # Returns
     ///
-    /// Option<&Self> - The deserialized InitialiseFastMarketOrderData or None if the byte slice is not the correct length
+    /// Option<&Self> - The deserialized InitializeFastMarketOrderData or None if the byte slice is not the correct length
     pub fn from_bytes(data: &[u8]) -> Option<&Self> {
         bytemuck::try_from_bytes::<Self>(data).ok()
     }
 }
 
-pub struct InitialiseFastMarketOrder<'ix> {
+pub struct InitializeFastMarketOrder<'ix> {
     pub program_id: &'ix Pubkey,
-    pub accounts: InitialiseFastMarketOrderAccounts<'ix>,
-    pub data: InitialiseFastMarketOrderData,
+    pub accounts: InitializeFastMarketOrderAccounts<'ix>,
+    pub data: InitializeFastMarketOrderData,
 }
 
-impl InitialiseFastMarketOrder<'_> {
+impl InitializeFastMarketOrder<'_> {
     pub fn instruction(&self) -> Instruction {
         Instruction {
             program_id: *self.program_id,
             accounts: self.accounts.to_account_metas(),
-            data: FallbackMatchingEngineInstruction::InitialiseFastMarketOrder(&self.data).to_vec(),
+            data: FallbackMatchingEngineInstruction::InitializeFastMarketOrder(&self.data).to_vec(),
         }
     }
 }
 
-/// Initialises the fast market order account
+/// Initializes the fast market order account
 ///
 /// The verify shim program first checks that the digest of the fast market order is correct, and that the guardian signature is correct and recoverable.
 /// If this is the case, the fast market order account is created. The fast market order account is owned by the matching engine program. It can be closed
@@ -108,9 +108,9 @@ impl InitialiseFastMarketOrder<'_> {
 /// # Returns
 ///
 /// Result<()>
-pub fn initialise_fast_market_order(
+pub fn initialize_fast_market_order(
     accounts: &[AccountInfo],
-    data: &InitialiseFastMarketOrderData,
+    data: &InitializeFastMarketOrderData,
 ) -> Result<()> {
     require_min_account_infos_len(accounts, 6)?;
 
@@ -119,7 +119,7 @@ pub fn initialise_fast_market_order(
     let guardian_set = &accounts[2];
     let guardian_set_signatures = &accounts[3];
 
-    let InitialiseFastMarketOrderData {
+    let InitializeFastMarketOrderData {
         fast_market_order,
         guardian_set_bump,
         _padding: _,
