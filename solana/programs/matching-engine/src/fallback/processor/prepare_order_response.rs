@@ -506,10 +506,6 @@ pub fn prepare_order_response_cctp_shim(
         receive_message_args,
     )?;
 
-    msg!(
-        "Attempting to transfer {} from cctp mint recipient to prepared custody token",
-        fast_market_order_zero_copy.amount_in
-    );
     // Finally transfer minted via CCTP to prepared custody token.
     let transfer_ix = spl_token::instruction::transfer(
         &spl_token::ID,
