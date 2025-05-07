@@ -471,7 +471,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
         .saturating_add(active_auction_info.security_deposit)
         .saturating_sub(user_reward);
 
-    msg!("Security deposit: {}", active_auction_info.security_deposit);
 
     let penalized = penalty > 0;
 
@@ -493,7 +492,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     if utils::checked_deserialize_token_account(initial_offer_token_account, &common::USDC_MINT)
         .is_some()
     {
-        msg!("Initial offer token account exists");
         if active_auction_best_offer_token_account.key() != initial_offer_token_account.key() {
             // Pay the auction initiator their fee.
             let transfer_ix = spl_token::instruction::transfer(
@@ -505,10 +503,7 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
                 init_auction_fee,
             )
             .unwrap();
-            msg!(
-                "Sending init auction fee {} to initial offer token account",
-                init_auction_fee
-            );
+     
             invoke_signed_unchecked(&transfer_ix, accounts, &[auction_signer_seeds])?;
             // Because the initial offer token was paid this fee, we account for it here.
             remaining_custodied_amount =
@@ -518,7 +513,6 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
             deposit_and_fee = deposit_and_fee
                 .checked_add(init_auction_fee)
                 .ok_or_else(|| MatchingEngineError::U64Overflow)?;
-            msg!("New deposit and fee: {}", deposit_and_fee);
         }
     }
 

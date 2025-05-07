@@ -295,12 +295,14 @@ pub fn prepare_order_response_cctp_shim(
         MatchingEngineError::InvalidTargetRouter
     );
 
+    // Check that the prepared order response pda is equal to the prepared order response account key
     require_eq!(
         prepared_order_response_pda,
         prepared_order_response.key(),
         MatchingEngineError::InvalidPda
     );
 
+    // Check that the prepared custody token pda is equal to the prepared custody token account key
     require_eq!(
         prepared_custody_token_pda,
         prepared_custody_token.key(),

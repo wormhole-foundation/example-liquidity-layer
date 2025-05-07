@@ -318,6 +318,12 @@ pub fn place_initial_offer_cctp_shim(
         return Err(MatchingEngineError::InvalidSourceRouter.into());
     }
 
+    // Check that the vaa emitter chain is equal to the from_endpoints chain
+    if from_endpoint_account.chain != fast_market_order_zero_copy.vaa_emitter_chain {
+        msg!("Vaa emitter chain is not equal to the from_endpoints chain");
+        return Err(MatchingEngineError::InvalidSourceRouter.into());
+    }
+
     // Check that to endpoint chain is equal to the fast_market_order target_chain
     if to_endpoint_account.chain != fast_market_order_zero_copy.target_chain {
         msg!("To endpoint chain is not equal to the fast_market_order target_chain");

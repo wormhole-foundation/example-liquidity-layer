@@ -29,6 +29,7 @@ pub struct FastMarketOrder {
     /// The initial auction fee of the fast transfer
     pub init_auction_fee: u64,
     /// The redeemer message of the fast transfer
+    /// NOTE: This value is based on the max redeemer length of 500 bytes that is specified in the token router program. If this changes in the future, this value must be updated.
     pub redeemer_message: [u8; 512],
     /// The refund recipient for the creator of the fast market order account
     pub close_account_refund_recipient: Pubkey,
@@ -38,7 +39,8 @@ pub struct FastMarketOrder {
     pub vaa_sequence: u64,
     /// The timestamp of the fast transfer vaa
     pub vaa_timestamp: u32,
-    /// The vaa nonce, which is not used and can be set to 0
+    /// The vaa nonce, which is not used and can be set to 0. 
+    // TODO: Can be taken out.
     pub vaa_nonce: u32,
     /// The source chain of the fast transfer vaa (represented as a wormhole chain id)
     pub vaa_emitter_chain: u16,

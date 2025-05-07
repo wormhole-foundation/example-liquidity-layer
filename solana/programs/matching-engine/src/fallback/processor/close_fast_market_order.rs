@@ -75,19 +75,6 @@ pub fn close_fast_market_order(accounts: &[AccountInfo]) -> Result<()> {
         );
     }
 
-    if fast_market_order_deserialized.close_account_refund_recipient
-        != close_account_refund_recipient.key()
-    {
-        return Err(MatchingEngineError::MismatchingCloseAccountRefundRecipient.into()).map_err(
-            |e: Error| {
-                e.with_pubkeys((
-                    fast_market_order_deserialized.close_account_refund_recipient,
-                    close_account_refund_recipient.key(),
-                ))
-            },
-        );
-    }
-
     // First, get the current lamports value
     let current_recipient_lamports = **close_account_refund_recipient.lamports.borrow();
 
