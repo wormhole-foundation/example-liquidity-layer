@@ -432,7 +432,12 @@ pub fn handle_execute_order_shim(accounts: &[AccountInfo]) -> Result<()> {
     // the fast fill will most likely require an additional transaction, so this buffer allows
     // the best offer participant to perform his duty without the risk of getting slashed by
     // another executor.
-    let additional_grace_period = Some(crate::EXECUTE_FAST_ORDER_LOCAL_ADDITIONAL_GRACE_PERIOD);
+    let additional_grace_period = match active_auction.target_protocol {
+        MessageProtocol::Local { .. } => {
+            crate::EXECUTE_FAST_ORDER_LOCAL_ADDITIONAL_GRACE_PERIOD.into()
+        }
+        _ => None,
+    };
 
     let DepositPenalty {
         penalty,
