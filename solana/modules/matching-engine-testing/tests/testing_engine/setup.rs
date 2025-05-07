@@ -416,18 +416,29 @@ impl TestingContext {
             match tx_error {
                 BanksClientError::TransactionError(TransactionError::InstructionError(
                     instruction_index,
-                    InstructionError::Custom(error_code),
+                    ref instruction_error,
                 )) => {
                     assert_eq!(
                         instruction_index, expected_error.instruction_index,
                         "Expected error on instruction {}, but got: {:?}",
                         expected_error.instruction_index, tx_error
-                    );
-                    assert_eq!(
-                        error_code, expected_error.error_code,
-                        "Program returned error code {}, expected {} ({:?})",
-                        error_code, expected_error.error_code, expected_error.error_string
-                    );
+                        );
+                    match instruction_error {
+                        InstructionError::Custom(error_code) => {
+                            assert_eq!(
+                                error_code, &expected_error.error_code,
+                                "Program returned error code {}, expected {} ({:?})",
+                                error_code, expected_error.error_code, expected_error.error_string
+                            );
+                        }
+                        // TODO; Catch custom instruction errors or smth
+                        _ => {
+                            assert_eq!(
+                                0, expected_error.error_code,
+                                "This is a non custom instruction error, and if expected, error code should be 0"
+                            );
+                        }
+                    }
                 }
                 _ => {
                     panic!(

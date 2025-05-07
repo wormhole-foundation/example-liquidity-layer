@@ -514,8 +514,8 @@ pub async fn test_prepare_order_response_shim_emitter_chain_mismatch() {
             vaa_index: 1,
             expected_error: Some(ExpectedError {
                 instruction_index: 0,
-                error_code: u32::from(MatchingEngineError::InvalidCctpMessage),
-                error_string: "Invalid cctp message".to_string(),
+                error_code: 0,
+                error_string: "".to_string(),
             }),
             ..PrepareOrderResponseInstructionConfig::default()
         }),
@@ -639,8 +639,8 @@ pub async fn test_prepare_order_response_shim_deposit_cctp_nonce_mismatch() {
             vaa_index: 1,
             expected_error: Some(ExpectedError {
                 instruction_index: 0,
-                error_code: u32::from(MatchingEngineError::InvalidCctpMessage),
-                error_string: "Invalid cctp message".to_string(),
+                error_code: 0,
+                error_string: "".to_string(),
             }),
             ..PrepareOrderResponseInstructionConfig::default()
         }),

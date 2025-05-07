@@ -753,6 +753,7 @@ impl TestingEngine {
                 auction_state: current_state.auction_state().clone(),
                 order_executed: order_executed_state,
                 auction_accounts: auction_accounts.clone(),
+                order_prepared: current_state.order_prepared().cloned(),
             }
         } else {
             current_state.clone()
@@ -818,6 +819,7 @@ impl TestingEngine {
                 auction_state: current_state.auction_state().clone(),
                 order_executed: order_executed_state,
                 auction_accounts: auction_accounts.clone(),
+                order_prepared: current_state.order_prepared().cloned(),
             }
         } else {
             current_state.clone()

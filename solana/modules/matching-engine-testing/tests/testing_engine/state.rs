@@ -145,6 +145,7 @@ pub enum TestingEngineState {
         auction_state: AuctionState,
         order_executed: OrderExecutedState,
         auction_accounts: AuctionAccounts,
+        order_prepared: Option<OrderPreparedState>,
     },
     OrderPrepared {
         base: BaseState,
@@ -337,6 +338,7 @@ impl TestingEngineState {
             Self::InitialOfferPlaced { order_prepared, .. } => order_prepared.as_ref(),
             Self::OfferImproved { order_prepared, .. } => order_prepared.as_ref(),
             Self::FastMarketOrderAccountCreated { order_prepared, .. } => order_prepared.as_ref(),
+            Self::OrderExecuted { order_prepared, .. } => order_prepared.as_ref(),
             _ => None,
         }
     }
@@ -438,6 +440,7 @@ impl TestingEngineState {
                 auction_state: _, // Ignore the current auction state
                 order_executed,
                 auction_accounts,
+                order_prepared,
             } => Ok(Self::OrderExecuted {
                 base: base.clone(),
                 initialized: initialized.clone(),
@@ -446,6 +449,7 @@ impl TestingEngineState {
                 auction_state: new_auction_state, // Use the new auction state
                 order_executed: order_executed.clone(),
                 auction_accounts: auction_accounts.clone(),
+                order_prepared: order_prepared.clone(),
             }),
 
             Self::OrderPrepared {

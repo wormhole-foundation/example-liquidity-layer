@@ -208,6 +208,7 @@ pub fn prepare_order_response_cctp_shim(
     let cctp_message = CctpMessage::parse(&receive_message_args.encoded_message)
         .map_err(|_| MatchingEngineError::InvalidCctpMessage)?;
 
+    
     // Load accounts
     let fast_market_order_account_data = &fast_market_order.data.borrow()[..];
     let fast_market_order_zero_copy =
