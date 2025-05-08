@@ -9,21 +9,21 @@ pub struct InitializeFastMarketOrderAccounts<'ix> {
     /// Lamports from this signer will be used to create the new fast market
     /// order account. This account will be the only authority allowed to
     /// close this account.
-    /// TODO: Rename to "payer".
+    // TODO: Rename to "payer".
     pub signer: &'ix Pubkey,
     /// The fast market order account pubkey (that is created by the
     /// instruction).
-    /// TODO: Rename to "new_fast_market_order".
+    // TODO: Rename to "new_fast_market_order".
     pub fast_market_order_account: &'ix Pubkey,
     /// Wormhole guardian set account used to check recovered pubkeys using
     /// [Self::guardian_set_signatures].
-    /// TODO: Rename to "wormhole_guardian_set"
+    // TODO: Rename to "wormhole_guardian_set"
     pub guardian_set: &'ix Pubkey,
     /// The guardian set signatures of fast market order VAA.
-    /// TODO: Rename to "shim_guardian_signatures".
+    // TODO: Rename to "shim_guardian_signatures".
     pub guardian_set_signatures: &'ix Pubkey,
     pub verify_vaa_shim_program: &'ix Pubkey,
-    /// TODO: Remove.
+    // TODO: Remove.
     pub system_program: &'ix Pubkey,
 }
 
@@ -46,20 +46,6 @@ impl InitializeFastMarketOrderData {
             guardian_set_bump,
             _padding: Default::default(),
         }
-    }
-
-    /// Deserializes the InitializeFastMarketOrderData from a byte slice.
-    ///
-    /// # Arguments
-    ///
-    /// * `data` - A byte slice containing the InitializeFastMarketOrderData.
-    ///
-    /// # Returns
-    ///
-    /// Option<&Self> - The deserialized `InitializeFastMarketOrderData`` or
-    /// `None` if the byte slice is not the correct length.
-    pub fn from_bytes(data: &[u8]) -> Option<&Self> {
-        bytemuck::try_from_bytes(data).ok()
     }
 }
 
