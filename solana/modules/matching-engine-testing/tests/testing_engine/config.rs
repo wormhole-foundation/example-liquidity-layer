@@ -619,3 +619,36 @@ pub struct BalanceChange {
     pub usdc: i32,
     pub usdt: i32,
 }
+
+pub struct CombinedInstructionConfig {
+    pub create_fast_market_order_config: Option<InitializeFastMarketOrderShimInstructionConfig>,
+    pub place_initial_offer_config: Option<PlaceInitialOfferInstructionConfig>,
+    pub execute_order_config: Option<ExecuteOrderInstructionConfig>,
+    pub settle_auction_config: Option<SettleAuctionInstructionConfig>,
+    pub close_fast_market_order_config: Option<CloseFastMarketOrderShimInstructionConfig>,
+    pub improve_offer_config: Option<ImproveOfferInstructionConfig>,
+}
+
+impl Default for CombinedInstructionConfig {
+    fn default() -> Self {
+        Self {
+            create_fast_market_order_config: None,
+            place_initial_offer_config: None,
+            execute_order_config: None,
+            settle_auction_config: None,
+            close_fast_market_order_config: None,
+            improve_offer_config: None,
+        }
+    }
+}
+
+impl CombinedInstructionConfig {
+   pub fn create_fast_market_order_and_place_initial_offer(
+    ) -> Self {
+        Self {
+            create_fast_market_order_config: Some(InitializeFastMarketOrderShimInstructionConfig::default()),
+            place_initial_offer_config: Some(PlaceInitialOfferInstructionConfig::default()),
+            ..Default::default()
+        }
+    }
+}

@@ -33,10 +33,16 @@ use super::setup::TestingContext;
 use super::{config::*, state::*};
 use crate::shimful;
 use crate::shimful::fast_market_order_shim::{
-    create_fast_market_order_state_from_vaa_data, initialize_fast_market_order_fallback,
+    create_fast_market_order_state_from_vaa_data, initialize_fast_market_order_shimful,
+    initialize_fast_market_order_shimful_instruction,
+};
+use crate::shimful::shims_make_offer::{
+    evaluate_place_initial_offer_shimful_state, place_initial_offer_shimful_instruction,
+    PlaceInitialOfferShimfulAccounts,
 };
 use crate::shimful::verify_shim::create_guardian_signatures;
 use crate::shimless;
+use crate::shimless::initialize::initialize_program;
 use crate::testing_engine::setup::ShimMode;
 use crate::utils::auction::AuctionState;
 use crate::utils::token_account::SplTokenEnum;
@@ -67,9 +73,14 @@ pub enum VerificationTrigger {
     VerifyBalances(Box<VerifyBalancesConfig>),
 }
 
+pub enum CombinationTrigger {
+    CreateFastMarketOrderAndPlaceInitialOffer(Box<CombinedInstructionConfig>),
+}
+
 pub enum ExecutionTrigger {
     Instruction(Box<InstructionTrigger>),
     Verification(Box<VerificationTrigger>),
+    CombinationTrigger(Box<CombinationTrigger>),
 }
 
 impl From<InstructionTrigger> for ExecutionTrigger {
@@ -81,6 +92,12 @@ impl From<InstructionTrigger> for ExecutionTrigger {
 impl From<VerificationTrigger> for ExecutionTrigger {
     fn from(trigger: VerificationTrigger) -> Self {
         ExecutionTrigger::Verification(Box::new(trigger))
+    }
+}
+
+impl From<CombinationTrigger> for ExecutionTrigger {
+    fn from(trigger: CombinationTrigger) -> Self {
+        ExecutionTrigger::CombinationTrigger(Box::new(trigger))
     }
 }
 
@@ -125,6 +142,12 @@ impl From<Vec<InstructionTrigger>> for ExecutionChain {
 
 impl From<Vec<VerificationTrigger>> for ExecutionChain {
     fn from(triggers: Vec<VerificationTrigger>) -> Self {
+        Self(triggers.into_iter().map(|trigger| trigger.into()).collect())
+    }
+}
+
+impl From<Vec<CombinationTrigger>> for ExecutionChain {
+    fn from(triggers: Vec<CombinationTrigger>) -> Self {
         Self(triggers.into_iter().map(|trigger| trigger.into()).collect())
     }
 }
@@ -312,7 +335,7 @@ impl TestingEngine {
                         .await
                 }
                 InstructionTrigger::PlaceInitialOfferShim(ref config) => {
-                    self.place_initial_offer_shim(test_context, current_state, config)
+                    self.place_initial_offer_shimful(test_context, current_state, config)
                         .await
                 }
                 InstructionTrigger::ImproveOfferShimless(ref config) => {
@@ -350,6 +373,21 @@ impl TestingEngine {
                         .await
                 }
             },
+            ExecutionTrigger::CombinationTrigger(trigger) => match **trigger {
+                CombinationTrigger::CreateFastMarketOrderAndPlaceInitialOffer(ref configs) => {
+                    let create_fast_market_order_config =
+                        configs.create_fast_market_order_config.as_ref().unwrap();
+                    let place_initial_offer_config =
+                        configs.place_initial_offer_config.as_ref().unwrap();
+                    self.create_fast_market_order_and_place_initial_offer(
+                        test_context,
+                        current_state,
+                        create_fast_market_order_config,
+                        place_initial_offer_config,
+                    )
+                    .await
+                }
+            },
         }
     }
 
@@ -376,54 +414,7 @@ impl TestingEngine {
         initial_state: &TestingEngineState,
         config: &InitializeInstructionConfig,
     ) -> TestingEngineState {
-        let auction_parameters_config = config.auction_parameters_config.clone();
-        let expected_error = config.expected_error();
-        let expected_log_messages = config.expected_log_messages();
-        let payer_signer = config
-            .payer_signer
-            .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
-        let (result, owner_pubkey, owner_assistant_pubkey, fee_recipient_token_account) = {
-            let result = shimless::initialize::initialize_program(
-                &self.testing_context,
-                test_context,
-                auction_parameters_config,
-                &payer_signer,
-                expected_error,
-                expected_log_messages,
-            )
-            .await;
-
-            let testing_actors = &self.testing_context.testing_actors;
-            (
-                result,
-                testing_actors.owner.pubkey(),
-                testing_actors.owner_assistant.pubkey(),
-                testing_actors
-                    .fee_recipient
-                    .token_account_address(&SplTokenEnum::Usdc)
-                    .unwrap(),
-            )
-        };
-
-        if expected_error.is_none() {
-            let initialize_fixture = result.expect("Failed to initialize program");
-            initialize_fixture.verify_custodian(
-                owner_pubkey,
-                owner_assistant_pubkey,
-                fee_recipient_token_account,
-            );
-
-            let auction_config_address = initialize_fixture.get_auction_config_address();
-            return TestingEngineState::Initialized {
-                base: initial_state.base().clone(),
-                initialized: InitializedState {
-                    auction_config_address,
-                    custodian_address: initialize_fixture.get_custodian_address(),
-                },
-            };
-        }
-        initial_state.clone()
+        initialize_program(&self.testing_context, test_context, initial_state, config).await
     }
 
     /// Instruction trigger function for creating cctp router endpoints
@@ -470,71 +461,14 @@ impl TestingEngine {
         current_state: &TestingEngineState,
         config: &InitializeFastMarketOrderShimInstructionConfig,
     ) -> TestingEngineState {
-        let test_vaa_pair = current_state.get_test_vaa_pair(config.vaa_index);
-        let fast_transfer_vaa = test_vaa_pair.fast_transfer_vaa.clone();
-        let fast_market_order = create_fast_market_order_state_from_vaa_data(
-            &fast_transfer_vaa.vaa_data,
-            config
-                .close_account_refund_recipient
-                .unwrap_or_else(|| self.testing_context.testing_actors.solvers[0].pubkey()),
-        );
-        let payer_signer = config
-            .payer_signer
-            .clone()
-            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
-        let guardian_signature_info = create_guardian_signatures(
+        initialize_fast_market_order_shimful(
             &self.testing_context,
             test_context,
-            &payer_signer,
-            &fast_transfer_vaa.vaa_data,
-            &self.testing_context.get_wormhole_program_id(),
-            None,
+            config.expected_error(),
+            current_state,
+            config,
         )
         .await
-        .expect("Failed to create guardian signatures");
-
-        let (fast_market_order_account, fast_market_order_bump) = Pubkey::find_program_address(
-            &[
-                FastMarketOrder::SEED_PREFIX,
-                &fast_market_order.digest(),
-                &fast_market_order.close_account_refund_recipient.as_ref(),
-            ],
-            &self.testing_context.get_matching_engine_program_id(),
-        );
-
-        initialize_fast_market_order_fallback(
-            &self.testing_context,
-            test_context,
-            &payer_signer,
-            fast_market_order,
-            &guardian_signature_info,
-            config.expected_error(),
-        )
-        .await;
-
-        if config.expected_error.is_none() {
-            TestingEngineState::FastMarketOrderAccountCreated {
-                base: current_state.base().clone(),
-                initialized: current_state.initialized().unwrap().clone(),
-                router_endpoints: current_state.router_endpoints().cloned(),
-                fast_market_order: FastMarketOrderAccountCreatedState {
-                    fast_market_order_address: fast_market_order_account,
-                    fast_market_order_bump,
-                    fast_market_order,
-                    close_account_refund_recipient: fast_market_order
-                        .close_account_refund_recipient,
-                },
-                guardian_set_state: GuardianSetState {
-                    guardian_set_address: guardian_signature_info.guardian_set_pubkey,
-                    guardian_signatures_address: guardian_signature_info.guardian_signatures_pubkey,
-                },
-                auction_state: current_state.auction_state().clone(),
-                auction_accounts: current_state.auction_accounts().cloned(),
-                order_prepared: current_state.order_prepared().cloned(),
-            }
-        } else {
-            current_state.clone()
-        }
     }
 
     /// Instruction trigger function for pausing the custodian
@@ -681,43 +615,20 @@ impl TestingEngine {
     }
 
     /// Instruction trigger function for placing an initial offer
-    async fn place_initial_offer_shim(
+    async fn place_initial_offer_shimful(
         &self,
         test_context: &mut ProgramTestContext,
         current_state: &TestingEngineState,
         config: &PlaceInitialOfferInstructionConfig,
     ) -> TestingEngineState {
-        let place_initial_offer_shim_fixture =
-            shimful::shims_make_offer::place_initial_offer_fallback(
-                &self.testing_context,
-                test_context,
-                current_state,
-                config,
-                config.expected_error(),
-            )
-            .await;
-        if config.expected_error.is_none() {
-            let initial_offer_placed_state = place_initial_offer_shim_fixture.unwrap();
-            let active_auction_state = initial_offer_placed_state
-                .auction_state
-                .get_active_auction()
-                .unwrap();
-            active_auction_state
-                .verify_auction(&self.testing_context, test_context)
-                .await
-                .expect("Could not verify auction");
-            let auction_accounts = initial_offer_placed_state.auction_accounts;
-            return TestingEngineState::InitialOfferPlaced {
-                base: current_state.base().clone(),
-                initialized: current_state.initialized().unwrap().clone(),
-                router_endpoints: current_state.router_endpoints().unwrap().clone(),
-                fast_market_order: current_state.fast_market_order().cloned(),
-                auction_state: initial_offer_placed_state.auction_state,
-                auction_accounts,
-                order_prepared: current_state.order_prepared().cloned(),
-            };
-        }
-        current_state.clone()
+        shimful::shims_make_offer::place_initial_offer_shimful(
+            &self.testing_context,
+            test_context,
+            current_state,
+            config,
+            config.expected_error(),
+        )
+        .await
     }
 
     /// Instruction trigger function for executing an order
@@ -1010,6 +921,125 @@ impl TestingEngine {
             panic!("Balance mismatch");
         }
         current_state.clone()
+    }
+
+    async fn create_fast_market_order_and_place_initial_offer(
+        &self,
+        test_context: &mut ProgramTestContext,
+        current_state: &TestingEngineState,
+        create_fast_market_order_config: &InitializeFastMarketOrderShimInstructionConfig,
+        place_initial_offer_config: &PlaceInitialOfferInstructionConfig,
+    ) -> TestingEngineState {
+        let program_id = &self.testing_context.get_matching_engine_program_id();
+        let test_vaa_pair =
+            current_state.get_test_vaa_pair(create_fast_market_order_config.vaa_index);
+        let fast_transfer_vaa = test_vaa_pair.fast_transfer_vaa.clone();
+        let fast_market_order = create_fast_market_order_state_from_vaa_data(
+            &fast_transfer_vaa.vaa_data,
+            create_fast_market_order_config
+                .close_account_refund_recipient
+                .unwrap_or_else(|| self.testing_context.testing_actors.solvers[0].pubkey()),
+        );
+        let create_fast_market_order_payer_signer = create_fast_market_order_config
+            .payer_signer
+            .clone()
+            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
+        println!("Got here 0");
+        let guardian_signature_info = create_guardian_signatures(
+            &self.testing_context,
+            test_context,
+            &create_fast_market_order_payer_signer,
+            &fast_transfer_vaa.vaa_data,
+            &self.testing_context.get_wormhole_program_id(),
+            None,
+        )
+        .await
+        .expect("Failed to create guardian signatures");
+        let (fast_market_order_account, fast_market_order_bump) = Pubkey::find_program_address(
+            &[
+                FastMarketOrder::SEED_PREFIX,
+                &fast_market_order.digest(),
+                &fast_market_order.close_account_refund_recipient.as_ref(),
+            ],
+            program_id,
+        );
+        let create_fast_market_order_instruction = initialize_fast_market_order_shimful_instruction(
+            &create_fast_market_order_payer_signer,
+            program_id,
+            fast_market_order,
+            &guardian_signature_info,
+        );
+
+        let place_initial_offer_instruction = place_initial_offer_shimful_instruction(
+            &self.testing_context,
+            test_context,
+            current_state,
+            place_initial_offer_config,
+        )
+        .await;
+        let place_initial_offer_payer_signer = place_initial_offer_config
+            .payer_signer
+            .clone()
+            .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
+        println!("Got here 1");
+        let transaction = self
+            .testing_context
+            .create_transaction(
+                test_context,
+                &[
+                    create_fast_market_order_instruction,
+                    place_initial_offer_instruction,
+                ],
+                Some(&place_initial_offer_payer_signer.pubkey()),
+                &[
+                    &place_initial_offer_payer_signer,
+                ],
+                1000000000,
+                1000000000,
+            )
+            .await;
+        println!("Got here 2");
+        let actor_usdc_balance_before = place_initial_offer_config
+            .actor
+            .get_actor(&self.testing_context.testing_actors)
+            .get_token_account_balance(test_context, &place_initial_offer_config.spl_token_enum)
+            .await;
+        let place_initial_offer_accounts = &PlaceInitialOfferShimfulAccounts::new(
+            &self.testing_context,
+            current_state,
+            place_initial_offer_config,
+        );
+        self.testing_context
+            .execute_and_verify_transaction(test_context, transaction, None)
+            .await;
+        println!("Got here 3");
+        let fast_market_order_created_state = TestingEngineState::FastMarketOrderAccountCreated {
+            base: current_state.base().clone(),
+            initialized: current_state.initialized().unwrap().clone(),
+            router_endpoints: current_state.router_endpoints().cloned(),
+            fast_market_order: FastMarketOrderAccountCreatedState {
+                fast_market_order_address: fast_market_order_account,
+                fast_market_order_bump,
+                fast_market_order,
+                close_account_refund_recipient: fast_market_order.close_account_refund_recipient,
+            },
+            guardian_set_state: GuardianSetState {
+                guardian_set_address: guardian_signature_info.guardian_set_pubkey,
+                guardian_signatures_address: guardian_signature_info.guardian_signatures_pubkey,
+            },
+            auction_state: current_state.auction_state().clone(),
+            auction_accounts: current_state.auction_accounts().cloned(),
+            order_prepared: current_state.order_prepared().cloned(),
+        };
+        evaluate_place_initial_offer_shimful_state(
+            &self.testing_context,
+            test_context,
+            &fast_market_order_created_state,
+            place_initial_offer_config,
+            actor_usdc_balance_before,
+            place_initial_offer_accounts,
+        )
+        .await
     }
 
     pub async fn make_auction_passed_penalty_period(

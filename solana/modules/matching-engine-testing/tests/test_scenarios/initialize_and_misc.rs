@@ -23,7 +23,7 @@ use anchor_lang::AccountDeserialize;
 use anchor_spl::token::TokenAccount;
 use matching_engine::ID as PROGRAM_ID;
 use shimful::post_message::set_up_post_message_transaction_test;
-use shimless::initialize::{initialize_program, AuctionParametersConfig};
+use shimless::initialize::initialize_program;
 use solana_program_test::tokio;
 use solana_sdk::pubkey::Pubkey;
 use testing_engine::config::*;
@@ -116,25 +116,30 @@ pub async fn test_local_token_router_endpoint_creation() {
         None,
     )
     .await;
-    let payer_signer = testing_context.testing_actors.payer_signer.clone();
-    let initialize_fixture = initialize_program(
-        &testing_context,
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let config = InitializeInstructionConfig::default();
+    let initial_state = testing_engine.create_initial_state();
+    let payer_signer = testing_engine
+        .testing_context
+        .testing_actors
+        .payer_signer
+        .clone();
+    let initialize_state = initialize_program(
+        &testing_engine.testing_context,
         &mut test_context,
-        AuctionParametersConfig::default(),
-        &payer_signer,
-        None, // No expected error
-        None, // No expected log messages
+        &initial_state,
+        &config,
     )
-    .await
-    .expect("Failed to initialize program");
-    let payer_signer = testing_context.testing_actors.payer_signer.clone();
+    .await;
+    let custodian = initialize_state.auction_accounts().unwrap().custodian;
+    let owner = &testing_engine.testing_context.testing_actors.owner;
     let _local_token_router_endpoint = add_local_router_endpoint_ix(
-        &testing_context,
+        &testing_engine.testing_context,
         &mut test_context,
         &payer_signer,
-        testing_context.testing_actors.owner.pubkey(),
-        initialize_fixture.get_custodian_address(),
-        testing_context.testing_actors.owner.keypair().as_ref(),
+        owner.pubkey(),
+        custodian,
+        owner.keypair().as_ref(),
     )
     .await;
 }

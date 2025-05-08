@@ -1,9 +1,6 @@
 use solana_program_test::ProgramTestContext;
 use solana_sdk::{
-    instruction::Instruction,
-    pubkey::Pubkey,
-    signature::{Keypair, Signer},
-    transaction::{Transaction, VersionedTransaction},
+    instruction::Instruction, pubkey::Pubkey, signature::Signer, transaction::VersionedTransaction,
 };
 
 use anchor_lang::AccountDeserialize;
@@ -11,7 +8,10 @@ use anchor_spl::{associated_token::spl_associated_token_account, token::spl_toke
 use solana_program::{bpf_loader_upgradeable, system_program};
 
 use crate::{
-    testing_engine::config::{ExpectedError, ExpectedLog},
+    testing_engine::{
+        config::{InitializeInstructionConfig, InstructionConfig},
+        state::{InitializedState, TestingEngineState},
+    },
     utils::token_account::SplTokenEnum,
 };
 
@@ -23,25 +23,42 @@ use matching_engine::{
     InitializeArgs,
 };
 
+#[derive(Clone)]
 pub struct InitializeAddresses {
     pub custodian_address: Pubkey,
     pub auction_config_address: Pubkey,
     pub cctp_mint_recipient: Pubkey,
 }
 
+impl InitializeAddresses {
+    pub fn create(
+        testing_context: &TestingContext,
+        auction_parameters_config: &AuctionParametersConfig,
+    ) -> Self {
+        let program_id = testing_context.get_matching_engine_program_id();
+        let cctp_mint_recipient = testing_context.get_cctp_mint_recipient();
+        let (custodian, _custodian_bump) =
+            Pubkey::find_program_address(&[Custodian::SEED_PREFIX], &program_id);
+
+        let (auction_config, _auction_config_bump) = Pubkey::find_program_address(
+            &[
+                AuctionConfig::SEED_PREFIX,
+                &auction_parameters_config.config_id.to_be_bytes(),
+            ],
+            &program_id,
+        );
+
+        Self {
+            custodian_address: custodian,
+            auction_config_address: auction_config,
+            cctp_mint_recipient,
+        }
+    }
+}
+
 pub struct InitializeFixture {
     pub custodian: Custodian,
     pub addresses: InitializeAddresses,
-}
-
-impl InitializeFixture {
-    pub fn get_custodian_address(&self) -> Pubkey {
-        self.addresses.custodian_address
-    }
-
-    pub fn get_auction_config_address(&self) -> Pubkey {
-        self.addresses.auction_config_address
-    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -125,8 +142,8 @@ impl Default for AuctionParametersConfig {
     }
 }
 
-impl From<AuctionParametersConfig> for AuctionParameters {
-    fn from(val: AuctionParametersConfig) -> Self {
+impl From<&AuctionParametersConfig> for AuctionParameters {
+    fn from(val: &AuctionParametersConfig) -> Self {
         AuctionParameters {
             user_penalty_reward_bps: val.user_penalty_reward_bps,
             initial_penalty_bps: val.initial_penalty_bps,
@@ -143,25 +160,108 @@ impl From<AuctionParametersConfig> for AuctionParameters {
 pub async fn initialize_program(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
-    auction_parameters_config: AuctionParametersConfig,
-    payer_signer: &Keypair,
-    expected_error: Option<&ExpectedError>,
-    expected_log_messages: Option<&Vec<ExpectedLog>>,
-) -> Option<InitializeFixture> {
+    initial_state: &TestingEngineState,
+    config: &InitializeInstructionConfig,
+) -> TestingEngineState {
+    let auction_parameters_config = config.auction_parameters_config.clone();
+    let expected_error = config.expected_error();
+    let expected_log_messages = config.expected_log_messages();
+    let payer_signer = config
+        .payer_signer
+        .clone()
+        .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
+    // Create the initialize addresses
+    let initialize_addresses =
+        InitializeAddresses::create(testing_context, &auction_parameters_config);
+    // Create the initialize instruction
+    let instruction = initialize_program_instruction(testing_context, &auction_parameters_config);
+    // Create and sign transaction
+    let transaction = testing_context
+        .create_transaction(
+            test_context,
+            &[instruction],
+            Some(&payer_signer.pubkey()),
+            &[&payer_signer],
+            1000000000,
+            1000000000,
+        )
+        .await;
+    // Process transaction
+    testing_context
+        .execute_and_verify_transaction(test_context, transaction, expected_error)
+        .await;
+
+    if let Some(expected_log_messages) = expected_log_messages {
+        // Recreate the instruction
+        let instruction =
+            initialize_program_instruction(testing_context, &auction_parameters_config);
+        let transaction = testing_context
+            .create_transaction(
+                test_context,
+                &[instruction],
+                Some(&payer_signer.pubkey()),
+                &[&payer_signer,],
+                1000000000,
+                1000000000,
+            )
+            .await;
+        let versioned_transaction = VersionedTransaction::from(transaction);
+
+        // Simulate and verify logs
+        testing_context
+            .simulate_and_verify_logs(test_context, versioned_transaction, expected_log_messages)
+            .await
+            .expect("Failed to verify logs");
+    }
+
+    if expected_error.is_none() {
+        // Verify the results
+        let custodian_account = test_context
+            .banks_client
+            .get_account(initialize_addresses.custodian_address)
+            .await
+            .expect("Failed to get custodian account")
+            .expect("Custodian account not found");
+
+        let custodian = Custodian::try_deserialize(&mut custodian_account.data.as_slice()).unwrap();
+        let initialize_fixture = InitializeFixture {
+            custodian,
+            addresses: initialize_addresses.clone(),
+        };
+        let testing_actors = &testing_context.testing_actors;
+        let owner = testing_actors.owner.pubkey();
+        let owner_assistant = testing_actors.owner_assistant.pubkey();
+        let fee_recipient_token = testing_actors
+            .fee_recipient
+            .token_account_address(&SplTokenEnum::Usdc)
+            .unwrap();
+
+        initialize_fixture.verify_custodian(owner, owner_assistant, fee_recipient_token);
+        TestingEngineState::Initialized {
+            base: initial_state.base().clone(),
+            initialized: InitializedState {
+                auction_config_address: initialize_addresses.auction_config_address,
+                custodian_address: initialize_addresses.custodian_address,
+            },
+        }
+    } else {
+        initial_state.clone()
+    }
+}
+
+pub fn initialize_program_instruction(
+    testing_context: &TestingContext,
+    auction_parameters_config: &AuctionParametersConfig,
+) -> Instruction {
     let program_id = testing_context.get_matching_engine_program_id();
     let usdc_mint_address = testing_context.get_usdc_mint_address();
-    let cctp_mint_recipient = testing_context.get_cctp_mint_recipient();
-    let (custodian, _custodian_bump) =
-        Pubkey::find_program_address(&[Custodian::SEED_PREFIX], &program_id);
-
-    let (auction_config, _auction_config_bump) = Pubkey::find_program_address(
-        &[
-            AuctionConfig::SEED_PREFIX,
-            &auction_parameters_config.config_id.to_be_bytes(),
-        ],
-        &program_id,
-    );
-
+    let initialize_addresses =
+        InitializeAddresses::create(testing_context, &auction_parameters_config);
+    let InitializeAddresses {
+        custodian_address: custodian,
+        auction_config_address: auction_config,
+        cctp_mint_recipient,
+    } = initialize_addresses;
     // Create AuctionParameters
     let auction_params: AuctionParameters = auction_parameters_config.into();
 
@@ -196,81 +296,9 @@ pub async fn initialize_program(
     };
 
     // Create the instruction
-    let instruction = Instruction {
+    Instruction {
         program_id,
         accounts: accounts.to_account_metas(None),
         data: ix_data.data(),
-    };
-    // Create and sign transaction
-    let mut transaction = Transaction::new_with_payer(&[instruction], Some(&payer_signer.pubkey()));
-    let new_blockhash = testing_context
-        .get_new_latest_blockhash(test_context)
-        .await
-        .expect("Could not get new blockhash");
-    transaction.sign(
-        &[
-            &payer_signer,
-            &testing_context.testing_actors.owner.keypair().as_ref(),
-        ],
-        new_blockhash,
-    );
-
-    // Process transaction
-    let versioned_transaction = VersionedTransaction::from(transaction);
-    testing_context
-        .execute_and_verify_transaction(test_context, versioned_transaction, expected_error)
-        .await;
-
-    if let Some(expected_log_messages) = expected_log_messages {
-        // Recreate the instruction
-        let instruction = Instruction {
-            program_id,
-            accounts: accounts.to_account_metas(None),
-            data: ix_data.data(),
-        };
-        let mut transaction =
-            Transaction::new_with_payer(&[instruction], Some(&test_context.payer.pubkey()));
-        let new_blockhash = testing_context
-            .get_new_latest_blockhash(test_context)
-            .await
-            .expect("Could not get new blockhash");
-        transaction.sign(
-            &[
-                &test_context.payer,
-                &testing_context.testing_actors.owner.keypair(),
-            ],
-            new_blockhash,
-        );
-        let versioned_transaction = VersionedTransaction::from(transaction);
-
-        // Simulate and verify logs
-        testing_context
-            .simulate_and_verify_logs(test_context, versioned_transaction, expected_log_messages)
-            .await
-            .expect("Failed to verify logs");
-    }
-
-    if expected_error.is_none() {
-        // Verify the results
-        let custodian_account = test_context
-            .banks_client
-            .get_account(custodian)
-            .await
-            .expect("Failed to get custodian account")
-            .expect("Custodian account not found");
-
-        let custodian_data =
-            Custodian::try_deserialize(&mut custodian_account.data.as_slice()).unwrap();
-        let initialize_addresses = InitializeAddresses {
-            custodian_address: custodian,
-            auction_config_address: auction_config,
-            cctp_mint_recipient,
-        };
-        Some(InitializeFixture {
-            custodian: custodian_data,
-            addresses: initialize_addresses,
-        })
-    } else {
-        None
     }
 }

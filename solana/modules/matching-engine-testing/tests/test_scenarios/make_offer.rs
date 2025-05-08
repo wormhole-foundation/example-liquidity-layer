@@ -21,6 +21,7 @@ use crate::testing_engine;
 use crate::testing_engine::config::{
     InitializeInstructionConfig, PlaceInitialOfferInstructionConfig,
 };
+use crate::testing_engine::engine::CombinationTrigger;
 use crate::testing_engine::state::TestingEngineState;
 use crate::utils;
 use crate::utils::auction::compare_auctions;
@@ -73,7 +74,7 @@ const TRANSFER_DIRECTION: TransferDirection = TransferDirection::FromEthereumToA
 
 /// Test that the place initial offer shim instruction works correctly from arbitrum to ethereum
 #[tokio::test]
-pub async fn test_place_initial_offer_shim() {
+pub async fn test_place_initial_offer_shimful() {
     let config = PlaceInitialOfferInstructionConfig::default();
     let (final_state, _, _) =
         Box::pin(place_initial_offer_shim(config, None, TRANSFER_DIRECTION)).await;
@@ -182,6 +183,32 @@ pub async fn test_place_initial_offer_shim_and_improve_offer_shimless() {
         .await;
 }
 
+/// Test that place initial offer and create fast market order can be done in one transaction
+#[tokio::test]
+pub async fn test_place_initial_offer_and_create_fast_market_order_in_one_transaction() {
+    let config = Box::new(CombinedInstructionConfig::create_fast_market_order_and_place_initial_offer());
+    let vaa_args = 
+        vec![VaaArgs {
+            post_vaa: false,
+        ..VaaArgs::default()
+    }];
+    let (testing_context, mut test_context) = setup_environment(
+        ShimMode::VerifyAndPostSignature,
+        TransferDirection::FromArbitrumToEthereum,
+        Some(vaa_args),
+    )
+    .await;
+    let testing_engine = TestingEngine::new(testing_context).await;
+    let initialize_instruction_triggers = vec![
+        InstructionTrigger::InitializeProgram(InitializeInstructionConfig::default()),
+        InstructionTrigger::CreateCctpRouterEndpoints(
+            CreateCctpRouterEndpointsInstructionConfig::default(),
+        ),
+    ];
+    let initial_state = testing_engine.execute(&mut test_context, initialize_instruction_triggers, None).await;
+    let instruction_triggers = vec![CombinationTrigger::CreateFastMarketOrderAndPlaceInitialOffer(config)];
+    testing_engine.execute(&mut test_context, instruction_triggers, Some(initial_state)).await;
+}
 /*
                     Sad path tests section
 
