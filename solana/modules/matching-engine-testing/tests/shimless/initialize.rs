@@ -181,7 +181,7 @@ pub async fn initialize_program(
             test_context,
             &[instruction],
             Some(&payer_signer.pubkey()),
-            &[&payer_signer],
+            &[&payer_signer, &testing_context.testing_actors.owner.keypair()],
             1000000000,
             1000000000,
         )
@@ -200,7 +200,7 @@ pub async fn initialize_program(
                 test_context,
                 &[instruction],
                 Some(&payer_signer.pubkey()),
-                &[&payer_signer,],
+                &[&payer_signer, &testing_context.testing_actors.owner.keypair()],
                 1000000000,
                 1000000000,
             )

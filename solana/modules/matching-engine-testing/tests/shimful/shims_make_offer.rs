@@ -76,7 +76,6 @@ pub async fn place_initial_offer_shimful(
             1000000000,
         )
         .await;
-
     testing_context
         .execute_and_verify_transaction(test_context, transaction, expected_error)
         .await;
@@ -244,10 +243,13 @@ impl PlaceInitialOfferShimfulAccounts {
             .payer_signer
             .clone()
             .unwrap_or_else(|| testing_context.testing_actors.payer_signer.clone());
-        let close_account_refund_recipient = current_state
-            .fast_market_order()
-            .unwrap()
-            .close_account_refund_recipient;
+        let close_account_refund_recipient =
+            config.close_account_refund_recipient.unwrap_or_else(|| {
+                current_state
+                    .fast_market_order()
+                    .unwrap()
+                    .close_account_refund_recipient
+            });
         let fast_market_order = match &config.fast_market_order_address {
             Some(fast_market_order_address) => *fast_market_order_address,
             None => {

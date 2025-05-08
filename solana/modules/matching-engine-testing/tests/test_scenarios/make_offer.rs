@@ -186,10 +186,8 @@ pub async fn test_place_initial_offer_shim_and_improve_offer_shimless() {
 /// Test that place initial offer and create fast market order can be done in one transaction
 #[tokio::test]
 pub async fn test_place_initial_offer_and_create_fast_market_order_in_one_transaction() {
-    let config = Box::new(CombinedInstructionConfig::create_fast_market_order_and_place_initial_offer());
-    let vaa_args = 
-        vec![VaaArgs {
-            post_vaa: false,
+    let vaa_args = vec![VaaArgs {
+        post_vaa: false,
         ..VaaArgs::default()
     }];
     let (testing_context, mut test_context) = setup_environment(
@@ -205,9 +203,23 @@ pub async fn test_place_initial_offer_and_create_fast_market_order_in_one_transa
             CreateCctpRouterEndpointsInstructionConfig::default(),
         ),
     ];
-    let initial_state = testing_engine.execute(&mut test_context, initialize_instruction_triggers, None).await;
-    let instruction_triggers = vec![CombinationTrigger::CreateFastMarketOrderAndPlaceInitialOffer(config)];
-    testing_engine.execute(&mut test_context, instruction_triggers, Some(initial_state)).await;
+    let initial_state = testing_engine
+        .execute(&mut test_context, initialize_instruction_triggers, None)
+        .await;
+    let config = Box::new(
+        CombinedInstructionConfig::create_fast_market_order_and_place_initial_offer(
+            &testing_engine.testing_context.testing_actors,
+            &initial_state,
+            &testing_engine
+                .testing_context
+                .get_matching_engine_program_id(),
+        ),
+    );
+    let instruction_triggers =
+        vec![CombinationTrigger::CreateFastMarketOrderAndPlaceInitialOffer(config)];
+    testing_engine
+        .execute(&mut test_context, instruction_triggers, Some(initial_state))
+        .await;
 }
 /*
                     Sad path tests section
@@ -267,7 +279,7 @@ pub async fn test_place_initial_offer_shimless_blocks_shim() {
         InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig {
             actor: TestingActorEnum::Solver(1),
             expected_error: Some(ExpectedError {
-                instruction_index: 0,
+                instruction_index: 2,
                 error_code: 0,
                 error_string: TransactionError::AccountInUse.to_string(),
             }),
@@ -326,7 +338,7 @@ pub async fn test_place_initial_offer_shim_blocks_shimless() {
 #[tokio::test]
 pub async fn test_place_initial_offer_shim_fails_usdt_token_account() {
     let expected_error = ExpectedError {
-        instruction_index: 0,
+        instruction_index: 2,
         error_code: 3, // Token spl transfer error code when mint does not match
         error_string: "Invalid argument".to_string(),
     };
@@ -346,7 +358,7 @@ pub async fn test_place_initial_shim_offer_fails_usdt_mint_address() {
         ..PlaceInitialOfferCustomAccounts::default()
     };
     let expected_error = ExpectedError {
-        instruction_index: 0,
+        instruction_index: 2,
         error_code: u32::from(MatchingEngineError::InvalidMint), // Token spl transfer error code when mint does not match
         error_string: "Invalid mint".to_string(),
     };
@@ -390,7 +402,7 @@ pub async fn test_place_initial_offer_fails_if_fast_market_order_not_created() {
         InstructionTrigger::PlaceInitialOfferShim(PlaceInitialOfferInstructionConfig {
             fast_market_order_address: OverwriteCurrentState::Some(fake_fast_market_order_address),
             expected_error: Some(ExpectedError {
-                instruction_index: 0,
+                instruction_index: 2,
                 error_code: u32::from(ErrorCode::ConstraintOwner),
                 error_string: "Fast market order account owner is invalid".to_string(),
             }),
@@ -421,7 +433,7 @@ pub async fn test_place_initial_offer_shim_fails_when_offer_greater_than_max_fee
     .create_vaa_args_and_initial_offer_config();
 
     let expected_error = ExpectedError {
-        instruction_index: 0,
+        instruction_index: 2,
         error_code: u32::from(MatchingEngineError::OfferPriceTooHigh),
         error_string: "Offer price is greater than max fee".to_string(),
     };
@@ -451,7 +463,7 @@ pub async fn test_place_initial_offer_shim_fails_when_amount_in_is_u64_max() {
     .create_vaa_args_and_initial_offer_config();
 
     let expected_error = ExpectedError {
-        instruction_index: 0,
+        instruction_index: 2,
         error_code: u32::from(MatchingEngineError::U64Overflow),
         error_string: "U64Overflow".to_string(),
     };
@@ -481,7 +493,7 @@ pub async fn test_place_initial_offer_shim_fails_when_max_fee_and_amount_in_sum_
     .create_vaa_args_and_initial_offer_config();
 
     let expected_error = ExpectedError {
-        instruction_index: 0,
+        instruction_index: 2,
         error_code: u32::from(MatchingEngineError::U64Overflow),
         error_string: "U64Overflow".to_string(),
     };
@@ -528,7 +540,7 @@ pub async fn test_place_initial_offer_shim_fails_when_vaa_is_expired() {
 
     let place_initial_offer_config = PlaceInitialOfferInstructionConfig {
         expected_error: Some(ExpectedError {
-            instruction_index: 0,
+            instruction_index: 2,
             error_code: u32::from(MatchingEngineError::FastMarketOrderExpired),
             error_string: "Fast market order has expired".to_string(),
         }),
@@ -588,7 +600,7 @@ pub async fn test_place_initial_offer_shim_fails_custodian_is_paused() {
 
     let place_initial_offer_config = PlaceInitialOfferInstructionConfig {
         expected_error: Some(ExpectedError {
-            instruction_index: 0,
+            instruction_index: 2,
             error_code: u32::from(MatchingEngineError::Paused),
             error_string: "Fast market order account owner is invalid".to_string(),
         }),
@@ -614,7 +626,7 @@ pub async fn test_place_initial_offer_shim_fails_back_to_back() {
         .await;
 
     let expected_error = ExpectedError {
-        instruction_index: 0,
+        instruction_index: 2,
         error_code: 0,
         error_string: "Already in use".to_string(),
     };

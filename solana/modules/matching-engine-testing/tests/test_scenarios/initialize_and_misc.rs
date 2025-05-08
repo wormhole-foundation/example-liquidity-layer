@@ -131,7 +131,7 @@ pub async fn test_local_token_router_endpoint_creation() {
         &config,
     )
     .await;
-    let custodian = initialize_state.auction_accounts().unwrap().custodian;
+    let custodian = initialize_state.initialized().unwrap().custodian_address;
     let owner = &testing_engine.testing_context.testing_actors.owner;
     let _local_token_router_endpoint = add_local_router_endpoint_ix(
         &testing_engine.testing_context,

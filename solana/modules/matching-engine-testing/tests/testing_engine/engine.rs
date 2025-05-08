@@ -944,7 +944,6 @@ impl TestingEngine {
             .payer_signer
             .clone()
             .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
-        println!("Got here 0");
         let guardian_signature_info = create_guardian_signatures(
             &self.testing_context,
             test_context,
@@ -981,7 +980,6 @@ impl TestingEngine {
             .payer_signer
             .clone()
             .unwrap_or_else(|| self.testing_context.testing_actors.payer_signer.clone());
-        println!("Got here 1");
         let transaction = self
             .testing_context
             .create_transaction(
@@ -998,7 +996,6 @@ impl TestingEngine {
                 1000000000,
             )
             .await;
-        println!("Got here 2");
         let actor_usdc_balance_before = place_initial_offer_config
             .actor
             .get_actor(&self.testing_context.testing_actors)
@@ -1012,7 +1009,6 @@ impl TestingEngine {
         self.testing_context
             .execute_and_verify_transaction(test_context, transaction, None)
             .await;
-        println!("Got here 3");
         let fast_market_order_created_state = TestingEngineState::FastMarketOrderAccountCreated {
             base: current_state.base().clone(),
             initialized: current_state.initialized().unwrap().clone(),

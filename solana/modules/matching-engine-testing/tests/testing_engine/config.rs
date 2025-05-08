@@ -21,6 +21,7 @@ use std::{
 };
 
 use crate::{
+    shimful::fast_market_order_shim::create_fast_market_order_state_from_vaa_data,
     shimless::initialize::AuctionParametersConfig,
     utils::{
         auction::{ActiveAuctionState, AuctionAccounts},
@@ -29,6 +30,7 @@ use crate::{
     },
 };
 use anchor_lang::prelude::*;
+use matching_engine::state::FastMarketOrder as FastMarketOrderState;
 use solana_program_test::ProgramTestContext;
 use solana_sdk::signature::Keypair;
 
@@ -292,6 +294,7 @@ pub struct PlaceInitialOfferInstructionConfig {
     pub test_vaa_pair_index: usize,
     pub offer_price: u64,
     pub payer_signer: Option<Rc<Keypair>>,
+    pub close_account_refund_recipient: Option<Pubkey>,
     pub fast_market_order_address: OverwriteCurrentState<Pubkey>,
     pub custom_accounts: OverwriteCurrentState<PlaceInitialOfferCustomAccounts>,
     pub spl_token_enum: SplTokenEnum,
@@ -350,6 +353,7 @@ impl Default for PlaceInitialOfferInstructionConfig {
             test_vaa_pair_index: 0,
             offer_price: 1__000_000,
             payer_signer: None,
+            close_account_refund_recipient: None,
             fast_market_order_address: None,
             custom_accounts: None,
             spl_token_enum: SplTokenEnum::Usdc,
@@ -643,11 +647,35 @@ impl Default for CombinedInstructionConfig {
 }
 
 impl CombinedInstructionConfig {
-   pub fn create_fast_market_order_and_place_initial_offer(
+    pub fn create_fast_market_order_and_place_initial_offer(
+        testing_actors: &TestingActors,
+        current_state: &TestingEngineState,
+        program_id: &Pubkey,
     ) -> Self {
+        let test_vaa_pair = current_state.get_test_vaa_pair(0);
+        let fast_transfer_vaa = test_vaa_pair.fast_transfer_vaa.clone();
+        let fast_market_order = create_fast_market_order_state_from_vaa_data(
+            &fast_transfer_vaa.vaa_data,
+            testing_actors.solvers[0].pubkey(),
+        );
+        let (fast_market_order_address, _fast_market_order_bump) = Pubkey::find_program_address(
+            &[
+                FastMarketOrderState::SEED_PREFIX,
+                &fast_market_order.digest(),
+                &fast_market_order.close_account_refund_recipient.as_ref(),
+            ],
+            program_id,
+        );
+
         Self {
-            create_fast_market_order_config: Some(InitializeFastMarketOrderShimInstructionConfig::default()),
-            place_initial_offer_config: Some(PlaceInitialOfferInstructionConfig::default()),
+            create_fast_market_order_config: Some(
+                InitializeFastMarketOrderShimInstructionConfig::default(),
+            ),
+            place_initial_offer_config: Some(PlaceInitialOfferInstructionConfig {
+                close_account_refund_recipient: Some(testing_actors.solvers[0].actor.pubkey()),
+                fast_market_order_address: Some(fast_market_order_address),
+                ..PlaceInitialOfferInstructionConfig::default()
+            }),
             ..Default::default()
         }
     }
