@@ -215,6 +215,17 @@ pub fn create_execute_order_fallback_fixture(
     }
 }
 
+/// Create the execute order shim accounts
+///
+/// # Arguments
+///
+/// * `execute_order_fallback_accounts` - The execute order fallback accounts
+/// * `execute_order_fallback_fixture` - The execute order fallback fixture
+/// * `clock_id` - The clock id
+///
+/// # Returns
+///
+/// The execute order shim accounts
 pub fn create_execute_order_shim_accounts<'ix>(
     execute_order_fallback_accounts: &'ix ExecuteOrderFallbackAccounts,
     execute_order_fallback_fixture: &'ix ExecuteOrderFallbackFixture,

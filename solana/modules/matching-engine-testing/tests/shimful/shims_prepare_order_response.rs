@@ -145,15 +145,38 @@ impl PrepareOrderResponseShimAccountsFixture {
     }
 }
 
-pub struct PrepareOrderResponseShimDataFixture {
+/// Prepare order response shim data helper
+///
+/// This struct is a helper struct used to create the data for the prepare order response instruction
+///
+/// # Fields
+///
+/// * `encoded_cctp_message` - The encoded CCTP message
+/// * `cctp_attestation` - The CCTP attestation
+/// * `finalized_vaa_message_args` - The finalized VAA message args
+/// * `fast_market_order` - The fast market order
+pub struct PrepareOrderResponseShimDataHelper {
     pub encoded_cctp_message: Vec<u8>,
     pub cctp_attestation: Vec<u8>,
     pub finalized_vaa_message_args: FinalizedVaaMessageArgs,
     pub fast_market_order: FastMarketOrderState,
 }
 
-// Helper struct for creating the data for the prepare order response instruction
-impl PrepareOrderResponseShimDataFixture {
+impl PrepareOrderResponseShimDataHelper {
+    /// Create a new prepare order response shim data helper
+    ///
+    /// # Arguments
+    ///
+    /// * `encoded_cctp_message` - The encoded CCTP message
+    /// * `cctp_attestation` - The CCTP attestation
+    /// * `consistency_level` - The consistency level
+    /// * `base_fee` - The base fee
+    /// * `fast_market_order` - The fast market order
+    /// * `guardian_set_bump` - The guardian set bump
+    ///
+    /// # Returns
+    ///
+    /// The prepare order response shim data helper
     pub fn new(
         encoded_cctp_message: Vec<u8>,
         cctp_attestation: Vec<u8>,
@@ -183,12 +206,25 @@ impl PrepareOrderResponseShimDataFixture {
 }
 
 /// Executes the instruction that prepares the order response for the CCTP shim
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `test_context` - The test context
+/// * `payer_signer` - The payer signer
+/// * `accounts` - The prepare order response shim accounts
+/// * `data` - The prepare order response shim data
+/// * `expected_error` - The expected error
+///
+/// # Returns
+///
+/// The prepare order response shim fixture
 pub async fn prepare_order_response_cctp_shim(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
     payer_signer: &Rc<Keypair>,
     accounts: PrepareOrderResponseShimAccountsFixture,
-    data: PrepareOrderResponseShimDataFixture,
+    data: PrepareOrderResponseShimDataHelper,
     expected_error: Option<&ExpectedError>,
 ) -> Option<PrepareOrderResponseShimFixture> {
     let matching_engine_program_id = &testing_context.get_matching_engine_program_id();
@@ -280,6 +316,20 @@ pub async fn prepare_order_response_cctp_shim(
     }
 }
 
+/// Prepare order response test
+///
+/// Executes the prepare order response instruction in a testing context
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `test_context` - The test context
+/// * `config` - The prepare order response instruction config
+/// * `current_state` - The current state
+///
+/// # Returns
+///
+/// The prepare order response shim fixture (none if failed)
 pub async fn prepare_order_response_test(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
@@ -337,7 +387,7 @@ pub async fn prepare_order_response_test(
         .unwrap();
 
     let deposit_base_fee = utils::cctp_message::get_deposit_base_fee(&deposit);
-    let prepare_order_response_cctp_shim_data = PrepareOrderResponseShimDataFixture::new(
+    let prepare_order_response_cctp_shim_data = PrepareOrderResponseShimDataHelper::new(
         cctp_token_burn_message.encoded_cctp_burn_message,
         cctp_token_burn_message.cctp_attestation,
         deposit_vaa_data.consistency_level,

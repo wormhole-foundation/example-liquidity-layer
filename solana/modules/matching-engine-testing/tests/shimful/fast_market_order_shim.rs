@@ -33,16 +33,14 @@ use wormhole_io::TypePrefixedPayload;
 /// # Arguments
 ///
 /// * `testing_context` - The testing context
-/// * `payer_signer` - The payer signer keypair
-/// * `fast_market_order` - The fast market order state
-/// * `guardian_set_pubkey` - The guardian set pubkey
-/// * `guardian_signatures_pubkey` - The guardian signatures pubkey
-/// * `guardian_set_bump` - The guardian set bump
+/// * `test_context` - The program test context
 /// * `expected_error` - The expected error
+/// * `current_state` - The current testing engine state
+/// * `config` - The initialization configuration
 ///
-/// # Asserts
+/// # Returns
 ///
-/// * The expected error, if any, is reached when executing the instruction
+/// * `TestingEngineState` - The updated testing engine state
 pub async fn initialize_fast_market_order_shimful(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
@@ -134,9 +132,7 @@ pub async fn initialize_fast_market_order_shimful(
 /// * `payer_signer` - The payer signer keypair
 /// * `program_id` - The program id
 /// * `fast_market_order` - The fast market order state
-/// * `guardian_set_pubkey` - The guardian set pubkey
-/// * `guardian_signatures_pubkey` - The guardian signatures pubkey
-/// * `guardian_set_bump` - The guardian set bump
+/// * `guardian_signature_info` - Information about guardian signatures
 ///
 /// # Returns
 ///
@@ -184,7 +180,8 @@ pub fn initialize_fast_market_order_shimful_instruction(
 /// # Arguments
 ///
 /// * `testing_context` - The testing context
-/// * `refund_recipient_keypair` - The refund recipient keypair that will receive the refund after closing the fast market order account
+/// * `test_context` - The program test context
+/// * `refund_recipient_keypair` - The refund recipient keypair that will receive the refund
 /// * `fast_market_order_address` - The fast market order account address
 /// * `expected_error` - The expected error
 ///

@@ -90,6 +90,20 @@ pub async fn place_initial_offer_shimful(
     .await
 }
 
+/// Evaluate the place initial offer shimful state
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `test_context` - The test context
+/// * `current_state` - The current state
+/// * `config` - The config
+/// * `actor_usdc_balance_before` - The actor USDC balance before
+/// * `place_initial_offer_accounts` - The place initial offer shimful accounts
+///
+/// # Returns
+///
+/// The testing engine state after the place initial offer shimful instruction
 pub async fn evaluate_place_initial_offer_shimful_state(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,
@@ -170,6 +184,20 @@ pub async fn evaluate_place_initial_offer_shimful_state(
     current_state.clone()
 }
 
+/// Place the initial offer shimful instruction
+///
+/// Creates the place initial offer shimful instruction
+///
+/// # Arguments
+///
+/// * `testing_context` - The testing context
+/// * `test_context` - The test context
+/// * `current_state` - The current state
+/// * `config` - The config
+///
+/// # Returns
+///
+/// The place initial offer shimful instruction
 pub async fn place_initial_offer_shimful_instruction(
     testing_context: &TestingContext,
     test_context: &mut ProgramTestContext,

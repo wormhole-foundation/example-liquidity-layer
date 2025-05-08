@@ -378,6 +378,20 @@ impl TestingContext {
         Ok(())
     }
 
+    /// Creates a transaction
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `instructions` - The instructions to include in the transaction
+    /// * `payer` - The payer of the transaction
+    /// * `signers` - The signers of the transaction
+    /// * `compute_unit_price` - The compute unit price of the transaction
+    /// * `compute_unit_limit` - The compute unit limit of the transaction
+    ///
+    /// # Returns
+    ///
+    /// The transaction
     pub async fn create_transaction(
         &self,
         test_context: &mut ProgramTestContext,
@@ -399,7 +413,13 @@ impl TestingContext {
         Transaction::new_signed_with_payer(&all_instructions, payer, signers, last_blockhash)
     }
 
-    // TODO: Edit to handle multiple instructions in a single transaction
+    /// Executes a transaction and verifies that the transaction either succeeds or fails as expected
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `transaction` - The transaction to execute
+    /// * `expected_error` - The expected error
     pub async fn execute_and_verify_transaction(
         &self,
         test_context: &mut ProgramTestContext,
@@ -457,10 +477,27 @@ impl TestingContext {
     }
 
     /// Gets the balances of all the test actors
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    ///
+    /// # Returns
+    ///
+    /// The balances of all the test actors
     pub async fn get_balances(&self, test_context: &mut ProgramTestContext) -> Balances {
         Balances::new(&self.testing_actors, test_context).await
     }
 
+    /// Gets the current timestamp
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    ///
+    /// # Returns
+    ///
+    /// The current timestamp as an i64
     pub async fn get_current_timestamp(&self, test_context: &mut ProgramTestContext) -> i64 {
         let clock = test_context
             .banks_client
@@ -470,6 +507,12 @@ impl TestingContext {
         clock.unix_timestamp
     }
 
+    /// Fast forwards the clock to the given timestamp
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `target_timestamp` - The timestamp to fast forward to
     pub async fn fast_forward_to_timestamp(
         &self,
         test_context: &mut ProgramTestContext,
@@ -484,6 +527,12 @@ impl TestingContext {
         assert!(current_timestamp >= target_timestamp);
     }
 
+    /// Makes the fast transfer VAA expired
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `seconds_after_expiry` - The number of seconds after the VAA expiration time to make the VAA expired
     pub async fn make_fast_transfer_vaa_expired(
         &self,
         test_context: &mut ProgramTestContext,
@@ -499,6 +548,15 @@ impl TestingContext {
             .await;
     }
 
+    /// Gets the remote token messenger
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    ///
+    /// # Returns
+    ///
+    /// The remote token messenger as a CctpRemoteTokenMessenger
     pub async fn get_remote_token_messenger(
         &self,
         test_context: &mut ProgramTestContext,
@@ -549,14 +607,29 @@ impl Solver {
         }
     }
 
+    /// Gets the keypair
+    ///
+    /// # Returns
+    ///
+    /// The keypair as an Rc<Keypair>
     pub fn keypair(&self) -> Rc<Keypair> {
         self.actor.keypair.clone()
     }
 
+    /// Gets the pubkey
+    ///
+    /// # Returns
+    ///
+    /// The pubkey as a Pubkey
     pub fn pubkey(&self) -> Pubkey {
         self.actor.keypair.pubkey()
     }
 
+    /// Gets the token account address
+    ///
+    /// # Returns
+    ///
+    /// The token account address as an Option<Pubkey>
     pub fn token_account_address(&self) -> Option<Pubkey> {
         self.actor.usdc_token_account.as_ref().map(|t| t.address)
     }
@@ -580,6 +653,16 @@ impl Solver {
             .await;
     }
 
+    /// Gets the balance of the token account
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `spl_token_enum` - The SPL token enum
+    ///
+    /// # Returns
+    ///
+    /// The balance of the token account as a u64
     pub async fn get_token_account_balance(
         &self,
         test_context: &mut ProgramTestContext,
@@ -590,6 +673,15 @@ impl Solver {
             .await
     }
 
+    /// Gets the balance of the actor's lamports
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    ///
+    /// # Returns
+    ///
+    /// The balance of the actor's lamports as a u64
     pub async fn get_lamport_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
         self.actor.get_lamport_balance(test_context).await
     }
@@ -631,13 +723,34 @@ impl TestingActor {
             usdt_token_account,
         }
     }
+
+    /// Gets the pubkey
+    ///
+    /// # Returns
+    ///
+    /// The pubkey as a Pubkey
     pub fn pubkey(&self) -> Pubkey {
         self.keypair.pubkey()
     }
+
+    /// Gets the keypair
+    ///
+    /// # Returns
+    ///
+    /// The keypair as an Rc<Keypair>
     pub fn keypair(&self) -> Rc<Keypair> {
         self.keypair.clone()
     }
 
+    /// Gets the token account address
+    ///
+    /// # Arguments
+    ///
+    /// * `spl_token_enum` - The SPL token enum
+    ///
+    /// # Returns
+    ///
+    /// The token account address if it exists, otherwise None
     pub fn token_account_address(&self, spl_token_enum: &SplTokenEnum) -> Option<Pubkey> {
         match spl_token_enum {
             SplTokenEnum::Usdc => self.usdc_token_account.as_ref().map(|t| t.address),
@@ -650,6 +763,11 @@ impl TestingActor {
     /// # Arguments
     ///
     /// * `test_context` - The test context
+    /// * `spl_token_enum` - The SPL token enum
+    ///
+    /// # Returns
+    ///
+    /// The balance of the token account as a u64
     pub async fn get_token_account_balance(
         &self,
         test_context: &mut ProgramTestContext,
@@ -672,6 +790,15 @@ impl TestingActor {
         }
     }
 
+    /// Gets the balance of the actor's lamports
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    ///
+    /// # Returns
+    ///
+    /// The balance of the actor's lamports as a u64
     pub async fn get_lamport_balance(&self, test_context: &mut ProgramTestContext) -> u64 {
         test_context
             .banks_client
@@ -721,6 +848,12 @@ impl TestingActor {
             .expect("Failed to approve USDC");
     }
 
+    /// Closes a token account
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `spl_token_enum` - The SPL token enum
     pub async fn close_token_account(
         &self,
         test_context: &mut ProgramTestContext,
@@ -937,7 +1070,11 @@ impl TestingActors {
         actors
     }
 
-    /// Transfer Lamports to Executors
+    /// Transfers 10000000000 Lamports to all the actors
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
     async fn airdrop_all(&self, test_context: &mut ProgramTestContext) {
         airdrop(test_context, &self.payer_signer.pubkey(), 10000000000).await;
         airdrop(test_context, &self.owner.pubkey(), 10000000000).await;
@@ -950,7 +1087,14 @@ impl TestingActors {
         airdrop(test_context, &self.liquidator.pubkey(), 10000000000).await;
     }
 
-    /// Set up ATAs for Various Owners
+    /// Creates USDC associated token accounts
+    /// 
+    /// Creates usdc associated token accounts for all actors that expect to have them
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `usdc_mint_address` - The USDC mint address
     async fn create_usdc_atas(
         &mut self,
         test_context: &mut ProgramTestContext,
@@ -970,7 +1114,14 @@ impl TestingActors {
         }
     }
 
-    /// Create usdt associated token accounts
+    /// Creates USDT associated token accounts
+    ///
+    /// Creates usdt associated token accounts for all actors that expect to have them
+    ///
+    /// # Arguments
+    ///
+    /// * `test_context` - The test context
+    /// * `usdt_mint_address` - The USDT mint address
     pub async fn create_usdt_atas(
         &mut self,
         test_context: &mut ProgramTestContext,
@@ -990,6 +1141,11 @@ impl TestingActors {
         }
     }
 
+    /// Gets an actor
+    ///
+    /// # Arguments
+    ///
+    /// * `actor_enum` - The actor enum
     pub fn get_actor(&self, actor_enum: &TestingActorEnum) -> &TestingActor {
         match actor_enum {
             TestingActorEnum::Owner => &self.owner,
@@ -1001,7 +1157,7 @@ impl TestingActors {
         }
     }
 
-    /// Add solvers to the testing actors
+    /// Add solvers to the testing actors struct
     #[allow(dead_code)]
     pub async fn add_solvers(
         &mut self,

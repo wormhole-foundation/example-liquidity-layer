@@ -391,6 +391,10 @@ impl TestingEngine {
         }
     }
 
+    // --------------------------------------------------------------------------------------------
+    // Instruction trigger functions
+    // --------------------------------------------------------------------------------------------
+
     /// Creates the initial state for the testing engine
     pub fn create_initial_state(&self) -> TestingEngineState {
         let fixture_accounts = self
@@ -536,6 +540,8 @@ impl TestingEngine {
             order_executed: current_state.order_executed().cloned(),
         }
     }
+
+    /// Instruction trigger function for placing an initial offer
     async fn place_initial_offer_shimless(
         &self,
         test_context: &mut ProgramTestContext,
@@ -860,6 +866,10 @@ impl TestingEngine {
         }
     }
 
+    // --------------------------------------------------------------------------------------------
+    // Verification trigger functions
+    // --------------------------------------------------------------------------------------------
+
     async fn verify_auction_state(
         &self,
         test_context: &mut ProgramTestContext,
@@ -922,6 +932,10 @@ impl TestingEngine {
         }
         current_state.clone()
     }
+
+    // --------------------------------------------------------------------------------------------
+    // Combination trigger functions
+    // --------------------------------------------------------------------------------------------
 
     async fn create_fast_market_order_and_place_initial_offer(
         &self,
@@ -1037,6 +1051,10 @@ impl TestingEngine {
         )
         .await
     }
+
+    // --------------------------------------------------------------------------------------------
+    // Helper functions for manipulating the state
+    // --------------------------------------------------------------------------------------------
 
     pub async fn make_auction_passed_penalty_period(
         &self,
