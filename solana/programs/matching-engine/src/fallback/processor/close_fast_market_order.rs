@@ -8,7 +8,7 @@ pub struct CloseFastMarketOrderAccounts<'ix> {
     pub fast_market_order: &'ix Pubkey,
     /// The account that will receive rent from the fast market order account.
     /// This account is the only authority that can close the fast market order.
-    /// TODO: Rename to "refund_recipient".
+    // TODO: Rename to "refund_recipient".
     pub close_account_refund_recipient: &'ix Pubkey,
 }
 

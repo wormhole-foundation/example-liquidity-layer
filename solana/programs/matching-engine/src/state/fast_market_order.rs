@@ -127,7 +127,7 @@ impl FastMarketOrder {
 
     /// A double hash of the serialised fast market order. Used for seeds and
     /// verification.
-    /// TODO: Change return type to keccak::Hash
+    // TODO: Change return type to keccak::Hash
     pub fn digest(&self) -> [u8; 32] {
         wormhole_svm_definitions::compute_keccak_digest(
             keccak::hashv(&[
